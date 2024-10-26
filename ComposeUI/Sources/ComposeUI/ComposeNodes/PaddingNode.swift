@@ -6,68 +6,59 @@
 //
 
 import UIKit
-
-extension Compose {
   
-  fileprivate struct PaddingNode<Node: ComposeNode>: ComposeNode {
+private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
-    private let insets: UIEdgeInsets
-    
-    private var node: Node
+  private var node: Node  
+  private let insets: UIEdgeInsets
 
-    init(node: Node, insets: UIEdgeInsets) {
-      self.node = node
-      self.insets = insets
-    }
+  fileprivate init(node: Node, insets: UIEdgeInsets) {
+    self.node = node
+    self.insets = insets
+  }
+  
+  // MARK: - ComposeNode
+  
+  private(set) var size: CGSize = .zero
+  
+  mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+    let containerSize = CGSize(
+      width: max(0, containerSize.width - insets.horizontal),
+      height: max(0, containerSize.height - insets.vertical)
+    )
     
-    // MARK: - ComposeNode
+    let childSizing = node.layout(containerSize: containerSize)
+    size = CGSize(
+      width: node.size.width + insets.horizontal,
+      height: node.size.height + insets.vertical
+    )
     
-    private(set) var size: CGSize = .zero
+    return ComposeNodeSizing(
+      width: childSizing.width.combine(with: .fixed(insets.horizontal), axis: .main),
+      height: childSizing.height.combine(with: .fixed(insets.vertical), axis: .main)
+    )
+  }
+  
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+    let childOrigin = CGPoint(x: insets.left, y: insets.top)
     
-    mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
-      let containerSize = CGSize(
-        width: max(0, containerSize.width - insets.horizontal),
-        height: max(0, containerSize.height - insets.vertical)
-      )
-      
-      let childSizing = node.layout(containerSize: containerSize)
-      size = CGSize(
-        width: node.size.width + insets.horizontal,
-        height: node.size.height + insets.vertical
-      )
-      
-      return ComposeNodeSizing(
-        width: childSizing.width.combine(with: .fixed(insets.horizontal), axis: .main),
-        height: childSizing.height.combine(with: .fixed(insets.vertical), axis: .main)
-      )
-    }
+    let boundsInChild = visibleBounds.translate(-childOrigin)
     
-    func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
-      let childOrigin = CGPoint(x: insets.left, y: insets.top)
-      
-      let boundsInChild = visibleBounds.translate(-childOrigin)
-      
-      return node.viewItems(in: boundsInChild)
-        .map { item in
-          item
-            .id("\(ComposeNodeId.padding.rawValue)|\(item.id)")
-            .frame(item.frame.translate(childOrigin))
-        }
-    }
+    return node.viewItems(in: boundsInChild)
+      .map { item in
+        item
+          .id("\(ComposeNodeId.padding.rawValue)|\(item.id)")
+          .frame(item.frame.translate(childOrigin))
+      }
   }
 }
 
-private extension UIEdgeInsets {
-
-  var horizontal: CGFloat { left + right }
-
-  var vertical: CGFloat { top + bottom }
-}
+// MARK: - ComposeNode
 
 public extension ComposeNode {
 
   func padding(_ insets: UIEdgeInsets) -> some ComposeNode {
-    Compose.PaddingNode(node: self, insets: insets)
+    PaddingNode(node: self, insets: insets)
   }
 
   func padding(top: CGFloat = 0,

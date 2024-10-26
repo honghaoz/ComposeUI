@@ -10,24 +10,23 @@ import ComposeUI
 
 class ViewController: UIViewController {
 
-  private lazy var contentView = ComposeContentView { [weak self] _ in
-    guard let self else {
-      return Empty()
-    }
-    return self.content
-  }
-
   class ViewModel {
-
     var color: UIColor = .red
     var colorSize: CGFloat = 500
+    var cornerRadius: CGFloat = 16
   }
 
   private var viewModel = ViewModel()
 
+  private lazy var contentView = ComposeContentView { [weak self] _ in
+    self?.content ?? Spacer()
+  }
+
   @ComposeContentBuilder
   private var content: ComposeContent {
-    VerticalStack {
+    VStack {
+      Spacer().height(44)
+
       for _ in 0 ... 50 {
         Color(viewModel.color)
           .frame(width: .flexible, height: viewModel.colorSize)
@@ -37,32 +36,38 @@ class ViewController: UIViewController {
           .underlay {
             Color(.black).frame(100)
           }
-        
-        Spacer()
 
         HStack {
           Color(.green)
-          Color(.yellow).padding(vertical: 20)
           Color(.yellow)
+          Color(.blue)
         }
+        .frame(width: .flexible, height: 50)
+
         HStack {
           Color(.green)
           Color(.yellow)
-            .padding(horizontal: 20, vertical: 50)
+            .padding(20)
             .frame(.flexible)
           Color(.red)
           Spacer()
         }
-        LayeredStack {
+        .frame(width: .flexible, height: 100)
+
+        ZStack {
           Color(.yellow.withAlphaComponent(0.5)).padding(20)
           Color(.red.withAlphaComponent(0.5))
         }
+
         Color(.blue)
           .frame(width: .flexible, height: .fixed(viewModel.colorSize))
       }
+
+      Spacer().height(44)
     }
-    .border(color: .blue, width: 2)
-    .cornerRadius(8)
+    .border(color: .black, width: 1)
+    .cornerRadius(viewModel.cornerRadius)
+    .padding(16)
     .frame(width: .flexible, height: .intrinsic)
   }
 
@@ -87,29 +92,12 @@ class ViewController: UIViewController {
       button.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       button.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
     ])
-
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
-      self.scrollToBottom()
-    })
-  }
-
-  private func scrollToBottom() {
-    contentView.setContentOffset(CGPoint(x: 0, y: 2000), animated: true)
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
-      self.scrollToTop()
-    })
-  }
-
-  private func scrollToTop() {
-    contentView.setContentOffset(CGPoint(x: 0, y: 0), animated: true)
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
-      self.scrollToBottom()
-    })
   }
 
   @objc private func changeColor() {
     viewModel.color = UIColor.init(red: .random(in: 0...1), green: .random(in: 0...1), blue: .random(in: 0...1), alpha: 1)
-    viewModel.colorSize = CGFloat.random(in: 100...1500)
+    viewModel.colorSize = CGFloat.random(in: 100...400)
+    viewModel.cornerRadius = CGFloat.random(in: 0...16)
     contentView.refresh()
   }
 }
