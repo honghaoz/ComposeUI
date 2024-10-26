@@ -24,7 +24,7 @@ class ViewController: UIViewController {
 
   @ComposeContentBuilder
   private var content: ComposeContent {
-    VStack {
+    VStack(spacing: 8) {
       Spacer().height(44)
 
       for _ in 0 ... 50 {
@@ -37,7 +37,7 @@ class ViewController: UIViewController {
             Color(.black).frame(100)
           }
 
-        HStack {
+        HStack(spacing: 8) {
           Color(.green)
           Color(.yellow)
           Color(.blue)
@@ -51,13 +51,15 @@ class ViewController: UIViewController {
             .frame(.flexible)
           Color(.red)
           Spacer()
+            .background(Color(.black))
         }
         .frame(width: .flexible, height: 100)
 
         ZStack {
-          Color(.yellow.withAlphaComponent(0.5)).padding(20)
-          Color(.red.withAlphaComponent(0.5))
+          Color(.red.withAlphaComponent(0.75))
+          Color(.yellow.withAlphaComponent(0.5)).padding(horizontal: 16, vertical: 4)
         }
+        .frame(width: .flexible, height: 50)
 
         Color(.blue)
           .frame(width: .flexible, height: .fixed(viewModel.colorSize))

@@ -140,6 +140,8 @@ open class ComposeContentView: UIScrollView {
         // [2/3] reuse the view item that is still in the content
         view = oldViewMap[id]! // swiftlint:disable:this force_unwrapping
 
+        view.reset()
+
         bringSubviewToFront(view)
 
         // TODO: add animations to nodes
@@ -151,6 +153,8 @@ open class ComposeContentView: UIScrollView {
       } else {
         // [3/3] insert the view item that is new
         view = viewItem.make()
+
+        view.reset()
 
         view.frame = viewItem.frame.rounded(scaleFactor: contentScaleFactor)
 
@@ -165,6 +169,22 @@ open class ComposeContentView: UIScrollView {
 }
 
 // MARK: - Helpers
+
+private extension UIView {
+
+  /// Common reset for the view managed by `ComposeContentView`.
+  ///
+  /// To ensure the frame update is applied correctly, the transform is reset to identity.
+  func reset() {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+
+    // frame update requires an identity transform
+    layer.transform = CATransform3DIdentity
+
+    CATransaction.commit()
+  }
+}
 
 private extension CGRect {
 
