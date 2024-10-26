@@ -62,4 +62,17 @@ public extension ComposeNode {
       alignment: alignment
     )
   }
+
+  @inlinable
+  @inline(__always)
+  func background(alignment: Layout.Alignment = .center,
+                  @ComposeContentBuilder content: () -> ComposeContent) -> some ComposeNode {
+    underlay(content: content)
+  }
+
+  @inlinable
+  @inline(__always)
+  func background(_ node: some ComposeNode, alignment: Layout.Alignment = .center) -> some ComposeNode {
+    underlay(content: { node })
+  }
 }

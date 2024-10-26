@@ -41,6 +41,12 @@ public extension ComposeNode {
     ModifierNode(node: self, modifier: modifier)
   }
 
+  func keyPath<Value>(_ keyPath: ReferenceWritableKeyPath<UIView, Value>, _ value: Value) -> some ComposeNode {
+    modify { view in
+      view[keyPath: keyPath] = value
+    }
+  }
+
   func border(color: UIColor, width: CGFloat) -> some ComposeNode {
     modify { view in
       view.layer.borderColor = color.cgColor
