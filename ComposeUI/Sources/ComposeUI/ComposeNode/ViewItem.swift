@@ -15,6 +15,7 @@ public struct ViewItem<T: UIView> {
 
   let make: () -> T
 
+  // TODO: pass in update type: bounds change, scroll, refresh
   let update: (T) -> Void
 
   public init(id: String,

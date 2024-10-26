@@ -10,6 +10,7 @@ import Foundation
 enum ComposeNodeId: String {
 
   case color
+  case view
 
   case frame
   case padding
