@@ -1,5 +1,5 @@
 //
-//  ComposeContentView+ContentUpdateContext.swift
+//  EmptyNode.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -28,36 +28,28 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
+import UIKit
 
-extension ComposeContentView {
+public typealias Empty = EmptyNode
 
-  struct ContentUpdateContext {
+/// A node that renders nothing.
+///
+/// The node has a flexible size.
+public struct EmptyNode: ComposeNode {
 
-    enum ContentUpdateType {
+  /// Initialize an empty node.
+  public init() {}
 
-      /// Explicit refresh.
-      case refresh(isAnimated: Bool)
+  // MARK: - ComposeNode
 
-      /// View bounds changed.
-      case boundsChange
-    }
+  public private(set) var size: CGSize = .zero
 
-    let updateType: ContentUpdateType
+  public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+    size = containerSize
+    return ComposeNodeSizing(width: .flexible, height: .flexible)
+  }
 
-    var isRendering: Bool = false
-
-    var isAnimated: Bool {
-      switch updateType {
-      case .refresh(let isAnimated):
-        return isAnimated
-      case .boundsChange:
-        return false
-      }
-    }
-
-    init(updateType: ContentUpdateType) {
-      self.updateType = updateType
-    }
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+    return []
   }
 }

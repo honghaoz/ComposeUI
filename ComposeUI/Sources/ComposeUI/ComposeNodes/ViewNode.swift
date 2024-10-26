@@ -1,14 +1,38 @@
 //
-//  VerticalStackNode.swift
+//  ViewNode.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
 //
 
 import UIKit
 
 public typealias View = ViewNode
 
+/// A node that renders a `UIView`.
 public struct ViewNode<T: UIView>: ComposeNode {
 
   private let makeView: () -> T
@@ -53,6 +77,13 @@ public struct ViewNode<T: UIView>: ComposeNode {
     self.isFixedHeight = false
   }
 
+  /// Make a view node with a view factory.
+  ///
+  /// By default, the width and height of the view node are flexible.
+  ///
+  /// - Parameters:
+  ///   - make: A closure to create a view.
+  ///   - update: A closure to update the view.
   public init(make: @autoclosure @escaping () -> T = T(),
               update: @escaping (T) -> Void = { _ in })
   {
@@ -106,10 +137,26 @@ public struct ViewNode<T: UIView>: ComposeNode {
 
   // MARK: - Public
 
+  /// Set whether the width and height of the view node are fixed.
+  ///
+  /// - Parameters:
+  ///   - width: Whether the width is fixed.
+  ///   - height: Whether the height is fixed.
+  /// - Returns: A new view node with the width and height set.
   public func fixed(width: Bool = true, height: Bool = true) -> Self {
     var node = self
     node.isFixedWidth = width
     node.isFixedHeight = height
+    return node
+  }
+
+  /// Set the view node to be flexible.
+  ///
+  /// - Returns: A new view node with the width and height set to flexible.
+  public func flexible() -> Self {
+    var node = self
+    node.isFixedWidth = false
+    node.isFixedHeight = false
     return node
   }
 

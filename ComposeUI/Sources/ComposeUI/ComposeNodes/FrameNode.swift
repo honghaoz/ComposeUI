@@ -3,19 +3,53 @@
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
 //
 
 import UIKit
 
+/// A type that represents the size of a dimension.
 public enum FrameSize: Hashable {
 
+  /// A fixed size.
+  ///
+  /// The node will have a fixed size regardless of the container size.
   case fixed(CGFloat)
 
+  /// A flexible size.
+  ///
+  /// The node will have a flexible size that can grow or shrink based on the container size.
   case flexible
 
+  /// An intrinsic size.
+  ///
+  /// The node will have an intrinsic size based on its content.
   case intrinsic
 }
 
+/// A node that sets the frame of another node.
 private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
@@ -37,6 +71,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
   private(set) var size: CGSize = .zero
 
   mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+    // prepare the proposing size for the child node
     let childContainerSize: CGSize
     switch (width, height) {
     case (.fixed(let width), .fixed(let height)):
@@ -51,6 +86,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
     let childNodeSizing = node.layout(containerSize: childContainerSize)
 
+    // determine the final size and sizing for the wrapped node
     let sizing: ComposeNodeSizing
     switch (width, height) {
     case (.fixed(let width), .fixed(let height)):
@@ -96,7 +132,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
       .map { item in
         item
           .id("\(ComposeNodeId.frame.rawValue)|\(item.id)")
-          .frame(item.frame.translate(childFrame.origin))
+          .frame(item.frame.translate(childFrame.origin)) // translate the frame back to the parent node's coordinates
       }
   }
 }

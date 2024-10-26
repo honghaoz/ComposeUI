@@ -1,5 +1,5 @@
 //
-//  OverlayNode.swift
+//  OffsetNode.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -30,17 +30,15 @@
 
 import UIKit
 
-/// A node that overlays a node with another node.
-private struct OverlayNode<Node: ComposeNode>: ComposeNode {
+/// A node that offsets the child node's
+private struct OffsetNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
-  private var overlayNode: any ComposeNode
-  private let alignment: Layout.Alignment
+  private let offset: CGPoint
 
-  fileprivate init(node: Node, overlayNode: any ComposeNode, alignment: Layout.Alignment) {
+  fileprivate init(node: Node, offset: CGPoint) {
     self.node = node
-    self.overlayNode = overlayNode
-    self.alignment = alignment
+    self.offset = offset
   }
 
   // MARK: - ComposeNode
@@ -48,25 +46,18 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
   var size: CGSize { node.size }
 
   mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
-    let sizing = node.layout(containerSize: containerSize)
-    _ = overlayNode.layout(containerSize: node.size)
-    return sizing
+    node.layout(containerSize: containerSize)
   }
 
   func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
-    let childItems = node.viewItems(in: visibleBounds).map { item in
-      item.id("\(ComposeNodeId.overlay.rawValue)|\(item.id)")
-    }
+    let boundsInChild = visibleBounds.translate(-offset)
 
-    let overlayViewFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
-    let boundsInOverlay = visibleBounds.translate(-overlayViewFrame.origin)
-    let overlayViewItems = overlayNode.viewItems(in: boundsInOverlay).map { item in
-      item
-        .id("\(ComposeNodeId.overlay.rawValue)|O|\(item.id)")
-        .frame(item.frame.translate(overlayViewFrame.origin))
-    }
-
-    return childItems + overlayViewItems
+    return node.viewItems(in: boundsInChild)
+      .map { item in
+        item
+          .id("\(ComposeNodeId.offset.rawValue)|\(item.id)")
+          .frame(item.frame.translate(offset))
+      }
   }
 }
 
@@ -74,19 +65,23 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
 
 public extension ComposeNode {
 
-  /// Add an overlay content to the node.
+  /// Apply an offset to the node.
+  ///
+  /// - Parameter offset: The amount to offset the node by.
+  /// - Returns: A new node with the offset applied.
+  func offset(_ offset: CGPoint) -> some ComposeNode {
+    OffsetNode(node: self, offset: offset)
+  }
+
+  /// Apply an offset to the node.
   ///
   /// - Parameters:
-  ///   - alignment: The alignment of the overlay content.
-  ///   - content: The content to overlay.
-  /// - Returns: A new node with the overlay applied.
-  func overlay(alignment: Layout.Alignment = .center,
-               @ComposeContentBuilder content: () -> ComposeContent) -> some ComposeNode
-  {
-    OverlayNode(
-      node: self,
-      overlayNode: content().asZStack(alignment: alignment),
-      alignment: alignment
-    )
+  ///   - x: The amount to offset the node by on the x-axis.
+  ///   - y: The amount to offset the node by on the y-axis.
+  /// - Returns: A new node with the offset applied.
+  @inlinable
+  @inline(__always)
+  func offset(x: CGFloat = 0, y: CGFloat = 0) -> some ComposeNode {
+    offset(CGPoint(x: x, y: y))
   }
 }
