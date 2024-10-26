@@ -7,40 +7,39 @@
 
 import UIKit
 
-extension Compose {
+public typealias Color = ColorNode
 
-  public struct ColorNode: ComposeNode {
+public struct ColorNode: ComposeNode {
 
-    private let color: UIColor
+  private let color: UIColor
 
-    public init(_ color: UIColor) {
-      self.color = color
+  public init(_ color: UIColor) {
+    self.color = color
+  }
+
+  // MARK: - ComposeNode
+
+  public private(set) var size: CGSize = .zero
+
+  public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+    size = containerSize
+    return ComposeNodeSizing(width: .flexible, height: .flexible)
+  }
+
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+    let frame = CGRect(origin: .zero, size: size)
+    guard visibleBounds.actuallyIntersects(frame) else {
+      return []
     }
 
-    // MARK: - ComposeNode
-
-    public private(set) var size: CGSize = .zero
-
-    public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
-      size = containerSize
-      return ComposeNodeSizing(width: .flexible, height: .flexible)
-    }
-
-    public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
-      let frame = CGRect(origin: .zero, size: size)
-      guard visibleBounds.actuallyIntersects(frame) else {
-        return []
+    let viewItem = ViewItem<UIView>(
+      id: ComposeNodeId.color.rawValue,
+      frame: frame,
+      update: { view in
+        view.backgroundColor = color
       }
+    )
 
-      let viewItem = ViewItem<UIView>(
-        id: ComposeNodeId.color.rawValue,
-        frame: frame,
-        update: { view in
-          view.backgroundColor = color
-        }
-      )
-
-      return [viewItem]
-    }
+    return [viewItem]
   }
 }

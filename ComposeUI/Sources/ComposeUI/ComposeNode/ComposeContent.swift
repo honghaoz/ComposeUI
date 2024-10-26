@@ -18,11 +18,11 @@ public extension ComposeContent {
     let nodes = asNodes()
     switch nodes.count {
     case 0:
-      return Compose.EmptyNode()
+      return SpacerNode()
     case 1:
       return nodes.first! // swiftlint:disable:this force_unwrapping
     default:
-      return Compose.VerticalStackNode(alignment: alignment, content: { nodes })
+      return VerticalStackNode(alignment: alignment, content: { nodes })
     }
   }
 
@@ -30,11 +30,11 @@ public extension ComposeContent {
     let nodes = asNodes()
     switch nodes.count {
     case 0:
-      return Compose.EmptyNode()
+      return SpacerNode()
     case 1:
       return nodes.first! // swiftlint:disable:this force_unwrapping
     default:
-      return Compose.LayeredStackNode(alignment: alignment, content: { nodes })
+      return LayeredStackNode(alignment: alignment, content: { nodes })
     }
   }
 }

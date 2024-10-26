@@ -6,41 +6,39 @@
 //
 
 import UIKit
-
-extension Compose {
   
-  fileprivate struct ModifierNode<Node: ComposeNode>: ComposeNode {
+private struct ModifierNode<Node: ComposeNode>: ComposeNode {
 
-    private var node: Node
+  private var node: Node
+  private let modifier: (UIView) -> Void
 
-    private let modifier: (UIView) -> Void
-
-    init(node: Node, modifier: @escaping (UIView) -> Void) {
-      self.node = node
-      self.modifier = modifier
-    }
-    
-    // MARK: - ComposeNode
-    
-    var size: CGSize {
-      node.size
-    }
-    
-    mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
-      node.layout(containerSize: containerSize)
-    }
-    
-    func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
-      node.viewItems(in: visibleBounds)
-        .map { $0.addsUpdate(modifier) }
-    }
+  fileprivate init(node: Node, modifier: @escaping (UIView) -> Void) {
+    self.node = node
+    self.modifier = modifier
+  }
+  
+  // MARK: - ComposeNode
+  
+  var size: CGSize {
+    node.size
+  }
+  
+  mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+    node.layout(containerSize: containerSize)
+  }
+  
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+    node.viewItems(in: visibleBounds)
+      .map { $0.addsUpdate(modifier) }
   }
 }
+
+// MARK: - ComposeNode
 
 public extension ComposeNode {
 
   func modify(with modifier: @escaping (UIView) -> Void) -> some ComposeNode {
-    Compose.ModifierNode(node: self, modifier: modifier)
+    ModifierNode(node: self, modifier: modifier)
   }
 
   func border(color: UIColor, width: CGFloat) -> some ComposeNode {
