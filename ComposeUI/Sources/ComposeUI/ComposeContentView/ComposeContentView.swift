@@ -34,13 +34,15 @@ open class ComposeContentView: UIScrollView {
   /// Creates a `ComposeContentView` with the given content.
   public init(@ComposeContentBuilder content: @escaping (ComposeContentView) -> ComposeContent) {
     makeContent = content
-
     super.init(frame: .zero)
+    commonInit()
+  }
 
-    #if !os(visionOS)
-    contentScaleFactor = UIScreen.main.scale
-    #endif
-    contentInsetAdjustmentBehavior = .never // to ensure the content inset is consistent
+  /// Creates a `ComposeContentView` with the given content.
+  public init(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
+    makeContent = { _ in content() }
+    super.init(frame: .zero)
+    commonInit()
   }
 
   @available(*, unavailable)
@@ -53,6 +55,13 @@ open class ComposeContentView: UIScrollView {
   required public init?(coder: NSCoder) {
     // swiftlint:disable:next fatal_error
     fatalError("init(coder:) is unavailable")
+  }
+
+  private func commonInit() {
+    #if !os(visionOS)
+    contentScaleFactor = UIScreen.main.scale
+    #endif
+    contentInsetAdjustmentBehavior = .never // to ensure the content inset is consistent
   }
 
   /// Refreshes the content view by making a new content node and rendering the content.
@@ -95,7 +104,11 @@ open class ComposeContentView: UIScrollView {
     }
 
     // do the layout
+    // TODO: how to maintain a matched content offset?
     _ = content.layout(containerSize: bounds.size)
+
+    // TODO: check if the content is larger than the container
+    // if not, should use frame to center the content
 
     contentSize = content.size.roundedUp(scaleFactor: contentScaleFactor)
 
@@ -125,6 +138,8 @@ open class ComposeContentView: UIScrollView {
       if viewItemMap[oldId] == nil {
         // [1/3] remove the view item that are no longer in the content
         let oldView = oldViewMap[oldId]
+
+        // TODO: add transition animations
         oldView?.removeFromSuperview()
       } else {
         // this view item is still in the content, plan to reuse it
@@ -144,7 +159,7 @@ open class ComposeContentView: UIScrollView {
 
         bringSubviewToFront(view)
 
-        // TODO: add animations to nodes
+        // TODO: add animations onto nodes
         UIView.animate(withDuration: 0.25) {
           view.frame = viewItem.frame.rounded(scaleFactor: self.contentScaleFactor)
           viewItem.update(view)
@@ -158,6 +173,7 @@ open class ComposeContentView: UIScrollView {
 
         view.frame = viewItem.frame.rounded(scaleFactor: contentScaleFactor)
 
+        // TODO: add transition animations
         addSubview(view)
 
         viewItem.update(view)
