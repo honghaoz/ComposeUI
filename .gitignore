@@ -104,6 +104,7 @@ scripts/*
 !scripts/download-scripts.sh
 
 # ===== Binaries =====
+bin/jq
 bin/swiftformat
 bin/swiftlint
 bin/xcbeautify
