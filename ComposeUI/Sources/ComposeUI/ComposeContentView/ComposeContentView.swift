@@ -3,6 +3,29 @@
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
 //
 
 import UIKit
@@ -10,14 +33,15 @@ import UIKit
 /// A view that renders `ComposeContent`.
 open class ComposeContentView: UIScrollView {
 
-  /// An overridable content builder for the content view.
-  @ComposeContentBuilder
+  /// The content for the view.
+  ///
+  /// This is overridable so that a subclass can provide a content.
   var content: ComposeContent {
-    LabelNode("Hello ComposeUI!")
+    Empty()
   }
 
   /// The block to make content.
-  private var makeContent: ((ComposeContentView) -> ComposeContent)!
+  private var makeContent: (ComposeContentView) -> ComposeContent
 
   /// The current content node that the content view is rendering.
   private var contentNode: ContentNode?
@@ -37,24 +61,32 @@ open class ComposeContentView: UIScrollView {
   /// The map of the views that the content view is rendering.
   private var viewMap: [String: UIView] = [:]
 
-  /// Creates a `ComposeContentView` with the given content.
+  /// Creates a `ComposeContentView` with the given content, passing in the content view.
+  ///
+  /// - Parameter content: The content builder block.
   public init(@ComposeContentBuilder content: @escaping (ComposeContentView) -> ComposeContent) {
+    self.makeContent = content
+
     super.init(frame: .zero)
 
-    makeContent = content
     commonInit()
   }
 
   /// Creates a `ComposeContentView` with the given content.
+  ///
+  /// - Parameter content: The content builder block.
   public init(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
+    makeContent = { _ in content() }
+
     super.init(frame: .zero)
 
-    makeContent = { _ in content() }
     commonInit()
   }
 
-  /// Creates a `ComposeContentView` with `content`. This is useful for subclassing.
+  /// Creates a `ComposeContentView` with `content`.
   init() {
+    makeContent = { _ in Empty() }
+
     super.init(frame: .zero)
 
     makeContent = { [unowned self] _ in content } // swiftlint:disable:this unowned_variable
@@ -62,41 +94,51 @@ open class ComposeContentView: UIScrollView {
   }
 
   @available(*, unavailable)
-  public override init(frame: CGRect) {
-    // swiftlint:disable:next fatal_error
-    fatalError("init(frame:) is unavailable")
+  override public init(frame: CGRect) {
+    fatalError("init(frame:) is unavailable") // swiftlint:disable:this fatal_error
   }
 
   @available(*, unavailable)
-  required public init?(coder: NSCoder) {
-    // swiftlint:disable:next fatal_error
-    fatalError("init(coder:) is unavailable")
+  public required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
   }
 
   private func commonInit() {
     #if !os(visionOS)
     contentScaleFactor = UIScreen.main.scale
     #endif
-    contentInsetAdjustmentBehavior = .never // to ensure the content inset is consistent
+    contentInsetAdjustmentBehavior = .never // ensure the content inset is consistent
   }
 
-  /// Set the content closure for the content view.
+  /// Set a new content.
+  ///
+  /// - Parameter content: The content builder block, passing in the content view.
   func setContent(@ComposeContentBuilder content: @escaping (ComposeContentView) -> ComposeContent) {
     makeContent = content
   }
 
-  /// Set the content closure for the content view.
+  /// Set a new content.
+  ///
+  /// - Parameter content: The content builder block.
   func setContent(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
     makeContent = { _ in content() }
   }
 
-  open override func sizeThatFits(_ size: CGSize) -> CGSize {
+  /// Get the size that fits the content.
+  ///
+  /// - Parameter size: The container size.
+  /// - Returns: The size that fits the content.
+  override open func sizeThatFits(_ size: CGSize) -> CGSize {
     var contentNode = makeContent(self).asVStack(alignment: .center)
     _ = contentNode.layout(containerSize: size)
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
   }
 
-  /// Refreshes the content view by making a new content node and rendering the content.
+  /// Refreshes and re-renders the content.
+  ///
+  /// This call will make a new content from the builder block and re-render the content.
+  ///
+  /// - Parameter animated: Whether the refresh is animated.
   public func refresh(animated: Bool = true) {
     // explicit render request, should make a new content
     contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
@@ -106,7 +148,7 @@ open class ComposeContentView: UIScrollView {
     layoutIfNeeded()
   }
 
-  open override func layoutSubviews() {
+  override open func layoutSubviews() {
     super.layoutSubviews()
 
     if contentUpdateContext == nil, bounds != lastRenderBounds {
@@ -182,7 +224,7 @@ open class ComposeContentView: UIScrollView {
 
     for id in viewItemIds {
       let viewItem = viewItemMap[id]! // swiftlint:disable:this force_unwrapping
-      
+
       let view: UIView
       if reusingIds.contains(id) {
         // [2/3] reuse the view item that is still in the content
@@ -241,6 +283,11 @@ private extension UIView {
 
 private extension CGRect {
 
+  /// Rounds the rectangle to the nearest pixel size based on the given scale factor.
+  /// So that the view can be rendered without subpixel rendering artifacts.
+  ///
+  /// - Parameter scaleFactor: The scale factor of the screen.
+  /// - Returns: The rounded rectangle.
   func rounded(scaleFactor: CGFloat) -> CGRect {
     if isNull || isInfinite {
       return self
@@ -261,6 +308,9 @@ private extension CGSize {
   /// Rounds up the size to the nearest pixel size based on the given scale factor.
   ///
   /// For example, `CGSize(width: 49.9, height: 50.0).roundedUp(scaleFactor: 2.0)` returns `CGSize(width: 50.0, height: 50.0)`.
+  ///
+  /// - Parameter scaleFactor: The scale factor of the screen.
+  /// - Returns: The rounded size.
   func roundedUp(scaleFactor: CGFloat) -> CGSize {
     guard scaleFactor > 0 else {
       return self
@@ -275,6 +325,12 @@ private extension CGSize {
 
 private extension CGFloat {
 
+  /// Rounds the value to the nearest value based on the given nearest value.
+  ///
+  /// For example, `1.1.round(nearest: 0.5)` returns `1.0` and `1.4.round(nearest: 0.5)` returns `1.5`.
+  ///
+  /// - Parameter nearest: The nearest value, usually this is 1 divided by the scale factor of the screen.
+  /// - Returns: The rounded value.
   func round(nearest: CGFloat) -> CGFloat {
     let n = 1 / nearest
     let numberToRound = self * n
@@ -284,6 +340,9 @@ private extension CGFloat {
   /// Rounds up the value to the nearest value based on the given nearest value.
   ///
   /// For example, `1.0.ceil(nearest: 0.5)` returns `1.0` and `1.1.ceil(nearest: 0.5)` returns `1.5`.
+  ///
+  /// - Parameter nearest: The nearest value, usually this is 1 divided by the scale factor of the screen.
+  /// - Returns: The rounded value.
   func ceil(nearest: CGFloat) -> CGFloat {
     let remainder = truncatingRemainder(dividingBy: nearest)
     if abs(remainder) <= 1e-12 {
