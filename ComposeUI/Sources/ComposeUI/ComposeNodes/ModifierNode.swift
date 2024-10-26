@@ -82,4 +82,11 @@ public extension ComposeNode {
       view.alpha = alpha
     }
   }
+
+  /// Set `isUserInteractionEnabled` of the view.
+  func interactive(_ isEnabled: Bool = true) -> some ComposeNode {
+    modify { view in
+      view.isUserInteractionEnabled = isEnabled
+    }
+  }
 }

@@ -14,6 +14,9 @@ public protocol ComposeContent {
 
 public extension ComposeContent {
 
+  /// Convert the compose content to a vertical stack node.
+  /// - Parameter alignment: The alignment of the vertical stack node.
+  /// - Returns: The vertical stack node.
   func asVStack(alignment: Layout.HorizontalAlignment) -> any ComposeNode {
     let nodes = asNodes()
     switch nodes.count {
@@ -26,6 +29,9 @@ public extension ComposeContent {
     }
   }
 
+  /// Convert the compose content to a layered stack node.
+  /// - Parameter alignment: The alignment of the layered stack node.
+  /// - Returns: The layered stack node.
   func asZStack(alignment: Layout.Alignment) -> any ComposeNode {
     let nodes = asNodes()
     switch nodes.count {

@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// A builder to compose the compose content.
 @resultBuilder
 public enum ComposeContentBuilder {
 

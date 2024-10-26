@@ -37,6 +37,8 @@ public struct ColorNode: ComposeNode {
       frame: frame,
       update: { view in
         view.backgroundColor = color
+
+        view.isUserInteractionEnabled = false
       }
     )
 

@@ -121,6 +121,10 @@ public extension ComposeNode {
     FrameNode(node: self, width: .fixed(width), height: .fixed(height), alignment: alignment)
   }
 
+  func frame(_ size: CGSize, alignment: Layout.Alignment = .center) -> some ComposeNode {
+    FrameNode(node: self, width: .fixed(size.width), height: .fixed(size.height), alignment: alignment)
+  }
+
   func frame(_ size: CGFloat, alignment: Layout.Alignment = .center) -> some ComposeNode {
     FrameNode(node: self, width: .fixed(size), height: .fixed(size), alignment: alignment)
   }

@@ -41,8 +41,9 @@ class ViewController: UIViewController {
   private lazy var contentView = ComposeContentView { [state] in
     Spacer().height(60)
 
-    View(
-      make: UILabel(),
+    LabelNode("Hey")
+
+    View<UILabel>(
       update: { label in
         label.text = "Hello, ComposeUI!"
         label.textAlignment = .center
@@ -50,7 +51,7 @@ class ViewController: UIViewController {
     )
     .frame(width: 200, height: 50)
 
-    View(state.subtitleLabel)
+    state.subtitleLabel
 
     VStack(spacing: 8) {
       for _ in 0 ... 50 {
