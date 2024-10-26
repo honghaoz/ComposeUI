@@ -142,7 +142,7 @@ class ViewController: UIViewController {
     button.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       button.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-      button.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+      button.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -30),
     ])
   }
 
