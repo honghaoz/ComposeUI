@@ -53,7 +53,7 @@ public struct ViewNode<T: UIView>: ComposeNode {
     self.isFixedHeight = false
   }
 
-  public init(make: @autoclosure @escaping () -> T,
+  public init(make: @autoclosure @escaping () -> T = T(),
               update: @escaping (T) -> Void = { _ in })
   {
     self.makeView = { make() }

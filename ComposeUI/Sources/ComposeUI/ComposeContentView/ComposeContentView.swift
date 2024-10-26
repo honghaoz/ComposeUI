@@ -10,11 +10,17 @@ import UIKit
 /// A view that renders `ComposeContent`.
 open class ComposeContentView: UIScrollView {
 
+  /// An overridable content builder for the content view.
+  @ComposeContentBuilder
+  var content: ComposeContent {
+    LabelNode("Hello ComposeUI!")
+  }
+
   /// The block to make content.
-  private let makeContent: (ComposeContentView) -> ComposeContent
+  private var makeContent: ((ComposeContentView) -> ComposeContent)!
 
   /// The current content node that the content view is rendering.
-  private var content: ContentNode?
+  private var contentNode: ContentNode?
 
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
@@ -33,15 +39,25 @@ open class ComposeContentView: UIScrollView {
 
   /// Creates a `ComposeContentView` with the given content.
   public init(@ComposeContentBuilder content: @escaping (ComposeContentView) -> ComposeContent) {
-    makeContent = content
     super.init(frame: .zero)
+
+    makeContent = content
     commonInit()
   }
 
   /// Creates a `ComposeContentView` with the given content.
   public init(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
-    makeContent = { _ in content() }
     super.init(frame: .zero)
+
+    makeContent = { _ in content() }
+    commonInit()
+  }
+
+  /// Creates a `ComposeContentView` with `content`. This is useful for subclassing.
+  init() {
+    super.init(frame: .zero)
+
+    makeContent = { [unowned self] _ in content } // swiftlint:disable:this unowned_variable
     commonInit()
   }
 
@@ -64,11 +80,27 @@ open class ComposeContentView: UIScrollView {
     contentInsetAdjustmentBehavior = .never // to ensure the content inset is consistent
   }
 
+  /// Set the content closure for the content view.
+  func setContent(@ComposeContentBuilder content: @escaping (ComposeContentView) -> ComposeContent) {
+    makeContent = content
+  }
+
+  /// Set the content closure for the content view.
+  func setContent(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
+    makeContent = { _ in content() }
+  }
+
+  open override func sizeThatFits(_ size: CGSize) -> CGSize {
+    var contentNode = makeContent(self).asVStack(alignment: .center)
+    _ = contentNode.layout(containerSize: size)
+    return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
+  }
+
   /// Refreshes the content view by making a new content node and rendering the content.
-  public func refresh() {
+  public func refresh(animated: Bool = true) {
     // explicit render request, should make a new content
-    content = ContentNode(node: makeContent(self).asVStack(alignment: .center))
-    contentUpdateContext = ContentUpdateContext(updateType: .refresh)
+    contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
+    contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated))
 
     setNeedsLayout()
     layoutIfNeeded()
@@ -79,8 +111,8 @@ open class ComposeContentView: UIScrollView {
 
     if contentUpdateContext == nil, bounds != lastRenderBounds {
       // no explicit render request, this is a bounds change update
-      if content == nil {
-        content = ContentNode(node: makeContent(self).asVStack(alignment: .center))
+      if contentNode == nil {
+        contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
       }
       contentUpdateContext = ContentUpdateContext(updateType: .boundsChange)
     }
@@ -99,20 +131,20 @@ open class ComposeContentView: UIScrollView {
   }
 
   private func render(_ context: ContentUpdateContext) {
-    guard let content else {
+    guard let contentNode else {
       return
     }
 
     // do the layout
     // TODO: how to maintain a matched content offset?
-    _ = content.layout(containerSize: bounds.size)
+    _ = contentNode.layout(containerSize: bounds.size)
 
     // TODO: check if the content is larger than the container
     // if not, should use frame to center the content
 
-    contentSize = content.size.roundedUp(scaleFactor: contentScaleFactor)
+    contentSize = contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
 
-    let viewItems = content.viewItems(in: bounds)
+    let viewItems = contentNode.viewItems(in: bounds)
 
     // set up the view item ids and map
     let oldViewItemIds = viewItemIds
@@ -132,6 +164,7 @@ open class ComposeContentView: UIScrollView {
       viewItemMap[id] = viewItem
     }
 
+    // update the views
     var reusingIds: Set<String> = []
 
     for oldId in oldViewItemIds {
@@ -159,12 +192,16 @@ open class ComposeContentView: UIScrollView {
 
         bringSubviewToFront(view)
 
-        // TODO: add animations onto nodes
-        UIView.animate(withDuration: 0.25) {
-          view.frame = viewItem.frame.rounded(scaleFactor: self.contentScaleFactor)
+        if context.isAnimated {
+          // TODO: add animations onto nodes
+          UIView.animate(withDuration: 0.25) {
+            view.frame = viewItem.frame.rounded(scaleFactor: self.contentScaleFactor)
+            viewItem.update(view)
+          }
+        } else {
+          view.frame = viewItem.frame.rounded(scaleFactor: contentScaleFactor)
           viewItem.update(view)
         }
-        
       } else {
         // [3/3] insert the view item that is new
         view = viewItem.make()
