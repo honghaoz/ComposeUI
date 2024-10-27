@@ -28,10 +28,16 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// A view item that can create a view and update the view.
-public struct ViewItem<T: UIView> {
+public struct ViewItem<T: View> {
 
   /// The unique identifier of the view item.
   let id: String
@@ -91,11 +97,11 @@ public struct ViewItem<T: UIView> {
     })
   }
 
-  /// Erase the view type to a generic `UIView` item.
+  /// Erase the view type to a generic `View` item.
   ///
-  /// - Returns: The view item with the generic `UIView` type.
-  func eraseToUIViewItem() -> ViewItem<UIView> {
-    ViewItem<UIView>(
+  /// - Returns: The view item with the generic `View` type.
+  func eraseToViewItem() -> ViewItem<View> {
+    ViewItem<View>(
       id: id,
       frame: frame,
       make: make,

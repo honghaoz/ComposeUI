@@ -66,7 +66,7 @@ class ViewController: UIViewController {
 
     LabelNode("Hey")
 
-    View<UILabel>(
+    ViewNode<UILabel>(
       update: { label in
         label.text = "Hello, ComposeUI!"
         label.textAlignment = .center
@@ -78,40 +78,40 @@ class ViewController: UIViewController {
 
     VStack(spacing: 8) {
       for _ in 0 ... 50 {
-        Color(state.color)
+        ColorNode(state.color)
           .frame(width: .flexible, height: state.colorSize)
           .overlay {
-            Color(.red).frame(50)
+            ColorNode(.red).frame(50)
           }
           .underlay {
-            Color(.black).frame(100)
+            ColorNode(.black).frame(100)
           }
 
         HStack(spacing: 8) {
-          Color(.green)
-          Color(.yellow)
-          Color(.blue)
+          ColorNode(.green)
+          ColorNode(.yellow)
+          ColorNode(.blue)
         }
         .frame(width: .flexible, height: 50)
 
         HStack {
-          Color(.green)
-          Color(.yellow)
+          ColorNode(.green)
+          ColorNode(.yellow)
             .padding(20)
             .frame(.flexible)
-          Color(.red)
+          ColorNode(.red)
           Spacer()
-            .background(Color(.black))
+            .background(ColorNode(.black))
         }
         .frame(width: .flexible, height: 100)
 
         ZStack {
-          Color(.red.withAlphaComponent(0.75))
-          Color(.yellow.withAlphaComponent(0.5)).padding(horizontal: 16, vertical: 4)
+          ColorNode(.red.withAlphaComponent(0.75))
+          ColorNode(.yellow.withAlphaComponent(0.5)).padding(horizontal: 16, vertical: 4)
         }
         .frame(width: .flexible, height: 50)
 
-        Color(.blue)
+        ColorNode(.blue)
           .frame(width: .flexible, height: .fixed(state.colorSize))
       }
 

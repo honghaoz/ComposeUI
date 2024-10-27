@@ -28,15 +28,21 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// A node that applies a modifier to a child node.
 private struct ModifierNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
-  private let modifier: (UIView) -> Void
+  private let modifier: (View) -> Void
 
-  fileprivate init(node: Node, modifier: @escaping (UIView) -> Void) {
+  fileprivate init(node: Node, modifier: @escaping (View) -> Void) {
     self.node = node
     self.modifier = modifier
   }
@@ -51,7 +57,7 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
     node.layout(containerSize: containerSize)
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     node.viewItems(in: visibleBounds)
       .map { $0.addsUpdate(modifier) }
   }
@@ -65,7 +71,7 @@ public extension ComposeNode {
   ///
   /// - Parameter modifier: The modifier to apply.
   /// - Returns: A new node with the modifier applied.
-  func modify(with modifier: @escaping (UIView) -> Void) -> some ComposeNode {
+  func modify(with modifier: @escaping (View) -> Void) -> some ComposeNode {
     ModifierNode(node: self, modifier: modifier)
   }
 
@@ -75,7 +81,7 @@ public extension ComposeNode {
   ///   - keyPath: The key path to set.
   ///   - value: The value to set.
   /// - Returns: A new node with the key path set.
-  func keyPath<Value>(_ keyPath: ReferenceWritableKeyPath<UIView, Value>, _ value: Value) -> some ComposeNode {
+  func keyPath<Value>(_ keyPath: ReferenceWritableKeyPath<View, Value>, _ value: Value) -> some ComposeNode {
     modify { view in
       view[keyPath: keyPath] = value
     }
@@ -87,10 +93,10 @@ public extension ComposeNode {
   ///   - color: The color of the border.
   ///   - width: The width of the border.
   /// - Returns: A new node with the border set.
-  func border(color: UIColor, width: CGFloat) -> some ComposeNode {
+  func border(color: Color, width: CGFloat) -> some ComposeNode {
     modify { view in
-      view.layer.borderColor = color.cgColor
-      view.layer.borderWidth = width
+      view.layer().borderColor = color.cgColor
+      view.layer().borderWidth = width
     }
   }
 
@@ -100,9 +106,9 @@ public extension ComposeNode {
   /// - Returns: A new node with the corner radius set.
   func cornerRadius(_ radius: CGFloat) -> some ComposeNode {
     modify { view in
-      view.layer.masksToBounds = true
-      view.layer.cornerCurve = .continuous
-      view.layer.cornerRadius = radius
+      view.layer().masksToBounds = true
+      view.layer().cornerCurve = .continuous
+      view.layer().cornerRadius = radius
     }
   }
 
@@ -114,12 +120,12 @@ public extension ComposeNode {
   ///   - radius: The radius of the shadow.
   ///   - opacity: The opacity of the shadow.
   /// - Returns: A new node with the shadow set.
-  func shadow(color: UIColor, offset: CGSize, radius: CGFloat, opacity: Float) -> some ComposeNode {
+  func shadow(color: Color, offset: CGSize, radius: CGFloat, opacity: Float) -> some ComposeNode {
     modify { view in
-      view.layer.shadowColor = color.cgColor
-      view.layer.shadowOffset = offset
-      view.layer.shadowRadius = radius
-      view.layer.shadowOpacity = opacity
+      view.layer().shadowColor = color.cgColor
+      view.layer().shadowOffset = offset
+      view.layer().shadowRadius = radius
+      view.layer().shadowOpacity = opacity
     }
   }
 
@@ -127,9 +133,9 @@ public extension ComposeNode {
   ///
   /// - Parameter color: The background color to set.
   /// - Returns: A new node with the background color set.
-  func backgroundColor(_ color: UIColor) -> some ComposeNode {
+  func backgroundColor(_ color: Color) -> some ComposeNode {
     modify { view in
-      view.backgroundColor = color
+      view.layer().backgroundColor = color.cgColor
     }
   }
 
@@ -139,7 +145,7 @@ public extension ComposeNode {
   /// - Returns: A new node with the opacity set.
   func opacity(_ opacity: CGFloat) -> some ComposeNode {
     modify { view in
-      view.alpha = opacity
+      view.layer().opacity = Float(opacity)
     }
   }
 
@@ -149,7 +155,13 @@ public extension ComposeNode {
   /// - Returns: A new node with the `isUserInteractionEnabled` set.
   func interactive(_ isEnabled: Bool = true) -> some ComposeNode {
     modify { view in
+      #if canImport(AppKit)
+      view.ignoreHitTest = !isEnabled
+      #endif
+
+      #if canImport(UIKit)
       view.isUserInteractionEnabled = isEnabled
+      #endif
     }
   }
 }

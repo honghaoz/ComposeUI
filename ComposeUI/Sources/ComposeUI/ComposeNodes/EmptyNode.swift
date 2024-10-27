@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 public typealias Empty = EmptyNode
 
@@ -49,7 +49,7 @@ public struct EmptyNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     return []
   }
 }

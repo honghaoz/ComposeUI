@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 /// A node that renders a node with an underlay node.
 private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
@@ -56,7 +56,7 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let childItems = node.viewItems(in: visibleBounds).map { item in
       item.id("\(ComposeNodeId.underlay.rawValue)|\(item.id)")
     }

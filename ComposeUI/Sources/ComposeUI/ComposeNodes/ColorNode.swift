@@ -28,21 +28,25 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+#if canImport(AppKit)
+import AppKit
+#endif
 
-public typealias Color = ColorNode
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// A node that renders a solid color.
 ///
 /// The node has a flexible size.
 public struct ColorNode: ComposeNode {
 
-  private let color: UIColor
+  private let color: Color
 
   /// Initialize a color node with a color.
   ///
   /// - Parameter color: The color to render.
-  public init(_ color: UIColor) {
+  public init(_ color: Color) {
     self.color = color
   }
 
@@ -55,21 +59,28 @@ public struct ColorNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.actuallyIntersects(frame) else {
       return []
     }
 
-    let viewItem = ViewItem<UIView>(
+    let viewItem = ViewItem<BaseView>(
       id: ComposeNodeId.color.rawValue,
       frame: frame,
       update: { view in
+        #if canImport(AppKit)
+        view.ignoreHitTest = true
+        #endif
+
+        #if canImport(UIKit)
         view.isUserInteractionEnabled = false
-        view.backgroundColor = color
+        #endif
+
+        view.layer().backgroundColor = color.cgColor
       }
     )
 
-    return [viewItem]
+    return [viewItem.eraseToViewItem()]
   }
 }

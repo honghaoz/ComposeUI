@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 public typealias HStack = HorizontalStackNode
 public typealias HorizontalStack = HorizontalStackNode
@@ -115,7 +115,7 @@ public struct HorizontalStackNode: ComposeNode {
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     var x: CGFloat = 0
     return childNodes.enumerated().flatMap { i, node in
       defer {

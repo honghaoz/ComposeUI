@@ -1,8 +1,8 @@
 //
-//  View+ComposeContent.swift
+//  UniversalTypes.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 10/27/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,15 +30,18 @@
 
 #if canImport(AppKit)
 import AppKit
+
+public typealias View = NSView
+public typealias Color = NSColor
+public typealias Font = NSFont
+public typealias EdgeInsets = NSEdgeInsets
 #endif
 
 #if canImport(UIKit)
 import UIKit
+
+public typealias View = UIView
+public typealias Color = UIColor
+public typealias Font = UIFont
+public typealias EdgeInsets = UIEdgeInsets
 #endif
-
-extension View: ComposeContent {
-
-  public func asNodes() -> [any ComposeNode] {
-    [ViewNode(self)]
-  }
-}

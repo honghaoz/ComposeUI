@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 /// A node that overlays a node with another node.
 private struct OverlayNode<Node: ComposeNode>: ComposeNode {
@@ -53,7 +53,7 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let childItems = node.viewItems(in: visibleBounds).map { item in
       item.id("\(ComposeNodeId.overlay.rawValue)|\(item.id)")
     }

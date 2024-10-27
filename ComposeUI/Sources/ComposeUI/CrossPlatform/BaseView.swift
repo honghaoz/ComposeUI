@@ -1,8 +1,8 @@
 //
-//  UIEdgeInsets+Extensions.swift
+//  BaseView.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 10/27/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,13 +28,41 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(AppKit)
+import AppKit
+
+/// A base view.
+open class BaseView: View {
+
+  override open var wantsUpdateLayer: Bool { true }
+
+  override open var isFlipped: Bool { true }
+
+  override public init(frame: CGRect) {
+    super.init(frame: frame)
+
+    updateCommonSettings()
+  }
+
+  @available(*, unavailable)
+  public required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+
+  // MARK: - Layout
+
+  override open func layout() {
+    super.layout()
+
+    layoutSubviews()
+  }
+
+  open func layoutSubviews() {}
+}
+#endif
+
+#if canImport(UIKit)
 import UIKit
 
-extension UIEdgeInsets {
-
-  /// The horizontal insets.
-  var horizontal: CGFloat { left + right }
-
-  /// The vertical insets.
-  var vertical: CGFloat { top + bottom }
-}
+open class BaseView: View {}
+#endif
