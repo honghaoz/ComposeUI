@@ -9,7 +9,6 @@ let package = Package(
     .iOS(.v13),
     .tvOS(.v13),
     .visionOS(.v1),
-    .macCatalyst(.v13),
   ],
   products: [
     .library(name: "ComposeUI", targets: ["ComposeUI"]),

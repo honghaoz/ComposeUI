@@ -49,7 +49,11 @@ public struct LabelNode: ComposeNode {
   /// - Parameter text: The text to render.
   public init(_ text: String) {
     self.text = text
+    #if os(iOS)
     font = .systemFont(ofSize: Font.labelFontSize)
+    #elseif os(tvOS)
+    font = .systemFont(ofSize: 20)
+    #endif
     textColor = .label
     textAlignment = .center
     numberOfLines = 1
