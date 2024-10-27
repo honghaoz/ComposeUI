@@ -1,8 +1,8 @@
 //
-//  ComposeContentView+ContentNode.swift
+//  ViewType.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 10/27/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -36,41 +36,64 @@ import AppKit
 import UIKit
 #endif
 
-extension ComposeContentView {
+/// A type that represents a cross-platform view.
+protocol ViewType: View {
 
-  /// A wrapper node used in `ComposeContentView` to cache the layout result of the wrapped node.
-  final class ContentNode: ComposeNode {
+  /// Get the backing `CALayer` of the view.
+  func layer() -> CALayer
 
-    /// The wrapped node.
-    private var node: any ComposeNode
+  /// The content scale factor.
+  var contentScaleFactor: CGFloat { get set }
 
-    /// The cached layout result of the wrapped node.
-    private var cachedLayout: (layoutSize: CGSize, ComposeNodeSizing: ComposeNodeSizing)?
+  /// The attaching screen's scale factor.
+  var screenScaleFactor: CGFloat { get }
+}
 
-    init(node: any ComposeNode) {
-      self.node = node
+extension View: ViewType {}
+
+extension ViewType {
+
+  func layer() -> CALayer {
+    #if canImport(AppKit)
+    guard let layer else {
+      assertionFailure("NSView should be layer backed. Please set `wantsLayer == true`.")
+      wantsLayer = true
+      return self.layer!
     }
+    return layer
+    #else
+    return layer
+    #endif
+  }
 
-    // MARK: - ComposeNode
-
-    var size: CGSize {
-      node.size
+  #if canImport(AppKit)
+  var contentScaleFactor: CGFloat {
+    get {
+      layer().contentsScale
     }
-
-    func layout(containerSize: CGSize) -> ComposeNodeSizing {
-      if let cachedLayout, cachedLayout.layoutSize == containerSize {
-        // layout size is the same, reuse the cached layout result
-        return cachedLayout.ComposeNodeSizing
-      } else {
-        // layout size is different, layout the wrapped node and cache the result
-        let ComposeNodeSizing = node.layout(containerSize: containerSize)
-        cachedLayout = (node.size, ComposeNodeSizing)
-        return ComposeNodeSizing
-      }
+    set {
+      layer().contentsScale = newValue
     }
+  }
+  #endif
 
-    func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
-      node.viewItems(in: visibleBounds)
+  var screenScaleFactor: CGFloat {
+    if let window {
+      #if os(macOS)
+      return window.backingScaleFactor
+      #elseif os(visionOS)
+      // visionOS doesn't support fixed scale factor.
+      // just use 2.0 as a default value.
+      return 2
+      #else
+      return window.screen.scale
+      #endif
+    } else {
+      #if os(macOS)
+      return NSScreen.main?.backingScaleFactor ?? 2.0
+      #else
+      return UIScreen.main.scale
+      #endif
     }
   }
 }

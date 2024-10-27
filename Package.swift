@@ -5,6 +5,7 @@ import PackageDescription
 let package = Package(
   name: "ComposeUI",
   platforms: [
+    .macOS(.v10_15),
     .iOS(.v13),
     .tvOS(.v13),
     .visionOS(.v1),

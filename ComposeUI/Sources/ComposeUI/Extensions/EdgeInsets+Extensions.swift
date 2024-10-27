@@ -1,5 +1,5 @@
 //
-//  View+ComposeContent.swift
+//  EdgeInsets+Extensions.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -36,9 +36,11 @@ import AppKit
 import UIKit
 #endif
 
-extension View: ComposeContent {
+extension EdgeInsets {
 
-  public func asNodes() -> [any ComposeNode] {
-    [ViewNode(self)]
-  }
+  /// The horizontal insets.
+  var horizontal: CGFloat { left + right }
+
+  /// The vertical insets.
+  var vertical: CGFloat { top + bottom }
 }

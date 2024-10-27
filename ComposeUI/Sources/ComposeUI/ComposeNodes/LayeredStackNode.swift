@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 public typealias ZStack = LayeredStackNode
 public typealias LayeredStack = LayeredStackNode
@@ -82,7 +82,7 @@ public struct LayeredStackNode: ComposeNode {
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     childNodes.enumerated().flatMap { i, node in
       let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
 

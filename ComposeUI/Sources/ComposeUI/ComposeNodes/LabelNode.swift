@@ -28,6 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
+// TODO: support AppKit
+
+#if canImport(UIKit)
 import UIKit
 
 /// A node that renders a text label.
@@ -36,8 +39,8 @@ import UIKit
 public struct LabelNode: ComposeNode {
 
   private let text: String
-  private var font: UIFont
-  private var textColor: UIColor
+  private var font: Font
+  private var textColor: Color
   private var textAlignment: NSTextAlignment
   private var numberOfLines: Int
 
@@ -46,7 +49,7 @@ public struct LabelNode: ComposeNode {
   /// - Parameter text: The text to render.
   public init(_ text: String) {
     self.text = text
-    font = .systemFont(ofSize: UIFont.labelFontSize)
+    font = .systemFont(ofSize: Font.labelFontSize)
     textColor = .label
     textAlignment = .center
     numberOfLines = 1
@@ -62,7 +65,7 @@ public struct LabelNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.actuallyIntersects(frame) else {
       return []
@@ -79,7 +82,7 @@ public struct LabelNode: ComposeNode {
         view.textColor = textColor
         view.textAlignment = textAlignment
       }
-    ).eraseToUIViewItem()
+    ).eraseToViewItem()
 
     return [viewItem]
   }
@@ -90,7 +93,7 @@ public struct LabelNode: ComposeNode {
   ///
   /// - Parameter value: The font to set.
   /// - Returns: A new label node with the updated font.
-  public func font(_ value: UIFont) -> Self {
+  public func font(_ value: Font) -> Self {
     guard font != value else {
       return self
     }
@@ -104,7 +107,7 @@ public struct LabelNode: ComposeNode {
   ///
   /// - Parameter value: The text color to set.
   /// - Returns: A new label node with the updated text color.
-  public func textColor(_ value: UIColor) -> Self {
+  public func textColor(_ value: Color) -> Self {
     guard textColor != value else {
       return self
     }
@@ -142,3 +145,4 @@ public struct LabelNode: ComposeNode {
     return copy
   }
 }
+#endif

@@ -28,12 +28,16 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if canImport(UIKit)
 import UIKit
+#endif
 
-public typealias View = ViewNode
-
-/// A node that renders a `UIView`.
-public struct ViewNode<T: UIView>: ComposeNode {
+/// A node that renders a `View`.
+public struct ViewNode<T: View>: ComposeNode {
 
   private let makeView: () -> T
 
@@ -117,7 +121,7 @@ public struct ViewNode<T: UIView>: ComposeNode {
     }
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.actuallyIntersects(frame) else {
       return []
@@ -128,9 +132,12 @@ public struct ViewNode<T: UIView>: ComposeNode {
       frame: frame,
       make: { cachedView ?? makeView() },
       update: { view in
+        #if canImport(AppKit)
+        assert(view.wantsLayer, "\(T.self) should be layer backed. Please set `wantsLayer == true`.")
+        #endif
         updateView(view)
       }
-    ).eraseToUIViewItem()
+    ).eraseToViewItem()
 
     return [viewItem]
   }

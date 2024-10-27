@@ -28,7 +28,13 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if canImport(UIKit)
 import UIKit
+#endif
 
 public protocol ComposeNode: ComposeContent {
 
@@ -46,7 +52,7 @@ public protocol ComposeNode: ComposeContent {
   ///
   /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
   /// - Returns: The view items that are visible in the given bounds.
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>]
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>]
 }
 
 // MARK: - ComposeContent

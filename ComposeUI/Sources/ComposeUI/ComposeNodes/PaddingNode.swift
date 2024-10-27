@@ -28,15 +28,15 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 /// A node that pads the child node.
 private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
-  private let insets: UIEdgeInsets
+  private let insets: EdgeInsets
 
-  fileprivate init(node: Node, insets: UIEdgeInsets) {
+  fileprivate init(node: Node, insets: EdgeInsets) {
     self.node = node
     self.insets = insets
   }
@@ -63,7 +63,7 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
     )
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let childOrigin = CGPoint(x: insets.left, y: insets.top)
 
     let boundsInChild = visibleBounds.translate(-childOrigin)
@@ -85,7 +85,7 @@ public extension ComposeNode {
   ///
   /// - Parameter insets: The insets to add.
   /// - Returns: A new node with the padding applied.
-  func padding(_ insets: UIEdgeInsets) -> some ComposeNode {
+  func padding(_ insets: EdgeInsets) -> some ComposeNode {
     PaddingNode(node: self, insets: insets)
   }
 
@@ -102,7 +102,7 @@ public extension ComposeNode {
                bottom: CGFloat = 0,
                right: CGFloat = 0) -> some ComposeNode
   {
-    padding(UIEdgeInsets(top: top, left: left, bottom: bottom, right: right))
+    padding(EdgeInsets(top: top, left: left, bottom: bottom, right: right))
   }
 
   /// Add padding to the node.
@@ -110,7 +110,7 @@ public extension ComposeNode {
   /// - Parameter amount: The amount of padding to add to all edges.
   /// - Returns: A new node with the padding applied.
   func padding(_ amount: CGFloat) -> some ComposeNode {
-    padding(UIEdgeInsets(top: amount, left: amount, bottom: amount, right: amount))
+    padding(EdgeInsets(top: amount, left: amount, bottom: amount, right: amount))
   }
 
   /// Add padding to the node.
@@ -120,6 +120,6 @@ public extension ComposeNode {
   ///   - vertical: The amount of padding to add to the top and bottom.
   /// - Returns: A new node with the padding applied.
   func padding(horizontal: CGFloat = 0, vertical: CGFloat = 0) -> some ComposeNode {
-    padding(UIEdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal))
+    padding(EdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal))
   }
 }

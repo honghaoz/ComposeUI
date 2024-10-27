@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 public typealias Spacer = SpacerNode
 
@@ -90,7 +90,7 @@ public struct SpacerNode: ComposeNode {
     return sizing
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     return []
   }
 

@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 /// A type that represents the size of a dimension.
 public enum FrameSize: Hashable {
@@ -121,7 +121,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     // the child node's frame in self's coordinates
     let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
 

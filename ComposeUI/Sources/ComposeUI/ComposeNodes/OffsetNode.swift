@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import UIKit
+import CoreGraphics
 
 /// A node that offsets the child node's
 private struct OffsetNode<Node: ComposeNode>: ComposeNode {
@@ -49,7 +49,7 @@ private struct OffsetNode<Node: ComposeNode>: ComposeNode {
     node.layout(containerSize: containerSize)
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<UIView>] {
+  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let boundsInChild = visibleBounds.translate(-offset)
 
     return node.viewItems(in: boundsInChild)
