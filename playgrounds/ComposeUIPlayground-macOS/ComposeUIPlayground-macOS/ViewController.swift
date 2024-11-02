@@ -66,6 +66,7 @@ class ViewController: NSViewController {
 
       HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
     }
+    .frame(width: .flexible, height: .intrinsic)
   }
 
   override func viewDidLoad() {
