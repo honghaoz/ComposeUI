@@ -37,17 +37,15 @@ import UIKit
 #endif
 
 /// A node that renders a `View`.
-public struct ViewNode<T: View>: ComposeNode {
+public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
   private let makeView: () -> T
 
   private let updateView: (T) -> Void
 
-  /// Whether the width is fixed. If `true`, the width of the view node follows the view's intrinsic width.
-  private var isFixedWidth: Bool
+  public var isFixedWidth: Bool
 
-  /// Whether the height is fixed. If `true`, the height of the view node follows the view's intrinsic height.
-  private var isFixedHeight: Bool
+  public var isFixedHeight: Bool
 
   private var cachedView: T?
 
@@ -140,31 +138,6 @@ public struct ViewNode<T: View>: ComposeNode {
     ).eraseToViewItem()
 
     return [viewItem]
-  }
-
-  // MARK: - Public
-
-  /// Set whether the width and height of the view node are fixed.
-  ///
-  /// - Parameters:
-  ///   - width: Whether the width is fixed.
-  ///   - height: Whether the height is fixed.
-  /// - Returns: A new view node with the width and height set.
-  public func fixed(width: Bool = true, height: Bool = true) -> Self {
-    var node = self
-    node.isFixedWidth = width
-    node.isFixedHeight = height
-    return node
-  }
-
-  /// Set the view node to be flexible.
-  ///
-  /// - Returns: A new view node with the width and height set to flexible.
-  public func flexible() -> Self {
-    var node = self
-    node.isFixedWidth = false
-    node.isFixedHeight = false
-    return node
   }
 
   // MARK: - Private
