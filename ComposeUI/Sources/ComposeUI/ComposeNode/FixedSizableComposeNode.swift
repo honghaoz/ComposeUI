@@ -1,8 +1,8 @@
 //
-//  AppDelegate.swift
+//  FixedSizableComposeNode.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 10/27/24.
+//  Created by Honghao Zhang on 9/29/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,41 +28,39 @@
 //  IN THE SOFTWARE.
 //
 
-import Cocoa
+import Foundation
 
-@main
-class AppDelegate: NSObject, NSApplicationDelegate {
+public protocol FixedSizableComposeNode: ComposeNode {
 
-  private var window: NSWindow?
+  /// Whether the width is fixed. If `true`, the width of the node uses its intrinsic width.
+  var isFixedWidth: Bool { get set }
 
-  func applicationDidFinishLaunching(_ aNotification: Notification) {
+  /// Whether the height is fixed. If `true`, the height of the node uses its intrinsic height.
+  var isFixedHeight: Bool { get set }
+}
 
-    // create the window
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
-      backing: .buffered,
-      defer: false
-    )
+public extension FixedSizableComposeNode {
 
-    window.contentViewController = ViewController()
-
-    // configure window
-    window.center()
-    window.setFrameAutosaveName("main-window")
-    window.title = "ComposeUI Playground"
-
-    // make window visible
-    window.makeKeyAndOrderFront(nil)
-
-    self.window = window
+  /// Set whether the width and height of the node are fixed.
+  ///
+  /// - Parameters:
+  ///   - width: Whether the width is fixed.
+  ///   - height: Whether the height is fixed.
+  /// - Returns: A new node with the width and height set.
+  func fixed(width: Bool = true, height: Bool = true) -> Self {
+    var node = self
+    node.isFixedWidth = width
+    node.isFixedHeight = height
+    return node
   }
 
-  func applicationWillTerminate(_ aNotification: Notification) {
-    // Insert code here to tear down your application
-  }
-
-  func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
-    return true
+  /// Set the node to be flexible.
+  ///
+  /// - Returns: A new node with the width and height set to flexible.
+  func flexible() -> Self {
+    var node = self
+    node.isFixedWidth = false
+    node.isFixedHeight = false
+    return node
   }
 }

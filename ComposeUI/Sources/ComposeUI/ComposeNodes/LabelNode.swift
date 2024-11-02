@@ -35,14 +35,20 @@ import UIKit
 
 /// A node that renders a text label.
 ///
-/// The node has a flexible size.
-public struct LabelNode: ComposeNode {
+/// By default, the label node is single line, with a fixed size based on the text.
+/// If you set `numberOfLines` to multiple lines, the width will be flexible, and the height will be fixed.
+///
+/// Use `fixed(width:height:)` to set the width and height to be fixed or flexible.
+public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   private let text: String
   private var font: Font
   private var textColor: Color
   private var textAlignment: NSTextAlignment
   private var numberOfLines: Int
+
+  public var isFixedWidth: Bool
+  public var isFixedHeight: Bool
 
   /// Initialize a label node with a single line of text.
   ///
@@ -57,6 +63,9 @@ public struct LabelNode: ComposeNode {
     textColor = .label
     textAlignment = .center
     numberOfLines = 1
+
+    isFixedWidth = true
+    isFixedHeight = true
   }
 
   // MARK: - ComposeNode
@@ -64,9 +73,26 @@ public struct LabelNode: ComposeNode {
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
-    // TODO: support text sizing
-    size = containerSize
-    return ComposeNodeSizing(width: .flexible, height: .flexible)
+    switch (isFixedWidth, isFixedHeight) {
+    case (true, true):
+      updateLabel(sizingLabel)
+      let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
+      size = intrinsicSize
+      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+    case (true, false):
+      updateLabel(sizingLabel)
+      let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
+      size = CGSize(width: intrinsicSize.width, height: containerSize.height)
+      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
+    case (false, true):
+      updateLabel(sizingLabel)
+      let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
+      size = CGSize(width: containerSize.width, height: intrinsicSize.height)
+      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
+    case (false, false):
+      size = containerSize
+      return ComposeNodeSizing(width: .flexible, height: .flexible)
+    }
   }
 
   public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
@@ -79,16 +105,23 @@ public struct LabelNode: ComposeNode {
       id: ComposeNodeId.label.rawValue,
       frame: frame,
       update: { view in
-        view.isUserInteractionEnabled = false
-
-        view.text = text
-        view.font = font
-        view.textColor = textColor
-        view.textAlignment = textAlignment
+        updateLabel(view)
       }
     ).eraseToViewItem()
 
     return [viewItem]
+  }
+
+  // MARK: - Private
+
+  private func updateLabel(_ label: UILabel) {
+    label.isUserInteractionEnabled = false
+
+    label.text = text
+    label.font = font
+    label.textColor = textColor
+    label.textAlignment = textAlignment
+    label.numberOfLines = numberOfLines
   }
 
   // MARK: - Public
@@ -146,7 +179,17 @@ public struct LabelNode: ComposeNode {
 
     var copy = self
     copy.numberOfLines = value
+
+    if numberOfLines != 1 {
+      copy.isFixedWidth = false
+      copy.isFixedHeight = true
+    }
+
     return copy
   }
 }
+
+/// A label used to calculate label's intrinsic size.
+private let sizingLabel = UILabel()
+
 #endif

@@ -1,8 +1,8 @@
 //
-//  AppDelegate.swift
+//  ViewNodeTests.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 10/27/24.
+//  Created by Honghao Zhang on 9/29/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,41 +28,42 @@
 //  IN THE SOFTWARE.
 //
 
-import Cocoa
+import XCTest
+import ComposeUI
 
-@main
-class AppDelegate: NSObject, NSApplicationDelegate {
+class ViewNodeTests: XCTestCase {
 
-  private var window: NSWindow?
+  func test_fixedSize() {
+    do {
+      // when using view factory
+      var node = ViewNode()
 
-  func applicationDidFinishLaunching(_ aNotification: Notification) {
+      // then the size is flexible
+      XCTAssertEqual(node.isFixedWidth, false)
+      XCTAssertEqual(node.isFixedHeight, false)
 
-    // create the window
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
-      backing: .buffered,
-      defer: false
-    )
+      // when set fixed size
+      node = node.fixed()
 
-    window.contentViewController = ViewController()
+      // then the size is fixed
+      XCTAssertEqual(node.isFixedWidth, true)
+      XCTAssertEqual(node.isFixedHeight, true)
+    }
 
-    // configure window
-    window.center()
-    window.setFrameAutosaveName("main-window")
-    window.title = "ComposeUI Playground"
+    do {
+      // when using external view
+      var node = ViewNode(View())
 
-    // make window visible
-    window.makeKeyAndOrderFront(nil)
+      // then the size is fixed
+      XCTAssertEqual(node.isFixedWidth, true)
+      XCTAssertEqual(node.isFixedHeight, true)
 
-    self.window = window
-  }
+      // when set flexible size
+      node = node.flexible()
 
-  func applicationWillTerminate(_ aNotification: Notification) {
-    // Insert code here to tear down your application
-  }
-
-  func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
-    return true
+      // then the size is flexible
+      XCTAssertEqual(node.isFixedWidth, false)
+      XCTAssertEqual(node.isFixedHeight, false)
+    }
   }
 }

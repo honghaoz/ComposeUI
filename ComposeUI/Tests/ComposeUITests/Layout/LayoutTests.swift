@@ -31,7 +31,7 @@
 import XCTest
 @testable import ComposeUI
 
-final class LayoutTests: XCTestCase {
+class LayoutTests: XCTestCase {
 
   func test_emptyNodes() {
     // when proposed space is positive
