@@ -100,69 +100,75 @@ public enum Layout {
   ///   - space: The total space to distribute.
   ///   - nodes: The nodes to distribute the space to.
   /// - Returns: The allocated sizes to the nodes.
-  static func stackLayout(space: CGFloat, children: [ComposeNodeSizing.Sizing]) -> [CGFloat] {
-    guard !children.isEmpty else {
+  static func stackLayout(space: CGFloat, children nodes: [ComposeNodeSizing.Sizing]) -> ContiguousArray<CGFloat> {
+    let count = nodes.count
+    guard count > 0 else {
       return []
     }
 
-    let nodes = children.map { $0.normalized() }
-
-    let count = nodes.count
-
     // the allocated sizes to the nodes.
-    var allocations = [CGFloat](repeating: 0, count: count)
+    var allocations = ContiguousArray<CGFloat>(repeating: 0, count: count)
 
-    // the sum of the allocated sizes.
+    // the total allocated space.
     var allocatedSpace: CGFloat = 0
 
-    var expandableNodeIndices = [Int]()
+    // the indices of the expandable nodes.
+    var expandableNodeIndices = ContiguousArray<Int>()
     expandableNodeIndices.reserveCapacity(count)
+    var expandableNodeCount = 0
 
     // first pass: allocate fixed sizes and minimum sizes for range nodes
-    for (index, node) in nodes.enumerated() {
-      switch node {
+    for i in 0 ..< count {
+      let node = nodes[i]
+      switch node.normalized() {
       case .fixed(let size):
-        // always allocate the fixed size
-        allocations[index] = size
+        allocations[i] = size // always allocate the fixed size
         allocatedSpace += size
       case .range(let min, _):
-        // always allocate the minimum size
-        allocations[index] = min
+        allocations[i] = min // always allocate the minimum size
         allocatedSpace += min
-        expandableNodeIndices.append(index)
+        expandableNodeIndices.append(i)
+        expandableNodeCount += 1
       case .flexible:
-        expandableNodeIndices.append(index)
+        expandableNodeIndices.append(i)
+        expandableNodeCount += 1
       }
     }
 
     var remainingSpace = space - allocatedSpace
 
     // second pass: allocate remaining space to expandable nodes up to their maximum
-    while remainingSpace > 0.01, !expandableNodeIndices.isEmpty {
-      let spacePerNode = remainingSpace / CGFloat(expandableNodeIndices.count)
+    // use 0.01 to avoid floating point precision issues
+    while remainingSpace > 0.01, expandableNodeCount > 0 {
+      let spacePerNode = remainingSpace / CGFloat(expandableNodeCount)
 
       var i = 0
-      while i < expandableNodeIndices.count {
+      while i < expandableNodeCount {
         let index = expandableNodeIndices[i]
 
         switch nodes[index] {
         case .range(_, let max):
           let currentAllocation = allocations[index]
           let additionalSpace = Swift.min(max - currentAllocation, spacePerNode)
-          assert(additionalSpace > 0, "additional space must be > 0, got \(additionalSpace)")
+
+          if additionalSpace <= 0 {
+            // this should be impossible
+            _ = expandableNodeIndices.swapRemove(at: i)
+            expandableNodeCount -= 1
+            continue
+          }
 
           allocations[index] += additionalSpace
-          allocatedSpace += additionalSpace
           remainingSpace -= additionalSpace
 
           if allocations[index] >= max {
-            expandableNodeIndices.remove(at: i) // the node is fulfilled
-            i -= 1
+            _ = expandableNodeIndices.swapRemove(at: i) // the node is fulfilled
+            expandableNodeCount -= 1
+            continue
           }
 
         case .flexible:
           allocations[index] += spacePerNode
-          allocatedSpace += spacePerNode
           remainingSpace -= spacePerNode
 
         case .fixed:
