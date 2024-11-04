@@ -61,7 +61,7 @@ public struct ColorNode: ComposeNode {
 
   public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let frame = CGRect(origin: .zero, size: size)
-    guard visibleBounds.actuallyIntersects(frame) else {
+    guard visibleBounds.intersects(frame) else {
       return []
     }
 

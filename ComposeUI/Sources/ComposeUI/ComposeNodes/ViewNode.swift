@@ -121,7 +121,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
   public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let frame = CGRect(origin: .zero, size: size)
-    guard visibleBounds.actuallyIntersects(frame) else {
+    guard visibleBounds.intersects(frame) else {
       return []
     }
 

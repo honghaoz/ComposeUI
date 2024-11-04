@@ -32,15 +32,6 @@ import CoreGraphics
 
 extension CGRect {
 
-  /// Check if the rectangle actually intersects with another rectangle.
-  ///
-  /// - Parameter other: The rectangle to check intersection with.
-  /// - Returns: Whether the rectangles intersect.
-  func actuallyIntersects(_ other: CGRect) -> Bool {
-    let intersection = intersection(other)
-    return !intersection.isNull && !intersection.isEmpty
-  }
-
   /// Translate the rectangle by a given point.
   ///
   /// - Parameter point: The point to translate the rectangle by.
