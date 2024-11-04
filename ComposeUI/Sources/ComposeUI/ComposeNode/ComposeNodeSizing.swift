@@ -72,24 +72,39 @@ public extension ComposeNodeSizing {
     func normalized() -> Sizing {
       switch self {
       case .fixed(let size):
-        assert(size >= 0, "fixed sizing must have a size greater than or equal to 0, got \(size)")
-        return .fixed(max(size, 0))
+        if size < 0 {
+          assertionFailure("fixed sizing must have a size greater than or equal to 0, got \(size)")
+          return .fixed(0)
+        }
+        if size == .infinity {
+          assertionFailure("fixed sizing must have a non-infinite size")
+          return .flexible
+        }
+        return .fixed(size)
       case .flexible:
         return .flexible
       case .range(let min, let max):
-        assert(min >= 0, "range sizing must have a min greater than or equal to 0, got \(min)")
-        assert(min < max, "range sizing must have a min less than max, got \(min) and \(max)")
-        if min >= max {
-          return .fixed(min) // follows the min size (the bigger one) to leave more tolerance for the layout.
-        } else if min <= 0 {
-          if max == .infinity {
-            return .flexible
-          } else {
-            return .range(min: 0, max: max)
-          }
-        } else {
-          return .range(min: min, max: max)
+        var min = min
+        var max = max
+        if min < 0 {
+          assertionFailure("range sizing must have a min greater than or equal to 0, got \(min)")
+          min = 0
         }
+        if min >= max {
+          assertionFailure("range sizing must have a min less than max, got \(min) and \(max)")
+          // clamp the max to min
+          max = min
+        }
+
+        if min == 0, max == .infinity {
+          return .flexible
+        }
+
+        if min == max {
+          return .fixed(min)
+        }
+
+        return .range(min: min, max: max)
       }
     }
 
@@ -130,17 +145,24 @@ public extension ComposeNodeSizing {
     private func combineInMainAxis(with other: Sizing) -> Sizing {
       switch (self, other) {
       case (.fixed(let size1), .fixed(let size2)):
-        return .fixed(size1 + size2)
+        return .fixed(max(0, size1 + size2))
       case (.fixed(let size), .flexible),
            (.flexible, .fixed(let size)):
-        if size == 0 {
+        if size <= 0 {
           return .flexible
         } else {
           return .range(min: size, max: .infinity)
         }
       case (.fixed(let size), .range(let min, let max)),
            (.range(let min, let max), .fixed(let size)):
-        return .range(min: min + size, max: max + size)
+        let adjustedMin = Swift.max(0, min + size)
+        let adjustedMax = Swift.max(0, max + size)
+        if adjustedMin == adjustedMax {
+          // a negative `size` could make both min and max be the same (zero)
+          return .fixed(adjustedMin)
+        } else {
+          return .range(min: adjustedMin, max: adjustedMax)
+        }
       case (.flexible, .flexible):
         return .flexible
       case (.flexible, .range(let min, _)),

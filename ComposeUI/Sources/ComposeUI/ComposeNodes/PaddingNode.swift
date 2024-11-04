@@ -57,6 +57,14 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
       height: node.size.height + insets.vertical
     )
 
+    // padding node wraps a fixed size child node:
+    // positive padding -> bigger fixed sizing
+    // negative padding -> smaller fixed sizing
+
+    // padding node wraps a flexible child node:
+    // positive padding -> bigger flexible sizing
+    // negative padding -> flexible sizing
+
     return ComposeNodeSizing(
       width: childSizing.width.combine(with: .fixed(insets.horizontal), axis: .main),
       height: childSizing.height.combine(with: .fixed(insets.vertical), axis: .main)
