@@ -1,8 +1,8 @@
 //
-//  EmptyNode.swift
+//  ComposeNodeTests.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 11/5/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,30 +28,13 @@
 //  IN THE SOFTWARE.
 //
 
-import CoreGraphics
+import XCTest
+@testable import ComposeUI
 
-public typealias Empty = EmptyNode
+class ComposeNodeTests: XCTestCase {
 
-/// A node that renders nothing.
-///
-/// The node has a flexible size.
-public struct EmptyNode: ComposeNode {
-
-  /// Initialize an empty node.
-  public init() {}
-
-  // MARK: - ComposeNode
-
-  public var id: ComposeNodeId = .predefined(.empty)
-
-  public private(set) var size: CGSize = .zero
-
-  public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
-    size = containerSize
-    return ComposeNodeSizing(width: .flexible, height: .flexible)
-  }
-
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
-    return []
+  func test_id() {
+    let id = ComposeNodeId.custom("test", isFixed: false)
+    XCTAssertEqual(id.id, "test")
   }
 }

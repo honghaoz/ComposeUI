@@ -219,7 +219,7 @@ open class ComposeContentView: BaseScrollView {
     viewMap.reserveCapacity(viewItems.count)
 
     for viewItem in viewItems {
-      let id = viewItem.id
+      let id = viewItem.id.id
       viewItemIds.append(id)
       assert(viewItemMap[id] == nil, "conflicting view item id: \(id)")
       viewItemMap[id] = viewItem
