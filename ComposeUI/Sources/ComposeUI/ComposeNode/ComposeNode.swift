@@ -38,6 +38,12 @@ import UIKit
 
 public protocol ComposeNode: ComposeContent {
 
+  /// The id of the node.
+  ///
+  /// The id should be unique.
+  /// The id is used in the returned view items to diff the view items in the view hierarchy.
+  var id: ComposeNodeId { get set }
+
   /// The size of the node.
   var size: CGSize { get }
 
@@ -61,5 +67,32 @@ public extension ComposeNode {
 
   func asNodes() -> [any ComposeNode] {
     [self]
+  }
+}
+
+// MARK: - Id
+
+public extension ComposeNode {
+
+  /// Set the id of the node.
+  func id(_ id: String) -> Self {
+    self.id(.custom(id, isFixed: false))
+  }
+
+  /// Set a fixed id of the node.
+  ///
+  /// The view items provided by this node should have the fixed id.
+  func fixedId(_ id: String) -> Self {
+    self.id(.custom(id, isFixed: true))
+  }
+
+  private func id(_ id: ComposeNodeId) -> Self {
+    guard self.id != id else {
+      return self
+    }
+
+    var node = self
+    node.id = id
+    return node
   }
 }

@@ -54,6 +54,8 @@ public struct HorizontalStackNode: ComposeNode {
 
   // MARK: - ComposeNode
 
+  public var id: ComposeNodeId = .predefined(.hStack)
+
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -139,7 +141,7 @@ public struct HorizontalStackNode: ComposeNode {
 
       return items.map { item in
         item
-          .id("\(ComposeNodeId.hStack.rawValue)|\(i)|\(item.id)")
+          .id(id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id))
           .frame(item.frame.translate(childOrigin))
       }
     }
