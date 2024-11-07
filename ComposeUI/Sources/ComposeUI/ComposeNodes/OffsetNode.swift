@@ -43,6 +43,8 @@ private struct OffsetNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
+  var id: ComposeNodeId = .predefined(.offset)
+
   var size: CGSize { node.size }
 
   mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -55,7 +57,7 @@ private struct OffsetNode<Node: ComposeNode>: ComposeNode {
     return node.viewItems(in: boundsInChild)
       .map { item in
         item
-          .id("\(ComposeNodeId.offset.rawValue)|\(item.id)")
+          .id(id.makeViewItemId(childViewItemId: item.id))
           .frame(item.frame.translate(offset))
       }
   }

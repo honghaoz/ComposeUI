@@ -30,12 +30,15 @@
 
 import Foundation
 
-enum ComposeNodeId: String {
+enum PredefinedComposeNodeId: String {
+
+  case empty
 
   case color
   case label
   case view
 
+  case spacer
   case frame
   case padding
   case offset
@@ -45,4 +48,52 @@ enum ComposeNodeId: String {
   case vStack
   case hStack
   case zStack
+}
+
+public struct ComposeNodeId: Equatable {
+
+  /// Create a custom id for a node.
+  ///
+  /// - Parameters:
+  ///   - id: The id string. You should ensure the id is unique.
+  ///   - isFixed: If the id is fixed.
+  /// - Returns: A `ComposeNodeId`.
+  public static func custom(_ id: String, isFixed: Bool) -> ComposeNodeId {
+    guard PredefinedComposeNodeId(rawValue: id) == nil else {
+      assertionFailure("Conflict with predefined id: \(id), please use a unique id.")
+      return ComposeNodeId(id: "\(id)-\(UUID().uuidString)", isFixed: isFixed)
+    }
+    return ComposeNodeId(id: id, isFixed: isFixed)
+  }
+
+  /// Create a predefined id for a node.
+  static func predefined(_ id: PredefinedComposeNodeId) -> ComposeNodeId {
+    ComposeNodeId(id: id.rawValue, isFixed: false)
+  }
+
+  /// The id of the node.
+  let id: String
+
+  /// If the id is fixed, `makeId` will not add the parent node's id to the child node's id.
+  private let isFixed: Bool
+
+  /// Make a new `ComposeNodeId` by joining the current node's id and the child node's id.
+  ///
+  /// If the childViewItemId is fixed, it will return the childViewItemId directly.
+  ///
+  /// - Parameters:
+  ///   - suffix: The suffix to be added to the current node's id.
+  ///   - childViewItemId: The child view item's id.
+  /// - Returns: A new `ComposeNodeId`.
+  func makeViewItemId(suffix: String? = nil, childViewItemId: ComposeNodeId) -> ComposeNodeId {
+    if childViewItemId.isFixed {
+      return childViewItemId
+    } else {
+      if let suffix {
+        return ComposeNodeId(id: "\(id)|\(suffix)|\(childViewItemId.id)", isFixed: isFixed)
+      } else {
+        return ComposeNodeId(id: "\(id)|\(childViewItemId.id)", isFixed: isFixed)
+      }
+    }
+  }
 }

@@ -97,6 +97,8 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - ComposeNode
 
+  public var id: ComposeNodeId = .predefined(.view)
+
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -126,7 +128,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
     }
 
     let viewItem = ViewItem<T>(
-      id: ComposeNodeId.view.rawValue,
+      id: id,
       frame: frame,
       make: { cachedView ?? makeView() },
       update: { view in

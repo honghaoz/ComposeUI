@@ -48,6 +48,8 @@ public struct LayeredStackNode: ComposeNode {
 
   // MARK: - ComposeNode
 
+  public var id: ComposeNodeId = .predefined(.zStack)
+
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -92,7 +94,7 @@ public struct LayeredStackNode: ComposeNode {
 
       return items.map { item in
         item
-          .id("\(ComposeNodeId.zStack.rawValue)|\(i)|\(item.id)")
+          .id(id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id))
           .frame(item.frame.translate(childFrame.origin))
       }
     }

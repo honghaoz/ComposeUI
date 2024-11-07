@@ -43,6 +43,8 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
+  var id: ComposeNodeId = .predefined(.padding)
+
   private(set) var size: CGSize = .zero
 
   mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -79,7 +81,7 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
     return node.viewItems(in: boundsInChild)
       .map { item in
         item
-          .id("\(ComposeNodeId.padding.rawValue)|\(item.id)")
+          .id(id.makeViewItemId(childViewItemId: item.id))
           .frame(item.frame.translate(childOrigin))
       }
   }

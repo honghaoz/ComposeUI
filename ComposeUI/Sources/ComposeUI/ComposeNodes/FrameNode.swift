@@ -68,6 +68,8 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
+  var id: ComposeNodeId = .predefined(.frame)
+
   private(set) var size: CGSize = .zero
 
   mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -131,7 +133,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
     return node.viewItems(in: boundsInChild)
       .map { item in
         item
-          .id("\(ComposeNodeId.frame.rawValue)|\(item.id)")
+          .id(id.makeViewItemId(childViewItemId: item.id))
           .frame(item.frame.translate(childFrame.origin)) // translate the frame back to the parent node's coordinates
       }
   }

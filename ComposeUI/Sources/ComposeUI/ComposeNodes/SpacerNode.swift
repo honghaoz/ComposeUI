@@ -67,6 +67,8 @@ public struct SpacerNode: ComposeNode {
 
   // MARK: - ComposeNode
 
+  public var id: ComposeNodeId = .predefined(.spacer)
+
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {

@@ -39,8 +39,8 @@ import UIKit
 /// A view item that can create a view and update the view.
 public struct ViewItem<T: View> {
 
-  /// The unique identifier of the view item.
-  let id: String
+  /// The unique id of the view item.
+  let id: ComposeNodeId
 
   /// The frame of the view.
   let frame: CGRect
@@ -51,7 +51,7 @@ public struct ViewItem<T: View> {
   /// The block to update the view.
   let update: (T) -> Void // TODO: pass in update type: bounds change, scroll, refresh
 
-  public init(id: String,
+  public init(id: ComposeNodeId,
               frame: CGRect,
               make: @escaping () -> T = { T() },
               update: @escaping (T) -> Void)
@@ -66,7 +66,7 @@ public struct ViewItem<T: View> {
   ///
   /// - Parameter id: The new id.
   /// - Returns: The view item with the new id.
-  func id(_ id: String) -> Self {
+  func id(_ id: ComposeNodeId) -> Self {
     Self(id: id, frame: frame, make: make, update: update)
   }
 

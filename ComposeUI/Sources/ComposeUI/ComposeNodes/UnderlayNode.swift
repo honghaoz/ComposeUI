@@ -48,6 +48,8 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
+  var id: ComposeNodeId = .predefined(.underlay)
+
   var size: CGSize { node.size }
 
   mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -58,14 +60,14 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
 
   func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let childItems = node.viewItems(in: visibleBounds).map { item in
-      item.id("\(ComposeNodeId.underlay.rawValue)|\(item.id)")
+      item.id(id.makeViewItemId(childViewItemId: item.id))
     }
 
     let underlayViewFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
     let boundsInUnderlay = visibleBounds.translate(-underlayViewFrame.origin)
     let underlayViewItems = underlayNode.viewItems(in: boundsInUnderlay).map { item in
       item
-        .id("\(ComposeNodeId.underlay.rawValue)|U|\(item.id)")
+        .id(id.makeViewItemId(suffix: "U", childViewItemId: item.id))
         .frame(item.frame.translate(underlayViewFrame.origin))
     }
 

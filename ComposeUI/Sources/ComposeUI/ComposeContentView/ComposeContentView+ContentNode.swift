@@ -53,6 +53,11 @@ extension ComposeContentView {
 
     // MARK: - ComposeNode
 
+    var id: ComposeNodeId {
+      get { node.id }
+      set { node.id = newValue }
+    }
+
     var size: CGSize {
       node.size
     }

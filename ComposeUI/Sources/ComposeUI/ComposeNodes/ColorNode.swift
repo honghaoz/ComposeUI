@@ -52,6 +52,8 @@ public struct ColorNode: ComposeNode {
 
   // MARK: - ComposeNode
 
+  public var id: ComposeNodeId = .predefined(.color)
+
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -66,7 +68,7 @@ public struct ColorNode: ComposeNode {
     }
 
     let viewItem = ViewItem<BaseView>(
-      id: ComposeNodeId.color.rawValue,
+      id: id,
       frame: frame,
       update: { view in
         #if canImport(AppKit)

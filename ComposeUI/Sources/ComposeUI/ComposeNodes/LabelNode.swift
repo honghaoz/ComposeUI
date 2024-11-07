@@ -70,6 +70,8 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - ComposeNode
 
+  public var id: ComposeNodeId = .predefined(.label)
+
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
@@ -102,7 +104,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     }
 
     let viewItem = ViewItem<UILabel>(
-      id: ComposeNodeId.label.rawValue,
+      id: id,
       frame: frame,
       update: { view in
         updateLabel(view)
