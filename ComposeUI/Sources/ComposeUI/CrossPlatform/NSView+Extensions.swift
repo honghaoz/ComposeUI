@@ -32,10 +32,10 @@
 
 import AppKit
 
-extension NSView {
+public extension NSView {
 
   /// Update common settings for a layer-backed view.
-  func updateCommonSettings() {
+  internal func updateCommonSettings() {
     wantsLayer = true
 
     // don't set cornerCurve to .continuous to match the UIKit's default value
@@ -49,10 +49,16 @@ extension NSView {
 
   // MARK: - Layout
 
+  /// Sets the view's layout flag to true, indicating that the view needs a layout pass.
+  @inlinable
+  @inline(__always)
   func setNeedsLayout() {
     needsLayout = true
   }
 
+  /// Performs a layout pass immediately if the view needs a layout pass.
+  @inlinable
+  @inline(__always)
   func layoutIfNeeded() {
     layoutSubtreeIfNeeded()
   }
@@ -90,6 +96,7 @@ extension NSView {
 
   private static let _ignoreHitTestKey: String = ["ignoreH", "it", "T", "est"].joined()
 
+  /// A boolean flag indicating whether the view should ignore hit testing.
   var ignoreHitTest: Bool {
     get {
       let value = value(forKey: Self._ignoreHitTestKey) as? Bool

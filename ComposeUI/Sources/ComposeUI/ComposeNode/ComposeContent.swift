@@ -46,7 +46,7 @@ public extension ComposeContent {
     let nodes = asNodes()
     switch nodes.count {
     case 0:
-      return SpacerNode()
+      return EmptyNode()
     case 1:
       return nodes.first! // swiftlint:disable:this force_unwrapping
     default:
@@ -61,7 +61,7 @@ public extension ComposeContent {
     let nodes = asNodes()
     switch nodes.count {
     case 0:
-      return SpacerNode()
+      return EmptyNode()
     case 1:
       return nodes.first! // swiftlint:disable:this force_unwrapping
     default:

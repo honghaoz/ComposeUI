@@ -51,21 +51,42 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
   /// Make a view node with an external view.
   ///
-  /// By default, the width and height of the view node are fixed to the size of the provided view.
+  /// The node with external view will have a fixed size (with `isFixedWidth` and `isFixedHeight` set to `true`)
+  /// and the size of the node is fixed to the size of the provided view (`bounds.size`).
+  /// You need to make sure the view's size is updated.
+  ///
+  /// If the view is constraint-based layout, don't set the node to flexible sizing by using `.flexible()` and
+  /// change the node size by using `.frame(width:height:)`, this will cause "Unable to simultaneously satisfy constraints."
+  /// warnings.
+  ///
+  /// The view's `translatesAutoresizingMaskIntoConstraints` will be set to `true` since ComposeUI uses frame-based layout.
+  /// This may cause some issues if the view is constraint-based layout. For example, if the view have constraints define
+  /// its size, the view's final size may not be the size of the constraints. To ensure the view's size is the size of
+  /// the constraints, do a layout pass for the view so that the view's size is updated based on the constraints. For example:
+  ///
+  /// ```swift
+  /// view.translatesAutoresizingMaskIntoConstraints = false
+  /// view.setNeedsLayout()
+  /// view.layoutIfNeeded() // this will update the view's size based on the constraints
+  /// ```
+  ///
+  /// Or use `systemLayoutSizeFitting(_:)` to get the size of the view and set its `bounds.size`.
   ///
   /// - Parameters:
   ///   - view: The external view.
   public init(_ view: T) {
-    self.makeView = { view }
+    self.makeView = {
+      view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
+      return view
+    }
     self.updateView = { _ in }
     self.isFixedWidth = true
     self.isFixedHeight = true
-    self.cachedView = view
   }
 
   /// Make a view node with a view factory.
   ///
-  /// By default, the width and height of the view node are flexible.
+  /// The node will have a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
   ///
   /// - Parameters:
   ///   - make: A closure to create a view.
@@ -73,7 +94,11 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   public init(make: @escaping () -> T,
               update: @escaping (T) -> Void = { _ in })
   {
-    self.makeView = make
+    self.makeView = {
+      let view = make()
+      view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
+      return view
+    }
     self.updateView = update
     self.isFixedWidth = false
     self.isFixedHeight = false
@@ -81,7 +106,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
   /// Make a view node with a view factory.
   ///
-  /// By default, the width and height of the view node are flexible.
+  /// The node will have a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
   ///
   /// - Parameters:
   ///   - make: A closure to create a view.
@@ -89,7 +114,11 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   public init(make: @autoclosure @escaping () -> T = T(),
               update: @escaping (T) -> Void = { _ in })
   {
-    self.makeView = { make() }
+    self.makeView = {
+      let view = make()
+      view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
+      return view
+    }
     self.updateView = update
     self.isFixedWidth = false
     self.isFixedHeight = false
