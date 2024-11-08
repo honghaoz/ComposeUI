@@ -29,7 +29,7 @@
 //
 
 import XCTest
-import ComposeUI
+@testable import ComposeUI
 
 class ViewNodeTests: XCTestCase {
 
@@ -64,6 +64,72 @@ class ViewNodeTests: XCTestCase {
       // then the size is flexible
       XCTAssertEqual(node.isFixedWidth, false)
       XCTAssertEqual(node.isFixedHeight, false)
+    }
+  }
+
+  func test_constraint_based_view() {
+    // given a view with constraints
+    let view = View(frame: CGRect(x: 10, y: 20, width: 100, height: 50))
+    XCTAssertEqual(view.frame, CGRect(x: 10, y: 20, width: 100, height: 50)) // test initial frame
+
+    // with constraints
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.widthAnchor.constraint(equalToConstant: 200).isActive = true
+    view.heightAnchor.constraint(equalToConstant: 100).isActive = true
+
+    // when the view is used in ViewNode with fixed size
+    do {
+      let node = ViewNode(view)
+        .fixed()
+        .padding(10)
+
+      let container = ComposeContentView(content: { node })
+      container.bounds.size = CGSize(width: 500, height: 500)
+
+      container.refresh()
+
+      // the view's translatesAutoresizingMaskIntoConstraints is changed to true
+      XCTAssertTrue(view.translatesAutoresizingMaskIntoConstraints)
+
+      // the view's size should not be changed
+      XCTAssertEqual(view.frame, CGRect(x: 10, y: 10, width: 100, height: 50))
+
+      // force a layout pass
+      container.setNeedsLayout()
+      container.layoutIfNeeded()
+      // the view's size should not be changed
+      XCTAssertEqual(view.frame, CGRect(x: 10, y: 10, width: 100, height: 50))
+
+      // have the view update its size by constraints
+      view.translatesAutoresizingMaskIntoConstraints = false
+      view.setNeedsLayout()
+      view.layoutIfNeeded()
+      XCTAssertEqual(view.bounds.size, view.intrinsicSize(for: CGSize(width: 500, height: 500)))
+      container.refresh()
+      // the view's frame should be changed to the size of the constraints
+      XCTAssertEqual(view.frame, CGRect(x: 10, y: 10, width: 200, height: 100))
+    }
+
+    // when the view is used in ViewNode with flexible size
+    do {
+      let node = ViewNode(view)
+        .flexible()
+        .frame(width: 210, height: 110)
+        .padding(10)
+
+      let container = ComposeContentView(content: { node })
+      container.bounds.size = CGSize(width: 500, height: 500)
+
+      container.refresh()
+
+      // the view's frame should be set by ComposeUI, not by the constraints
+      XCTAssertEqual(view.frame, CGRect(x: 10, y: 10, width: 210, height: 110))
+
+      // force a layout pass
+      container.setNeedsLayout()
+      container.layoutIfNeeded()
+      // the view's frame should not be changed by the constraints
+      XCTAssertEqual(view.frame, CGRect(x: 10, y: 10, width: 210, height: 110))
     }
   }
 }
