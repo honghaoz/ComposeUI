@@ -42,7 +42,7 @@ public struct EmptyNode: ComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .predefined(.empty)
+  public var id: ComposeNodeId = .standard(.empty)
 
   public private(set) var size: CGSize = .zero
 

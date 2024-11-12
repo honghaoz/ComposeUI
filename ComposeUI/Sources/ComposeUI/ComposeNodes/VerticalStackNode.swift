@@ -54,7 +54,7 @@ public struct VerticalStackNode: ComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .predefined(.vStack)
+  public var id: ComposeNodeId = .standard(.vStack)
 
   public private(set) var size: CGSize = .zero
 

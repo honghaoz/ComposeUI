@@ -43,7 +43,7 @@ private struct OffsetNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
-  var id: ComposeNodeId = .predefined(.offset)
+  var id: ComposeNodeId = .standard(.offset)
 
   var size: CGSize { node.size }
 

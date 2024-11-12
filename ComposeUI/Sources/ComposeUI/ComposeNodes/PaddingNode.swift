@@ -43,7 +43,7 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
-  var id: ComposeNodeId = .predefined(.padding)
+  var id: ComposeNodeId = .standard(.padding)
 
   private(set) var size: CGSize = .zero
 

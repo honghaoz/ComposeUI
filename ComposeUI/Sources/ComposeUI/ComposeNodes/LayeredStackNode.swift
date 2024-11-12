@@ -48,7 +48,7 @@ public struct LayeredStackNode: ComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .predefined(.zStack)
+  public var id: ComposeNodeId = .standard(.zStack)
 
   public private(set) var size: CGSize = .zero
 

@@ -70,7 +70,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .predefined(.label)
+  public var id: ComposeNodeId = .standard(.label)
 
   public private(set) var size: CGSize = .zero
 
