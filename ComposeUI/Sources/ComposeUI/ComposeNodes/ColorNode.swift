@@ -52,7 +52,7 @@ public struct ColorNode: ComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .predefined(.color)
+  public var id: ComposeNodeId = .standard(.color)
 
   public private(set) var size: CGSize = .zero
 

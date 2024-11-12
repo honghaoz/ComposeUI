@@ -126,7 +126,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .predefined(.view)
+  public var id: ComposeNodeId = .standard(.view)
 
   public private(set) var size: CGSize = .zero
 

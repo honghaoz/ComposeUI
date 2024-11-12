@@ -45,7 +45,7 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
-  var id: ComposeNodeId = .predefined(.overlay)
+  var id: ComposeNodeId = .standard(.overlay)
 
   var size: CGSize { node.size }
 

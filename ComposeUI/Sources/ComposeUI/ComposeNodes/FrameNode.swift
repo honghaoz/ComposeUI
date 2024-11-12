@@ -68,7 +68,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
-  var id: ComposeNodeId = .predefined(.frame)
+  var id: ComposeNodeId = .standard(.frame)
 
   private(set) var size: CGSize = .zero
 

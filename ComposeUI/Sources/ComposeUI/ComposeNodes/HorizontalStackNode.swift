@@ -54,7 +54,7 @@ public struct HorizontalStackNode: ComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .predefined(.hStack)
+  public var id: ComposeNodeId = .standard(.hStack)
 
   public private(set) var size: CGSize = .zero
 

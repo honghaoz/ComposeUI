@@ -30,7 +30,7 @@
 
 import Foundation
 
-enum PredefinedComposeNodeId: String {
+enum StandardComposeNodeId: String {
 
   case empty
 
@@ -59,15 +59,15 @@ public struct ComposeNodeId: Equatable {
   ///   - isFixed: If the id is fixed.
   /// - Returns: A `ComposeNodeId`.
   public static func custom(_ id: String, isFixed: Bool) -> ComposeNodeId {
-    guard PredefinedComposeNodeId(rawValue: id) == nil else {
-      assertionFailure("Conflict with predefined id: \(id), please use a unique id.")
+    guard StandardComposeNodeId(rawValue: id) == nil else {
+      assertionFailure("Conflict with standard id: \(id), please use a unique id.")
       return ComposeNodeId(id: "\(id)-\(UUID().uuidString)", isFixed: isFixed)
     }
     return ComposeNodeId(id: id, isFixed: isFixed)
   }
 
-  /// Create a predefined id for a node.
-  static func predefined(_ id: PredefinedComposeNodeId) -> ComposeNodeId {
+  /// Create a standard id for a node.
+  static func standard(_ id: StandardComposeNodeId) -> ComposeNodeId {
     ComposeNodeId(id: id.rawValue, isFixed: false)
   }
 
