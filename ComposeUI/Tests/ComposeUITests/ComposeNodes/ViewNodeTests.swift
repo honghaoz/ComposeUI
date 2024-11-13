@@ -69,7 +69,7 @@ class ViewNodeTests: XCTestCase {
 
   func test_constraint_based_view() {
     // given a view with constraints
-    let view = View(frame: CGRect(x: 10, y: 20, width: 100, height: 50))
+    let view = BaseView(frame: CGRect(x: 10, y: 20, width: 100, height: 50))
     XCTAssertEqual(view.frame, CGRect(x: 10, y: 20, width: 100, height: 50)) // test initial frame
 
     // with constraints
@@ -84,7 +84,7 @@ class ViewNodeTests: XCTestCase {
         .padding(10)
 
       let container = ComposeContentView(content: { node })
-      container.bounds.size = CGSize(width: 500, height: 500)
+      container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
       container.refresh()
 
@@ -105,7 +105,7 @@ class ViewNodeTests: XCTestCase {
       view.setNeedsLayout()
       view.layoutIfNeeded()
       XCTAssertEqual(view.bounds.size, view.intrinsicSize(for: CGSize(width: 500, height: 500)))
-      container.refresh()
+      container.refresh(animated: false)
       // the view's frame should be changed to the size of the constraints
       XCTAssertEqual(view.frame, CGRect(x: 10, y: 10, width: 200, height: 100))
     }
@@ -118,9 +118,9 @@ class ViewNodeTests: XCTestCase {
         .padding(10)
 
       let container = ComposeContentView(content: { node })
-      container.bounds.size = CGSize(width: 500, height: 500)
+      container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
-      container.refresh()
+      container.refresh(animated: false)
 
       // the view's frame should be set by ComposeUI, not by the constraints
       XCTAssertEqual(view.frame, CGRect(x: 10, y: 10, width: 210, height: 110))

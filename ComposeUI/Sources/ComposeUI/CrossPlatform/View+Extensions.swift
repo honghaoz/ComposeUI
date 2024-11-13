@@ -49,10 +49,15 @@ extension View {
   ///   - proposedSize: The proposed container size.
   /// - Returns: The intrinsic size of the view.
   func intrinsicSize(for proposedSize: CGSize) -> CGSize {
+    #if canImport(AppKit)
+    return fittingSize
+    #endif
+    #if canImport(UIKit)
     if usesConstraintBasedLayout {
       return systemLayoutSizeFitting(proposedSize)
     } else {
       return sizeThatFits(proposedSize)
     }
+    #endif
   }
 }
