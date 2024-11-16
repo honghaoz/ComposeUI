@@ -70,7 +70,14 @@ public struct ColorNode: ComposeNode {
     let viewItem = ViewItem<BaseView>(
       id: id,
       frame: frame,
-      update: { view in
+      make: { context in
+        if let initialFrame = context.initialFrame {
+          return BaseView(frame: initialFrame)
+        } else {
+          return BaseView()
+        }
+      },
+      update: { view, context in
         #if canImport(AppKit)
         view.ignoreHitTest = true
         #endif

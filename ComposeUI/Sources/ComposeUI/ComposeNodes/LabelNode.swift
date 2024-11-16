@@ -106,7 +106,14 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     let viewItem = ViewItem<UILabel>(
       id: id,
       frame: frame,
-      update: { view in
+      make: { context in
+        if let initialFrame = context.initialFrame {
+          return UILabel(frame: initialFrame)
+        } else {
+          return UILabel()
+        }
+      },
+      update: { view, context in
         updateLabel(view)
       }
     ).eraseToViewItem()
