@@ -458,7 +458,6 @@ open class ComposeContentView: BaseScrollView {
         } else {
           // no insert transition, just set the frame and update without animation
           view.frame = newFrame
-          viewItem.didInsert?(view, ViewInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame))
           didInsertBlock()
         }
       }
