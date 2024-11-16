@@ -40,11 +40,33 @@ import UIKit
 private struct ModifierNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
-  private let modifier: (View) -> Void
 
-  fileprivate init(node: Node, modifier: @escaping (View) -> Void) {
+  private let willInsert: ((View, ViewInsertContext) -> Void)?
+  private let didInsert: ((View, ViewInsertContext) -> Void)?
+  private let update: ((View, ViewUpdateContext) -> Void)?
+  private let willRemove: ((View, ViewRemoveContext) -> Void)?
+  private let didRemove: ((View, ViewRemoveContext) -> Void)?
+  private let transition: ViewTransition?
+  private let animation: ViewAnimation?
+
+  fileprivate init(node: Node,
+                   willInsert: ((View, ViewInsertContext) -> Void)? = nil,
+                   didInsert: ((View, ViewInsertContext) -> Void)? = nil,
+                   update: ((View, ViewUpdateContext) -> Void)? = nil,
+                   willRemove: ((View, ViewRemoveContext) -> Void)? = nil,
+                   didRemove: ((View, ViewRemoveContext) -> Void)? = nil,
+                   transition: ViewTransition? = nil,
+                   animation: ViewAnimation? = nil)
+  {
+    // TODO: support coalescing modifiers into a single modifier node
     self.node = node
-    self.modifier = modifier
+    self.willInsert = willInsert
+    self.didInsert = didInsert
+    self.update = update
+    self.willRemove = willRemove
+    self.didRemove = didRemove
+    self.transition = transition
+    self.animation = animation
   }
 
   // MARK: - ComposeNode
@@ -64,7 +86,31 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
 
   func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     node.viewItems(in: visibleBounds)
-      .map { $0.addsUpdate(modifier) }
+      .map { viewItem in
+        var viewItem = viewItem
+        if let willInsert = willInsert {
+          viewItem = viewItem.addWillInsert(willInsert)
+        }
+        if let didInsert = didInsert {
+          viewItem = viewItem.addDidInsert(didInsert)
+        }
+        if let update = update {
+          viewItem = viewItem.addUpdate(update)
+        }
+        if let willRemove = willRemove {
+          viewItem = viewItem.addWillRemove(willRemove)
+        }
+        if let didRemove = didRemove {
+          viewItem = viewItem.addDidRemove(didRemove)
+        }
+        if let transition = transition {
+          viewItem = viewItem.transition(transition)
+        }
+        if let animation = animation {
+          viewItem = viewItem.animation(animation)
+        }
+        return viewItem
+      }
   }
 }
 
@@ -72,12 +118,60 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
 
 public extension ComposeNode {
 
-  /// Apply a modifier to the node's view.
+  /// Execute a block when the view provided by the node is about to be inserted into the view hierarchy.
   ///
-  /// - Parameter modifier: The modifier to apply.
-  /// - Returns: A new node with the modifier applied.
-  func modify(with modifier: @escaping (View) -> Void) -> some ComposeNode {
-    ModifierNode(node: self, modifier: modifier)
+  /// - Parameter willInsert: The block to execute.
+  /// - Returns: A new node with the block added.
+  func willInsert(_ willInsert: @escaping (View, ViewInsertContext) -> Void) -> some ComposeNode {
+    ModifierNode(node: self, willInsert: willInsert)
+  }
+
+  /// Execute a block when the view provided by the node is inserted into the view hierarchy.
+  ///
+  /// - Parameter didInsert: The block to execute.
+  /// - Returns: A new node with the block added.
+  func onInsert(_ didInsert: @escaping (View, ViewInsertContext) -> Void) -> some ComposeNode {
+    ModifierNode(node: self, didInsert: didInsert)
+  }
+
+  /// Execute a block when the view provided by the node is updated.
+  ///
+  /// - Parameter update: The block to execute.
+  /// - Returns: A new node with the block added.
+  func onUpdate(_ update: @escaping (View, ViewUpdateContext) -> Void) -> some ComposeNode {
+    ModifierNode(node: self, update: update)
+  }
+
+  /// Execute a block when the view provided by the node is about to be removed from the view hierarchy.
+  ///
+  /// - Parameter willRemove: The block to execute.
+  /// - Returns: A new node with the block added.
+  func willRemove(_ willRemove: @escaping (View, ViewRemoveContext) -> Void) -> some ComposeNode {
+    ModifierNode(node: self, willRemove: willRemove)
+  }
+
+  /// Execute a block when the view provided by the node is removed from the view hierarchy.
+  ///
+  /// - Parameter didRemove: The block to execute.
+  /// - Returns: A new node with the block added.
+  func onRemove(_ didRemove: @escaping (View, ViewRemoveContext) -> Void) -> some ComposeNode {
+    ModifierNode(node: self, didRemove: didRemove)
+  }
+
+  /// Set a transition for the view provided by the node.
+  ///
+  /// - Parameter transition: The transition to set.
+  /// - Returns: A new node with the transition set.
+  func transition(_ transition: ViewTransition) -> some ComposeNode {
+    ModifierNode(node: self, transition: transition)
+  }
+
+  /// Set an animation for the view provided by the node.
+  ///
+  /// - Parameter animation: The animation to set.
+  /// - Returns: A new node with the animation set.
+  func animation(_ animation: ViewAnimation) -> some ComposeNode {
+    ModifierNode(node: self, animation: animation)
   }
 
   /// Set a key path of the node's view.
@@ -87,7 +181,7 @@ public extension ComposeNode {
   ///   - value: The value to set.
   /// - Returns: A new node with the key path set.
   func keyPath<Value>(_ keyPath: ReferenceWritableKeyPath<View, Value>, _ value: Value) -> some ComposeNode {
-    modify { view in
+    onUpdate { view, context in
       view[keyPath: keyPath] = value
     }
   }
@@ -99,9 +193,10 @@ public extension ComposeNode {
   ///   - width: The width of the border.
   /// - Returns: A new node with the border set.
   func border(color: Color, width: CGFloat) -> some ComposeNode {
-    modify { view in
-      view.layer().borderColor = color.cgColor
-      view.layer().borderWidth = width
+    onUpdate { view, context in
+      let layer = view.layer()
+      layer.borderColor = color.cgColor
+      layer.borderWidth = width
     }
   }
 
@@ -110,10 +205,11 @@ public extension ComposeNode {
   /// - Parameter radius: The corner radius to set.
   /// - Returns: A new node with the corner radius set.
   func cornerRadius(_ radius: CGFloat) -> some ComposeNode {
-    modify { view in
-      view.layer().masksToBounds = true
-      view.layer().cornerCurve = .continuous
-      view.layer().cornerRadius = radius
+    onUpdate { view, context in
+      let layer = view.layer()
+      layer.masksToBounds = true
+      layer.cornerCurve = .continuous
+      layer.cornerRadius = radius
     }
   }
 
@@ -124,13 +220,18 @@ public extension ComposeNode {
   ///   - offset: The offset of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - opacity: The opacity of the shadow.
+  ///   - path: The block to provide the path of the shadow. The block provides the view that the shadow is applied to.
   /// - Returns: A new node with the shadow set.
-  func shadow(color: Color, offset: CGSize, radius: CGFloat, opacity: Float) -> some ComposeNode {
-    modify { view in
-      view.layer().shadowColor = color.cgColor
-      view.layer().shadowOffset = offset
-      view.layer().shadowRadius = radius
-      view.layer().shadowOpacity = opacity
+  func shadow(color: Color, offset: CGSize, radius: CGFloat, opacity: CGFloat, path: ((View) -> CGPath)?) -> some ComposeNode {
+    onUpdate { view, context in
+      let layer = view.layer()
+      layer.shadowColor = color.cgColor
+      layer.shadowOffset = offset
+      layer.shadowRadius = radius
+      layer.shadowOpacity = Float(opacity)
+      if let path = path?(view) {
+        layer.shadowPath = path
+      }
     }
   }
 
@@ -139,7 +240,7 @@ public extension ComposeNode {
   /// - Parameter color: The background color to set.
   /// - Returns: A new node with the background color set.
   func backgroundColor(_ color: Color) -> some ComposeNode {
-    modify { view in
+    onUpdate { view, context in
       view.layer().backgroundColor = color.cgColor
     }
   }
@@ -149,8 +250,18 @@ public extension ComposeNode {
   /// - Parameter opacity: The opacity to set.
   /// - Returns: A new node with the opacity set.
   func opacity(_ opacity: CGFloat) -> some ComposeNode {
-    modify { view in
+    onUpdate { view, context in
       view.layer().opacity = Float(opacity)
+    }
+  }
+
+  /// Set the z-index (zPosition) of the node's view.
+  ///
+  /// - Parameter zIndex: The z-index to set.
+  /// - Returns: A new node with the z-index set.
+  func zIndex(_ zIndex: CGFloat) -> some ComposeNode {
+    onUpdate { view, context in
+      view.layer().zPosition = zIndex
     }
   }
 
@@ -159,7 +270,7 @@ public extension ComposeNode {
   /// - Parameter isEnabled: Whether the view is interactive.
   /// - Returns: A new node with the `isUserInteractionEnabled` set.
   func interactive(_ isEnabled: Bool = true) -> some ComposeNode {
-    modify { view in
+    onUpdate { view, context in
       #if canImport(AppKit)
       view.ignoreHitTest = !isEnabled
       #endif

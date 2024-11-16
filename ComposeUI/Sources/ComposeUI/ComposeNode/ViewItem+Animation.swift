@@ -1,8 +1,8 @@
 //
-//  ComposeContentView+ContentUpdateContext.swift
+//  ViewItem+Animation.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 11/13/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,34 +30,22 @@
 
 import Foundation
 
-extension ComposeContentView {
+/// A model contains the view animation info.
+public struct ViewAnimation {
 
-  struct ContentUpdateContext {
+  /// The timing of the animation.
+  public let timing: AnimationTiming
 
-    enum ContentUpdateType {
+  /// The completion block of the animation.
+  public let completion: ((Bool) -> Void)?
+}
 
-      /// Explicit refresh request, with a flag to indicate if the refresh is animated.
-      case refresh(isAnimated: Bool)
+/// The context for animating a view.
+public struct ViewAnimationContext {
 
-      /// View bounds changed.
-      case boundsChange(previousBounds: CGRect)
-    }
+  /// The timing of the animation.
+  public let timing: AnimationTiming
 
-    let updateType: ContentUpdateType
-
-    var isRendering: Bool = false
-
-    var isAnimated: Bool {
-      switch updateType {
-      case .refresh(let isAnimated):
-        return isAnimated
-      case .boundsChange:
-        return false // TODO: should support configurable animation for bounds change
-      }
-    }
-
-    init(updateType: ContentUpdateType) {
-      self.updateType = updateType
-    }
-  }
+  /// The content view that contains the view.
+  public weak var contentView: ComposeContentView!
 }

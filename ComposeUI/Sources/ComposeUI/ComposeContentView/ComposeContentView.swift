@@ -42,6 +42,20 @@ open class ComposeContentView: BaseScrollView {
   /// The content for the view.
   ///
   /// This is overridable so that a subclass can provide a content.
+  ///
+  /// A typical example of a `ComposeContentView` subclass:
+  ///
+  /// ```swift
+  /// class MyContentView: ComposeContentView {
+  ///
+  ///   @ComposeContentBuilder
+  ///   override var content: ComposeContent {
+  ///     VStack {
+  ///       Text("Hello, World!")
+  ///     }
+  ///   }
+  /// }
+  /// ```
   var content: ComposeContent {
     Empty()
   }
@@ -66,6 +80,16 @@ open class ComposeContentView: BaseScrollView {
 
   /// The map of the views that the content view is rendering.
   private var viewMap: [String: View] = [:]
+
+  /// The map of the views that are being removed.
+  ///
+  /// The removing views are the ones that are not in the view hierarchy but still rendered due to the transition.
+  private var removingViewMap: [String: View] = [:]
+
+  /// The map of the removing view transition completion blocks.
+  private var removingViewTransitionCompletionMap: [String: CancellableBlock] = [:]
+
+  // MARK: - Initialization
 
   /// Creates a `ComposeContentView` with the given content, passing in the content view.
   ///
@@ -110,10 +134,16 @@ open class ComposeContentView: BaseScrollView {
   }
 
   private func commonInit() {
+    contentScaleFactor = screenScaleFactor
+
     #if canImport(UIKit)
     contentInsetAdjustmentBehavior = .never // ensure the content inset is consistent
     #endif
+
+    disableScroll()
   }
+
+  // MARK: - Content
 
   /// Set a new content.
   ///
@@ -128,6 +158,8 @@ open class ComposeContentView: BaseScrollView {
   func setContent(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
     makeContent = { _ in content() }
   }
+
+  // MARK: - Size
 
   #if canImport(UIKit)
   /// Get the size that fits the content.
@@ -153,30 +185,66 @@ open class ComposeContentView: BaseScrollView {
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
   }
 
+  // MARK: - Window
+
+  override open func didMoveToWindow() {
+    super.didMoveToWindow()
+
+    contentScaleFactor = screenScaleFactor
+  }
+
+  // MARK: - Scroll
+
+  /// Enables scroll.
+  func enableScroll() {
+    isScrollEnabled = true
+    scrollsToTop = true
+    showsHorizontalScrollIndicator = true
+    showsVerticalScrollIndicator = true
+  }
+
+  /// Disables scroll.
+  func disableScroll() {
+    isScrollEnabled = false
+    scrollsToTop = false
+    showsHorizontalScrollIndicator = false
+    showsVerticalScrollIndicator = false
+  }
+
+  // MARK: - Render
+
   /// Refreshes and re-renders the content.
   ///
-  /// This call will make a new content from the builder block and re-render the content.
+  /// This call will make a new content from the builder block and re-render the content immediately.
   ///
   /// - Parameter animated: Whether the refresh is animated.
   public func refresh(animated: Bool = true) {
+    assert(Thread.isMainThread, "refresh must be called on the main thread")
+
     // explicit render request, should make a new content
     contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
     contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated))
 
-    setNeedsLayout()
-    layoutIfNeeded()
+    render()
   }
 
   override open func layoutSubviews() {
     super.layoutSubviews()
 
     if contentUpdateContext == nil, bounds() != lastRenderBounds {
-      // no explicit render request, this is a bounds change update
+      // no pending render request but the bounds changed, should re-render the content
       if contentNode == nil {
         contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
       }
-      contentUpdateContext = ContentUpdateContext(updateType: .boundsChange)
+      contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds))
     }
+
+    render()
+  }
+
+  /// Performs a render pass.
+  open func render() {
+    assert(Thread.isMainThread, "render must be called on the main thread")
 
     guard var contentUpdateContext, !contentUpdateContext.isRendering else {
       return
@@ -197,7 +265,6 @@ open class ComposeContentView: BaseScrollView {
     }
 
     // do the layout
-    // TODO: how to maintain a matched content offset?
     _ = contentNode.layout(containerSize: bounds().size)
 
     // TODO: check if the content is larger than the container
@@ -209,14 +276,15 @@ open class ComposeContentView: BaseScrollView {
 
     // set up the view item ids and map
     let oldViewItemIds = viewItemIds
+    let oldViewItemMap = viewItemMap
     let oldViewMap = viewMap
 
     viewItemIds = []
-    viewItemIds.reserveCapacity(viewItems.count)
+    viewItemIds.reserveCapacity(oldViewItemIds.count + viewItems.count)
     viewItemMap = [:]
-    viewItemMap.reserveCapacity(viewItems.count)
+    viewItemMap.reserveCapacity(oldViewItemMap.count + viewItems.count)
     viewMap = [:]
-    viewMap.reserveCapacity(viewItems.count)
+    viewMap.reserveCapacity(oldViewMap.count + viewItems.count)
 
     for viewItem in viewItems {
       let id = viewItem.id.id
@@ -230,11 +298,48 @@ open class ComposeContentView: BaseScrollView {
 
     for oldId in oldViewItemIds {
       if viewItemMap[oldId] == nil {
-        // [1/3] remove the view item that are no longer in the content
-        let oldView = oldViewMap[oldId]
+        // [1/3] 🗑️ remove the view item that are no longer in the content
+        if let oldViewItem = oldViewItemMap[oldId], let oldView = oldViewMap[oldId] {
+          let oldFrame = oldView.frame
+          oldViewItem.willRemove?(oldView, ViewRemoveContext(oldFrame: oldFrame))
 
-        // TODO: add transition animations
-        oldView?.removeFromSuperview()
+          let removeBlock = {
+            oldView.removeFromSuperview()
+            oldViewItem.didRemove?(oldView, ViewRemoveContext(oldFrame: oldFrame))
+          }
+
+          if context.isAnimated, let transition = oldViewItem.transition?.remove {
+            // if theres a remove transition, it can take time to complete, we need to track the old view until the
+            // transition is completed because the view may be re-inserted into the view hierarchy later
+            removingViewMap[oldId] = oldView
+
+            let completion = CancellableBlock { [weak self] in
+              assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
+              guard let self else {
+                return
+              }
+
+              self.removingViewMap.removeValue(forKey: oldId)
+              self.removingViewTransitionCompletionMap.removeValue(forKey: oldId)
+
+              removeBlock()
+            } cancel: { [weak self] in
+              guard let self else {
+                return
+              }
+              self.removingViewMap.removeValue(forKey: oldId)
+              self.removingViewTransitionCompletionMap.removeValue(forKey: oldId)
+            }
+
+            removingViewTransitionCompletionMap[oldId] = completion
+
+            transition.animate(view: oldView, context: ViewRemoveTransitionContext(contentView: self), completion: completion)
+          } else {
+            removeBlock()
+          }
+        } else {
+          assertionFailure("old view item or old view not found: \(oldId)")
+        }
       } else {
         // this view item is still in the content, plan to reuse it
         reusingIds.insert(oldId)
@@ -246,51 +351,116 @@ open class ComposeContentView: BaseScrollView {
 
       let view: View
       if reusingIds.contains(id) {
-        // [2/3] reuse the view item that is still in the content
+        // [2/3] ♻️ reuse the view item that is still in the content
         view = oldViewMap[id]! // swiftlint:disable:this force_unwrapping
 
         view.reset()
 
+        let updateType: ViewUpdateType
+        switch context.updateType {
+        case .refresh:
+          updateType = .refresh
+        case .boundsChange(let previousBounds):
+          if previousBounds.size == bounds.size {
+            updateType = .scroll
+          } else if previousBounds.origin == bounds.origin {
+            updateType = .sizeChange
+          } else {
+            updateType = .boundsChange
+          }
+        }
+
+        let oldFrame = view.frame
+        let newFrame = viewItem.frame.rounded(scaleFactor: contentScaleFactor)
+
+        let animation: ViewAnimation?
+        let animationContext: ViewAnimationContext?
+        if context.isAnimated, let viewAnimation = viewItem.animation {
+          animation = viewAnimation
+          animationContext = ViewAnimationContext(timing: viewAnimation.timing, contentView: self)
+        } else {
+          animation = nil
+          animationContext = nil
+        }
+
+        let viewUpdateContext = ViewUpdateContext(
+          type: updateType,
+          oldFrame: oldFrame,
+          newFrame: newFrame,
+          animationContext: animationContext
+        )
+
+        viewItem.willUpdate?(view, viewUpdateContext)
+
         contentView().bringSubviewToFront(view)
 
-        if context.isAnimated {
-          // TODO: add animations on nodes
-          #if canImport(UIKit)
-          UIView.animate(
-            withDuration: 0.25,
-            delay: 0,
-            usingSpringWithDamping: 0.85,
-            initialSpringVelocity: 0.3,
-            options: [.curveEaseInOut, .beginFromCurrentState],
-            animations: {
-              view.frame = viewItem.frame.rounded(scaleFactor: self.contentScaleFactor)
-              viewItem.update(view)
-            }
-          )
-          #elseif canImport(AppKit)
-          NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            view.animator().frame = viewItem.frame.rounded(scaleFactor: self.contentScaleFactor)
-            viewItem.update(view.animator())
-          }
-          #endif
+        if let animation {
+          // TODO: disable CAAction, add animations, call completion block
+          view.frame = newFrame
         } else {
-          view.frame = viewItem.frame.rounded(scaleFactor: contentScaleFactor)
-          viewItem.update(view)
+          view.frame = newFrame
         }
+
+        viewItem.update(view, viewUpdateContext)
+
       } else {
-        // [3/3] insert the view item that is new
-        view = viewItem.make()
+        // [3/3] 🆕 insert the view item that is new
+        let newFrame = viewItem.frame.rounded(scaleFactor: contentScaleFactor)
+
+        if let removingView = removingViewMap[id] {
+          // found a matching removing view, should add it back to the view hierarchy
+          removingViewTransitionCompletionMap[id]?.cancel() // cancel the remove transition's completion
+          removingViewMap.removeValue(forKey: id)
+          removingViewTransitionCompletionMap.removeValue(forKey: id)
+          view = removingView
+          // TODO: add tests for re-inserting removing view
+        } else {
+          view = CATransaction.withoutAnimations { // no animation context for making new views
+            viewItem.make(ViewMakeContext(initialFrame: newFrame))
+          }
+        }
 
         view.reset()
 
-        view.frame = viewItem.frame.rounded(scaleFactor: contentScaleFactor)
+        let frameBeforeWillInsert = view.frame
+        viewItem.willInsert?(view, ViewInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame))
+        let frameAfterWillInsert = view.frame
 
-        // TODO: add transition animations
         contentView().addSubview(view)
 
-        viewItem.update(view)
+        let didInsertBlock = {
+          viewItem.didInsert?(view, ViewInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame))
+
+          let viewUpdateContext = ViewUpdateContext(
+            type: .insert,
+            oldFrame: frameAfterWillInsert,
+            newFrame: newFrame,
+            animationContext: nil // no animation context for insertion
+          )
+          viewItem.update(view, viewUpdateContext)
+        }
+
+        if context.isAnimated, let transition = viewItem.transition?.insert {
+          // has insert transition, animate the view insertion
+          transition.animate(
+            view: view,
+            context: ViewInsertTransitionContext(targetFrame: newFrame, contentView: self),
+            completion: CancellableBlock {
+              assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
+              // at the moment, the view's frame may not be the target frame, this is because during the insert transition,
+              // the content view can be refreshed, and the view's frame may be updated to a different frame.
+              //
+              // insert: [-------------------] setting frame to frame1
+              // reuse:        [-----]         during the insert transition, the view's frame is updated to frame2
+              didInsertBlock()
+            }
+          )
+        } else {
+          // no insert transition, just set the frame and update without animation
+          view.frame = newFrame
+          viewItem.didInsert?(view, ViewInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame))
+          didInsertBlock()
+        }
       }
 
       viewMap[id] = view
@@ -306,13 +476,9 @@ private extension View {
   ///
   /// To ensure the frame update is applied correctly, the transform is reset to identity.
   func reset() {
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-
-    // frame update requires an identity transform
-    layer().transform = CATransform3DIdentity
-
-    CATransaction.commit()
+    CATransaction.withoutAnimations {
+      layer().transform = CATransform3DIdentity // setting frame requires an identity transform
+    }
   }
 }
 

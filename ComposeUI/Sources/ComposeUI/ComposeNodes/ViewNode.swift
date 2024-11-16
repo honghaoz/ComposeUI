@@ -39,12 +39,14 @@ import UIKit
 /// A node that renders a `View`.
 public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
-  private let makeView: () -> T
-
-  private let updateView: (T) -> Void
+  private let make: (ViewMakeContext) -> T
+  private let willInsert: ((T, ViewInsertContext) -> Void)?
+  private let didInsert: ((T, ViewInsertContext) -> Void)?
+  private let update: (T, ViewUpdateContext) -> Void
+  private let willRemove: ((T, ViewRemoveContext) -> Void)?
+  private let didRemove: ((T, ViewRemoveContext) -> Void)?
 
   public var isFixedWidth: Bool
-
   public var isFixedHeight: Bool
 
   private var cachedView: T?
@@ -74,14 +76,32 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   ///
   /// - Parameters:
   ///   - view: The external view.
-  public init(_ view: T) {
-    self.makeView = {
+  ///   - willInsert: A closure to be called when the view is about to be inserted into the view hierarchy.
+  ///   - didInsert: A closure to be called when the view is inserted into the view hierarchy.
+  ///   - update: A closure to update the view.
+  ///   - willRemove: A closure to be called when the view is about to be removed from the view hierarchy.
+  ///   - didRemove: A closure to be called when the view is removed from the view hierarchy.
+  public init(_ view: T,
+              willInsert: ((T, ViewInsertContext) -> Void)? = nil,
+              didInsert: ((T, ViewInsertContext) -> Void)? = nil,
+              update: @escaping (T, ViewUpdateContext) -> Void = { _, _ in },
+              willRemove: ((T, ViewRemoveContext) -> Void)? = nil,
+              didRemove: ((T, ViewRemoveContext) -> Void)? = nil)
+  {
+    self.make = { _ in
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
       return view
     }
-    self.updateView = { _ in }
+    self.willInsert = willInsert
+    self.didInsert = didInsert
+    self.update = update
+    self.willRemove = willRemove
+    self.didRemove = didRemove
     self.isFixedWidth = true
     self.isFixedHeight = true
+
+    // use a unique id for the view node with an external view so that the view won't be reused incorrectly on refresh
+    id = .custom("view-\(ObjectIdentifier(view))", isFixed: false)
   }
 
   /// Make a view node with a view factory.
@@ -89,37 +109,34 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   /// The node will have a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
   ///
   /// - Parameters:
-  ///   - make: A closure to create a view.
+  ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with with frame set to `context.initialFrame` if it's provided.
+  ///   - willInsert: A closure to be called when the view is about to be inserted into the view hierarchy.
+  ///   - didInsert: A closure to be called when the view is inserted into the view hierarchy.
   ///   - update: A closure to update the view.
-  public init(make: @escaping () -> T,
-              update: @escaping (T) -> Void = { _ in })
+  ///   - willRemove: A closure to be called when the view is about to be removed from the view hierarchy.
+  ///   - didRemove: A closure to be called when the view is removed from the view hierarchy.
+  public init(make: ((ViewMakeContext) -> T)? = nil,
+              willInsert: ((T, ViewInsertContext) -> Void)? = nil,
+              didInsert: ((T, ViewInsertContext) -> Void)? = nil,
+              update: @escaping (T, ViewUpdateContext) -> Void = { _, _ in },
+              willRemove: ((T, ViewRemoveContext) -> Void)? = nil,
+              didRemove: ((T, ViewRemoveContext) -> Void)? = nil)
   {
-    self.makeView = {
-      let view = make()
+    self.make = make ?? { context in
+      let view: T
+      if let initialFrame = context.initialFrame {
+        view = T(frame: initialFrame)
+      } else {
+        view = T()
+      }
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
       return view
     }
-    self.updateView = update
-    self.isFixedWidth = false
-    self.isFixedHeight = false
-  }
-
-  /// Make a view node with a view factory.
-  ///
-  /// The node will have a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
-  ///
-  /// - Parameters:
-  ///   - make: A closure to create a view.
-  ///   - update: A closure to update the view.
-  public init(make: @autoclosure @escaping () -> T = T(),
-              update: @escaping (T) -> Void = { _ in })
-  {
-    self.makeView = {
-      let view = make()
-      view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
-      return view
-    }
-    self.updateView = update
+    self.willInsert = willInsert
+    self.didInsert = didInsert
+    self.update = update
+    self.willRemove = willRemove
+    self.didRemove = didRemove
     self.isFixedWidth = false
     self.isFixedHeight = false
   }
@@ -159,12 +176,24 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
     let viewItem = ViewItem<T>(
       id: id,
       frame: frame,
-      make: { cachedView ?? makeView() },
-      update: { view in
+      make: make,
+      willInsert: { view, context in
+        willInsert?(view, context)
+      },
+      didInsert: { view, context in
+        didInsert?(view, context)
+      },
+      update: { view, context in
         #if canImport(AppKit)
         assert(view.wantsLayer, "\(T.self) should be layer backed. Please set `wantsLayer == true`.")
         #endif
-        updateView(view)
+        update(view, context)
+      },
+      willRemove: { view, context in
+        willRemove?(view, context)
+      },
+      didRemove: { view, context in
+        didRemove?(view, context)
       }
     ).eraseToViewItem()
 
@@ -178,7 +207,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
       return cachedView
     }
 
-    let view = makeView()
+    let view = make(ViewMakeContext(initialFrame: nil))
     cachedView = view
     return view
   }

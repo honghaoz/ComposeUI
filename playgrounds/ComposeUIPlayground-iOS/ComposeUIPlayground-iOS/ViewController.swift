@@ -67,7 +67,7 @@ class ViewController: UIViewController {
     LabelNode("Hey")
 
     ViewNode<UILabel>(
-      update: { label in
+      update: { label, _ in
         label.text = "Hello, ComposeUI!"
         label.textAlignment = .center
       }
@@ -144,6 +144,12 @@ class ViewController: UIViewController {
       button.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       button.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -30),
     ])
+
+    contentView.isScrollEnabled = true
+    contentView.scrollsToTop = true
+
+    contentView.showsHorizontalScrollIndicator = true
+    contentView.showsVerticalScrollIndicator = true
   }
 
   @objc private func changeColor() {
