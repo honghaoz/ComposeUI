@@ -38,7 +38,7 @@ public extension CATransaction {
   /// - Returns: The result of the work block.
   @inlinable
   @inline(__always)
-  static func withoutAnimations<T>(_ work: () throws -> T) rethrows -> T {
+  static func disableAnimations<T>(_ work: () throws -> T) rethrows -> T {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     CATransaction.setAnimationDuration(0)

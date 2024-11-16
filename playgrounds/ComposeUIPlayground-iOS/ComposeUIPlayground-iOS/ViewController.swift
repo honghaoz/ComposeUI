@@ -64,8 +64,6 @@ class ViewController: UIViewController {
   private lazy var contentView = ComposeContentView { [state] in
     Spacer().height(60)
 
-    LabelNode("Hey")
-
     ViewNode<UILabel>(
       update: { label, _ in
         label.text = "Hello, ComposeUI!"
@@ -144,12 +142,6 @@ class ViewController: UIViewController {
       button.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       button.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -30),
     ])
-
-    contentView.isScrollEnabled = true
-    contentView.scrollsToTop = true
-
-    contentView.showsHorizontalScrollIndicator = true
-    contentView.showsVerticalScrollIndicator = true
   }
 
   @objc private func changeColor() {

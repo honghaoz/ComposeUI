@@ -139,8 +139,6 @@ open class ComposeContentView: BaseScrollView {
     #if canImport(UIKit)
     contentInsetAdjustmentBehavior = .never // ensure the content inset is consistent
     #endif
-
-    disableScroll()
   }
 
   // MARK: - Content
@@ -185,30 +183,26 @@ open class ComposeContentView: BaseScrollView {
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
   }
 
-  // MARK: - Window
-
-  override open func didMoveToWindow() {
-    super.didMoveToWindow()
-
-    contentScaleFactor = screenScaleFactor
-  }
-
   // MARK: - Scroll
 
   /// Enables scroll.
   func enableScroll() {
+    #if canImport(UIKit)
     isScrollEnabled = true
     scrollsToTop = true
     showsHorizontalScrollIndicator = true
     showsVerticalScrollIndicator = true
+    #endif
   }
 
   /// Disables scroll.
   func disableScroll() {
+    #if canImport(UIKit)
     isScrollEnabled = false
     scrollsToTop = false
     showsHorizontalScrollIndicator = false
     showsVerticalScrollIndicator = false
+    #endif
   }
 
   // MARK: - Render
@@ -415,7 +409,7 @@ open class ComposeContentView: BaseScrollView {
           view = removingView
           // TODO: add tests for re-inserting removing view
         } else {
-          view = CATransaction.withoutAnimations { // no animation context for making new views
+          view = CATransaction.disableAnimations { // no animation context for making new views
             viewItem.make(ViewMakeContext(initialFrame: newFrame))
           }
         }
@@ -475,7 +469,7 @@ private extension View {
   ///
   /// To ensure the frame update is applied correctly, the transform is reset to identity.
   func reset() {
-    CATransaction.withoutAnimations {
+    CATransaction.disableAnimations {
       layer().transform = CATransform3DIdentity // setting frame requires an identity transform
     }
   }
