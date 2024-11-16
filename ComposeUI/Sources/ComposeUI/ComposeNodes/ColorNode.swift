@@ -56,7 +56,7 @@ public struct ColorNode: ComposeNode {
 
   public private(set) var size: CGSize = .zero
 
-  public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     size = containerSize
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }

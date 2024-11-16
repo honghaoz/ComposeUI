@@ -159,7 +159,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
   public private(set) var size: CGSize = .zero
 
-  public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
       let view = getView()

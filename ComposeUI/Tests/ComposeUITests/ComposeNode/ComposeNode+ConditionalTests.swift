@@ -52,7 +52,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
     // when condition is true
     do {
       var node = makeNode(condition: true)
-      node.layout(containerSize: CGSize(width: 10, height: 10))
+      node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       let viewItems = node.viewItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
       XCTAssert(viewItems.count == 2)
     }
@@ -60,7 +60,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
     // when condition is false
     do {
       var node = makeNode(condition: false)
-      node.layout(containerSize: CGSize(width: 10, height: 10))
+      node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       let viewItems = node.viewItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
       XCTAssert(viewItems.count == 1)
     }
@@ -91,7 +91,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
     // when condition is true
     do {
       var node = makeNode(condition: true)
-      node.layout(containerSize: CGSize(width: 10, height: 10))
+      node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       let viewItems = node.viewItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
       XCTAssert(viewItems.count == 2)
     }
@@ -99,7 +99,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
     // when condition is false
     do {
       var node = makeNode(condition: false)
-      node.layout(containerSize: CGSize(width: 10, height: 10))
+      node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       let viewItems = node.viewItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
       XCTAssert(viewItems.count == 1)
       XCTAssert(viewItems[0].frame.origin.x == 2)

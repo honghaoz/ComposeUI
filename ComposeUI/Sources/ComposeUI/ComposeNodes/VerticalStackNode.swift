@@ -58,7 +58,7 @@ public struct VerticalStackNode: ComposeNode {
 
   public private(set) var size: CGSize = .zero
 
-  public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     guard !childNodes.isEmpty else {
       size = .zero
       return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
@@ -83,7 +83,7 @@ public struct VerticalStackNode: ComposeNode {
         childNodes[nodeIndex] = spacer.width(0)
       }
 
-      let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize)
+      let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize, context: context)
 
       heightSizing = heightSizing.combine(with: childSizing.height, axis: .main)
       childHeightSizings.append(childSizing.height)
@@ -93,13 +93,17 @@ public struct VerticalStackNode: ComposeNode {
 
     let remainingHeight = containerSize.height - totalSpacing
     let proposedHeights = Layout.stackLayout(space: remainingHeight, items: childHeightSizings)
+      .rounded(scaleFactor: context.scaleFactor)
 
     // second pass: layout children with proposed heights
     for nodeIndex in 0 ..< childCount {
       switch childHeightSizings[nodeIndex] {
       case .flexible,
            .range:
-        _ = childNodes[nodeIndex].layout(containerSize: CGSize(width: containerSize.width, height: proposedHeights[nodeIndex]))
+        _ = childNodes[nodeIndex].layout(
+          containerSize: CGSize(width: containerSize.width, height: proposedHeights[nodeIndex]),
+          context: context
+        )
       case .fixed:
         // skips fixed height nodes as they don't need to be laid out again
         continue

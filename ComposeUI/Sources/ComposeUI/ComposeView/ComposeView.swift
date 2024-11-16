@@ -193,7 +193,7 @@ open class ComposeView: BaseScrollView {
 
   private func _sizeThatFits(_ size: CGSize) -> CGSize {
     var contentNode = makeContent(self).asVStack(alignment: .center)
-    _ = contentNode.layout(containerSize: size)
+    _ = contentNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
   }
 
@@ -251,7 +251,7 @@ open class ComposeView: BaseScrollView {
     }
 
     // do the layout
-    _ = contentNode.layout(containerSize: bounds().size)
+    _ = contentNode.layout(containerSize: bounds().size, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
 
     // TODO: check if the content is larger than the container
     // if not, should use frame to center the content
@@ -463,78 +463,6 @@ private extension View {
   func reset() {
     CATransaction.disableAnimations {
       layer().transform = CATransform3DIdentity // setting frame requires an identity transform
-    }
-  }
-}
-
-private extension CGRect {
-
-  /// Rounds the rectangle to the nearest pixel size based on the given scale factor.
-  /// So that the view can be rendered without subpixel rendering artifacts.
-  ///
-  /// - Parameter scaleFactor: The scale factor of the screen.
-  /// - Returns: The rounded rectangle.
-  func rounded(scaleFactor: CGFloat) -> CGRect {
-    if isNull || isInfinite {
-      return self
-    }
-
-    let pixelWidth: CGFloat = 1 / scaleFactor
-
-    let x = origin.x.round(nearest: pixelWidth)
-    let y = origin.y.round(nearest: pixelWidth)
-    let width = width.round(nearest: pixelWidth)
-    let height = height.round(nearest: pixelWidth)
-    return CGRect(x: x, y: y, width: width, height: height)
-  }
-}
-
-private extension CGSize {
-
-  /// Rounds up the size to the nearest pixel size based on the given scale factor.
-  ///
-  /// For example, `CGSize(width: 49.9, height: 50.0).roundedUp(scaleFactor: 2.0)` returns `CGSize(width: 50.0, height: 50.0)`.
-  ///
-  /// - Parameter scaleFactor: The scale factor of the screen.
-  /// - Returns: The rounded size.
-  func roundedUp(scaleFactor: CGFloat) -> CGSize {
-    guard scaleFactor > 0 else {
-      return self
-    }
-
-    let pixelWidth: CGFloat = 1 / scaleFactor
-    let width = width.ceil(nearest: pixelWidth)
-    let height = height.ceil(nearest: pixelWidth)
-    return CGSize(width: width, height: height)
-  }
-}
-
-private extension CGFloat {
-
-  /// Rounds the value to the nearest value based on the given nearest value.
-  ///
-  /// For example, `1.1.round(nearest: 0.5)` returns `1.0` and `1.4.round(nearest: 0.5)` returns `1.5`.
-  ///
-  /// - Parameter nearest: The nearest value, usually this is 1 divided by the scale factor of the screen.
-  /// - Returns: The rounded value.
-  func round(nearest: CGFloat) -> CGFloat {
-    let n = 1 / nearest
-    let numberToRound = self * n
-    return numberToRound.rounded() / n
-  }
-
-  /// Rounds up the value to the nearest value based on the given nearest value.
-  ///
-  /// For example, `1.0.ceil(nearest: 0.5)` returns `1.0` and `1.1.ceil(nearest: 0.5)` returns `1.5`.
-  ///
-  /// - Parameter nearest: The nearest value, usually this is 1 divided by the scale factor of the screen.
-  /// - Returns: The rounded value.
-  func ceil(nearest: CGFloat) -> CGFloat {
-    let remainder = truncatingRemainder(dividingBy: nearest)
-    if abs(remainder) <= 1e-12 {
-      return self
-    } else {
-      return self + (nearest - remainder)
     }
   }
 }

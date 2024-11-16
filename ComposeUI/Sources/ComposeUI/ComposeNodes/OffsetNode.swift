@@ -47,8 +47,8 @@ private struct OffsetNode<Node: ComposeNode>: ComposeNode {
 
   var size: CGSize { node.size }
 
-  mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
-    node.layout(containerSize: containerSize)
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    node.layout(containerSize: containerSize, context: context)
   }
 
   func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {

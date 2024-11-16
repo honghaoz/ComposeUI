@@ -52,7 +52,7 @@ public struct LayeredStackNode: ComposeNode {
 
   public private(set) var size: CGSize = .zero
 
-  public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     guard !childNodes.isEmpty else {
       size = .zero
       return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
@@ -66,7 +66,7 @@ public struct LayeredStackNode: ComposeNode {
     var heightSizing: ComposeNodeSizing.Sizing = .fixed(0)
 
     for nodeIndex in 0 ..< childCount {
-      let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize)
+      let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize, context: context)
       let childSize = childNodes[nodeIndex].size
 
       if childSize.width > maxWidth {

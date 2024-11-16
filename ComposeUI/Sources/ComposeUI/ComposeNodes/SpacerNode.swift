@@ -71,7 +71,7 @@ public struct SpacerNode: ComposeNode {
 
   public private(set) var size: CGSize = .zero
 
-  public mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let sizing: ComposeNodeSizing
 
     switch (width, height) {

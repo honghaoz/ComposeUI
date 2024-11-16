@@ -58,10 +58,12 @@ public protocol ComposeNode: ComposeContent {
 
   /// Layout the node in the given container size.
   ///
-  /// - Parameter containerSize: The container size.
+  /// - Parameters:
+  ///   - containerSize: The container size.
+  ///   - context: The layout context.
   /// - Returns: The sizing information of the node.
   @discardableResult
-  mutating func layout(containerSize: CGSize) -> ComposeNodeSizing
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing
 
   /// Get the view items that are visible in the given bounds.
   ///
