@@ -94,67 +94,67 @@ public enum Layout {
     )
   }
 
-  /// Distribute `space` to nodes based on their sizings.
+  /// Distribute `space` to children items based on their sizings.
   ///
   /// - Parameters:
   ///   - space: The total space to distribute.
-  ///   - nodes: The nodes to distribute the space to.
-  /// - Returns: The allocated sizes to the nodes.
-  static func stackLayout(space: CGFloat, children nodes: [ComposeNodeSizing.Sizing]) -> ContiguousArray<CGFloat> {
-    let count = nodes.count
+  ///   - items: The items to distribute the space to.
+  /// - Returns: The allocated sizes to the items.
+  static func stackLayout(space: CGFloat, items: [ComposeNodeSizing.Sizing]) -> ContiguousArray<CGFloat> {
+    let count = items.count
     guard count > 0 else {
       return []
     }
 
-    // the allocated sizes to the nodes.
+    // the allocated sizes to the children.
     var allocations = ContiguousArray<CGFloat>(repeating: 0, count: count)
 
     // the total allocated space.
     var allocatedSpace: CGFloat = 0
 
-    // the indices of the expandable nodes.
-    var expandableNodeIndices = ContiguousArray<Int>()
-    expandableNodeIndices.reserveCapacity(count)
-    var expandableNodeCount = 0
+    // the indices of the expandable items.
+    var expandableItemIndices = ContiguousArray<Int>()
+    expandableItemIndices.reserveCapacity(count)
+    var expandableItemCount = 0
 
-    // first pass: allocate fixed sizes and minimum sizes for range nodes
+    // first pass: allocate fixed sizes and minimum sizes for range items
     for i in 0 ..< count {
-      let node = nodes[i]
-      switch node.normalized() {
+      let item = items[i]
+      switch item.normalized() {
       case .fixed(let size):
         allocations[i] = size // always allocate the fixed size
         allocatedSpace += size
       case .range(let min, _):
         allocations[i] = min // always allocate the minimum size
         allocatedSpace += min
-        expandableNodeIndices.append(i)
-        expandableNodeCount += 1
+        expandableItemIndices.append(i)
+        expandableItemCount += 1
       case .flexible:
-        expandableNodeIndices.append(i)
-        expandableNodeCount += 1
+        expandableItemIndices.append(i)
+        expandableItemCount += 1
       }
     }
 
     var remainingSpace = space - allocatedSpace
 
-    // second pass: allocate remaining space to expandable nodes up to their maximum
+    // second pass: allocate remaining space to expandable items up to their maximum
     // use 0.01 to avoid floating point precision issues
-    while remainingSpace > 0.01, expandableNodeCount > 0 {
-      let spacePerNode = remainingSpace / CGFloat(expandableNodeCount)
+    while remainingSpace > 0.01, expandableItemCount > 0 {
+      let spacePerItem = remainingSpace / CGFloat(expandableItemCount)
 
       var i = 0
-      while i < expandableNodeCount {
-        let index = expandableNodeIndices[i]
+      while i < expandableItemCount {
+        let index = expandableItemIndices[i]
 
-        switch nodes[index] {
+        switch items[index] {
         case .range(_, let max):
           let currentAllocation = allocations[index]
-          let additionalSpace = Swift.min(max - currentAllocation, spacePerNode)
+          let additionalSpace = Swift.min(max - currentAllocation, spacePerItem)
 
           if additionalSpace <= 0 {
             // this should be impossible
-            _ = expandableNodeIndices.swapRemove(at: i)
-            expandableNodeCount -= 1
+            _ = expandableItemIndices.swapRemove(at: i)
+            expandableItemCount -= 1
             continue
           }
 
@@ -162,14 +162,14 @@ public enum Layout {
           remainingSpace -= additionalSpace
 
           if allocations[index] >= max {
-            _ = expandableNodeIndices.swapRemove(at: i) // the node is fulfilled
-            expandableNodeCount -= 1
+            _ = expandableItemIndices.swapRemove(at: i) // the item is fulfilled
+            expandableItemCount -= 1
             continue
           }
 
         case .flexible:
-          allocations[index] += spacePerNode
-          remainingSpace -= spacePerNode
+          allocations[index] += spacePerItem
+          remainingSpace -= spacePerItem
 
         case .fixed:
           break // impossible

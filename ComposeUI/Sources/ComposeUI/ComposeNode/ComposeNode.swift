@@ -36,12 +36,21 @@ import AppKit
 import UIKit
 #endif
 
+/// The basic building block of ComposeUI.
 public protocol ComposeNode: ComposeContent {
 
   /// The id of the node.
   ///
-  /// The id should be unique.
-  /// The id is used in the returned view items to diff the view items in the view hierarchy.
+  /// The id must be unique for a node type.
+  ///
+  /// For your own node type, don't use `.standard` id. Instead, use `.custom`
+  /// with a prefix to avoid conflicts.
+  ///
+  /// For example, if you have a `MyCustomNode`, you can use id like
+  /// `.custom("com.myapp.mycustomnode", isFixed: false)`.
+  ///
+  /// The id is used to generate unique ids for the view items, which is used
+  /// to diff the view items in the view hierarchy.
   var id: ComposeNodeId { get set }
 
   /// The size of the node.

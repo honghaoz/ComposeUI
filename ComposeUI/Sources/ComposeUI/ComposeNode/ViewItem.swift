@@ -36,7 +36,7 @@ import AppKit
 import UIKit
 #endif
 
-/// A view item that can create a view and update the view.
+/// An item that can provide a view with its frame and lifecycle callbacks.
 public struct ViewItem<T: View> {
 
   /// The unique id of the view item.

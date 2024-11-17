@@ -129,6 +129,11 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
       } else {
         view = T()
       }
+      #if canImport(AppKit)
+      if T.self == View.self {
+        view.wantsLayer = true
+      }
+      #endif
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
       return view
     }

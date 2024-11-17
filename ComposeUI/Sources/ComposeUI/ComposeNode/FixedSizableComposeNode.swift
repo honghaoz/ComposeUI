@@ -30,6 +30,7 @@
 
 import Foundation
 
+/// A node that supports fixed width and height.
 public protocol FixedSizableComposeNode: ComposeNode {
 
   /// Whether the width is fixed. If `true`, the width of the node uses its intrinsic width.

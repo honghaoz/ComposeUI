@@ -92,7 +92,7 @@ public struct VerticalStackNode: ComposeNode {
     }
 
     let remainingHeight = containerSize.height - totalSpacing
-    let proposedHeights = Layout.stackLayout(space: remainingHeight, children: childHeightSizings)
+    let proposedHeights = Layout.stackLayout(space: remainingHeight, items: childHeightSizings)
 
     // second pass: layout children with proposed heights
     for nodeIndex in 0 ..< childCount {
