@@ -34,15 +34,21 @@ import ComposeUI
 
 class ViewController: NSViewController {
 
-  private lazy var textField = NSTextField()
+  private class ViewState {
 
-  private lazy var contentView = ComposeView { [textField] in
+    weak var view: ComposeView!
+    lazy var textField = NSTextField()
+  }
+
+  private let state = ViewState()
+
+  private lazy var contentView = ComposeView { [state] in
     VStack {
       HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
 
       Spacer().height(20)
 
-      ViewNode(textField).flexible()
+      ViewNode(state.textField).flexible()
         .frame(width: 200, height: 22)
 
       Spacer().height(20)
@@ -50,6 +56,9 @@ class ViewController: NSViewController {
       HStack(spacing: 4) { rainbowColorNodes }
         .frame(width: .flexible, height: 20)
         .cornerRadius(4)
+
+      ViewNode<Playground.FrameView>()
+        .frame(width: .flexible, height: state.view.bounds.width)
 
       Spacer().height(20)
 
@@ -73,7 +82,9 @@ class ViewController: NSViewController {
     super.viewDidLoad()
 
     self.view.wantsLayer = true
+    state.view = contentView
 
+    let textField = state.textField
     textField.wantsLayer = true
     textField.stringValue = "Hello, ComposéUI!"
     textField.isEditable = false
