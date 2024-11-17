@@ -1,5 +1,5 @@
 //
-//  ComposeContentView+ContentUpdateContext.swift
+//  ComposeView+ContentUpdateContext.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -30,7 +30,7 @@
 
 import Foundation
 
-extension ComposeContentView {
+extension ComposeView {
 
   struct ContentUpdateContext {
 

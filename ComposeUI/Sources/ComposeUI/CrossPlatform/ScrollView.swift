@@ -125,6 +125,32 @@ open class ScrollView: NSScrollView {
     documentView! // swiftlint:disable:this force_unwrapping
   }
 
+  // MARK: - Scroll
+
+  /// Whether the horizontal scroll indicator is shown. For UIKit compatibility, this is the same as `hasHorizontalScroller`.
+  @inlinable
+  @inline(__always)
+  public var showsHorizontalScrollIndicator: Bool {
+    get {
+      hasHorizontalScroller
+    }
+    set {
+      hasHorizontalScroller = newValue
+    }
+  }
+
+  /// Whether the vertical scroll indicator is shown. For UIKit compatibility, this is the same as `hasVerticalScroller`.
+  @inlinable
+  @inline(__always)
+  public var showsVerticalScrollIndicator: Bool {
+    get {
+      hasVerticalScroller
+    }
+    set {
+      hasVerticalScroller = newValue
+    }
+  }
+
   // MARK: - Always bounces
 
   public var alwaysBounceVertical: Bool = false

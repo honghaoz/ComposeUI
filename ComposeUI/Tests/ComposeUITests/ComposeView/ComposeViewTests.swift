@@ -1,5 +1,5 @@
 //
-//  ComposeContentViewTests.swift
+//  ComposeViewTests.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 11/13/24.
@@ -31,13 +31,13 @@
 import XCTest
 @testable import ComposeUI
 
-class ComposeContentViewTests: XCTestCase {
+class ComposeViewTests: XCTestCase {
 
-  private var contentView: ComposeContentView!
+  private var contentView: ComposeView!
 
   override func setUp() {
     super.setUp()
-    contentView = ComposeContentView()
+    contentView = ComposeView()
   }
 
   func test_view_lifecycle() {

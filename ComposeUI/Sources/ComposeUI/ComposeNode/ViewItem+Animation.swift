@@ -47,5 +47,5 @@ public struct ViewAnimationContext {
   public let timing: AnimationTiming
 
   /// The content view that contains the view.
-  public weak var contentView: ComposeContentView!
+  public weak var contentView: ComposeView!
 }
