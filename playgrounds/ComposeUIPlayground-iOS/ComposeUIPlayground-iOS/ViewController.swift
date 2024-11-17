@@ -44,6 +44,7 @@ class ViewController: UIViewController {
 
   class ViewState {
 
+    weak var view: ComposeView!
     var color: UIColor = .red
     var colorSize: CGFloat = 500
     var cornerRadius: CGFloat = 16
@@ -75,6 +76,10 @@ class ViewController: UIViewController {
     state.subtitleLabel
 
     VStack(spacing: 8) {
+
+      ViewNode<Playground.FrameView>()
+        .frame(width: .flexible, height: state.view.bounds.width - Constants.padding * 2)
+
       for _ in 0 ... 50 {
         ColorNode(state.color)
           .frame(width: .flexible, height: state.colorSize)
@@ -115,14 +120,16 @@ class ViewController: UIViewController {
 
       Spacer().height(44)
     }
-    .border(color: .black, width: 1)
+    .border(color: .black.withAlphaComponent(0.5), width: 1)
     .cornerRadius(state.cornerRadius)
-    .padding(16)
+    .padding(Constants.padding)
     .frame(width: .flexible, height: .intrinsic)
   }
 
   override func viewDidLoad() {
     super.viewDidLoad()
+
+    state.view = contentView
 
     view.addSubview(contentView)
     contentView.translatesAutoresizingMaskIntoConstraints = false
@@ -149,5 +156,11 @@ class ViewController: UIViewController {
     state.colorSize = CGFloat.random(in: 100 ... 400)
     state.cornerRadius = CGFloat.random(in: 0 ... 16)
     contentView.refresh()
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+    static let padding: CGFloat = 16
   }
 }

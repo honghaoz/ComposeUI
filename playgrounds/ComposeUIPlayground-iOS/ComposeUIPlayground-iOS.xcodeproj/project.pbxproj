@@ -14,6 +14,9 @@
 		E58E924E2CCF40FF0076FEFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E58E924D2CCF40FF0076FEFB /* Assets.xcassets */; };
 		E58E92512CCF40FF0076FEFB /* Base in Resources */ = {isa = PBXBuildFile; fileRef = E58E92502CCF40FF0076FEFB /* Base */; };
 		E58E925C2CCF43710076FEFB /* ComposeUI in Frameworks */ = {isa = PBXBuildFile; productRef = E58E925B2CCF43710076FEFB /* ComposeUI */; };
+		E5D636CE2D7CEA270080A152 /* Playground+FrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636CD2D7CEA270080A152 /* Playground+FrameView.swift */; };
+		E5D636D22D7CEA9B0080A152 /* Playground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D12D7CEA9B0080A152 /* Playground.swift */; };
+		E5D636D42D7CECAB0080A152 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D32D7CECAB0080A152 /* Colors.swift */; };
 		E5EA9B332D06CD4700570DF1 /* ComposeUI in Frameworks */ = {isa = PBXBuildFile; productRef = E5EA9B322D06CD4700570DF1 /* ComposeUI */; };
 /* End PBXBuildFile section */
 
@@ -26,6 +29,9 @@
 		E58E924D2CCF40FF0076FEFB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E58E92502CCF40FF0076FEFB /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		E58E92522CCF40FF0076FEFB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		E5D636CD2D7CEA270080A152 /* Playground+FrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+FrameView.swift"; sourceTree = "<group>"; };
+		E5D636D12D7CEA9B0080A152 /* Playground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Playground.swift; sourceTree = "<group>"; };
+		E5D636D32D7CECAB0080A152 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,12 +69,23 @@
 				E58E92442CCF40FD0076FEFB /* AppDelegate.swift */,
 				E58E92462CCF40FD0076FEFB /* SceneDelegate.swift */,
 				E58E92482CCF40FD0076FEFB /* ViewController.swift */,
+				E5D636D32D7CECAB0080A152 /* Colors.swift */,
+				E5D636CC2D7CE8E40080A152 /* PlaygroundViews */,
 				E58E924A2CCF40FD0076FEFB /* Main.storyboard */,
 				E58E924D2CCF40FF0076FEFB /* Assets.xcassets */,
 				E58E924F2CCF40FF0076FEFB /* LaunchScreen.storyboard */,
 				E58E92522CCF40FF0076FEFB /* Info.plist */,
 			);
 			path = "ComposeUIPlayground-iOS";
+			sourceTree = "<group>";
+		};
+		E5D636CC2D7CE8E40080A152 /* PlaygroundViews */ = {
+			isa = PBXGroup;
+			children = (
+				E5D636D12D7CEA9B0080A152 /* Playground.swift */,
+				E5D636CD2D7CEA270080A152 /* Playground+FrameView.swift */,
+			);
+			path = PlaygroundViews;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -149,7 +166,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E5D636CE2D7CEA270080A152 /* Playground+FrameView.swift in Sources */,
+				E5D636D22D7CEA9B0080A152 /* Playground.swift in Sources */,
 				E58E92492CCF40FD0076FEFB /* ViewController.swift in Sources */,
+				E5D636D42D7CECAB0080A152 /* Colors.swift in Sources */,
 				E58E92452CCF40FD0076FEFB /* AppDelegate.swift in Sources */,
 				E58E92472CCF40FD0076FEFB /* SceneDelegate.swift in Sources */,
 			);
