@@ -43,6 +43,7 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
 
   private let willInsert: ((View, ViewInsertContext) -> Void)?
   private let didInsert: ((View, ViewInsertContext) -> Void)?
+  private let willUpdate: ((View, ViewUpdateContext) -> Void)?
   private let update: ((View, ViewUpdateContext) -> Void)?
   private let willRemove: ((View, ViewRemoveContext) -> Void)?
   private let didRemove: ((View, ViewRemoveContext) -> Void)?
@@ -52,6 +53,7 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
   fileprivate init(node: Node,
                    willInsert: ((View, ViewInsertContext) -> Void)? = nil,
                    didInsert: ((View, ViewInsertContext) -> Void)? = nil,
+                   willUpdate: ((View, ViewUpdateContext) -> Void)? = nil,
                    update: ((View, ViewUpdateContext) -> Void)? = nil,
                    willRemove: ((View, ViewRemoveContext) -> Void)? = nil,
                    didRemove: ((View, ViewRemoveContext) -> Void)? = nil,
@@ -62,6 +64,7 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
     self.node = node
     self.willInsert = willInsert
     self.didInsert = didInsert
+    self.willUpdate = willUpdate
     self.update = update
     self.willRemove = willRemove
     self.didRemove = didRemove
@@ -93,6 +96,9 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
         }
         if let didInsert = didInsert {
           viewItem = viewItem.addDidInsert(didInsert)
+        }
+        if let willUpdate = willUpdate {
+          viewItem = viewItem.addWillUpdate(willUpdate)
         }
         if let update = update {
           viewItem = viewItem.addUpdate(update)
@@ -132,6 +138,14 @@ public extension ComposeNode {
   /// - Returns: A new node with the block added.
   func onInsert(_ didInsert: @escaping (View, ViewInsertContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, didInsert: didInsert)
+  }
+
+  /// Execute a block when the view provided by the node is about to be updated.
+  ///
+  /// - Parameter willUpdate: The block to execute.
+  /// - Returns: A new node with the block added.
+  func willUpdate(_ willUpdate: @escaping (View, ViewUpdateContext) -> Void) -> some ComposeNode {
+    ModifierNode(node: self, willUpdate: willUpdate)
   }
 
   /// Execute a block when the view provided by the node is updated.
@@ -186,6 +200,26 @@ public extension ComposeNode {
     }
   }
 
+  /// Set the background color of the node's view.
+  ///
+  /// - Parameter color: The background color to set.
+  /// - Returns: A new node with the background color set.
+  func backgroundColor(_ color: Color) -> some ComposeNode {
+    onUpdate { view, context in
+      view.layer().backgroundColor = color.cgColor
+    }
+  }
+
+  /// Set the opacity of the node's view.
+  ///
+  /// - Parameter opacity: The opacity to set.
+  /// - Returns: A new node with the opacity set.
+  func opacity(_ opacity: CGFloat) -> some ComposeNode {
+    onUpdate { view, context in
+      view.layer().opacity = Float(opacity)
+    }
+  }
+
   /// Set the border of the node's view.
   ///
   /// - Parameters:
@@ -232,26 +266,6 @@ public extension ComposeNode {
       if let path = path?(view) {
         layer.shadowPath = path
       }
-    }
-  }
-
-  /// Set the background color of the node's view.
-  ///
-  /// - Parameter color: The background color to set.
-  /// - Returns: A new node with the background color set.
-  func backgroundColor(_ color: Color) -> some ComposeNode {
-    onUpdate { view, context in
-      view.layer().backgroundColor = color.cgColor
-    }
-  }
-
-  /// Set the opacity of the node's view.
-  ///
-  /// - Parameter opacity: The opacity to set.
-  /// - Returns: A new node with the opacity set.
-  func opacity(_ opacity: CGFloat) -> some ComposeNode {
-    onUpdate { view, context in
-      view.layer().opacity = Float(opacity)
     }
   }
 

@@ -178,6 +178,29 @@ public struct ViewItem<T: View> {
     )
   }
 
+  /// Add an additional will update block to the view item.
+  ///
+  /// - Parameter additionalWillUpdate: The additional will update block.
+  /// - Returns: The view item with the additional will update block.
+  public func addWillUpdate(_ additionalWillUpdate: @escaping (T, ViewUpdateContext) -> Void) -> Self {
+    Self(
+      id: id,
+      frame: frame,
+      make: make,
+      willInsert: willInsert,
+      didInsert: didInsert,
+      willUpdate: { view, context in
+        willUpdate?(view, context)
+        additionalWillUpdate(view, context)
+      },
+      update: update,
+      willRemove: willRemove,
+      didRemove: didRemove,
+      transition: transition,
+      animation: animation
+    )
+  }
+
   /// Add an additional update block to the view item.
   ///
   /// - Parameter additionalUpdate: The additional update block.
