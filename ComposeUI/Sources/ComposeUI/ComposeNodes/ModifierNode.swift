@@ -124,15 +124,18 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
 
 public extension ComposeNode {
 
-  /// Execute a block when the view provided by the node is about to be inserted into the view hierarchy.
+  /// Execute a block when the views provided by the node are about to be inserted into the view hierarchy.
   ///
+  /// - Note: All views provided by the node will have the block executed.
   /// - Parameter willInsert: The block to execute.
   /// - Returns: A new node with the block added.
   func willInsert(_ willInsert: @escaping (View, ViewInsertContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willInsert: willInsert)
   }
 
-  /// Execute a block when the view provided by the node is inserted into the view hierarchy.
+  /// Execute a block when the views provided by the node are inserted into the view hierarchy.
+  ///
+  /// - Note: All views provided by the node will have the block executed.
   ///
   /// - Parameter didInsert: The block to execute.
   /// - Returns: A new node with the block added.
@@ -140,7 +143,9 @@ public extension ComposeNode {
     ModifierNode(node: self, didInsert: didInsert)
   }
 
-  /// Execute a block when the view provided by the node is about to be updated.
+  /// Execute a block when the views provided by the node are about to be updated.
+  ///
+  /// - Note: All views provided by the node will have the block executed.
   ///
   /// - Parameter willUpdate: The block to execute.
   /// - Returns: A new node with the block added.
@@ -148,7 +153,9 @@ public extension ComposeNode {
     ModifierNode(node: self, willUpdate: willUpdate)
   }
 
-  /// Execute a block when the view provided by the node is updated.
+  /// Execute a block when the views provided by the node are updated.
+  ///
+  /// - Note: All views provided by the node will have the block executed.
   ///
   /// - Parameter update: The block to execute.
   /// - Returns: A new node with the block added.
@@ -156,7 +163,9 @@ public extension ComposeNode {
     ModifierNode(node: self, update: update)
   }
 
-  /// Execute a block when the view provided by the node is about to be removed from the view hierarchy.
+  /// Execute a block when the views provided by the node are about to be removed from the view hierarchy.
+  ///
+  /// - Note: All views provided by the node will have the block executed.
   ///
   /// - Parameter willRemove: The block to execute.
   /// - Returns: A new node with the block added.
@@ -164,7 +173,9 @@ public extension ComposeNode {
     ModifierNode(node: self, willRemove: willRemove)
   }
 
-  /// Execute a block when the view provided by the node is removed from the view hierarchy.
+  /// Execute a block when the views provided by the node are removed from the view hierarchy.
+  ///
+  /// - Note: All views provided by the node will have the block executed.
   ///
   /// - Parameter didRemove: The block to execute.
   /// - Returns: A new node with the block added.
@@ -172,7 +183,10 @@ public extension ComposeNode {
     ModifierNode(node: self, didRemove: didRemove)
   }
 
-  /// Set a transition for the view provided by the node.
+  /// Set a transition for the views provided by the node.
+  ///
+  /// - Note: All views provided by the node will have the transition set.
+  /// - Note: The inner node's transition will have higher priority.
   ///
   /// - Parameter transition: The transition to set.
   /// - Returns: A new node with the transition set.
@@ -180,7 +194,10 @@ public extension ComposeNode {
     ModifierNode(node: self, transition: transition)
   }
 
-  /// Set an animation for the view provided by the node.
+  /// Set an animation for the views provided by the node.
+  ///
+  /// - Note: All views provided by the node will have the animation set.
+  /// - Note: The inner node's animation will have higher priority.
   ///
   /// - Parameter animation: The animation to set.
   /// - Returns: A new node with the animation set.
@@ -188,7 +205,9 @@ public extension ComposeNode {
     ModifierNode(node: self, animation: animation)
   }
 
-  /// Set a key path of the node's view.
+  /// Set a key path of the node's views.
+  ///
+  /// - Note: All views provided by the node will have the key path set.
   ///
   /// - Parameters:
   ///   - keyPath: The key path to set.
@@ -200,7 +219,9 @@ public extension ComposeNode {
     }
   }
 
-  /// Set the background color of the node's view.
+  /// Set the background color of the node's views.
+  ///
+  /// - Note: All views provided by the node will have the background color set.
   ///
   /// - Parameter color: The background color to set.
   /// - Returns: A new node with the background color set.
@@ -210,7 +231,9 @@ public extension ComposeNode {
     }
   }
 
-  /// Set the opacity of the node's view.
+  /// Set the opacity of the node's views.
+  ///
+  /// - Note: All views provided by the node will have the opacity set.
   ///
   /// - Parameter opacity: The opacity to set.
   /// - Returns: A new node with the opacity set.
@@ -220,8 +243,9 @@ public extension ComposeNode {
     }
   }
 
-  /// Set the border of the node's view.
+  /// Set the border of the node's views.
   ///
+  /// - Note: All views provided by the node will have the border set.
   /// - Parameters:
   ///   - color: The color of the border.
   ///   - width: The width of the border.
@@ -234,7 +258,9 @@ public extension ComposeNode {
     }
   }
 
-  /// Set the corner radius of the node's view.
+  /// Set the corner radius of the node's views.
+  ///
+  /// - Note: All views provided by the node will have the corner radius set.
   ///
   /// - Parameter radius: The corner radius to set.
   /// - Returns: A new node with the corner radius set.
@@ -247,8 +273,9 @@ public extension ComposeNode {
     }
   }
 
-  /// Set the shadow of the node's view.
+  /// Set the shadow of the node's views.
   ///
+  /// - Note: All views provided by the node will have the shadow set.
   /// - Parameters:
   ///   - color: The color of the shadow.
   ///   - offset: The offset of the shadow.
@@ -269,7 +296,9 @@ public extension ComposeNode {
     }
   }
 
-  /// Set the z-index (zPosition) of the node's view.
+  /// Set the z-index (zPosition) of the node's views.
+  ///
+  /// - Note: All views provided by the node will have the z-index set.
   ///
   /// - Parameter zIndex: The z-index to set.
   /// - Returns: A new node with the z-index set.
@@ -279,7 +308,9 @@ public extension ComposeNode {
     }
   }
 
-  /// Set whether the node's view is interactive.
+  /// Set whether the node's views are interactive.
+  ///
+  /// - Note: All views provided by the node will have the `isUserInteractionEnabled` set.
   ///
   /// - Parameter isEnabled: Whether the view is interactive.
   /// - Returns: A new node with the `isUserInteractionEnabled` set.
