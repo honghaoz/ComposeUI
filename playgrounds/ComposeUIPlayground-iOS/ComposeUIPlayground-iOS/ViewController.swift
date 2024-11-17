@@ -1,6 +1,6 @@
 //
 //  ViewController.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
 //  Copyright © 2024 Honghao Zhang.
@@ -67,7 +67,7 @@ class ViewController: UIViewController {
 
     ViewNode<UILabel>(
       update: { label, _ in
-        label.text = "Hello, ComposeUI!"
+        label.text = "Hello, ComposéUI!"
         label.textAlignment = .center
       }
     )

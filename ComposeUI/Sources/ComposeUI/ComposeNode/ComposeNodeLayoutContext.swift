@@ -1,6 +1,6 @@
 //
 //  ComposeNodeLayoutContext.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 3/1/25.
 //  Copyright © 2024 Honghao Zhang.

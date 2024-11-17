@@ -1,6 +1,6 @@
 //
 //  ComposeNode.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
 //  Copyright © 2024 Honghao Zhang.
@@ -36,7 +36,7 @@ import AppKit
 import UIKit
 #endif
 
-/// The basic building block of ComposeUI.
+/// The basic building block of ComposéUI.
 public protocol ComposeNode: ComposeContent {
 
   /// The id of the node.

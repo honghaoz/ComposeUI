@@ -1,6 +1,6 @@
 //
 //  ContiguousArray_CGFloat+PixelRounding.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 5/23/23.
 //  Copyright © 2024 Honghao Zhang.

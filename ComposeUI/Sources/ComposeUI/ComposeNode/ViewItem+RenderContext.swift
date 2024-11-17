@@ -1,6 +1,6 @@
 //
 //  ViewItem+RenderContext.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 11/13/24.
 //  Copyright © 2024 Honghao Zhang.

@@ -1,6 +1,6 @@
 //
 //  CALayer+Extensions.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 3/25/22.
 //  Copyright © 2024 Honghao Zhang.

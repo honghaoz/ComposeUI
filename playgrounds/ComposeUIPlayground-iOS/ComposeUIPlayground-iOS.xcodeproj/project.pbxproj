@@ -21,7 +21,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		E58E92412CCF40FD0076FEFB /* ComposeUIPlayground-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ComposeUIPlayground-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E58E92412CCF40FD0076FEFB /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E58E92442CCF40FD0076FEFB /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		E58E92462CCF40FD0076FEFB /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		E58E92482CCF40FD0076FEFB /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -58,7 +58,7 @@
 		E58E92422CCF40FD0076FEFB /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E58E92412CCF40FD0076FEFB /* ComposeUIPlayground-iOS.app */,
+				E58E92412CCF40FD0076FEFB /* ComposéUI.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -109,7 +109,7 @@
 				E5EA9B322D06CD4700570DF1 /* ComposeUI */,
 			);
 			productName = "ComposeUIPlayground-iOS";
-			productReference = E58E92412CCF40FD0076FEFB /* ComposeUIPlayground-iOS.app */;
+			productReference = E58E92412CCF40FD0076FEFB /* ComposéUI.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -336,7 +336,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.honghaoz.ComposeUIPlayground-iOS";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "ComposéUI";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -363,7 +363,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.honghaoz.ComposeUIPlayground-iOS";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "ComposéUI";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

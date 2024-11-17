@@ -15,7 +15,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		E59D808B2CA8DFD3006A6467 /* ComposeUIPlayground-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ComposeUIPlayground-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E59D808B2CA8DFD3006A6467 /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E59D808E2CA8DFD3006A6467 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		E59D80902CA8DFD3006A6467 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		E59D80922CA8DFD4006A6467 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -47,7 +47,7 @@
 		E59D808C2CA8DFD3006A6467 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E59D808B2CA8DFD3006A6467 /* ComposeUIPlayground-macOS.app */,
+				E59D808B2CA8DFD3006A6467 /* ComposéUI.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -91,7 +91,7 @@
 				E5EA9B2F2D06CD2900570DF1 /* ComposeUI */,
 			);
 			productName = "ComposeUIPlayground-macOS";
-			productReference = E59D808B2CA8DFD3006A6467 /* ComposeUIPlayground-macOS.app */;
+			productReference = E59D808B2CA8DFD3006A6467 /* ComposéUI.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -304,7 +304,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "io.chouti.ComposeUIPlayground-macOS";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "ComposéUI";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -330,7 +330,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "io.chouti.ComposeUIPlayground-macOS";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "ComposéUI";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};

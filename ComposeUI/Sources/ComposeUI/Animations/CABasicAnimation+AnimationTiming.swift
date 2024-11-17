@@ -1,6 +1,6 @@
 //
 //  CABasicAnimation+AnimationTiming.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 11/25/21.
 //  Copyright © 2024 Honghao Zhang.
