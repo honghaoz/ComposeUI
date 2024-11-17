@@ -1,8 +1,8 @@
 //
-//  ComposeNodeLayoutContext.swift
+//  UnderlayNodeTests.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 11/16/24.
+//  Created by Honghao Zhang on 11/17/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,18 +28,30 @@
 //  IN THE SOFTWARE.
 //
 
-import CoreGraphics
+import Foundation
+import XCTest
+@testable import ComposeUI
 
-/// The context for layout.
-public struct ComposeNodeLayoutContext {
+final class UnderlayNodeTests: XCTestCase {
 
-  /// The scale factor.
-  public let scaleFactor: CGFloat
+  func test() {
+    var content = ColorNode(.red)
+      .underlay {
+        ColorNode(.blue)
+      }
+      .background(alignment: .center, content: { ColorNode(.green) })
+      .background(ColorNode(.green))
 
-  /// Creates a `ComposeNodeLayoutContext` with the given scale factor.
-  ///
-  /// - Parameter scaleFactor: The scale factor.
-  public init(scaleFactor: CGFloat) {
-    self.scaleFactor = scaleFactor
+    content.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let items = content.viewItems(in: CGRect(x: 0, y: 0, width: 50, height: 50))
+    guard items.count == 4 else {
+      XCTFail("Expected 4 items, got \(items.count)")
+      return
+    }
+
+    XCTAssertEqual(items[0].id.id, "underlay|U|color")
+    XCTAssertEqual(items[1].id.id, "underlay|underlay|U|color")
+    XCTAssertEqual(items[2].id.id, "underlay|underlay|underlay|U|color")
+    XCTAssertEqual(items[3].id.id, "underlay|underlay|underlay|color")
   }
 }

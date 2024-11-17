@@ -119,18 +119,18 @@ public extension ComposeNode {
   func background(alignment: Layout.Alignment = .center,
                   @ComposeContentBuilder content: () -> ComposeContent) -> some ComposeNode
   {
-    underlay(content: content)
+    underlay(alignment: alignment, content: content)
   }
 
   /// Add a background node to the node.
   ///
   /// - Parameters:
-  ///   - node: The node to render as the background.
   ///   - alignment: The alignment of the background node.
+  ///   - content: The content to render as the background.
   /// - Returns: A new node with the background applied.
   @inlinable
   @inline(__always)
-  func background(_ node: some ComposeNode, alignment: Layout.Alignment = .center) -> some ComposeNode {
-    underlay(content: { node })
+  func background(alignment: Layout.Alignment = .center, _ content: ComposeContent) -> some ComposeNode {
+    underlay(alignment: alignment, content: { content })
   }
 }
