@@ -130,12 +130,18 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
     // convert the bounds from self's coordinates to the child node's coordinates
     let boundsInChild = visibleBounds.translate(-childFrame.origin)
 
-    return node.viewItems(in: boundsInChild)
-      .map { item in
-        item
-          .id(id.makeViewItemId(childViewItemId: item.id))
-          .frame(item.frame.translate(childFrame.origin)) // translate the frame back to the parent node's coordinates
-      }
+    let childItems = node.viewItems(in: boundsInChild)
+
+    var mappedChildItems: [ViewItem<View>] = []
+    mappedChildItems.reserveCapacity(childItems.count)
+
+    for var item in childItems {
+      item.id = id.makeViewItemId(childViewItemId: item.id)
+      item.frame = item.frame.translate(childFrame.origin) // translate the frame back to the parent node's coordinates
+      mappedChildItems.append(item)
+    }
+
+    return mappedChildItems
   }
 }
 

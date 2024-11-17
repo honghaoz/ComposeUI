@@ -40,10 +40,10 @@ import UIKit
 public struct ViewItem<T: View> {
 
   /// The unique id of the view item.
-  let id: ComposeNodeId
+  var id: ComposeNodeId
 
   /// The frame of the view.
-  let frame: CGRect
+  var frame: CGRect
 
   /// The block to create a view.
   let make: (ViewMakeContext) -> T
@@ -130,46 +130,6 @@ public struct ViewItem<T: View> {
     self.didRemove = didRemove
     self.transition = transition
     self.animation = animation
-  }
-
-  /// Set a new id for the view item.
-  ///
-  /// - Parameter id: The new id.
-  /// - Returns: The view item with the new id.
-  public func id(_ id: ComposeNodeId) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: update,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      transition: transition,
-      animation: animation
-    )
-  }
-
-  /// Set a new frame for the view item.
-  ///
-  /// - Parameter frame: The new frame.
-  /// - Returns: The view item with the new frame.
-  public func frame(_ frame: CGRect) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: update,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      transition: transition,
-      animation: animation
-    )
   }
 
   /// Add an additional will insert block to the view item.
@@ -343,7 +303,11 @@ public struct ViewItem<T: View> {
   ///
   /// - Returns: The view item with the generic `View` type.
   func eraseToViewItem() -> ViewItem<View> {
-    ViewItem<View>(
+    if let viewItem = self as? ViewItem<View> {
+      return viewItem
+    }
+
+    return ViewItem<View>(
       id: id,
       frame: frame,
       make: make,

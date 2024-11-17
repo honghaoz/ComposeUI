@@ -54,12 +54,18 @@ private struct OffsetNode<Node: ComposeNode>: ComposeNode {
   func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let boundsInChild = visibleBounds.translate(-offset)
 
-    return node.viewItems(in: boundsInChild)
-      .map { item in
-        item
-          .id(id.makeViewItemId(childViewItemId: item.id))
-          .frame(item.frame.translate(offset))
-      }
+    let childItems = node.viewItems(in: boundsInChild)
+
+    var mappedChildItems: [ViewItem<View>] = []
+    mappedChildItems.reserveCapacity(childItems.count)
+
+    for var item in childItems {
+      item.id = id.makeViewItemId(childViewItemId: item.id)
+      item.frame = item.frame.translate(offset)
+      mappedChildItems.append(item)
+    }
+
+    return mappedChildItems
   }
 }
 
