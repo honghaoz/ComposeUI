@@ -11,6 +11,9 @@
 		E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59D80902CA8DFD3006A6467 /* ViewController.swift */; };
 		E59D80932CA8DFD4006A6467 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E59D80922CA8DFD4006A6467 /* Assets.xcassets */; };
 		E59D80962CA8DFD4006A6467 /* Base in Resources */ = {isa = PBXBuildFile; fileRef = E59D80952CA8DFD4006A6467 /* Base */; };
+		E5D636D72D7D01560080A152 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D62D7D01560080A152 /* Colors.swift */; };
+		E5D636DB2D7D016D0080A152 /* Playground+FrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */; };
+		E5D636DC2D7D016D0080A152 /* Playground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D82D7D016D0080A152 /* Playground.swift */; };
 		E5EA9B302D06CD2900570DF1 /* ComposeUI in Frameworks */ = {isa = PBXBuildFile; productRef = E5EA9B2F2D06CD2900570DF1 /* ComposeUI */; };
 /* End PBXBuildFile section */
 
@@ -21,6 +24,9 @@
 		E59D80922CA8DFD4006A6467 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E59D80952CA8DFD4006A6467 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		E59D80972CA8DFD4006A6467 /* ComposeUIPlayground_macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ComposeUIPlayground_macOS.entitlements; sourceTree = "<group>"; };
+		E5D636D62D7D01560080A152 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Colors.swift; path = "../ComposeUIPlayground-iOS/ComposeUIPlayground-iOS/Colors.swift"; sourceTree = SOURCE_ROOT; };
+		E5D636D82D7D016D0080A152 /* Playground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Playground.swift; sourceTree = "<group>"; };
+		E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+FrameView.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +63,8 @@
 			children = (
 				E59D808E2CA8DFD3006A6467 /* AppDelegate.swift */,
 				E59D80902CA8DFD3006A6467 /* ViewController.swift */,
+				E5D636D62D7D01560080A152 /* Colors.swift */,
+				E5D636DA2D7D016D0080A152 /* PlaygroundViews */,
 				E59D80922CA8DFD4006A6467 /* Assets.xcassets */,
 				E59D80942CA8DFD4006A6467 /* Main.storyboard */,
 				E59D80972CA8DFD4006A6467 /* ComposeUIPlayground_macOS.entitlements */,
@@ -70,6 +78,16 @@
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
+		};
+		E5D636DA2D7D016D0080A152 /* PlaygroundViews */ = {
+			isa = PBXGroup;
+			children = (
+				E5D636D82D7D016D0080A152 /* Playground.swift */,
+				E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */,
+			);
+			name = PlaygroundViews;
+			path = "../ComposeUIPlayground-iOS/ComposeUIPlayground-iOS/PlaygroundViews";
+			sourceTree = SOURCE_ROOT;
 		};
 /* End PBXGroup section */
 
@@ -148,7 +166,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */,
+				E5D636D72D7D01560080A152 /* Colors.swift in Sources */,
 				E59D808F2CA8DFD3006A6467 /* AppDelegate.swift in Sources */,
+				E5D636DB2D7D016D0080A152 /* Playground+FrameView.swift in Sources */,
+				E5D636DC2D7D016D0080A152 /* Playground.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

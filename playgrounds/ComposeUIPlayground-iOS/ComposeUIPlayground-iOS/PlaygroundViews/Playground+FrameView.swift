@@ -28,7 +28,14 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if canImport(UIKit)
 import UIKit
+#endif
+
 import ComposeUI
 
 extension Playground {
@@ -37,7 +44,7 @@ extension Playground {
 
     private var size = CGSize(width: 100, height: 100)
     private var alignment: Layout.Alignment = .center
-    private var padding: EdgeInsets = .zero
+    private var padding = EdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 
     @ComposeContentBuilder
     override var content: ComposeContent {
@@ -48,6 +55,17 @@ extension Playground {
         .frame(.flexible, alignment: alignment)
     }
 
+    #if canImport(AppKit)
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+
+      if window != nil {
+        startAnimation()
+      }
+    }
+    #endif
+
+    #if canImport(UIKit)
     override func didMoveToWindow() {
       super.didMoveToWindow()
 
@@ -55,6 +73,7 @@ extension Playground {
         startAnimation()
       }
     }
+    #endif
 
     private var isAnimating = false
     private func startAnimation() {

@@ -42,7 +42,7 @@ class ViewController: UIViewController {
   ///       +------------> ViewModel
   ///
 
-  class ViewState {
+  private class ViewState {
 
     weak var view: ComposeView!
     var color: UIColor = .red
