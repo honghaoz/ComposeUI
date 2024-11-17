@@ -1,6 +1,6 @@
 //
 //  ViewNodeTests.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
 //  Copyright © 2024 Honghao Zhang.
@@ -122,7 +122,7 @@ class ViewNodeTests: XCTestCase {
 
       container.refresh(animated: false)
 
-      // the view's frame should be set by ComposeUI, not by the constraints
+      // the view's frame should be set by ComposéUI, not by the constraints
       XCTAssertEqual(view.frame, CGRect(x: 10, y: 10, width: 210, height: 110))
 
       // force a layout pass

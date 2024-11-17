@@ -1,6 +1,6 @@
 //
 //  ViewController.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 10/27/24.
 //  Copyright © 2024 Honghao Zhang.
@@ -75,7 +75,7 @@ class ViewController: NSViewController {
     self.view.wantsLayer = true
 
     textField.wantsLayer = true
-    textField.stringValue = "Hello, ComposeUI!"
+    textField.stringValue = "Hello, ComposéUI!"
     textField.isEditable = false
     textField.isBordered = false
     textField.drawsBackground = false
@@ -94,7 +94,7 @@ class ViewController: NSViewController {
 
     if let window = view.window {
       window.minSize.width = 300
-      window.title = "ComposeUI Playground"
+      window.title = "ComposéUI"
     }
   }
 }

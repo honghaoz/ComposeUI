@@ -1,6 +1,6 @@
 //
 //  AppDelegate.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 10/27/24.
 //  Copyright © 2024 Honghao Zhang.
@@ -50,7 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // configure window
     window.center()
     window.setFrameAutosaveName("main-window")
-    window.title = "ComposeUI Playground"
+    window.title = "ComposéUI"
 
     // make window visible
     window.makeKeyAndOrderFront(nil)

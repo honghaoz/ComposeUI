@@ -1,6 +1,6 @@
 //
 //  CATransaction+Extensions.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 10/22/21.
 //  Copyright © 2024 Honghao Zhang.

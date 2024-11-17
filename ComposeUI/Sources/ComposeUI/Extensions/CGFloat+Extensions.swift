@@ -1,6 +1,6 @@
 //
 //  CGFloat+Extensions.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 9/6/21.
 //  Copyright © 2024 Honghao Zhang.

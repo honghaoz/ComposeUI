@@ -1,6 +1,6 @@
 //
 //  ComposeNode+ConditionalTests.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 11/5/24.
 //  Copyright © 2024 Honghao Zhang.

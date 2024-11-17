@@ -1,6 +1,6 @@
 //
 //  ViewNode.swift
-//  ComposeUI
+//  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
 //  Copyright © 2024 Honghao Zhang.
@@ -62,7 +62,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   /// change the node size by using `.frame(width:height:)`, this will cause "Unable to simultaneously satisfy constraints."
   /// warnings.
   ///
-  /// The view's `translatesAutoresizingMaskIntoConstraints` will be set to `true` since ComposeUI uses frame-based layout.
+  /// The view's `translatesAutoresizingMaskIntoConstraints` will be set to `true` since ComposéUI uses frame-based layout.
   /// This may cause some issues if the view is constraint-based layout. For example, if the view have constraints define
   /// its size, the view's final size may not be the size of the constraints. To ensure the view's size is the size of
   /// the constraints, do a layout pass for the view so that the view's size is updated based on the constraints. For example:
