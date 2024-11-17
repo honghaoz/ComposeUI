@@ -32,8 +32,9 @@ import CoreGraphics
 
 /// The sizing information of a compose node.
 ///
-/// This data structure is used to describe the sizing behavior of a compose node, which is used by its parent node to
-/// layout the compose node.
+/// This data structure is used to describe the sizing behavior of a node in
+/// both horizontal and vertical axes. The parent node of the node can use this
+/// information to do a more efficient layout.
 public struct ComposeNodeSizing {
 
   /// The width sizing behavior.
@@ -42,6 +43,11 @@ public struct ComposeNodeSizing {
   /// The height sizing behavior.
   public let height: Sizing
 
+  /// Creates a sizing with the given width and height.
+  ///
+  /// - Parameters:
+  ///   - width: The width sizing behavior.
+  ///   - height: The height sizing behavior.
   public init(width: Sizing, height: Sizing) {
     self.width = width
     self.height = height
@@ -54,14 +60,21 @@ public extension ComposeNodeSizing {
   enum Sizing {
 
     /// The sizing is fixed.
+    ///
+    /// Node will always have a fixed size regardless of the container size.
     case fixed(CGFloat)
 
     /// The sizing is flexible.
+    ///
+    /// Node can grow or shrink to fit the container.
     case flexible
 
     /// The sizing is flexible with a range.
     ///
-    /// - Note: `min` must be less than `max`. `min` must be greater than or equal to 0. Use `fixed` if `min` and `max` are the same.
+    /// Node can grow or shrink to fit the container within the given range.
+    ///
+    /// - Note: `min` must be less than `max`.
+    /// - Note: `min` must be greater than or equal to 0. Use `fixed` if `min` and `max` are the same.
     case range(min: CGFloat, max: CGFloat)
 
     /// Normalizes the sizing and returns a valid sizing.

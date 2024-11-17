@@ -92,7 +92,7 @@ public struct HorizontalStackNode: ComposeNode {
     }
 
     let remainingWidth = containerSize.width - totalSpacing
-    let proposedWidths = Layout.stackLayout(space: remainingWidth, children: childWidthSizings)
+    let proposedWidths = Layout.stackLayout(space: remainingWidth, items: childWidthSizings)
 
     // second pass: layout children with proposed widths
     for nodeIndex in 0 ..< childCount {

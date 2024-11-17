@@ -30,6 +30,8 @@
 
 import Foundation
 
+// MARK: - ComposeContent
+
 public protocol ComposeContent {
 
   /// Convert the compose content to a list of nodes.
@@ -69,6 +71,8 @@ public extension ComposeContent {
     }
   }
 }
+
+// MARK: - ComposeNode Array
 
 extension [ComposeNode]: ComposeContent {
 
