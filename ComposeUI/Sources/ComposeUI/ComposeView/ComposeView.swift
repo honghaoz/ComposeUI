@@ -56,7 +56,7 @@ open class ComposeView: BaseScrollView {
   ///   }
   /// }
   /// ```
-  var content: ComposeContent {
+  open var content: ComposeContent {
     Empty()
   }
 
@@ -120,33 +120,16 @@ open class ComposeView: BaseScrollView {
     self.init { content }
   }
 
-  /// Creates a `ComposeView` with the `content` property.
+  /// Creates a blank `ComposeView`.
   ///
-  /// Typically, you should override `content` like:
-  ///
-  /// ```swift
-  /// class MyView: ComposeView {
-  ///
-  ///   @ComposeContentBuilder
-  ///   override var content: ComposeContent {
-  ///     VStack {
-  ///       Text("Hello, World!")
-  ///     }
-  ///   }
-  /// }
-  /// ```
-  init() {
+  /// You should either override `content` to provide the actual content or use `setContent()` to set the content later.
+  override public init(frame: CGRect) {
     makeContent = { _ in Empty() }
 
-    super.init(frame: .zero)
+    super.init(frame: frame)
 
     makeContent = { [unowned self] _ in content } // swiftlint:disable:this unowned_variable
     commonInit()
-  }
-
-  @available(*, unavailable)
-  override public init(frame: CGRect) {
-    fatalError("init(frame:) is unavailable") // swiftlint:disable:this fatal_error
   }
 
   @available(*, unavailable)

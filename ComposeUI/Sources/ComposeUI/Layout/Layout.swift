@@ -33,21 +33,21 @@ import CoreGraphics
 public enum Layout {
 
   /// The horizontal alignment.
-  public enum HorizontalAlignment: Hashable, Sendable {
+  public enum HorizontalAlignment: Hashable, Sendable, CaseIterable {
     case center
     case left
     case right
   }
 
   /// The vertical alignment.
-  public enum VerticalAlignment: Hashable, Sendable {
+  public enum VerticalAlignment: Hashable, Sendable, CaseIterable {
     case center
     case top
     case bottom
   }
 
   /// The alignment.
-  public enum Alignment: Hashable, Sendable {
+  public enum Alignment: Hashable, Sendable, CaseIterable {
     case center
     case left
     case right
