@@ -387,9 +387,8 @@ open class ComposeView: BaseScrollView {
 
         contentView().bringSubviewToFront(view)
 
-        if let animation {
-          // TODO: disable CAAction, add animations, call completion block
-          view.frame = newFrame
+        if let animationTiming = animation?.timing {
+          view.layer().animateFrame(to: newFrame, timing: animationTiming)
         } else {
           view.frame = newFrame
         }

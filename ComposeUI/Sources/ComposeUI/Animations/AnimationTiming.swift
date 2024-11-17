@@ -50,6 +50,16 @@ public struct AnimationTiming {
     ///   - duration: The duration of the animation.
     ///   - timingFunction: The timing function. Defaults to `easeInEaseOut`.
     case timingFunction(_ duration: TimeInterval, _ timingFunction: CAMediaTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut))
+
+    /// The timing's duration.
+    public var duration: TimeInterval {
+      switch self {
+      case .spring(let springDescriptor, let duration):
+        return duration ?? springDescriptor.settlingDuration()
+      case .timingFunction(let duration, _):
+        return duration
+      }
+    }
   }
 
   /// The delay of the animation.

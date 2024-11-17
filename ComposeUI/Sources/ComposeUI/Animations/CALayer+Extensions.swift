@@ -1,8 +1,8 @@
 //
-//  CGPoint+Extensions.swift
+//  CALayer+Extensions.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 3/25/22.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,16 +28,32 @@
 //  IN THE SOFTWARE.
 //
 
-import CoreGraphics
+import QuartzCore
 
-extension CGPoint {
+extension CALayer {
 
-  static prefix func - (point: CGPoint) -> CGPoint {
-    CGPoint(x: -point.x, y: -point.y)
+  /// The layer's backed view if it is a backing layer for a view.
+  ///
+  /// On Mac, for layer-backed views, setting the layer's frame won't affect the backed view's frame.
+  /// Use this property to find the backed view if you want to manipulate the view's frame.
+  @inlinable
+  @inline(__always)
+  var backedView: View? {
+    delegate as? View
   }
 
-  /// Get a vector from left to right.
-  static func - (left: CGPoint, right: CGPoint) -> CGPoint {
-    Self(x: left.x - right.x, y: left.y - right.y)
+  /// Get the layer's `position` from its `frame`, based on its `anchorPoint`.
+  ///
+  /// - Precondition: The layer's transform must be identity.
+  ///
+  /// - Parameters:
+  ///   - frame: The layer's frame.
+  /// - Returns: The layer's position.
+  func position(from frame: CGRect) -> CGPoint {
+    assert(CATransform3DEqualToTransform(transform, CATransform3DIdentity), "only works with identity transform.")
+    return CGPoint(
+      x: frame.origin.x + anchorPoint.x * frame.width,
+      y: frame.origin.y + anchorPoint.y * frame.height
+    )
   }
 }

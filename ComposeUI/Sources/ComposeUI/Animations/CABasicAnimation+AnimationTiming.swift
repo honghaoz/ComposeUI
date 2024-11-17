@@ -1,5 +1,5 @@
 //
-//  SpringDescriptor.swift
+//  CABasicAnimation+AnimationTiming.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 11/25/21.
@@ -31,38 +31,37 @@
 import Foundation
 import QuartzCore
 
-/// A descriptor for a spring animation.
-public struct SpringDescriptor: Hashable {
+extension CABasicAnimation {
 
-  /// The initial velocity of the object attached to the spring.
-  public let initialVelocity: CGFloat
+  /// Make an animation based on the timing.
+  ///
+  /// - Parameters:
+  ///   - timing: The timing of the animation.
+  /// - Returns: The animation.
+  static func makeAnimation(_ timing: AnimationTiming) -> CABasicAnimation {
+    let animation: CABasicAnimation
+    switch timing.timing {
+    case .spring(let spring, let duration):
+      let springAnimation = CASpringAnimation()
+      springAnimation.initialVelocity = spring.initialVelocity
 
-  /// The mass of the object attached to the end of the spring. Must be greater than 0.
-  public let mass: CGFloat
+      springAnimation.mass = spring.mass
+      springAnimation.damping = spring.damping
+      springAnimation.stiffness = spring.stiffness
 
-  /// The spring stiffness coefficient. Must be greater than 0.
-  public let stiffness: CGFloat
+      // without setting the duration, the spring animation can abruptly stop
+      // use the settling duration to make sure the spring animation has enough duration
+      springAnimation.duration = duration ?? springAnimation.settlingDuration
+      animation = springAnimation
 
-  /// The damping coefficient. Must be greater than or equal to 0.
-  public let damping: CGFloat
+    case .timingFunction(let duration, let timingFunction):
+      animation = CABasicAnimation()
+      animation.timingFunction = timingFunction
+      animation.duration = duration
+    }
 
-  /// Get a settling duration.
-  func settlingDuration() -> TimeInterval {
-    makeTempAnimation().settlingDuration
-  }
-
-  private func makeTempAnimation() -> CASpringAnimation {
-    let animation = CASpringAnimation(keyPath: "position")
-    animation.initialVelocity = initialVelocity
-
-    animation.mass = mass
-    animation.damping = damping
-    animation.stiffness = stiffness
-
-    /// It seems like `settlingDuration` doesn't respect `from` and `to` value.
-    /// https://twitter.com/b3ll/status/750447919719784448
-    animation.fromValue = 0
-    animation.toValue = 100
+    animation.speed = Float(timing.speed)
+    animation.fillMode = .both // avoid the final frame appears before the animation
 
     return animation
   }

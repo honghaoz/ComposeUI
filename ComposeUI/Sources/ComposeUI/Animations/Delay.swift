@@ -1,8 +1,8 @@
 //
-//  CGPoint+Extensions.swift
+//  Delay.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 3/28/21.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,16 +28,24 @@
 //  IN THE SOFTWARE.
 //
 
-import CoreGraphics
+import Foundation
 
-extension CGPoint {
-
-  static prefix func - (point: CGPoint) -> CGPoint {
-    CGPoint(x: -point.x, y: -point.y)
+/// Delay with strict timing.
+///
+/// - Parameters:
+///   - delay: The delay of the animation.
+///   - task: The task to be executed after the delay, on the main thread.
+func delay(_ delay: TimeInterval, task: @escaping () -> Void) {
+  guard delay > 0 else {
+    task()
+    return
   }
 
-  /// Get a vector from left to right.
-  static func - (left: CGPoint, right: CGPoint) -> CGPoint {
-    Self(x: left.x - right.x, y: left.y - right.y)
+  let timer = DispatchSource.makeTimerSource(flags: .strict, queue: .main)
+  timer.schedule(deadline: .now() + delay, leeway: .nanoseconds(0))
+  timer.setEventHandler {
+    task()
+    timer.cancel()
   }
+  timer.resume()
 }
