@@ -28,6 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
+import Foundation
 import CoreGraphics
 
 /// A node that pads the child node.

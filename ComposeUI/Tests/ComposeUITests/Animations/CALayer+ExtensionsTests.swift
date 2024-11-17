@@ -1,8 +1,8 @@
 //
-//  CGPoint+Extensions.swift
+//  CALayer+ExtensionsTests.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 3/25/22.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,16 +28,30 @@
 //  IN THE SOFTWARE.
 //
 
-import CoreGraphics
+import QuartzCore
+import XCTest
+@testable import ComposeUI
 
-extension CGPoint {
+final class CALayer_ExtensionsTests: XCTestCase {
 
-  static prefix func - (point: CGPoint) -> CGPoint {
-    CGPoint(x: -point.x, y: -point.y)
+  func test_backedView() {
+    #if os(macOS)
+    let view = View()
+    view.wantsLayer = true
+    let layer = view.layer()
+    XCTAssertIdentical(layer.backedView, view)
+    #else
+    let view = View()
+    XCTAssertIdentical(layer.backedView, view)
+    #endif
   }
 
-  /// Get a vector from left to right.
-  static func - (left: CGPoint, right: CGPoint) -> CGPoint {
-    Self(x: left.x - right.x, y: left.y - right.y)
+  func test_positionFromFrame() {
+    let layer = CALayer()
+    let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
+    layer.frame = frame
+    layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+
+    XCTAssertEqual(layer.position(from: frame), CGPoint(x: 25, y: 40))
   }
 }

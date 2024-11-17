@@ -1,8 +1,8 @@
 //
-//  CGPoint+Extensions.swift
+//  DelayTests.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 3/28/21.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,16 +28,41 @@
 //  IN THE SOFTWARE.
 //
 
-import CoreGraphics
+import Foundation
+import XCTest
+@testable import ComposeUI
 
-extension CGPoint {
+final class DelayTests: XCTestCase {
 
-  static prefix func - (point: CGPoint) -> CGPoint {
-    CGPoint(x: -point.x, y: -point.y)
+  func tes_positiveDelay() {
+    let expectation = XCTestExpectation(description: "Delayed task")
+
+    var isExecuted = false
+    delay(0.01) {
+      isExecuted = true
+      expectation.fulfill()
+    }
+
+    XCTAssertFalse(isExecuted)
+    wait(for: [expectation], timeout: 1)
+    XCTAssertTrue(isExecuted)
   }
 
-  /// Get a vector from left to right.
-  static func - (left: CGPoint, right: CGPoint) -> CGPoint {
-    Self(x: left.x - right.x, y: left.y - right.y)
+  func tes_negativeDelay() {
+    var isExecuted = false
+    delay(-0.01) {
+      isExecuted = true
+    }
+
+    XCTAssertTrue(isExecuted)
+  }
+
+  func tes_zeroDelay() {
+    var isExecuted = false
+    delay(0) {
+      isExecuted = true
+    }
+
+    XCTAssertTrue(isExecuted)
   }
 }

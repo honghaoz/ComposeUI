@@ -34,6 +34,15 @@ import AppKit
 
 public extension NSView {
 
+  internal var alpha: CGFloat {
+    get {
+      alphaValue
+    }
+    set {
+      alphaValue = newValue
+    }
+  }
+
   /// Update common settings for a layer-backed view.
   internal func updateCommonSettings() {
     wantsLayer = true

@@ -48,4 +48,8 @@ extension CGSize {
     let height = height.ceil(nearest: pixelWidth)
     return CGSize(width: width, height: height)
   }
+
+  static func - (left: CGSize, right: CGSize) -> CGSize {
+    CGSize(width: left.width - right.width, height: left.height - right.height)
+  }
 }
