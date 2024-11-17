@@ -1,5 +1,5 @@
 //
-//  ComposeContentView+ContentNode.swift
+//  ComposeView+ContentNode.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -36,9 +36,9 @@ import AppKit
 import UIKit
 #endif
 
-extension ComposeContentView {
+extension ComposeView {
 
-  /// A wrapper node used in `ComposeContentView` to cache the layout result of the wrapped node.
+  /// A wrapper node used in `ComposeView` to cache the layout result of the wrapped node.
   final class ContentNode: ComposeNode {
 
     /// The wrapped node.

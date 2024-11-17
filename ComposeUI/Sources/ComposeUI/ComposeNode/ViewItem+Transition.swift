@@ -51,7 +51,7 @@ public struct ViewInsertTransitionContext {
   public let targetFrame: CGRect
 
   /// The content view that the view is being inserted into.
-  public weak var contentView: ComposeContentView!
+  public weak var contentView: ComposeView!
 }
 
 public protocol ViewInsertTransition {
@@ -71,7 +71,7 @@ public protocol ViewInsertTransition {
 public struct ViewRemoveTransitionContext {
 
   /// The content view that the view is being removed from.
-  public weak var contentView: ComposeContentView!
+  public weak var contentView: ComposeView!
 }
 
 public protocol ViewRemoveTransition {

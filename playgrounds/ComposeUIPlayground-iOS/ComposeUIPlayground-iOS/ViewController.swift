@@ -61,7 +61,7 @@ class ViewController: UIViewController {
 
   private let state = ViewState()
 
-  private lazy var contentView = ComposeContentView { [state] in
+  private lazy var contentView = ComposeView { [state] in
     Spacer().height(60)
 
     ViewNode<UILabel>(

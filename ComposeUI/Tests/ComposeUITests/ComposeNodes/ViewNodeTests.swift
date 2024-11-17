@@ -83,7 +83,7 @@ class ViewNodeTests: XCTestCase {
         .fixed()
         .padding(10)
 
-      let container = ComposeContentView(content: { node })
+      let container = ComposeView(content: { node })
       container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
       container.refresh()
@@ -117,7 +117,7 @@ class ViewNodeTests: XCTestCase {
         .frame(width: 210, height: 110)
         .padding(10)
 
-      let container = ComposeContentView(content: { node })
+      let container = ComposeView(content: { node })
       container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
       container.refresh(animated: false)

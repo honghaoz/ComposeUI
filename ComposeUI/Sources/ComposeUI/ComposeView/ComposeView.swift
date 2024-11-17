@@ -1,5 +1,5 @@
 //
-//  ComposeContentView.swift
+//  ComposeView.swift
 //  ComposeUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -37,16 +37,16 @@ import UIKit
 #endif
 
 /// A view that renders `ComposeContent`.
-open class ComposeContentView: BaseScrollView {
+open class ComposeView: BaseScrollView {
 
   /// The content for the view.
   ///
   /// This is overridable so that a subclass can provide a content.
   ///
-  /// A typical example of a `ComposeContentView` subclass:
+  /// A typical example of a `ComposeView` subclass:
   ///
   /// ```swift
-  /// class MyContentView: ComposeContentView {
+  /// class MyView: ComposeView {
   ///
   ///   @ComposeContentBuilder
   ///   override var content: ComposeContent {
@@ -61,9 +61,9 @@ open class ComposeContentView: BaseScrollView {
   }
 
   /// The block to make content.
-  private var makeContent: (ComposeContentView) -> ComposeContent
+  private var makeContent: (ComposeView) -> ComposeContent
 
-  /// The current content node that the content view is rendering.
+  /// The current content node that the view is rendering.
   private var contentNode: ContentNode?
 
   /// The context of the current content update.
@@ -72,13 +72,13 @@ open class ComposeContentView: BaseScrollView {
   /// The bounds used for last render pass.
   private lazy var lastRenderBounds: CGRect = .zero
 
-  /// The ids of the view items that the content view is rendering.
+  /// The ids of the view items that the view is rendering.
   private var viewItemIds: [String] = []
 
-  /// The map of the view items that the content view is rendering.
+  /// The map of the view items that the view is rendering.
   private var viewItemMap: [String: ViewItem<View>] = [:]
 
-  /// The map of the views that the content view is rendering.
+  /// The map of the views that the view is rendering.
   private var viewMap: [String: View] = [:]
 
   /// The map of the views that are being removed.
@@ -91,10 +91,10 @@ open class ComposeContentView: BaseScrollView {
 
   // MARK: - Initialization
 
-  /// Creates a `ComposeContentView` with the given content, passing in the content view.
+  /// Creates a `ComposeView` with the given content.
   ///
-  /// - Parameter content: The content builder block.
-  public init(@ComposeContentBuilder content: @escaping (ComposeContentView) -> ComposeContent) {
+  /// - Parameter content: The content builder block. It passes in the view that renders the content.
+  public init(@ComposeContentBuilder content: @escaping (ComposeView) -> ComposeContent) {
     self.makeContent = content
 
     super.init(frame: .zero)
@@ -102,7 +102,7 @@ open class ComposeContentView: BaseScrollView {
     commonInit()
   }
 
-  /// Creates a `ComposeContentView` with the given content.
+  /// Creates a `ComposeView` with the given content.
   ///
   /// - Parameter content: The content builder block.
   public init(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
@@ -113,7 +113,21 @@ open class ComposeContentView: BaseScrollView {
     commonInit()
   }
 
-  /// Creates a `ComposeContentView` with `content`.
+  /// Creates a `ComposeView` with the `content` property.
+  ///
+  /// Typically, you should override `content` like:
+  ///
+  /// ```swift
+  /// class MyView: ComposeView {
+  ///
+  ///   @ComposeContentBuilder
+  ///   override var content: ComposeContent {
+  ///     VStack {
+  ///       Text("Hello, World!")
+  ///     }
+  ///   }
+  /// }
+  /// ```
   init() {
     makeContent = { _ in Empty() }
 
@@ -145,8 +159,8 @@ open class ComposeContentView: BaseScrollView {
 
   /// Set a new content.
   ///
-  /// - Parameter content: The content builder block, passing in the content view.
-  func setContent(@ComposeContentBuilder content: @escaping (ComposeContentView) -> ComposeContent) {
+  /// - Parameter content: The content builder block. It passes in the view that renders the content.
+  func setContent(@ComposeContentBuilder content: @escaping (ComposeView) -> ComposeContent) {
     makeContent = content
   }
 
@@ -181,28 +195,6 @@ open class ComposeContentView: BaseScrollView {
     var contentNode = makeContent(self).asVStack(alignment: .center)
     _ = contentNode.layout(containerSize: size)
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
-  }
-
-  // MARK: - Scroll
-
-  /// Enables scroll.
-  func enableScroll() {
-    #if canImport(UIKit)
-    isScrollEnabled = true
-    scrollsToTop = true
-    showsHorizontalScrollIndicator = true
-    showsVerticalScrollIndicator = true
-    #endif
-  }
-
-  /// Disables scroll.
-  func disableScroll() {
-    #if canImport(UIKit)
-    isScrollEnabled = false
-    scrollsToTop = false
-    showsHorizontalScrollIndicator = false
-    showsVerticalScrollIndicator = false
-    #endif
   }
 
   // MARK: - Render
@@ -442,7 +434,7 @@ open class ComposeContentView: BaseScrollView {
             completion: CancellableBlock {
               assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
               // at the moment, the view's frame may not be the target frame, this is because during the insert transition,
-              // the content view can be refreshed, and the view's frame may be updated to a different frame.
+              // the view can be refreshed, and the view's frame may be updated to a different frame.
               //
               // insert: [-------------------] setting frame to frame1
               // reuse:        [-----]         during the insert transition, the view's frame is updated to frame2
@@ -465,7 +457,7 @@ open class ComposeContentView: BaseScrollView {
 
 private extension View {
 
-  /// Common reset for the view managed by `ComposeContentView`.
+  /// Common reset for the view managed by `ComposeView`.
   ///
   /// To ensure the frame update is applied correctly, the transform is reset to identity.
   func reset() {

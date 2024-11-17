@@ -52,6 +52,58 @@ open class BaseScrollView: ScrollView {
     fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
   }
 
+  // MARK: - Scroll
+
+  /// Whether the scroll view is scrollable.
+  ///
+  /// If set to `false`, the scroll view will disable scrolling to top and the scroll indicators will be hidden.
+  public var isScrollable: Bool {
+    get {
+      #if canImport(UIKit)
+      return isScrollEnabled
+      #endif
+
+      #if canImport(AppKit)
+      return _isScrollable
+      #endif
+    }
+    set {
+      #if canImport(UIKit)
+      isScrollEnabled = newValue
+      if newValue == false {
+        scrollsToTop = false
+        showsHorizontalScrollIndicator = false
+        showsVerticalScrollIndicator = false
+      }
+      #endif
+
+      #if canImport(AppKit)
+      _isScrollable = newValue
+      if newValue == false {
+        hasHorizontalScroller = false
+        hasVerticalScroller = false
+      }
+      #endif
+    }
+  }
+
+  #if canImport(AppKit)
+  private var _isScrollable: Bool = true
+
+  override open func scrollWheel(with event: NSEvent) {
+    // https://apptyrant.com/2015/05/18/how-to-disable-nsscrollview-scrolling/
+    if _isScrollable {
+      super.scrollWheel(with: event)
+    } else {
+      // send the event to outside of the scroll view.
+      // https://github.com/onmyway133/blog/issues/733
+      nextResponder?.scrollWheel(with: event)
+    }
+  }
+  #endif
+
+  // MARK: - Content Scale Factor
+
   #if canImport(AppKit)
 
   private weak var previousWindow: NSWindow?
