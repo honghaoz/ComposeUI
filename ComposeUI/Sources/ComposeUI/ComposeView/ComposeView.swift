@@ -113,6 +113,13 @@ open class ComposeView: BaseScrollView {
     commonInit()
   }
 
+  /// Creates a `ComposeView` with the given content.
+  ///
+  /// - Parameter content: The content.
+  public convenience init(content: ComposeContent) {
+    self.init { content }
+  }
+
   /// Creates a `ComposeView` with the `content` property.
   ///
   /// Typically, you should override `content` like:
