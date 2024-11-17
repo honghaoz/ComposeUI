@@ -42,6 +42,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   private let make: (ViewMakeContext) -> T
   private let willInsert: ((T, ViewInsertContext) -> Void)?
   private let didInsert: ((T, ViewInsertContext) -> Void)?
+  private let willUpdate: ((T, ViewUpdateContext) -> Void)?
   private let update: (T, ViewUpdateContext) -> Void
   private let willRemove: ((T, ViewRemoveContext) -> Void)?
   private let didRemove: ((T, ViewRemoveContext) -> Void)?
@@ -78,12 +79,14 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   ///   - view: The external view.
   ///   - willInsert: A closure to be called when the view is about to be inserted into the view hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the view hierarchy.
+  ///   - willUpdate: A closure to be called when the view is about to be updated.
   ///   - update: A closure to update the view.
   ///   - willRemove: A closure to be called when the view is about to be removed from the view hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the view hierarchy.
   public init(_ view: T,
               willInsert: ((T, ViewInsertContext) -> Void)? = nil,
               didInsert: ((T, ViewInsertContext) -> Void)? = nil,
+              willUpdate: ((T, ViewUpdateContext) -> Void)? = nil,
               update: @escaping (T, ViewUpdateContext) -> Void = { _, _ in },
               willRemove: ((T, ViewRemoveContext) -> Void)? = nil,
               didRemove: ((T, ViewRemoveContext) -> Void)? = nil)
@@ -94,6 +97,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
     }
     self.willInsert = willInsert
     self.didInsert = didInsert
+    self.willUpdate = willUpdate
     self.update = update
     self.willRemove = willRemove
     self.didRemove = didRemove
@@ -112,12 +116,14 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with with frame set to `context.initialFrame` if it's provided.
   ///   - willInsert: A closure to be called when the view is about to be inserted into the view hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the view hierarchy.
+  ///   - willUpdate: A closure to be called when the view is about to be updated.
   ///   - update: A closure to update the view.
   ///   - willRemove: A closure to be called when the view is about to be removed from the view hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the view hierarchy.
   public init(make: ((ViewMakeContext) -> T)? = nil,
               willInsert: ((T, ViewInsertContext) -> Void)? = nil,
               didInsert: ((T, ViewInsertContext) -> Void)? = nil,
+              willUpdate: ((T, ViewUpdateContext) -> Void)? = nil,
               update: @escaping (T, ViewUpdateContext) -> Void = { _, _ in },
               willRemove: ((T, ViewRemoveContext) -> Void)? = nil,
               didRemove: ((T, ViewRemoveContext) -> Void)? = nil)
@@ -139,6 +145,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
     }
     self.willInsert = willInsert
     self.didInsert = didInsert
+    self.willUpdate = willUpdate
     self.update = update
     self.willRemove = willRemove
     self.didRemove = didRemove
@@ -187,6 +194,9 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
       },
       didInsert: { view, context in
         didInsert?(view, context)
+      },
+      willUpdate: { view, context in
+        willUpdate?(view, context)
       },
       update: { view, context in
         #if canImport(AppKit)
