@@ -1,8 +1,8 @@
 //
-//  CGRect+Extensions.swift
+//  CGFloat+Extensions.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 9/6/21.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,32 +30,32 @@
 
 import CoreGraphics
 
-extension CGRect {
+extension CGFloat {
 
-  /// Translate the rectangle by a given point.
+  /// Rounds the value to the nearest value based on the given nearest value.
   ///
-  /// - Parameter point: The point to translate the rectangle by.
-  /// - Returns: A new rectangle translated by the given point.
-  func translate(_ point: CGPoint) -> CGRect {
-    CGRect(origin: CGPoint(x: origin.x + point.x, y: origin.y + point.y), size: size)
+  /// For example, `1.1.round(nearest: 0.5)` returns `1.0` and `1.4.round(nearest: 0.5)` returns `1.5`.
+  ///
+  /// - Parameter nearest: The nearest value, usually this is 1 divided by the scale factor of the screen.
+  /// - Returns: The rounded value.
+  func round(nearest: CGFloat) -> CGFloat {
+    let n = 1 / nearest
+    let numberToRound = self * n
+    return numberToRound.rounded() / n
   }
 
-  /// Rounds the rectangle to the nearest pixel size based on the given scale factor.
-  /// So that the view can be rendered without subpixel rendering artifacts.
+  /// Rounds up the value to the nearest value based on the given nearest value.
   ///
-  /// - Parameter scaleFactor: The scale factor of the screen.
-  /// - Returns: The rounded rectangle.
-  func rounded(scaleFactor: CGFloat) -> CGRect {
-    if isNull || isInfinite {
+  /// For example, `1.0.ceil(nearest: 0.5)` returns `1.0` and `1.1.ceil(nearest: 0.5)` returns `1.5`.
+  ///
+  /// - Parameter nearest: The nearest value, usually this is 1 divided by the scale factor of the screen.
+  /// - Returns: The rounded value.
+  func ceil(nearest: CGFloat) -> CGFloat {
+    let remainder = truncatingRemainder(dividingBy: nearest)
+    if abs(remainder) <= 1e-12 {
       return self
+    } else {
+      return self + (nearest - remainder)
     }
-
-    let pixelWidth: CGFloat = 1 / scaleFactor
-
-    let x = origin.x.round(nearest: pixelWidth)
-    let y = origin.y.round(nearest: pixelWidth)
-    let width = width.round(nearest: pixelWidth)
-    let height = height.round(nearest: pixelWidth)
-    return CGRect(x: x, y: y, width: width, height: height)
   }
 }

@@ -47,13 +47,13 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
   private(set) var size: CGSize = .zero
 
-  mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let containerSize = CGSize(
       width: max(0, containerSize.width - insets.horizontal),
       height: max(0, containerSize.height - insets.vertical)
     )
 
-    let childSizing = node.layout(containerSize: containerSize)
+    let childSizing = node.layout(containerSize: containerSize, context: context)
     size = CGSize(
       width: max(0, node.size.width + insets.horizontal),
       height: max(0, node.size.height + insets.vertical)

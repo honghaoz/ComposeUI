@@ -1,8 +1,8 @@
 //
-//  CGRect+Extensions.swift
+//  CGSize+Extensions.swift
 //  ComposeUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 11/10/20.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,32 +30,22 @@
 
 import CoreGraphics
 
-extension CGRect {
+extension CGSize {
 
-  /// Translate the rectangle by a given point.
+  /// Round the size up to the nearest value that is a multiple of the given scale factor.
   ///
-  /// - Parameter point: The point to translate the rectangle by.
-  /// - Returns: A new rectangle translated by the given point.
-  func translate(_ point: CGPoint) -> CGRect {
-    CGRect(origin: CGPoint(x: origin.x + point.x, y: origin.y + point.y), size: size)
-  }
-
-  /// Rounds the rectangle to the nearest pixel size based on the given scale factor.
-  /// So that the view can be rendered without subpixel rendering artifacts.
+  /// For example, `CGSize(width: 49.9, height: 50.0).roundedUp(scaleFactor: 2.0)` returns `CGSize(width: 50.0, height: 50.0)`.
   ///
   /// - Parameter scaleFactor: The scale factor of the screen.
-  /// - Returns: The rounded rectangle.
-  func rounded(scaleFactor: CGFloat) -> CGRect {
-    if isNull || isInfinite {
+  /// - Returns: The rounded size.
+  func roundedUp(scaleFactor: CGFloat) -> CGSize {
+    guard scaleFactor > 0 else {
       return self
     }
 
     let pixelWidth: CGFloat = 1 / scaleFactor
-
-    let x = origin.x.round(nearest: pixelWidth)
-    let y = origin.y.round(nearest: pixelWidth)
-    let width = width.round(nearest: pixelWidth)
-    let height = height.round(nearest: pixelWidth)
-    return CGRect(x: x, y: y, width: width, height: height)
+    let width = width.ceil(nearest: pixelWidth)
+    let height = height.ceil(nearest: pixelWidth)
+    return CGSize(width: width, height: height)
   }
 }

@@ -72,7 +72,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
   private(set) var size: CGSize = .zero
 
-  mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     // prepare the proposing size for the child node
     let childContainerSize: CGSize
     switch (width, height) {
@@ -86,7 +86,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
       childContainerSize = containerSize
     }
 
-    let childNodeSizing = node.layout(containerSize: childContainerSize)
+    let childNodeSizing = node.layout(containerSize: childContainerSize, context: context)
 
     // determine the final size and sizing for the wrapped node
     let sizing: ComposeNodeSizing

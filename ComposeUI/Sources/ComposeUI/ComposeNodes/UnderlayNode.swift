@@ -52,9 +52,9 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
 
   var size: CGSize { node.size }
 
-  mutating func layout(containerSize: CGSize) -> ComposeNodeSizing {
-    let sizing = node.layout(containerSize: containerSize)
-    _ = underlayNode.layout(containerSize: node.size)
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    let sizing = node.layout(containerSize: containerSize, context: context)
+    _ = underlayNode.layout(containerSize: node.size, context: context)
     return sizing
   }
 
