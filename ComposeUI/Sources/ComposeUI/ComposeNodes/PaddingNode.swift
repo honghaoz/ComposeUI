@@ -55,8 +55,8 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
     let childSizing = node.layout(containerSize: containerSize)
     size = CGSize(
-      width: node.size.width + insets.horizontal,
-      height: node.size.height + insets.vertical
+      width: max(0, node.size.width + insets.horizontal),
+      height: max(0, node.size.height + insets.vertical)
     )
 
     // padding node wraps a fixed size child node:
@@ -75,15 +75,20 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
   func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
     let childOrigin = CGPoint(x: insets.left, y: insets.top)
-
     let boundsInChild = visibleBounds.translate(-childOrigin)
 
-    return node.viewItems(in: boundsInChild)
-      .map { item in
-        item
-          .id(id.makeViewItemId(childViewItemId: item.id))
-          .frame(item.frame.translate(childOrigin))
-      }
+    let childItems = node.viewItems(in: boundsInChild)
+
+    var mappedChildItems: [ViewItem<View>] = []
+    mappedChildItems.reserveCapacity(childItems.count)
+
+    for var item in childItems {
+      item.id = id.makeViewItemId(childViewItemId: item.id)
+      item.frame = item.frame.translate(childOrigin)
+      mappedChildItems.append(item)
+    }
+
+    return mappedChildItems
   }
 }
 
@@ -107,6 +112,8 @@ public extension ComposeNode {
   ///   - bottom: The padding to add to the bottom.
   ///   - right: The padding to add to the right.
   /// - Returns: A new node with the padding applied.
+  @inlinable
+  @inline(__always)
   func padding(top: CGFloat = 0,
                left: CGFloat = 0,
                bottom: CGFloat = 0,
@@ -117,10 +124,12 @@ public extension ComposeNode {
 
   /// Add padding to the node.
   ///
-  /// - Parameter amount: The amount of padding to add to all edges.
+  /// - Parameter distance: The padding to add to all edges.
   /// - Returns: A new node with the padding applied.
-  func padding(_ amount: CGFloat) -> some ComposeNode {
-    padding(EdgeInsets(top: amount, left: amount, bottom: amount, right: amount))
+  @inlinable
+  @inline(__always)
+  func padding(_ distance: CGFloat) -> some ComposeNode {
+    padding(EdgeInsets(top: distance, left: distance, bottom: distance, right: distance))
   }
 
   /// Add padding to the node.
@@ -129,6 +138,8 @@ public extension ComposeNode {
   ///   - horizontal: The amount of padding to add to the left and right.
   ///   - vertical: The amount of padding to add to the top and bottom.
   /// - Returns: A new node with the padding applied.
+  @inlinable
+  @inline(__always)
   func padding(horizontal: CGFloat = 0, vertical: CGFloat = 0) -> some ComposeNode {
     padding(EdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal))
   }

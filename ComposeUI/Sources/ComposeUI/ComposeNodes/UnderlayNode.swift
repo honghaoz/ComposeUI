@@ -59,19 +59,32 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
   }
 
   func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
-    let childItems = node.viewItems(in: visibleBounds).map { item in
-      item.id(id.makeViewItemId(childViewItemId: item.id))
+    // for the child node
+    let childItems = node.viewItems(in: visibleBounds)
+
+    var mappedChildItems: [ViewItem<View>] = []
+    mappedChildItems.reserveCapacity(childItems.count)
+
+    for var item in childItems {
+      item.id = id.makeViewItemId(childViewItemId: item.id)
+      mappedChildItems.append(item)
     }
 
+    // for the underlay node
     let underlayViewFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
     let boundsInUnderlay = visibleBounds.translate(-underlayViewFrame.origin)
-    let underlayViewItems = underlayNode.viewItems(in: boundsInUnderlay).map { item in
-      item
-        .id(id.makeViewItemId(suffix: "U", childViewItemId: item.id))
-        .frame(item.frame.translate(underlayViewFrame.origin))
+    let underlayViewItems = underlayNode.viewItems(in: boundsInUnderlay)
+
+    var mappedUnderlayViewItems: [ViewItem<View>] = []
+    mappedUnderlayViewItems.reserveCapacity(underlayViewItems.count)
+
+    for var item in underlayViewItems {
+      item.id = id.makeViewItemId(suffix: "U", childViewItemId: item.id)
+      item.frame = item.frame.translate(underlayViewFrame.origin)
+      mappedUnderlayViewItems.append(item)
     }
 
-    return underlayViewItems + childItems
+    return mappedUnderlayViewItems + mappedChildItems
   }
 }
 

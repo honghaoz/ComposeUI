@@ -85,18 +85,24 @@ public struct LayeredStackNode: ComposeNode {
   }
 
   public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
-    childNodes.enumerated().flatMap { i, node in
-      let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
+    var mappedChildItems: [ViewItem<View>] = []
+    mappedChildItems.reserveCapacity(childNodes.count * 4) // use 4x capacity as a rough estimate for the number of items
 
+    for i in 0 ..< childNodes.count {
+      let node = childNodes[i]
+
+      let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
       let boundsInChild = visibleBounds.translate(-childFrame.origin)
 
-      let items = node.viewItems(in: boundsInChild)
+      let childItems = node.viewItems(in: boundsInChild)
 
-      return items.map { item in
-        item
-          .id(id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id))
-          .frame(item.frame.translate(childFrame.origin))
+      for var item in childItems {
+        item.id = id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id)
+        item.frame = item.frame.translate(childFrame.origin)
+        mappedChildItems.append(item)
       }
     }
+
+    return mappedChildItems
   }
 }

@@ -118,32 +118,37 @@ public struct VerticalStackNode: ComposeNode {
   }
 
   public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+    var mappedChildItems: [ViewItem<View>] = []
+    mappedChildItems.reserveCapacity(childNodes.count * 4) // use 4x capacity as a rough estimate for the number of items
+
     var y: CGFloat = 0
-    return childNodes.enumerated().flatMap { i, node in
-      defer {
-        y += node.size.height + spacing
-      }
+    for i in 0 ..< childNodes.count {
+      let node = childNodes[i]
+      let nodeSize = node.size
 
       let x: CGFloat
       switch alignment {
       case .center:
-        x = (size.width - node.size.width) / 2
+        x = (size.width - nodeSize.width) / 2
       case .left:
         x = 0
       case .right:
-        x = size.width - node.size.width
+        x = size.width - nodeSize.width
       }
 
       let childOrigin = CGPoint(x: x, y: y)
       let boundsInChild = visibleBounds.translate(-childOrigin)
 
-      let items = node.viewItems(in: boundsInChild)
-
-      return items.map { item in
-        item
-          .id(id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id))
-          .frame(item.frame.translate(childOrigin))
+      let childItems = node.viewItems(in: boundsInChild)
+      for var item in childItems {
+        item.id = id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id)
+        item.frame = item.frame.translate(childOrigin)
+        mappedChildItems.append(item)
       }
+
+      y += nodeSize.height + spacing
     }
+
+    return mappedChildItems
   }
 }
