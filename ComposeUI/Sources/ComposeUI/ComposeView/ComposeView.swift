@@ -400,7 +400,7 @@ open class ComposeView: BaseScrollView {
 
             removingViewTransitionCompletionMap[oldId] = completion
 
-            transition.animate(view: oldView, context: ViewRemoveTransitionContext(contentView: self), completion: completion)
+            transition.animate(view: oldView, context: ViewRemoveTransitionContext(contentView: self), completion: completion.workBlock)
           } else {
             removeBlock()
           }
@@ -512,7 +512,7 @@ open class ComposeView: BaseScrollView {
           transition.animate(
             view: view,
             context: ViewInsertTransitionContext(targetFrame: newFrame, contentView: self),
-            completion: CancellableBlock {
+            completion: {
               assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
               // at the moment, the view's frame may not be the target frame, this is because during the insert transition,
               // the view can be refreshed, and the view's frame may be updated to a different frame.

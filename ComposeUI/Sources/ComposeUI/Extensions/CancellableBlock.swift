@@ -31,34 +31,34 @@
 import Foundation
 
 /// A cancellable block that can be used to cancel a block execution.
-public final class CancellableBlock {
+final class CancellableBlock {
 
   private var isCancelled = false
 
   /// The block to be executed.
-  private let workBlock: () -> Void
+  let workBlock: () -> Void
 
   /// The block to be executed when the cancellable block is cancelled.
-  private let cancelBlock: (() -> Void)?
+  let cancelBlock: (() -> Void)?
 
   /// Initializes a new cancellable block.
   ///
   /// - Parameters:
   ///   - block: The block to be executed.
   ///   - cancel: The block to be executed when the cancellable block is cancelled.
-  public init(block: @escaping () -> Void, cancel: (() -> Void)? = nil) {
+  init(block: @escaping () -> Void, cancel: (() -> Void)? = nil) {
     self.workBlock = block
     self.cancelBlock = cancel
   }
 
   /// Cancels the block execution.
-  public func cancel() {
+  func cancel() {
     isCancelled = true
     cancelBlock?()
   }
 
   /// Executes the block if it is not cancelled.
-  public func execute() {
+  func execute() {
     if !isCancelled {
       workBlock()
     }
