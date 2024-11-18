@@ -32,7 +32,7 @@ import QuartzCore
 import XCTest
 @testable import ComposeUI
 
-final class CALayer_ExtensionsTests: XCTestCase {
+final class CALayer_AnimationsTests: XCTestCase {
 
   func test_setKeyPath() {
     #if os(macOS)
