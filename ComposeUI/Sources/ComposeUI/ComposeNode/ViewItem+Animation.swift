@@ -145,5 +145,5 @@ public struct ViewAnimationContext {
   public let timing: AnimationTiming
 
   /// The content view that contains the view.
-  public weak var contentView: ComposeView!
+  public private(set) weak var contentView: ComposeView!
 }

@@ -29,7 +29,7 @@
 //
 
 import XCTest
-import ComposeUI
+@testable import ComposeUI
 
 class CancellableBlockTests: XCTestCase {
 

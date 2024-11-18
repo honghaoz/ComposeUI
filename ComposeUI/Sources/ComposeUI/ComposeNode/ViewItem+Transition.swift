@@ -51,7 +51,7 @@ public struct ViewInsertTransitionContext {
   public let targetFrame: CGRect
 
   /// The content view that the view is being inserted into.
-  public weak var contentView: ComposeView!
+  public private(set) weak var contentView: ComposeView!
 }
 
 public protocol ViewInsertTransition {
@@ -62,7 +62,7 @@ public protocol ViewInsertTransition {
   ///   - view: The view to insert.
   ///   - context: The context for the insert transition.
   ///   - completion: The completion block to be called when the transition is completed.
-  func animate(view: View, context: ViewInsertTransitionContext, completion: CancellableBlock?)
+  func animate(view: View, context: ViewInsertTransitionContext, completion: (() -> Void)?)
 }
 
 // MARK: - View Remove Transition
@@ -71,7 +71,7 @@ public protocol ViewInsertTransition {
 public struct ViewRemoveTransitionContext {
 
   /// The content view that the view is being removed from.
-  public weak var contentView: ComposeView!
+  public private(set) weak var contentView: ComposeView!
 }
 
 public protocol ViewRemoveTransition {
@@ -82,5 +82,5 @@ public protocol ViewRemoveTransition {
   ///   - view: The view to remove.
   ///   - context: The context for the remove transition.
   ///   - completion: The completion block to be called when the transition is completed.
-  func animate(view: View, context: ViewRemoveTransitionContext, completion: CancellableBlock?)
+  func animate(view: View, context: ViewRemoveTransitionContext, completion: (() -> Void)?)
 }
