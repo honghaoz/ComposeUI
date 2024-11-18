@@ -255,26 +255,53 @@ open class ComposeView: BaseScrollView {
       return
     }
 
+    let bounds = bounds()
+    let boundsSize = bounds.size
+
     // do the layout
-    let containerSize = bounds().size
-    _ = contentNode.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
+    _ = contentNode.layout(containerSize: boundsSize, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
+    var contentSize = contentNode.size
 
-    // TODO: check if the content is larger than the container
-    // if not, should use frame to center the content
+    // get view items
+    let viewItems: [ViewItem<View>]
+    if contentSize.width < boundsSize.width || contentSize.height < boundsSize.height {
+      // if content is smaller than the bounds in either dimension, should center the content
 
-    let contentNodeSize = contentNode.size
-    // adjust isScrollable automatically if not set explicitly
+      let adjustedContentSize = CGSize(
+        width: max(contentSize.width, boundsSize.width),
+        height: max(contentSize.height, boundsSize.height)
+      )
+
+      // logic copied from FrameNode
+      let childFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
+      let boundsInChild = bounds.translate(-childFrame.origin)
+      let childItems = contentNode.viewItems(in: boundsInChild)
+
+      var mappedChildItems: [ViewItem<View>] = []
+      mappedChildItems.reserveCapacity(childItems.count)
+
+      for var item in childItems {
+        item.frame = item.frame.translate(childFrame.origin)
+        mappedChildItems.append(item)
+      }
+
+      viewItems = mappedChildItems
+      contentSize = adjustedContentSize
+    } else {
+      viewItems = contentNode.viewItems(in: bounds)
+    }
+
+    // set content size
+    setContentSize(contentSize.roundedUp(scaleFactor: contentScaleFactor))
+
+    // adjust isScrollable based on content size if not set explicitly
     if !isScrollableExplicitlySet {
-      if contentNodeSize.width > containerSize.width || contentNodeSize.height > containerSize.height {
+      if contentSize.width > boundsSize.width || contentSize.height > boundsSize.height {
         super.isScrollable = true
       } else {
         super.isScrollable = false
       }
     }
-
-    setContentSize(contentNodeSize.roundedUp(scaleFactor: contentScaleFactor))
-
-    let viewItems = contentNode.viewItems(in: bounds())
 
     // set up the view item ids and map
     let oldViewItemIds = viewItemIds
