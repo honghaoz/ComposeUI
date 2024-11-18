@@ -140,6 +140,10 @@ open class ComposeView: BaseScrollView {
   private func commonInit() {
     contentScaleFactor = screenScaleFactor
 
+    #if canImport(AppKit)
+    drawsBackground = false // make the view transparent
+    #endif
+
     #if canImport(UIKit)
     contentInsetAdjustmentBehavior = .never // ensure the content inset is consistent
     #endif
@@ -224,9 +228,7 @@ open class ComposeView: BaseScrollView {
 
     if contentUpdateContext == nil, bounds() != lastRenderBounds {
       // no pending render request but the bounds changed, should re-render the content
-      if contentNode == nil {
-        contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
-      }
+      contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
       contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds))
     }
 
