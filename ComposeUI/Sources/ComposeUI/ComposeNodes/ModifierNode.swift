@@ -37,9 +37,9 @@ import UIKit
 #endif
 
 /// A node that applies a modifier to a child node.
-private struct ModifierNode<Node: ComposeNode>: ComposeNode {
+private struct ModifierNode: ComposeNode {
 
-  private var node: Node
+  private var node: ComposeNode
 
   private let willInsert: ((View, ViewInsertContext) -> Void)?
   private let didInsert: ((View, ViewInsertContext) -> Void)?
@@ -50,7 +50,7 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
   private let transition: ViewTransition?
   private let animation: ViewAnimation?
 
-  fileprivate init(node: Node,
+  fileprivate init(node: ComposeNode,
                    willInsert: ((View, ViewInsertContext) -> Void)? = nil,
                    didInsert: ((View, ViewInsertContext) -> Void)? = nil,
                    willUpdate: ((View, ViewUpdateContext) -> Void)? = nil,
@@ -60,16 +60,45 @@ private struct ModifierNode<Node: ComposeNode>: ComposeNode {
                    transition: ViewTransition? = nil,
                    animation: ViewAnimation? = nil)
   {
-    // TODO: support coalescing modifiers into a single modifier node
-    self.node = node
-    self.willInsert = willInsert
-    self.didInsert = didInsert
-    self.willUpdate = willUpdate
-    self.update = update
-    self.willRemove = willRemove
-    self.didRemove = didRemove
-    self.transition = transition
-    self.animation = animation
+    if let modifierNode = node as? ModifierNode { // coalescing modifiers
+      self.node = modifierNode.node
+
+      self.willInsert = Self.combineBlocks(modifierNode.willInsert, willInsert)
+      self.didInsert = Self.combineBlocks(modifierNode.didInsert, didInsert)
+      self.willUpdate = Self.combineBlocks(modifierNode.willUpdate, willUpdate)
+      self.update = Self.combineBlocks(modifierNode.update, update)
+      self.willRemove = Self.combineBlocks(modifierNode.willRemove, willRemove)
+      self.didRemove = Self.combineBlocks(modifierNode.didRemove, didRemove)
+
+      self.transition = modifierNode.transition ?? transition
+      self.animation = modifierNode.animation ?? animation
+    } else {
+      self.node = node
+      self.willInsert = willInsert
+      self.didInsert = didInsert
+      self.willUpdate = willUpdate
+      self.update = update
+      self.willRemove = willRemove
+      self.didRemove = didRemove
+      self.transition = transition
+      self.animation = animation
+    }
+  }
+
+  private static func combineBlocks<T>(_ first: ((View, T) -> Void)?, _ second: ((View, T) -> Void)?) -> ((View, T) -> Void)? {
+    switch (first, second) {
+    case (nil, nil):
+      return nil
+    case (let first?, nil):
+      return first
+    case (nil, let second?):
+      return second
+    case (let first?, let second?):
+      return { view, context in
+        first(view, context)
+        second(view, context)
+      }
+    }
   }
 
   // MARK: - ComposeNode

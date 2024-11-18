@@ -42,6 +42,7 @@ final class CALayer_ExtensionsTests: XCTestCase {
     XCTAssertIdentical(layer.backedView, view)
     #else
     let view = View()
+    let layer = view.layer()
     XCTAssertIdentical(layer.backedView, view)
     #endif
   }

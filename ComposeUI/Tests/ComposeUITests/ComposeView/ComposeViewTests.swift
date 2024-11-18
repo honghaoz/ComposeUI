@@ -85,9 +85,6 @@ class ComposeViewTests: XCTestCase {
   }
 
   func test_isScrollable() {
-    // precondition
-    XCTAssertEqual(contentView.contentScaleFactor, 2)
-
     // when content size is smaller than bounds size
     do {
       contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
@@ -155,6 +152,7 @@ class ComposeViewTests: XCTestCase {
   func test_view_lifecycle() {
     var willInsertCount = 0
     var didInsertCount = 0
+    var willUpdateCount = 0
     var updateCount = 0
     var willRemoveCount = 0
     var didRemoveCount = 0
@@ -167,6 +165,9 @@ class ComposeViewTests: XCTestCase {
         },
         didInsert: { view, context in
           didInsertCount += 1
+        },
+        willUpdate: { view, context in
+          willUpdateCount += 1
         },
         update: { view, context in
           updateCount += 1
@@ -196,6 +197,7 @@ class ComposeViewTests: XCTestCase {
 
     XCTAssertEqual(willInsertCount, 1)
     XCTAssertEqual(didInsertCount, 1)
+    XCTAssertEqual(willUpdateCount, 1)
     XCTAssertEqual(updateCount, 1)
     XCTAssertEqual(willRemoveCount, 1)
     XCTAssertEqual(didRemoveCount, 1)

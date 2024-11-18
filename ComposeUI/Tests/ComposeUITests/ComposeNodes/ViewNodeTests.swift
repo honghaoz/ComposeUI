@@ -87,7 +87,7 @@ class ViewNodeTests: XCTestCase {
       let container = ComposeView(content: { node })
       container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
-      container.refresh()
+      container.refresh(animated: false)
 
       // the view's translatesAutoresizingMaskIntoConstraints is changed to true
       XCTAssertTrue(view.translatesAutoresizingMaskIntoConstraints)

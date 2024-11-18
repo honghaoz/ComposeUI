@@ -467,6 +467,7 @@ open class ComposeView: BaseScrollView {
             newFrame: newFrame,
             animationContext: nil // no animation context for insertion
           )
+          viewItem.willUpdate?(view, viewUpdateContext)
           viewItem.update(view, viewUpdateContext)
         }
 
