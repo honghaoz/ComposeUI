@@ -82,6 +82,7 @@ class ViewNodeTests: XCTestCase {
       let node = ViewNode(view)
         .fixed()
         .padding(10)
+        .frame(.flexible, alignment: .topLeft)
 
       let container = ComposeView(content: { node })
       container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
@@ -116,6 +117,7 @@ class ViewNodeTests: XCTestCase {
         .flexible()
         .frame(width: 210, height: 110)
         .padding(10)
+        .frame(.flexible, alignment: .topLeft)
 
       let container = ComposeView(content: { node })
       container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)

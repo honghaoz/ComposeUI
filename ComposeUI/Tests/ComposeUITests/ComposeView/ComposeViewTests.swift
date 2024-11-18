@@ -40,6 +40,50 @@ class ComposeViewTests: XCTestCase {
     contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
   }
 
+  func test_centerContent() {
+    // when content size is smaller than the bounds size
+    do {
+      let view = BaseView()
+      contentView.setContent {
+        ViewNode(view)
+          .flexible()
+          .frame(width: 50, height: 80)
+      }
+      contentView.refresh(animated: false)
+
+      XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 100))
+      XCTAssertEqual(view.frame, CGRect(x: 25, y: 10, width: 50, height: 80))
+    }
+
+    // when content width is smaller than the bounds width
+    do {
+      let view = BaseView()
+      contentView.setContent {
+        ViewNode(view)
+          .flexible()
+          .frame(width: 50, height: 120)
+      }
+      contentView.refresh(animated: false)
+
+      XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 120))
+      XCTAssertEqual(view.frame, CGRect(x: 25, y: 0, width: 50, height: 120))
+    }
+
+    // when content height is smaller than the bounds height
+    do {
+      let view = BaseView()
+      contentView.setContent {
+        ViewNode(view)
+          .flexible()
+          .frame(width: 120, height: 80)
+      }
+      contentView.refresh(animated: false)
+
+      XCTAssertEqual(contentView.contentSize, CGSize(width: 120, height: 100))
+      XCTAssertEqual(view.frame, CGRect(x: 0, y: 10, width: 120, height: 80))
+    }
+  }
+
   func test_isScrollable() {
     // precondition
     XCTAssertEqual(contentView.contentScaleFactor, 2)
