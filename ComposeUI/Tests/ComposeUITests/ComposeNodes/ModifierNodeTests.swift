@@ -34,6 +34,7 @@ import XCTest
 final class ModifierNodeTests: XCTestCase {
 
   func test_calls() {
+    // given many modifiers
     var willInsertCalls: [String] = []
     var didInsertCalls: [String] = []
     var willUpdateCalls: [String] = []
@@ -55,17 +56,18 @@ final class ModifierNodeTests: XCTestCase {
       .willRemove { _, _ in willRemoveCalls.append("second") }
       .onRemove { _, _ in didRemoveCalls.append("second") }
 
-    // verify coalescing
+    // expect modifiers are coalescing
     XCTAssertTrue(
       String(describing: node).hasPrefix("ModifierNode(node: ComposeUI.ViewNode<")
     )
 
-    // verify calls order
+    // when the compose view is refreshed
     let composeView = ComposeView { node }
     composeView.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
     composeView.refresh(animated: false)
 
+    // then the modifier calls are called in order
     XCTAssertEqual(willInsertCalls, ["first", "second"])
     XCTAssertEqual(didInsertCalls, ["first", "second"])
     XCTAssertEqual(willUpdateCalls, ["first", "second"])
@@ -73,9 +75,11 @@ final class ModifierNodeTests: XCTestCase {
     XCTAssertEqual(willRemoveCalls, [])
     XCTAssertEqual(didRemoveCalls, [])
 
+    // when the content removed
     composeView.setContent { Empty() }
     composeView.refresh(animated: false)
 
+    // then the remove modifier calls are called in order
     XCTAssertEqual(willInsertCalls, ["first", "second"])
     XCTAssertEqual(didInsertCalls, ["first", "second"])
     XCTAssertEqual(willUpdateCalls, ["first", "second"])
@@ -86,13 +90,10 @@ final class ModifierNodeTests: XCTestCase {
 
   // MARK: - Animation and Transition Priority
 
-  func test_transitionPriority() {
-    // TODO: add tests
-  }
-
-  func test_animationPriority() {
+  func test_animationAndTransitionPriority() {
     let expectation = XCTestExpectation(description: "animation")
 
+    // given a view node with multiple animations
     var updateCount = 0
     let node = ViewNode()
       .animation(.easeInEaseOut(1))
@@ -101,8 +102,10 @@ final class ModifierNodeTests: XCTestCase {
         updateCount += 1
         switch updateCount {
         case 1:
-          break // initial insert update
+          // initial insert update
+          XCTAssertNil(context.animationContext)
         case 2:
+          // then the inner animation is used
           XCTAssertEqual(
             context.animationContext?.timing.timing, .timingFunction(1, CAMediaTimingFunction(name: .easeInEaseOut))
           )
@@ -111,6 +114,8 @@ final class ModifierNodeTests: XCTestCase {
           XCTFail("Unexpected update count: \(updateCount)")
         }
       }
+
+    // when the compose view is refreshed
     let composeView = ComposeView { node }
     composeView.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 

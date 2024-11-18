@@ -35,8 +35,8 @@ public typealias Spacer = SpacerNode
 /// A node that occupies the some space.
 public struct SpacerNode: ComposeNode {
 
-  var width: CGFloat?
-  var height: CGFloat?
+  private(set) var width: CGFloat?
+  private(set) var height: CGFloat?
 
   /// Make a spacer with the given size.
   /// - Parameters:
