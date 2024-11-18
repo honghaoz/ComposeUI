@@ -200,7 +200,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
       },
       update: { view, context in
         #if canImport(AppKit)
-        assert(view.wantsLayer, "\(T.self) should be layer backed. Please set `wantsLayer == true`.")
+        assert(view.layer != nil, "\(T.self) should be layer backed. Please set `wantsLayer == true`.")
         #endif
         update(view, context)
       },

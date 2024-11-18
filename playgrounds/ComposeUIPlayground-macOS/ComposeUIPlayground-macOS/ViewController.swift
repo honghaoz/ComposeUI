@@ -37,7 +37,7 @@ class ViewController: NSViewController {
   private class ViewState {
 
     weak var view: ComposeView!
-    lazy var textField = NSTextField()
+    private(set) lazy var textField = NSTextField()
   }
 
   private let state = ViewState()
@@ -57,6 +57,8 @@ class ViewController: NSViewController {
         .frame(width: .flexible, height: 20)
         .cornerRadius(4)
 
+      Spacer().height(20)
+
       ViewNode<Playground.FrameView>()
         .frame(width: .flexible, height: state.view.bounds.width)
 
@@ -71,7 +73,10 @@ class ViewController: NSViewController {
         ColorNode(.purple).frame(width: .flexible, height: 100)
       }
 
-      Spacer().height(20)
+      ColorNode(.red)
+        .padding(horizontal: 100, vertical: 20)
+        .frame(width: .flexible, height: 100)
+        .rotate(by: 45)
 
       HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
     }

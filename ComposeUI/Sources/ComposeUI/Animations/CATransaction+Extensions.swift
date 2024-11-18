@@ -30,7 +30,7 @@
 
 import QuartzCore
 
-public extension CATransaction {
+extension CATransaction {
 
   /// Execute the block with Core Animation implicit animations disabled and return the result.
   ///
