@@ -37,7 +37,75 @@ class ComposeViewTests: XCTestCase {
 
   override func setUp() {
     super.setUp()
-    contentView = ComposeView()
+    contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+  }
+
+  func test_isScrollable() {
+    // precondition
+    XCTAssertEqual(contentView.contentScaleFactor, 2)
+
+    // when content size is smaller than bounds size
+    do {
+      contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      contentView.setContent {
+        ColorNode(.red)
+          .frame(width: 50, height: 50)
+      }
+      contentView.refresh(animated: false)
+      XCTAssertFalse(contentView.isScrollable)
+
+      // when isScrollable is set explicitly
+      contentView.isScrollable = true
+      contentView.refresh(animated: false)
+      XCTAssertTrue(contentView.isScrollable)
+
+      // when isScrollable is set explicitly
+      contentView.isScrollable = false
+      contentView.refresh(animated: false)
+      XCTAssertFalse(contentView.isScrollable)
+    }
+
+    // when content size is equal to bounds size
+    do {
+      contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      contentView.setContent {
+        ColorNode(.red)
+          .frame(width: 100, height: 100)
+      }
+      contentView.refresh(animated: false)
+      XCTAssertFalse(contentView.isScrollable)
+
+      // when isScrollable is set explicitly
+      contentView.isScrollable = true
+      contentView.refresh(animated: false)
+      XCTAssertTrue(contentView.isScrollable)
+
+      // when isScrollable is set explicitly
+      contentView.isScrollable = false
+      contentView.refresh(animated: false)
+      XCTAssertFalse(contentView.isScrollable)
+    }
+
+    // when content size is larger than bounds size
+    do {
+      contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      contentView.setContent {
+        ColorNode(.red)
+          .frame(width: 150, height: 150)
+      }
+      contentView.refresh(animated: false)
+      XCTAssertTrue(contentView.isScrollable)
+
+      // when isScrollable is set explicitly
+      contentView.isScrollable = false
+      contentView.refresh(animated: false)
+      XCTAssertFalse(contentView.isScrollable)
+
+      // when isScrollable is set explicitly
+      contentView.isScrollable = true
+      contentView.refresh(animated: false)
+      XCTAssertTrue(contentView.isScrollable)
+    }
   }
 
   func test_view_lifecycle() {

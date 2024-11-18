@@ -187,6 +187,21 @@ open class ComposeView: BaseScrollView {
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
   }
 
+  // MARK: - Scroll
+
+  /// A flag to indicate if the `isScrollable` property is set explicitly.
+  private var isScrollableExplicitlySet: Bool = false
+
+  override public final var isScrollable: Bool {
+    get {
+      super.isScrollable
+    }
+    set {
+      isScrollableExplicitlySet = true
+      super.isScrollable = newValue
+    }
+  }
+
   // MARK: - Render
 
   /// Refreshes and re-renders the content.
@@ -241,12 +256,23 @@ open class ComposeView: BaseScrollView {
     }
 
     // do the layout
-    _ = contentNode.layout(containerSize: bounds().size, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
+    let containerSize = bounds().size
+    _ = contentNode.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
 
     // TODO: check if the content is larger than the container
     // if not, should use frame to center the content
 
-    setContentSize(contentNode.size.roundedUp(scaleFactor: contentScaleFactor))
+    let contentNodeSize = contentNode.size
+    // adjust isScrollable automatically if not set explicitly
+    if !isScrollableExplicitlySet {
+      if contentNodeSize.width > containerSize.width || contentNodeSize.height > containerSize.height {
+        super.isScrollable = true
+      } else {
+        super.isScrollable = false
+      }
+    }
+
+    setContentSize(contentNodeSize.roundedUp(scaleFactor: contentScaleFactor))
 
     let viewItems = contentNode.viewItems(in: bounds())
 
