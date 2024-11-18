@@ -40,6 +40,25 @@ class ComposeViewTests: XCTestCase {
     contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
   }
 
+  func test_refresh() {
+    var refreshCount = 0
+    contentView.setContent {
+      ColorNode(.red)
+        .onUpdate { _, _ in
+          refreshCount += 1
+        }
+    }
+    contentView.refresh(animated: false)
+    XCTAssertEqual(refreshCount, 1)
+
+    contentView.setNeedsRefresh(animated: false)
+    contentView.setNeedsRefresh(animated: false)
+    XCTAssertEqual(refreshCount, 1)
+
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-9))
+    XCTAssertEqual(refreshCount, 2)
+  }
+
   func test_centerContent() {
     // when content size is smaller than the bounds size
     do {

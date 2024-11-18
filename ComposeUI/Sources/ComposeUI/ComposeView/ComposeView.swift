@@ -39,11 +39,10 @@ import UIKit
 /// A view that renders `ComposeContent`.
 open class ComposeView: BaseScrollView {
 
-  /// The content for the view.
+  /// The default content when the view is initialized with `init(frame:)`.
   ///
-  /// This is overridable so that a subclass can provide a content.
-  ///
-  /// A typical example of a `ComposeView` subclass:
+  /// A `ComposeView` subclass can override this property to provide a different content.
+  /// For example:
   ///
   /// ```swift
   /// class MyView: ComposeView {
@@ -120,7 +119,7 @@ open class ComposeView: BaseScrollView {
     self.init { content }
   }
 
-  /// Creates a blank `ComposeView`.
+  /// Creates a `ComposeView` with `content` as the default content.
   ///
   /// You should either override `content` to provide the actual content or use `setContent()` to set the content later.
   override public init(frame: CGRect) {
@@ -145,7 +144,8 @@ open class ComposeView: BaseScrollView {
     #endif
 
     #if canImport(UIKit)
-    contentInsetAdjustmentBehavior = .never // ensure the content inset is consistent
+    // ensure the content inset is consistent regardless of the safe area
+    contentInsetAdjustmentBehavior = .never
     #endif
   }
 
@@ -154,14 +154,14 @@ open class ComposeView: BaseScrollView {
   /// Set a new content.
   ///
   /// - Parameter content: The content builder block. It passes in the view that renders the content.
-  func setContent(@ComposeContentBuilder content: @escaping (ComposeView) -> ComposeContent) {
+  open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) -> ComposeContent) {
     makeContent = content
   }
 
   /// Set a new content.
   ///
   /// - Parameter content: The content builder block.
-  func setContent(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
+  open func setContent(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
     makeContent = { _ in content() }
   }
 
@@ -213,14 +213,41 @@ open class ComposeView: BaseScrollView {
   /// This call will make a new content from the builder block and re-render the content immediately.
   ///
   /// - Parameter animated: Whether the refresh is animated.
-  public func refresh(animated: Bool = true) {
-    assert(Thread.isMainThread, "refresh must be called on the main thread")
+  open func refresh(animated: Bool = true) {
+    assert(Thread.isMainThread, "refresh() must be called on the main thread")
 
     // explicit render request, should make a new content
     contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
     contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated))
 
     render()
+  }
+
+  private var hasPendingRefresh: Bool = false
+
+  /// Requests a refresh of the content.
+  ///
+  /// This method is non-blocking and will return immediately.
+  /// The refresh will be performed on the next run loop iteration.
+  ///
+  /// - Parameter animated: Whether the refresh is animated.
+  open func setNeedsRefresh(animated: Bool = true) {
+    assert(Thread.isMainThread, "setNeedsRefresh() must be called on the main thread")
+
+    guard !hasPendingRefresh else {
+      return
+    }
+
+    hasPendingRefresh = true
+
+    RunLoop.main.perform(inModes: [.common]) { [weak self] in
+      guard let self else {
+        return
+      }
+
+      self.hasPendingRefresh = false
+      self.refresh(animated: animated)
+    }
   }
 
   override open func layoutSubviews() {
@@ -237,7 +264,7 @@ open class ComposeView: BaseScrollView {
 
   /// Performs a render pass.
   open func render() {
-    assert(Thread.isMainThread, "render must be called on the main thread")
+    assert(Thread.isMainThread, "render() must be called on the main thread")
 
     guard var contentUpdateContext, !contentUpdateContext.isRendering else {
       return
