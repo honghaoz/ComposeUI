@@ -68,6 +68,14 @@ open class ComposeView: BaseScrollView {
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
 
+  /// The insets to apply to the visible bounds when determining which content to render.
+  ///
+  /// - Negative values expand the visible bounds in that direction, causing more content to be rendered.
+  /// - Positive values shrink the visible bounds in that direction, causing less content to be rendered.
+  ///
+  /// The default value is zero for all edges, which means the visible bounds are not adjusted.
+  public var visibleBoundsInsets = EdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+
   /// The bounds used for last render pass.
   private lazy var lastRenderBounds: CGRect = .zero
 
@@ -286,6 +294,7 @@ open class ComposeView: BaseScrollView {
 
     let bounds = bounds()
     let boundsSize = bounds.size
+    let visibleBounds = bounds.inset(by: visibleBoundsInsets)
 
     // do the layout
     _ = contentNode.layout(containerSize: boundsSize, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
@@ -303,7 +312,7 @@ open class ComposeView: BaseScrollView {
 
       // logic copied from FrameNode
       let childFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
-      let boundsInChild = bounds.translate(-childFrame.origin)
+      let boundsInChild = visibleBounds.translate(-childFrame.origin)
       let childItems = contentNode.viewItems(in: boundsInChild)
 
       var mappedChildItems: [ViewItem<View>] = []
@@ -317,7 +326,7 @@ open class ComposeView: BaseScrollView {
       viewItems = mappedChildItems
       contentSize = adjustedContentSize
     } else {
-      viewItems = contentNode.viewItems(in: bounds)
+      viewItems = contentNode.viewItems(in: visibleBounds)
     }
 
     // set content size
