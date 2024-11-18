@@ -221,4 +221,44 @@ class ComposeViewTests: XCTestCase {
     XCTAssertEqual(willRemoveCount, 1)
     XCTAssertEqual(didRemoveCount, 1)
   }
+
+  func test_visibleBoundsInsets() {
+    var isTopRendered = false
+    var isBottomRendered = false
+
+    contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.visibleBoundsInsets = EdgeInsets(top: -1, left: 0, bottom: -1, right: 0)
+
+    contentView.setContent {
+      ZStack {
+        // top view
+        ViewNode()
+          .frame(width: 100, height: 100)
+          .offset(x: 0, y: -100) // move the view above the normal bounds
+          .onInsert { _, _ in
+            isTopRendered = true
+          }
+          .onRemove { _, _ in
+            isTopRendered = false
+          }
+
+        // bottom view
+        ViewNode()
+          .frame(width: 100, height: 100)
+          .offset(x: 0, y: 100) // move the view below the normal bounds
+          .onInsert { _, _ in
+            isBottomRendered = true
+          }
+          .onRemove { _, _ in
+            isBottomRendered = false
+          }
+      }
+    }
+
+    contentView.refresh(animated: false)
+
+    XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 100))
+    XCTAssertTrue(isTopRendered, "top view should be rendered")
+    XCTAssertTrue(isBottomRendered, "bottom view should be rendered")
+  }
 }

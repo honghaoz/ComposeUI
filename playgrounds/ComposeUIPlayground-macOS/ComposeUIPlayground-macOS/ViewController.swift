@@ -101,8 +101,6 @@ class ViewController: NSViewController {
     self.view.addSubview(contentView)
     contentView.frame = view.bounds
     contentView.autoresizingMask = [.width, .height]
-
-    contentView.isScrollable = true
   }
 
   override func viewDidAppear() {

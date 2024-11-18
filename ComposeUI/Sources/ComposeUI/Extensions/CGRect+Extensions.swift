@@ -58,4 +58,19 @@ extension CGRect {
     let height = height.round(nearest: pixelWidth)
     return CGRect(x: x, y: y, width: width, height: height)
   }
+
+  #if canImport(AppKit)
+  func inset(by insets: EdgeInsets) -> CGRect {
+    guard insets.top != 0 || insets.left != 0 || insets.bottom != 0 || insets.right != 0 else {
+      return self
+    }
+
+    return CGRect(
+      x: origin.x + insets.left,
+      y: origin.y + insets.top,
+      width: width - insets.left - insets.right,
+      height: height - insets.top - insets.bottom
+    )
+  }
+  #endif
 }
