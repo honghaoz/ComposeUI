@@ -40,13 +40,13 @@ import UIKit
 public struct ViewItem<T: View> {
 
   /// The unique id of the view item.
-  var id: ComposeNodeId
+  public var id: ComposeNodeId
 
   /// The frame of the view.
-  var frame: CGRect
+  public var frame: CGRect
 
   /// The block to create a view.
-  let make: (ViewMakeContext) -> T
+  public let make: (ViewMakeContext) -> T
 
   /// The block to be called when the view is just made and is about to be inserted into the view hierarchy.
   ///
@@ -55,7 +55,7 @@ public struct ViewItem<T: View> {
   /// after the insertion.
   ///
   /// This is guaranteed to be the first call for the view's lifecycle in the view hierarchy.
-  let willInsert: ((T, ViewInsertContext) -> Void)?
+  public let willInsert: ((T, ViewInsertContext) -> Void)?
 
   /// The block to be called when the view is just inserted into the view hierarchy.
   ///
@@ -65,14 +65,14 @@ public struct ViewItem<T: View> {
   /// same as the new frame, because during the transition animation, the view maybe updated for additional changes.
   ///
   /// This is not guaranteed to be called before the `update` block is called.
-  let didInsert: ((T, ViewInsertContext) -> Void)?
+  public let didInsert: ((T, ViewInsertContext) -> Void)?
 
   /// The block to be called when the view is about to be updated.
   ///
   /// At this point, the view's properties, including its frame, are not updated yet. You can use this block to get the
   /// properties of the view before the update and use the information to help view content update. For example, to get
   /// the old properties for animating the view's changes.
-  let willUpdate: ((T, ViewUpdateContext) -> Void)?
+  public let willUpdate: ((T, ViewUpdateContext) -> Void)?
 
   /// The block to be called when the view's frame is just updated and is ready to be updated for additional changes.
   ///
@@ -85,13 +85,13 @@ public struct ViewItem<T: View> {
   /// Note that it is possible that when a view is being inserted into the view hierarchy with a transition animation, a
   /// new update, which is triggered by a `refresh()`, is called on the view. In this case, an update call with
   /// `ViewUpdateType.refresh` type will be called before the update call with `ViewUpdateType.insert` type.
-  let update: (T, ViewUpdateContext) -> Void
+  public let update: (T, ViewUpdateContext) -> Void
 
   /// The block to be called when the view is about to be removed from the view hierarchy.
   ///
   /// At this point, the view is still in the view hierarchy, but it is about to be removed, before the transition
   /// animation if has one.
-  let willRemove: ((T, ViewRemoveContext) -> Void)?
+  public let willRemove: ((T, ViewRemoveContext) -> Void)?
 
   /// The block to be called when the view is just removed from the view hierarchy.
   ///
@@ -99,13 +99,13 @@ public struct ViewItem<T: View> {
   ///
   /// Note that it is possible that a removing view, during its removal transition animation, is re-inserted into the
   /// view hierarchy. In this case, the `didRemove` block won't be called.
-  let didRemove: ((T, ViewRemoveContext) -> Void)?
+  public let didRemove: ((T, ViewRemoveContext) -> Void)?
 
   /// The transition of the view. The transition is used to animate the view's insertion and removal.
-  let transition: ViewTransition?
+  public let transition: ViewTransition?
 
   /// The animation of the view. The animation is used to animate the view's changes.
-  let animation: ViewAnimation?
+  public let animation: ViewAnimation?
 
   public init(id: ComposeNodeId,
               frame: CGRect,
@@ -325,7 +325,7 @@ public struct ViewItem<T: View> {
   /// Erase the view type to a generic `View` item.
   ///
   /// - Returns: The view item with the generic `View` type.
-  func eraseToViewItem() -> ViewItem<View> {
+  public func eraseToViewItem() -> ViewItem<View> {
     if let viewItem = self as? ViewItem<View> {
       return viewItem
     }

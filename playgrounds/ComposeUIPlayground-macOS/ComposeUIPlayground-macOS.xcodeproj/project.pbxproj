@@ -11,6 +11,8 @@
 		E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59D80902CA8DFD3006A6467 /* ViewController.swift */; };
 		E59D80932CA8DFD4006A6467 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E59D80922CA8DFD4006A6467 /* Assets.xcassets */; };
 		E59D80962CA8DFD4006A6467 /* Base in Resources */ = {isa = PBXBuildFile; fileRef = E59D80952CA8DFD4006A6467 /* Base */; };
+		E5D034792D7E1B9C004AB25D /* RotationNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D034782D7E1B9C004AB25D /* RotationNode.swift */; };
+		E5D0347B2D7E2CFE004AB25D /* RotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D0347A2D7E2CFE004AB25D /* RotationView.swift */; };
 		E5D636D72D7D01560080A152 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D62D7D01560080A152 /* Colors.swift */; };
 		E5D636DB2D7D016D0080A152 /* Playground+FrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */; };
 		E5D636DC2D7D016D0080A152 /* Playground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D82D7D016D0080A152 /* Playground.swift */; };
@@ -24,6 +26,8 @@
 		E59D80922CA8DFD4006A6467 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E59D80952CA8DFD4006A6467 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		E59D80972CA8DFD4006A6467 /* ComposeUIPlayground_macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ComposeUIPlayground_macOS.entitlements; sourceTree = "<group>"; };
+		E5D034782D7E1B9C004AB25D /* RotationNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotationNode.swift; sourceTree = "<group>"; };
+		E5D0347A2D7E2CFE004AB25D /* RotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotationView.swift; sourceTree = "<group>"; };
 		E5D636D62D7D01560080A152 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Colors.swift; path = "../ComposeUIPlayground-iOS/ComposeUIPlayground-iOS/Colors.swift"; sourceTree = SOURCE_ROOT; };
 		E5D636D82D7D016D0080A152 /* Playground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Playground.swift; sourceTree = "<group>"; };
 		E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+FrameView.swift"; sourceTree = "<group>"; };
@@ -63,6 +67,8 @@
 			children = (
 				E59D808E2CA8DFD3006A6467 /* AppDelegate.swift */,
 				E59D80902CA8DFD3006A6467 /* ViewController.swift */,
+				E5D034782D7E1B9C004AB25D /* RotationNode.swift */,
+				E5D0347A2D7E2CFE004AB25D /* RotationView.swift */,
 				E5D636D62D7D01560080A152 /* Colors.swift */,
 				E5D636DA2D7D016D0080A152 /* PlaygroundViews */,
 				E59D80922CA8DFD4006A6467 /* Assets.xcassets */,
@@ -165,6 +171,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E5D034792D7E1B9C004AB25D /* RotationNode.swift in Sources */,
+				E5D0347B2D7E2CFE004AB25D /* RotationView.swift in Sources */,
 				E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */,
 				E5D636D72D7D01560080A152 /* Colors.swift in Sources */,
 				E59D808F2CA8DFD3006A6467 /* AppDelegate.swift in Sources */,

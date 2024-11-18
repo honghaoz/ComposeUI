@@ -85,7 +85,7 @@ public struct ComposeNodeId: Equatable {
   ///   - suffix: The suffix to be added to the current node's id.
   ///   - childViewItemId: The child view item's id.
   /// - Returns: A new `ComposeNodeId`.
-  func makeViewItemId(suffix: String? = nil, childViewItemId: ComposeNodeId) -> ComposeNodeId {
+  public func makeViewItemId(suffix: String? = nil, childViewItemId: ComposeNodeId) -> ComposeNodeId {
     if childViewItemId.isFixed {
       return childViewItemId
     } else {
