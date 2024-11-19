@@ -50,6 +50,7 @@ class ViewController: NSViewController {
 
       ViewNode(state.textField).flexible()
         .frame(width: 200, height: 22)
+        .transition(.opacity(timing: .linear(duration: 2)))
 
       Spacer().height(20)
 

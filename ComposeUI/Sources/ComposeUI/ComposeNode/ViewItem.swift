@@ -69,9 +69,9 @@ public struct ViewItem<T: View> {
 
   /// The block to be called when the view is about to be updated.
   ///
-  /// At this point, the view's properties, including its frame, are not updated yet. You can use this block to get the
-  /// properties of the view before the update and use the information to help view content update. For example, to get
-  /// the old properties for animating the view's changes.
+  /// At this point, the view might be not inserted into the view hierarchy yet. The view's properties, including its
+  /// frame, are not updated yet. You can use this block to get the properties of the view before the update and use the
+  /// information to help view content update. For example, to get the old properties for animating the view's changes.
   public let willUpdate: ((T, ViewUpdateContext) -> Void)?
 
   /// The block to be called when the view's frame is just updated and is ready to be updated for additional changes.
@@ -104,8 +104,8 @@ public struct ViewItem<T: View> {
   /// The transition of the view. The transition is used to animate the view's insertion and removal.
   public let transition: ViewTransition?
 
-  /// The animation of the view. The animation is used to animate the view's changes.
-  public let animation: ViewAnimation?
+  /// The animation timing of the view. The animation timing is used to animate the view's changes.
+  public let animationTiming: AnimationTiming?
 
   public init(id: ComposeNodeId,
               frame: CGRect,
@@ -117,7 +117,7 @@ public struct ViewItem<T: View> {
               willRemove: ((T, ViewRemoveContext) -> Void)? = nil,
               didRemove: ((T, ViewRemoveContext) -> Void)? = nil,
               transition: ViewTransition? = nil,
-              animation: ViewAnimation? = nil)
+              animationTiming: AnimationTiming? = nil)
   {
     self.id = id
     self.frame = frame
@@ -129,7 +129,7 @@ public struct ViewItem<T: View> {
     self.willRemove = willRemove
     self.didRemove = didRemove
     self.transition = transition
-    self.animation = animation
+    self.animationTiming = animationTiming
   }
 
   /// Add an additional will insert block to the view item.
@@ -151,7 +151,7 @@ public struct ViewItem<T: View> {
       willRemove: willRemove,
       didRemove: didRemove,
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 
@@ -174,7 +174,7 @@ public struct ViewItem<T: View> {
       willRemove: willRemove,
       didRemove: didRemove,
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 
@@ -197,7 +197,7 @@ public struct ViewItem<T: View> {
       willRemove: willRemove,
       didRemove: didRemove,
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 
@@ -220,7 +220,7 @@ public struct ViewItem<T: View> {
       willRemove: willRemove,
       didRemove: didRemove,
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 
@@ -243,7 +243,7 @@ public struct ViewItem<T: View> {
       },
       didRemove: didRemove,
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 
@@ -266,7 +266,7 @@ public struct ViewItem<T: View> {
         additionalDidRemove(view, context)
       },
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 
@@ -292,7 +292,7 @@ public struct ViewItem<T: View> {
       willRemove: willRemove,
       didRemove: didRemove,
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 
@@ -300,10 +300,10 @@ public struct ViewItem<T: View> {
   ///
   /// If the view item already has an animation, this call has no effect.
   ///
-  /// - Parameter animation: The new animation.
+  /// - Parameter animationTiming: The new animation timing.
   /// - Returns: The view item with the new animation.
-  public func animation(_ animation: ViewAnimation) -> Self {
-    guard self.animation == nil else {
+  public func animation(_ animationTiming: AnimationTiming) -> Self {
+    guard self.animationTiming == nil else {
       return self
     }
 
@@ -318,7 +318,7 @@ public struct ViewItem<T: View> {
       willRemove: willRemove,
       didRemove: didRemove,
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 
@@ -351,7 +351,7 @@ public struct ViewItem<T: View> {
         { didRemove($0 as! T, $1) } // swiftlint:disable:this force_cast
       },
       transition: transition,
-      animation: animation
+      animationTiming: animationTiming
     )
   }
 }

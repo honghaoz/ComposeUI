@@ -72,8 +72,10 @@ class ViewController: UIViewController {
       }
     )
     .frame(width: 200, height: 50)
+    .transition(.opacity(timing: .linear(duration: 2)))
 
-    state.subtitleLabel
+    ViewNode(state.subtitleLabel)
+      .transition(.opacity(timing: .linear(duration: 2, delay: 1)))
 
     VStack(spacing: 8) {
 

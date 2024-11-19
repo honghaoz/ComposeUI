@@ -49,7 +49,8 @@ extension Playground {
     @ComposeContentBuilder
     override var content: ComposeContent {
       ColorNode(Colors.blueGray)
-        .animation(.easeInEaseOut(1))
+        .transition(.opacity(timing: .linear(duration: 2)))
+        .animation(.easeInEaseOut(duration: 1))
         .frame(size)
         .padding(padding)
         .frame(.flexible, alignment: alignment)

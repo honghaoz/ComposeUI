@@ -96,8 +96,8 @@ final class ModifierNodeTests: XCTestCase {
     // given a view node with multiple animations
     var updateCount = 0
     let node = ViewNode()
-      .animation(.easeInEaseOut(1))
-      .animation(.easeInEaseOut(2))
+      .animation(.easeInEaseOut(duration: 1))
+      .animation(.easeInEaseOut(duration: 2))
       .onUpdate { View, context in
         updateCount += 1
         switch updateCount {

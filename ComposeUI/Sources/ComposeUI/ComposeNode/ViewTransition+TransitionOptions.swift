@@ -1,8 +1,8 @@
 //
-//  ComposeView+ContentUpdateContext.swift
+//  ViewTransition+TransitionOptions.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 11/23/21.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,34 +30,24 @@
 
 import Foundation
 
-extension ComposeView {
+public extension ViewTransition {
 
-  struct ContentUpdateContext {
+  /// Options to control transition animations.
+  struct TransitionOptions: OptionSet, Hashable {
 
-    enum ContentUpdateType {
+    public let rawValue: UInt8
 
-      /// Explicit refresh request, with a flag to indicate if the refresh is animated.
-      case refresh(isAnimated: Bool)
-
-      /// View bounds changed.
-      case boundsChange(previousBounds: CGRect)
+    public init(rawValue: UInt8) {
+      self.rawValue = rawValue
     }
 
-    let updateType: ContentUpdateType
+    /// Only animate the insertion transition.
+    public static let insert = TransitionOptions(rawValue: 1 << 0)
 
-    var isRendering: Bool = false
+    /// Only animate the removal transition.
+    public static let remove = TransitionOptions(rawValue: 1 << 1)
 
-    var isAnimated: Bool {
-      switch updateType {
-      case .refresh(let isAnimated):
-        return isAnimated
-      case .boundsChange:
-        return true // TODO: should support configurable animation for bounds change
-      }
-    }
-
-    init(updateType: ContentUpdateType) {
-      self.updateType = updateType
-    }
+    /// Animate both the insertion and removal transitions.
+    public static let both: TransitionOptions = [.insert, .remove]
   }
 }
