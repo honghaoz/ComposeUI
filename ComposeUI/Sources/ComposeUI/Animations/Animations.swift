@@ -1,8 +1,8 @@
 //
-//  ComposeView+ContentUpdateContext.swift
+//  Animations.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 11/23/21.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,34 +30,8 @@
 
 import Foundation
 
-extension ComposeView {
+public enum Animations {
 
-  struct ContentUpdateContext {
-
-    enum ContentUpdateType {
-
-      /// Explicit refresh request, with a flag to indicate if the refresh is animated.
-      case refresh(isAnimated: Bool)
-
-      /// View bounds changed.
-      case boundsChange(previousBounds: CGRect)
-    }
-
-    let updateType: ContentUpdateType
-
-    var isRendering: Bool = false
-
-    var isAnimated: Bool {
-      switch updateType {
-      case .refresh(let isAnimated):
-        return isAnimated
-      case .boundsChange:
-        return true // TODO: should support configurable animation for bounds change
-      }
-    }
-
-    init(updateType: ContentUpdateType) {
-      self.updateType = updateType
-    }
-  }
+  /// Default animation duration.
+  public static let defaultAnimationDuration: TimeInterval = 0.3
 }

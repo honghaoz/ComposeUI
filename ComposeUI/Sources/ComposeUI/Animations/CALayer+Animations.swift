@@ -125,8 +125,7 @@ extension CALayer {
          For this case, we should correct the view's frame
          */
 
-        // swiftlint:disable:next force_cast
-        position = value as! CGPoint
+        position = value as! CGPoint // swiftlint:disable:this force_cast
         backedView.frame = frame
       }
       return
@@ -154,8 +153,7 @@ extension CALayer {
          ```
          */
 
-        // swiftlint:disable:next force_cast
-        bounds.size = value as! CGSize
+        bounds.size = value as! CGSize // swiftlint:disable:this force_cast
         backedView.frame = frame
       }
       return
@@ -186,8 +184,7 @@ extension CALayer {
          // summary: anchorPoint position in the parent view is the same, the view/layer's frame moves accordingly
          ```
          */
-        // swiftlint:disable:next force_cast
-        anchorPoint = value as! CGPoint
+        anchorPoint = value as! CGPoint // swiftlint:disable:this force_cast
         backedView.frame = frame
       }
       return
@@ -196,7 +193,9 @@ extension CALayer {
 
     if keyPath == "opacity", let backedView {
       CATransaction.disableAnimations {
-        backedView.alpha = CGFloat((value as? Float) ?? 0)
+        let newValue = value as! Float // swiftlint:disable:this force_cast
+        backedView.alpha = CGFloat(newValue)
+        opacity = newValue
       }
       assert(CGFloat(opacity) == backedView.alpha)
       return

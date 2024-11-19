@@ -34,6 +34,62 @@ import QuartzCore
 /// A descriptor for an animation timing.
 public struct AnimationTiming {
 
+  /// Create a linear animation timing.
+  ///
+  /// - Parameters:
+  ///   - duration: The duration of the animation.
+  ///   - delay: The delay of the animation. Defaults to `0`.
+  ///   - speed: The speed of the animation. Defaults to `1`.
+  /// - Returns: The animation timing.
+  public static func linear(duration: TimeInterval,
+                            delay: TimeInterval = 0,
+                            speed: CGFloat = 1) -> AnimationTiming
+  {
+    AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .linear)), delay: delay, speed: speed)
+  }
+
+  /// Create an ease in animation timing.
+  ///
+  /// - Parameters:
+  ///   - duration: The duration of the animation.
+  ///   - delay: The delay of the animation. Defaults to `0`.
+  ///   - speed: The speed of the animation. Defaults to `1`.
+  /// - Returns: The animation timing.
+  public static func easeIn(duration: TimeInterval,
+                            delay: TimeInterval = 0,
+                            speed: CGFloat = 1) -> AnimationTiming
+  {
+    AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeIn)), delay: delay, speed: speed)
+  }
+
+  /// Create an ease out animation timing.
+  ///
+  /// - Parameters:
+  ///   - duration: The duration of the animation.
+  ///   - delay: The delay of the animation. Defaults to `0`.
+  ///   - speed: The speed of the animation. Defaults to `1`.
+  /// - Returns: The animation timing.
+  public static func easeOut(duration: TimeInterval,
+                             delay: TimeInterval = 0,
+                             speed: CGFloat = 1) -> AnimationTiming
+  {
+    AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeOut)), delay: delay, speed: speed)
+  }
+
+  /// Create an ease in ease out animation timing.
+  ///
+  /// - Parameters:
+  ///   - duration: The duration of the animation.
+  ///   - delay: The delay of the animation. Defaults to `0`.
+  ///   - speed: The speed of the animation. Defaults to `1`.
+  /// - Returns: The animation timing.
+  public static func easeInEaseOut(duration: TimeInterval,
+                                   delay: TimeInterval = 0,
+                                   speed: CGFloat = 1) -> AnimationTiming
+  {
+    AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeInEaseOut)), delay: delay, speed: speed)
+  }
+
   /// The timing type.
   public enum Timing: Hashable {
 
@@ -62,24 +118,24 @@ public struct AnimationTiming {
     }
   }
 
+  /// The timing type.
+  public let timing: Timing
+
   /// The delay of the animation.
   public let delay: TimeInterval
 
   /// The speed of the animation.
   public let speed: CGFloat
 
-  /// The timing type.
-  public let timing: Timing
-
   /// Creates an animation timing.
   ///
   /// - Parameters:
+  ///   - timing: The timing type.
   ///   - delay: The delay of the animation. Defaults to `0`.
   ///   - speed: The speed of the animation. Defaults to `1`.
-  ///   - timing: The timing type.
-  public init(delay: TimeInterval = 0, speed: CGFloat = 1, timing: Timing) {
+  public init(timing: Timing, delay: TimeInterval = 0, speed: CGFloat = 1) {
+    self.timing = timing
     self.delay = delay
     self.speed = speed
-    self.timing = timing
   }
 }

@@ -48,7 +48,7 @@ private struct ModifierNode: ComposeNode {
   private let willRemove: ((View, ViewRemoveContext) -> Void)?
   private let didRemove: ((View, ViewRemoveContext) -> Void)?
   private let transition: ViewTransition?
-  private let animation: ViewAnimation?
+  private let animationTiming: AnimationTiming?
 
   fileprivate init(node: ComposeNode,
                    willInsert: ((View, ViewInsertContext) -> Void)? = nil,
@@ -58,7 +58,7 @@ private struct ModifierNode: ComposeNode {
                    willRemove: ((View, ViewRemoveContext) -> Void)? = nil,
                    didRemove: ((View, ViewRemoveContext) -> Void)? = nil,
                    transition: ViewTransition? = nil,
-                   animation: ViewAnimation? = nil)
+                   animationTiming: AnimationTiming? = nil)
   {
     if let modifierNode = node as? ModifierNode { // coalescing modifiers
       self.node = modifierNode.node
@@ -71,7 +71,7 @@ private struct ModifierNode: ComposeNode {
       self.didRemove = Self.combineBlocks(modifierNode.didRemove, didRemove)
 
       self.transition = modifierNode.transition ?? transition
-      self.animation = modifierNode.animation ?? animation
+      self.animationTiming = modifierNode.animationTiming ?? animationTiming
     } else {
       self.node = node
       self.willInsert = willInsert
@@ -81,7 +81,7 @@ private struct ModifierNode: ComposeNode {
       self.willRemove = willRemove
       self.didRemove = didRemove
       self.transition = transition
-      self.animation = animation
+      self.animationTiming = animationTiming
     }
   }
 
@@ -141,8 +141,8 @@ private struct ModifierNode: ComposeNode {
         if let transition = transition {
           viewItem = viewItem.transition(transition)
         }
-        if let animation = animation {
-          viewItem = viewItem.animation(animation)
+        if let animationTiming = animationTiming {
+          viewItem = viewItem.animation(animationTiming)
         }
         return viewItem
       }
@@ -228,10 +228,10 @@ public extension ComposeNode {
   /// - Note: All views provided by the node will have the animation set.
   /// - Note: The inner node's animation will have higher priority.
   ///
-  /// - Parameter animation: The animation to set.
+  /// - Parameter animationTiming: The animation timing to set.
   /// - Returns: A new node with the animation set.
-  func animation(_ animation: ViewAnimation) -> some ComposeNode {
-    ModifierNode(node: self, animation: animation)
+  func animation(_ animationTiming: AnimationTiming) -> some ComposeNode {
+    ModifierNode(node: self, animationTiming: animationTiming)
   }
 
   /// Set a key path of the node's views.

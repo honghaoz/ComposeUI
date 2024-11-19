@@ -440,13 +440,13 @@ open class ComposeView: BaseScrollView {
         let oldFrame = view.frame
         let newFrame = viewItem.frame.rounded(scaleFactor: contentScaleFactor)
 
-        let animation: ViewAnimation?
+        let animationTiming: AnimationTiming?
         let animationContext: ViewAnimationContext?
-        if context.isAnimated, let viewAnimation = viewItem.animation {
-          animation = viewAnimation
-          animationContext = ViewAnimationContext(timing: viewAnimation.timing, contentView: self)
+        if context.isAnimated, let viewItemAnimationTiming = viewItem.animationTiming {
+          animationTiming = viewItemAnimationTiming
+          animationContext = ViewAnimationContext(timing: viewItemAnimationTiming, contentView: self)
         } else {
-          animation = nil
+          animationTiming = nil
           animationContext = nil
         }
 
@@ -461,7 +461,7 @@ open class ComposeView: BaseScrollView {
 
         contentView().bringSubviewToFront(view)
 
-        if let animationTiming = animation?.timing {
+        if let animationTiming {
           view.layer().animateFrame(to: newFrame, timing: animationTiming)
         } else {
           view.frame = newFrame
@@ -492,21 +492,21 @@ open class ComposeView: BaseScrollView {
         viewItem.willInsert?(view, ViewInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame))
         let frameAfterWillInsert = view.frame
 
+        let viewUpdateContext = ViewUpdateContext(
+          type: .insert,
+          oldFrame: frameAfterWillInsert,
+          newFrame: newFrame,
+          animationContext: nil // no animation context for insertion
+        )
+
+        viewItem.willUpdate?(view, viewUpdateContext)
+
         contentView().addSubview(view)
+        view.frame = newFrame // no animation context for insertion
 
-        let didInsertBlock = {
-          viewItem.didInsert?(view, ViewInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame))
+        viewItem.update(view, viewUpdateContext)
 
-          let viewUpdateContext = ViewUpdateContext(
-            type: .insert,
-            oldFrame: frameAfterWillInsert,
-            newFrame: newFrame,
-            animationContext: nil // no animation context for insertion
-          )
-          viewItem.willUpdate?(view, viewUpdateContext)
-          viewItem.update(view, viewUpdateContext)
-        }
-
+        let viewInsertContext = ViewInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame)
         if context.isAnimated, let transition = viewItem.transition?.insert {
           // has insert transition, animate the view insertion
           transition.animate(
@@ -519,13 +519,12 @@ open class ComposeView: BaseScrollView {
               //
               // insert: [-------------------] setting frame to frame1
               // reuse:        [-----]         during the insert transition, the view's frame is updated to frame2
-              didInsertBlock()
+              viewItem.didInsert?(view, viewInsertContext)
             }
           )
         } else {
-          // no insert transition, just set the frame and update without animation
-          view.frame = newFrame
-          didInsertBlock()
+          // no insert transition, just call did insert
+          viewItem.didInsert?(view, viewInsertContext)
         }
       }
 
