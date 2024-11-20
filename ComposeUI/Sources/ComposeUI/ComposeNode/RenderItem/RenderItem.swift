@@ -57,7 +57,7 @@ public struct RenderItem<T> {
   public var frame: CGRect
 
   /// The block to create a renderable.
-  public let make: (ViewMakeContext) -> T
+  public let make: (RenderableMakeContext) -> T
 
   /// The block to be called when the renderable is just made and is about to be inserted into the renderable hierarchy.
   ///
@@ -66,7 +66,7 @@ public struct RenderItem<T> {
   /// after the insertion.
   ///
   /// This is guaranteed to be the first call for the renderable's lifecycle in the renderable hierarchy.
-  public let willInsert: ((T, ViewInsertContext) -> Void)?
+  public let willInsert: ((T, RenderableInsertContext) -> Void)?
 
   /// The block to be called when the renderable is just inserted into the renderable hierarchy.
   ///
@@ -76,14 +76,14 @@ public struct RenderItem<T> {
   /// same as the new frame, because during the transition animation, the renderable maybe updated for additional changes.
   ///
   /// This is not guaranteed to be called before the `update` block is called.
-  public let didInsert: ((T, ViewInsertContext) -> Void)?
+  public let didInsert: ((T, RenderableInsertContext) -> Void)?
 
   /// The block to be called when the renderable is about to be updated.
   ///
   /// At this point, the renderable might be not inserted into the renderable hierarchy yet. The renderable's properties, including its
   /// frame, are not updated yet. You can use this block to get the properties of the renderable before the update and use the
   /// information to help renderable content update. For example, to get the old properties for animating the renderable's changes.
-  public let willUpdate: ((T, ViewUpdateContext) -> Void)?
+  public let willUpdate: ((T, RenderableUpdateContext) -> Void)?
 
   /// The block to be called when the renderable's frame is just updated and is ready to be updated for additional changes.
   ///
@@ -95,14 +95,14 @@ public struct RenderItem<T> {
   ///
   /// Note that it is possible that when a renderable is being inserted into the renderable hierarchy with a transition animation, a
   /// new update, which is triggered by a `refresh()`, is called on the renderable. In this case, an update call with
-  /// `ViewUpdateType.refresh` type will be called before the update call with `ViewUpdateType.insert` type.
-  public let update: (T, ViewUpdateContext) -> Void
+  /// `RenderableUpdateType.refresh` type will be called before the update call with `RenderableUpdateType.insert` type.
+  public let update: (T, RenderableUpdateContext) -> Void
 
   /// The block to be called when the renderable is about to be removed from the renderable hierarchy.
   ///
   /// At this point, the renderable is still in the renderable hierarchy, but it is about to be removed, before the transition
   /// animation if has one.
-  public let willRemove: ((T, ViewRemoveContext) -> Void)?
+  public let willRemove: ((T, RenderableRemoveContext) -> Void)?
 
   /// The block to be called when the renderable is just removed from the renderable hierarchy.
   ///
@@ -110,7 +110,7 @@ public struct RenderItem<T> {
   ///
   /// Note that it is possible that a removing renderable, during its removal transition animation, is re-inserted into the
   /// renderable hierarchy. In this case, the `didRemove` block won't be called.
-  public let didRemove: ((T, ViewRemoveContext) -> Void)?
+  public let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
   /// The transition of the renderable. The transition is used to animate the renderable's insertion and removal.
   public let transition: ViewTransition?
@@ -120,13 +120,13 @@ public struct RenderItem<T> {
 
   public init(id: ComposeNodeId,
               frame: CGRect,
-              make: @escaping (ViewMakeContext) -> T,
-              willInsert: ((T, ViewInsertContext) -> Void)? = nil,
-              didInsert: ((T, ViewInsertContext) -> Void)? = nil,
-              willUpdate: ((T, ViewUpdateContext) -> Void)? = nil,
-              update: @escaping (T, ViewUpdateContext) -> Void,
-              willRemove: ((T, ViewRemoveContext) -> Void)? = nil,
-              didRemove: ((T, ViewRemoveContext) -> Void)? = nil,
+              make: @escaping (RenderableMakeContext) -> T,
+              willInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+              didInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+              willUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
+              update: @escaping (T, RenderableUpdateContext) -> Void,
+              willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
+              didRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
               transition: ViewTransition? = nil,
               animationTiming: AnimationTiming? = nil)
   {
@@ -147,7 +147,7 @@ public struct RenderItem<T> {
   ///
   /// - Parameter additionalWillInsert: The additional will insert block.
   /// - Returns: The renderable item with the additional will insert block.
-  public func addWillInsert(_ additionalWillInsert: @escaping (T, ViewInsertContext) -> Void) -> Self {
+  public func addWillInsert(_ additionalWillInsert: @escaping (T, RenderableInsertContext) -> Void) -> Self {
     Self(
       id: id,
       frame: frame,
@@ -170,7 +170,7 @@ public struct RenderItem<T> {
   ///
   /// - Parameter additionalDidInsert: The additional did insert block.
   /// - Returns: The renderable item with the additional did insert block.
-  public func addDidInsert(_ additionalDidInsert: @escaping (T, ViewInsertContext) -> Void) -> Self {
+  public func addDidInsert(_ additionalDidInsert: @escaping (T, RenderableInsertContext) -> Void) -> Self {
     Self(
       id: id,
       frame: frame,
@@ -193,7 +193,7 @@ public struct RenderItem<T> {
   ///
   /// - Parameter additionalWillUpdate: The additional will update block.
   /// - Returns: The renderable item with the additional will update block.
-  public func addWillUpdate(_ additionalWillUpdate: @escaping (T, ViewUpdateContext) -> Void) -> Self {
+  public func addWillUpdate(_ additionalWillUpdate: @escaping (T, RenderableUpdateContext) -> Void) -> Self {
     Self(
       id: id,
       frame: frame,
@@ -216,7 +216,7 @@ public struct RenderItem<T> {
   ///
   /// - Parameter additionalUpdate: The additional update block.
   /// - Returns: The renderable item with the additional update block.
-  public func addUpdate(_ additionalUpdate: @escaping (T, ViewUpdateContext) -> Void) -> Self {
+  public func addUpdate(_ additionalUpdate: @escaping (T, RenderableUpdateContext) -> Void) -> Self {
     Self(
       id: id,
       frame: frame,
@@ -239,7 +239,7 @@ public struct RenderItem<T> {
   ///
   /// - Parameter additionalWillRemove: The additional will remove block.
   /// - Returns: The renderable item with the additional will remove block.
-  public func addWillRemove(_ additionalWillRemove: @escaping (T, ViewRemoveContext) -> Void) -> Self {
+  public func addWillRemove(_ additionalWillRemove: @escaping (T, RenderableRemoveContext) -> Void) -> Self {
     Self(
       id: id,
       frame: frame,
@@ -262,7 +262,7 @@ public struct RenderItem<T> {
   ///
   /// - Parameter additionalDidRemove: The additional did remove block.
   /// - Returns: The renderable item with the additional did remove block.
-  public func addDidRemove(_ additionalDidRemove: @escaping (T, ViewRemoveContext) -> Void) -> Self {
+  public func addDidRemove(_ additionalDidRemove: @escaping (T, RenderableRemoveContext) -> Void) -> Self {
     Self(
       id: id,
       frame: frame,

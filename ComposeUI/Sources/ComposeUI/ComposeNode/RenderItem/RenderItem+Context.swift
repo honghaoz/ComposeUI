@@ -32,43 +32,43 @@ import Foundation
 
 // MARK: - Make
 
-/// The context for making a view.
-public struct ViewMakeContext {
+/// The context for making a renderable.
+public struct RenderableMakeContext {
 
-  /// The initial frame of the new view if has one.
+  /// The initial frame of the new renderable if has one.
   public let initialFrame: CGRect?
 }
 
 // MARK: - Insert
 
-/// The context for inserting a view into a view hierarchy.
-public struct ViewInsertContext {
+/// The context for inserting a renderable into a renderable hierarchy.
+public struct RenderableInsertContext {
 
-  /// The old frame of the view before it is inserted.
+  /// The old frame of the renderable before it is inserted.
   public let oldFrame: CGRect
 
-  /// The new frame that the view should be set to after the insertion.
+  /// The new frame that the renderable should be set to after the insertion.
   public let newFrame: CGRect
 }
 
 // MARK: - Update
 
-/// The view update type.
-public enum ViewUpdateType {
+/// The renderable update type.
+public enum RenderableUpdateType {
 
-  /// The view is inserted into a view hierarchy.
+  /// The renderable is inserted into a renderable hierarchy.
   case insert
 
-  /// The view is reused because of a refresh.
+  /// The renderable is reused because of a refresh.
   case refresh
 
-  /// The view is reused because of a scroll (origin changed).
+  /// The renderable is reused because of a scroll (origin changed).
   case scroll
 
-  /// The view is reused because of a size change.
+  /// The renderable is reused because of a size change.
   case sizeChange
 
-  /// The view is reused because of a bounds change (both size and origin are changed).
+  /// The renderable is reused because of a bounds change (both size and origin are changed).
   case boundsChange
 
   // TODO: support more efficient update for scroll/bounds change
@@ -76,24 +76,24 @@ public enum ViewUpdateType {
   // this is not needed.
 }
 
-public struct ViewUpdateContext {
+public struct RenderableUpdateContext {
 
   /// The update type.
-  public let type: ViewUpdateType
+  public let type: RenderableUpdateType
 
-  /// The old frame of the view before the update.
+  /// The old frame of the renderable before the update.
   public let oldFrame: CGRect
 
-  /// The new frame that the view should be set to after the update.
+  /// The new frame that the renderable should be set to after the update.
   public let newFrame: CGRect
 
-  /// The context for animating a view.
+  /// The context for animating a renderable.
   public struct AnimationContext {
 
     /// The timing of the animation.
     public let timing: AnimationTiming
 
-    /// The content view that contains the view.
+    /// The content view that contains the renderable.
     public private(set) weak var contentView: ComposeView!
   }
 
@@ -103,9 +103,9 @@ public struct ViewUpdateContext {
 
 // MARK: - Remove
 
-/// The context for removing a view from a view hierarchy.
-public struct ViewRemoveContext {
+/// The context for removing a renderable from a renderable hierarchy.
+public struct RenderableRemoveContext {
 
-  /// The frame of the view before it is removed.
+  /// The frame of the renderable before it is removed.
   public let oldFrame: CGRect
 }

@@ -41,22 +41,22 @@ private struct ModifierNode: ComposeNode {
 
   private var node: ComposeNode
 
-  private let willInsert: ((Renderable, ViewInsertContext) -> Void)?
-  private let didInsert: ((Renderable, ViewInsertContext) -> Void)?
-  private let willUpdate: ((Renderable, ViewUpdateContext) -> Void)?
-  private let update: ((Renderable, ViewUpdateContext) -> Void)?
-  private let willRemove: ((Renderable, ViewRemoveContext) -> Void)?
-  private let didRemove: ((Renderable, ViewRemoveContext) -> Void)?
+  private let willInsert: ((Renderable, RenderableInsertContext) -> Void)?
+  private let didInsert: ((Renderable, RenderableInsertContext) -> Void)?
+  private let willUpdate: ((Renderable, RenderableUpdateContext) -> Void)?
+  private let update: ((Renderable, RenderableUpdateContext) -> Void)?
+  private let willRemove: ((Renderable, RenderableRemoveContext) -> Void)?
+  private let didRemove: ((Renderable, RenderableRemoveContext) -> Void)?
   private let transition: ViewTransition?
   private let animationTiming: AnimationTiming?
 
   fileprivate init(node: ComposeNode,
-                   willInsert: ((Renderable, ViewInsertContext) -> Void)? = nil,
-                   didInsert: ((Renderable, ViewInsertContext) -> Void)? = nil,
-                   willUpdate: ((Renderable, ViewUpdateContext) -> Void)? = nil,
-                   update: ((Renderable, ViewUpdateContext) -> Void)? = nil,
-                   willRemove: ((Renderable, ViewRemoveContext) -> Void)? = nil,
-                   didRemove: ((Renderable, ViewRemoveContext) -> Void)? = nil,
+                   willInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
+                   didInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
+                   willUpdate: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
+                   update: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
+                   willRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
+                   didRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    transition: ViewTransition? = nil,
                    animationTiming: AnimationTiming? = nil)
   {
@@ -158,7 +158,7 @@ public extension ComposeNode {
   /// - Note: All renderables provided by the node will have the block executed.
   /// - Parameter willInsert: The block to execute.
   /// - Returns: A new node with the block added.
-  func willInsert(_ willInsert: @escaping (Renderable, ViewInsertContext) -> Void) -> some ComposeNode {
+  func willInsert(_ willInsert: @escaping (Renderable, RenderableInsertContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willInsert: willInsert)
   }
 
@@ -168,7 +168,7 @@ public extension ComposeNode {
   ///
   /// - Parameter didInsert: The block to execute.
   /// - Returns: A new node with the block added.
-  func onInsert(_ didInsert: @escaping (Renderable, ViewInsertContext) -> Void) -> some ComposeNode {
+  func onInsert(_ didInsert: @escaping (Renderable, RenderableInsertContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, didInsert: didInsert)
   }
 
@@ -178,7 +178,7 @@ public extension ComposeNode {
   ///
   /// - Parameter willUpdate: The block to execute.
   /// - Returns: A new node with the block added.
-  func willUpdate(_ willUpdate: @escaping (Renderable, ViewUpdateContext) -> Void) -> some ComposeNode {
+  func willUpdate(_ willUpdate: @escaping (Renderable, RenderableUpdateContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willUpdate: willUpdate)
   }
 
@@ -188,7 +188,7 @@ public extension ComposeNode {
   ///
   /// - Parameter update: The block to execute.
   /// - Returns: A new node with the block added.
-  func onUpdate(_ update: @escaping (Renderable, ViewUpdateContext) -> Void) -> some ComposeNode {
+  func onUpdate(_ update: @escaping (Renderable, RenderableUpdateContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, update: update)
   }
 
@@ -198,7 +198,7 @@ public extension ComposeNode {
   ///
   /// - Parameter willRemove: The block to execute.
   /// - Returns: A new node with the block added.
-  func willRemove(_ willRemove: @escaping (Renderable, ViewRemoveContext) -> Void) -> some ComposeNode {
+  func willRemove(_ willRemove: @escaping (Renderable, RenderableRemoveContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willRemove: willRemove)
   }
 
@@ -208,7 +208,7 @@ public extension ComposeNode {
   ///
   /// - Parameter didRemove: The block to execute.
   /// - Returns: A new node with the block added.
-  func onRemove(_ didRemove: @escaping (Renderable, ViewRemoveContext) -> Void) -> some ComposeNode {
+  func onRemove(_ didRemove: @escaping (Renderable, RenderableRemoveContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, didRemove: didRemove)
   }
 
