@@ -56,10 +56,10 @@ private struct InsertTransition: ViewInsertTransition {
     self.timing = timing
   }
 
-  func animate(view: Renderable, context: ViewInsertTransitionContext, completion: @escaping () -> Void) {
-    view.setFrame(context.targetFrame)
+  func animate(renderable: Renderable, context: ViewInsertTransitionContext, completion: @escaping () -> Void) {
+    renderable.setFrame(context.targetFrame)
 
-    let layer = view.layer
+    let layer = renderable.layer
 
     layer.opacity = Float(from)
     layer.animate(
@@ -88,8 +88,8 @@ private struct RemoveTransition: ViewRemoveTransition {
     self.timing = timing
   }
 
-  func animate(view: Renderable, context: ViewRemoveTransitionContext, completion: @escaping () -> Void) {
-    view.layer.animate(
+  func animate(renderable: Renderable, context: ViewRemoveTransitionContext, completion: @escaping () -> Void) {
+    renderable.layer.animate(
       keyPath: "opacity",
       timing: timing,
       from: { $0.opacity - Float(to) },
