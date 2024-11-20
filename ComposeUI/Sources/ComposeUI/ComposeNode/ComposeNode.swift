@@ -49,8 +49,8 @@ public protocol ComposeNode: ComposeContent {
   /// For example, if you have a `MyCustomNode`, you can use id like
   /// `.custom("com.myapp.mycustomnode", isFixed: false)`.
   ///
-  /// The id is used to generate unique ids for the view items, which is used
-  /// to diff the view items in the view hierarchy.
+  /// The id is used to generate unique ids for the renderable items, which is used
+  /// to diff the renderable items in the renderable hierarchy.
   var id: ComposeNodeId { get set }
 
   /// The size of the node.
@@ -92,7 +92,7 @@ public extension ComposeNode {
 
   /// Set a fixed id of the node.
   ///
-  /// The view items provided by this node should have the fixed id.
+  /// The renderable items provided by this node should have the fixed id.
   func fixedId(_ id: String) -> Self {
     self.id(.custom(id, isFixed: true))
   }

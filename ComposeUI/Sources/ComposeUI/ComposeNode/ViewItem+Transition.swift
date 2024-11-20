@@ -61,12 +61,12 @@ public protocol ViewInsertTransition {
   /// The view's frame is set to the target frame with style updated before the animation starts.
   ///
   /// - Parameters:
-  ///   - view: The view to insert.
+  ///   - renderable: The renderable to insert.
   ///   - context: The context for the insert transition.
   ///   - completion: The completion block to be called when the transition is completed.
   ///                 You must make sure to call the completion block when the transition is completed.
-  ///                 You must make sure the view's frame is set to the target frame when the transition is completed.
-  func animate(view: Renderable, context: ViewInsertTransitionContext, completion: @escaping () -> Void)
+  ///                 You must make sure the renderable's frame is set to the target frame when the transition is completed.
+  func animate(renderable: Renderable, context: ViewInsertTransitionContext, completion: @escaping () -> Void)
 }
 
 // MARK: - View Remove Transition
@@ -83,9 +83,9 @@ public protocol ViewRemoveTransition {
   /// Animates the view removal.
   ///
   /// - Parameters:
-  ///   - view: The view to remove.
+  ///   - renderable: The renderable to remove.
   ///   - context: The context for the remove transition.
   ///   - completion: The completion block to be called when the transition is completed.
   ///                 You must make sure to call the completion block when the transition is completed.
-  func animate(view: Renderable, context: ViewRemoveTransitionContext, completion: @escaping () -> Void)
+  func animate(renderable: Renderable, context: ViewRemoveTransitionContext, completion: @escaping () -> Void)
 }
