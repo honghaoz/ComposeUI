@@ -97,7 +97,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     }
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
       return []
@@ -116,9 +116,9 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
       update: { view, context in
         updateLabel(view)
       }
-    ).eraseToViewItem()
+    )
 
-    return [viewItem]
+    return [viewItem.eraseToRenderableItem()]
   }
 
   // MARK: - Private

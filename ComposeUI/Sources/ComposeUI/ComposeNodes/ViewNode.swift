@@ -179,7 +179,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
     }
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
       return []
@@ -210,9 +210,9 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
       didRemove: { view, context in
         didRemove?(view, context)
       }
-    ).eraseToViewItem()
+    )
 
-    return [viewItem]
+    return [viewItem.eraseToRenderableItem()]
   }
 
   // MARK: - Private

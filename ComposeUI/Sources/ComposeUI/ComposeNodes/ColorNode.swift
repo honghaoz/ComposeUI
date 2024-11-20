@@ -61,35 +61,30 @@ public struct ColorNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
       return []
     }
 
-    let viewItem = ViewItem<BaseView>(
+    let viewItem = LayerItem<CALayer>(
       id: id,
       frame: frame,
       make: { context in
+        let layer = CALayer()
         if let initialFrame = context.initialFrame {
-          return BaseView(frame: initialFrame)
-        } else {
-          return BaseView()
+          layer.frame = initialFrame
         }
+        return layer
       },
-      update: { view, context in
-        #if canImport(AppKit)
-        view.ignoreHitTest = true
-        #endif
-
-        #if canImport(UIKit)
-        view.isUserInteractionEnabled = false
-        #endif
-
-        view.layer().backgroundColor = color.cgColor
+      update: { layer, context in
+        // TODO: support animations
+        CATransaction.disableAnimations {
+          layer.backgroundColor = color.cgColor
+        }
       }
     )
 
-    return [viewItem.eraseToViewItem()]
+    return [viewItem.eraseToRenderableItem()]
   }
 }

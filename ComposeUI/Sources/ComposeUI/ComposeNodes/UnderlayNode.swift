@@ -58,11 +58,11 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     // for the child node
-    let childItems = node.viewItems(in: visibleBounds)
+    let childItems = node.renderableItems(in: visibleBounds)
 
-    var mappedChildItems: [ViewItem<View>] = []
+    var mappedChildItems: [RenderableItem] = []
     mappedChildItems.reserveCapacity(childItems.count)
 
     for var item in childItems {
@@ -71,20 +71,20 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     }
 
     // for the underlay node
-    let underlayViewFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
-    let boundsInUnderlay = visibleBounds.translate(-underlayViewFrame.origin)
-    let underlayViewItems = underlayNode.viewItems(in: boundsInUnderlay)
+    let underlayFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
+    let boundsInUnderlay = visibleBounds.translate(-underlayFrame.origin)
+    let underlayItems = underlayNode.renderableItems(in: boundsInUnderlay)
 
-    var mappedUnderlayViewItems: [ViewItem<View>] = []
-    mappedUnderlayViewItems.reserveCapacity(underlayViewItems.count)
+    var mappedUnderlayItems: [RenderableItem] = []
+    mappedUnderlayItems.reserveCapacity(underlayItems.count)
 
-    for var item in underlayViewItems {
+    for var item in underlayItems {
       item.id = id.makeViewItemId(suffix: "U", childViewItemId: item.id)
-      item.frame = item.frame.translate(underlayViewFrame.origin)
-      mappedUnderlayViewItems.append(item)
+      item.frame = item.frame.translate(underlayFrame.origin)
+      mappedUnderlayItems.append(item)
     }
 
-    return mappedUnderlayViewItems + mappedChildItems
+    return mappedUnderlayItems + mappedChildItems
   }
 }
 

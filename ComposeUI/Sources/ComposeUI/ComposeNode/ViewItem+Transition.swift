@@ -66,7 +66,7 @@ public protocol ViewInsertTransition {
   ///   - completion: The completion block to be called when the transition is completed.
   ///                 You must make sure to call the completion block when the transition is completed.
   ///                 You must make sure the view's frame is set to the target frame when the transition is completed.
-  func animate(view: View, context: ViewInsertTransitionContext, completion: @escaping () -> Void)
+  func animate(view: Renderable, context: ViewInsertTransitionContext, completion: @escaping () -> Void)
 }
 
 // MARK: - View Remove Transition
@@ -87,5 +87,5 @@ public protocol ViewRemoveTransition {
   ///   - context: The context for the remove transition.
   ///   - completion: The completion block to be called when the transition is completed.
   ///                 You must make sure to call the completion block when the transition is completed.
-  func animate(view: View, context: ViewRemoveTransitionContext, completion: @escaping () -> Void)
+  func animate(view: Renderable, context: ViewRemoveTransitionContext, completion: @escaping () -> Void)
 }

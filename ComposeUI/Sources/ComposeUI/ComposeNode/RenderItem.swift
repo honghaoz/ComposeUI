@@ -1,5 +1,5 @@
 //
-//  ViewItem.swift
+//  RenderItem.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -36,80 +36,91 @@ import AppKit
 import UIKit
 #endif
 
-/// An item that can provide a view with its frame and lifecycle callbacks.
-public struct ViewItem<T: View> {
+/// A render item that is a view.
+public typealias ViewItem<T: View> = RenderItem<T>
 
-  /// The unique id of the view item.
+/// A render item that is a layer.
+public typealias LayerItem<T: CALayer> = RenderItem<T>
+
+/// A render item that is either a view or a layer.
+public typealias RenderableItem = RenderItem<Renderable>
+
+// MARK: - RenderItem
+
+/// An item that can provide a renderable with its frame and lifecycle callbacks.
+public struct RenderItem<T> {
+
+  /// The unique id of the renderable.
   public var id: ComposeNodeId
 
-  /// The frame of the view.
+  /// The frame of the renderable.
   public var frame: CGRect
 
-  /// The block to create a view.
+  /// The block to create a renderable.
   public let make: (ViewMakeContext) -> T
 
-  /// The block to be called when the view is just made and is about to be inserted into the view hierarchy.
+  /// The block to be called when the renderable is just made and is about to be inserted into the renderable hierarchy.
   ///
-  /// At this point, the view is not inserted into the view hierarchy yet, and the view's frame is not set yet.
-  /// The passed in context contains the old frame before the insertion and the new frame that the view should be set to
+  /// At this point, the renderable is not inserted into the renderable hierarchy yet, and the renderable's frame is not set yet.
+  /// The passed in context contains the old frame before the insertion and the new frame that the renderable should be set to
   /// after the insertion.
   ///
-  /// This is guaranteed to be the first call for the view's lifecycle in the view hierarchy.
+  /// This is guaranteed to be the first call for the renderable's lifecycle in the renderable hierarchy.
   public let willInsert: ((T, ViewInsertContext) -> Void)?
 
-  /// The block to be called when the view is just inserted into the view hierarchy.
+  /// The block to be called when the renderable is just inserted into the renderable hierarchy.
   ///
-  /// At the point, the view is already inserted into the view hierarchy with its transition animation completed.
+  /// At the point, the renderable is already inserted into the renderable hierarchy with its transition animation completed.
   /// The passed in context contains the old frame that is set just after the willInsert block is called, and the new
-  /// frame that the view should be set to after the insertion. However, at this point, the view's frame may not be the
-  /// same as the new frame, because during the transition animation, the view maybe updated for additional changes.
+  /// frame that the renderable should be set to after the insertion. However, at this point, the renderable's frame may not be the
+  /// same as the new frame, because during the transition animation, the renderable maybe updated for additional changes.
   ///
   /// This is not guaranteed to be called before the `update` block is called.
   public let didInsert: ((T, ViewInsertContext) -> Void)?
 
-  /// The block to be called when the view is about to be updated.
+  /// The block to be called when the renderable is about to be updated.
   ///
-  /// At this point, the view might be not inserted into the view hierarchy yet. The view's properties, including its
-  /// frame, are not updated yet. You can use this block to get the properties of the view before the update and use the
-  /// information to help view content update. For example, to get the old properties for animating the view's changes.
+  /// At this point, the renderable might be not inserted into the renderable hierarchy yet. The renderable's properties, including its
+  /// frame, are not updated yet. You can use this block to get the properties of the renderable before the update and use the
+  /// information to help renderable content update. For example, to get the old properties for animating the renderable's changes.
   public let willUpdate: ((T, ViewUpdateContext) -> Void)?
 
-  /// The block to be called when the view's frame is just updated and is ready to be updated for additional changes.
+  /// The block to be called when the renderable's frame is just updated and is ready to be updated for additional changes.
   ///
-  /// This block is called when a view just finishes its insertion (after the transition animation) or when the view is
+  /// This block is called when a renderable just finishes its insertion (after the transition animation) or when the renderable is
   /// reused because of refresh, scroll, etc.
   ///
-  /// In the block, the view should be updated to reflect its intended content. For example, if the view is for a
-  /// `ColorNode`, the view should render the specified color.
+  /// In the block, the renderable should be updated to reflect its intended content. For example, if the renderable is for a
+  /// `ColorNode`, the renderable should render the specified color.
   ///
-  /// Note that it is possible that when a view is being inserted into the view hierarchy with a transition animation, a
-  /// new update, which is triggered by a `refresh()`, is called on the view. In this case, an update call with
+  /// Note that it is possible that when a renderable is being inserted into the renderable hierarchy with a transition animation, a
+  /// new update, which is triggered by a `refresh()`, is called on the renderable. In this case, an update call with
   /// `ViewUpdateType.refresh` type will be called before the update call with `ViewUpdateType.insert` type.
   public let update: (T, ViewUpdateContext) -> Void
 
-  /// The block to be called when the view is about to be removed from the view hierarchy.
+  /// The block to be called when the renderable is about to be removed from the renderable hierarchy.
   ///
-  /// At this point, the view is still in the view hierarchy, but it is about to be removed, before the transition
+  /// At this point, the renderable is still in the renderable hierarchy, but it is about to be removed, before the transition
   /// animation if has one.
   public let willRemove: ((T, ViewRemoveContext) -> Void)?
 
-  /// The block to be called when the view is just removed from the view hierarchy.
+  /// The block to be called when the renderable is just removed from the renderable hierarchy.
   ///
-  /// At this point, the view is already removed from the view hierarchy with its transition animation completed.
+  /// At this point, the renderable is already removed from the renderable hierarchy with its transition animation completed.
   ///
-  /// Note that it is possible that a removing view, during its removal transition animation, is re-inserted into the
-  /// view hierarchy. In this case, the `didRemove` block won't be called.
+  /// Note that it is possible that a removing renderable, during its removal transition animation, is re-inserted into the
+  /// renderable hierarchy. In this case, the `didRemove` block won't be called.
   public let didRemove: ((T, ViewRemoveContext) -> Void)?
 
-  /// The transition of the view. The transition is used to animate the view's insertion and removal.
+  /// The transition of the renderable. The transition is used to animate the renderable's insertion and removal.
   public let transition: ViewTransition?
 
-  /// The animation timing of the view. The animation timing is used to animate the view's changes.
+  /// The animation timing of the renderable. The animation timing is used to animate the renderable's changes.
   public let animationTiming: AnimationTiming?
 
   public init(id: ComposeNodeId,
               frame: CGRect,
-              make: @escaping (ViewMakeContext) -> T = { _ in T() },
+              make: @escaping (ViewMakeContext) -> T,
               willInsert: ((T, ViewInsertContext) -> Void)? = nil,
               didInsert: ((T, ViewInsertContext) -> Void)? = nil,
               willUpdate: ((T, ViewUpdateContext) -> Void)? = nil,
@@ -132,18 +143,18 @@ public struct ViewItem<T: View> {
     self.animationTiming = animationTiming
   }
 
-  /// Add an additional will insert block to the view item.
+  /// Add an additional will insert block to the renderable item.
   ///
   /// - Parameter additionalWillInsert: The additional will insert block.
-  /// - Returns: The view item with the additional will insert block.
+  /// - Returns: The renderable item with the additional will insert block.
   public func addWillInsert(_ additionalWillInsert: @escaping (T, ViewInsertContext) -> Void) -> Self {
     Self(
       id: id,
       frame: frame,
       make: make,
-      willInsert: { view, context in
-        willInsert?(view, context)
-        additionalWillInsert(view, context)
+      willInsert: { renderable, context in
+        willInsert?(renderable, context)
+        additionalWillInsert(renderable, context)
       },
       didInsert: didInsert,
       willUpdate: willUpdate,
@@ -155,19 +166,19 @@ public struct ViewItem<T: View> {
     )
   }
 
-  /// Add an additional did insert block to the view item.
+  /// Add an additional did insert block to the renderable item.
   ///
   /// - Parameter additionalDidInsert: The additional did insert block.
-  /// - Returns: The view item with the additional did insert block.
+  /// - Returns: The renderable item with the additional did insert block.
   public func addDidInsert(_ additionalDidInsert: @escaping (T, ViewInsertContext) -> Void) -> Self {
     Self(
       id: id,
       frame: frame,
       make: make,
       willInsert: willInsert,
-      didInsert: { view, context in
-        didInsert?(view, context)
-        additionalDidInsert(view, context)
+      didInsert: { renderable, context in
+        didInsert?(renderable, context)
+        additionalDidInsert(renderable, context)
       },
       willUpdate: willUpdate,
       update: update,
@@ -178,10 +189,10 @@ public struct ViewItem<T: View> {
     )
   }
 
-  /// Add an additional will update block to the view item.
+  /// Add an additional will update block to the renderable item.
   ///
   /// - Parameter additionalWillUpdate: The additional will update block.
-  /// - Returns: The view item with the additional will update block.
+  /// - Returns: The renderable item with the additional will update block.
   public func addWillUpdate(_ additionalWillUpdate: @escaping (T, ViewUpdateContext) -> Void) -> Self {
     Self(
       id: id,
@@ -189,9 +200,9 @@ public struct ViewItem<T: View> {
       make: make,
       willInsert: willInsert,
       didInsert: didInsert,
-      willUpdate: { view, context in
-        willUpdate?(view, context)
-        additionalWillUpdate(view, context)
+      willUpdate: { renderable, context in
+        willUpdate?(renderable, context)
+        additionalWillUpdate(renderable, context)
       },
       update: update,
       willRemove: willRemove,
@@ -201,10 +212,10 @@ public struct ViewItem<T: View> {
     )
   }
 
-  /// Add an additional update block to the view item.
+  /// Add an additional update block to the renderable item.
   ///
   /// - Parameter additionalUpdate: The additional update block.
-  /// - Returns: The view item with the additional update block.
+  /// - Returns: The renderable item with the additional update block.
   public func addUpdate(_ additionalUpdate: @escaping (T, ViewUpdateContext) -> Void) -> Self {
     Self(
       id: id,
@@ -213,9 +224,9 @@ public struct ViewItem<T: View> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: { view, context in
-        update(view, context)
-        additionalUpdate(view, context)
+      update: { renderable, context in
+        update(renderable, context)
+        additionalUpdate(renderable, context)
       },
       willRemove: willRemove,
       didRemove: didRemove,
@@ -224,10 +235,10 @@ public struct ViewItem<T: View> {
     )
   }
 
-  /// Add an additional will remove block to the view item.
+  /// Add an additional will remove block to the renderable item.
   ///
   /// - Parameter additionalWillRemove: The additional will remove block.
-  /// - Returns: The view item with the additional will remove block.
+  /// - Returns: The renderable item with the additional will remove block.
   public func addWillRemove(_ additionalWillRemove: @escaping (T, ViewRemoveContext) -> Void) -> Self {
     Self(
       id: id,
@@ -237,9 +248,9 @@ public struct ViewItem<T: View> {
       didInsert: didInsert,
       willUpdate: willUpdate,
       update: update,
-      willRemove: { view, context in
-        willRemove?(view, context)
-        additionalWillRemove(view, context)
+      willRemove: { renderable, context in
+        willRemove?(renderable, context)
+        additionalWillRemove(renderable, context)
       },
       didRemove: didRemove,
       transition: transition,
@@ -247,10 +258,10 @@ public struct ViewItem<T: View> {
     )
   }
 
-  /// Add an additional did remove block to the view item.
+  /// Add an additional did remove block to the renderable item.
   ///
   /// - Parameter additionalDidRemove: The additional did remove block.
-  /// - Returns: The view item with the additional did remove block.
+  /// - Returns: The renderable item with the additional did remove block.
   public func addDidRemove(_ additionalDidRemove: @escaping (T, ViewRemoveContext) -> Void) -> Self {
     Self(
       id: id,
@@ -261,21 +272,21 @@ public struct ViewItem<T: View> {
       willUpdate: willUpdate,
       update: update,
       willRemove: willRemove,
-      didRemove: { view, context in
-        didRemove?(view, context)
-        additionalDidRemove(view, context)
+      didRemove: { renderable, context in
+        didRemove?(renderable, context)
+        additionalDidRemove(renderable, context)
       },
       transition: transition,
       animationTiming: animationTiming
     )
   }
 
-  /// Set a new transition for the view item if it is not set.
+  /// Set a new transition for the renderable item if it is not set.
   ///
-  /// If the view item already has a transition, this call has no effect.
+  /// If the renderable item already has a transition, this call has no effect.
   ///
   /// - Parameter transition: The new transition.
-  /// - Returns: The view item with the new transition.
+  /// - Returns: The renderable item with the new transition.
   public func transition(_ transition: ViewTransition) -> Self {
     guard self.transition == nil else {
       return self
@@ -296,12 +307,12 @@ public struct ViewItem<T: View> {
     )
   }
 
-  /// Set a new animation for the view item if it is not set.
+  /// Set a new animation for the renderable item if it is not set.
   ///
-  /// If the view item already has an animation, this call has no effect.
+  /// If the renderable item already has an animation, this call has no effect.
   ///
   /// - Parameter animationTiming: The new animation timing.
-  /// - Returns: The view item with the new animation.
+  /// - Returns: The renderable item with the new animation.
   public func animation(_ animationTiming: AnimationTiming) -> Self {
     guard self.animationTiming == nil else {
       return self
@@ -321,34 +332,69 @@ public struct ViewItem<T: View> {
       animationTiming: animationTiming
     )
   }
+}
 
-  /// Erase the view type to a generic `View` item.
+public extension ViewItem {
+
+  /// Erase the view item to a generic `RenderableItem`.
   ///
-  /// - Returns: The view item with the generic `View` type.
-  public func eraseToViewItem() -> ViewItem<View> {
-    if let viewItem = self as? ViewItem<View> {
-      return viewItem
-    }
-
-    return ViewItem<View>(
+  /// - Returns: The erased renderable item.
+  func eraseToRenderableItem() -> RenderableItem {
+    RenderableItem(
       id: id,
       frame: frame,
-      make: make,
+      make: { .view(make($0)) },
       willInsert: willInsert.map { willInsert in
-        { willInsert($0 as! T, $1) } // swiftlint:disable:this force_cast
+        { willInsert($0.view as! T, $1) } // swiftlint:disable:this force_cast
       },
       didInsert: didInsert.map { didInsert in
-        { didInsert($0 as! T, $1) } // swiftlint:disable:this force_cast
+        { didInsert($0.view as! T, $1) } // swiftlint:disable:this force_cast
       },
       willUpdate: willUpdate.map { willUpdate in
-        { willUpdate($0 as! T, $1) } // swiftlint:disable:this force_cast
+        { willUpdate($0.view as! T, $1) } // swiftlint:disable:this force_cast
       },
-      update: { update($0 as! T, $1) }, // swiftlint:disable:this force_cast
+      update: {
+        update($0.view as! T, $1) // swiftlint:disable:this force_cast
+      },
       willRemove: willRemove.map { willRemove in
-        { willRemove($0 as! T, $1) } // swiftlint:disable:this force_cast
+        { willRemove($0.view as! T, $1) } // swiftlint:disable:this force_cast
       },
       didRemove: didRemove.map { didRemove in
-        { didRemove($0 as! T, $1) } // swiftlint:disable:this force_cast
+        { didRemove($0.view as! T, $1) } // swiftlint:disable:this force_cast
+      },
+      transition: transition,
+      animationTiming: animationTiming
+    )
+  }
+}
+
+public extension LayerItem {
+
+  /// Erase the layer item to a generic `RenderableItem`.
+  ///
+  /// - Returns: The erased renderable item.
+  func eraseToRenderableItem() -> RenderableItem {
+    RenderableItem(
+      id: id,
+      frame: frame,
+      make: { .layer(make($0)) },
+      willInsert: willInsert.map { willInsert in
+        { willInsert($0.layer as! T, $1) } // swiftlint:disable:this force_cast
+      },
+      didInsert: didInsert.map { didInsert in
+        { didInsert($0.layer as! T, $1) } // swiftlint:disable:this force_cast
+      },
+      willUpdate: willUpdate.map { willUpdate in
+        { willUpdate($0.layer as! T, $1) } // swiftlint:disable:this force_cast
+      },
+      update: {
+        update($0.layer as! T, $1) // swiftlint:disable:this force_cast
+      },
+      willRemove: willRemove.map { willRemove in
+        { willRemove($0.layer as! T, $1) } // swiftlint:disable:this force_cast
+      },
+      didRemove: didRemove.map { didRemove in
+        { didRemove($0.layer as! T, $1) } // swiftlint:disable:this force_cast
       },
       transition: transition,
       animationTiming: animationTiming

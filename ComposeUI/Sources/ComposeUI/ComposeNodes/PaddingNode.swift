@@ -81,13 +81,13 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
     )
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     let childOrigin = CGPoint(x: insets.left, y: insets.top)
     let boundsInChild = visibleBounds.translate(-childOrigin)
 
-    let childItems = node.viewItems(in: boundsInChild)
+    let childItems = node.renderableItems(in: boundsInChild)
 
-    var mappedChildItems: [ViewItem<View>] = []
+    var mappedChildItems: [RenderableItem] = []
     mappedChildItems.reserveCapacity(childItems.count)
 
     for var item in childItems {
