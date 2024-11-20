@@ -1,5 +1,5 @@
 //
-//  ViewItem+RenderContext.swift
+//  RenderItem+Context.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 11/13/24.
@@ -87,8 +87,18 @@ public struct ViewUpdateContext {
   /// The new frame that the view should be set to after the update.
   public let newFrame: CGRect
 
+  /// The context for animating a view.
+  public struct AnimationContext {
+
+    /// The timing of the animation.
+    public let timing: AnimationTiming
+
+    /// The content view that contains the view.
+    public private(set) weak var contentView: ComposeView!
+  }
+
   /// The animation context if the update is animated.
-  public let animationContext: ViewAnimationContext?
+  public let animationContext: AnimationContext?
 }
 
 // MARK: - Remove

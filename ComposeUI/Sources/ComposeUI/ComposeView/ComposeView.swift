@@ -447,10 +447,10 @@ open class ComposeView: BaseScrollView {
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
         let animationTiming: AnimationTiming?
-        let animationContext: ViewAnimationContext?
+        let animationContext: ViewUpdateContext.AnimationContext?
         if context.isAnimated, let renderableItemAnimationTiming = renderableItem.animationTiming {
           animationTiming = renderableItemAnimationTiming
-          animationContext = ViewAnimationContext(timing: renderableItemAnimationTiming, contentView: self)
+          animationContext = ViewUpdateContext.AnimationContext(timing: renderableItemAnimationTiming, contentView: self)
         } else {
           animationTiming = nil
           animationContext = nil
