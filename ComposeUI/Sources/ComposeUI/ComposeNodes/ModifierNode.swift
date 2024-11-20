@@ -47,7 +47,7 @@ private struct ModifierNode: ComposeNode {
   private let update: ((Renderable, RenderableUpdateContext) -> Void)?
   private let willRemove: ((Renderable, RenderableRemoveContext) -> Void)?
   private let didRemove: ((Renderable, RenderableRemoveContext) -> Void)?
-  private let transition: ViewTransition?
+  private let transition: RenderableTransition?
   private let animationTiming: AnimationTiming?
 
   fileprivate init(node: ComposeNode,
@@ -57,7 +57,7 @@ private struct ModifierNode: ComposeNode {
                    update: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
                    willRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    didRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
-                   transition: ViewTransition? = nil,
+                   transition: RenderableTransition? = nil,
                    animationTiming: AnimationTiming? = nil)
   {
     if let modifierNode = node as? ModifierNode { // coalescing modifiers
@@ -219,7 +219,7 @@ public extension ComposeNode {
   ///
   /// - Parameter transition: The transition to set.
   /// - Returns: A new node with the transition set.
-  func transition(_ transition: ViewTransition) -> some ComposeNode {
+  func transition(_ transition: RenderableTransition) -> some ComposeNode {
     ModifierNode(node: self, transition: transition)
   }
 

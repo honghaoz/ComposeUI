@@ -402,7 +402,7 @@ open class ComposeView: BaseScrollView {
 
             transition.animate(
               renderable: oldRenderable,
-              context: ViewRemoveTransitionContext(contentView: self),
+              context: RenderableTransition.RemoveTransition.Context(contentView: self),
               completion: completion.workBlock
             )
           } else {
@@ -522,7 +522,7 @@ open class ComposeView: BaseScrollView {
           // has insert transition, animate the renderable insertion
           transition.animate(
             renderable: renderable,
-            context: ViewInsertTransitionContext(targetFrame: newFrame, contentView: self),
+            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, contentView: self),
             completion: {
               assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
               // at the moment, the renderable's frame may not be the target frame, this is because during the insert transition,

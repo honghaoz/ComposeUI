@@ -113,7 +113,7 @@ public struct RenderItem<T> {
   public let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
   /// The transition of the renderable. The transition is used to animate the renderable's insertion and removal.
-  public let transition: ViewTransition?
+  public let transition: RenderableTransition?
 
   /// The animation timing of the renderable. The animation timing is used to animate the renderable's changes.
   public let animationTiming: AnimationTiming?
@@ -127,7 +127,7 @@ public struct RenderItem<T> {
               update: @escaping (T, RenderableUpdateContext) -> Void,
               willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
               didRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
-              transition: ViewTransition? = nil,
+              transition: RenderableTransition? = nil,
               animationTiming: AnimationTiming? = nil)
   {
     self.id = id
@@ -287,7 +287,7 @@ public struct RenderItem<T> {
   ///
   /// - Parameter transition: The new transition.
   /// - Returns: The renderable item with the new transition.
-  public func transition(_ transition: ViewTransition) -> Self {
+  public func transition(_ transition: RenderableTransition) -> Self {
     guard self.transition == nil else {
       return self
     }
