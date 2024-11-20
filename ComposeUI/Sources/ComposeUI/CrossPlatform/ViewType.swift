@@ -36,8 +36,13 @@ import AppKit
 import UIKit
 #endif
 
+/// A type that represents a view.
+public protocol ViewType: View {}
+
+extension View: ViewType {}
+
 /// A type that represents a cross-platform view.
-protocol ViewType: View {
+protocol _ViewType: View {
 
   /// Get the backing `CALayer` of the view.
   func layer() -> CALayer
@@ -49,9 +54,9 @@ protocol ViewType: View {
   var screenScaleFactor: CGFloat { get }
 }
 
-extension View: ViewType {}
+extension View: _ViewType {}
 
-extension ViewType {
+extension _ViewType {
 
   func layer() -> CALayer {
     #if canImport(AppKit)

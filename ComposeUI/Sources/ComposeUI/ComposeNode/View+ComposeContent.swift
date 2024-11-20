@@ -36,6 +36,14 @@ import AppKit
 import UIKit
 #endif
 
+public extension ViewType where Self: View {
+
+  /// Wraps the view into a `ViewNode`.
+  func asComposeNode() -> ViewNode<Self> {
+    ViewNode(self)
+  }
+}
+
 extension View: ComposeContent {
 
   public func asNodes() -> [any ComposeNode] {
