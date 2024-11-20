@@ -77,22 +77,22 @@ public struct ComposeNodeId: Equatable {
   /// If the id is fixed, `makeId` will not add the parent node's id to the child node's id.
   private let isFixed: Bool
 
-  /// Make a new `ComposeNodeId` by joining the current node's id and the child node's id.
+  /// Make a `ComposeNodeId` by joining the current node's id to a child renderable item's id.
   ///
-  /// If the childViewItemId is fixed, it will return the childViewItemId directly.
+  /// If the `childRenderItemId` is fixed, it will return the `childRenderItemId` directly.
   ///
   /// - Parameters:
-  ///   - suffix: The suffix to be added to the current node's id.
-  ///   - childViewItemId: The child view item's id.
-  /// - Returns: A new `ComposeNodeId`.
-  public func makeViewItemId(suffix: String? = nil, childViewItemId: ComposeNodeId) -> ComposeNodeId {
-    if childViewItemId.isFixed {
-      return childViewItemId
+  ///   - childRenderItemId: The child renderable's id.
+  ///   - suffix: An optional suffix to be added to the current node's id.
+  /// - Returns: A `ComposeNodeId`.
+  public func join(with childRenderItemId: ComposeNodeId, suffix: String? = nil) -> ComposeNodeId {
+    if childRenderItemId.isFixed {
+      return childRenderItemId
     } else {
       if let suffix {
-        return ComposeNodeId(id: "\(id)|\(suffix)|\(childViewItemId.id)", isFixed: isFixed)
+        return ComposeNodeId(id: "\(id)|\(suffix)|\(childRenderItemId.id)", isFixed: isFixed)
       } else {
-        return ComposeNodeId(id: "\(id)|\(childViewItemId.id)", isFixed: isFixed)
+        return ComposeNodeId(id: "\(id)|\(childRenderItemId.id)", isFixed: isFixed)
       }
     }
   }

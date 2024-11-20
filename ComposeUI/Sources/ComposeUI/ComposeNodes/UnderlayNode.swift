@@ -66,7 +66,7 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     mappedChildItems.reserveCapacity(childItems.count)
 
     for var item in childItems {
-      item.id = id.makeViewItemId(childViewItemId: item.id)
+      item.id = id.join(with: item.id)
       mappedChildItems.append(item)
     }
 
@@ -79,7 +79,7 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     mappedUnderlayItems.reserveCapacity(underlayItems.count)
 
     for var item in underlayItems {
-      item.id = id.makeViewItemId(suffix: "U", childViewItemId: item.id)
+      item.id = id.join(with: item.id, suffix: "U")
       item.frame = item.frame.translate(underlayFrame.origin)
       mappedUnderlayItems.append(item)
     }

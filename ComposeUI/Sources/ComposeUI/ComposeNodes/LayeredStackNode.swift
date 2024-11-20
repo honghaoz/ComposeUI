@@ -97,7 +97,7 @@ public struct LayeredStackNode: ComposeNode {
       let childItems = node.renderableItems(in: boundsInChild)
 
       for var item in childItems {
-        item.id = id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id)
+        item.id = id.join(with: item.id, suffix: "\(i)")
         item.frame = item.frame.translate(childFrame.origin)
         mappedChildItems.append(item)
       }

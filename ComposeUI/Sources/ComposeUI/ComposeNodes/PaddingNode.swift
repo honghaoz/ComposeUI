@@ -91,7 +91,7 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
     mappedChildItems.reserveCapacity(childItems.count)
 
     for var item in childItems {
-      item.id = id.makeViewItemId(childViewItemId: item.id)
+      item.id = id.join(with: item.id)
       item.frame = item.frame.translate(childOrigin)
       mappedChildItems.append(item)
     }
