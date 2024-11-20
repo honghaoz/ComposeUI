@@ -39,13 +39,13 @@ import UIKit
 /// A node that renders a `View`.
 public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
-  private let make: (ViewMakeContext) -> T
-  private let willInsert: ((T, ViewInsertContext) -> Void)?
-  private let didInsert: ((T, ViewInsertContext) -> Void)?
-  private let willUpdate: ((T, ViewUpdateContext) -> Void)?
-  private let update: (T, ViewUpdateContext) -> Void
-  private let willRemove: ((T, ViewRemoveContext) -> Void)?
-  private let didRemove: ((T, ViewRemoveContext) -> Void)?
+  private let make: (RenderableMakeContext) -> T
+  private let willInsert: ((T, RenderableInsertContext) -> Void)?
+  private let didInsert: ((T, RenderableInsertContext) -> Void)?
+  private let willUpdate: ((T, RenderableUpdateContext) -> Void)?
+  private let update: (T, RenderableUpdateContext) -> Void
+  private let willRemove: ((T, RenderableRemoveContext) -> Void)?
+  private let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
@@ -77,19 +77,19 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   ///
   /// - Parameters:
   ///   - view: The external view.
-  ///   - willInsert: A closure to be called when the view is about to be inserted into the view hierarchy.
-  ///   - didInsert: A closure to be called when the view is inserted into the view hierarchy.
+  ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
+  ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
   ///   - update: A closure to update the view.
-  ///   - willRemove: A closure to be called when the view is about to be removed from the view hierarchy.
-  ///   - didRemove: A closure to be called when the view is removed from the view hierarchy.
+  ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
+  ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
   public init(_ view: T,
-              willInsert: ((T, ViewInsertContext) -> Void)? = nil,
-              didInsert: ((T, ViewInsertContext) -> Void)? = nil,
-              willUpdate: ((T, ViewUpdateContext) -> Void)? = nil,
-              update: @escaping (T, ViewUpdateContext) -> Void = { _, _ in },
-              willRemove: ((T, ViewRemoveContext) -> Void)? = nil,
-              didRemove: ((T, ViewRemoveContext) -> Void)? = nil)
+              willInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+              didInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+              willUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
+              update: @escaping (T, RenderableUpdateContext) -> Void = { _, _ in },
+              willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
+              didRemove: ((T, RenderableRemoveContext) -> Void)? = nil)
   {
     self.make = { _ in
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
@@ -114,19 +114,19 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   ///
   /// - Parameters:
   ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with with frame set to `context.initialFrame` if it's provided.
-  ///   - willInsert: A closure to be called when the view is about to be inserted into the view hierarchy.
-  ///   - didInsert: A closure to be called when the view is inserted into the view hierarchy.
+  ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
+  ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
   ///   - update: A closure to update the view.
-  ///   - willRemove: A closure to be called when the view is about to be removed from the view hierarchy.
-  ///   - didRemove: A closure to be called when the view is removed from the view hierarchy.
-  public init(make: ((ViewMakeContext) -> T)? = nil,
-              willInsert: ((T, ViewInsertContext) -> Void)? = nil,
-              didInsert: ((T, ViewInsertContext) -> Void)? = nil,
-              willUpdate: ((T, ViewUpdateContext) -> Void)? = nil,
-              update: @escaping (T, ViewUpdateContext) -> Void = { _, _ in },
-              willRemove: ((T, ViewRemoveContext) -> Void)? = nil,
-              didRemove: ((T, ViewRemoveContext) -> Void)? = nil)
+  ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
+  ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
+  public init(make: ((RenderableMakeContext) -> T)? = nil,
+              willInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+              didInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+              willUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
+              update: @escaping (T, RenderableUpdateContext) -> Void = { _, _ in },
+              willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
+              didRemove: ((T, RenderableRemoveContext) -> Void)? = nil)
   {
     self.make = make ?? { context in
       let view: T
@@ -222,7 +222,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
       return cachedView
     }
 
-    let view = make(ViewMakeContext(initialFrame: nil))
+    let view = make(RenderableMakeContext(initialFrame: nil))
     cachedView = view
     return view
   }
