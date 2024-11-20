@@ -58,10 +58,10 @@ private struct RotationNode<Node: ComposeNode>: ComposeNode {
     node.layout(containerSize: containerSize, context: context)
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
-    let childItems = node.viewItems(in: visibleBounds)
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    let childItems = node.renderableItems(in: visibleBounds)
 
-    var mappedChildItems: [ViewItem<View>] = []
+    var mappedChildItems: [RenderableItem] = []
     mappedChildItems.reserveCapacity(childItems.count)
 
     for item in childItems {
@@ -70,16 +70,16 @@ private struct RotationNode<Node: ComposeNode>: ComposeNode {
         frame: item.frame,
         make: { context in
           let originalView = item.make(context)
-          let rotationView = RotationView(contentView: originalView)
+          let rotationView = RotationView(contentView: originalView.view!) // swiftlint:disable:this force_unwrapping
           rotationView.frame = item.frame
           return rotationView
         },
         update: { view, context in
           view.degrees = degrees
-          item.update(view.contentView, context)
+          item.update(.view(view.contentView), context)
         }
       )
-      mappedChildItems.append(mappedItem.eraseToViewItem())
+      mappedChildItems.append(mappedItem.eraseToRenderableItem())
     }
 
     return mappedChildItems

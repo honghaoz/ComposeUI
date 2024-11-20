@@ -51,12 +51,12 @@ private struct OffsetNode<Node: ComposeNode>: ComposeNode {
     node.layout(containerSize: containerSize, context: context)
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     let boundsInChild = visibleBounds.translate(-offset)
 
-    let childItems = node.viewItems(in: boundsInChild)
+    let childItems = node.renderableItems(in: boundsInChild)
 
-    var mappedChildItems: [ViewItem<View>] = []
+    var mappedChildItems: [RenderableItem] = []
     mappedChildItems.reserveCapacity(childItems.count)
 
     for var item in childItems {

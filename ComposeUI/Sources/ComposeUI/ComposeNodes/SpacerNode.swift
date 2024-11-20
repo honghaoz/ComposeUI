@@ -92,7 +92,7 @@ public struct SpacerNode: ComposeNode {
     return sizing
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     return []
   }
 

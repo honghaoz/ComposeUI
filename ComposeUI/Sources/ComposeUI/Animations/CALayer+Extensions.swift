@@ -56,4 +56,15 @@ extension CALayer {
       y: frame.origin.y + anchorPoint.y * frame.height
     )
   }
+
+  /// Moves the sublayer to the front.
+  ///
+  /// - Parameter sublayer: The sublayer to move to the front.
+  func bringSublayerToFront(_ sublayer: CALayer) {
+    guard sublayer.superlayer === self else {
+      return
+    }
+
+    insertSublayer(sublayer, at: UInt32(sublayers?.count ?? 0))
+  }
 }

@@ -74,8 +74,8 @@ extension ComposeView {
       }
     }
 
-    func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
-      node.viewItems(in: visibleBounds)
+    func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+      node.renderableItems(in: visibleBounds)
     }
   }
 }

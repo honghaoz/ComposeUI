@@ -51,7 +51,7 @@ public struct EmptyNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     return []
   }
 }

@@ -65,11 +65,11 @@ public protocol ComposeNode: ComposeContent {
   @discardableResult
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing
 
-  /// Get the view items that are visible in the given bounds.
+  /// Get the renderable items that are visible in the given bounds.
   ///
   /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
-  /// - Returns: The view items that are visible in the given bounds.
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>]
+  /// - Returns: The renderable items that are visible in the given bounds.
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem]
 }
 
 // MARK: - ComposeContent

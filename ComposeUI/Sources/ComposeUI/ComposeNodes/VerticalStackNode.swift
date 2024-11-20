@@ -121,8 +121,8 @@ public struct VerticalStackNode: ComposeNode {
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
-    var mappedChildItems: [ViewItem<View>] = []
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    var mappedChildItems: [RenderableItem] = []
     mappedChildItems.reserveCapacity(childNodes.count * 4) // use 4x capacity as a rough estimate for the number of items
 
     var y: CGFloat = 0
@@ -143,7 +143,7 @@ public struct VerticalStackNode: ComposeNode {
       let childOrigin = CGPoint(x: x, y: y)
       let boundsInChild = visibleBounds.translate(-childOrigin)
 
-      let childItems = node.viewItems(in: boundsInChild)
+      let childItems = node.renderableItems(in: boundsInChild)
       for var item in childItems {
         item.id = id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id)
         item.frame = item.frame.translate(childOrigin)

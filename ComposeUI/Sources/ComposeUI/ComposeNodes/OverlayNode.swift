@@ -55,11 +55,11 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     // for the child node
-    let childItems = node.viewItems(in: visibleBounds)
+    let childItems = node.renderableItems(in: visibleBounds)
 
-    var mappedChildItems: [ViewItem<View>] = []
+    var mappedChildItems: [RenderableItem] = []
     mappedChildItems.reserveCapacity(childItems.count)
 
     for var item in childItems {
@@ -68,20 +68,20 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     }
 
     // for the overlay node
-    let overlayViewFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
-    let boundsInOverlay = visibleBounds.translate(-overlayViewFrame.origin)
-    let overlayViewItems = overlayNode.viewItems(in: boundsInOverlay)
+    let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
+    let boundsInOverlay = visibleBounds.translate(-overlayFrame.origin)
+    let overlayItems = overlayNode.renderableItems(in: boundsInOverlay)
 
-    var mappedOverlayViewItems: [ViewItem<View>] = []
-    mappedOverlayViewItems.reserveCapacity(overlayViewItems.count)
+    var mappedOverlayItems: [RenderableItem] = []
+    mappedOverlayItems.reserveCapacity(overlayItems.count)
 
-    for var item in overlayViewItems {
+    for var item in overlayItems {
       item.id = id.makeViewItemId(suffix: "O", childViewItemId: item.id)
-      item.frame = item.frame.translate(overlayViewFrame.origin)
-      mappedOverlayViewItems.append(item)
+      item.frame = item.frame.translate(overlayFrame.origin)
+      mappedOverlayItems.append(item)
     }
 
-    return mappedChildItems + mappedOverlayViewItems
+    return mappedChildItems + mappedOverlayItems
   }
 }
 

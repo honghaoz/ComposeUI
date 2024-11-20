@@ -83,15 +83,15 @@ open class ComposeView: BaseScrollView {
   private var viewItemIds: [String] = []
 
   /// The map of the view items that the view is rendering.
-  private var viewItemMap: [String: ViewItem<View>] = [:]
+  private var viewItemMap: [String: RenderableItem] = [:]
 
   /// The map of the views that the view is rendering.
-  private var viewMap: [String: View] = [:]
+  private var viewMap: [String: Renderable] = [:]
 
   /// The map of the views that are being removed.
   ///
   /// The removing views are the ones that are not in the view hierarchy but still rendered due to the transition.
-  private var removingViewMap: [String: View] = [:]
+  private var removingViewMap: [String: Renderable] = [:]
 
   /// The map of the removing view transition completion blocks.
   private var removingViewTransitionCompletionMap: [String: CancellableBlock] = [:]
@@ -301,7 +301,7 @@ open class ComposeView: BaseScrollView {
     var contentSize = contentNode.size
 
     // get view items
-    let viewItems: [ViewItem<View>]
+    let viewItems: [RenderableItem]
     if contentSize.width < boundsSize.width || contentSize.height < boundsSize.height {
       // if content is smaller than the bounds in either dimension, should center the content
 
@@ -313,9 +313,9 @@ open class ComposeView: BaseScrollView {
       // logic copied from FrameNode
       let childFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
       let boundsInChild = visibleBounds.translate(-childFrame.origin)
-      let childItems = contentNode.viewItems(in: boundsInChild)
+      let childItems = contentNode.renderableItems(in: boundsInChild)
 
-      var mappedChildItems: [ViewItem<View>] = []
+      var mappedChildItems: [RenderableItem] = []
       mappedChildItems.reserveCapacity(childItems.count)
 
       for var item in childItems {
@@ -326,7 +326,7 @@ open class ComposeView: BaseScrollView {
       viewItems = mappedChildItems
       contentSize = adjustedContentSize
     } else {
-      viewItems = contentNode.viewItems(in: visibleBounds)
+      viewItems = contentNode.renderableItems(in: visibleBounds)
     }
 
     // set content size
@@ -371,7 +371,7 @@ open class ComposeView: BaseScrollView {
           oldViewItem.willRemove?(oldView, ViewRemoveContext(oldFrame: oldFrame))
 
           let removeBlock = {
-            oldView.removeFromSuperview()
+            oldView.removeFromParent()
             oldViewItem.didRemove?(oldView, ViewRemoveContext(oldFrame: oldFrame))
           }
 
@@ -416,12 +416,14 @@ open class ComposeView: BaseScrollView {
     for id in viewItemIds {
       let viewItem = viewItemMap[id]! // swiftlint:disable:this force_unwrapping
 
-      let view: View
+      let view: Renderable
       if reusingIds.contains(id) {
         // [2/3] ♻️ reuse the view item that is still in the content
         view = oldViewMap[id]! // swiftlint:disable:this force_unwrapping
 
-        view.reset()
+        // TODO: handle mismatched view/layer item
+
+        view.layer.reset()
 
         let updateType: ViewUpdateType
         switch context.updateType {
@@ -459,12 +461,14 @@ open class ComposeView: BaseScrollView {
 
         viewItem.willUpdate?(view, viewUpdateContext)
 
-        contentView().bringSubviewToFront(view)
+        view.moveToFront()
 
         if let animationTiming {
-          view.layer().animateFrame(to: newFrame, timing: animationTiming)
+          view.layer.animateFrame(to: newFrame, timing: animationTiming)
         } else {
-          view.frame = newFrame
+          CATransaction.disableAnimations {
+            view.setFrame(newFrame)
+          }
         }
 
         viewItem.update(view, viewUpdateContext)
@@ -486,7 +490,7 @@ open class ComposeView: BaseScrollView {
           }
         }
 
-        view.reset()
+        view.layer.reset()
 
         let frameBeforeWillInsert = view.frame
         viewItem.willInsert?(view, ViewInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame))
@@ -501,8 +505,11 @@ open class ComposeView: BaseScrollView {
 
         viewItem.willUpdate?(view, viewUpdateContext)
 
-        contentView().addSubview(view)
-        view.frame = newFrame // no animation context for insertion
+        view.addToParent(contentView())
+
+        CATransaction.disableAnimations {
+          view.setFrame(newFrame) // no animation context for insertion
+        }
 
         viewItem.update(view, viewUpdateContext)
 
@@ -535,14 +542,14 @@ open class ComposeView: BaseScrollView {
 
 // MARK: - Helpers
 
-private extension View {
+private extension CALayer {
 
   /// Common reset for the view managed by `ComposeView`.
   ///
   /// To ensure the frame update is applied correctly, the transform is reset to identity.
   func reset() {
     CATransaction.disableAnimations {
-      layer().transform = CATransform3DIdentity // setting frame requires an identity transform
+      transform = CATransform3DIdentity // setting frame requires an identity transform
     }
   }
 }

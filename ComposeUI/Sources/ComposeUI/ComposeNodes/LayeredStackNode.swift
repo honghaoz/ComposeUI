@@ -84,8 +84,8 @@ public struct LayeredStackNode: ComposeNode {
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
 
-  public func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
-    var mappedChildItems: [ViewItem<View>] = []
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    var mappedChildItems: [RenderableItem] = []
     mappedChildItems.reserveCapacity(childNodes.count * 4) // use 4x capacity as a rough estimate for the number of items
 
     for i in 0 ..< childNodes.count {
@@ -94,7 +94,7 @@ public struct LayeredStackNode: ComposeNode {
       let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
       let boundsInChild = visibleBounds.translate(-childFrame.origin)
 
-      let childItems = node.viewItems(in: boundsInChild)
+      let childItems = node.renderableItems(in: boundsInChild)
 
       for var item in childItems {
         item.id = id.makeViewItemId(suffix: "\(i)", childViewItemId: item.id)

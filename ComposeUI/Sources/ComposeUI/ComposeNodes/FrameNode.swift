@@ -123,16 +123,16 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func viewItems(in visibleBounds: CGRect) -> [ViewItem<View>] {
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     // the child node's frame in self's coordinates
     let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
 
     // convert the bounds from self's coordinates to the child node's coordinates
     let boundsInChild = visibleBounds.translate(-childFrame.origin)
 
-    let childItems = node.viewItems(in: boundsInChild)
+    let childItems = node.renderableItems(in: boundsInChild)
 
-    var mappedChildItems: [ViewItem<View>] = []
+    var mappedChildItems: [RenderableItem] = []
     mappedChildItems.reserveCapacity(childItems.count)
 
     for var item in childItems {
