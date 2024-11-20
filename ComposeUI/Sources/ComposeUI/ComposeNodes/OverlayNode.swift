@@ -63,7 +63,7 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     mappedChildItems.reserveCapacity(childItems.count)
 
     for var item in childItems {
-      item.id = id.makeViewItemId(childViewItemId: item.id)
+      item.id = id.join(with: item.id)
       mappedChildItems.append(item)
     }
 
@@ -76,7 +76,7 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     mappedOverlayItems.reserveCapacity(overlayItems.count)
 
     for var item in overlayItems {
-      item.id = id.makeViewItemId(suffix: "O", childViewItemId: item.id)
+      item.id = id.join(with: item.id, suffix: "O")
       item.frame = item.frame.translate(overlayFrame.origin)
       mappedOverlayItems.append(item)
     }

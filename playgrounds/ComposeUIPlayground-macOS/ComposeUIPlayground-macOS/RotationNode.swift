@@ -66,7 +66,7 @@ private struct RotationNode<Node: ComposeNode>: ComposeNode {
 
     for item in childItems {
       let mappedItem = ViewItem<RotationView>(
-        id: id.makeViewItemId(childViewItemId: item.id),
+        id: id.join(with: item.id),
         frame: item.frame,
         make: { context in
           let originalView = item.make(context)
