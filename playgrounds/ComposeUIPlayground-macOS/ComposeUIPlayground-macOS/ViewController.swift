@@ -48,7 +48,9 @@ class ViewController: NSViewController {
 
       Spacer().height(20)
 
-      ViewNode(state.textField).flexible()
+      state.textField
+        .asComposeNode()
+        .flexible()
         .frame(width: 200, height: 22)
         .transition(.opacity(timing: .linear(duration: 2)))
 
