@@ -403,7 +403,7 @@ open class ComposeView: BaseScrollView {
             transition.animate(
               renderable: oldRenderable,
               context: RenderableTransition.RemoveTransition.Context(contentView: self),
-              completion: completion.workBlock
+              completion: completion.execute
             )
           } else {
             removeBlock()

@@ -36,10 +36,10 @@ final class CancellableBlock {
   private var isCancelled = false
 
   /// The block to be executed.
-  let workBlock: () -> Void
+  private let workBlock: () -> Void
 
   /// The block to be executed when the cancellable block is cancelled.
-  let cancelBlock: (() -> Void)?
+  private let cancelBlock: (() -> Void)?
 
   /// Initializes a new cancellable block.
   ///
