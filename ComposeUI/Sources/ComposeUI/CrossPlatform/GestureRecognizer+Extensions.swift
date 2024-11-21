@@ -1,8 +1,8 @@
 //
-//  UniversalTypes.swift
+//  GestureRecognizer+Extensions.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 10/27/24.
+//  Created by Honghao Zhang on 10/22/21.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,24 +30,18 @@
 
 #if canImport(AppKit)
 import AppKit
-
-public typealias View = NSView
-public typealias Color = NSColor
-public typealias Font = NSFont
-public typealias EdgeInsets = NSEdgeInsets
-public typealias GestureRecognizer = NSGestureRecognizer
-public typealias GestureRecognizerDelegate = NSGestureRecognizerDelegate
-public typealias PressGestureRecognizer = NSPressGestureRecognizer
 #endif
 
 #if canImport(UIKit)
 import UIKit
-
-public typealias View = UIView
-public typealias Color = UIColor
-public typealias Font = UIFont
-public typealias EdgeInsets = UIEdgeInsets
-public typealias GestureRecognizer = UIGestureRecognizer
-public typealias GestureRecognizerDelegate = UIGestureRecognizerDelegate
-public typealias PressGestureRecognizer = UILongPressGestureRecognizer
 #endif
+
+extension GestureRecognizer {
+
+  /// Cancels the gesture recognizer.
+  func cancel() {
+    // https://stackoverflow.com/questions/3937831/how-can-i-tell-a-uigesturerecognizer-to-cancel-an-existing-touch
+    isEnabled = false
+    isEnabled = true
+  }
+}

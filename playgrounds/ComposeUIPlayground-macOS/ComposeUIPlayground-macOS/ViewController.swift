@@ -68,6 +68,27 @@ class ViewController: NSViewController {
 
       Spacer().height(20)
 
+      ButtonNode { state in
+        switch state {
+        case .normal,
+             .hovered:
+          ColorNode(Colors.blueGray)
+        case .pressed,
+             .selected:
+          ColorNode(Colors.darkBlueGray)
+        case .disabled:
+          ColorNode(Colors.lightBlueGray)
+        }
+      } onTap: {
+        print("tap")
+      }
+      .onDoubleTap {
+        print("double tap")
+      }
+      .frame(width: 88, height: 44)
+
+      Spacer().height(20)
+
       VStack {
         ColorNode(.red).frame(width: .flexible, height: 100)
         ColorNode(.orange).frame(width: .flexible, height: 100)

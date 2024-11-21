@@ -46,7 +46,7 @@ class ViewController: UIViewController {
 
     weak var view: ComposeView!
     var color: UIColor = .red
-    var colorSize: CGFloat = 500
+    var colorSize: CGFloat = 200
     var cornerRadius: CGFloat = 16
 
     lazy var subtitleLabel: UILabel = {
@@ -81,6 +81,24 @@ class ViewController: UIViewController {
 
       ViewNode<Playground.FrameView>()
         .frame(width: .flexible, height: state.view.bounds.width - Constants.padding * 2)
+
+      ButtonNode { state in
+        switch state {
+        case .normal,
+             .hovered:
+          LabelNode("Change Color")
+        case .pressed,
+             .selected:
+          LabelNode("Change Color")
+        case .disabled:
+          LabelNode("Change Color")
+        }
+      } onTap: { [weak self] in
+        self?.changeColor()
+      }
+      .cornerRadius(0) // TODO: support inner node overrides outer node's preference
+      .padding(horizontal: 44)
+      .frame(width: .flexible, height: 44)
 
       for _ in 0 ... 50 {
         ColorNode(state.color)
@@ -134,28 +152,13 @@ class ViewController: UIViewController {
     state.view = contentView
 
     view.addSubview(contentView)
-    contentView.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      contentView.topAnchor.constraint(equalTo: view.topAnchor),
-      contentView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      contentView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-    ])
-
-    let button = UIButton(type: .system)
-    button.setTitle("Change Color", for: .normal)
-    button.addTarget(self, action: #selector(changeColor), for: .touchUpInside)
-    view.addSubview(button)
-    button.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      button.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-      button.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -30),
-    ])
+    contentView.frame = view.bounds
+    contentView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
   }
 
-  @objc private func changeColor() {
+  private func changeColor() {
     state.color = UIColor(red: .random(in: 0 ... 1), green: .random(in: 0 ... 1), blue: .random(in: 0 ... 1), alpha: 1)
-    state.colorSize = CGFloat.random(in: 100 ... 400)
+    state.colorSize = CGFloat.random(in: 120 ... 240)
     state.cornerRadius = CGFloat.random(in: 0 ... 16)
     contentView.refresh()
   }
