@@ -98,9 +98,15 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     isUserInteractionEnabled = true
 
     hapticFeedbackGenerator = makeHapticFeedbackGenerator(style: hapticFeedbackStyle)
+    #endif
 
+    #if canImport(UIKit)
     isAccessibilityElement = true
     accessibilityTraits = .button
+    #endif
+    #if canImport(AppKit)
+    setAccessibilityElement(true)
+    setAccessibilityRole(.button)
     #endif
   }
 
@@ -126,6 +132,9 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
     #if canImport(UIKit)
     subviews.forEach { $0.isAccessibilityElement = false }
+    #endif
+    #if canImport(AppKit)
+    subviews.forEach { $0.setAccessibilityElement(false) }
     #endif
   }
 
@@ -350,6 +359,15 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     hapticFeedbackGenerator?.impactOccurred()
     #endif
   }
+
+  // MARK: - Accessibility
+
+  #if canImport(AppKit)
+  override open func accessibilityPerformPress() -> Bool {
+    onTap?()
+    return true
+  }
+  #endif
 
   // MARK: - Constants
 
