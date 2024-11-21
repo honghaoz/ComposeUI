@@ -84,12 +84,12 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
   public init(_ view: T,
-              willInsert: ((T, RenderableInsertContext) -> Void)? = nil,
-              didInsert: ((T, RenderableInsertContext) -> Void)? = nil,
-              willUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
-              update: @escaping (T, RenderableUpdateContext) -> Void = { _, _ in },
-              willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
-              didRemove: ((T, RenderableRemoveContext) -> Void)? = nil)
+              willInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
+              didInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
+              willUpdate: ((_ view: T, _ context: RenderableUpdateContext) -> Void)? = nil,
+              update: @escaping (_ view: T, _ context: RenderableUpdateContext) -> Void = { _, _ in },
+              willRemove: ((_ view: T, _ context: RenderableRemoveContext) -> Void)? = nil,
+              didRemove: ((_ view: T, _ context: RenderableRemoveContext) -> Void)? = nil)
   {
     self.make = { _ in
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
@@ -120,13 +120,13 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
   ///   - update: A closure to update the view.
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
-  public init(make: ((RenderableMakeContext) -> T)? = nil,
-              willInsert: ((T, RenderableInsertContext) -> Void)? = nil,
-              didInsert: ((T, RenderableInsertContext) -> Void)? = nil,
-              willUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
-              update: @escaping (T, RenderableUpdateContext) -> Void = { _, _ in },
-              willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
-              didRemove: ((T, RenderableRemoveContext) -> Void)? = nil)
+  public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
+              willInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
+              didInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
+              willUpdate: ((_ view: T, _ context: RenderableUpdateContext) -> Void)? = nil,
+              update: @escaping (_ view: T, _ context: RenderableUpdateContext) -> Void = { _, _ in },
+              willRemove: ((_ view: T, _ context: RenderableRemoveContext) -> Void)? = nil,
+              didRemove: ((_ view: T, _ context: RenderableRemoveContext) -> Void)? = nil)
   {
     self.make = make ?? { context in
       let view: T

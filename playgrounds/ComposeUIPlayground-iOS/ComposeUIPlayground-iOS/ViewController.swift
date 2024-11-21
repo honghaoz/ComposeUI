@@ -86,19 +86,48 @@ class ViewController: UIViewController {
         switch state {
         case .normal,
              .hovered:
-          LabelNode("Change Color")
+          ColorNode(Colors.blueGray)
         case .pressed,
              .selected:
-          LabelNode("Change Color")
+          ColorNode(Colors.darkBlueGray)
         case .disabled:
-          LabelNode("Change Color")
+          ColorNode(Colors.lightBlueGray)
         }
       } onTap: { [weak self] in
         self?.changeColor()
       }
+      .onDoubleTap {
+        print("double tap")
+      }
       .cornerRadius(0) // TODO: support inner node overrides outer node's preference
       .padding(horizontal: 44)
       .frame(width: .flexible, height: 44)
+
+      ViewNode<ButtonView>(
+        update: { view, context in
+          guard context.type == .insert else {
+            return
+          }
+
+          view.configure { state in
+            switch state {
+            case .normal,
+                 .hovered:
+              ColorNode(Colors.blueGray)
+            case .pressed,
+                 .selected:
+              ColorNode(Colors.darkBlueGray)
+            case .disabled:
+              ColorNode(Colors.lightBlueGray)
+            }
+          } onTap: { [weak self] in
+            self?.changeColor()
+          } onDoubleTap: {
+            print("double tap 2")
+          }
+        }
+      )
+      .frame(width: 100, height: 44)
 
       for _ in 0 ... 50 {
         ColorNode(state.color)
