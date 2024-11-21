@@ -65,7 +65,7 @@ public struct ButtonNode: ComposeNode {
     makeButtonContent = content
     self.onTap = onTap
 
-    buttonNode = content(.normal).asVStack(alignment: .center)
+    buttonNode = content(.normal).asVStack()
   }
 
   // MARK: - ComposeNode

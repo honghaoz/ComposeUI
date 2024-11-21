@@ -194,7 +194,7 @@ open class ComposeView: BaseScrollView {
   #endif
 
   private func _sizeThatFits(_ size: CGSize) -> CGSize {
-    var contentNode = makeContent(self).asVStack(alignment: .center)
+    var contentNode = makeContent(self).asVStack()
     _ = contentNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
   }
@@ -225,7 +225,7 @@ open class ComposeView: BaseScrollView {
     assert(Thread.isMainThread, "refresh() must be called on the main thread")
 
     // explicit render request, should make a new content
-    contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
+    contentNode = ContentNode(node: makeContent(self).asVStack())
     contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated))
 
     render()
@@ -263,7 +263,7 @@ open class ComposeView: BaseScrollView {
 
     if contentUpdateContext == nil, bounds() != lastRenderBounds {
       // no pending render request but the bounds changed, should re-render the content
-      contentNode = ContentNode(node: makeContent(self).asVStack(alignment: .center))
+      contentNode = ContentNode(node: makeContent(self).asVStack())
       contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds))
     }
 
