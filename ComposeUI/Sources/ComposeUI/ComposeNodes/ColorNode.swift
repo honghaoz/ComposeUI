@@ -78,9 +78,18 @@ public struct ColorNode: ComposeNode {
         return layer
       },
       update: { layer, context in
-        // TODO: support animations
-        CATransaction.disableAnimations {
-          layer.backgroundColor = color.cgColor
+        if let animationTiming = context.animationContext?.timing {
+          layer.animate(
+            keyPath: "backgroundColor",
+            timing: animationTiming,
+            from: { $0.presentation()?.backgroundColor },
+            to: { _ in color.cgColor },
+            model: { _ in color.cgColor }
+          )
+        } else {
+          layer.disableActions(for: "backgroundColor") {
+            layer.backgroundColor = color.cgColor
+          }
         }
       }
     )

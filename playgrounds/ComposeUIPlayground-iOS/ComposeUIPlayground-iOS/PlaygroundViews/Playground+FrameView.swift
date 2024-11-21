@@ -42,13 +42,14 @@ extension Playground {
 
   final class FrameView: ComposeView {
 
+    private var color = Colors.blueGray
     private var size = CGSize(width: 100, height: 100)
     private var alignment: Layout.Alignment = .center
     private var padding = EdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 
     @ComposeContentBuilder
     override var content: ComposeContent {
-      ColorNode(Colors.blueGray)
+      ColorNode(color)
         .transition(.opacity(timing: .linear(duration: 2)))
         .animation(.easeInEaseOut(duration: 1))
         .frame(size)
@@ -90,6 +91,7 @@ extension Playground {
     }
 
     private func animate() {
+      color = [Colors.blueGray, Colors.lightBlueGray, Colors.darkBlueGray].randomElement()! // swiftlint:disable:this force_unwrapping
       size = CGSize(width: CGFloat.random(in: 100 ... 200), height: CGFloat.random(in: 100 ... 200))
       alignment = Layout.Alignment.allCases.randomElement()! // swiftlint:disable:this force_unwrapping
       padding = EdgeInsets(top: CGFloat.random(in: 0 ... 20), left: CGFloat.random(in: 0 ... 20), bottom: CGFloat.random(in: 0 ... 20), right: CGFloat.random(in: 0 ... 20))

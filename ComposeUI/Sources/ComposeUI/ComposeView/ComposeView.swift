@@ -552,7 +552,7 @@ private extension CALayer {
   ///
   /// To ensure the frame update is applied correctly, the transform is reset to identity.
   func reset() {
-    CATransaction.disableAnimations {
+    disableActions(for: "transform") {
       transform = CATransform3DIdentity // setting frame requires an identity transform
     }
   }
