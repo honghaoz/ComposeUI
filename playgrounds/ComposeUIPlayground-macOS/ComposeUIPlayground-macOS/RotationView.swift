@@ -41,7 +41,8 @@ final class RotationView: BaseView {
     }
   }
 
-  let contentView: View
+  let content: Renderable
+  private let contentLayer: CALayer
 
   private lazy var containerLayer: CALayer = {
     let layer = CALayer()
@@ -53,37 +54,51 @@ final class RotationView: BaseView {
   ///
   /// - Parameter contentView: The content view to rotate.
   init(contentView: View) {
-    self.contentView = contentView
+    self.content = .view(contentView)
+
+    if let layer = contentView.layer {
+      self.contentLayer = layer
+    } else {
+      assertionFailure("contentView.layer is nil")
+      self.contentLayer = CALayer()
+    }
 
     super.init(frame: .zero)
 
-    layer!.addSublayer(containerLayer)
-    if let contentViewLayer = contentView.layer {
-      containerLayer.addSublayer(contentViewLayer)
-    } else {
-      assertionFailure("contentView.layer is nil")
-    }
+    commonInit()
+  }
+
+  init(contentLayer: CALayer) {
+    self.content = .layer(contentLayer)
+    self.contentLayer = contentLayer
+
+    super.init(frame: .zero)
+
+    commonInit()
+  }
+
+  private func commonInit() {
+    containerLayer.frame = bounds
+    layer?.addSublayer(containerLayer)
+
+    contentLayer.frame = containerLayer.bounds
+    containerLayer.addSublayer(contentLayer)
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
 
-    let transform = containerLayer.transform
+    containerLayer.disableActions(for: ["transform", "position", "bounds"]) {
+      let originalTransform = containerLayer.transform
 
-    // reset transform and set frame
-    CATransaction.setDisableActions(true)
-    CATransaction.setAnimationDuration(0)
+      containerLayer.transform = CATransform3DIdentity
+      containerLayer.frame = bounds
 
-    containerLayer.transform = CATransform3DIdentity
-    containerLayer.frame = bounds
-
-    if let contentViewLayer = contentView.layer {
-      contentViewLayer.frame = containerLayer.bounds
+      containerLayer.transform = originalTransform
     }
 
-    // set transform back
-    containerLayer.transform = transform
-
-    CATransaction.commit()
+    contentLayer.disableActions(for: ["position", "bounds"]) {
+      contentLayer.frame = containerLayer.bounds
+    }
   }
 }

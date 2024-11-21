@@ -57,6 +57,7 @@ class ViewController: NSViewController {
       Spacer().height(20)
 
       HStack(spacing: 4) { rainbowColorNodes }
+        .rotate(by: 30)
         .frame(width: .flexible, height: 20)
         .cornerRadius(4)
 
@@ -79,7 +80,7 @@ class ViewController: NSViewController {
       ColorNode(.red)
         .padding(horizontal: 100, vertical: 20)
         .frame(width: .flexible, height: 100)
-        .rotate(by: 45)
+        .rotate(by: 30)
 
       HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
     }
