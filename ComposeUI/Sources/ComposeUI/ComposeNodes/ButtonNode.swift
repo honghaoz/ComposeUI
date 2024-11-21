@@ -43,6 +43,10 @@ public struct ButtonNode: ComposeNode {
   private let onTap: () -> Void
   private var onDoubleTap: (() -> Void)?
 
+  #if canImport(UIKit)
+  private var hapticFeedbackStyle: UIImpactFeedbackGenerator.FeedbackStyle?
+  #endif
+
   private var buttonNode: ComposeNode
 
   /// Creates a button node.
@@ -84,6 +88,9 @@ public struct ButtonNode: ComposeNode {
         if context.type == .insert {
           view.configure(content: makeButtonContent, onTap: onTap)
           view.onDoubleTap = onDoubleTap
+          #if canImport(UIKit)
+          view.hapticFeedbackStyle = hapticFeedbackStyle
+          #endif
         }
       }
     )
@@ -101,4 +108,15 @@ public struct ButtonNode: ComposeNode {
     copy.onDoubleTap = block
     return copy
   }
+
+  #if canImport(UIKit)
+  /// Set the style of haptic feedback to be used when the button is pressed.
+  ///
+  /// - Parameter style: The style of haptic feedback to be used when the button is pressed.
+  public func hapticFeedbackStyle(_ style: UIImpactFeedbackGenerator.FeedbackStyle?) -> Self {
+    var copy = self
+    copy.hapticFeedbackStyle = style
+    return copy
+  }
+  #endif
 }

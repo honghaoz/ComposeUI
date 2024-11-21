@@ -97,6 +97,8 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     #if canImport(UIKit)
     isUserInteractionEnabled = true
 
+    hapticFeedbackGenerator = makeHapticFeedbackGenerator(style: hapticFeedbackStyle)
+
     isAccessibilityElement = true
     accessibilityTraits = .button
     #endif
@@ -188,6 +190,10 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
       buttonState = .pressed
 
+      #if canImport(UIKit)
+      hapticFeedbackGenerator?.prepare()
+      #endif
+
     case .changed:
       #if canImport(UIKit)
       guard !isOnScrollingScrollView else {
@@ -217,6 +223,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
         if isDoubleTap {
           // this is the second up, trigger double tap action
           reset()
+          triggerHapticFeedback()
           onDoubleTap?()
         } else {
           // this is the first up
@@ -230,18 +237,21 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
                 return
               }
               self.reset()
+              self.triggerHapticFeedback()
               self.onTap?()
             }
           } else {
             // there's no double-tap timeout task, this means the first up is after the double-tap timeout
             // we can trigger the single tap action directly
             reset()
+            triggerHapticFeedback()
             onTap?()
           }
         }
       } else {
         // single tap mode
         reset()
+        triggerHapticFeedback()
         onTap?()
       }
 
@@ -302,6 +312,43 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
   public func gestureRecognizer(_ gestureRecognizer: GestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: GestureRecognizer) -> Bool {
     true
+  }
+
+  // MARK: - Haptic Feedback
+
+  #if canImport(UIKit)
+  /// The style of haptic feedback to be used when the button is pressed.
+  ///
+  /// The default value is `.light`.
+  public var hapticFeedbackStyle: UIImpactFeedbackGenerator.FeedbackStyle? = .light {
+    didSet {
+      if hapticFeedbackStyle != oldValue {
+        hapticFeedbackGenerator = makeHapticFeedbackGenerator(style: hapticFeedbackStyle)
+      }
+    }
+  }
+
+  private var hapticFeedbackGenerator: UIImpactFeedbackGenerator?
+
+  private func makeHapticFeedbackGenerator(style: UIImpactFeedbackGenerator.FeedbackStyle?) -> UIImpactFeedbackGenerator? {
+    guard let style else {
+      return nil
+    }
+
+    if #available(iOS 17.5, *) {
+      return UIImpactFeedbackGenerator(style: style, view: self)
+    } else {
+      return UIImpactFeedbackGenerator(style: style)
+    }
+  }
+  #endif
+
+  private func triggerHapticFeedback() {
+    #if canImport(UIKit)
+    // TODO: iOS 17.5+ has a new UIImpactFeedbackGenerator API: `func impactOccurred(intensity: CGFloat, at location: CGPoint)`
+    // test out the new API when have time
+    hapticFeedbackGenerator?.impactOccurred()
+    #endif
   }
 
   // MARK: - Constants
