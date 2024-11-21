@@ -34,6 +34,8 @@ extension CATransaction {
 
   /// Execute the block with Core Animation implicit animations disabled and return the result.
   ///
+  /// If you need to disable implicit animations for a specific layer, prefer to use `CALayer.disableActions(for:_:)` instead.
+  ///
   /// - Parameter work: The block to execute.
   /// - Returns: The result of the work block.
   @inlinable

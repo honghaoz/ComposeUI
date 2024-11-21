@@ -69,14 +69,26 @@ private struct RotationNode<Node: ComposeNode>: ComposeNode {
         id: id.join(with: item.id),
         frame: item.frame,
         make: { context in
-          let originalView = item.make(context)
-          let rotationView = RotationView(contentView: originalView.view!) // swiftlint:disable:this force_unwrapping
-          rotationView.frame = item.frame
-          return rotationView
+          let originalRenderable = item.make(context)
+          switch originalRenderable {
+          case .view(let view):
+            let rotationView = RotationView(contentView: view)
+            rotationView.frame = item.frame
+            return rotationView
+          case .layer(let layer):
+            let rotationView = RotationView(contentLayer: layer)
+            rotationView.frame = item.frame
+            return rotationView
+          }
         },
         update: { view, context in
           view.degrees = degrees
-          item.update(.view(view.contentView), context)
+          switch view.content {
+          case .view(let view):
+            item.update(.view(view), context)
+          case .layer(let layer):
+            item.update(.layer(layer), context)
+          }
         }
       )
       mappedChildItems.append(mappedItem.eraseToRenderableItem())
