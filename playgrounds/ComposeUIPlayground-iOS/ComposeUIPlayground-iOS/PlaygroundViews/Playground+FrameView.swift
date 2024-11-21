@@ -55,6 +55,16 @@ extension Playground {
         .frame(size)
         .padding(padding)
         .frame(.flexible, alignment: alignment)
+        .overlay(alignment: .bottomRight) {
+          LayerNode<CAShapeLayer>(update: { layer, context in
+            layer.path = CGPath(roundedRect: layer.bounds, cornerWidth: 4, cornerHeight: 4, transform: nil)
+            layer.lineWidth = 0.5
+            layer.strokeColor = Color.black.withAlphaComponent(0.5).cgColor
+            layer.fillColor = nil
+          })
+          .frame(width: 48, height: 16)
+          .padding(bottom: 8, right: 8)
+        }
     }
 
     #if canImport(AppKit)

@@ -96,7 +96,7 @@ public struct SpacerNode: ComposeNode {
     return []
   }
 
-  // MARK: -
+  // MARK: - Public
 
   /// Set the width of the spacer.
   /// - Parameter width: The width to set. Pass `nil` to make the spacer flexible in width.

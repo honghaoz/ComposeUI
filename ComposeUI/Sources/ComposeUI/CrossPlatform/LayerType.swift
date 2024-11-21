@@ -1,5 +1,5 @@
 //
-//  View+ComposeContent.swift
+//  LayerType.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -28,25 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
+import QuartzCore
 
-#if canImport(UIKit)
-import UIKit
-#endif
+/// A type that represents a view.
+public protocol LayerType: CALayer {}
 
-public extension ViewType where Self: View {
-
-  /// Wraps the view into a `ViewNode`.
-  func asComposeNode() -> ViewNode<Self> {
-    ViewNode(self)
-  }
-}
-
-extension View: ComposeContent {
-
-  public func asNodes() -> [any ComposeNode] {
-    [ViewNode(self)]
-  }
-}
+extension CALayer: LayerType {}

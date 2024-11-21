@@ -227,3 +227,20 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
     return view
   }
 }
+
+// MARK: - View + ComposeContent
+
+extension View: ComposeContent {
+
+  public func asNodes() -> [ComposeNode] {
+    [ViewNode(self)]
+  }
+}
+
+public extension ViewType {
+
+  /// Wraps the view into a `ViewNode`.
+  func asComposeNode() -> ViewNode<Self> {
+    ViewNode(self)
+  }
+}
