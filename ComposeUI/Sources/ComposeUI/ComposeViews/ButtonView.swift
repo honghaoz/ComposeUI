@@ -164,10 +164,8 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
       break
 
     case .began:
-      // TODO: support cancel on move
-
       #if canImport(UIKit)
-      guard !isOnDeceleratingScrollView else {
+      guard !isOnScrollingScrollView else {
         // ignore the button press if the button is on a scroll view that is decelerating
         pressGestureRecognizer.cancel()
         return
@@ -191,6 +189,14 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
       buttonState = .pressed
 
     case .changed:
+      #if canImport(UIKit)
+      guard !isOnScrollingScrollView else {
+        // cancel the button press if the button is on a scroll view that is scrolling
+        pressGestureRecognizer.cancel()
+        return
+      }
+      #endif
+
       let point = pressGestureRecognizer.location(in: self)
       if bounds.inset(by: EdgeInsets(inset: -Constants.touchExpandedDistance)).contains(point) {
         buttonState = .pressed
@@ -323,11 +329,13 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 #if canImport(UIKit)
 private extension UIView {
 
-  /// Whether the view is on a scroll view that is decelerating.
-  var isOnDeceleratingScrollView: Bool {
+  /// Whether the view is on a scroll view that is scrolling (dragging or decelerating)
+  var isOnScrollingScrollView: Bool {
     var parent = superview
     while let view = parent {
-      if let scrollView = view as? ScrollView, scrollView.isDecelerating {
+      if let scrollView = view as? ScrollView,
+         scrollView.isDragging || scrollView.isDecelerating
+      {
         return true
       }
       parent = view.superview
