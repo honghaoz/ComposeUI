@@ -59,14 +59,42 @@ open class ComposeView: BaseScrollView {
     Empty()
   }
 
-  /// The block to make content.
-  private var makeContent: (ComposeView) -> ComposeContent
+  // MARK: - Animation Behavior
 
-  /// The current content node that the view is rendering.
-  private var contentNode: ContentNode?
+  /// The type of the render pass.
+  public enum RenderType {
 
-  /// The context of the current content update.
-  private var contentUpdateContext: ContentUpdateContext?
+    /// The content is explicitly refreshed.
+    case refresh(isAnimated: Bool)
+
+    /// The content is scrolled, i.e. the size is the same but the origin is changed.
+    case scroll(previousBounds: CGRect)
+
+    /// The content bounds are changed, i.e. the size is changed.
+    case boundsChange(previousBounds: CGRect)
+  }
+
+  /// The animation behavior of the ComposeView's content update.
+  public enum AnimationBehavior {
+
+    /// The default animation behavior.
+    ///
+    /// With this behavior, the content update is animated if:
+    /// - the content is refreshed with `animated: true`
+    /// - the content is scrolled or resized
+    case `default`
+
+    /// The animation is disabled.
+    case disabled
+
+    /// The dynamic animation behavior.
+    ///
+    /// With this behavior, whether the content update is animated is determined by the `shouldAnimate` closure.
+    case dynamic(_ shouldAnimate: (_ contentView: ComposeView, _ renderType: RenderType) -> Bool)
+  }
+
+  /// The animation behavior of the content update.
+  public var animationBehavior: AnimationBehavior = .default
 
   /// The insets to apply to the visible bounds when determining which content to render.
   ///
@@ -75,6 +103,17 @@ open class ComposeView: BaseScrollView {
   ///
   /// The default value is zero for all edges, which means the visible bounds are not adjusted.
   public var visibleBoundsInsets = EdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+
+  // MARK: - Private
+
+  /// The block to make content.
+  private var makeContent: (ComposeView) -> ComposeContent
+
+  /// The current content node that the view is rendering.
+  private var contentNode: ContentNode?
+
+  /// The context of the current content update.
+  private var contentUpdateContext: ContentUpdateContext?
 
   /// The bounds used for last render pass.
   private lazy var lastRenderBounds: CGRect = .zero
@@ -375,7 +414,7 @@ open class ComposeView: BaseScrollView {
             oldRenderableItem.didRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
           }
 
-          if context.isAnimated, let transition = oldRenderableItem.transition?.remove {
+          if context.shouldAnimate(contentView: self, animationBehavior: animationBehavior), let transition = oldRenderableItem.transition?.remove {
             // if theres a remove transition, it can take time to complete, we need to track the old renderable until the
             // transition is completed because the renderable may be re-inserted into the renderable hierarchy later
             removingRenderableMap[oldId] = oldRenderable
@@ -434,8 +473,6 @@ open class ComposeView: BaseScrollView {
         case .boundsChange(let previousBounds):
           if previousBounds.size == bounds.size {
             updateType = .scroll
-          } else if previousBounds.origin == bounds.origin {
-            updateType = .sizeChange
           } else {
             updateType = .boundsChange
           }
@@ -445,7 +482,7 @@ open class ComposeView: BaseScrollView {
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
         let animationTiming: AnimationTiming?
-        if context.isAnimated, let renderableItemAnimationTiming = renderableItem.animationTiming {
+        if context.shouldAnimate(contentView: self, animationBehavior: animationBehavior), let renderableItemAnimationTiming = renderableItem.animationTiming {
           animationTiming = renderableItemAnimationTiming
         } else {
           animationTiming = nil
@@ -515,7 +552,7 @@ open class ComposeView: BaseScrollView {
         renderableItem.update(renderable, renderableUpdateContext)
 
         let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame, contentView: self)
-        if context.isAnimated, let transition = renderableItem.transition?.insert {
+        if context.shouldAnimate(contentView: self, animationBehavior: animationBehavior), let transition = renderableItem.transition?.insert {
           // has insert transition, animate the renderable insertion
           transition.animate(
             renderable: renderable,

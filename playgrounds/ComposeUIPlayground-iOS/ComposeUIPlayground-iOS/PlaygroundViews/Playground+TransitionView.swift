@@ -57,6 +57,12 @@ extension Playground {
       }
     }
 
+    override init(frame: CGRect) {
+      super.init(frame: frame)
+
+      // animationBehavior = .disabled
+    }
+
     override func animate() {
       isShowing.toggle()
       if !isShowing {

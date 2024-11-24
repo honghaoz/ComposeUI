@@ -39,7 +39,7 @@ extension ComposeView {
       /// Explicit refresh request, with a flag to indicate if the refresh is animated.
       case refresh(isAnimated: Bool)
 
-      /// View bounds changed.
+      /// The view bounds changed.
       case boundsChange(previousBounds: CGRect)
     }
 
@@ -47,17 +47,35 @@ extension ComposeView {
 
     var isRendering: Bool = false
 
-    var isAnimated: Bool {
-      switch updateType {
-      case .refresh(let isAnimated):
-        return isAnimated
-      case .boundsChange:
-        return true // TODO: should support configurable animation for bounds change
-      }
-    }
-
     init(updateType: ContentUpdateType) {
       self.updateType = updateType
+    }
+
+    func shouldAnimate(contentView: ComposeView, animationBehavior: AnimationBehavior) -> Bool {
+      switch animationBehavior {
+      case .default:
+        switch updateType {
+        case .refresh(let isAnimated):
+          return isAnimated
+        case .boundsChange:
+          return true
+        }
+      case .disabled:
+        return false
+      case .dynamic(let shouldAnimate):
+        let renderType: ComposeView.RenderType
+        switch updateType {
+        case .refresh(let isAnimated):
+          renderType = .refresh(isAnimated: isAnimated)
+        case .boundsChange(let previousBounds):
+          if previousBounds.size == contentView.bounds.size {
+            renderType = .scroll(previousBounds: previousBounds)
+          } else {
+            renderType = .boundsChange(previousBounds: previousBounds)
+          }
+        }
+        return shouldAnimate(contentView, renderType)
+      }
     }
   }
 }

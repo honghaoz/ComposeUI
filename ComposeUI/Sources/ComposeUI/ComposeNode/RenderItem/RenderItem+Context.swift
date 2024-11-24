@@ -65,21 +65,14 @@ public enum RenderableUpdateType {
   /// The renderable is inserted into a renderable hierarchy.
   case insert
 
-  /// The renderable is reused because of a refresh.
+  /// The renderable is reused because the content view is refreshed explicitly.
   case refresh
 
-  /// The renderable is reused because of a scroll (origin changed).
+  /// The renderable is reused because the content view is scrolled, i.e. the size is the same but the origin is changed.
   case scroll
 
-  /// The renderable is reused because of a size change.
-  case sizeChange
-
-  /// The renderable is reused because of a bounds change (both size and origin are changed).
+  /// The renderable is reused because the content view's bounds are changed, i.e. the size is changed.
   case boundsChange
-
-  // TODO: support more efficient update for scroll/bounds change
-  // idea: could add a flag to indicate if the view requires full refresh on scroll/bounds change, for most of the case
-  // this is not needed.
 }
 
 public struct RenderableUpdateContext {
