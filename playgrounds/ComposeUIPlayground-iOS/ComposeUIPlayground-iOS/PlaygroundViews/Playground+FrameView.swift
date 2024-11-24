@@ -51,7 +51,7 @@ extension Playground {
     override var content: ComposeContent {
       ColorNode(color)
         .transition(.opacity(timing: .linear(duration: 1)))
-        .animation(.spring(dampingRatio: 0.8, response: 0.3))
+        .animation(.spring(dampingRatio: 0.8, response: 0.5))
         .frame(size)
         .padding(padding)
         .frame(.flexible, alignment: alignment)

@@ -34,8 +34,22 @@ extension CGRect {
 
   /// Translate the rectangle by a given point.
   ///
+  /// - Parameters:
+  ///   - dx: The horizontal translation.
+  ///   - dy: The vertical translation.
+  /// - Returns: A new rectangle translated by the given point.
+  @inlinable
+  @inline(__always)
+  func translate(dx: CGFloat = 0, dy: CGFloat = 0) -> CGRect {
+    CGRect(origin: CGPoint(x: origin.x + dx, y: origin.y + dy), size: size)
+  }
+
+  /// Translate the rectangle by a given point.
+  ///
   /// - Parameter point: The point to translate the rectangle by.
   /// - Returns: A new rectangle translated by the given point.
+  @inlinable
+  @inline(__always)
   func translate(_ point: CGPoint) -> CGRect {
     CGRect(origin: CGPoint(x: origin.x + point.x, y: origin.y + point.y), size: size)
   }

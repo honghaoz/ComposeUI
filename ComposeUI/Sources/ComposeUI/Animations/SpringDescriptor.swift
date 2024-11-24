@@ -84,9 +84,21 @@ public struct SpringDescriptor: Hashable {
     self.damping = 4 * .pi * dampingRatio / response
   }
 
-  /// Get a settling duration.
-  func settlingDuration() -> TimeInterval {
+  /// Get the settling duration.
+  public func settlingDuration() -> TimeInterval {
     makeTempAnimation().settlingDuration
+  }
+
+  /// Get the perceptual duration.
+  public func perceptualDuration() -> TimeInterval {
+    makeTempAnimation().perceptualDuration()
+  }
+
+  /// Get duration with epsilon, using `CASpringAnimation`.
+  /// - Parameter epsilon: The epsilon.
+  /// - Returns: The settling duration.
+  public func duration(epsilon: Double) -> TimeInterval? {
+    makeTempAnimation().duration(epsilon: epsilon)
   }
 
   private func makeTempAnimation() -> CASpringAnimation {
