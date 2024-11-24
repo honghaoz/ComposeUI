@@ -17,6 +17,8 @@
 		E5D636DB2D7D016D0080A152 /* Playground+FrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */; };
 		E5D636DC2D7D016D0080A152 /* Playground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D82D7D016D0080A152 /* Playground.swift */; };
 		E5EA9B302D06CD2900570DF1 /* ComposeUI in Frameworks */ = {isa = PBXBuildFile; productRef = E5EA9B2F2D06CD2900570DF1 /* ComposeUI */; };
+		E5ED82002D8785AD00B3FE3A /* Playground+TransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */; };
+		E5ED82022D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ED82012D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +33,8 @@
 		E5D636D62D7D01560080A152 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Colors.swift; path = "../ComposeUIPlayground-iOS/ComposeUIPlayground-iOS/Colors.swift"; sourceTree = SOURCE_ROOT; };
 		E5D636D82D7D016D0080A152 /* Playground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Playground.swift; sourceTree = "<group>"; };
 		E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+FrameView.swift"; sourceTree = "<group>"; };
+		E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionView.swift"; sourceTree = "<group>"; };
+		E5ED82012D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+AnimatingComposeView.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,7 +93,9 @@
 			isa = PBXGroup;
 			children = (
 				E5D636D82D7D016D0080A152 /* Playground.swift */,
+				E5ED82012D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift */,
 				E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */,
+				E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */,
 			);
 			name = PlaygroundViews;
 			path = "../ComposeUIPlayground-iOS/ComposeUIPlayground-iOS/PlaygroundViews";
@@ -172,9 +178,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				E5D034792D7E1B9C004AB25D /* RotationNode.swift in Sources */,
+				E5ED82002D8785AD00B3FE3A /* Playground+TransitionView.swift in Sources */,
 				E5D0347B2D7E2CFE004AB25D /* RotationView.swift in Sources */,
 				E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */,
 				E5D636D72D7D01560080A152 /* Colors.swift in Sources */,
+				E5ED82022D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift in Sources */,
 				E59D808F2CA8DFD3006A6467 /* AppDelegate.swift in Sources */,
 				E5D636DB2D7D016D0080A152 /* Playground+FrameView.swift in Sources */,
 				E5D636DC2D7D016D0080A152 /* Playground.swift in Sources */,

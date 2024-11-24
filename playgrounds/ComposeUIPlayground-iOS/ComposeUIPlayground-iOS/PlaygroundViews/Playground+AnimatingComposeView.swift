@@ -1,8 +1,8 @@
 //
-//  Animations.swift
+//  Playground+AnimatingComposeView.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 11/23/21.
+//  Created by Honghao Zhang on 11/23/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,16 +28,53 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
+#if canImport(AppKit)
+import AppKit
+#endif
 
-public enum Animations {
+#if canImport(UIKit)
+import UIKit
+#endif
 
-  /// Default animation duration.
-  public static let defaultAnimationDuration: TimeInterval = 0.3
+import ComposeUI
 
-  /// Default spring animation damping ratio.
-  public static let defaultSpringDampingRatio: CGFloat = 0.9
+extension Playground {
 
-  /// Default spring animation response.
-  public static let defaultSpringResponse: CGFloat = 0.5
+  class AnimatingComposeView: ComposeView {
+
+    #if canImport(AppKit)
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+
+      if window != nil {
+        startAnimation()
+      }
+    }
+    #endif
+
+    #if canImport(UIKit)
+    override func didMoveToWindow() {
+      super.didMoveToWindow()
+
+      if window != nil {
+        startAnimation()
+      }
+    }
+    #endif
+
+    private var isAnimating = false
+    private func startAnimation() {
+      guard !isAnimating else {
+        return
+      }
+
+      isAnimating = true
+
+      Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        self?.animate()
+      }
+    }
+
+    func animate() {}
+  }
 }

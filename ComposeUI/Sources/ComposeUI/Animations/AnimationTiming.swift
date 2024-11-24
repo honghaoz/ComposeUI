@@ -37,11 +37,11 @@ public struct AnimationTiming {
   /// Create a linear animation timing.
   ///
   /// - Parameters:
-  ///   - duration: The duration of the animation.
+  ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
   ///   - delay: The delay of the animation. Defaults to `0`.
   ///   - speed: The speed of the animation. Defaults to `1`.
   /// - Returns: The animation timing.
-  public static func linear(duration: TimeInterval,
+  public static func linear(duration: TimeInterval = Animations.defaultAnimationDuration,
                             delay: TimeInterval = 0,
                             speed: CGFloat = 1) -> AnimationTiming
   {
@@ -51,11 +51,11 @@ public struct AnimationTiming {
   /// Create an ease in animation timing.
   ///
   /// - Parameters:
-  ///   - duration: The duration of the animation.
+  ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
   ///   - delay: The delay of the animation. Defaults to `0`.
   ///   - speed: The speed of the animation. Defaults to `1`.
   /// - Returns: The animation timing.
-  public static func easeIn(duration: TimeInterval,
+  public static func easeIn(duration: TimeInterval = Animations.defaultAnimationDuration,
                             delay: TimeInterval = 0,
                             speed: CGFloat = 1) -> AnimationTiming
   {
@@ -65,11 +65,11 @@ public struct AnimationTiming {
   /// Create an ease out animation timing.
   ///
   /// - Parameters:
-  ///   - duration: The duration of the animation.
+  ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
   ///   - delay: The delay of the animation. Defaults to `0`.
   ///   - speed: The speed of the animation. Defaults to `1`.
   /// - Returns: The animation timing.
-  public static func easeOut(duration: TimeInterval,
+  public static func easeOut(duration: TimeInterval = Animations.defaultAnimationDuration,
                              delay: TimeInterval = 0,
                              speed: CGFloat = 1) -> AnimationTiming
   {
@@ -79,11 +79,11 @@ public struct AnimationTiming {
   /// Create an ease in ease out animation timing.
   ///
   /// - Parameters:
-  ///   - duration: The duration of the animation.
+  ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
   ///   - delay: The delay of the animation. Defaults to `0`.
   ///   - speed: The speed of the animation. Defaults to `1`.
   /// - Returns: The animation timing.
-  public static func easeInEaseOut(duration: TimeInterval,
+  public static func easeInEaseOut(duration: TimeInterval = Animations.defaultAnimationDuration,
                                    delay: TimeInterval = 0,
                                    speed: CGFloat = 1) -> AnimationTiming
   {
@@ -93,15 +93,15 @@ public struct AnimationTiming {
   /// Create a spring animation timing.
   ///
   /// - Parameters:
-  ///   - dampingRatio: The damping ratio of the spring.
-  ///   - response: The response of the spring.
-  ///   - initialVelocity: The initial velocity of the spring.
+  ///   - dampingRatio: The damping ratio of the spring. Defaults to `Animations.defaultSpringDampingRatio`.
+  ///   - response: The response of the spring. Defaults to `Animations.defaultSpringResponse`.
+  ///   - initialVelocity: The initial velocity of the spring. Defaults to `0`.
   ///   - duration: The duration of the animation. Defaults to `nil` which means the duration is determined by the spring descriptor.
   ///   - delay: The delay of the animation. Defaults to `0`.
   ///   - speed: The speed of the animation. Defaults to `1`.
   /// - Returns: The animation timing.
-  public static func spring(dampingRatio: CGFloat,
-                            response: CGFloat,
+  public static func spring(dampingRatio: CGFloat = Animations.defaultSpringDampingRatio,
+                            response: CGFloat = Animations.defaultSpringResponse,
                             initialVelocity: CGFloat = 0,
                             duration: TimeInterval? = nil,
                             delay: TimeInterval = 0,

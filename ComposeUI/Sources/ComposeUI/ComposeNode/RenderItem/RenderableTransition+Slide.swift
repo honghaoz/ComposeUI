@@ -52,7 +52,7 @@ public extension RenderableTransition {
   static func slide(from fromSide: SlideSide,
                     to toSide: SlideSide? = nil,
                     overshoot: CGFloat = 8,
-                    timing: AnimationTiming = .spring(dampingRatio: 0.9, response: 0.5),
+                    timing: AnimationTiming = .spring(),
                     options: RenderableTransition.Options = .both) -> Self
   {
     RenderableTransition(

@@ -46,7 +46,7 @@ class ViewController: NSViewController {
     VStack {
       HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
 
-      Spacer().height(20)
+      Spacer(height: 16)
 
       state.textField
         .asComposeNode()
@@ -54,19 +54,34 @@ class ViewController: NSViewController {
         .frame(width: 200, height: 22)
         .transition(.opacity(timing: .linear(duration: 2)))
 
-      Spacer().height(20)
+      Spacer(height: 16)
 
       HStack(spacing: 4) { rainbowColorNodes }
         .rotate(by: 30)
         .frame(width: .flexible, height: 20)
         .cornerRadius(4)
 
-      Spacer().height(20)
+      Spacer(height: 16)
+
+      ViewNode<Playground.TransitionView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 120)
+
+      Spacer(height: 16)
 
       ViewNode<Playground.FrameView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
         .frame(width: .flexible, height: state.view.bounds.width)
 
-      Spacer().height(20)
+      Spacer(height: 16)
 
       ButtonNode { state in
         switch state {

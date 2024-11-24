@@ -79,8 +79,21 @@ class ViewController: UIViewController {
 
     VStack(spacing: 8) {
 
+      ViewNode<Playground.TransitionView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: Constants.padding)
+        .frame(width: .flexible, height: 120)
+
       ViewNode<Playground.FrameView>()
-        .frame(width: .flexible, height: state.view.bounds.width - Constants.padding * 2)
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: Constants.padding)
+        .frame(width: .flexible, height: state.view.bounds.width)
 
       ButtonNode { state in
         switch state {

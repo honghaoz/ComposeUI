@@ -1,8 +1,8 @@
 //
-//  Animations.swift
+//  Playground+TransitionView.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 11/23/21.
+//  Created by Honghao Zhang on 11/23/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,16 +28,51 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
+#if canImport(AppKit)
+import AppKit
+#endif
 
-public enum Animations {
+#if canImport(UIKit)
+import UIKit
+#endif
 
-  /// Default animation duration.
-  public static let defaultAnimationDuration: TimeInterval = 0.3
+import ComposeUI
 
-  /// Default spring animation damping ratio.
-  public static let defaultSpringDampingRatio: CGFloat = 0.9
+extension Playground {
 
-  /// Default spring animation response.
-  public static let defaultSpringResponse: CGFloat = 0.5
+  final class TransitionView: AnimatingComposeView {
+
+    private var isShowing = true
+    private var side: RenderableTransition.SlideSide = .left
+
+    @ComposeContentBuilder
+    override var content: ComposeContent {
+      if isShowing {
+        ColorNode(Colors.blueGray)
+          .transition(.slide(from: side))
+          .frame(width: 100, height: 40)
+          .frame(.flexible, alignment: .center)
+      } else {
+        Empty()
+      }
+    }
+
+    override func animate() {
+      isShowing.toggle()
+      if !isShowing {
+        switch side {
+        case .left:
+          side = .bottom
+        case .bottom:
+          side = .right
+        case .right:
+          side = .top
+        case .top:
+          side = .left
+        }
+      }
+
+      refresh()
+    }
+  }
 }
