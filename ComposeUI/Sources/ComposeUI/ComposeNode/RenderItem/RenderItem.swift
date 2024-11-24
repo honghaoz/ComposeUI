@@ -50,7 +50,7 @@ public typealias RenderableItem = RenderItem<Renderable>
 /// An item that can provide a renderable with its frame and lifecycle callbacks.
 public struct RenderItem<T> {
 
-  /// The unique id of the renderable.
+  /// The unique id of the item.
   public var id: ComposeNodeId
 
   /// The frame of the renderable.

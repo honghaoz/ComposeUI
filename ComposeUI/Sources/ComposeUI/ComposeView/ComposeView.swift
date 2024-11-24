@@ -425,8 +425,6 @@ open class ComposeView: BaseScrollView {
         // [2/3] ♻️ reuse the renderable item that is still in the content
         renderable = oldRenderableMap[id]! // swiftlint:disable:this force_unwrapping
 
-        // TODO: handle mismatched view/layer item
-
         renderable.layer.reset()
 
         let updateType: RenderableUpdateType

@@ -67,6 +67,9 @@ public protocol ComposeNode: ComposeContent {
 
   /// Get the renderable items that are visible in the given bounds.
   ///
+  /// For the same render item id, you must make sure the underlying renderable has the same view or layer type.
+  /// Otherwise, it may cause unexpected behavior.
+  ///
   /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
   /// - Returns: The renderable items that are visible in the given bounds.
   func renderableItems(in visibleBounds: CGRect) -> [RenderableItem]
