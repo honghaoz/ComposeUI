@@ -37,6 +37,9 @@ public struct RenderableMakeContext {
 
   /// The initial frame of the new renderable if has one.
   public let initialFrame: CGRect?
+
+  /// The content view that contains the renderable.
+  public private(set) weak var contentView: ComposeView?
 }
 
 // MARK: - Insert
@@ -49,6 +52,9 @@ public struct RenderableInsertContext {
 
   /// The new frame that the renderable should be set to after the insertion.
   public let newFrame: CGRect
+
+  /// The content view that contains the renderable.
+  public private(set) weak var contentView: ComposeView!
 }
 
 // MARK: - Update
@@ -87,18 +93,11 @@ public struct RenderableUpdateContext {
   /// The new frame that the renderable should be set to after the update.
   public let newFrame: CGRect
 
-  /// The context for animating a renderable.
-  public struct AnimationContext {
-
-    /// The timing of the animation.
-    public let timing: AnimationTiming
-
-    /// The content view that contains the renderable.
-    public private(set) weak var contentView: ComposeView!
-  }
-
   /// The animation context if the update is animated.
-  public let animationContext: AnimationContext?
+  public let animationTiming: AnimationTiming?
+
+  /// The content view that contains the renderable.
+  public private(set) weak var contentView: ComposeView!
 }
 
 // MARK: - Remove
@@ -108,4 +107,7 @@ public struct RenderableRemoveContext {
 
   /// The frame of the renderable before it is removed.
   public let oldFrame: CGRect
+
+  /// The content view that contains the renderable.
+  public private(set) weak var contentView: ComposeView!
 }

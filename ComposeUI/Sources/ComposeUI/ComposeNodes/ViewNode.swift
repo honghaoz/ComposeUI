@@ -222,7 +222,7 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
       return cachedView
     }
 
-    let view = make(RenderableMakeContext(initialFrame: nil))
+    let view = make(RenderableMakeContext(initialFrame: nil, contentView: nil))
     cachedView = view
     return view
   }

@@ -185,7 +185,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, FixedSizableComposeNode {
       return cachedLayer
     }
 
-    let layer = make(RenderableMakeContext(initialFrame: nil))
+    let layer = make(RenderableMakeContext(initialFrame: nil, contentView: nil))
     cachedLayer = layer
     return layer
   }

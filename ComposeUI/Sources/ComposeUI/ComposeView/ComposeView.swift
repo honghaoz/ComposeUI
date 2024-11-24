@@ -368,11 +368,11 @@ open class ComposeView: BaseScrollView {
         // [1/3] 🗑️ remove the renderable item that are no longer in the content
         if let oldRenderableItem = oldRenderableItemMap[oldId], let oldRenderable = oldRenderableMap[oldId] {
           let oldFrame = oldRenderable.frame
-          oldRenderableItem.willRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame))
+          oldRenderableItem.willRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
 
           let removeBlock = {
             oldRenderable.removeFromParent()
-            oldRenderableItem.didRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame))
+            oldRenderableItem.didRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
           }
 
           if context.isAnimated, let transition = oldRenderableItem.transition?.remove {
@@ -447,20 +447,18 @@ open class ComposeView: BaseScrollView {
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
         let animationTiming: AnimationTiming?
-        let animationContext: RenderableUpdateContext.AnimationContext?
         if context.isAnimated, let renderableItemAnimationTiming = renderableItem.animationTiming {
           animationTiming = renderableItemAnimationTiming
-          animationContext = RenderableUpdateContext.AnimationContext(timing: renderableItemAnimationTiming, contentView: self)
         } else {
           animationTiming = nil
-          animationContext = nil
         }
 
         let renderableUpdateContext = RenderableUpdateContext(
           type: updateType,
           oldFrame: oldFrame,
           newFrame: newFrame,
-          animationContext: animationContext
+          animationTiming: animationTiming,
+          contentView: self
         )
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
@@ -490,21 +488,22 @@ open class ComposeView: BaseScrollView {
           // TODO: add tests for re-inserting removing renderable
         } else {
           renderable = CATransaction.disableAnimations { // no animation context for making new renderables
-            renderableItem.make(RenderableMakeContext(initialFrame: newFrame))
+            renderableItem.make(RenderableMakeContext(initialFrame: newFrame, contentView: self))
           }
         }
 
         renderable.layer.reset()
 
         let frameBeforeWillInsert = renderable.frame
-        renderableItem.willInsert?(renderable, RenderableInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame))
+        renderableItem.willInsert?(renderable, RenderableInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame, contentView: self))
         let frameAfterWillInsert = renderable.frame
 
         let renderableUpdateContext = RenderableUpdateContext(
           type: .insert,
           oldFrame: frameAfterWillInsert,
           newFrame: newFrame,
-          animationContext: nil // no animation context for insertion
+          animationTiming: nil, // no animation for insertion
+          contentView: self
         )
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
@@ -517,7 +516,7 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.update(renderable, renderableUpdateContext)
 
-        let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame)
+        let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame, contentView: self)
         if context.isAnimated, let transition = renderableItem.transition?.insert {
           // has insert transition, animate the renderable insertion
           transition.animate(

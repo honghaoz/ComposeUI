@@ -78,7 +78,7 @@ public struct ColorNode: ComposeNode {
         return layer
       },
       update: { layer, context in
-        if let animationTiming = context.animationContext?.timing {
+        if let animationTiming = context.animationTiming {
           layer.animate(
             keyPath: "backgroundColor",
             timing: animationTiming,
