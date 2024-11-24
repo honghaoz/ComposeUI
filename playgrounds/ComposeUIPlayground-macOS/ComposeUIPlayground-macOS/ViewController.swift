@@ -36,13 +36,12 @@ class ViewController: NSViewController {
 
   private class ViewState {
 
-    weak var view: ComposeView!
     private(set) lazy var textField = NSTextField()
   }
 
   private let state = ViewState()
 
-  private lazy var contentView = ComposeView { [state] in
+  private lazy var contentView = ComposeView { [state] contentView in
     VStack {
       HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
 
@@ -79,7 +78,7 @@ class ViewController: NSViewController {
             .border(color: Color.gray, width: 1)
         }
         .padding(horizontal: 16)
-        .frame(width: .flexible, height: state.view.bounds.width)
+        .frame(width: .flexible, height: contentView.bounds.width)
 
       Spacer(height: 16)
 
@@ -127,7 +126,6 @@ class ViewController: NSViewController {
     super.viewDidLoad()
 
     self.view.wantsLayer = true
-    state.view = contentView
 
     let textField = state.textField
     textField.wantsLayer = true

@@ -70,9 +70,10 @@ extension Playground {
 
       isAnimating = true
 
-      Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
         self?.animate()
       }
+      RunLoop.main.add(timer, forMode: .common)
     }
 
     func animate() {}
