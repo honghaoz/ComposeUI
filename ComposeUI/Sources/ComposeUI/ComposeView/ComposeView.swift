@@ -385,12 +385,13 @@ open class ComposeView: BaseScrollView {
     let oldRenderableItemMap = renderableItemMap
     let oldRenderableMap = renderableMap
 
+    let renderableItemsCount = renderableItems.count
     renderableItemIds = []
-    renderableItemIds.reserveCapacity(oldRenderableItemIds.count + renderableItems.count) // TODO: check if this is correct
+    renderableItemIds.reserveCapacity(renderableItemsCount)
     renderableItemMap = [:]
-    renderableItemMap.reserveCapacity(oldRenderableItemMap.count + renderableItems.count)
+    renderableItemMap.reserveCapacity(renderableItemsCount)
     renderableMap = [:]
-    renderableMap.reserveCapacity(oldRenderableMap.count + renderableItems.count)
+    renderableMap.reserveCapacity(renderableItemsCount)
 
     for item in renderableItems {
       let id = item.id.id
