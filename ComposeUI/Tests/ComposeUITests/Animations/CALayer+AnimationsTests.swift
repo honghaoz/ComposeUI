@@ -29,7 +29,9 @@
 //
 
 import QuartzCore
-import XCTest
+
+import ChouTiTest
+
 @testable import ComposeUI
 
 final class CALayer_AnimationsTests: XCTestCase {
@@ -44,11 +46,11 @@ final class CALayer_AnimationsTests: XCTestCase {
       layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
       layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
       view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      XCTAssertEqual(layer.position, CGPoint(x: 150, y: 225))
+      expect(layer.position) == CGPoint(x: 150, y: 225)
 
       layer.setKeyPathValue("position", CGPoint(x: 180, y: 250)) // x: 30, y: 25
-      XCTAssertEqual(layer.frame, CGRect(x: 130, y: 225, width: 100, height: 50))
-      XCTAssertEqual(view.frame, CGRect(x: 130, y: 225, width: 100, height: 50))
+      expect(layer.frame) == CGRect(x: 130, y: 225, width: 100, height: 50)
+      expect(view.frame) == CGRect(x: 130, y: 225, width: 100, height: 50)
     }
 
     // layer-hosted view
@@ -61,11 +63,11 @@ final class CALayer_AnimationsTests: XCTestCase {
       layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
       layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
       view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      XCTAssertEqual(layer.position, CGPoint(x: 150, y: 225))
+      expect(layer.position) == CGPoint(x: 150, y: 225)
 
       layer.setKeyPathValue("position", CGPoint(x: 180, y: 250)) // x: 30, y: 25
-      XCTAssertEqual(layer.frame, CGRect(x: 130, y: 225, width: 100, height: 50))
-      XCTAssertEqual(view.frame, CGRect(x: 130, y: 225, width: 100, height: 50))
+      expect(layer.frame) == CGRect(x: 130, y: 225, width: 100, height: 50)
+      expect(view.frame) == CGRect(x: 130, y: 225, width: 100, height: 50)
     }
     #endif
 
@@ -73,7 +75,7 @@ final class CALayer_AnimationsTests: XCTestCase {
     let view = UIView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
     let layer = view.layer
     layer.setKeyPathValue("position", CGPoint(x: 10, y: 20))
-    XCTAssertEqual(layer.position, CGPoint(x: 10, y: 20))
+    expect(layer.position) == CGPoint(x: 10, y: 20)
     #endif
   }
 
@@ -82,7 +84,7 @@ final class CALayer_AnimationsTests: XCTestCase {
 
     // given no animations exist
     // then should return original key
-    XCTAssertEqual(layer.uniqueAnimationKey(key: "opacity"), "opacity")
+    expect(layer.uniqueAnimationKey(key: "opacity")) == "opacity"
   }
 
   func test_uniqueAnimationKey_withExistingAnimations() {
@@ -94,7 +96,7 @@ final class CALayer_AnimationsTests: XCTestCase {
     layer.add(animation, forKey: "position-1")
 
     // then should generate next available key
-    XCTAssertEqual(layer.uniqueAnimationKey(key: "position"), "position-2")
+    expect(layer.uniqueAnimationKey(key: "position")) == "position-2"
   }
 
   func test_uniqueAnimationKey_withNonSequentialKeys() {
@@ -106,6 +108,6 @@ final class CALayer_AnimationsTests: XCTestCase {
     layer.add(animation, forKey: "position-2")
 
     // then should still use next sequential number
-    XCTAssertEqual(layer.uniqueAnimationKey(key: "position"), "position-1")
+    expect(layer.uniqueAnimationKey(key: "position")) == "position-1"
   }
 }

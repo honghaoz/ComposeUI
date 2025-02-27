@@ -28,7 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
-import XCTest
+import ChouTiTest
+
 @testable import ComposeUI
 
 class ComposeViewTests: XCTestCase {
@@ -49,14 +50,14 @@ class ComposeViewTests: XCTestCase {
         }
     }
     contentView.refresh(animated: false)
-    XCTAssertEqual(refreshCount, 1)
+    expect(refreshCount) == 1
 
     contentView.setNeedsRefresh(animated: false)
     contentView.setNeedsRefresh(animated: false)
-    XCTAssertEqual(refreshCount, 1)
+    expect(refreshCount) == 1
 
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-9))
-    XCTAssertEqual(refreshCount, 2)
+    expect(refreshCount) == 2
   }
 
   func test_centerContent() {
@@ -70,8 +71,8 @@ class ComposeViewTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 100))
-      XCTAssertEqual(view.frame, CGRect(x: 25, y: 10, width: 50, height: 80))
+      expect(contentView.contentSize) == CGSize(width: 100, height: 100)
+      expect(view.frame) == CGRect(x: 25, y: 10, width: 50, height: 80)
     }
 
     // when content width is smaller than the bounds width
@@ -84,8 +85,8 @@ class ComposeViewTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 120))
-      XCTAssertEqual(view.frame, CGRect(x: 25, y: 0, width: 50, height: 120))
+      expect(contentView.contentSize) == CGSize(width: 100, height: 120)
+      expect(view.frame) == CGRect(x: 25, y: 0, width: 50, height: 120)
     }
 
     // when content height is smaller than the bounds height
@@ -98,8 +99,8 @@ class ComposeViewTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      XCTAssertEqual(contentView.contentSize, CGSize(width: 120, height: 100))
-      XCTAssertEqual(view.frame, CGRect(x: 0, y: 10, width: 120, height: 80))
+      expect(contentView.contentSize) == CGSize(width: 120, height: 100)
+      expect(view.frame) == CGRect(x: 0, y: 10, width: 120, height: 80)
     }
   }
 
@@ -112,17 +113,17 @@ class ComposeViewTests: XCTestCase {
           .frame(width: 50, height: 50)
       }
       contentView.refresh(animated: false)
-      XCTAssertFalse(contentView.isScrollable)
+      expect(contentView.isScrollable) == false
 
       // when isScrollable is set explicitly
       contentView.isScrollable = true
       contentView.refresh(animated: false)
-      XCTAssertTrue(contentView.isScrollable)
+      expect(contentView.isScrollable) == true
 
       // when isScrollable is set explicitly
       contentView.isScrollable = false
       contentView.refresh(animated: false)
-      XCTAssertFalse(contentView.isScrollable)
+      expect(contentView.isScrollable) == false
     }
 
     // when content size is equal to bounds size
@@ -133,17 +134,17 @@ class ComposeViewTests: XCTestCase {
           .frame(width: 100, height: 100)
       }
       contentView.refresh(animated: false)
-      XCTAssertFalse(contentView.isScrollable)
+      expect(contentView.isScrollable) == false
 
       // when isScrollable is set explicitly
       contentView.isScrollable = true
       contentView.refresh(animated: false)
-      XCTAssertTrue(contentView.isScrollable)
+      expect(contentView.isScrollable) == true
 
       // when isScrollable is set explicitly
       contentView.isScrollable = false
       contentView.refresh(animated: false)
-      XCTAssertFalse(contentView.isScrollable)
+      expect(contentView.isScrollable) == false
     }
 
     // when content size is larger than bounds size
@@ -154,17 +155,17 @@ class ComposeViewTests: XCTestCase {
           .frame(width: 150, height: 150)
       }
       contentView.refresh(animated: false)
-      XCTAssertTrue(contentView.isScrollable)
+      expect(contentView.isScrollable) == true
 
       // when isScrollable is set explicitly
       contentView.isScrollable = false
       contentView.refresh(animated: false)
-      XCTAssertFalse(contentView.isScrollable)
+      expect(contentView.isScrollable) == false
 
       // when isScrollable is set explicitly
       contentView.isScrollable = true
       contentView.refresh(animated: false)
-      XCTAssertTrue(contentView.isScrollable)
+      expect(contentView.isScrollable) == true
     }
   }
 
@@ -201,11 +202,11 @@ class ComposeViewTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
-    XCTAssertEqual(willInsertCount, 1)
-    XCTAssertEqual(didInsertCount, 1)
-    XCTAssertEqual(updateCount, 1)
-    XCTAssertEqual(willRemoveCount, 0)
-    XCTAssertEqual(didRemoveCount, 0)
+    expect(willInsertCount) == 1
+    expect(didInsertCount) == 1
+    expect(updateCount) == 1
+    expect(willRemoveCount) == 0
+    expect(didRemoveCount) == 0
 
     // remove view
     contentView.setContent {
@@ -214,12 +215,12 @@ class ComposeViewTests: XCTestCase {
 
     contentView.refresh(animated: false)
 
-    XCTAssertEqual(willInsertCount, 1)
-    XCTAssertEqual(didInsertCount, 1)
-    XCTAssertEqual(willUpdateCount, 1)
-    XCTAssertEqual(updateCount, 1)
-    XCTAssertEqual(willRemoveCount, 1)
-    XCTAssertEqual(didRemoveCount, 1)
+    expect(willInsertCount) == 1
+    expect(didInsertCount) == 1
+    expect(willUpdateCount) == 1
+    expect(updateCount) == 1
+    expect(willRemoveCount) == 1
+    expect(didRemoveCount) == 1
   }
 
   func test_visibleBoundsInsets() {
@@ -257,8 +258,8 @@ class ComposeViewTests: XCTestCase {
 
     contentView.refresh(animated: false)
 
-    XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 100))
-    XCTAssertTrue(isTopRendered, "top view should be rendered")
-    XCTAssertTrue(isBottomRendered, "bottom view should be rendered")
+    expect(contentView.contentSize) == CGSize(width: 100, height: 100)
+    expect(isTopRendered) == true
+    expect(isBottomRendered) == true
   }
 }

@@ -28,38 +28,39 @@
 //  IN THE SOFTWARE.
 //
 
-import XCTest
+import ChouTiTest
+
 @testable import ComposeUI
 
 class ComposeNodeIdTests: XCTestCase {
 
   func test_custom() {
     let id = ComposeNodeId.custom("test", isFixed: false)
-    XCTAssertEqual(id.id, "test")
+    expect(id.id) == "test"
 
     let parentId = ComposeNodeId.custom("parent", isFixed: false)
     do {
-      let childId = parentId.makeViewItemId(childViewItemId: id)
-      XCTAssertEqual(childId.id, "parent|test")
+      let childId = parentId.join(with: id)
+      expect(childId.id) == "parent|test"
     }
     do {
-      let childId = parentId.makeViewItemId(suffix: "suffix", childViewItemId: id)
-      XCTAssertEqual(childId.id, "parent|suffix|test")
+      let childId = parentId.join(with: id, suffix: "suffix")
+      expect(childId.id) == "parent|suffix|test"
     }
   }
 
   func test_custom_fixed() {
     let id = ComposeNodeId.custom("test", isFixed: true)
-    XCTAssertEqual(id.id, "test")
+    expect(id.id) == "test"
 
     let parentId = ComposeNodeId.custom("parent", isFixed: false)
     do {
-      let childId = parentId.makeViewItemId(childViewItemId: id)
-      XCTAssertEqual(childId.id, "test")
+      let childId = parentId.join(with: id)
+      expect(childId.id) == "test"
     }
     do {
-      let childId = parentId.makeViewItemId(suffix: "suffix", childViewItemId: id)
-      XCTAssertEqual(childId.id, "test")
+      let childId = parentId.join(with: id, suffix: "suffix")
+      expect(childId.id) == "test"
     }
   }
 }

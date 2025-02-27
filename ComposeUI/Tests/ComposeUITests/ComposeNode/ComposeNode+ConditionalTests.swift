@@ -28,7 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
-import XCTest
+import ChouTiTest
+
 @testable import ComposeUI
 
 class ComposeNode_ConditionalTests: XCTestCase {
@@ -53,16 +54,16 @@ class ComposeNode_ConditionalTests: XCTestCase {
     do {
       var node = makeNode(condition: true)
       node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
-      let viewItems = node.viewItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
-      XCTAssert(viewItems.count == 2)
+      let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+      expect(renderableItems.count) == 2
     }
 
     // when condition is false
     do {
       var node = makeNode(condition: false)
       node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
-      let viewItems = node.viewItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
-      XCTAssert(viewItems.count == 1)
+      let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+      expect(renderableItems.count) == 1
     }
   }
 
@@ -92,17 +93,17 @@ class ComposeNode_ConditionalTests: XCTestCase {
     do {
       var node = makeNode(condition: true)
       node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
-      let viewItems = node.viewItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
-      XCTAssert(viewItems.count == 2)
+      let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+      expect(renderableItems.count) == 2
     }
 
     // when condition is false
     do {
       var node = makeNode(condition: false)
       node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
-      let viewItems = node.viewItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
-      XCTAssert(viewItems.count == 1)
-      XCTAssert(viewItems[0].frame.origin.x == 2)
+      let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+      expect(renderableItems.count) == 1
+      expect(renderableItems[0].frame.origin.x) == 2
     }
   }
 }

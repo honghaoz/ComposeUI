@@ -29,7 +29,9 @@
 //
 
 import Foundation
-import XCTest
+
+import ChouTiTest
+
 @testable import ComposeUI
 
 final class UnderlayNodeTests: XCTestCase {
@@ -43,15 +45,15 @@ final class UnderlayNodeTests: XCTestCase {
       .background(ColorNode(.green))
 
     content.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
-    let items = content.viewItems(in: CGRect(x: 0, y: 0, width: 50, height: 50))
+    let items = content.renderableItems(in: CGRect(x: 0, y: 0, width: 50, height: 50))
     guard items.count == 4 else {
-      XCTFail("Expected 4 items, got \(items.count)")
+      fail("Expected 4 items, got \(items.count)")
       return
     }
 
-    XCTAssertEqual(items[0].id.id, "underlay|U|color")
-    XCTAssertEqual(items[1].id.id, "underlay|underlay|U|color")
-    XCTAssertEqual(items[2].id.id, "underlay|underlay|underlay|U|color")
-    XCTAssertEqual(items[3].id.id, "underlay|underlay|underlay|color")
+    expect(items[0].id.id) == "underlay|U|color"
+    expect(items[1].id.id) == "underlay|underlay|U|color"
+    expect(items[2].id.id) == "underlay|underlay|underlay|U|color"
+    expect(items[3].id.id) == "underlay|underlay|underlay|color"
   }
 }

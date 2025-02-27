@@ -28,7 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
-import XCTest
+import ChouTiTest
+
 @testable import ComposeUI
 
 class LayoutTests: XCTestCase {
@@ -37,19 +38,19 @@ class LayoutTests: XCTestCase {
     // when proposed space is positive
     do {
       let result = Layout.stackLayout(space: 100, items: [])
-      XCTAssertEqual(result, [])
+      expect(result) == []
     }
 
     // when proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: [])
-      XCTAssertEqual(result, [])
+      expect(result) == []
     }
 
     // when proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: [])
-      XCTAssertEqual(result, [])
+      expect(result) == []
     }
   }
 
@@ -59,31 +60,31 @@ class LayoutTests: XCTestCase {
     // when proposed space is larger enough
     do {
       let result = Layout.stackLayout(space: 200, items: items)
-      XCTAssertEqual(result, [30, 40, 50])
+      expect(result) == [30, 40, 50]
     }
 
     // when proposed space is just enough
     do {
       let result = Layout.stackLayout(space: 100, items: items)
-      XCTAssertEqual(result, [30, 40, 50])
+      expect(result) == [30, 40, 50]
     }
 
     // when proposed space is not enough
     do {
       let result = Layout.stackLayout(space: 90, items: items)
-      XCTAssertEqual(result, [30, 40, 50])
+      expect(result) == [30, 40, 50]
     }
 
     // when proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [30, 40, 50])
+      expect(result) == [30, 40, 50]
     }
 
     // when proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [30, 40, 50])
+      expect(result) == [30, 40, 50]
     }
   }
 
@@ -93,19 +94,19 @@ class LayoutTests: XCTestCase {
     // when proposed space is positive
     do {
       let result = Layout.stackLayout(space: 90, items: items)
-      XCTAssertEqual(result, [30, 30, 30])
+      expect(result) == [30, 30, 30]
     }
 
     // when proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [0, 0, 0])
+      expect(result) == [0, 0, 0]
     }
 
     // when proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [0, 0, 0])
+      expect(result) == [0, 0, 0]
     }
   }
 
@@ -119,43 +120,50 @@ class LayoutTests: XCTestCase {
     // when proposed space is larger than the sum of all max sizes
     do {
       let result = Layout.stackLayout(space: 200, items: items)
-      XCTAssertEqual(result, [40, 50, 60], "should allocate to the max size")
+      // should allocate to the max size
+      expect(result) == [40, 50, 60]
     }
 
     // when proposed space is equal to the sum of all max sizes
     do {
       let result = Layout.stackLayout(space: 150, items: items)
-      XCTAssertEqual(result, [40, 50, 60], "should allocate to the max size")
+      // should allocate to the max size
+      expect(result) == [40, 50, 60]
     }
 
     // when proposed space is between the sum of all min sizes and the sum of all max sizes
     do {
       let result = Layout.stackLayout(space: 90, items: items)
-      XCTAssertEqual(result, [20, 30, 40], "should allocate the extra space evenly")
+      // should allocate the extra space evenly
+      expect(result) == [20, 30, 40]
     }
 
     // when proposed space is equal to the sum of all min sizes
     do {
       let result = Layout.stackLayout(space: 60, items: items)
-      XCTAssertEqual(result, [10, 20, 30], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [10, 20, 30]
     }
 
     // when proposed space is less than the sum of all min sizes
     do {
       let result = Layout.stackLayout(space: 40, items: items)
-      XCTAssertEqual(result, [10, 20, 30], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [10, 20, 30]
     }
 
     // when proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [10, 20, 30], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [10, 20, 30]
     }
 
     // when proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [10, 20, 30], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [10, 20, 30]
     }
   }
 
@@ -168,31 +176,31 @@ class LayoutTests: XCTestCase {
     // when proposed space is larger than the fixed size
     do {
       let result = Layout.stackLayout(space: 100, items: items)
-      XCTAssertEqual(result, [20, 80])
+      expect(result) == [20, 80]
     }
 
     // when proposed space is equal to the fixed size
     do {
       let result = Layout.stackLayout(space: 20, items: items)
-      XCTAssertEqual(result, [20, 0])
+      expect(result) == [20, 0]
     }
 
     // when proposed space is less than the fixed size
     do {
       let result = Layout.stackLayout(space: 10, items: items)
-      XCTAssertEqual(result, [20, 0])
+      expect(result) == [20, 0]
     }
 
     // when proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [20, 0])
+      expect(result) == [20, 0]
     }
 
     // when proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [20, 0])
+      expect(result) == [20, 0]
     }
   }
 
@@ -206,31 +214,31 @@ class LayoutTests: XCTestCase {
     // when proposed space is larger than the fixed size
     do {
       let result = Layout.stackLayout(space: 100, items: items)
-      XCTAssertEqual(result, [40, 20, 40])
+      expect(result) == [40, 20, 40]
     }
 
     // when proposed space is equal to the fixed size
     do {
       let result = Layout.stackLayout(space: 20, items: items)
-      XCTAssertEqual(result, [0, 20, 0])
+      expect(result) == [0, 20, 0]
     }
 
     // when proposed space is less than the fixed size
     do {
       let result = Layout.stackLayout(space: 10, items: items)
-      XCTAssertEqual(result, [0, 20, 0])
+      expect(result) == [0, 20, 0]
     }
 
     // when proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [0, 20, 0])
+      expect(result) == [0, 20, 0]
     }
 
     // when proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [0, 20, 0])
+      expect(result) == [0, 20, 0]
     }
   }
 
@@ -243,43 +251,49 @@ class LayoutTests: XCTestCase {
     // when proposed space is larger than the fixed size + max size
     do {
       let result = Layout.stackLayout(space: 100, items: items)
-      XCTAssertEqual(result, [20, 30], "should allocate to the max size")
+      // should allocate to the max size
+      expect(result) == [20, 30]
     }
 
     // when proposed space is equal to the fixed size + max size
     do {
       let result = Layout.stackLayout(space: 50, items: items)
-      XCTAssertEqual(result, [20, 30], "should allocate to the max size")
+      // should allocate to the max size
+      expect(result) == [20, 30]
     }
 
     // when proposed space is between the fixed size + min size and the fixed size + max size
     do {
       let result = Layout.stackLayout(space: 40, items: items)
-      XCTAssertEqual(result, [20, 20])
+      expect(result) == [20, 20]
     }
 
     // when proposed space is equal to the fixed size + min size
     do {
       let result = Layout.stackLayout(space: 30, items: items)
-      XCTAssertEqual(result, [20, 10], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [20, 10]
     }
 
     // when proposed space is less than the fixed size + min size
     do {
       let result = Layout.stackLayout(space: 20, items: items)
-      XCTAssertEqual(result, [20, 10], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [20, 10]
     }
 
     // when proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [20, 10], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [20, 10]
     }
 
     // when proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [20, 10], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [20, 10]
     }
   }
 
@@ -293,13 +307,15 @@ class LayoutTests: XCTestCase {
     // when proposed space is larger than the max size needed
     do {
       let result = Layout.stackLayout(space: 120, items: items)
-      XCTAssertEqual(result, [20, 25, 40], "should allocate to the max size")
+      // should allocate to the max size
+      expect(result) == [20, 25, 40]
     }
 
     // when proposed space is equal to the max size needed
     do {
       let result = Layout.stackLayout(space: 85, items: items)
-      XCTAssertEqual(result, [20, 25, 40], "should allocate to the max size")
+      // should allocate to the max size
+      expect(result) == [20, 25, 40]
     }
 
     // when proposed space is between the min size needed and the max size needed
@@ -308,50 +324,58 @@ class LayoutTests: XCTestCase {
       // extra space: 33
       // 33 / 2 = 16.5
       // node 2 doesn't need the extra space, should allocate more to node 3
-      XCTAssertEqual(result, [20, 25, 38])
+      expect(result) == [20, 25, 38]
     }
     do {
       let result = Layout.stackLayout(space: 80, items: items)
       // extra space: 30
       // 30 / 2 = 15
       // node 2 doesn't need the extra space, should allocate more to node 3
-      XCTAssertEqual(result, [20, 25, 35])
+      expect(result) == [20, 25, 35]
     }
     do {
       let result = Layout.stackLayout(space: 70, items: items)
       // extra space: 20
       // 20 / 2 = 10
-      XCTAssertEqual(result, [20, 20, 30], "should allocate the extra space evenly")
+
+      // should allocate the extra space evenly
+      expect(result) == [20, 20, 30]
     }
     do {
       let result = Layout.stackLayout(space: 60, items: items)
       // extra space: 10
       // 10 / 2 = 5
-      XCTAssertEqual(result, [20, 15, 25], "should allocate the extra space evenly")
+
+      // should allocate the extra space evenly
+      expect(result) == [20, 15, 25]
     }
 
     // when proposed space is equal to the min size needed
     do {
       let result = Layout.stackLayout(space: 50, items: items)
-      XCTAssertEqual(result, [20, 10, 20], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [20, 10, 20]
     }
 
     // when proposed space is less than the min size needed
     do {
       let result = Layout.stackLayout(space: 40, items: items)
-      XCTAssertEqual(result, [20, 10, 20], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [20, 10, 20]
     }
 
     // when proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [20, 10, 20], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [20, 10, 20]
     }
 
     // when proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [20, 10, 20], "should allocate to the min size")
+      // should allocate to the min size
+      expect(result) == [20, 10, 20]
     }
   }
 
@@ -367,21 +391,21 @@ class LayoutTests: XCTestCase {
       let result = Layout.stackLayout(space: 120, items: items)
       // extra space: 90
       // 90 / 4 = 22.5
-      XCTAssertEqual(result, [30.0, 20.0, 30.0, 40.0])
+      expect(result) == [30.0, 20.0, 30.0, 40.0]
     }
 
     do {
       let result = Layout.stackLayout(space: 105, items: items)
       // extra space: 75
       // 75 / 4 = 18.75
-      XCTAssertEqual(result, [22.5, 20.0, 22.5, 40.0])
+      expect(result) == [22.5, 20.0, 22.5, 40.0]
     }
 
     do {
       let result = Layout.stackLayout(space: 100, items: items)
       // extra space: 70
       // 70 / 4 = 17.5
-      XCTAssertEqual(result, [20.0, 20.0, 20.0, 40.0])
+      expect(result) == [20.0, 20.0, 20.0, 40.0]
     }
 
     do {
@@ -389,42 +413,42 @@ class LayoutTests: XCTestCase {
       // extra space: 60
       // 60 / 4 = 15
       // node 2 doesn't need the extra space
-      XCTAssertEqual(result, [15 + 5.0 / 3, 20.0, 15 + 5.0 / 3, 35 + 5.0 / 3])
+      expect(result) == [15 + 5.0 / 3, 20.0, 15 + 5.0 / 3, 35 + 5.0 / 3]
     }
 
     do {
       let result = Layout.stackLayout(space: 50, items: items)
       // extra space: 20
       // 20 / 4 = 5
-      XCTAssertEqual(result, [5.0, 15.0, 5.0, 25.0])
+      expect(result) == [5.0, 15.0, 5.0, 25.0]
     }
 
     do {
       let result = Layout.stackLayout(space: 40, items: items)
       // extra space: 10
       // 10 / 4 = 2.5
-      XCTAssertEqual(result, [2.5, 12.5, 2.5, 22.5])
+      expect(result) == [2.5, 12.5, 2.5, 22.5]
     }
 
     do {
       let result = Layout.stackLayout(space: 30, items: items)
       // extra space: 0
-      XCTAssertEqual(result, [0, 10, 0, 20])
+      expect(result) == [0, 10, 0, 20]
     }
 
     do {
       let result = Layout.stackLayout(space: 20, items: items)
-      XCTAssertEqual(result, [0, 10, 0, 20])
+      expect(result) == [0, 10, 0, 20]
     }
 
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [0, 10, 0, 20])
+      expect(result) == [0, 10, 0, 20]
     }
 
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [0, 10, 0, 20])
+      expect(result) == [0, 10, 0, 20]
     }
   }
 
@@ -438,37 +462,37 @@ class LayoutTests: XCTestCase {
 
     do {
       let result = Layout.stackLayout(space: 100, items: items)
-      XCTAssertEqual(result, [20, 30, 25, 25])
+      expect(result) == [20, 30, 25, 25]
     }
 
     do {
       let result = Layout.stackLayout(space: 75, items: items)
-      XCTAssertEqual(result, [20, 20, 10, 25])
+      expect(result) == [20, 20, 10, 25]
     }
 
     do {
       let result = Layout.stackLayout(space: 50, items: items)
-      XCTAssertEqual(result, [20, 10 + 5.0 / 3, 5.0 / 3, 15 + 5.0 / 3])
+      expect(result) == [20, 10 + 5.0 / 3, 5.0 / 3, 15 + 5.0 / 3]
     }
 
     do {
       let result = Layout.stackLayout(space: 45, items: items)
-      XCTAssertEqual(result, [20, 10, 0, 15])
+      expect(result) == [20, 10, 0, 15]
     }
 
     do {
       let result = Layout.stackLayout(space: 30, items: items)
-      XCTAssertEqual(result, [20, 10, 0, 15])
+      expect(result) == [20, 10, 0, 15]
     }
 
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      XCTAssertEqual(result, [20, 10, 0, 15])
+      expect(result) == [20, 10, 0, 15]
     }
 
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      XCTAssertEqual(result, [20, 10, 0, 15])
+      expect(result) == [20, 10, 0, 15]
     }
   }
 }

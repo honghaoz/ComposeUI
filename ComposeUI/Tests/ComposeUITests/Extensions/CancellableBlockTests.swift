@@ -28,7 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
-import XCTest
+import ChouTiTest
+
 @testable import ComposeUI
 
 class CancellableBlockTests: XCTestCase {
@@ -45,8 +46,8 @@ class CancellableBlockTests: XCTestCase {
 
     block.execute()
 
-    XCTAssert(isExecuted == true)
-    XCTAssertNil(isCancelled)
+    expect(isExecuted) == true
+    expect(isCancelled) == nil
   }
 
   func test_cancelled() {
@@ -61,12 +62,12 @@ class CancellableBlockTests: XCTestCase {
 
     block.cancel()
 
-    XCTAssertNil(isExecuted)
-    XCTAssert(isCancelled == true)
+    expect(isExecuted) == nil
+    expect(isCancelled) == true
 
     block.execute()
 
-    XCTAssertNil(isExecuted)
-    XCTAssert(isCancelled == true)
+    expect(isExecuted) == nil
+    expect(isCancelled) == true
   }
 }

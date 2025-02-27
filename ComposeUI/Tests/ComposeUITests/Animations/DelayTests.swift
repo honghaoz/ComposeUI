@@ -29,13 +29,15 @@
 //
 
 import Foundation
-import XCTest
+
+import ChouTiTest
+
 @testable import ComposeUI
 
 final class DelayTests: XCTestCase {
 
   func tes_positiveDelay() {
-    let expectation = XCTestExpectation(description: "Delayed task")
+    let expectation = expectation(description: "Delayed task")
 
     var isExecuted = false
     delay(0.01) {
@@ -43,9 +45,9 @@ final class DelayTests: XCTestCase {
       expectation.fulfill()
     }
 
-    XCTAssertFalse(isExecuted)
+    expect(isExecuted) == false
     wait(for: [expectation], timeout: 1)
-    XCTAssertTrue(isExecuted)
+    expect(isExecuted) == true
   }
 
   func tes_negativeDelay() {
@@ -54,7 +56,7 @@ final class DelayTests: XCTestCase {
       isExecuted = true
     }
 
-    XCTAssertTrue(isExecuted)
+    expect(isExecuted) == true
   }
 
   func tes_zeroDelay() {
@@ -63,6 +65,6 @@ final class DelayTests: XCTestCase {
       isExecuted = true
     }
 
-    XCTAssertTrue(isExecuted)
+    expect(isExecuted) == true
   }
 }

@@ -29,7 +29,9 @@
 //
 
 import QuartzCore
-import XCTest
+
+import ChouTiTest
+
 @testable import ComposeUI
 
 final class CALayer_ExtensionsTests: XCTestCase {
@@ -38,13 +40,11 @@ final class CALayer_ExtensionsTests: XCTestCase {
     #if os(macOS)
     let view = View()
     view.wantsLayer = true
-    let layer = view.layer()
-    XCTAssertIdentical(layer.backedView, view)
     #else
     let view = View()
-    let layer = view.layer()
-    XCTAssertIdentical(layer.backedView, view)
     #endif
+    let layer = view.layer()
+    expect(layer.backedView) === view
   }
 
   func test_positionFromFrame() {
@@ -53,6 +53,6 @@ final class CALayer_ExtensionsTests: XCTestCase {
     layer.frame = frame
     layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
 
-    XCTAssertEqual(layer.position(from: frame), CGPoint(x: 25, y: 40))
+    expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
   }
 }

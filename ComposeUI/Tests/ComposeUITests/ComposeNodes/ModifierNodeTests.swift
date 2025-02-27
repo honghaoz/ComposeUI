@@ -28,7 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
-import XCTest
+import ChouTiTest
+
 @testable import ComposeUI
 
 final class ModifierNodeTests: XCTestCase {
@@ -57,9 +58,9 @@ final class ModifierNodeTests: XCTestCase {
       .onRemove { _, _ in didRemoveCalls.append("second") }
 
     // expect modifiers are coalescing
-    XCTAssertTrue(
+    expect(
       String(describing: node).hasPrefix("ModifierNode(node: ComposeUI.ViewNode<")
-    )
+    ) == true
 
     // when the compose view is refreshed
     let composeView = ComposeView { node }
@@ -68,30 +69,30 @@ final class ModifierNodeTests: XCTestCase {
     composeView.refresh(animated: false)
 
     // then the modifier calls are called in order
-    XCTAssertEqual(willInsertCalls, ["first", "second"])
-    XCTAssertEqual(didInsertCalls, ["first", "second"])
-    XCTAssertEqual(willUpdateCalls, ["first", "second"])
-    XCTAssertEqual(updateCalls, ["first", "second"])
-    XCTAssertEqual(willRemoveCalls, [])
-    XCTAssertEqual(didRemoveCalls, [])
+    expect(willInsertCalls) == ["first", "second"]
+    expect(didInsertCalls) == ["first", "second"]
+    expect(willUpdateCalls) == ["first", "second"]
+    expect(updateCalls) == ["first", "second"]
+    expect(willRemoveCalls) == []
+    expect(didRemoveCalls) == []
 
     // when the content removed
     composeView.setContent { Empty() }
     composeView.refresh(animated: false)
 
     // then the remove modifier calls are called in order
-    XCTAssertEqual(willInsertCalls, ["first", "second"])
-    XCTAssertEqual(didInsertCalls, ["first", "second"])
-    XCTAssertEqual(willUpdateCalls, ["first", "second"])
-    XCTAssertEqual(updateCalls, ["first", "second"])
-    XCTAssertEqual(willRemoveCalls, ["first", "second"])
-    XCTAssertEqual(didRemoveCalls, ["first", "second"])
+    expect(willInsertCalls) == ["first", "second"]
+    expect(didInsertCalls) == ["first", "second"]
+    expect(willUpdateCalls) == ["first", "second"]
+    expect(updateCalls) == ["first", "second"]
+    expect(willRemoveCalls) == ["first", "second"]
+    expect(didRemoveCalls) == ["first", "second"]
   }
 
   // MARK: - Animation and Transition Priority
 
   func test_animationAndTransitionPriority() {
-    let expectation = XCTestExpectation(description: "animation")
+    let expectation = expectation(description: "animation")
 
     // given a view node with multiple animations
     var updateCount = 0
@@ -103,15 +104,15 @@ final class ModifierNodeTests: XCTestCase {
         switch updateCount {
         case 1:
           // initial insert update
-          XCTAssertNil(context.animationContext)
+          expect(context.animationTiming) == nil
         case 2:
           // then the inner animation is used
-          XCTAssertEqual(
-            context.animationContext?.timing.timing, .timingFunction(1, CAMediaTimingFunction(name: .easeInEaseOut))
-          )
+          expect(
+            context.animationTiming?.timing
+          ) == .timingFunction(1, CAMediaTimingFunction(name: .easeInEaseOut))
           expectation.fulfill()
         default:
-          XCTFail("Unexpected update count: \(updateCount)")
+          fail("Unexpected update count: \(updateCount)")
         }
       }
 

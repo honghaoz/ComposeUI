@@ -28,13 +28,14 @@
 //  IN THE SOFTWARE.
 //
 
-import XCTest
+import ChouTiTest
+
 @testable import ComposeUI
 
 class ComposeNodeTests: XCTestCase {
 
   func test_id() {
     let id = ComposeNodeId.custom("test", isFixed: false)
-    XCTAssertEqual(id.id, "test")
+    expect(id.id) == "test"
   }
 }
