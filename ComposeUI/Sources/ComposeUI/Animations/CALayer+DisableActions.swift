@@ -137,7 +137,7 @@ public extension CALayer {
       // if delegate exists, use the subclass approach to disable actions
       assert(Thread.isMainThread, "CALayer.disableActions() must be called on the main thread")
 
-      let originalClass: AnyClass = object_getClass(self)!
+      let originalClass: AnyClass = object_getClass(self)! // swiftlint:disable:this force_unwrapping
       let subclassClassName = "\(originalClass)_DisabledActions"
 
       // retrieve or create the subclass with disabled actions

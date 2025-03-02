@@ -44,7 +44,7 @@ extension CASpringAnimation {
   }
 
   /// `durationForEpsilon:`
-  private static let durationForEpsilonSelector = Selector(String("l}zi|qwvNwzMx{qtwvB".map { Character(UnicodeScalar($0.asciiValue! - 8)) }))
+  private static let durationForEpsilonSelector = Selector(String("l}zi|qwvNwzMx{qtwvB".map { Character(UnicodeScalar($0.asciiValue! - 8)) })) // swiftlint:disable:this force_unwrapping
 
   func duration(epsilon: Double) -> TimeInterval? {
     let selector = Self.durationForEpsilonSelector

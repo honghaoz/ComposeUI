@@ -42,7 +42,7 @@ extension CALayer {
     animate(
       keyPath: "position",
       timing: timing,
-      from: { (from != nil ? $0.position(from: from!) : $0.position) - $0.position(from: to) },
+      from: { (from != nil ? $0.position(from: from!) : $0.position) - $0.position(from: to) }, // swiftlint:disable:this force_unwrapping
       to: { _ in .zero },
       model: { $0.position(from: to) },
       updateAnimation: { $0.isAdditive = true }

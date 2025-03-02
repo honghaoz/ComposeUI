@@ -63,7 +63,7 @@ extension _ViewType {
     guard let layer else {
       assertionFailure("NSView should be layer backed. Please set `wantsLayer == true`.")
       wantsLayer = true
-      return self.layer!
+      return self.layer! // swiftlint:disable:this force_unwrapping
     }
     return layer
     #else
