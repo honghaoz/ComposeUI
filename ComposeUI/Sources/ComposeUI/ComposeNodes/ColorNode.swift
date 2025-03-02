@@ -67,7 +67,7 @@ public struct ColorNode: ComposeNode {
       return []
     }
 
-    let viewItem = LayerItem<CALayer>(
+    let layerItem = LayerItem<CALayer>(
       id: id,
       frame: frame,
       make: { context in
@@ -94,6 +94,6 @@ public struct ColorNode: ComposeNode {
       }
     )
 
-    return [viewItem.eraseToRenderableItem()]
+    return [layerItem.eraseToRenderableItem()]
   }
 }

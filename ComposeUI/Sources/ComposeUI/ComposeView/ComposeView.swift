@@ -521,7 +521,6 @@ open class ComposeView: BaseScrollView {
           removingRenderableMap.removeValue(forKey: id)
           removingRenderableTransitionCompletionMap.removeValue(forKey: id)
           renderable = removingRenderable
-          // TODO: add tests for re-inserting removing renderable
         } else {
           renderable = CATransaction.disableAnimations { // no animation context for making new renderables
             renderableItem.make(RenderableMakeContext(initialFrame: newFrame, contentView: self))
@@ -577,6 +576,32 @@ open class ComposeView: BaseScrollView {
       renderableMap[id] = renderable
     }
   }
+
+  // MARK: - Testing
+
+  #if DEBUG
+
+  var test: Test { Test(host: self) }
+
+  class Test {
+
+    private let host: ComposeView
+
+    fileprivate init(host: ComposeView) {
+      assert(Thread.isRunningXCTest, "Test namespace should only be used in test target.")
+      self.host = host
+    }
+
+    var removingRenderableMap: [String: Renderable] {
+      host.removingRenderableMap
+    }
+
+    var removingRenderableTransitionCompletionMap: [String: CancellableBlock] {
+      host.removingRenderableTransitionCompletionMap
+    }
+  }
+
+  #endif
 }
 
 // MARK: - Helpers
