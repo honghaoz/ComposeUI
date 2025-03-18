@@ -19,8 +19,17 @@ declare -a scripts=(
   "scripts/download-bin/download-swiftformat.sh"
   "scripts/download-bin/download-swiftlint.sh"
   "scripts/download-bin/download-xcbeautify.sh"
+  "scripts/git/install-git-hooks.sh"
+  "scripts/git/git-hooks/post-checkout"
+  "scripts/git/git-hooks/post-merge"
+  "scripts/git/git-hooks/pre-commit"
+  "scripts/swift-package/build-workspace.sh"
+  "scripts/swift-package/test-workspace.sh"
+  "scripts/xcodebuild/build-project.sh"
+  "scripts/filter-lcov.sh"
   "scripts/format.sh"
   "scripts/lint.sh"
+  "scripts/retry.sh"
   "scripts/swiftformat-beautify"
   "scripts/swiftlint-beautify"
 )
@@ -37,7 +46,7 @@ function get_contents() {
   path="${path%/}"
 
   local contents=$(curl -s "https://api.github.com/repos/honghaoz/ChouTi/contents/$path?ref=$BRANCH")
-  
+
   echo "FILESSTART"
   echo "$contents" | jq -r '.[] | select(.type == "file") | .path'
   echo "FILESEND"

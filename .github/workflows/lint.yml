@@ -1,0 +1,29 @@
+# This workflow is used to lint the code in the repository.
+
+name: lint
+on:
+  push:
+    branches-ignore:
+      - "github-actions/**" # ignore github-actions branches
+      - "dependabot/**" # ignore dependabot branches
+  pull_request: # any pull request against any branch
+  workflow_dispatch: # manual trigger
+
+env:
+  TERM: xterm-256color
+  DEVELOPER_DIR: /Applications/Xcode_${{ vars.XCODE_VERSION }}.app/Contents/Developer
+
+jobs:
+  lint:
+    name: Lint
+    strategy:
+      fail-fast: false
+    timeout-minutes: 5
+    runs-on: ${{ vars.MACOS }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Bootstrap
+        uses: ./.github/actions/bootstrap
+      - name: Lint
+        run: make lint

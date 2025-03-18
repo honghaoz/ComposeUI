@@ -1,0 +1,91 @@
+name: build
+on:
+  push:
+    branches-ignore:
+      - "github-actions/**" # ignore github-actions branches
+      - "dependabot/**" # ignore dependabot branches
+  pull_request: # any pull request against any branch
+  workflow_dispatch: # manual trigger
+  schedule:
+    # ┌───────────── minute (0 - 59)
+    # │ ┌───────────── hour (0 - 23)
+    # │ │ ┌───────────── day of the month (1 - 31)
+    # │ │ │ ┌───────────── month (1 - 12 or JAN-DEC)
+    # │ │ │ │ ┌───────────── day of the week (0 - 6 or SUN-SAT)
+    # │ │ │ │ │
+    # * * * * *
+    - cron: "32 15 * * *" # every day at 15:32 UTC (7:32 PST, 8:32 PDT)
+
+env:
+  TERM: xterm-256color
+  DEVELOPER_DIR: /Applications/Xcode_${{ vars.XCODE_VERSION }}.app/Contents/Developer
+
+jobs:
+  build-root:
+    name: Build root package
+    runs-on: ${{ vars.MACOS }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Bootstrap
+        uses: ./.github/actions/bootstrap
+      - name: Build root package
+        run: make build
+
+  build:
+    name: Build
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macOS, iOS, tvOS, visionOS]
+    timeout-minutes: 30
+    runs-on: ${{ vars.MACOS }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Bootstrap
+        uses: ./.github/actions/bootstrap
+      - name: Download visionOS simulator
+        if: matrix.platform == 'visionOS'
+        run: xcodebuild -downloadPlatform visionOS
+      - name: Build
+        run: make build-release-${{ matrix.platform }} -C ComposeUI
+
+  test-codecov:
+    name: Test (macOS)
+    runs-on: ${{ vars.MACOS }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Bootstrap
+        uses: ./.github/actions/bootstrap
+      - name: Test with Codecov
+        run: make test-codecov -C ComposeUI
+      - name: Upload code coverage
+        uses: codecov/codecov-action@v4.5.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ComposeUI/.build/debug/codecov/coverage.lcov
+          disable_search: true
+          flags: ComposeUI
+          name: ComposeUI
+          fail_ci_if_error: true
+
+  test:
+    name: Test
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iOS, tvOS, visionOS]
+    timeout-minutes: 30
+    runs-on: ${{ vars.MACOS }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Bootstrap
+        uses: ./.github/actions/bootstrap
+      - name: Download visionOS simulator
+        if: matrix.platform == 'visionOS'
+        run: xcodebuild -downloadPlatform visionOS
+      - name: Test
+        run: make test-${{ matrix.platform }} -C ComposeUI

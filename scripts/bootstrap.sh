@@ -39,10 +39,10 @@ case "$OS" in
     echo "📦 Download bins..."
     "$REPO_ROOT/scripts/download-bin/download-bins.sh"
 
-    # # git hooks
-    # echo ""
-    # echo "🪝 Install git hooks..."
-    # "$REPO_ROOT/scripts/git/install-git-hooks.sh"
+    # git hooks
+    echo ""
+    echo "🪝 Install git hooks..."
+    "$REPO_ROOT/scripts/git/install-git-hooks.sh"
 
     echo ""
     echo "🎉 Done."
