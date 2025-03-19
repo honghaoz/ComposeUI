@@ -47,7 +47,6 @@ class ViewController: UIViewController {
     weak var view: ComposeView!
     var color: UIColor = .red
     var colorSize: CGFloat = 200
-    var cornerRadius: CGFloat = 16
 
     lazy var subtitleLabel: UILabel = {
       let label = UILabel()
@@ -74,6 +73,14 @@ class ViewController: UIViewController {
       .transition(.opacity(timing: .linear(duration: 2, delay: 1)))
 
     VStack(spacing: 8) {
+
+      ViewNode<Playground.SwiftUIView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: Constants.padding)
+        .frame(width: .flexible, height: 120)
 
       ViewNode<Playground.TransitionView>()
         .underlay {
@@ -108,7 +115,6 @@ class ViewController: UIViewController {
       .onDoubleTap {
         print("double tap")
       }
-      .cornerRadius(0) // TODO: support inner node overrides outer node's preference
       .padding(horizontal: 44)
       .frame(width: .flexible, height: 44)
 
@@ -178,8 +184,7 @@ class ViewController: UIViewController {
 
       Spacer().height(44)
     }
-    .border(color: .black.withAlphaComponent(0.5), width: 1)
-    .cornerRadius(state.cornerRadius)
+    .border(color: .gray, width: 1)
     .padding(Constants.padding)
     .frame(width: .flexible, height: .intrinsic)
   }
@@ -197,7 +202,6 @@ class ViewController: UIViewController {
   private func changeColor() {
     state.color = UIColor(red: .random(in: 0 ... 1), green: .random(in: 0 ... 1), blue: .random(in: 0 ... 1), alpha: 1)
     state.colorSize = CGFloat.random(in: 120 ... 240)
-    state.cornerRadius = CGFloat.random(in: 0 ... 16)
     contentView.refresh()
   }
 

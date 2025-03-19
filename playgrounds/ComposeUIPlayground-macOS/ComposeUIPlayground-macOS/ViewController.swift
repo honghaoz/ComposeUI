@@ -62,6 +62,16 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
+      ViewNode<Playground.SwiftUIView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 120)
+
+      Spacer(height: 16)
+
       ViewNode<Playground.TransitionView>()
         .underlay {
           LayerNode()
