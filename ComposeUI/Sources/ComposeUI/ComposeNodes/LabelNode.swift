@@ -33,6 +33,8 @@
 #if canImport(UIKit)
 import UIKit
 
+public typealias Text = LabelNode
+
 /// A node that renders a text label.
 ///
 /// By default, the label node is single line, with a fixed size based on the text.
