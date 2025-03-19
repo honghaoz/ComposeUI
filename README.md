@@ -15,11 +15,11 @@ Add the following to your `Package.swift` file:
 
 ```swift
 dependencies: [
-  // add the package to your package dependencies
+  // add the package to your package's dependencies
   .package(url: "https://github.com/honghaoz/ComposeUI", from: "0.0.1"),
 ],
 targets: [
-  // add products to your target dependencies
+  // add the product to your target's dependencies
   .target(
     name: "MyTarget",
     dependencies: [
@@ -28,6 +28,18 @@ targets: [
   ),
 ]
 ```
+
+### Xcode
+
+1. Open your project in Xcode.
+2. Select the project in the sidebar.
+3. Select the project under the **PROJECT** section.
+4. Go to the **Package Dependencies** tab.
+5. Click the **+** button enter the package URL: `https://github.com/honghaoz/ComposeUI`.
+6. Click **Add Package**.
+7. Select the target you want to add `ComposeUI` to under the **Add to Target** section.
+8. Click **Add Package**.
+9. Add `import ComposeUI` in your file.
 
 ## Usage
 
@@ -46,4 +58,4 @@ class MyContentView: ComposeView {
 
 ## License
 
-ComposéUI is available under the MIT license. See the LICENSE file for more info.
+ComposéUI is available under the MIT license. See the [LICENSE](https://github.com/honghaoz/ComposeUI/blob/master/LICENSE) file for more info.
