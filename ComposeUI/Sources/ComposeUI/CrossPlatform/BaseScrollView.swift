@@ -71,7 +71,9 @@ open class BaseScrollView: ScrollView {
       #if canImport(UIKit)
       isScrollEnabled = newValue
       if newValue == false {
+        #if os(iOS)
         scrollsToTop = false
+        #endif
         showsHorizontalScrollIndicator = false
         showsVerticalScrollIndicator = false
       }

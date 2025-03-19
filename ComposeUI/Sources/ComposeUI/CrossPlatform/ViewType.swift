@@ -96,6 +96,8 @@ extension _ViewType {
     } else {
       #if os(macOS)
       return NSScreen.main?.backingScaleFactor ?? 2.0
+      #elseif os(visionOS)
+      return 2
       #else
       return UIScreen.main.scale
       #endif

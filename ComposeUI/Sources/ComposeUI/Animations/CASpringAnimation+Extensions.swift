@@ -35,7 +35,7 @@ extension CASpringAnimation {
   /// Get the perceptual duration.
   public func perceptualDuration() -> TimeInterval {
     duration(epsilon: 0.005) ?? {
-      if #available(iOS 17.0, macOS 14.0, *) {
+      if #available(iOS 17.0, tvOS 17.0, macOS 14.0, *) {
         return perceptualDuration
       } else {
         return settlingDuration

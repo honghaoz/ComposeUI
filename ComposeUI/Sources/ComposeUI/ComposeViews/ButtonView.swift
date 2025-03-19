@@ -96,7 +96,9 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
     #if canImport(UIKit)
     isUserInteractionEnabled = true
+    #endif
 
+    #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
     hapticFeedbackGenerator = makeHapticFeedbackGenerator(style: hapticFeedbackStyle)
     #endif
 
@@ -199,7 +201,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
       buttonState = .pressed
 
-      #if canImport(UIKit)
+      #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
       hapticFeedbackGenerator?.prepare()
       #endif
 
@@ -325,7 +327,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
   // MARK: - Haptic Feedback
 
-  #if canImport(UIKit)
+  #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
   /// The style of haptic feedback to be used when the button is pressed.
   ///
   /// The default value is `.light`.
@@ -353,7 +355,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
   #endif
 
   private func triggerHapticFeedback() {
-    #if canImport(UIKit)
+    #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
     // TODO: iOS 17.5+ has a new UIImpactFeedbackGenerator API: `func impactOccurred(intensity: CGFloat, at location: CGPoint)`
     // test out the new API when have time
     hapticFeedbackGenerator?.impactOccurred()
