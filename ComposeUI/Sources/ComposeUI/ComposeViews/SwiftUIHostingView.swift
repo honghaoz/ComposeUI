@@ -1,5 +1,5 @@
 //
-//  SwiftUIRendererView.swift
+//  SwiftUIHostingView.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 8/15/21.
@@ -30,12 +30,70 @@
 
 import SwiftUI
 
+// MARK: - MutableSwiftUIHostingView
+
+/// A view that renders a mutable SwiftUI view.
+public class MutableSwiftUIHostingView: SwiftUIHostingView<AnyView> {
+
+  private class ContentProvider: ObservableObject {
+
+    @Published var content: AnyView
+
+    init(content: AnyView) {
+      self.content = content
+    }
+  }
+
+  private struct ContentView: SwiftUI.View {
+
+    @ObservedObject private var contentProvider: ContentProvider
+
+    init(contentProvider: ContentProvider) {
+      self.contentProvider = contentProvider
+    }
+
+    var body: some SwiftUI.View {
+      contentProvider.content
+    }
+  }
+
+  private let contentProvider = ContentProvider(content: AnyView(EmptyView()))
+
+  /// The content of the view.
+  public var content: AnyView {
+    get {
+      contentProvider.content
+    }
+    set {
+      contentProvider.content = newValue
+    }
+  }
+
+  public init() {
+    super.init(rootView: AnyView(ContentView(contentProvider: contentProvider)))
+  }
+
+  #if canImport(AppKit)
+  public required init(rootView: AnyView) {
+    fatalError("init(rootView:) is unavailable")
+  }
+  #endif
+
+  #if canImport(UIKit)
+  override public required init(rootView: AnyView) {
+    fatalError("init(rootView:) is unavailable")
+  }
+  #endif
+}
+
+// MARK: - SwiftUIHostingView (AppKit)
+
 #if canImport(AppKit)
 
 import AppKit
 
 /// A view that renders a SwiftUI view.
-public final class SwiftUIRendererView<ContentView: SwiftUI.View>: NSHostingView<AnyView> {
+public class SwiftUIHostingView<ContentView: SwiftUI.View>: NSHostingView<AnyView> {
 
   public required init(rootView: ContentView) {
     super.init(rootView: Self.makeWrappedRootView(rootView: rootView))
@@ -93,17 +151,19 @@ public final class SwiftUIRendererView<ContentView: SwiftUI.View>: NSHostingView
 
 #endif
 
+// MARK: - SwiftUIHostingView (UIKit)
+
 #if canImport(UIKit)
 
 import UIKit
 
 /// A view that renders a SwiftUI view.
-public final class SwiftUIRendererView<ContentView: SwiftUI.View>: UIView {
+public class SwiftUIHostingView<ContentView: SwiftUI.View>: UIView {
 
-  private let hostingController: SwiftUIRendererViewController<ContentView>
+  private let hostingController: SwiftUIHostingViewController<ContentView>
 
   public init(rootView: ContentView) {
-    self.hostingController = SwiftUIRendererViewController(rootView: rootView)
+    self.hostingController = SwiftUIHostingViewController(rootView: rootView)
 
     super.init(frame: .zero)
 
@@ -122,8 +182,7 @@ public final class SwiftUIRendererView<ContentView: SwiftUI.View>: UIView {
   }
 }
 
-/// This hosting view controller converts a SwiftUI view to UIView
-private final class SwiftUIRendererViewController<ContentView: SwiftUI.View>: UIHostingController<AnyView> {
+private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIHostingController<AnyView> {
 
   init(rootView: ContentView) {
     super.init(rootView: Self.makeWrappedRootView(rootView: rootView))
@@ -178,7 +237,6 @@ private final class SwiftUIRendererViewController<ContentView: SwiftUI.View>: UI
     if let subclass = NSClassFromString(subclassClassName) {
       object_setClass(view, subclass)
     } else {
-      // make a new dynamic subclass
       guard let subclassClassNameUtf8 = (subclassClassName as NSString).utf8String else {
         return
       }

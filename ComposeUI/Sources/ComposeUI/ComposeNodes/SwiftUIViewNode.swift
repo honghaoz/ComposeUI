@@ -43,16 +43,16 @@ import UIKit
 /// The node will be flexible in width and height. Use `fixed(width:height:)` to set the size of the node.
 public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, FixedSizableComposeNode {
 
-  private var viewNode: ViewNode<SwiftUIRendererView<AnyView>>
+  private var viewNode: ViewNode<View>
 
   /// Create a SwiftUI view node.
   ///
   /// - Parameters:
   ///   - content: The SwiftUI view to render.
   public init(_ content: Content) {
-    self.viewNode = ViewNode<SwiftUIRendererView<AnyView>>(
+    self.viewNode = ViewNode(
       make: { context in
-        let view = SwiftUIRendererView(rootView: AnyView(content))
+        let view = SwiftUIHostingView(rootView: AnyView(content))
         if let initialFrame = context.initialFrame {
           view.frame = initialFrame
         }
@@ -67,16 +67,23 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, FixedSizableC
   /// - Parameters:
   ///   - content: A closure that returns the SwiftUI view to render.
   public init(_ content: @escaping () -> Content) {
-    self.viewNode = ViewNode<SwiftUIRendererView<AnyView>>(
+    self.viewNode = ViewNode<View>(
       make: { context in
-        let view = SwiftUIRendererView(rootView: AnyView(content()))
+        let view = MutableSwiftUIHostingView()
         if let initialFrame = context.initialFrame {
           view.frame = initialFrame
         }
         return view
       },
       update: { view, context in
-        // TODO: support dynamic content
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          (view as? MutableSwiftUIHostingView)?.content = AnyView(content())
+        case .scroll,
+             .boundsChange:
+          break
+        }
       }
     )
     self.viewNode.id = .standard(.swiftui)

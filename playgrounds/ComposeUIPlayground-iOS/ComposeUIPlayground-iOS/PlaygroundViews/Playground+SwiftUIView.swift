@@ -43,11 +43,21 @@ extension Playground {
 
   final class SwiftUIView: AnimatingComposeView {
 
+    private var isShowing = true
+
     @ComposeContentBuilder
     override var content: ComposeContent {
-      SwiftUIViewNode {
-        SwiftUIPlaygroundView()
+      SwiftUIViewNode { [weak self] in
+        guard let self else {
+          return AnyView(Text("..."))
+        }
+        return isShowing ? AnyView(SwiftUIPlaygroundView()) : AnyView(Text("..."))
       }
+    }
+
+    override func animate() {
+      isShowing.toggle()
+      refresh()
     }
   }
 }
@@ -58,29 +68,37 @@ private struct SwiftUIPlaygroundView: SwiftUI.View {
 
   var body: some SwiftUI.View {
     SwiftUI.ZStack {
-      SwiftUI.HStack(spacing: 8) {
-        SwiftUI.Text("This is SwiftUI")
-        SwiftUI.Image(systemName: "swift")
-          .foregroundColor(Color(red: 1.0, green: 0.427, blue: 0.0))
-      }
-      .font(.system(size: 18))
-      .transition(
-        .asymmetric(
-          insertion: .scale.combined(with: .opacity),
-          removal: .slide.combined(with: .opacity)
+      if isShowing {
+        SwiftUI.HStack(spacing: 8) {
+          SwiftUI.Text("This is SwiftUI")
+          if #available(macOS 11.0, *) {
+            SwiftUI.Image(systemName: "swift")
+              .foregroundColor(Color(red: 1.0, green: 0.427, blue: 0.0))
+          }
+        }
+        .font(.system(size: 18))
+        .transition(
+          .asymmetric(
+            insertion: .scale(scale: 0.2).combined(with: .slide).combined(with: .opacity),
+            removal: .scale(scale: 0.5).combined(with: .opacity).combined(with: .slide)
+          )
         )
-      )
-      .opacity(isShowing ? 1 : 0)
-      .animation(.spring(), value: isShowing)
-      .onAppear {
-        self.isShowing = true
       }
 
       // an overlay rectangle to make the view tappable
       SwiftUI.Rectangle()
         .opacity(0.001) // nearly invisible but still tappable
+        .onAppear {
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            withAnimation {
+              self.isShowing = true
+            }
+          }
+        }
         .onTapGesture {
-          self.isShowing.toggle()
+          withAnimation {
+            self.isShowing.toggle()
+          }
         }
     }
   }
