@@ -75,13 +75,13 @@ public class MutableSwiftUIHostingView: SwiftUIHostingView<AnyView> {
 
   #if canImport(AppKit)
   public required init(rootView: AnyView) {
-    fatalError("init(rootView:) is unavailable")
+    fatalError("init(rootView:) is unavailable") // swiftlint:disable:this fatal_error
   }
   #endif
 
   #if canImport(UIKit)
   override public required init(rootView: AnyView) {
-    fatalError("init(rootView:) is unavailable")
+    fatalError("init(rootView:) is unavailable") // swiftlint:disable:this fatal_error
   }
   #endif
 }
