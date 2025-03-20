@@ -490,7 +490,7 @@ open class ComposeView: BaseScrollView {
         }
 
         let renderableUpdateContext = RenderableUpdateContext(
-          type: updateType,
+          updateType: updateType,
           oldFrame: oldFrame,
           newFrame: newFrame,
           animationTiming: animationTiming,
@@ -534,7 +534,7 @@ open class ComposeView: BaseScrollView {
         let frameAfterWillInsert = renderable.frame
 
         let renderableUpdateContext = RenderableUpdateContext(
-          type: .insert,
+          updateType: .insert,
           oldFrame: frameAfterWillInsert,
           newFrame: newFrame,
           animationTiming: nil, // no animation for insertion

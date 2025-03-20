@@ -85,7 +85,7 @@ public struct ButtonNode: ComposeNode {
       frame: frame,
       make: { ButtonView(frame: $0.initialFrame ?? .zero) },
       update: { view, context in
-        if context.type == .insert {
+        if context.updateType == .insert {
           view.configure(content: makeButtonContent, onTap: onTap)
           view.onDoubleTap = onDoubleTap
           #if canImport(UIKit) && !os(tvOS) && !os(visionOS)

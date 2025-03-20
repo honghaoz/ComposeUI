@@ -120,7 +120,7 @@ class ViewController: UIViewController {
 
       ViewNode<ButtonView>(
         update: { view, context in
-          guard context.type == .insert else {
+          guard context.updateType == .insert else {
             return
           }
 

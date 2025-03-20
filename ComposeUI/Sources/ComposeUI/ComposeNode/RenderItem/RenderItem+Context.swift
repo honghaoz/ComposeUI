@@ -78,7 +78,7 @@ public enum RenderableUpdateType {
 public struct RenderableUpdateContext {
 
   /// The update type.
-  public let type: RenderableUpdateType
+  public let updateType: RenderableUpdateType
 
   /// The old frame of the renderable before the update.
   public let oldFrame: CGRect
