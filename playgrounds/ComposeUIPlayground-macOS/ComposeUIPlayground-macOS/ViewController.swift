@@ -62,16 +62,6 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
-      ViewNode<Playground.SwiftUIView>()
-        .underlay {
-          LayerNode()
-            .border(color: Color.gray, width: 1)
-        }
-        .padding(horizontal: 16)
-        .frame(width: .flexible, height: 120)
-
-      Spacer(height: 16)
-
       ViewNode<Playground.TransitionView>()
         .underlay {
           LayerNode()
@@ -89,6 +79,16 @@ class ViewController: NSViewController {
         }
         .padding(horizontal: 16)
         .frame(width: .flexible, height: contentView.bounds.width)
+
+      Spacer(height: 16)
+
+      ViewNode<Playground.SwiftUIView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 120)
 
       Spacer(height: 16)
 
@@ -114,12 +114,7 @@ class ViewController: NSViewController {
       Spacer().height(20)
 
       VStack {
-        ColorNode(.red).frame(width: .flexible, height: 100)
-        ColorNode(.orange).frame(width: .flexible, height: 100)
-        ColorNode(.yellow).frame(width: .flexible, height: 100)
-        ColorNode(.green).frame(width: .flexible, height: 100)
-        ColorNode(.blue).frame(width: .flexible, height: 100)
-        ColorNode(.purple).frame(width: .flexible, height: 100)
+        rainbowColorNodes.map { $0.frame(width: .flexible, height: 100) }
       }
 
       ColorNode(.red)
@@ -162,10 +157,9 @@ class ViewController: NSViewController {
 }
 
 private let rainbowColorNodes = [
-  ColorNode(.red),
-  ColorNode(.orange),
-  ColorNode(.yellow),
-  ColorNode(.green),
-  ColorNode(.blue),
-  ColorNode(.purple),
+  ColorNode(Colors.RetroApple.green),
+  ColorNode(Colors.RetroApple.yellow),
+  ColorNode(Colors.RetroApple.orange),
+  ColorNode(Colors.RetroApple.red),
+  ColorNode(Colors.RetroApple.purple),
 ]

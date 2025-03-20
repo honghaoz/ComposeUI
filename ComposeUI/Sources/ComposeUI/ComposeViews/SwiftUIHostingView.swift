@@ -203,7 +203,7 @@ private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIH
   }
 
   private static func makeWrappedRootView(rootView: ContentView) -> AnyView {
-    if #available(iOS 14.0, *) {
+    if #available(iOS 14.0, tvOS 14.0, *) {
       return SwiftUI.ZStack {
         SwiftUI.Color.clear
         rootView
