@@ -304,7 +304,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     self.doubleTapTimeoutTask = doubleTapTimeoutTask
 
     DispatchQueue.main.asyncAfter(
-      deadline: .now() + (doubleTapInterval ?? Constants.doubleTapTimeoutInterval),
+      deadline: .now() + (doubleTapInterval ?? ComposeUI.Constants.defaultDoubleTapDuration),
       execute: doubleTapTimeoutTask
     )
   }
@@ -381,15 +381,6 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     #elseif canImport(AppKit)
     static let touchExpandedDistance: CGFloat = 0
     #endif
-
-    /// The maximum time to wait for a second tap in a double-tap sequence.
-    static var doubleTapTimeoutInterval: TimeInterval {
-      #if canImport(UIKit)
-      return 0.15
-      #elseif canImport(AppKit)
-      return NSEvent.doubleClickInterval
-      #endif
-    }
   }
 }
 

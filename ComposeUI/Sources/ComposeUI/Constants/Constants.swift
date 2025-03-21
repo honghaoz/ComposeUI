@@ -1,8 +1,8 @@
 //
-//  UniversalTypes.swift
+//  Constants.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 10/27/24.
+//  Created by Honghao Zhang on 3/20/25.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,28 +30,27 @@
 
 #if canImport(AppKit)
 import AppKit
-
-public typealias View = NSView
-public typealias Color = NSColor
-public typealias Font = NSFont
-public typealias EdgeInsets = NSEdgeInsets
-public typealias GestureRecognizer = NSGestureRecognizer
-public typealias GestureRecognizerDelegate = NSGestureRecognizerDelegate
-public typealias TapGestureRecognizer = NSClickGestureRecognizer
-public typealias PressGestureRecognizer = NSPressGestureRecognizer
-public typealias PanGestureRecognizer = NSPanGestureRecognizer
 #endif
 
 #if canImport(UIKit)
 import UIKit
-
-public typealias View = UIView
-public typealias Color = UIColor
-public typealias Font = UIFont
-public typealias EdgeInsets = UIEdgeInsets
-public typealias GestureRecognizer = UIGestureRecognizer
-public typealias GestureRecognizerDelegate = UIGestureRecognizerDelegate
-public typealias TapGestureRecognizer = UITapGestureRecognizer
-public typealias PressGestureRecognizer = UILongPressGestureRecognizer
-public typealias PanGestureRecognizer = UIPanGestureRecognizer
 #endif
+
+public enum Constants {
+
+  #if canImport(UIKit)
+  /// The default duration of a press gesture.
+  public static let defaultPressDuration: TimeInterval = 0.5
+  #elseif canImport(AppKit)
+  /// The default duration of a press gesture.
+  public static let defaultPressDuration: TimeInterval = NSEvent.doubleClickInterval
+  #endif
+
+  #if canImport(UIKit)
+  /// The default duration of a double-tap event.
+  public static let defaultDoubleTapDuration: TimeInterval = 0.15
+  #elseif canImport(AppKit)
+  /// The default duration of a double-click event.
+  public static let defaultDoubleTapDuration: TimeInterval = NSEvent.doubleClickInterval
+  #endif
+}
