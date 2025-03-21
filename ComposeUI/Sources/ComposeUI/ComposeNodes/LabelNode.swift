@@ -28,10 +28,13 @@
 //  IN THE SOFTWARE.
 //
 
-// TODO: support AppKit
+#if canImport(AppKit)
+import AppKit
+#endif
 
 #if canImport(UIKit)
 import UIKit
+#endif
 
 public typealias Text = LabelNode
 
@@ -57,12 +60,20 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   /// - Parameter text: The text to render.
   public init(_ text: String) {
     self.text = text
+    #if canImport(AppKit)
+    font = .systemFont(ofSize: NSFont.systemFontSize)
+    textColor = .labelColor
+    #endif
+
+    #if canImport(UIKit)
     #if os(iOS) || os(visionOS)
     font = .systemFont(ofSize: Font.labelFontSize)
     #elseif os(tvOS)
     font = .systemFont(ofSize: 20)
     #endif
     textColor = .label
+    #endif
+
     textAlignment = .center
     numberOfLines = 1
 
@@ -105,17 +116,20 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
       return []
     }
 
-    let viewItem = ViewItem<UILabel>(
+    let viewItem = ViewItem<BaseLabel>(
       id: id,
       frame: frame,
       make: { context in
         if let initialFrame = context.initialFrame {
-          return UILabel(frame: initialFrame)
+          return BaseLabel(frame: initialFrame)
         } else {
-          return UILabel()
+          return BaseLabel()
         }
       },
       update: { view, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
         updateLabel(view)
       }
     )
@@ -125,7 +139,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - Private
 
-  private func updateLabel(_ label: UILabel) {
+  private func updateLabel(_ label: BaseLabel) {
     label.isUserInteractionEnabled = false
 
     label.text = text
@@ -181,9 +195,12 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   /// Set the number of lines of the label node.
   ///
+  /// Set `numberOfLines` to 0 or 2+ will make the label node have a flexible width and a fixed height.
+  ///
   /// - Parameter value: The number of lines to set.
   /// - Returns: A new label node with the updated number of lines.
   public func numberOfLines(_ value: Int) -> Self {
+    let value = max(value, 0)
     guard numberOfLines != value else {
       return self
     }
@@ -201,6 +218,4 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 }
 
 /// A label used to calculate label's intrinsic size.
-private let sizingLabel = UILabel()
-
-#endif
+private let sizingLabel = BaseLabel()

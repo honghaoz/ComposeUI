@@ -53,6 +53,12 @@ class ViewController: NSViewController {
         .frame(width: 200, height: 22)
         .transition(.opacity(timing: .linear(duration: 2)))
 
+      Spacer(height: 8)
+
+      Text("Building UI using UIKit/AppKit with declarative syntax")
+        .textColor(.secondaryLabelColor)
+        .transition(.opacity(timing: .linear(duration: 2, delay: 0.5)))
+
       Spacer(height: 16)
 
       HStack(spacing: 4) { rainbowColorNodes }
