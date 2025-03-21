@@ -76,14 +76,10 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, FixedSizableC
         return view
       },
       update: { view, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          (view as? MutableSwiftUIHostingView)?.content = AnyView(content())
-        case .scroll,
-             .boundsChange:
-          break
+        guard context.updateType.requiresFullUpdate else {
+          return
         }
+        (view as? MutableSwiftUIHostingView)?.content = AnyView(content())
       }
     )
     self.viewNode.id = .standard(.swiftui)

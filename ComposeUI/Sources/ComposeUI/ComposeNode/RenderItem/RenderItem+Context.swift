@@ -73,6 +73,18 @@ public enum RenderableUpdateType {
 
   /// The renderable is reused because the content view's bounds are changed, i.e. the size is changed.
   case boundsChange
+
+  /// Whether the update requires a full update, i.e. the renderable inserted or explicitly refreshed.
+  public var requiresFullUpdate: Bool {
+    switch self {
+    case .insert,
+         .refresh:
+      return true
+    case .scroll,
+         .boundsChange:
+      return false
+    }
+  }
 }
 
 public struct RenderableUpdateContext {

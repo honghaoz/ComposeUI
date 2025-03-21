@@ -242,6 +242,9 @@ public extension ComposeNode {
   /// - Returns: A new node with the background color set.
   func backgroundColor(_ color: Color) -> some ComposeNode {
     onUpdate { item, context in
+      guard context.updateType.requiresFullUpdate else {
+        return
+      }
       item.layer.backgroundColor = color.cgColor
     }
   }
@@ -254,6 +257,9 @@ public extension ComposeNode {
   /// - Returns: A new node with the opacity set.
   func opacity(_ opacity: CGFloat) -> some ComposeNode {
     onUpdate { item, context in
+      guard context.updateType.requiresFullUpdate else {
+        return
+      }
       item.layer.opacity = Float(opacity)
     }
   }
@@ -268,6 +274,9 @@ public extension ComposeNode {
   /// - Returns: A new node with the border set.
   func border(color: Color, width: CGFloat) -> some ComposeNode {
     onUpdate { item, context in
+      guard context.updateType.requiresFullUpdate else {
+        return
+      }
       let layer = item.layer
       layer.borderColor = color.cgColor
       layer.borderWidth = width
@@ -282,6 +291,9 @@ public extension ComposeNode {
   /// - Returns: A new node with the corner radius set.
   func cornerRadius(_ radius: CGFloat) -> some ComposeNode {
     onUpdate { item, context in
+      guard context.updateType.requiresFullUpdate else {
+        return
+      }
       let layer = item.layer
       layer.masksToBounds = true
       layer.cornerCurve = .continuous
@@ -302,6 +314,9 @@ public extension ComposeNode {
   /// - Returns: A new node with the shadow set.
   func shadow(color: Color, offset: CGSize, radius: CGFloat, opacity: CGFloat, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     onUpdate { item, context in
+      guard context.updateType.requiresFullUpdate else {
+        return
+      }
       let layer = item.layer
       layer.shadowColor = color.cgColor
       layer.shadowOffset = offset
@@ -321,6 +336,9 @@ public extension ComposeNode {
   /// - Returns: A new node with the z-index set.
   func zIndex(_ zIndex: CGFloat) -> some ComposeNode {
     onUpdate { item, context in
+      guard context.updateType.requiresFullUpdate else {
+        return
+      }
       item.layer.zPosition = zIndex
     }
   }
@@ -333,7 +351,7 @@ public extension ComposeNode {
   /// - Returns: A new node with the `isUserInteractionEnabled` set.
   func interactive(_ isEnabled: Bool = true) -> some ComposeNode {
     onUpdate { item, context in
-      guard let view = item.view else {
+      guard context.updateType.requiresFullUpdate, let view = item.view else {
         return
       }
 
