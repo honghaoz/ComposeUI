@@ -34,23 +34,14 @@ import ComposeUI
 
 class ViewController: NSViewController {
 
-  private class ViewState {
-
-    private(set) lazy var textField = NSTextField()
-  }
-
-  private let state = ViewState()
-
-  private lazy var contentView = ComposeView { [state] contentView in
+  private lazy var contentView = ComposeView { contentView in
     VStack {
       HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
 
       Spacer(height: 16)
 
-      state.textField
-        .asComposeNode()
-        .flexible()
-        .frame(width: 200, height: 22)
+      Text("Hello, ComposéUI!")
+        .frame(width: .intrinsic, height: .intrinsic)
         .transition(.opacity(timing: .linear(duration: 2)))
 
       Spacer(height: 8)
@@ -117,6 +108,16 @@ class ViewController: NSViewController {
       }
       .frame(width: 88, height: 44)
 
+      Spacer(height: 16)
+
+      ViewNode<Playground.LabelView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 720)
+
       Spacer().height(20)
 
       VStack {
@@ -137,15 +138,6 @@ class ViewController: NSViewController {
     super.viewDidLoad()
 
     self.view.wantsLayer = true
-
-    let textField = state.textField
-    textField.wantsLayer = true
-    textField.stringValue = "Hello, ComposéUI!"
-    textField.isEditable = false
-    textField.isBordered = false
-    textField.drawsBackground = false
-    textField.font = .systemFont(ofSize: 18, weight: .medium)
-    textField.alignment = .center
 
     self.view.addSubview(contentView)
     contentView.frame = view.bounds

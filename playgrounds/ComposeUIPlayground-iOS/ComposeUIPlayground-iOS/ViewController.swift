@@ -144,6 +144,14 @@ class ViewController: UIViewController {
       )
       .frame(width: 100, height: 44)
 
+      ViewNode<Playground.LabelView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 900)
+
       for _ in 0 ... 50 {
         ColorNode(state.color)
           .frame(width: .flexible, height: state.colorSize)

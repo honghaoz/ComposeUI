@@ -186,9 +186,9 @@ open class Label: NSTextField {
 
     switch lineWrapMode {
     case .byWord:
-      cell?.lineBreakMode = .byWordWrapping
+      lineBreakMode = .byWordWrapping
     case .byChar:
-      cell?.lineBreakMode = .byCharWrapping
+      lineBreakMode = .byCharWrapping
     }
 
     multilineTruncatesLastVisibleLine = truncatesLastVisibleLine

@@ -51,6 +51,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   private var textColor: Color
   private var textAlignment: NSTextAlignment
   private var numberOfLines: Int
+  private var lineBreakMode: NSLineBreakMode
 
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
@@ -76,6 +77,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
     textAlignment = .center
     numberOfLines = 1
+    lineBreakMode = .byTruncatingTail
 
     isFixedWidth = true
     isFixedHeight = true
@@ -147,6 +149,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     label.textColor = textColor
     label.textAlignment = textAlignment
     label.numberOfLines = numberOfLines
+    label.lineBreakMode = lineBreakMode
   }
 
   // MARK: - Public
@@ -213,6 +216,20 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
       copy.isFixedHeight = true
     }
 
+    return copy
+  }
+
+  /// Set the line break mode of the label node.
+  ///
+  /// - Parameter value: The line break mode to set.
+  /// - Returns: A new label node with the updated line break mode.
+  public func lineBreakMode(_ value: NSLineBreakMode) -> Self {
+    guard lineBreakMode != value else {
+      return self
+    }
+
+    var copy = self
+    copy.lineBreakMode = value
     return copy
   }
 }

@@ -149,8 +149,13 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
 public extension ComposeNode {
 
-  func frame(width: FrameSize, height: FrameSize, alignment: Layout.Alignment = .center) -> some ComposeNode {
-    FrameNode(node: self, width: width, height: height, alignment: alignment)
+  func frame(width: FrameSize, height: FrameSize, alignment: Layout.Alignment = .center) -> any ComposeNode {
+    if case .intrinsic = width, case .intrinsic = height {
+      // intrinsic size has no effect on the layout
+      return self
+    } else {
+      return FrameNode(node: self, width: width, height: height, alignment: alignment)
+    }
   }
 
   func frame(width: CGFloat, height: FrameSize, alignment: Layout.Alignment = .center) -> some ComposeNode {
@@ -173,7 +178,24 @@ public extension ComposeNode {
     FrameNode(node: self, width: .fixed(size), height: .fixed(size), alignment: alignment)
   }
 
-  func frame(_ size: FrameSize, alignment: Layout.Alignment = .center) -> some ComposeNode {
-    FrameNode(node: self, width: size, height: size, alignment: alignment)
+  func frame(_ size: FrameSize, alignment: Layout.Alignment = .center) -> any ComposeNode {
+    if case .intrinsic = size {
+      // intrinsic size has no effect on the layout
+      return self
+    } else {
+      return FrameNode(node: self, width: size, height: size, alignment: alignment)
+    }
+  }
+
+  func width(_ width: CGFloat, alignment: Layout.Alignment = .center) -> some ComposeNode {
+    FrameNode(node: self, width: .fixed(width), height: .intrinsic, alignment: alignment)
+  }
+
+  func height(_ height: CGFloat, alignment: Layout.Alignment = .center) -> some ComposeNode {
+    FrameNode(node: self, width: .intrinsic, height: .fixed(height), alignment: alignment)
+  }
+
+  func alignment(_ alignment: Layout.Alignment) -> some ComposeNode {
+    FrameNode(node: self, width: .flexible, height: .flexible, alignment: alignment)
   }
 }
