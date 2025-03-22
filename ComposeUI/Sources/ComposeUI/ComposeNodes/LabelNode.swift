@@ -150,6 +150,49 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     label.textAlignment = textAlignment
     label.numberOfLines = numberOfLines
     label.lineBreakMode = lineBreakMode
+
+    #if canImport(AppKit)
+    // special handling for NSLabel (NSTextField)
+    if numberOfLines == 1 {
+      let textTruncationMode: TextTruncationMode
+      switch lineBreakMode {
+      case .byWordWrapping,
+           .byCharWrapping:
+        textTruncationMode = .tail
+      case .byClipping:
+        textTruncationMode = .none
+      case .byTruncatingHead:
+        textTruncationMode = .head
+      case .byTruncatingMiddle:
+        textTruncationMode = .middle
+      case .byTruncatingTail:
+        textTruncationMode = .tail
+      @unknown default:
+        assertionFailure("Unsupported line break mode: \(lineBreakMode)")
+        textTruncationMode = .tail
+      }
+      label.setToSingleLineMode(truncationMode: textTruncationMode)
+    } else {
+      let lineWrapMode: LineWrapMode
+      switch lineBreakMode {
+      case .byWordWrapping:
+        lineWrapMode = .byWord
+      case .byCharWrapping:
+        lineWrapMode = .byChar
+      case .byClipping,
+           .byTruncatingHead,
+           .byTruncatingMiddle,
+           .byTruncatingTail:
+        // if NSLabel (NSTextField) uses multiline, only .byWordWrapping or .byCharWrapping is supported
+        // setting the line break mode to other values will make the label become single line
+        lineWrapMode = .byWord
+      @unknown default:
+        assertionFailure("Unsupported line break mode: \(lineBreakMode)")
+        lineWrapMode = .byWord
+      }
+      label.setToMultilineMode(numberOfLines: numberOfLines, lineWrapMode: lineWrapMode, truncatesLastVisibleLine: true)
+    }
+    #endif
   }
 
   // MARK: - Public

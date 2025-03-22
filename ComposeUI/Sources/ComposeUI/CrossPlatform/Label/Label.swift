@@ -158,8 +158,8 @@ open class Label: NSTextField {
   }
 
   /// Set label to single line mode.
-  /// - Parameter truncationMode: The text truncation mode.
-  public func setToSingleLineMode(truncationMode: TextTruncationMode) {
+  /// - Parameter truncationMode: The text truncation mode. Default to `.tail`.
+  public func setToSingleLineMode(truncationMode: TextTruncationMode = .tail) {
     maximumNumberOfLines = 1
 
     switch truncationMode {
@@ -178,10 +178,10 @@ open class Label: NSTextField {
 
   /// Set label to multiline mode.
   /// - Parameters:
-  ///   - numberOfLines: Number of lines, 0 for unlimited.
-  ///   - lineWrapMode: The line wrap mode.
-  ///   - truncatesLastVisibleLine: If `true`, the label truncates the text at the end of the last visible line.
-  public func setToMultilineMode(numberOfLines: Int, lineWrapMode: LineWrapMode, truncatesLastVisibleLine: Bool) {
+  ///   - numberOfLines: Number of lines, 0 for unlimited. Default to 0.
+  ///   - lineWrapMode: The line wrap mode. Default to `.byWord`.
+  ///   - truncatesLastVisibleLine: If `true`, the label truncates the text at the end of the last visible line. Default to `true`.
+  public func setToMultilineMode(numberOfLines: Int = 0, lineWrapMode: LineWrapMode = .byWord, truncatesLastVisibleLine: Bool = true) {
     maximumNumberOfLines = numberOfLines
 
     switch lineWrapMode {
