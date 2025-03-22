@@ -149,6 +149,12 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
 public extension ComposeNode {
 
+  /// Sets the frame of the node.
+  ///
+  /// - Parameters:
+  ///   - width: The width of the node.
+  ///   - height: The height of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(width: FrameSize, height: FrameSize, alignment: Layout.Alignment = .center) -> any ComposeNode {
     if case .intrinsic = width, case .intrinsic = height {
       // intrinsic size has no effect on the layout
@@ -158,26 +164,59 @@ public extension ComposeNode {
     }
   }
 
+  /// Sets the frame of the node.
+  ///
+  /// - Parameters:
+  ///   - width: The width of the node.
+  ///   - height: The height of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(width: CGFloat, height: FrameSize, alignment: Layout.Alignment = .center) -> some ComposeNode {
     FrameNode(node: self, width: .fixed(width), height: height, alignment: alignment)
   }
 
+  /// Sets the frame of the node.
+  ///
+  /// - Parameters:
+  ///   - width: The width of the node.
+  ///   - height: The height of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(width: FrameSize, height: CGFloat, alignment: Layout.Alignment = .center) -> some ComposeNode {
     FrameNode(node: self, width: width, height: .fixed(height), alignment: alignment)
   }
 
+  /// Sets the frame of the node.
+  ///
+  /// - Parameters:
+  ///   - width: The width of the node.
+  ///   - height: The height of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(width: CGFloat, height: CGFloat, alignment: Layout.Alignment = .center) -> some ComposeNode {
     FrameNode(node: self, width: .fixed(width), height: .fixed(height), alignment: alignment)
   }
 
+  /// Sets the frame of the node.
+  ///
+  /// - Parameters:
+  ///   - size: The size of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(_ size: CGSize, alignment: Layout.Alignment = .center) -> some ComposeNode {
     FrameNode(node: self, width: .fixed(size.width), height: .fixed(size.height), alignment: alignment)
   }
 
+  /// Sets the frame of the node.
+  ///
+  /// - Parameters:
+  ///   - size: The size of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(_ size: CGFloat, alignment: Layout.Alignment = .center) -> some ComposeNode {
     FrameNode(node: self, width: .fixed(size), height: .fixed(size), alignment: alignment)
   }
 
+  /// Sets the frame of the node.
+  ///
+  /// - Parameters:
+  ///   - size: The size of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(_ size: FrameSize, alignment: Layout.Alignment = .center) -> any ComposeNode {
     if case .intrinsic = size {
       // intrinsic size has no effect on the layout
@@ -187,14 +226,28 @@ public extension ComposeNode {
     }
   }
 
+  /// Sets the width of the node.
+  ///
+  /// - Parameters:
+  ///   - width: The width of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func width(_ width: CGFloat, alignment: Layout.Alignment = .center) -> some ComposeNode {
     FrameNode(node: self, width: .fixed(width), height: .intrinsic, alignment: alignment)
   }
 
+  /// Sets the height of the node.
+  ///
+  /// - Parameters:
+  ///   - height: The height of the node.
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func height(_ height: CGFloat, alignment: Layout.Alignment = .center) -> some ComposeNode {
     FrameNode(node: self, width: .intrinsic, height: .fixed(height), alignment: alignment)
   }
 
+  /// Sets the alignment of the node within its container.
+  ///
+  /// - Parameters:
+  ///   - alignment: The alignment of the node. Default to `.center`.
   func alignment(_ alignment: Layout.Alignment) -> some ComposeNode {
     FrameNode(node: self, width: .flexible, height: .flexible, alignment: alignment)
   }
