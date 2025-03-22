@@ -37,11 +37,11 @@ public typealias VerticalStack = VerticalStackNode
 ///
 /// The node's width is the maximum width of its children.
 /// The node's height is the sum of its children's heights plus the spacing between them.
-public struct VerticalStackNode: ComposeNode {
+public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
   private let alignment: Layout.HorizontalAlignment
   private let spacing: CGFloat
-  private var childNodes: [any ComposeNode]
+  var childNodes: [any ComposeNode]
 
   public init(alignment: Layout.HorizontalAlignment = .center,
               spacing: CGFloat = 0,
@@ -155,4 +155,14 @@ public struct VerticalStackNode: ComposeNode {
 
     return mappedChildItems
   }
+
+  // /// Applies a modifier to all children of the node.
+  // ///
+  // /// - Parameter modifier: The modifier to apply to the children.
+  // /// - Returns: A new `VerticalStackNode` with the modifier applied to its children.
+  // public func mapChildren(_ modifier: (any ComposeNode) -> any ComposeNode) -> VerticalStackNode {
+  //   var node = self
+  //   node.childNodes = node.childNodes.map { modifier($0) }
+  //   return node
+  // }
 }

@@ -37,11 +37,11 @@ public typealias HorizontalStack = HorizontalStackNode
 ///
 /// The node's width is the sum of its children's widths plus the spacing between them.
 /// The node's height is the maximum height of its children.
-public struct HorizontalStackNode: ComposeNode {
+public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
   private let alignment: Layout.VerticalAlignment
   private let spacing: CGFloat
-  private var childNodes: [any ComposeNode]
+  var childNodes: [any ComposeNode]
 
   public init(alignment: Layout.VerticalAlignment = .center,
               spacing: CGFloat = 0,

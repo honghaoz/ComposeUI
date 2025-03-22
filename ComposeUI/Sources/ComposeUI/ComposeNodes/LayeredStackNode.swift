@@ -36,10 +36,10 @@ public typealias LayeredStack = LayeredStackNode
 /// A node that stacks its children in z-axis.
 ///
 /// The node's size is the maximum size of its children.
-public struct LayeredStackNode: ComposeNode {
+public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
   private let alignment: Layout.Alignment
-  private var childNodes: [any ComposeNode]
+  var childNodes: [any ComposeNode]
 
   public init(alignment: Layout.Alignment = .center, @ComposeContentBuilder content: () -> ComposeContent) {
     self.alignment = alignment
