@@ -120,6 +120,16 @@ class ViewController: NSViewController {
 
       Spacer().height(20)
 
+      ViewNode<Playground.ScrollView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 100)
+
+      Spacer().height(20)
+
       VStack {
         rainbowColorNodes.map { $0.frame(width: .flexible, height: 100) }
       }

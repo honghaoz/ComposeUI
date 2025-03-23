@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		E504D9692D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E504D9682D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift */; };
+		E58FCD732D8FCAA2003138BE /* Playground+ScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58FCD722D8FCAA2003138BE /* Playground+ScrollView.swift */; };
 		E59D808F2CA8DFD3006A6467 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59D808E2CA8DFD3006A6467 /* AppDelegate.swift */; };
 		E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59D80902CA8DFD3006A6467 /* ViewController.swift */; };
 		E59D80932CA8DFD4006A6467 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E59D80922CA8DFD4006A6467 /* Assets.xcassets */; };
@@ -25,6 +26,7 @@
 
 /* Begin PBXFileReference section */
 		E504D9682D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+SwiftUIView.swift"; sourceTree = "<group>"; };
+		E58FCD722D8FCAA2003138BE /* Playground+ScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+ScrollView.swift"; sourceTree = "<group>"; };
 		E59D808B2CA8DFD3006A6467 /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E59D808E2CA8DFD3006A6467 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		E59D80902CA8DFD3006A6467 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -102,6 +104,7 @@
 				E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */,
 				E504D9682D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift */,
 				E5F901F72D8DF4CC00BFE2EE /* Playground+LabelView.swift */,
+				E58FCD722D8FCAA2003138BE /* Playground+ScrollView.swift */,
 			);
 			name = PlaygroundViews;
 			path = "../ComposeUIPlayground-iOS/ComposeUIPlayground-iOS/PlaygroundViews";
@@ -183,6 +186,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E58FCD732D8FCAA2003138BE /* Playground+ScrollView.swift in Sources */,
 				E5F901F82D8DF4CC00BFE2EE /* Playground+LabelView.swift in Sources */,
 				E5D034792D7E1B9C004AB25D /* RotationNode.swift in Sources */,
 				E504D9692D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift in Sources */,

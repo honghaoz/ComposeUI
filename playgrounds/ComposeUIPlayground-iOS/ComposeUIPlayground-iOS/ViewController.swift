@@ -152,6 +152,14 @@ class ViewController: UIViewController {
         .padding(horizontal: 16)
         .frame(width: .flexible, height: 900)
 
+      ViewNode<Playground.ScrollView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 100)
+
       for _ in 0 ... 50 {
         ColorNode(state.color)
           .frame(width: .flexible, height: state.colorSize)
