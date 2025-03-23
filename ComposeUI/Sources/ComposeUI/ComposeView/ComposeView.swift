@@ -188,6 +188,7 @@ open class ComposeView: BaseScrollView {
 
     #if canImport(AppKit)
     drawsBackground = false // make the view transparent
+    automaticallyAdjustsContentInsets = false
     #endif
 
     #if canImport(UIKit)
@@ -379,6 +380,10 @@ open class ComposeView: BaseScrollView {
         super.isScrollable = false
       }
     }
+
+    #if canImport(AppKit)
+    invalidateScrollElasticity()
+    #endif
 
     // set up the renderable item ids and map
     let oldRenderableItemIds = renderableItemIds

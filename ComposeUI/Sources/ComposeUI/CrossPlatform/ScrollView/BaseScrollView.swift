@@ -94,13 +94,14 @@ open class BaseScrollView: ScrollView {
 
   override open func scrollWheel(with event: NSEvent) {
     // https://apptyrant.com/2015/05/18/how-to-disable-nsscrollview-scrolling/
-    if _isScrollable {
-      super.scrollWheel(with: event)
-    } else {
+    guard _isScrollable else {
       // send the event to outside of the scroll view.
       // https://github.com/onmyway133/blog/issues/733
       nextResponder?.scrollWheel(with: event)
+      return
     }
+
+    super.scrollWheel(with: event)
   }
   #endif
 
