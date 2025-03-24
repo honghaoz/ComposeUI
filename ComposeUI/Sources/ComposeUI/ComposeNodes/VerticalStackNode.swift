@@ -155,14 +155,4 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
     return mappedChildItems
   }
-
-  // /// Applies a modifier to all children of the node.
-  // ///
-  // /// - Parameter modifier: The modifier to apply to the children.
-  // /// - Returns: A new `VerticalStackNode` with the modifier applied to its children.
-  // public func mapChildren(_ modifier: (any ComposeNode) -> any ComposeNode) -> VerticalStackNode {
-  //   var node = self
-  //   node.childNodes = node.childNodes.map { modifier($0) }
-  //   return node
-  // }
 }
