@@ -36,6 +36,8 @@ import AppKit
 import UIKit
 #endif
 
+import Combine
+
 /// A view that renders `ComposeContent`.
 open class ComposeView: BaseScrollView {
 
@@ -195,6 +197,8 @@ open class ComposeView: BaseScrollView {
     // ensure the content inset is consistent regardless of the safe area
     contentInsetAdjustmentBehavior = .never
     #endif
+
+    observeTheme()
   }
 
   // MARK: - Content
@@ -251,6 +255,16 @@ open class ComposeView: BaseScrollView {
     set {
       isScrollableExplicitlySet = true
       super.isScrollable = newValue
+    }
+  }
+
+  // MARK: - Theme
+
+  private var themeObservation: AnyCancellable?
+
+  private func observeTheme() {
+    themeObservation = themePublisher.dropFirst().sink { [weak self] theme in
+      self?.setNeedsRefresh(animated: true)
     }
   }
 

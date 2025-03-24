@@ -36,6 +36,8 @@ import AppKit
 import UIKit
 #endif
 
+import Combine
+
 /// A base scroll view.
 ///
 /// The scroll view will automatically update the content scale factor when the window backing properties change.
@@ -45,11 +47,21 @@ open class BaseScrollView: ScrollView {
     super.init(frame: frame)
 
     contentScaleFactor = screenScaleFactor
+
+    #if canImport(AppKit)
+    startObservingAppearance()
+    #endif
   }
 
   @available(*, unavailable)
   public required init?(coder: NSCoder) {
     fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+
+  deinit {
+    #if canImport(AppKit)
+    cancelObservingAppearance()
+    #endif
   }
 
   // MARK: - Scroll
@@ -102,6 +114,138 @@ open class BaseScrollView: ScrollView {
     }
 
     super.scrollWheel(with: event)
+  }
+  #endif
+
+  // MARK: - Theme
+
+  /// A publisher that emits the theme of the view.
+  ///
+  /// The publisher emits the current theme when subscribed.
+  public private(set) lazy var themePublisher: AnyPublisher<Theme, Never> = themeSubject.eraseToAnyPublisher()
+
+  private lazy var themeSubject = CurrentValueSubject<Theme, Never>(theme)
+
+  private var pendingThemeToUpdate: Theme?
+  private func scheduleThemeUpdate(_ newTheme: Theme) {
+    if pendingThemeToUpdate == nil {
+      // no pending theme update, schedule an update
+      RunLoop.main.perform(inModes: [.common]) { [weak self] in
+        guard let self, let newTheme = self.pendingThemeToUpdate else {
+          return
+        }
+
+        self.pendingThemeToUpdate = nil
+        self.updateTheme(newTheme)
+      }
+    }
+
+    pendingThemeToUpdate = newTheme
+  }
+
+  private lazy var previousTheme: Theme = theme
+  private func updateTheme(_ newTheme: Theme) {
+    guard previousTheme != newTheme else {
+      return
+    }
+
+    previousTheme = newTheme
+    themeSubject.value = newTheme
+  }
+
+  #if canImport(AppKit)
+  /// The theme of the view.
+  public var theme: Theme {
+    effectiveAppearance.theme
+  }
+
+  /// The override theme of the view.
+  public var overrideTheme: Theme? {
+    get {
+      appearance?.theme ?? nil
+    }
+    set {
+      if let newValue {
+        appearance = NSAppearance(named: newValue.isLight ? .aqua : .darkAqua)
+      } else {
+        appearance = nil
+      }
+    }
+  }
+
+  private var appearanceObserver: NSKeyValueObservation?
+
+  private func startObservingAppearance() {
+    guard appearanceObserver == nil else {
+      return
+    }
+
+    // Observe effective appearance changes
+    appearanceObserver = self.observe(\.effectiveAppearance, options: [.new, .old]) { [weak self] _, _ in
+      guard let self else {
+        return
+      }
+      self.scheduleThemeUpdate(self.theme)
+    }
+  }
+
+  private func cancelObservingAppearance() {
+    appearanceObserver?.invalidate()
+    appearanceObserver = nil
+  }
+  #endif
+
+  #if canImport(UIKit)
+  /// The theme of the view.
+  public var theme: Theme {
+    let getThemeFromTraitCollection: () -> Theme = {
+      switch self.traitCollection.userInterfaceStyle {
+      case .unspecified:
+        #if !os(tvOS)
+        assertionFailure("unspecified traitCollection.userInterfaceStyle")
+        #endif
+        return .light
+      case .light:
+        return .light
+      case .dark:
+        return .dark
+      @unknown default:
+        assertionFailure("unknown UIUserInterfaceStyle: \(self.traitCollection.userInterfaceStyle)")
+        return .light
+      }
+    }
+
+    switch overrideUserInterfaceStyle {
+    case .unspecified:
+      return getThemeFromTraitCollection()
+    case .light:
+      return .light
+    case .dark:
+      return .dark
+    @unknown default:
+      assertionFailure("unknown overrideUserInterfaceStyle: \(overrideUserInterfaceStyle)")
+      return getThemeFromTraitCollection()
+    }
+  }
+
+  /// The override theme of the view.
+  public var overrideTheme: Theme? {
+    get {
+      overrideUserInterfaceStyle.theme
+    }
+    set {
+      if let newValue {
+        overrideUserInterfaceStyle = newValue.isLight ? .light : .dark
+      } else {
+        overrideUserInterfaceStyle = .unspecified
+      }
+    }
+  }
+
+  override open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+
+    scheduleThemeUpdate(theme)
   }
   #endif
 
