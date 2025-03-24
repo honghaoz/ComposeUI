@@ -65,7 +65,7 @@ extension Playground {
           for alignment in alignments {
             Text("ComposéUI")
               .font(.systemFont(ofSize: 12))
-              .fixed(width: false, height: true)
+              .fixedSize(width: false, height: true)
               .numberOfLines(1)
               .textAlignment(alignment)
           }
@@ -83,7 +83,7 @@ extension Playground {
               for lineBreakMode in lineBreakModes {
                 Text("ComposéUI")
                   .font(.systemFont(ofSize: 12))
-                  .fixed(width: false, height: true) // make width flexible so that the container can set the width
+                  .fixedSize(width: false, height: true) // make width flexible so that the container can set the width
                   .numberOfLines(1)
                   .textAlignment(alignment)
                   .lineBreakMode(lineBreakMode)

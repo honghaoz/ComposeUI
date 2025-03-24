@@ -44,7 +44,7 @@ class ViewNodeTests: XCTestCase {
       expect(node.isFixedHeight) == false
 
       // when set fixed size
-      node = node.fixed()
+      node = node.fixedSize()
 
       // then the size is fixed
       expect(node.isFixedWidth) == true
@@ -60,7 +60,7 @@ class ViewNodeTests: XCTestCase {
       expect(node.isFixedHeight) == true
 
       // when set flexible size
-      node = node.flexible()
+      node = node.flexibleSize()
 
       // then the size is flexible
       expect(node.isFixedWidth) == false
@@ -81,7 +81,7 @@ class ViewNodeTests: XCTestCase {
     // when the view is used in ViewNode with fixed size
     do {
       let node = ViewNode(view)
-        .fixed()
+        .fixedSize()
         .padding(10)
         .frame(.flexible, alignment: .topLeft)
 
@@ -115,7 +115,7 @@ class ViewNodeTests: XCTestCase {
     // when the view is used in ViewNode with flexible size
     do {
       let node = ViewNode(view)
-        .flexible()
+        .flexibleSize()
         .frame(width: 210, height: 110)
         .padding(10)
         .frame(.flexible, alignment: .topLeft)

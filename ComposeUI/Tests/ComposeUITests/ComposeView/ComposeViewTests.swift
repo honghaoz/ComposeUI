@@ -66,7 +66,7 @@ class ComposeViewTests: XCTestCase {
       let view = BaseView()
       contentView.setContent {
         ViewNode(view)
-          .flexible()
+          .flexibleSize()
           .frame(width: 50, height: 80)
       }
       contentView.refresh(animated: false)
@@ -80,7 +80,7 @@ class ComposeViewTests: XCTestCase {
       let view = BaseView()
       contentView.setContent {
         ViewNode(view)
-          .flexible()
+          .flexibleSize()
           .frame(width: 50, height: 120)
       }
       contentView.refresh(animated: false)
@@ -94,7 +94,7 @@ class ComposeViewTests: XCTestCase {
       let view = BaseView()
       contentView.setContent {
         ViewNode(view)
-          .flexible()
+          .flexibleSize()
           .frame(width: 120, height: 80)
       }
       contentView.refresh(animated: false)

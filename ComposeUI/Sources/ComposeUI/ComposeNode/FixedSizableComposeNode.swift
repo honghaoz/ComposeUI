@@ -48,7 +48,7 @@ public extension FixedSizableComposeNode {
   ///   - width: Whether the width is fixed.
   ///   - height: Whether the height is fixed.
   /// - Returns: A new node with the width and height set.
-  func fixed(width: Bool = true, height: Bool = true) -> Self {
+  func fixedSize(width: Bool = true, height: Bool = true) -> Self {
     var node = self
     node.isFixedWidth = width
     node.isFixedHeight = height
@@ -58,7 +58,7 @@ public extension FixedSizableComposeNode {
   /// Set the node to be flexible.
   ///
   /// - Returns: A new node with the width and height set to flexible.
-  func flexible() -> Self {
+  func flexibleSize() -> Self {
     var node = self
     node.isFixedWidth = false
     node.isFixedHeight = false
