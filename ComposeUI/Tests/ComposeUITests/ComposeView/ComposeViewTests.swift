@@ -56,7 +56,7 @@ class ComposeViewTests: XCTestCase {
     contentView.setNeedsRefresh(animated: false)
     expect(refreshCount) == 1
 
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-9))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
     expect(refreshCount) == 2
   }
 

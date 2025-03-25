@@ -263,7 +263,7 @@ open class ComposeView: BaseScrollView {
   private var themeObservation: AnyCancellable?
 
   private func observeTheme() {
-    themeObservation = themePublisher.dropFirst().sink { [weak self] theme in
+    themeObservation = themePublisher.dropFirst().sink { [weak self] _ in
       self?.setNeedsRefresh(animated: true)
     }
   }

@@ -64,6 +64,26 @@ open class BaseScrollView: ScrollView {
     #endif
   }
 
+  #if canImport(AppKit)
+  override open func viewDidMoveToSuperview() {
+    super.viewDidMoveToSuperview()
+
+    if theme != previousTheme {
+      scheduleThemeUpdate(theme)
+    }
+  }
+  #endif
+
+  #if canImport(UIKit)
+  override open func didMoveToSuperview() {
+    super.didMoveToSuperview()
+
+    if theme != previousTheme {
+      scheduleThemeUpdate(theme)
+    }
+  }
+  #endif
+
   // MARK: - Scroll
 
   /// Whether the scroll view is scrollable.
@@ -122,9 +142,9 @@ open class BaseScrollView: ScrollView {
   /// A publisher that emits the theme of the view.
   ///
   /// The publisher emits the current theme when subscribed.
-  public private(set) lazy var themePublisher: AnyPublisher<Theme, Never> = themeSubject.eraseToAnyPublisher()
+  public private(set) lazy var themePublisher: AnyPublisher<Theme, Never> = themeSubject.compactMap { $0 }.eraseToAnyPublisher()
 
-  private lazy var themeSubject = CurrentValueSubject<Theme, Never>(theme)
+  private lazy var themeSubject = CurrentValueSubject<Theme?, Never>(nil)
 
   private var pendingThemeToUpdate: Theme?
   private func scheduleThemeUpdate(_ newTheme: Theme) {
@@ -143,13 +163,15 @@ open class BaseScrollView: ScrollView {
     pendingThemeToUpdate = newTheme
   }
 
-  private lazy var previousTheme: Theme = theme
+  private var previousTheme: Theme? {
+    themeSubject.value
+  }
+
   private func updateTheme(_ newTheme: Theme) {
     guard previousTheme != newTheme else {
       return
     }
 
-    previousTheme = newTheme
     themeSubject.value = newTheme
   }
 
