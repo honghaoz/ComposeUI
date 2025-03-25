@@ -248,6 +248,12 @@ open class ComposeView: BaseScrollView {
   /// A flag to indicate if the `isScrollable` property is set explicitly.
   private var isScrollableExplicitlySet: Bool = false
 
+  // TODO: support auto show/hide scroller
+  //  hasHorizontalScroller = true
+  //  hasVerticalScroller = true
+
+  // verify UIScrollView behavior on iOS
+
   override public final var isScrollable: Bool {
     get {
       super.isScrollable

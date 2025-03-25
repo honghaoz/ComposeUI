@@ -55,13 +55,6 @@ open class ScrollView: NSScrollView {
 
     documentView = BaseView()
 
-    hasHorizontalScroller = true
-    hasVerticalScroller = true
-
-    // shows or hides scrollers when scroll view adjusts size
-    // for example, when the scroll view becomes smaller that results into effective scrollers, this will show up the scroller
-    autohidesScrollers = true
-
     startObservingBoundsChange()
   }
 

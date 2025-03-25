@@ -97,6 +97,7 @@ public extension ScrollViewType {
 
   func bounds() -> CGRect {
     #if canImport(AppKit)
+    /// Can also use `documentVisibleRect`
     return contentView.bounds
     #endif
 

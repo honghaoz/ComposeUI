@@ -87,8 +87,6 @@ open class BaseScrollView: ScrollView {
   // MARK: - Scroll
 
   /// Whether the scroll view is scrollable.
-  ///
-  /// If set to `false`, the scroll view will disable scrolling to top and the scroll indicators will be hidden.
   public var isScrollable: Bool {
     get {
       #if canImport(UIKit)
@@ -102,21 +100,10 @@ open class BaseScrollView: ScrollView {
     set {
       #if canImport(UIKit)
       isScrollEnabled = newValue
-      if newValue == false {
-        #if os(iOS)
-        scrollsToTop = false
-        #endif
-        showsHorizontalScrollIndicator = false
-        showsVerticalScrollIndicator = false
-      }
       #endif
 
       #if canImport(AppKit)
       _isScrollable = newValue
-      if newValue == false {
-        hasHorizontalScroller = false
-        hasVerticalScroller = false
-      }
       #endif
     }
   }
