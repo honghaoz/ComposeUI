@@ -245,24 +245,27 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Scroll
 
-  /// A flag to indicate if the `isScrollable` property is set explicitly.
-  private var isScrollableExplicitlySet: Bool = false
-
   // TODO: support auto show/hide scroller
   //  hasHorizontalScroller = true
   //  hasVerticalScroller = true
 
   // verify UIScrollView behavior on iOS
 
-  override public final var isScrollable: Bool {
-    get {
-      super.isScrollable
-    }
-    set {
-      isScrollableExplicitlySet = true
-      super.isScrollable = newValue
-    }
+  /// The view's scrollable behavior.
+  public enum ScrollBehavior {
+
+    /// The view is scrollable if the content is larger than the view's bounds. Otherwise, the view is not scrollable.
+    case auto
+
+    /// The view is always scrollable.
+    case always
+
+    /// The view is never scrollable.
+    case never
   }
+
+  /// The view's scrollable behavior. The default value is `.auto`.
+  public var scrollBehavior: ScrollBehavior = .auto
 
   // MARK: - Theme
 
@@ -392,13 +395,14 @@ open class ComposeView: BaseScrollView {
     // set content size
     setContentSize(contentSize.roundedUp(scaleFactor: contentScaleFactor))
 
-    // adjust isScrollable based on content size if not set explicitly
-    if !isScrollableExplicitlySet {
-      if contentSize.width > boundsSize.width || contentSize.height > boundsSize.height {
-        super.isScrollable = true
-      } else {
-        super.isScrollable = false
-      }
+    // set isScrollable based on scrollBehavior
+    switch scrollBehavior {
+    case .auto:
+      isScrollable = contentSize.width > boundsSize.width || contentSize.height > boundsSize.height
+    case .always:
+      isScrollable = true
+    case .never:
+      isScrollable = false
     }
 
     #if canImport(AppKit)

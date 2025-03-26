@@ -108,7 +108,7 @@ class ComposeViewTests: XCTestCase {
     }
   }
 
-  func test_isScrollable() {
+  func test_scrollBehavior() {
     // when content size is smaller than bounds size
     do {
       contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
@@ -117,15 +117,17 @@ class ComposeViewTests: XCTestCase {
           .frame(width: 50, height: 50)
       }
       contentView.refresh(animated: false)
+
+      // expect the view is not scrollable since the content size is smaller than bounds size
       expect(contentView.isScrollable) == false
 
-      // when isScrollable is set explicitly
-      contentView.isScrollable = true
+      // when set to always scrollable
+      contentView.scrollBehavior = .always
       contentView.refresh(animated: false)
       expect(contentView.isScrollable) == true
 
-      // when isScrollable is set explicitly
-      contentView.isScrollable = false
+      // when set to never scrollable
+      contentView.scrollBehavior = .never
       contentView.refresh(animated: false)
       expect(contentView.isScrollable) == false
     }
@@ -138,15 +140,17 @@ class ComposeViewTests: XCTestCase {
           .frame(width: 100, height: 100)
       }
       contentView.refresh(animated: false)
+
+      // expect the view is not scrollable since the content size is equal to bounds size
       expect(contentView.isScrollable) == false
 
-      // when isScrollable is set explicitly
-      contentView.isScrollable = true
+      // when set to always scrollable
+      contentView.scrollBehavior = .always
       contentView.refresh(animated: false)
       expect(contentView.isScrollable) == true
 
-      // when isScrollable is set explicitly
-      contentView.isScrollable = false
+      // when set to never scrollable
+      contentView.scrollBehavior = .never
       contentView.refresh(animated: false)
       expect(contentView.isScrollable) == false
     }
@@ -159,15 +163,17 @@ class ComposeViewTests: XCTestCase {
           .frame(width: 150, height: 150)
       }
       contentView.refresh(animated: false)
+
+      // expect the view is scrollable since the content size is larger than bounds size
       expect(contentView.isScrollable) == true
 
-      // when isScrollable is set explicitly
-      contentView.isScrollable = false
+      // when set to never scrollable
+      contentView.scrollBehavior = .never
       contentView.refresh(animated: false)
       expect(contentView.isScrollable) == false
 
-      // when isScrollable is set explicitly
-      contentView.isScrollable = true
+      // when set to always scrollable
+      contentView.scrollBehavior = .always
       contentView.refresh(animated: false)
       expect(contentView.isScrollable) == true
     }
