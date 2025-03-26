@@ -28,6 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
+#if DEBUG
 import Foundation
 
 extension Thread {
@@ -41,3 +42,4 @@ extension Thread {
     }
   }
 }
+#endif

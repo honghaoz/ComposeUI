@@ -196,6 +196,16 @@ open class ComposeView: BaseScrollView {
     // this is to make the scroll indicators are visible immediately when scrolling for the first time
     showsHorizontalScrollIndicator = true
     showsVerticalScrollIndicator = true
+
+    #if DEBUG
+    if Thread.isRunningXCTest {
+      // when running tests, the scroller may affect the scroll view's content size.
+      scrollIndicatorBehavior = .never
+      hasHorizontalScroller = false
+      hasVerticalScroller = false
+    }
+    #endif
+
     #endif
 
     #if canImport(UIKit)
@@ -264,7 +274,22 @@ open class ComposeView: BaseScrollView {
   }
 
   /// The view's scrollable behavior. The default value is `.auto`.
-  public var scrollBehavior: ScrollBehavior = .auto
+  public var scrollBehavior: ScrollBehavior = .auto {
+    didSet {
+      switch scrollBehavior {
+      case .auto:
+        break
+      case .always:
+        isScrollable = true
+        alwaysBounceHorizontal = true
+        alwaysBounceVertical = true
+      case .never:
+        isScrollable = false
+        alwaysBounceHorizontal = false
+        alwaysBounceVertical = false
+      }
+    }
+  }
 
   /// The view's scroll indicator behavior.
   public enum ScrollIndicatorBehavior {
@@ -277,7 +302,17 @@ open class ComposeView: BaseScrollView {
   }
 
   /// The view's scroll indicator behavior. The default value is `.auto`.
-  public var scrollIndicatorBehavior: ScrollIndicatorBehavior = .auto
+  public var scrollIndicatorBehavior: ScrollIndicatorBehavior = .auto {
+    didSet {
+      switch scrollIndicatorBehavior {
+      case .auto:
+        break
+      case .never:
+        showsHorizontalScrollIndicator = false
+        showsVerticalScrollIndicator = false
+      }
+    }
+  }
 
   // MARK: - Theme
 
