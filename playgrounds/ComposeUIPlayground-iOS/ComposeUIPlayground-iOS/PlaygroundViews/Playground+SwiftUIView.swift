@@ -71,7 +71,7 @@ private struct SwiftUIPlaygroundView: SwiftUI.View {
       if isShowing {
         SwiftUI.HStack(spacing: 8) {
           SwiftUI.Text("This is SwiftUI")
-          if #available(macOS 11.0, *) {
+          if #available(iOS 14.0, macOS 11.0, *) {
             SwiftUI.Image(systemName: "swift")
               .foregroundColor(Color(red: 1.0, green: 0.427, blue: 0.0))
           }
