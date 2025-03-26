@@ -191,6 +191,11 @@ open class ComposeView: BaseScrollView {
     #if canImport(AppKit)
     drawsBackground = false // make the view transparent
     automaticallyAdjustsContentInsets = false
+
+    // set the scroll indicators to be shown by default
+    // this is to make the scroll indicators are visible immediately when scrolling for the first time
+    showsHorizontalScrollIndicator = true
+    showsVerticalScrollIndicator = true
     #endif
 
     #if canImport(UIKit)
@@ -245,12 +250,6 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Scroll
 
-  // TODO: support auto show/hide scroller
-  //  hasHorizontalScroller = true
-  //  hasVerticalScroller = true
-
-  // verify UIScrollView behavior on iOS
-
   /// The view's scrollable behavior.
   public enum ScrollBehavior {
 
@@ -266,6 +265,19 @@ open class ComposeView: BaseScrollView {
 
   /// The view's scrollable behavior. The default value is `.auto`.
   public var scrollBehavior: ScrollBehavior = .auto
+
+  /// The view's scroll indicator behavior.
+  public enum ScrollIndicatorBehavior {
+
+    /// The scroll indicators are shown if the content is larger than the view's bounds. Otherwise, the scroll indicators are hidden.
+    case auto
+
+    /// The scroll indicators are never shown even if the content is larger than the view's bounds.
+    case never
+  }
+
+  /// The view's scroll indicator behavior. The default value is `.auto`.
+  public var scrollIndicatorBehavior: ScrollIndicatorBehavior = .auto
 
   // MARK: - Theme
 
@@ -395,7 +407,7 @@ open class ComposeView: BaseScrollView {
     // set content size
     setContentSize(contentSize.roundedUp(scaleFactor: contentScaleFactor))
 
-    // set isScrollable based on scrollBehavior
+    // update scrollable behavior
     switch scrollBehavior {
     case .auto:
       isScrollable = contentSize.width > boundsSize.width || contentSize.height > boundsSize.height
@@ -409,6 +421,25 @@ open class ComposeView: BaseScrollView {
       isScrollable = false
       alwaysBounceHorizontal = false
       alwaysBounceVertical = false
+    }
+
+    // update scroll indicator behavior
+    let oldShowsHorizontalScrollIndicator = showsHorizontalScrollIndicator
+    let oldShowsVerticalScrollIndicator = showsVerticalScrollIndicator
+
+    switch scrollIndicatorBehavior {
+    case .auto:
+      showsHorizontalScrollIndicator = contentSize.width > boundsSize.width
+      showsVerticalScrollIndicator = contentSize.height > boundsSize.height
+    case .never:
+      showsHorizontalScrollIndicator = false
+      showsVerticalScrollIndicator = false
+    }
+
+    if (oldShowsHorizontalScrollIndicator == false && showsHorizontalScrollIndicator == true) ||
+      (oldShowsVerticalScrollIndicator == false && showsVerticalScrollIndicator == true)
+    {
+      flashScrollIndicators()
     }
 
     #if canImport(AppKit)

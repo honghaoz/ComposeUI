@@ -169,6 +169,11 @@ open class ScrollView: NSScrollView {
     }
   }
 
+  /// Flash the scroll indicators.
+  public func flashScrollIndicators() {
+    flashScrollers()
+  }
+
   // MARK: - Always bounces
 
   public var alwaysBounceVertical: Bool = false {
