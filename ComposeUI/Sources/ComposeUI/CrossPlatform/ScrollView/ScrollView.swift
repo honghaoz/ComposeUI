@@ -286,14 +286,14 @@ private final class ScrollSession {
 
       // decide if the scroll view should handle the scroll event by itself
       //
-      // the core logic is: given the scrolling direction, if the scroll view can scroll to the direction, let it handle the scroll event.
+      // the core logic is: given the scrolling direction, if the scroll view is configured to always bounce, or can scroll to the direction, let it handle the scroll event.
       // otherwise, if the scroll view has a parent scroll view that can scroll to the direction, let the parent scroll view handle the scroll event.
       // if there's no parent scroll view that can scroll to the direction, let the scroll view handle the scroll event by itself so that it can bounce (elasticity).
 
-      if (event.scrollingDeltaY > 0 && (scrollView.canScrollToTop || !scrollView.hasParentScrollView { $0.canScrollToTop })) ||
-        (event.scrollingDeltaY < 0 && (scrollView.canScrollToBottom || !scrollView.hasParentScrollView { $0.canScrollToBottom })) ||
-        (event.scrollingDeltaX > 0 && (scrollView.canScrollToLeft || !scrollView.hasParentScrollView { $0.canScrollToLeft })) ||
-        (event.scrollingDeltaX < 0 && (scrollView.canScrollToRight || !scrollView.hasParentScrollView { $0.canScrollToRight }))
+      if (event.scrollingDeltaY > 0 && (scrollView.alwaysBounceVertical || scrollView.canScrollToTop || !scrollView.hasParentScrollView { $0.canScrollToTop })) ||
+        (event.scrollingDeltaY < 0 && (scrollView.alwaysBounceVertical || scrollView.canScrollToBottom || !scrollView.hasParentScrollView { $0.canScrollToBottom })) ||
+        (event.scrollingDeltaX > 0 && (scrollView.alwaysBounceHorizontal || scrollView.canScrollToLeft || !scrollView.hasParentScrollView { $0.canScrollToLeft })) ||
+        (event.scrollingDeltaX < 0 && (scrollView.alwaysBounceHorizontal || scrollView.canScrollToRight || !scrollView.hasParentScrollView { $0.canScrollToRight }))
       {
         target = .handleBySelf
       } else {

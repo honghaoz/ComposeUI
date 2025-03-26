@@ -257,7 +257,7 @@ open class ComposeView: BaseScrollView {
     /// The view is scrollable if the content is larger than the view's bounds. Otherwise, the view is not scrollable.
     case auto
 
-    /// The view is always scrollable.
+    /// The view is always scrollable. The view will always bounce.
     case always
 
     /// The view is never scrollable.
@@ -399,10 +399,16 @@ open class ComposeView: BaseScrollView {
     switch scrollBehavior {
     case .auto:
       isScrollable = contentSize.width > boundsSize.width || contentSize.height > boundsSize.height
+      alwaysBounceHorizontal = false
+      alwaysBounceVertical = false
     case .always:
       isScrollable = true
+      alwaysBounceHorizontal = true
+      alwaysBounceVertical = true
     case .never:
       isScrollable = false
+      alwaysBounceHorizontal = false
+      alwaysBounceVertical = false
     }
 
     #if canImport(AppKit)
