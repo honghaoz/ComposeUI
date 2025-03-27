@@ -101,15 +101,23 @@ open class BaseTextView: TextView {
       super.init(frame: frame, textContainer: textContainer)
     }
 
+    updateCommonSettings()
+
     isEditable = false
     isSelectable = true
+    isRichText = false
 
     drawsBackground = false
 
     textContainerInset = .zero
     self.textContainer?.lineFragmentPadding = 0
 
-    updateCommonSettings()
+    // clips the text within the bounds of the text view
+    // for attributed text with `.byTruncatingTail` break mode, the text can overflow the bounds of the text view
+    clipsToBounds = true
+    if #available(macOS 12.0, *) {
+      subviews.first(where: { $0.className == "_NSTextContentView" }).assertNotNil()?.clipsToBounds = true
+    }
   }
 
   @available(*, unavailable)
