@@ -32,6 +32,7 @@
 import AppKit
 
 public typealias View = NSView
+public typealias TextView = NSTextView
 public typealias Color = NSColor
 public typealias Font = NSFont
 public typealias EdgeInsets = NSEdgeInsets
@@ -46,6 +47,7 @@ public typealias PanGestureRecognizer = NSPanGestureRecognizer
 import UIKit
 
 public typealias View = UIView
+public typealias TextView = UITextView
 public typealias Color = UIColor
 public typealias Font = UIFont
 public typealias EdgeInsets = UIEdgeInsets

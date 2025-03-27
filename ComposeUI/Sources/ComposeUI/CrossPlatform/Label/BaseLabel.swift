@@ -39,7 +39,6 @@ import UIKit
 open class BaseLabel: Label {
 
   #if canImport(AppKit)
-  override open var wantsUpdateLayer: Bool { true }
 
   override open var isFlipped: Bool { true }
 

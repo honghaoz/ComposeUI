@@ -36,6 +36,7 @@ enum StandardComposeNodeId: String {
 
   case color
   case label
+  case textView
   case button
   case view
   case layer

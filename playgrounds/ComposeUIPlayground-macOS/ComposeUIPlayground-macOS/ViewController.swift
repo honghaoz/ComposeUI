@@ -118,6 +118,16 @@ class ViewController: NSViewController {
         .padding(horizontal: 16)
         .frame(width: .flexible, height: 1024)
 
+      Spacer(height: 16)
+
+      ViewNode<Playground.TextView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 640)
+
       Spacer().height(20)
 
       ViewNode<Playground.ScrollView>()

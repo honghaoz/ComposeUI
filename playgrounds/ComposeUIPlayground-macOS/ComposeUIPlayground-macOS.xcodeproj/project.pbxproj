@@ -13,6 +13,7 @@
 		E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59D80902CA8DFD3006A6467 /* ViewController.swift */; };
 		E59D80932CA8DFD4006A6467 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E59D80922CA8DFD4006A6467 /* Assets.xcassets */; };
 		E59D80962CA8DFD4006A6467 /* Base in Resources */ = {isa = PBXBuildFile; fileRef = E59D80952CA8DFD4006A6467 /* Base */; };
+		E5C5BB302D94706700F79668 /* Playground+TextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C5BB2F2D94706700F79668 /* Playground+TextView.swift */; };
 		E5D034792D7E1B9C004AB25D /* RotationNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D034782D7E1B9C004AB25D /* RotationNode.swift */; };
 		E5D0347B2D7E2CFE004AB25D /* RotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D0347A2D7E2CFE004AB25D /* RotationView.swift */; };
 		E5D636D72D7D01560080A152 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D62D7D01560080A152 /* Colors.swift */; };
@@ -33,6 +34,7 @@
 		E59D80922CA8DFD4006A6467 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E59D80952CA8DFD4006A6467 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		E59D80972CA8DFD4006A6467 /* ComposeUIPlayground_macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ComposeUIPlayground_macOS.entitlements; sourceTree = "<group>"; };
+		E5C5BB2F2D94706700F79668 /* Playground+TextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TextView.swift"; sourceTree = "<group>"; };
 		E5D034782D7E1B9C004AB25D /* RotationNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotationNode.swift; sourceTree = "<group>"; };
 		E5D0347A2D7E2CFE004AB25D /* RotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotationView.swift; sourceTree = "<group>"; };
 		E5D636D62D7D01560080A152 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Colors.swift; path = "../ComposeUIPlayground-iOS/ComposeUIPlayground-iOS/Colors.swift"; sourceTree = SOURCE_ROOT; };
@@ -104,6 +106,7 @@
 				E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */,
 				E504D9682D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift */,
 				E5F901F72D8DF4CC00BFE2EE /* Playground+LabelView.swift */,
+				E5C5BB2F2D94706700F79668 /* Playground+TextView.swift */,
 				E58FCD722D8FCAA2003138BE /* Playground+ScrollView.swift */,
 			);
 			name = PlaygroundViews;
@@ -190,6 +193,7 @@
 				E5F901F82D8DF4CC00BFE2EE /* Playground+LabelView.swift in Sources */,
 				E5D034792D7E1B9C004AB25D /* RotationNode.swift in Sources */,
 				E504D9692D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift in Sources */,
+				E5C5BB302D94706700F79668 /* Playground+TextView.swift in Sources */,
 				E5ED82002D8785AD00B3FE3A /* Playground+TransitionView.swift in Sources */,
 				E5D0347B2D7E2CFE004AB25D /* RotationView.swift in Sources */,
 				E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */,
