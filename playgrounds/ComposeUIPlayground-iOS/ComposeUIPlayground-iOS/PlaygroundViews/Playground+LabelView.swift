@@ -37,6 +37,7 @@ import UIKit
 #endif
 
 import ComposeUI
+import SwiftUI
 
 extension Playground {
 
@@ -115,9 +116,21 @@ extension Playground {
             Spacer(height: 16)
           }
         }
+
+        SwiftUIViewNode {
+          if #available(macOS 12.0, *) {
+            AnyView(
+              Text("SwiftUI Text")
+                .textSelection(.enabled)
+            )
+          } else {
+            AnyView(EmptyView())
+          }
+        }
+        .frame(width: .flexible, height: 120)
       }
       .mapChildren { node in
-        guard !(node is HStack), !(node is VStack), !(node is Spacer) else {
+        guard !(node is HorizontalStack), !(node is VerticalStack), !(node is SpacerNode) else {
           return node
         }
 

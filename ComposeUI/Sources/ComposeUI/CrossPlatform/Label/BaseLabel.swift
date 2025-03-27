@@ -42,6 +42,10 @@ open class BaseLabel: Label {
 
   override open var isFlipped: Bool { true }
 
+  override open var wantsUpdateLayer: Bool {
+    true // this value affects the label's intrinsic size (sizeThatFits)
+  }
+
   public var isUserInteractionEnabled: Bool = false {
     didSet {
       refusesFirstResponder = !isUserInteractionEnabled
