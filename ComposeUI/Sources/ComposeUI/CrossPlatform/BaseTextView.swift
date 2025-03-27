@@ -34,8 +34,6 @@ import AppKit
 /// A base text view.
 open class BaseTextView: TextView {
 
-  // TODO: can't select with TextKit 2
-
   override open var isFlipped: Bool { true }
 
   override open var wantsUpdateLayer: Bool {
@@ -52,7 +50,7 @@ open class BaseTextView: TextView {
     didSet {
       if #available(macOS 12.0, *) {
         // TextKit 2
-        textContentStorage?.attributedString = attributedString
+        textContentStorage?.textStorage?.setAttributedString(attributedString)
       } else {
         // TextKit 1
         textStorage?.setAttributedString(attributedString)
