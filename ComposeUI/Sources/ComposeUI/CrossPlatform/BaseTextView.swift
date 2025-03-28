@@ -132,7 +132,7 @@ open class BaseTextView: TextView {
   override open func setFrameSize(_ newSize: NSSize) {
     super.setFrameSize(newSize)
 
-    textContainer?.size = NSSize(width: newSize.width, height: newSize.height > 0 ? newSize.height : .greatestFiniteMagnitude)
+    textContainer?.size = CGSize(width: newSize.width, height: newSize.height > 0 ? newSize.height : .greatestFiniteMagnitude)
     invalidateIntrinsicContentSize()
   }
 
@@ -154,8 +154,52 @@ open class BaseTextView: TextView {
 #if canImport(UIKit)
 import UIKit
 
-open class BaseTextView: View {
+open class BaseTextView: UITextView {
 
-  // TODO: implement iOS
+  /// The attributed string content of the text view.
+  public var attributedString: NSAttributedString = NSAttributedString() {
+    didSet {
+      attributedText = attributedString
+    }
+  }
+
+  /// The number of lines to display. Set to 0 for unlimited lines (default).
+  ///
+  /// The line break mode is set to `byTruncatingTail` for 1 line, and `byWordWrapping` for multiple lines.
+  open var numberOfLines: Int = 0 {
+    didSet {
+      if numberOfLines == 1 {
+        textContainer.maximumNumberOfLines = 1
+        textContainer.lineBreakMode = .byTruncatingTail
+      } else {
+        textContainer.maximumNumberOfLines = numberOfLines > 0 ? numberOfLines : 0
+        textContainer.lineBreakMode = .byWordWrapping
+      }
+    }
+  }
+
+  override public init(frame: CGRect, textContainer: NSTextContainer?) {
+    super.init(frame: frame, textContainer: textContainer)
+
+    contentInsetAdjustmentBehavior = .never
+
+    isEditable = false
+    isSelectable = true
+
+    backgroundColor = nil
+
+    textContainerInset = .zero
+    self.textContainer.lineFragmentPadding = 0
+
+    clipsToBounds = true
+    if #available(iOS 16.0, *) {
+      subviews.first(where: { String(cString: object_getClassName($0)) == "_UITextContainerView" }).assertNotNil()?.clipsToBounds = true
+    }
+  }
+
+  @available(*, unavailable)
+  public required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
 }
 #endif

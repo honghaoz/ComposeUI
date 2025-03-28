@@ -59,6 +59,14 @@ extension Playground {
 
     @ComposeContentBuilder
     override var content: ComposeContent {
+      TextArea(attributedString(alignment: .center, lineBreakMode: .byWordWrapping))
+        .numberOfLines(0)
+        .fixedSize(width: false, height: true)
+        .textContainerInset(horizontal: 4, vertical: 2)
+        .intrinsicTextSizeAdjustment(width: 0, height: 10)
+        .border()
+        .transition(.opacity())
+
       VStack(spacing: 10) {
         Spacer(height: 16)
 

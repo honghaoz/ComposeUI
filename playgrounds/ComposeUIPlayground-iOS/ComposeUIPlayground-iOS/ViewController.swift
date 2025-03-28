@@ -152,6 +152,14 @@ class ViewController: UIViewController {
         .padding(horizontal: 16)
         .frame(width: .flexible, height: 900)
 
+      ViewNode<Playground.TextView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 900)
+
       ViewNode<Playground.ScrollView>()
         .underlay {
           LayerNode()
