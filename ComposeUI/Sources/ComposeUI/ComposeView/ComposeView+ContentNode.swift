@@ -45,7 +45,7 @@ extension ComposeView {
     private var node: any ComposeNode
 
     /// The cached layout result of the wrapped node.
-    private var cachedLayout: (layoutSize: CGSize, sizing: ComposeNodeSizing)?
+    private var cachedLayout: (containerSize: CGSize, sizing: ComposeNodeSizing)?
 
     init(node: any ComposeNode) {
       self.node = node
@@ -63,13 +63,13 @@ extension ComposeView {
     }
 
     func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-      if let cachedLayout, cachedLayout.layoutSize == containerSize {
+      if let cachedLayout, cachedLayout.containerSize == containerSize {
         // layout size is the same, reuse the cached layout result
         return cachedLayout.sizing
       } else {
         // layout size is different, layout the wrapped node and cache the result
         let sizing = node.layout(containerSize: containerSize, context: context)
-        cachedLayout = (node.size, sizing)
+        cachedLayout = (containerSize, sizing)
         return sizing
       }
     }

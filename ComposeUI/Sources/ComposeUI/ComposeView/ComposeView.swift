@@ -372,8 +372,13 @@ open class ComposeView: BaseScrollView {
     super.layoutSubviews()
 
     if contentUpdateContext == nil, bounds() != lastRenderBounds {
-      // no pending render request but the bounds changed, should re-render the content
-      contentNode = ContentNode(node: makeContent(self).asVStack())
+      // no pending render request but bounds changed, should re-render the content
+
+      if lastRenderBounds == .zero {
+        // the content is never made, should make a new content
+        contentNode = ContentNode(node: makeContent(self).asVStack())
+      }
+
       contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds))
     }
 
