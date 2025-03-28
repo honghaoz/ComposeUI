@@ -1,5 +1,5 @@
 //
-//  NSAttributedString+ThemedColor.swift
+//  NSAttributedString+Theme.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 3/27/25.
@@ -28,7 +28,13 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if canImport(UIKit)
+import UIKit
+#endif
 
 public extension NSAttributedString.Key {
 
@@ -45,6 +51,13 @@ public extension NSAttributedString.Key {
   ///
   /// - Note: This key is not used by ComposeUI internally.
   static let themedBackgroundColor = NSAttributedString.Key("io.chouti.composeui.themedBackgroundColor")
+
+  /// The key for the themed shadow of the attributed string.
+  ///
+  /// The value is a `Themed<NSShadow>` object.
+  ///
+  /// - Note: This key is not used by ComposeUI internally.
+  static let themedShadow = NSAttributedString.Key("io.chouti.composeui.themedShadow")
 }
 
 extension NSAttributedString {
@@ -65,6 +78,11 @@ extension NSAttributedString {
     mutable.enumerateAttribute(.themedBackgroundColor, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, stop in
       if let color = value as? ThemedColor {
         mutable.addAttribute(.backgroundColor, value: color.resolve(for: theme), range: range)
+      }
+    }
+    mutable.enumerateAttribute(.themedShadow, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, stop in
+      if let shadow = value as? Themed<NSShadow> {
+        mutable.addAttribute(.shadow, value: shadow.resolve(for: theme), range: range)
       }
     }
     return mutable

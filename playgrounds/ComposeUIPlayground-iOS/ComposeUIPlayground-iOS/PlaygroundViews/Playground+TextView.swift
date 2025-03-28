@@ -63,9 +63,38 @@ extension Playground {
         .numberOfLines(0)
         .fixedSize(width: false, height: true)
         .textContainerInset(horizontal: 4, vertical: 2)
-        .intrinsicTextSizeAdjustment(width: 0, height: 10)
+        .intrinsicTextSizeAdjustment(height: 10)
         .border()
         .transition(.opacity())
+
+      TextArea(
+        longText,
+        font: .systemFont(ofSize: 14),
+        backgroundColor: ThemedColor(light: .red.withAlphaComponent(0.1), dark: .green.withAlphaComponent(0.1)),
+        shadow: Themed<NSShadow>(
+          light: {
+            let shadow = NSShadow()
+            shadow.shadowColor = Color.white.withAlphaComponent(0.33)
+            shadow.shadowBlurRadius = 0
+            shadow.shadowOffset = CGSize(width: 0, height: 1)
+            return shadow
+          }(),
+          dark: {
+            let shadow = NSShadow()
+            shadow.shadowColor = Color.black.withAlphaComponent(0.5)
+            shadow.shadowBlurRadius = 0
+            shadow.shadowOffset = CGSize(width: 0, height: -1)
+            return shadow
+          }()
+        ),
+        textAlignment: .left,
+        lineBreakMode: .byWordWrapping
+      )
+      .fixedSize(width: false, height: true)
+      .padding(horizontal: 4, vertical: 4)
+      .border()
+      .padding(horizontal: 8, vertical: 8)
+      .transition(.opacity())
 
       VStack(spacing: 10) {
         Spacer(height: 16)

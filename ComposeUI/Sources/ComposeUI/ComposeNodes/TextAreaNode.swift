@@ -62,9 +62,9 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
 
-  /// Initialize a text area node with optional initial text.
+  /// Initialize a text area node with attributed text.
   ///
-  /// - Parameter attributedString: The text to display.
+  /// - Parameter attributedString: The attributed text to display.
   public init(_ attributedString: NSAttributedString) {
     self.attributedString = attributedString
     numberOfLines = 0
@@ -78,6 +78,74 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
 
     isFixedWidth = false
     isFixedHeight = false
+  }
+
+  /// Initialize a text area node with simple text.
+  ///
+  /// Example:
+  ///
+  /// ```swift
+  /// TextArea(
+  ///   "Hello, world!",
+  ///   font: .systemFont(ofSize: 18),
+  ///   backgroundColor: ThemedColor(light: .red.withAlphaComponent(0.1), dark: .green.withAlphaComponent(0.1)),
+  ///   shadow: Themed<NSShadow>(
+  ///     light: {
+  ///       let shadow = NSShadow()
+  ///       shadow.shadowColor = Color.white.withAlphaComponent(0.33)
+  ///       shadow.shadowBlurRadius = 0
+  ///       shadow.shadowOffset = CGSize(width: 0, height: 1)
+  ///       return shadow
+  ///     }(),
+  ///     dark: {
+  ///       let shadow = NSShadow()
+  ///       shadow.shadowColor = Color.black.withAlphaComponent(0.5)
+  ///       shadow.shadowBlurRadius = 0
+  ///       shadow.shadowOffset = CGSize(width: 0, height: -1)
+  ///       return shadow
+  ///     }()
+  ///   ),
+  ///   textAlignment: .left,
+  ///   lineBreakMode: .byWordWrapping
+  /// )
+  /// .fixedSize(width: false, height: true)
+  /// ```
+  ///
+  /// - Parameters:
+  ///   - string: The string to display.
+  ///   - font: The font to use for the text. The default value is `Font.systemFont(ofSize: 17)`.
+  ///   - foregroundColor: The themed foreground color to use for the text. Default value is foreground text color.
+  ///   - backgroundColor: The themed background color to use for the text. Default value is `nil`.
+  ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
+  ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
+  ///   - lineBreakMode: The line break mode to use for the text. The default value is `.byWordWrapping`.
+  public init(_ string: String,
+              font: Font = Font.systemFont(ofSize: 17),
+              foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
+              backgroundColor: ThemedColor? = nil,
+              shadow: Themed<NSShadow>? = nil,
+              textAlignment: NSTextAlignment = .natural,
+              lineBreakMode: NSLineBreakMode = .byWordWrapping)
+  {
+    var attributes: [NSAttributedString.Key: Any] = [
+      .font: font,
+      .themedForegroundColor: foregroundColor,
+      .paragraphStyle: {
+        let style = NSMutableParagraphStyle()
+        style.alignment = textAlignment
+        style.lineBreakMode = lineBreakMode
+        return style
+      }(),
+    ]
+
+    if let backgroundColor = backgroundColor {
+      attributes[.themedBackgroundColor] = backgroundColor
+    }
+    if let shadow = shadow {
+      attributes[.themedShadow] = shadow
+    }
+
+    self.init(NSAttributedString(string: string, attributes: attributes))
   }
 
   // MARK: - ComposeNode
@@ -250,7 +318,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   /// - Parameter width: The width adjustment to set.
   /// - Parameter height: The height adjustment to set.
   /// - Returns: A new text area node with the updated intrinsic text size adjustment.
-  public func intrinsicTextSizeAdjustment(width: CGFloat, height: CGFloat) -> Self {
+  public func intrinsicTextSizeAdjustment(width: CGFloat = 0, height: CGFloat = 0) -> Self {
     let adjustment = CGSize(width: width, height: height)
     guard intrinsicTextSizeAdjustment != adjustment else {
       return self
