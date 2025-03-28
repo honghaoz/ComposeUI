@@ -125,7 +125,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
         guard context.updateType.requiresFullUpdate else {
           return
         }
-        updateTextView(view)
+        updateTextView(view, theme: context.contentView.theme)
       }
     )
 
@@ -134,8 +134,9 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - Private
 
-  private func updateTextView(_ textView: BaseTextView) {
-    textView.attributedString = attributedString
+  private func updateTextView(_ textView: BaseTextView, theme: Theme) {
+    let mutableAttributedString = NSMutableAttributedString(attributedString: attributedString)
+    textView.attributedString = mutableAttributedString.apply(theme: theme)
 
     textView.numberOfLines = numberOfLines
 
@@ -154,7 +155,9 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     textView.textContainer.lineFragmentPadding = lineFragmentPadding
     #endif
 
+    #if !os(tvOS)
     textView.isEditable = isEditable
+    #endif
     textView.isSelectable = isSelectable
   }
 

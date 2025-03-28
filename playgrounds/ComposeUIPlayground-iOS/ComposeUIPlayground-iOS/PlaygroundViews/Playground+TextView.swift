@@ -114,7 +114,7 @@ private func attributedString(alignment: NSTextAlignment, lineBreakMode: NSLineB
 
   return NSAttributedString(string: longText, attributes: [
     .font: Font.systemFont(ofSize: 12),
-    .foregroundColor: Color.white,
+    .themedForegroundColor: ThemedColor(light: Color.black.withAlphaComponent(0.9), dark: Color.white.withAlphaComponent(0.9)),
     .paragraphStyle: style,
   ])
 }

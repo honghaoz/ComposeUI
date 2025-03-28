@@ -183,7 +183,9 @@ open class BaseTextView: UITextView {
 
     contentInsetAdjustmentBehavior = .never
 
+    #if !os(tvOS)
     isEditable = false
+    #endif
     isSelectable = true
 
     backgroundColor = nil

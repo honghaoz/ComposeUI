@@ -1,5 +1,5 @@
 //
-//  NSAttributedString+Extensions.swift
+//  NSAttributedString+Sizing.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 3/23/25.
