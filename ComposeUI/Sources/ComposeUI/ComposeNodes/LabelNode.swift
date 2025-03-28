@@ -48,7 +48,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   private let text: String
   private var font: Font
-  private var textColor: Color
+  private var textColor: ThemedColor
   private var textAlignment: NSTextAlignment
   private var numberOfLines: Int
   private var lineBreakMode: NSLineBreakMode
@@ -63,7 +63,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     self.text = text
     #if canImport(AppKit)
     font = .systemFont(ofSize: NSFont.systemFontSize)
-    textColor = .labelColor
+    textColor = ThemedColor(light: .labelColor, dark: .labelColor)
     #endif
 
     #if canImport(UIKit)
@@ -72,7 +72,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     #elseif os(tvOS)
     font = .systemFont(ofSize: 20)
     #endif
-    textColor = .label
+    textColor = ThemedColor(light: .label, dark: .label)
     #endif
 
     textAlignment = .center
@@ -92,17 +92,17 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
-      updateLabel(sizingLabel)
+      updateLabel(sizingLabel, theme: .light)
       let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
       size = intrinsicSize
       return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
     case (true, false):
-      updateLabel(sizingLabel)
+      updateLabel(sizingLabel, theme: .light)
       let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
       size = CGSize(width: intrinsicSize.width, height: containerSize.height)
       return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
     case (false, true):
-      updateLabel(sizingLabel)
+      updateLabel(sizingLabel, theme: .light)
       let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
       size = CGSize(width: containerSize.width, height: intrinsicSize.height)
       return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
@@ -132,7 +132,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
         guard context.updateType.requiresFullUpdate else {
           return
         }
-        updateLabel(view)
+        updateLabel(view, theme: context.contentView.theme)
       }
     )
 
@@ -141,12 +141,12 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - Private
 
-  private func updateLabel(_ label: BaseLabel) {
+  private func updateLabel(_ label: BaseLabel, theme: Theme) {
     label.isUserInteractionEnabled = false
 
     label.text = text
     label.font = font
-    label.textColor = textColor
+    label.textColor = textColor.resolve(for: theme)
     label.textAlignment = textAlignment
     label.numberOfLines = numberOfLines
     label.lineBreakMode = lineBreakMode
@@ -215,7 +215,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   ///
   /// - Parameter value: The text color to set.
   /// - Returns: A new label node with the updated text color.
-  public func textColor(_ value: Color) -> Self {
+  public func textColor(_ value: ThemedColor) -> Self {
     guard textColor != value else {
       return self
     }
@@ -223,6 +223,14 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     var copy = self
     copy.textColor = value
     return copy
+  }
+
+  /// Set the text color of the label node.
+  ///
+  /// - Parameter value: The text color to set.
+  /// - Returns: A new label node with the updated text color.
+  public func textColor(_ value: Color) -> Self {
+    textColor(ThemedColor(light: value, dark: value))
   }
 
   /// Set the text alignment of the label node.

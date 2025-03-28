@@ -83,6 +83,7 @@ extension Playground {
             VStack(spacing: 10) {
               for lineBreakMode in lineBreakModes {
                 Text("ComposéUI")
+                  .textColor(ThemedColor(light: ComposeUI.Color.black.withAlphaComponent(0.8), dark: ComposeUI.Color.white.withAlphaComponent(0.8)))
                   .font(.systemFont(ofSize: 12))
                   .fixedSize(width: false, height: true) // make width flexible so that the container can set the width
                   .numberOfLines(1)

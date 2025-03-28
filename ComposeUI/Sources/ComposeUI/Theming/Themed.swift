@@ -72,3 +72,18 @@ public struct Themed<T> {
     }
   }
 }
+
+extension Themed: Equatable where T: Equatable {
+
+  public static func == (lhs: Themed<T>, rhs: Themed<T>) -> Bool {
+    return lhs.light == rhs.light && lhs.dark == rhs.dark
+  }
+}
+
+extension Themed: Hashable where T: Hashable {
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(light)
+    hasher.combine(dark)
+  }
+}
