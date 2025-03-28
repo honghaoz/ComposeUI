@@ -62,10 +62,23 @@ extension Playground {
       TextArea(attributedString(alignment: .center, lineBreakMode: .byWordWrapping))
         .numberOfLines(0)
         .fixedSize(width: false, height: true)
-        .textContainerInset(horizontal: 4, vertical: 2)
-        .intrinsicTextSizeAdjustment(height: 10)
+        .textContainerInset(horizontal: 16, vertical: 16)
         .border()
         .transition(.opacity())
+        .overlay(alignment: .top) {
+          ColorNode(.red.withAlphaComponent(0.1)).height(16)
+        }
+        .overlay(alignment: .bottom) {
+          ColorNode(.red.withAlphaComponent(0.1)).height(16)
+        }
+        .overlay(alignment: .left) {
+          ColorNode(.red.withAlphaComponent(0.1)).width(16)
+        }
+        .overlay(alignment: .right) {
+          ColorNode(.red.withAlphaComponent(0.1)).width(16)
+        }
+
+      Spacer(height: 16)
 
       TextArea(
         longText,
@@ -93,7 +106,6 @@ extension Playground {
       .fixedSize(width: false, height: true)
       .padding(horizontal: 4, vertical: 4)
       .border()
-      .padding(horizontal: 8, vertical: 8)
       .transition(.opacity())
 
       VStack(spacing: 10) {

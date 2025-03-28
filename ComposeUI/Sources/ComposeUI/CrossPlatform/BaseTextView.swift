@@ -129,13 +129,6 @@ open class BaseTextView: TextView {
     attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: frame.width).roundedUp(scaleFactor: 1)
   }
 
-  override open func setFrameSize(_ newSize: NSSize) {
-    super.setFrameSize(newSize)
-
-    textContainer?.size = CGSize(width: newSize.width, height: newSize.height > 0 ? newSize.height : .greatestFiniteMagnitude)
-    invalidateIntrinsicContentSize()
-  }
-
   override open func layout() {
     super.layout()
 
@@ -143,6 +136,9 @@ open class BaseTextView: TextView {
   }
 
   open func layoutSubviews() {
+    let size = bounds.size
+    textContainer?.size = CGSize(width: size.width - textContainerInset.width * 2, height: size.height > 0 ? size.height : .greatestFiniteMagnitude)
+
     invalidateIntrinsicContentSize()
   }
 }

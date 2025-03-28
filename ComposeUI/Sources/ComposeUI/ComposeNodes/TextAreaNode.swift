@@ -53,7 +53,6 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   private var numberOfLines: Int
 
   private var textContainerInset: CGSize
-  private var lineFragmentPadding: CGFloat
   private var intrinsicTextSizeAdjustment: CGSize
 
   private var isEditable: Bool
@@ -70,7 +69,6 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     numberOfLines = 0
 
     textContainerInset = .zero
-    lineFragmentPadding = 0
     intrinsicTextSizeAdjustment = Constants.defaultIntrinsicTextSizeAdjustment
 
     isEditable = false
@@ -174,7 +172,16 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   }
 
   private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
-    let rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width)
+    #if canImport(AppKit)
+    var rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width - textContainerInset.width * 2)
+    rawIntrinsicSize = CGSize(width: rawIntrinsicSize.width, height: rawIntrinsicSize.height + textContainerInset.height * 2)
+    #endif
+
+    #if canImport(UIKit)
+    updateTextView(sizingTextView, theme: .light)
+    let rawIntrinsicSize = sizingTextView.sizeThatFits(containerSize)
+    #endif
+
     let intrinsicSize = CGSize(width: rawIntrinsicSize.width + intrinsicTextSizeAdjustment.width, height: rawIntrinsicSize.height + intrinsicTextSizeAdjustment.height)
     return intrinsicSize.roundedUp(scaleFactor: 1)
   }
@@ -210,7 +217,6 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
 
     #if canImport(AppKit)
     textView.textContainerInset = textContainerInset
-    textView.textContainer?.lineFragmentPadding = lineFragmentPadding
     #endif
 
     #if canImport(UIKit)
@@ -220,7 +226,6 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
       bottom: textContainerInset.height,
       right: textContainerInset.width
     )
-    textView.textContainer.lineFragmentPadding = lineFragmentPadding
     #endif
 
     #if !os(tvOS)
@@ -291,22 +296,6 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     return copy
   }
 
-  /// Set the line fragment padding of the underlying text view.
-  ///
-  /// The default line fragment padding is `0`.
-  ///
-  /// - Parameter value: The line fragment padding to set.
-  /// - Returns: A new text area node with the updated line fragment padding.
-  public func lineFragmentPadding(_ value: CGFloat) -> Self {
-    guard lineFragmentPadding != value else {
-      return self
-    }
-
-    var copy = self
-    copy.lineFragmentPadding = value
-    return copy
-  }
-
   /// Set the intrinsic text size adjustment.
   ///
   /// The text area node with fixed size uses the intrinsic text size to determine
@@ -335,3 +324,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     static let defaultIntrinsicTextSizeAdjustment = CGSize(width: 0, height: 1)
   }
 }
+
+#if canImport(UIKit)
+let sizingTextView = BaseTextView()
+#endif
