@@ -52,6 +52,7 @@ final class ButtonViewTests: XCTestCase {
 
     var state = GestureRecognizer.State.possible
     buttonView.buttonTest.pressGestureRecognizer.override(
+      subclassSuffix: "_singleTapMode_singleTap",
       locationInView: { view in
         CGPoint(x: 10, y: 10)
       },
@@ -84,6 +85,108 @@ final class ButtonViewTests: XCTestCase {
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 2 // second up triggers the tap block
   }
+
+  func test_doubleTapMode_singleTap() {
+    let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var tapCount = 0
+    var doubleTapCount = 0
+    buttonView.configure(
+      content: { _ in Empty() },
+      onTap: {
+        tapCount += 1
+      },
+      onDoubleTap: {
+        doubleTapCount += 1
+      }
+    )
+
+    var state = GestureRecognizer.State.possible
+    buttonView.buttonTest.pressGestureRecognizer.override(
+      subclassSuffix: "_doubleTapMode_singleTap",
+      locationInView: { view in
+        CGPoint(x: 10, y: 10)
+      },
+      state: {
+        state
+      }
+    )
+
+    buttonView.doubleTapInterval = 0.01
+
+    // down
+    state = .began
+    buttonView.buttonTest.press()
+    expect(buttonView.buttonTest.buttonState) == .pressed
+    expect(tapCount) == 0
+    expect(doubleTapCount) == 0
+
+    // up
+    state = .ended
+    buttonView.buttonTest.press()
+    expect(buttonView.buttonTest.buttonState) == .normal
+    expect(tapCount) == 0 // first up does not trigger the tap block
+    expect(doubleTapCount) == 0
+
+    expect(tapCount).toEventually(beEqual(to: 1)) // single tap block is triggered later
+  }
+
+  func test_doubleTapMode_doubleTap() {
+    let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var tapCount = 0
+    var doubleTapCount = 0
+    buttonView.configure(
+      content: { _ in Empty() },
+      onTap: {
+        tapCount += 1
+      },
+      onDoubleTap: {
+        doubleTapCount += 1
+      }
+    )
+
+    var state = GestureRecognizer.State.possible
+    buttonView.buttonTest.pressGestureRecognizer.override(
+      subclassSuffix: "_doubleTapMode_doubleTap",
+      locationInView: { view in
+        CGPoint(x: 10, y: 10)
+      },
+      state: {
+        state
+      }
+    )
+
+    buttonView.doubleTapInterval = 0.01
+
+    // down
+    state = .began
+    buttonView.buttonTest.press()
+    expect(buttonView.buttonTest.buttonState) == .pressed
+    expect(tapCount) == 0
+    expect(doubleTapCount) == 0
+
+    // up
+    state = .ended
+    buttonView.buttonTest.press()
+    expect(buttonView.buttonTest.buttonState) == .normal
+    expect(tapCount) == 0
+    expect(doubleTapCount) == 0
+
+    // down
+    state = .began
+    buttonView.buttonTest.press()
+    expect(buttonView.buttonTest.buttonState) == .pressed
+    expect(tapCount) == 0
+    expect(doubleTapCount) == 0
+
+    // up
+    state = .ended
+    buttonView.buttonTest.press()
+    expect(buttonView.buttonTest.buttonState) == .normal
+    expect(tapCount) == 0
+    expect(doubleTapCount) == 1 // second up triggers the double tap block
+  }
 }
 
 private extension GestureRecognizer {
@@ -91,7 +194,8 @@ private extension GestureRecognizer {
   private static var subclassKey: UInt8 = 0
 
   /// Mock `location(in:)`, `state`.
-  func override(locationInView: @escaping (View?) -> CGPoint,
+  func override(subclassSuffix: String,
+                locationInView: @escaping (View?) -> CGPoint,
                 state: @escaping () -> GestureRecognizer.State)
   {
     guard objc_getAssociatedObject(self, &GestureRecognizer.subclassKey) == nil else {
@@ -102,7 +206,7 @@ private extension GestureRecognizer {
       return
     }
     let originalClassName = String(cString: class_getName(originalClass))
-    let subclassName = originalClassName.appending("_Subclass")
+    let subclassName = originalClassName.appending(subclassSuffix)
 
     let subclass: AnyClass
     if let existingSubclass = NSClassFromString(subclassName) {
