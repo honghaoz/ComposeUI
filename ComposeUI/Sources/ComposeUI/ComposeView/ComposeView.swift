@@ -112,7 +112,7 @@ open class ComposeView: BaseScrollView {
   private var makeContent: (ComposeView) -> ComposeContent
 
   /// The current content node that the view is rendering.
-  private var contentNode: ContentNode?
+  private var contentNode: LayoutCacheNode?
 
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
@@ -335,7 +335,7 @@ open class ComposeView: BaseScrollView {
     assert(Thread.isMainThread, "refresh() must be called on the main thread")
 
     // explicit render request, should make a new content
-    contentNode = ContentNode(node: makeContent(self).asVStack())
+    contentNode = LayoutCacheNode(node: makeContent(self).asVStack())
     contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated))
 
     render()
@@ -376,7 +376,7 @@ open class ComposeView: BaseScrollView {
 
       if lastRenderBounds == .zero {
         // the content is never made, should make a new content
-        contentNode = ContentNode(node: makeContent(self).asVStack())
+        contentNode = LayoutCacheNode(node: makeContent(self).asVStack())
       }
 
       contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds))
