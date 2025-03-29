@@ -185,8 +185,6 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
       }
       #endif
 
-      // TODO: add unit test for double tap
-
       if onDoubleTap != nil {
         if doubleTapTimeoutTask != nil {
           // there's a double-tap timeout task, this means the second down is before the double-tap timeout
@@ -382,6 +380,34 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     static let touchExpandedDistance: CGFloat = 0
     #endif
   }
+
+  // MARK: - Testing
+
+  #if DEBUG
+  var buttonTest: ButtonViewTest { ButtonViewTest(host: self) }
+
+  class ButtonViewTest {
+
+    private let host: ButtonView
+
+    fileprivate init(host: ButtonView) {
+      assert(Thread.isRunningXCTest, "Test namespace should only be used in test target.")
+      self.host = host
+    }
+
+    var buttonState: ButtonState {
+      host.buttonState
+    }
+
+    var pressGestureRecognizer: PressGestureRecognizer {
+      host.pressGestureRecognizer
+    }
+
+    func press() {
+      host.handlePress()
+    }
+  }
+  #endif
 }
 
 #if canImport(UIKit)
