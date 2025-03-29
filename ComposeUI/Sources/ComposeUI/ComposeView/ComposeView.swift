@@ -118,7 +118,7 @@ open class ComposeView: BaseScrollView {
   private var contentUpdateContext: ContentUpdateContext?
 
   /// The bounds used for last render pass.
-  private lazy var lastRenderBounds: CGRect = .zero
+  private var lastRenderBounds: CGRect = .zero
 
   /// The ids of the renderable items that are being rendered.
   private var renderableItemIds: [String] = []
