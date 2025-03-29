@@ -14,7 +14,7 @@ let package = Package(
     .library(name: "ComposeUI", targets: ["ComposeUI"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/honghaoz/ChouTi", from: "0.0.9"),
+    .package(url: "https://github.com/honghaoz/ChouTi", branch: "master"),
   ],
   targets: [
     .target(

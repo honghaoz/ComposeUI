@@ -62,7 +62,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   // MARK: - Performance tests
 
   func testPerformanceSwapRemoveBulk() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
@@ -76,7 +76,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveBulk() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
@@ -90,7 +90,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceSwapRemoveFirst() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
@@ -102,7 +102,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveFirst() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
@@ -114,7 +114,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceSwapRemoveMiddle() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
@@ -127,7 +127,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveMiddle() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
@@ -140,7 +140,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceSwapRemoveLast() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
@@ -153,7 +153,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveLast() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
@@ -166,7 +166,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceSwapRemoveContiguousArray() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = ContiguousArray(0 ..< size)
@@ -179,7 +179,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveContiguousArray() throws {
-    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = ContiguousArray(0 ..< size)
