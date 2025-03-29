@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+import ComposeUI
 
 final class ComposeView_CachedLayoutTests: XCTestCase {
 
