@@ -32,7 +32,7 @@ import ChouTiTest
 
 import ComposeUI
 
-final class ComposeView_ScrollTests: XCTestCase {
+class ComposeView_ScrollTests: XCTestCase {
 
   func test_scrollBehavior() {
     // when content size is smaller than bounds size

@@ -1,8 +1,8 @@
 //
-//  DelayTests.swift
+//  NSAttributedString+ThemeTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 3/28/21.
+//  Created by Honghao Zhang on 3/28/25.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,43 +28,31 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
 import ChouTiTest
 
 @testable import ComposeUI
 
-class DelayTests: XCTestCase {
+class NSAttributedString_ThemeTests: XCTestCase {
 
-  func tes_positiveDelay() {
-    let expectation = expectation(description: "Delayed task")
+  func test() {
+    let lightShadow = NSShadow()
+    lightShadow.shadowColor = Color.black
+    let darkShadow = NSShadow()
+    darkShadow.shadowColor = Color.white
 
-    var isExecuted = false
-    delay(0.01) {
-      isExecuted = true
-      expectation.fulfill()
-    }
+    let attributedString = NSAttributedString(
+      string: "Hello, world!",
+      attributes: [
+        .themedForegroundColor: ThemedColor(light: .red, dark: .blue),
+        .themedBackgroundColor: ThemedColor(light: .green, dark: .yellow),
+        .themedShadow: Themed<NSShadow>(light: lightShadow, dark: darkShadow),
+      ]
+    )
 
-    expect(isExecuted) == false
-    wait(for: [expectation], timeout: 1)
-    expect(isExecuted) == true
-  }
-
-  func tes_negativeDelay() {
-    var isExecuted = false
-    delay(-0.01) {
-      isExecuted = true
-    }
-
-    expect(isExecuted) == true
-  }
-
-  func tes_zeroDelay() {
-    var isExecuted = false
-    delay(0) {
-      isExecuted = true
-    }
-
-    expect(isExecuted) == true
+    let themedAttributedString = attributedString.apply(theme: .dark)
+    let attributes = themedAttributedString.attributes(at: 0, effectiveRange: nil)
+    expect(attributes[.foregroundColor] as? Color) == Color.blue
+    expect(attributes[.backgroundColor] as? Color) == Color.yellow
+    expect(attributes[.shadow] as? NSShadow) == darkShadow
   }
 }

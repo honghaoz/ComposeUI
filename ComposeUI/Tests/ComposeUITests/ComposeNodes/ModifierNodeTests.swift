@@ -30,9 +30,9 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+import ComposeUI
 
-final class ModifierNodeTests: XCTestCase {
+class ModifierNodeTests: XCTestCase {
 
   func test_calls() {
     // given many modifiers

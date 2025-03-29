@@ -30,9 +30,9 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+import ComposeUI
 
-final class LayoutCacheNodeTests: XCTestCase {
+class LayoutCacheNodeTests: XCTestCase {
 
   func test() {
     let state = TestNode.State()

@@ -1,8 +1,8 @@
 //
-//  DelayTests.swift
+//  ThemedTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 3/28/21.
+//  Created by Honghao Zhang on 3/28/25.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,43 +28,35 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
 import ChouTiTest
 
 @testable import ComposeUI
 
-class DelayTests: XCTestCase {
+class ThemedTests: XCTestCase {
 
-  func tes_positiveDelay() {
-    let expectation = expectation(description: "Delayed task")
-
-    var isExecuted = false
-    delay(0.01) {
-      isExecuted = true
-      expectation.fulfill()
+  func test() {
+    do {
+      let themed = Themed(light: Color.red, dark: Color.blue)
+      expect(themed.resolve(for: .light)) == Color.red
+      expect(themed.resolve(for: .dark)) == Color.blue
     }
 
-    expect(isExecuted) == false
-    wait(for: [expectation], timeout: 1)
-    expect(isExecuted) == true
+    do {
+      let themed = Themed(Color.red)
+      expect(themed.resolve(for: .light)) == Color.red
+      expect(themed.resolve(for: .dark)) == Color.red
+    }
   }
 
-  func tes_negativeDelay() {
-    var isExecuted = false
-    delay(-0.01) {
-      isExecuted = true
-    }
-
-    expect(isExecuted) == true
+  func test_equal() {
+    let themed1 = Themed(light: Color.red, dark: Color.blue)
+    let themed2 = Themed(light: Color.red, dark: Color.blue)
+    expect(themed1) == themed2
   }
 
-  func tes_zeroDelay() {
-    var isExecuted = false
-    delay(0) {
-      isExecuted = true
-    }
-
-    expect(isExecuted) == true
+  func test_hashable() {
+    let themed1 = Themed(light: Color.red, dark: Color.blue)
+    let themed2 = Themed(light: Color.red, dark: Color.blue)
+    expect(themed1.hashValue) == themed2.hashValue
   }
 }

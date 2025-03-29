@@ -38,17 +38,6 @@ import UIKit
 
 /// Line wrap mode.
 public enum LineWrapMode: Hashable {
-
   case byWord
   case byChar
-
-  /// The line break mode in AppKit/UIKit.
-  public var lineBreakMode: NSLineBreakMode {
-    switch self {
-    case .byWord:
-      return .byWordWrapping
-    case .byChar:
-      return .byCharWrapping
-    }
-  }
 }

@@ -34,7 +34,7 @@ import ChouTiTest
 
 @testable import ComposeUI
 
-final class CALayer_ExtensionsTests: XCTestCase {
+class CALayer_ExtensionsTests: XCTestCase {
 
   func test_backedView() {
     #if os(macOS)

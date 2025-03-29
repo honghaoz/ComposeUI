@@ -32,7 +32,7 @@ import ChouTiTest
 
 import ComposeUI
 
-final class ComposeView_CachedLayoutTests: XCTestCase {
+class ComposeView_CachedLayoutTests: XCTestCase {
 
   func test_noLayoutOnScroll() {
     let state = TestNode.State()
@@ -49,14 +49,14 @@ final class ComposeView_CachedLayoutTests: XCTestCase {
     expect(state.layoutCount) == 1 // initial layout
     expect(state.renderCount) == 1 // initial render
 
-    view.setContentOffset(CGPoint(x: 0, y: 100), animated: false)
+    view.setContentOffset(CGPoint(x: 0, y: 100))
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
     expect(state.layoutCount) == 1 // scroll should not trigger layout
     expect(state.renderCount) == 2 // scroll should trigger render
 
-    view.setContentOffset(CGPoint(x: 0, y: 200), animated: false)
+    view.setContentOffset(CGPoint(x: 0, y: 200))
     view.setNeedsLayout()
     view.layoutIfNeeded()
 

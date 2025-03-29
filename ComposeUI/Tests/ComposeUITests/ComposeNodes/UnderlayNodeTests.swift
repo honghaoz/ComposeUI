@@ -34,7 +34,7 @@ import ChouTiTest
 
 @testable import ComposeUI
 
-final class UnderlayNodeTests: XCTestCase {
+class UnderlayNodeTests: XCTestCase {
 
   func test() {
     var content = ColorNode(.red)

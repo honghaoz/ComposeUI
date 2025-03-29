@@ -32,7 +32,7 @@ import ChouTiTest
 
 @testable import ComposeUI
 
-final class ComposeView_TransitionTests: XCTestCase {
+class ComposeView_TransitionTests: XCTestCase {
 
   func test_transitions() {
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))

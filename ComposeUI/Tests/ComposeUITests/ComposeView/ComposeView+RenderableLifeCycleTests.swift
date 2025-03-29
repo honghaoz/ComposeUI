@@ -32,7 +32,7 @@ import ChouTiTest
 
 import ComposeUI
 
-final class ComposeView_RenderableLifeCycleTests: XCTestCase {
+class ComposeView_RenderableLifeCycleTests: XCTestCase {
 
   func test_lifecycle() {
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))

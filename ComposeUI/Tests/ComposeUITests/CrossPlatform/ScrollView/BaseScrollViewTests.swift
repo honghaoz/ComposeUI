@@ -31,7 +31,7 @@
 import ChouTiTest
 
 import Combine
-@testable import ComposeUI
+import ComposeUI
 
 class BaseScrollViewTests: XCTestCase {
 

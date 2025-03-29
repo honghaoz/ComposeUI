@@ -61,7 +61,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
 
   // MARK: - Performance tests
 
-  func testPerformanceSwapRemoveBulk() {
+  func testPerformanceSwapRemoveBulk() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = Array(0 ..< size)
 
@@ -73,7 +75,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveBulk() {
+  func testPerformanceRegularRemoveBulk() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = Array(0 ..< size)
 
@@ -85,7 +89,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceSwapRemoveFirst() {
+  func testPerformanceSwapRemoveFirst() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = Array(0 ..< size)
 
@@ -95,7 +101,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveFirst() {
+  func testPerformanceRegularRemoveFirst() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = Array(0 ..< size)
 
@@ -105,7 +113,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceSwapRemoveMiddle() {
+  func testPerformanceSwapRemoveMiddle() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = Array(0 ..< size)
     let middleIndex = size / 2
@@ -116,7 +126,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveMiddle() {
+  func testPerformanceRegularRemoveMiddle() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = Array(0 ..< size)
     let middleIndex = size / 2
@@ -127,7 +139,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceSwapRemoveLast() {
+  func testPerformanceSwapRemoveLast() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = Array(0 ..< size)
     let lastIndex = size - 1
@@ -138,7 +152,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveLast() {
+  func testPerformanceRegularRemoveLast() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = Array(0 ..< size)
     let lastIndex = size - 1
@@ -149,7 +165,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceSwapRemoveContiguousArray() {
+  func testPerformanceSwapRemoveContiguousArray() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = ContiguousArray(0 ..< size)
     let middleIndex = size / 2
@@ -160,7 +178,9 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveContiguousArray() {
+  func testPerformanceRegularRemoveContiguousArray() throws {
+    try XCTSkipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
     let size = 100000
     let array = ContiguousArray(0 ..< size)
     let middleIndex = size / 2

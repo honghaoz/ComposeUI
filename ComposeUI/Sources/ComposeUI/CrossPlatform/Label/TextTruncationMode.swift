@@ -38,23 +38,8 @@ import UIKit
 
 /// Text truncation mode.
 public enum TextTruncationMode: Hashable {
-
   case none
   case head
   case tail
   case middle
-
-  /// The line break mode in AppKit/UIKit.
-  public var lineBreakMode: NSLineBreakMode {
-    switch self {
-    case .none:
-      return .byClipping
-    case .head:
-      return .byTruncatingHead
-    case .tail:
-      return .byTruncatingTail
-    case .middle:
-      return .byTruncatingMiddle
-    }
-  }
 }

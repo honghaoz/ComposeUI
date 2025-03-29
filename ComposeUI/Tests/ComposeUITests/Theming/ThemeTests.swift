@@ -1,8 +1,8 @@
 //
-//  DelayTests.swift
+//  ThemeTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 3/28/21.
+//  Created by Honghao Zhang on 8/29/21.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,43 +28,33 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
 import ChouTiTest
 
-@testable import ComposeUI
+import ComposeUI
 
-class DelayTests: XCTestCase {
+class ThemeTests: XCTestCase {
 
-  func tes_positiveDelay() {
-    let expectation = expectation(description: "Delayed task")
-
-    var isExecuted = false
-    delay(0.01) {
-      isExecuted = true
-      expectation.fulfill()
+  func test_isLight() {
+    do {
+      let theme = Theme.light
+      expect(theme.isLight) == true
     }
 
-    expect(isExecuted) == false
-    wait(for: [expectation], timeout: 1)
-    expect(isExecuted) == true
+    do {
+      let theme = Theme.dark
+      expect(theme.isLight) == false
+    }
   }
 
-  func tes_negativeDelay() {
-    var isExecuted = false
-    delay(-0.01) {
-      isExecuted = true
+  func test_isDark() {
+    do {
+      let theme = Theme.light
+      expect(theme.isDark) == false
     }
 
-    expect(isExecuted) == true
-  }
-
-  func tes_zeroDelay() {
-    var isExecuted = false
-    delay(0) {
-      isExecuted = true
+    do {
+      let theme = Theme.dark
+      expect(theme.isDark) == true
     }
-
-    expect(isExecuted) == true
   }
 }

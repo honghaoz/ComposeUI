@@ -1,8 +1,8 @@
 //
-//  DelayTests.swift
+//  EdgeInsets+ExtensionsTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 3/28/21.
+//  Created by Honghao Zhang on 3/28/25.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,43 +28,15 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
 import ChouTiTest
 
 @testable import ComposeUI
 
-class DelayTests: XCTestCase {
+class EdgeInsets_ExtensionsTests: XCTestCase {
 
-  func tes_positiveDelay() {
-    let expectation = expectation(description: "Delayed task")
-
-    var isExecuted = false
-    delay(0.01) {
-      isExecuted = true
-      expectation.fulfill()
-    }
-
-    expect(isExecuted) == false
-    wait(for: [expectation], timeout: 1)
-    expect(isExecuted) == true
-  }
-
-  func tes_negativeDelay() {
-    var isExecuted = false
-    delay(-0.01) {
-      isExecuted = true
-    }
-
-    expect(isExecuted) == true
-  }
-
-  func tes_zeroDelay() {
-    var isExecuted = false
-    delay(0) {
-      isExecuted = true
-    }
-
-    expect(isExecuted) == true
+  func test() {
+    let insets = EdgeInsets(inset: 10)
+    expect(insets.horizontal) == 20
+    expect(insets.vertical) == 20
   }
 }

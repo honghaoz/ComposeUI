@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+import ComposeUI
 
 class ComposeNode_ConditionalTests: XCTestCase {
 
