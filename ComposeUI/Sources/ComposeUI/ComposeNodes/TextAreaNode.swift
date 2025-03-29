@@ -42,6 +42,10 @@ public typealias TextArea = TextAreaNode
 ///
 /// By default, the text area node is multi-line with flexible width and height.
 /// Use `fixedSize(width:height:)` to set the width and height to be fixed or flexible.
+///
+/// Performance note: Using `fixedSize(width:height:)` will make the text area node
+/// re-calculate the intrinsic text size on layout, which is expensive. So it is
+/// preferred to use flexible size and do the size calculation once on your side.
 public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - Text storage

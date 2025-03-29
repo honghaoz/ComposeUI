@@ -57,6 +57,8 @@ class ViewController: UIViewController {
       label.sizeToFit()
       return label
     }()
+
+    lazy var playgroundTextView = Playground.TextView()
   }
 
   private let state = ViewState()
@@ -152,7 +154,8 @@ class ViewController: UIViewController {
         .padding(horizontal: 16)
         .frame(width: .flexible, height: 900)
 
-      ViewNode<Playground.TextView>()
+      ViewNode(state.playgroundTextView) // use a cached text view to avoid bad performance
+        .flexibleSize()
         .underlay {
           LayerNode()
             .border(color: Color.gray, width: 1)
