@@ -35,8 +35,13 @@ import ComposeUI
 class ViewController: NSViewController {
 
   private lazy var contentView = ComposeView { contentView in
+    let isKey = (contentView.window?.isKeyWindow ?? true)
+
     VStack {
-      HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
+      HStack {
+        rainbowColorNodes(isKeyWindow: isKey)
+      }
+      .frame(width: .flexible, height: 20)
 
       Spacer(height: 16)
 
@@ -52,10 +57,12 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
-      HStack(spacing: 4) { rainbowColorNodes }
-        .rotate(by: 30)
-        .frame(width: .flexible, height: 20)
-        .cornerRadius(4)
+      HStack(spacing: 4) {
+        rainbowColorNodes(isKeyWindow: isKey)
+      }
+      .rotate(by: 30)
+      .frame(width: .flexible, height: 20)
+      .cornerRadius(4)
 
       Spacer(height: 16)
 
@@ -141,7 +148,7 @@ class ViewController: NSViewController {
       Spacer().height(20)
 
       VStack {
-        rainbowColorNodes.map { $0.frame(width: .flexible, height: 100) }
+        rainbowColorNodes(isKeyWindow: isKey).map { $0.frame(width: .flexible, height: 100) }
       }
 
       ColorNode(.red)
@@ -149,7 +156,7 @@ class ViewController: NSViewController {
         .frame(width: .flexible, height: 100)
         .rotate(by: 30)
 
-      HStack { rainbowColorNodes }.frame(width: .flexible, height: 20)
+      HStack { rainbowColorNodes(isKeyWindow: isKey) }.frame(width: .flexible, height: 20)
     }
     .frame(width: .flexible, height: .intrinsic)
   }
@@ -174,10 +181,12 @@ class ViewController: NSViewController {
   }
 }
 
-private let rainbowColorNodes = [
-  ColorNode(Colors.RetroApple.green),
-  ColorNode(Colors.RetroApple.yellow),
-  ColorNode(Colors.RetroApple.orange),
-  ColorNode(Colors.RetroApple.red),
-  ColorNode(Colors.RetroApple.purple),
-]
+private func rainbowColorNodes(isKeyWindow: Bool = true) -> [ColorNode] {
+  [
+    ColorNode(Colors.RetroApple.green.withAlphaComponent(isKeyWindow ? 1 : 0.5)),
+    ColorNode(Colors.RetroApple.yellow.withAlphaComponent(isKeyWindow ? 1 : 0.5)),
+    ColorNode(Colors.RetroApple.orange.withAlphaComponent(isKeyWindow ? 1 : 0.5)),
+    ColorNode(Colors.RetroApple.red.withAlphaComponent(isKeyWindow ? 1 : 0.5)),
+    ColorNode(Colors.RetroApple.purple.withAlphaComponent(isKeyWindow ? 1 : 0.5)),
+  ]
+}

@@ -262,7 +262,7 @@ open class BaseScrollView: ScrollView {
 
   #if canImport(AppKit)
 
-  private weak var previousWindow: NSWindow?
+  private weak var currentWindow: NSWindow?
   private var observingWindowBackingPropertiesToken: Any?
 
   override open func viewDidMoveToWindow() {
@@ -272,7 +272,7 @@ open class BaseScrollView: ScrollView {
 
     startObservingWindowBackingProperties()
 
-    previousWindow = window
+    currentWindow = window
   }
 
   private func startObservingWindowBackingProperties() {
@@ -294,7 +294,8 @@ open class BaseScrollView: ScrollView {
 
   private func cancelObservingWindowBackingProperties() {
     if let token = observingWindowBackingPropertiesToken {
-      NotificationCenter.default.removeObserver(token, name: NSWindow.didChangeBackingPropertiesNotification, object: previousWindow)
+      NotificationCenter.default.removeObserver(token, name: NSWindow.didChangeBackingPropertiesNotification, object: currentWindow)
+      observingWindowBackingPropertiesToken = nil
     }
   }
   #endif

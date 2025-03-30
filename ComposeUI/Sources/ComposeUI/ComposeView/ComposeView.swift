@@ -324,6 +324,79 @@ open class ComposeView: BaseScrollView {
     }
   }
 
+  // MARK: - Key Window
+
+  #if canImport(AppKit)
+  override open func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+
+    startObservingKeyWindow()
+  }
+
+  private weak var currentWindow: NSWindow?
+  private var observingDidBecomeKeyToken: Any?
+  private var observingDidResignKeyToken: Any?
+
+  private func startObservingKeyWindow() {
+    guard let window else {
+      // no window, stop observing
+      stopObservingKeyWindow()
+      return
+    }
+
+    guard currentWindow != window else {
+      // the window is the same as the current window, no need to observe
+      return
+    }
+
+    currentWindow = window
+
+    // update for the current key window
+    keyWindowDidChange()
+
+    // update for future key window changes
+    observingDidBecomeKeyToken = NotificationCenter.default.addObserver(
+      forName: NSWindow.didBecomeKeyNotification,
+      object: window,
+      queue: nil,
+      using: { [weak self] _ in
+        self?.keyWindowDidChange()
+      }
+    )
+
+    observingDidResignKeyToken = NotificationCenter.default.addObserver(
+      forName: NSWindow.didResignKeyNotification,
+      object: window,
+      queue: nil,
+      using: { [weak self] _ in
+        self?.keyWindowDidChange()
+      }
+    )
+  }
+
+  private func keyWindowDidChange() {
+    guard window != nil else {
+      return
+    }
+
+    setNeedsRefresh()
+  }
+
+  private func stopObservingKeyWindow() {
+    currentWindow = nil
+
+    if let observingDidBecomeKeyToken {
+      NotificationCenter.default.removeObserver(observingDidBecomeKeyToken, name: NSWindow.didBecomeKeyNotification, object: currentWindow)
+      self.observingDidBecomeKeyToken = nil
+    }
+
+    if let observingDidResignKeyToken {
+      NotificationCenter.default.removeObserver(observingDidResignKeyToken, name: NSWindow.didResignKeyNotification, object: currentWindow)
+      self.observingDidResignKeyToken = nil
+    }
+  }
+  #endif
+
   // MARK: - Render
 
   /// Refreshes and re-renders the content.
