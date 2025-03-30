@@ -354,9 +354,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
   private func triggerHapticFeedback() {
     #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
-    // TODO: iOS 17.5+ has a new UIImpactFeedbackGenerator API: `func impactOccurred(intensity: CGFloat, at location: CGPoint)`
-    // test out the new API when have time
-    hapticFeedbackGenerator?.impactOccurred()
+    hapticFeedbackGenerator?.impactOccurred(intensity: 0.75)
     #endif
   }
 
