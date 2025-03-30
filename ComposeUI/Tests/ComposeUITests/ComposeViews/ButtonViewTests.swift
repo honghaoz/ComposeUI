@@ -52,7 +52,6 @@ final class ButtonViewTests: XCTestCase {
 
     var state = GestureRecognizer.State.possible
     buttonView.buttonTest.pressGestureRecognizer.override(
-      subclassSuffix: "_singleTapMode_singleTap",
       locationInView: { view in
         CGPoint(x: 10, y: 10)
       },
@@ -103,7 +102,6 @@ final class ButtonViewTests: XCTestCase {
 
     var state = GestureRecognizer.State.possible
     buttonView.buttonTest.pressGestureRecognizer.override(
-      subclassSuffix: "_doubleTapMode_singleTap",
       locationInView: { view in
         CGPoint(x: 10, y: 10)
       },
@@ -148,7 +146,6 @@ final class ButtonViewTests: XCTestCase {
 
     var state = GestureRecognizer.State.possible
     buttonView.buttonTest.pressGestureRecognizer.override(
-      subclassSuffix: "_doubleTapMode_doubleTap",
       locationInView: { view in
         CGPoint(x: 10, y: 10)
       },
@@ -192,21 +189,25 @@ final class ButtonViewTests: XCTestCase {
 private extension GestureRecognizer {
 
   private static var subclassKey: UInt8 = 0
+  private static var locationInViewBlockKey: UInt8 = 0
+  private static var stateBlockKey: UInt8 = 0
 
   /// Mock `location(in:)`, `state`.
-  func override(subclassSuffix: String,
-                locationInView: @escaping (View?) -> CGPoint,
+  func override(locationInView: @escaping (View?) -> CGPoint,
                 state: @escaping () -> GestureRecognizer.State)
   {
     guard objc_getAssociatedObject(self, &GestureRecognizer.subclassKey) == nil else {
-      return // already subclassed
+      // already subclassed, just update the properties
+      objc_setAssociatedObject(self, &GestureRecognizer.locationInViewBlockKey, locationInView, .OBJC_ASSOCIATION_COPY_NONATOMIC)
+      objc_setAssociatedObject(self, &GestureRecognizer.stateBlockKey, state, .OBJC_ASSOCIATION_COPY_NONATOMIC)
+      return
     }
 
     guard let originalClass = object_getClass(self) else {
       return
     }
     let originalClassName = String(cString: class_getName(originalClass))
-    let subclassName = originalClassName.appending(subclassSuffix)
+    let subclassName = originalClassName.appending("_Subclass")
 
     let subclass: AnyClass
     if let existingSubclass = NSClassFromString(subclassName) {
@@ -230,8 +231,10 @@ private extension GestureRecognizer {
         let originalMethod = unsafeBitCast(originalMethodIMP, to: OriginalMethodIMP.self)
 
         let block: @convention(block) (AnyObject, View?) -> CGPoint = { object, parameter1 in
-          _ = originalMethod(object, selector, parameter1)
-          return locationInView(parameter1)
+          if let locationInViewBlock = objc_getAssociatedObject(object, &GestureRecognizer.locationInViewBlockKey) as? ((View?) -> CGPoint) {
+            return locationInViewBlock(parameter1)
+          }
+          return originalMethod(object, selector, parameter1)
         }
         class_addMethod(newSubclass, selector, imp_implementationWithBlock(block), method_getTypeEncoding(method))
       }
@@ -243,8 +246,15 @@ private extension GestureRecognizer {
           return
         }
 
+        let originalMethodIMP = method_getImplementation(method)
+        typealias OriginalMethodIMP = @convention(c) (AnyObject, Selector) -> GestureRecognizer.State
+        let originalMethod = unsafeBitCast(originalMethodIMP, to: OriginalMethodIMP.self)
+
         let block: @convention(block) (AnyObject) -> GestureRecognizer.State = { object in
-          return state()
+          if let stateBlock = objc_getAssociatedObject(object, &GestureRecognizer.stateBlockKey) as? (() -> GestureRecognizer.State) {
+            return stateBlock()
+          }
+          return originalMethod(object, selector)
         }
         class_addMethod(newSubclass, selector, imp_implementationWithBlock(block), method_getTypeEncoding(method))
       }
@@ -255,6 +265,9 @@ private extension GestureRecognizer {
 
     // set the instance's class to the subclass
     object_setClass(self, subclass)
+
+    objc_setAssociatedObject(self, &GestureRecognizer.locationInViewBlockKey, locationInView, .OBJC_ASSOCIATION_COPY_NONATOMIC)
+    objc_setAssociatedObject(self, &GestureRecognizer.stateBlockKey, state, .OBJC_ASSOCIATION_COPY_NONATOMIC)
 
     // mark this instance as subclassed
     objc_setAssociatedObject(self, &GestureRecognizer.subclassKey, true, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
