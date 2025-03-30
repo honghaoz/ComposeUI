@@ -1,8 +1,8 @@
 //
-//  CALayer+ExtensionsTests.swift
+//  AnimationDelegateTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 3/25/22.
+//  Created by Honghao Zhang on 3/29/25.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,46 +28,46 @@
 //  IN THE SOFTWARE.
 //
 
-import QuartzCore
-
 import ChouTiTest
 
 @testable import ComposeUI
 
-class CALayer_ExtensionsTests: XCTestCase {
+class AnimationDelegateTests: XCTestCase {
 
-  func test_backedView() {
-    #if os(macOS)
-    let view = View()
-    view.wantsLayer = true
-    #else
-    let view = View()
-    #endif
-    let layer = view.layer()
-    expect(layer.backedView) === view
-  }
-
-  func test_positionFromFrame() {
+  func test() {
     let layer = CALayer()
-    let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
-    layer.frame = frame
-    layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
 
-    expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
-  }
+    var didStartCount = 0
+    var didStopCount = 0
 
-  func test_bringSublayerToFront() {
-    let layer = CALayer()
-    let sublayer1 = CALayer()
-    let sublayer2 = CALayer()
-    layer.addSublayer(sublayer1)
-    layer.addSublayer(sublayer2)
-    layer.bringSublayerToFront(sublayer1)
+    let delegate = AnimationDelegate(
+      animationDidStart: { animation in
+        didStartCount += 1
+      },
+      animationDidStop: { animation, finished in
+        didStopCount += 1
+      }
+    )
 
-    expect(layer.sublayers) == [sublayer2, sublayer1]
+    let animation = CABasicAnimation()
+    animation.keyPath = "position"
+    animation.fromValue = CGPoint(x: 0, y: 0)
+    animation.toValue = CGPoint(x: 100, y: 100)
+    animation.duration = 0.01
+    animation.delegate = delegate
 
-    let sublayer3 = CALayer()
-    layer.bringSublayerToFront(sublayer3)
-    expect(layer.sublayers) == [sublayer2, sublayer1]
+    layer.add(animation, forKey: "position")
+
+    expect(didStartCount) == 0
+    expect(didStopCount) == 0
+
+    expect(didStartCount).toEventually(beEqual(to: 1))
+    expect(didStopCount).toEventually(beEqual(to: 1))
+
+    delegate.animationDidStart(animation)
+    delegate.animationDidStop(animation, finished: true)
+
+    expect(didStartCount) == 1
+    expect(didStopCount) == 1
   }
 }

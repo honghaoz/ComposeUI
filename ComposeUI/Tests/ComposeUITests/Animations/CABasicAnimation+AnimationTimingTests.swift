@@ -1,8 +1,8 @@
 //
-//  CALayer+ExtensionsTests.swift
+//  CABasicAnimation+AnimationTimingTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 3/25/22.
+//  Created by Honghao Zhang on 3/29/25.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,46 +28,38 @@
 //  IN THE SOFTWARE.
 //
 
-import QuartzCore
-
 import ChouTiTest
 
 @testable import ComposeUI
 
-class CALayer_ExtensionsTests: XCTestCase {
+class CABasicAnimation_AnimationTimingTests: XCTestCase {
 
-  func test_backedView() {
-    #if os(macOS)
-    let view = View()
-    view.wantsLayer = true
-    #else
-    let view = View()
-    #endif
-    let layer = view.layer()
-    expect(layer.backedView) === view
-  }
+  func test_makeAnimation() {
+    // timing function
+    do {
+      let animation = CABasicAnimation.makeAnimation(AnimationTiming.easeInEaseOut())
+      expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+      expect(animation.duration) == Animations.defaultAnimationDuration
+      expect(animation.speed) == 1
+      expect(animation.fillMode) == .both
+    }
 
-  func test_positionFromFrame() {
-    let layer = CALayer()
-    let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
-    layer.frame = frame
-    layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+    // spring
+    do {
+      let timing = AnimationTiming.spring(dampingRatio: 0.5, response: 0.5, initialVelocity: 0.1, duration: nil, delay: 1, speed: 2)
+      let animation = CABasicAnimation.makeAnimation(timing)
 
-    expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
-  }
+      let springAnimation = try unwrap(animation as? CASpringAnimation)
+      expect(springAnimation.initialVelocity) == 0.1
+      expect(springAnimation.mass) == 1
+      expect(springAnimation.damping) == 12.566370614359172
+      expect(springAnimation.stiffness) == 157.91367041742973
+      expect(springAnimation.duration) == 0.9148578261552982
 
-  func test_bringSublayerToFront() {
-    let layer = CALayer()
-    let sublayer1 = CALayer()
-    let sublayer2 = CALayer()
-    layer.addSublayer(sublayer1)
-    layer.addSublayer(sublayer2)
-    layer.bringSublayerToFront(sublayer1)
-
-    expect(layer.sublayers) == [sublayer2, sublayer1]
-
-    let sublayer3 = CALayer()
-    layer.bringSublayerToFront(sublayer3)
-    expect(layer.sublayers) == [sublayer2, sublayer1]
+      expect(springAnimation.speed) == 2
+      expect(springAnimation.fillMode) == .both
+    } catch {
+      fail("error: \(error)")
+    }
   }
 }
