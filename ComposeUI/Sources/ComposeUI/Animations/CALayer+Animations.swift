@@ -35,14 +35,13 @@ extension CALayer {
   /// Animate the layer's frame additively.
   ///
   /// - Parameters:
-  ///   - from: The frame to animate from. If `nil`, the current model frame will be used.
   ///   - to: The frame to animate to.
   ///   - timing: The animation timing.
-  func animateFrame(from: CGRect? = nil, to: CGRect, timing: AnimationTiming) {
+  func animateFrame(to: CGRect, timing: AnimationTiming) {
     animate(
       keyPath: "position",
       timing: timing,
-      from: { (from != nil ? $0.position(from: from!) : $0.position) - $0.position(from: to) }, // swiftlint:disable:this force_unwrapping
+      from: { $0.position - $0.position(from: to) },
       to: { _ in .zero },
       model: { $0.position(from: to) },
       updateAnimation: { $0.isAdditive = true }
@@ -50,10 +49,31 @@ extension CALayer {
     animate(
       keyPath: "bounds.size",
       timing: timing,
-      from: { (from?.size ?? $0.bounds.size) - to.size },
+      from: { $0.bounds.size - to.size },
       to: { _ in .zero },
       model: { _ in to.size },
       updateAnimation: { $0.isAdditive = true }
+    )
+  }
+
+  /// Animate the layer's value additively.
+  ///
+  /// - Parameters:
+  ///   - keyPath: The key path to animate.
+  ///   - to: The value to animate to.
+  ///   - timing: The animation timing.
+  ///   - updateAnimation: An optional closure to update the animation.
+  func animate<T: FloatingPoint>(keyPath: String, to: T, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
+    animate(
+      keyPath: keyPath,
+      timing: timing,
+      from: { ($0.value(forKeyPath: keyPath) as! T) - to }, // swiftlint:disable:this force_cast
+      to: { _ in 0 },
+      model: { _ in to },
+      updateAnimation: {
+        $0.isAdditive = true
+        updateAnimation?($0)
+      }
     )
   }
 
@@ -66,19 +86,21 @@ extension CALayer {
   ///   - timing: The animation timing.
   ///   - from: The value to animate from.
   ///   - to: The value to animate to.
-  ///   - model: The model value to set.
-  ///   - updateAnimation: A closure to update the animation.
+  ///   - model: The model value to set. If `nil`, the `to` value will be used.
+  ///   - updateAnimation: An optional closure to update the animation.
   func animate<T>(keyPath: String,
                   timing: AnimationTiming,
                   from: @escaping (CALayer) -> T,
                   to: @escaping (CALayer) -> T,
-                  model: @escaping (CALayer) -> T,
+                  model: ((CALayer) -> T)? = nil,
                   updateAnimation: ((CABasicAnimation) -> Void)? = nil)
   {
     delay(timing.delay) { [weak self] in
       guard let self = self else {
         return
       }
+
+      let model = model ?? to
 
       guard timing.timing.duration > 0 else {
         self.setKeyPathValue(keyPath, model(self))

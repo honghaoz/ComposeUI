@@ -245,7 +245,21 @@ public extension ComposeNode {
       guard context.updateType.requiresFullUpdate else {
         return
       }
-      item.layer.backgroundColor = color.cgColor
+
+      let layer = item.layer
+      let color = color.cgColor
+      if let animationTiming = context.animationTiming {
+        layer.animate(
+          keyPath: "backgroundColor",
+          timing: animationTiming,
+          from: { $0.presentation()?.backgroundColor },
+          to: { _ in color }
+        )
+      } else {
+        layer.disableActions(for: "backgroundColor") {
+          layer.backgroundColor = color
+        }
+      }
     }
   }
 
@@ -260,7 +274,15 @@ public extension ComposeNode {
       guard context.updateType.requiresFullUpdate else {
         return
       }
-      item.layer.opacity = Float(opacity)
+      let layer = item.layer
+      let opacity = Float(opacity)
+      if let animationTiming = context.animationTiming {
+        layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
+      } else {
+        layer.disableActions(for: "opacity") {
+          layer.opacity = opacity
+        }
+      }
     }
   }
 
@@ -277,9 +299,23 @@ public extension ComposeNode {
       guard context.updateType.requiresFullUpdate else {
         return
       }
+
       let layer = item.layer
-      layer.borderColor = color.cgColor
-      layer.borderWidth = width
+      let color = color.cgColor
+      if let animationTiming = context.animationTiming {
+        layer.animate(
+          keyPath: "borderColor",
+          timing: animationTiming,
+          from: { $0.presentation()?.borderColor },
+          to: { _ in color }
+        )
+        layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
+      } else {
+        layer.disableActions(for: "borderColor", "borderWidth") {
+          layer.borderColor = color
+          layer.borderWidth = width
+        }
+      }
     }
   }
 
@@ -294,10 +330,18 @@ public extension ComposeNode {
       guard context.updateType.requiresFullUpdate else {
         return
       }
+
       let layer = item.layer
       layer.masksToBounds = true
       layer.cornerCurve = .continuous
-      layer.cornerRadius = radius
+
+      if let animationTiming = context.animationTiming {
+        layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
+      } else {
+        layer.disableActions(for: "cornerRadius") {
+          layer.cornerRadius = radius
+        }
+      }
     }
   }
 

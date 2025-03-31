@@ -85,19 +85,17 @@ public struct ColorNode: ComposeNode {
         return layer
       },
       update: { layer, context in
-        let color = self.color.resolve(for: context.contentView.theme)
-
+        let color = self.color.resolve(for: context.contentView.theme).cgColor
         if let animationTiming = context.animationTiming {
           layer.animate(
             keyPath: "backgroundColor",
             timing: animationTiming,
             from: { $0.presentation()?.backgroundColor },
-            to: { _ in color.cgColor },
-            model: { _ in color.cgColor }
+            to: { _ in color }
           )
         } else {
           layer.disableActions(for: "backgroundColor") {
-            layer.backgroundColor = color.cgColor
+            layer.backgroundColor = color
           }
         }
       }

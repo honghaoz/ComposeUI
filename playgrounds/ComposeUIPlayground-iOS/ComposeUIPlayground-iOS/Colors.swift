@@ -37,10 +37,13 @@ enum Colors {
   static let darkBlueGray = Color(hue: 213 / 360, saturation: 0.46, brightness: 0.53, alpha: 1)
 
   enum RetroApple {
+
     static let green = Color(red: 97 / 255, green: 187 / 255, blue: 70 / 255, alpha: 1)
     static let yellow = Color(red: 253 / 255, green: 184 / 255, blue: 39 / 255, alpha: 1)
     static let orange = Color(red: 245 / 255, green: 130 / 255, blue: 31 / 255, alpha: 1)
     static let red = Color(red: 224 / 255, green: 58 / 255, blue: 62 / 255, alpha: 1)
     static let purple = Color(red: 150 / 255, green: 61 / 255, blue: 151 / 255, alpha: 1)
+
+    static let all: [Color] = [green, yellow, orange, red, purple]
   }
 }
