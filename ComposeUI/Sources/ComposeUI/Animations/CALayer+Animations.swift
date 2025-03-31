@@ -77,6 +77,48 @@ extension CALayer {
     )
   }
 
+  /// Animate the layer's value additively.
+  ///
+  /// - Parameters:
+  ///   - keyPath: The key path to animate.
+  ///   - to: The value to animate to.
+  ///   - timing: The animation timing.
+  ///   - updateAnimation: An optional closure to update the animation.
+  func animate(keyPath: String, to: CGSize, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
+    animate(
+      keyPath: keyPath,
+      timing: timing,
+      from: { ($0.value(forKeyPath: keyPath) as! CGSize) - to }, // swiftlint:disable:this force_cast
+      to: { _ in .zero },
+      model: { _ in to },
+      updateAnimation: {
+        $0.isAdditive = true
+        updateAnimation?($0)
+      }
+    )
+  }
+
+  /// Animate the layer's value additively.
+  ///
+  /// - Parameters:
+  ///   - keyPath: The key path to animate.
+  ///   - to: The value to animate to.
+  ///   - timing: The animation timing.
+  ///   - updateAnimation: An optional closure to update the animation.
+  func animate(keyPath: String, to: CGPoint, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
+    animate(
+      keyPath: keyPath,
+      timing: timing,
+      from: { ($0.value(forKeyPath: keyPath) as! CGPoint) - to }, // swiftlint:disable:this force_cast
+      to: { _ in .zero },
+      model: { _ in to },
+      updateAnimation: {
+        $0.isAdditive = true
+        updateAnimation?($0)
+      }
+    )
+  }
+
   /// Add an animation to the layer.
   ///
   /// - Important: You must make sure the value type matches the key path type.

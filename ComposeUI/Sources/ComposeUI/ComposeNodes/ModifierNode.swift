@@ -349,25 +349,56 @@ public extension ComposeNode {
   ///
   /// - Note: All renderables provided by the node will have the shadow set.
   ///
+  /// - Note: The layer's border may show ghosting effect when the shadow is animating. You may want to avoid adding a shadow to layers that have a border.
+  /// Tip: You can use a dedicated transparent `LayerNode` as an underlay and apply the shadow to the underlay.
+  ///
   /// - Parameters:
-  ///   - color: The color of the shadow.
-  ///   - offset: The offset of the shadow.
-  ///   - radius: The radius of the shadow.
+  ///   - color: The color of the shadow. The color should be a solid color.
   ///   - opacity: The opacity of the shadow.
+  ///   - radius: The radius of the shadow.
+  ///   - offset: The offset of the shadow.
   ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
   /// - Returns: A new node with the shadow set.
-  func shadow(color: Color, offset: CGSize, radius: CGFloat, opacity: CGFloat, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
+  func shadow(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
       }
+
       let layer = item.layer
-      layer.shadowColor = color.cgColor
-      layer.shadowOffset = offset
-      layer.shadowRadius = radius
-      layer.shadowOpacity = Float(opacity)
-      if let path = path?(item) {
-        layer.shadowPath = path
+      let color = color.cgColor
+      let opacity = Float(opacity)
+
+      layer.masksToBounds = false
+
+      if let animationTiming = context.animationTiming {
+        layer.animate(
+          keyPath: "shadowColor",
+          timing: animationTiming,
+          from: { $0.presentation()?.shadowColor },
+          to: { _ in color }
+        )
+        layer.animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
+        layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
+        layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
+        if let path = path?(item) {
+          layer.animate(
+            keyPath: "shadowPath",
+            timing: animationTiming,
+            from: { $0.presentation()?.shadowPath },
+            to: { _ in path }
+          )
+        }
+      } else {
+        layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
+          layer.shadowColor = color
+          layer.shadowOpacity = opacity
+          layer.shadowRadius = radius
+          layer.shadowOffset = offset
+          if let path = path?(item) {
+            layer.shadowPath = path
+          }
+        }
       }
     }
   }

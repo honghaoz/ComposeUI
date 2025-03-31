@@ -44,7 +44,6 @@ class ViewController: UIViewController {
 
   private class ViewState {
 
-    weak var view: ComposeView!
     var color: UIColor = .red
     var colorSize: CGFloat = 200
 
@@ -63,7 +62,7 @@ class ViewController: UIViewController {
 
   private let state = ViewState()
 
-  private lazy var contentView = ComposeView { [state] in
+  private lazy var contentView = ComposeView { [state] contentView in
     Spacer().height(60)
 
     Text("Hello, ComposéUI!")
@@ -98,7 +97,15 @@ class ViewController: UIViewController {
             .border(color: Color.gray, width: 1)
         }
         .padding(horizontal: Constants.padding)
-        .frame(width: .flexible, height: state.view.bounds.width)
+        .frame(width: .flexible, height: contentView.bounds.width)
+
+      ViewNode<Playground.ShadowView>()
+        .underlay {
+          ColorNode(.white)
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: Constants.padding)
+        .frame(width: .flexible, height: contentView.bounds.width)
 
       ButtonNode { state in
         switch state {
@@ -126,7 +133,7 @@ class ViewController: UIViewController {
             return
           }
 
-          view.configure { state in
+          view.configure { state, _ in
             switch state {
             case .normal,
                  .hovered:
@@ -218,8 +225,6 @@ class ViewController: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-
-    state.view = contentView
 
     view.addSubview(contentView)
     contentView.frame = view.bounds

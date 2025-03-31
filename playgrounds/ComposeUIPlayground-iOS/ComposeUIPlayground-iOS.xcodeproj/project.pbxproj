@@ -24,6 +24,7 @@
 		E5EA9B332D06CD4700570DF1 /* ComposeUI in Frameworks */ = {isa = PBXBuildFile; productRef = E5EA9B322D06CD4700570DF1 /* ComposeUI */; };
 		E5ED82052D87B2AF00B3FE3A /* Playground+AnimatingComposeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ED82032D87B2AF00B3FE3A /* Playground+AnimatingComposeView.swift */; };
 		E5ED82062D87B2AF00B3FE3A /* Playground+TransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ED82042D87B2AF00B3FE3A /* Playground+TransitionView.swift */; };
+		E5F25D7F2D9A5BEF00183721 /* Playground+ShadowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F25D7E2D9A5BEF00183721 /* Playground+ShadowView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +45,7 @@
 		E5D636D32D7CECAB0080A152 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		E5ED82032D87B2AF00B3FE3A /* Playground+AnimatingComposeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+AnimatingComposeView.swift"; sourceTree = "<group>"; };
 		E5ED82042D87B2AF00B3FE3A /* Playground+TransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionView.swift"; sourceTree = "<group>"; };
+		E5F25D7E2D9A5BEF00183721 /* Playground+ShadowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+ShadowView.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +100,7 @@
 				E5ED82032D87B2AF00B3FE3A /* Playground+AnimatingComposeView.swift */,
 				E5ED82042D87B2AF00B3FE3A /* Playground+TransitionView.swift */,
 				E5D636CD2D7CEA270080A152 /* Playground+FrameView.swift */,
+				E5F25D7E2D9A5BEF00183721 /* Playground+ShadowView.swift */,
 				E504D96A2D8B2F8800FC20F8 /* Playground+SwiftUIView.swift */,
 				E58FCD702D8E77F9003138BE /* Playground+LabelView.swift */,
 				E58FCDA72D90B5A8003138BE /* Playground+TextView.swift */,
@@ -195,6 +198,7 @@
 				E5D636D42D7CECAB0080A152 /* Colors.swift in Sources */,
 				E58E92452CCF40FD0076FEFB /* AppDelegate.swift in Sources */,
 				E58E92472CCF40FD0076FEFB /* SceneDelegate.swift in Sources */,
+				E5F25D7F2D9A5BEF00183721 /* Playground+ShadowView.swift in Sources */,
 				E58FCD752D8FD11A003138BE /* Playground+ScrollView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
