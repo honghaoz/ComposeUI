@@ -58,10 +58,10 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
   /// The content of the button.
   override public final var content: ComposeContent {
-    makeButtonContent?(buttonState) ?? Empty()
+    makeButtonContent?(buttonState, self) ?? Empty()
   }
 
-  private var makeButtonContent: ((ButtonState) -> ComposeContent)?
+  private var makeButtonContent: ((ButtonState, ComposeView) -> ComposeContent)?
   private var onTap: (() -> Void)?
 
   /// The handler to be called when the button is double tapped.
@@ -118,7 +118,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
   ///   - content: The content provider for different button states.
   ///   - onTap: The handler to be called when the button is tapped.
   ///   - onDoubleTap: The handler to be called when the button is double tapped. Default is `nil`.
-  public func configure(content: @escaping (ButtonState) -> ComposeContent,
+  public func configure(content: @escaping (ButtonState, ComposeView) -> ComposeContent,
                         onTap: @escaping () -> Void,
                         onDoubleTap: (() -> Void)? = nil)
   {

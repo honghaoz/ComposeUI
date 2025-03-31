@@ -44,7 +44,7 @@ final class ButtonViewTests: XCTestCase {
 
     var tapCount = 0
     buttonView.configure(
-      content: { _ in Empty() },
+      content: { _, _ in Empty() },
       onTap: {
         tapCount += 1
       }
@@ -91,7 +91,7 @@ final class ButtonViewTests: XCTestCase {
     var tapCount = 0
     var doubleTapCount = 0
     buttonView.configure(
-      content: { _ in Empty() },
+      content: { _, _ in Empty() },
       onTap: {
         tapCount += 1
       },
@@ -135,7 +135,7 @@ final class ButtonViewTests: XCTestCase {
     var tapCount = 0
     var doubleTapCount = 0
     buttonView.configure(
-      content: { _ in Empty() },
+      content: { _, _ in Empty() },
       onTap: {
         tapCount += 1
       },

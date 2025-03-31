@@ -39,7 +39,7 @@ import UIKit
 /// A node that renders a button.
 public struct ButtonNode: ComposeNode {
 
-  private let makeButtonContent: (ButtonState) -> ComposeContent
+  private let makeButtonContent: (ButtonState, ComposeView?) -> ComposeContent
   private let onTap: () -> Void
   private var onDoubleTap: (() -> Void)?
 
@@ -58,10 +58,27 @@ public struct ButtonNode: ComposeNode {
     @ComposeContentBuilder content: @escaping (ButtonState) -> ComposeContent,
     onTap: @escaping () -> Void
   ) {
+    self.init(
+      content: { state, _ in
+        content(state)
+      },
+      onTap: onTap
+    )
+  }
+
+  /// Creates a button node.
+  ///
+  /// - Parameters:
+  ///   - content: The content of the button for different states and the button view.
+  ///   - onTap: The action to perform when the button is tapped.
+  public init(
+    @ComposeContentBuilder content: @escaping (ButtonState, ComposeView?) -> ComposeContent,
+    onTap: @escaping () -> Void
+  ) {
     makeButtonContent = content
     self.onTap = onTap
 
-    buttonNode = content(.normal).asVStack()
+    buttonNode = content(.normal, nil).asVStack()
   }
 
   // MARK: - ComposeNode
@@ -85,13 +102,15 @@ public struct ButtonNode: ComposeNode {
       frame: frame,
       make: { ButtonView(frame: $0.initialFrame ?? .zero) },
       update: { view, context in
-        if context.updateType == .insert {
-          view.configure(content: makeButtonContent, onTap: onTap)
-          view.onDoubleTap = onDoubleTap
-          #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
-          view.hapticFeedbackStyle = hapticFeedbackStyle
-          #endif
+        guard context.updateType.requiresFullUpdate else {
+          return
         }
+
+        view.configure(content: makeButtonContent, onTap: onTap)
+        view.onDoubleTap = onDoubleTap
+        #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
+        view.hapticFeedbackStyle = hapticFeedbackStyle
+        #endif
       }
     )
 
