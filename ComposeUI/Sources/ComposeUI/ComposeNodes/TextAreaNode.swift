@@ -182,8 +182,14 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     #endif
 
     #if canImport(UIKit)
-    updateTextView(sizingTextView, theme: .light)
-    let rawIntrinsicSize = sizingTextView.sizeThatFits(containerSize)
+    var rawIntrinsicSize: CGSize = .zero
+    if numberOfLines == 1 {
+      rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width - textContainerInset.width * 2)
+      rawIntrinsicSize = CGSize(width: rawIntrinsicSize.width, height: rawIntrinsicSize.height + textContainerInset.height * 2)
+    } else {
+      updateTextView(sizingTextView, theme: .light)
+      rawIntrinsicSize = sizingTextView.sizeThatFits(containerSize)
+    }
     #endif
 
     let intrinsicSize = CGSize(width: rawIntrinsicSize.width + intrinsicTextSizeAdjustment.width, height: rawIntrinsicSize.height + intrinsicTextSizeAdjustment.height)

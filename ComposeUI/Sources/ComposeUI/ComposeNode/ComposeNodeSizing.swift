@@ -35,7 +35,7 @@ import CoreGraphics
 /// This data structure is used to describe the sizing behavior of a node in
 /// both horizontal and vertical axes. The parent node of the node can use this
 /// information to do a more efficient layout.
-public struct ComposeNodeSizing {
+public struct ComposeNodeSizing: Hashable {
 
   /// The width sizing behavior.
   public let width: Sizing
@@ -57,7 +57,7 @@ public struct ComposeNodeSizing {
 public extension ComposeNodeSizing {
 
   /// The sizing behavior of a compose node.
-  enum Sizing {
+  enum Sizing: Hashable {
 
     /// The sizing is fixed.
     ///
