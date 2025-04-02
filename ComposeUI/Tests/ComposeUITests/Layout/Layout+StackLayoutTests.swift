@@ -1,5 +1,5 @@
 //
-//  LayoutTests.swift
+//  Layout+StackLayoutTests.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -32,7 +32,7 @@ import ChouTiTest
 
 @testable import ComposeUI
 
-class LayoutTests: XCTestCase {
+class Layout_StackLayout: XCTestCase {
 
   func test_emptyNodes() {
     // when proposed space is positive
