@@ -50,7 +50,7 @@ public extension NSView {
     // don't set cornerCurve to .continuous to match the UIKit's default value
     // layer?.cornerCurve = .continuous
 
-    layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? 2.0
+    layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
 
     // turns off clipping
     layer?.masksToBounds = false

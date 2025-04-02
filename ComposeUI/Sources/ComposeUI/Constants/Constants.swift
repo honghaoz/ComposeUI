@@ -53,4 +53,7 @@ public enum Constants {
   /// The default duration of a double-click event.
   public static let defaultDoubleTapDuration: TimeInterval = NSEvent.doubleClickInterval
   #endif
+
+  /// The default scale factor for the UI.
+  static let defaultScaleFactor: CGFloat = 2.0
 }

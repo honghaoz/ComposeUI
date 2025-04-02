@@ -89,13 +89,13 @@ extension _ViewType {
       #elseif os(visionOS)
       // visionOS doesn't support fixed scale factor.
       // just use 2.0 as a default value.
-      return 2
+      return Constants.defaultScaleFactor
       #else
       return window.screen.scale
       #endif
     } else {
       #if os(macOS)
-      return NSScreen.main?.backingScaleFactor ?? 2.0
+      return NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
       #elseif os(visionOS)
       return 2
       #else
