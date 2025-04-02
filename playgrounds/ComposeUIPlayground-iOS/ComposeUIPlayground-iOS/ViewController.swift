@@ -75,14 +75,6 @@ class ViewController: UIViewController {
 
     VStack(spacing: 8) {
 
-      ViewNode<Playground.SwiftUIView>()
-        .underlay {
-          LayerNode()
-            .border(color: Color.gray, width: 1)
-        }
-        .padding(horizontal: Constants.padding)
-        .frame(width: .flexible, height: 120)
-
       ViewNode<Playground.TransitionView>()
         .underlay {
           LayerNode()
@@ -152,6 +144,14 @@ class ViewController: UIViewController {
         }
       )
       .frame(width: 100, height: 44)
+
+      ViewNode<Playground.SwiftUIView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: Constants.padding)
+        .frame(width: .flexible, height: 120)
 
       ViewNode<Playground.LabelView>()
         .underlay {
