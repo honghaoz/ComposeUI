@@ -43,7 +43,7 @@ extension Playground {
   final class ShadowView: AnimatingComposeView {
 
     private var size = CGSize(width: 100, height: 100)
-    private var cornerRadius = 0.0
+    private var cornerRadius = 0.01 // for smooth path animation
 
     private var shadowColor = Color.black
     private var shadowOpacity = 0.5
@@ -52,27 +52,95 @@ extension Playground {
 
     @ComposeContentBuilder
     override var content: ComposeContent {
-      ColorNode(.white)
-        .border(color: .black, width: 1)
-        .cornerRadius(cornerRadius)
-        .underlay {
-          LayerNode()
+      VStack {
+        Spacer()
+
+        // animated shadow
+        HStack {
+          Spacer()
+
+          ColorNode(.white)
+            .transition(.none)
+            .border(color: .black, width: 1)
+            .cornerRadius(cornerRadius)
+            .dropShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
+              let size = renderItem.frame.size
+              let cornerRadius = self.cornerRadius
+              return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+            })
+            .transition(.opacity(timing: .linear()))
+            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+            .frame(size)
+
+          Spacer()
+
+          ColorNode(.white)
+            .border(color: .black, width: 1)
             .cornerRadius(cornerRadius)
             .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { renderItem in
               let size = renderItem.frame.size
               let cornerRadius = renderItem.layer.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
             })
+            .transition(.opacity(timing: .linear()))
+            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+            .frame(size)
+
+          Spacer()
         }
-        .transition(.opacity(timing: .linear()))
-        .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
-        .frame(size)
-        .frame(.flexible)
+
+        Spacer()
+
+        // static shadow
+        HStack {
+          Spacer()
+
+          ColorNode(.white)
+            .border(color: .black, width: 1)
+            .cornerRadius(16)
+            .dropShadow(
+              color: ThemedColor(light: .black, dark: .yellow),
+              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+              radius: Themed<CGFloat>(light: 8, dark: 16),
+              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
+              path: { renderItem in
+                let size = renderItem.frame.size
+                let cornerRadius: CGFloat = 16
+                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+              }
+            )
+            .frame(width: 100, height: 80)
+
+          Spacer()
+
+          ColorNode(.white)
+            .border(color: .black, width: 1)
+            .cornerRadius(16)
+            .shadow(
+              color: ThemedColor(light: .black, dark: .yellow),
+              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+              radius: Themed<CGFloat>(light: 8, dark: 16),
+              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
+              path: { renderItem in
+                let size = renderItem.frame.size
+                let cornerRadius = renderItem.layer.cornerRadius
+                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+              }
+            )
+            .frame(width: 100, height: 80)
+
+          Spacer()
+        }
+
+        Spacer(height: 32)
+      }
+
+      .frame(.flexible)
     }
 
     override func animate() {
-      size = CGSize(width: CGFloat.random(in: 100 ... 200), height: CGFloat.random(in: 100 ... 200))
-      cornerRadius = CGFloat.random(in: 0 ... 50)
+      size = CGSize(width: CGFloat.random(in: 50 ... 150), height: CGFloat.random(in: 50 ... 150))
+      cornerRadius = CGFloat.random(in: 0 ... 25)
 
       shadowColor = Colors.RetroApple.all.randomElement()! // swiftlint:disable:this force_unwrapping
       shadowOpacity = CGFloat.random(in: 0.1 ... 1)

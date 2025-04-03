@@ -43,6 +43,8 @@ enum StandardComposeNodeId: String {
   case swiftui
   case gesture
 
+  case dropShadow
+
   case spacer
   case frame
   case padding

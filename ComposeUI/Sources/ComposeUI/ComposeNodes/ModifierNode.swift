@@ -350,7 +350,7 @@ public extension ComposeNode {
   /// - Note: All renderables provided by the node will have the shadow set.
   ///
   /// - Note: The layer's border may show ghosting effect when the shadow is animating. You may want to avoid adding a shadow to layers that have a border.
-  /// Tip: You can use a dedicated transparent `LayerNode` as an underlay and apply the shadow to the underlay.
+  /// Tip: You can use a dedicated transparent `LayerNode` as an underlay and apply the shadow to the underlay or use `dropShadow(color:opacity:radius:offset:path:)` to add a drop shadow underlay to the node.
   ///
   /// - Parameters:
   ///   - color: The color of the shadow. The color should be a solid color.
@@ -360,14 +360,36 @@ public extension ComposeNode {
   ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
   /// - Returns: A new node with the shadow set.
   func shadow(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
+    shadow(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
+  }
+
+  /// Set the themed shadow of the node's renderables.
+  ///
+  /// - Note: All renderables provided by the node will have the shadow set.
+  ///
+  /// - Note: The layer's border may show ghosting effect when the shadow is animating. You may want to avoid adding a shadow to layers that have a border.
+  /// Tip: You can use a dedicated transparent `LayerNode` as an underlay and apply the shadow to the underlay or use `dropShadow(color:opacity:radius:offset:path:)` to add a drop shadow underlay to the node.
+  ///
+  /// - Parameters:
+  ///   - color: The themed color of the shadow. The color should be a solid color.
+  ///   - opacity: The themed opacity of the shadow.
+  ///   - radius: The themed radius of the shadow.
+  ///   - offset: The themed offset of the shadow.
+  ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
+  /// - Returns: A new node with the shadow set.
+  func shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
       }
 
+      let theme = context.contentView.theme
+
       let layer = item.layer
-      let color = color.cgColor
-      let opacity = Float(opacity)
+      let color = color.resolve(for: theme).cgColor
+      let opacity = Float(opacity.resolve(for: theme))
+      let radius: CGFloat = radius.resolve(for: theme)
+      let offset: CGSize = offset.resolve(for: theme)
 
       layer.masksToBounds = false
 
