@@ -324,15 +324,37 @@ open class ComposeView: BaseScrollView {
     }
   }
 
-  // MARK: - Key Window
+  // MARK: - Window
 
   #if canImport(AppKit)
   override open func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
 
+    _didMoveToWindow()
     startObservingKeyWindow()
   }
+  #endif
 
+  #if canImport(UIKit)
+  override open func didMoveToWindow() {
+    super.didMoveToWindow()
+
+    _didMoveToWindow()
+  }
+  #endif
+
+  private weak var previousWindow: Window?
+
+  private func _didMoveToWindow() {
+    if window != nil, previousWindow != window {
+      setNeedsRefresh(animated: true) // schedule to refresh when the window is changed
+    }
+    previousWindow = window
+  }
+
+  // MARK: - Key Window
+
+  #if canImport(AppKit)
   private weak var currentWindow: NSWindow?
   private var observingDidBecomeKeyToken: Any?
   private var observingDidResignKeyToken: Any?
@@ -414,7 +436,11 @@ open class ComposeView: BaseScrollView {
     render()
   }
 
-  private var hasPendingRefresh: Bool = false
+  private struct PendingRefresh {
+    let isAnimated: Bool
+  }
+
+  private var pendingRefresh: PendingRefresh?
 
   /// Requests a refresh of the content.
   ///
@@ -425,24 +451,32 @@ open class ComposeView: BaseScrollView {
   open func setNeedsRefresh(animated: Bool = true) {
     assert(Thread.isMainThread, "setNeedsRefresh() must be called on the main thread")
 
-    guard !hasPendingRefresh else {
+    if pendingRefresh == nil {
+      RunLoop.main.perform(inModes: [.common]) { [weak self] in
+        self?.performPendingRefresh()
+      }
+    }
+
+    pendingRefresh = PendingRefresh(isAnimated: animated)
+  }
+
+  private func performPendingRefresh() {
+    guard let pendingRefresh else {
       return
     }
 
-    hasPendingRefresh = true
-
-    RunLoop.main.perform(inModes: [.common]) { [weak self] in
-      guard let self else {
-        return
-      }
-
-      self.hasPendingRefresh = false
-      self.refresh(animated: animated)
-    }
+    self.pendingRefresh = nil
+    refresh(animated: pendingRefresh.isAnimated)
   }
 
   override open func layoutSubviews() {
     super.layoutSubviews()
+
+    guard pendingRefresh == nil else {
+      // pending refreshes could be scheduled from window change, for the layout call, just perform the pending refresh
+      performPendingRefresh()
+      return
+    }
 
     if contentUpdateContext == nil, bounds() != lastRenderBounds {
       // no pending render request but bounds changed, should re-render the content

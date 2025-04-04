@@ -31,6 +31,7 @@
 #if canImport(AppKit)
 import AppKit
 
+public typealias Window = NSWindow
 public typealias View = NSView
 public typealias TextView = NSTextView
 public typealias Color = NSColor
@@ -46,6 +47,7 @@ public typealias PanGestureRecognizer = NSPanGestureRecognizer
 #if canImport(UIKit)
 import UIKit
 
+public typealias Window = UIWindow
 public typealias View = UIView
 public typealias TextView = UITextView
 public typealias Color = UIColor
