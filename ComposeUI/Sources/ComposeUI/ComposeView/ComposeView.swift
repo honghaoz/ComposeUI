@@ -186,7 +186,7 @@ open class ComposeView: BaseScrollView {
   }
 
   private func commonInit() {
-    contentScaleFactor = screenScaleFactor
+    contentScaleFactor = windowScaleFactor
 
     #if canImport(AppKit)
     drawsBackground = false // make the view transparent
@@ -331,7 +331,7 @@ open class ComposeView: BaseScrollView {
     super.viewDidMoveToWindow()
 
     _didMoveToWindow()
-    startObservingKeyWindow()
+    startObservingWindow()
   }
   #endif
 
@@ -346,35 +346,35 @@ open class ComposeView: BaseScrollView {
   private weak var previousWindow: Window?
 
   private func _didMoveToWindow() {
+    contentScaleFactor = windowScaleFactor
+
     if window != nil, previousWindow != window {
       setNeedsRefresh(animated: true) // schedule to refresh when the window is changed
     }
     previousWindow = window
   }
 
-  // MARK: - Key Window
+  // MARK: - Observing Window
 
   #if canImport(AppKit)
-  private weak var currentWindow: NSWindow?
+  private weak var observingWindow: NSWindow?
   private var observingDidBecomeKeyToken: Any?
   private var observingDidResignKeyToken: Any?
+  private var observingWindowBackingPropertiesToken: Any?
 
-  private func startObservingKeyWindow() {
+  private func startObservingWindow() {
     guard let window else {
       // no window, stop observing
-      stopObservingKeyWindow()
+      stopObservingWindow()
       return
     }
 
-    guard currentWindow != window else {
+    guard observingWindow != window else {
       // the window is the same as the current window, no need to observe
       return
     }
 
-    currentWindow = window
-
-    // update for the current key window
-    keyWindowDidChange()
+    stopObservingWindow()
 
     // update for future key window changes
     observingDidBecomeKeyToken = NotificationCenter.default.addObserver(
@@ -394,6 +394,36 @@ open class ComposeView: BaseScrollView {
         self?.keyWindowDidChange()
       }
     )
+
+    observingWindowBackingPropertiesToken = NotificationCenter.default.addObserver(
+      forName: NSWindow.didChangeBackingPropertiesNotification,
+      object: window,
+      queue: nil,
+      using: { [weak self] _ in
+        self?.windowBackingPropertiesDidChange()
+      }
+    )
+
+    observingWindow = window
+  }
+
+  private func stopObservingWindow() {
+    if let observingDidBecomeKeyToken {
+      NotificationCenter.default.removeObserver(observingDidBecomeKeyToken, name: NSWindow.didBecomeKeyNotification, object: observingWindow)
+      self.observingDidBecomeKeyToken = nil
+    }
+
+    if let observingDidResignKeyToken {
+      NotificationCenter.default.removeObserver(observingDidResignKeyToken, name: NSWindow.didResignKeyNotification, object: observingWindow)
+      self.observingDidResignKeyToken = nil
+    }
+
+    if let observingWindowBackingPropertiesToken {
+      NotificationCenter.default.removeObserver(observingWindowBackingPropertiesToken, name: NSWindow.didChangeBackingPropertiesNotification, object: observingWindow)
+      self.observingWindowBackingPropertiesToken = nil
+    }
+
+    observingWindow = nil
   }
 
   private func keyWindowDidChange() {
@@ -404,17 +434,12 @@ open class ComposeView: BaseScrollView {
     setNeedsRefresh()
   }
 
-  private func stopObservingKeyWindow() {
-    currentWindow = nil
+  private func windowBackingPropertiesDidChange() {
+    let oldContentScaleFactor = contentScaleFactor
+    contentScaleFactor = windowScaleFactor
 
-    if let observingDidBecomeKeyToken {
-      NotificationCenter.default.removeObserver(observingDidBecomeKeyToken, name: NSWindow.didBecomeKeyNotification, object: currentWindow)
-      self.observingDidBecomeKeyToken = nil
-    }
-
-    if let observingDidResignKeyToken {
-      NotificationCenter.default.removeObserver(observingDidResignKeyToken, name: NSWindow.didResignKeyNotification, object: currentWindow)
-      self.observingDidResignKeyToken = nil
+    if oldContentScaleFactor != contentScaleFactor {
+      setNeedsRefresh(animated: true)
     }
   }
   #endif

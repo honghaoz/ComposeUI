@@ -46,7 +46,7 @@ open class BaseScrollView: ScrollView {
   override public init(frame: CGRect) {
     super.init(frame: frame)
 
-    contentScaleFactor = screenScaleFactor
+    contentScaleFactor = windowScaleFactor
 
     #if canImport(AppKit)
     startObservingAppearance()
@@ -257,61 +257,4 @@ open class BaseScrollView: ScrollView {
     scheduleThemeUpdate(theme)
   }
   #endif
-
-  // MARK: - Content Scale Factor
-
-  #if canImport(AppKit)
-
-  private weak var currentWindow: NSWindow?
-  private var observingWindowBackingPropertiesToken: Any?
-
-  override open func viewDidMoveToWindow() {
-    super.viewDidMoveToWindow()
-
-    updateContentScaleFactor()
-
-    startObservingWindowBackingProperties()
-
-    currentWindow = window
-  }
-
-  private func startObservingWindowBackingProperties() {
-    cancelObservingWindowBackingProperties()
-
-    guard let window else {
-      return
-    }
-
-    observingWindowBackingPropertiesToken = NotificationCenter.default.addObserver(
-      forName: NSWindow.didChangeBackingPropertiesNotification,
-      object: window,
-      queue: nil,
-      using: { [weak self] _ in
-        self?.updateContentScaleFactor()
-      }
-    )
-  }
-
-  private func cancelObservingWindowBackingProperties() {
-    if let token = observingWindowBackingPropertiesToken {
-      NotificationCenter.default.removeObserver(token, name: NSWindow.didChangeBackingPropertiesNotification, object: currentWindow)
-      observingWindowBackingPropertiesToken = nil
-    }
-  }
-  #endif
-
-  #if canImport(UIKit)
-  override open func didMoveToWindow() {
-    super.didMoveToWindow()
-
-    updateContentScaleFactor()
-  }
-  #endif
-
-  private func updateContentScaleFactor() {
-    contentScaleFactor = screenScaleFactor
-
-    // trigger a layout update to apply the new content scale factor.
-    setNeedsLayout()
-  }
 }

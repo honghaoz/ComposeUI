@@ -50,8 +50,8 @@ protocol _ViewType: View {
   /// The content scale factor.
   var contentScaleFactor: CGFloat { get set }
 
-  /// The attaching screen's scale factor.
-  var screenScaleFactor: CGFloat { get }
+  /// The host window's scale factor or the main screen's scale factor.
+  var windowScaleFactor: CGFloat { get }
 }
 
 extension View: _ViewType {}
@@ -82,7 +82,7 @@ extension _ViewType {
   }
   #endif
 
-  var screenScaleFactor: CGFloat {
+  var windowScaleFactor: CGFloat {
     if let window {
       #if os(macOS)
       return window.backingScaleFactor
@@ -91,13 +91,13 @@ extension _ViewType {
       // just use 2.0 as a default value.
       return Constants.defaultScaleFactor
       #else
-      return window.screen.scale
+      return window.contentScaleFactor
       #endif
     } else {
       #if os(macOS)
       return NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
       #elseif os(visionOS)
-      return 2
+      return Constants.defaultScaleFactor
       #else
       return UIScreen.main.scale
       #endif
