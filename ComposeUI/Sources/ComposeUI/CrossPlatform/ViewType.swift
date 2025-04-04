@@ -84,17 +84,13 @@ extension _ViewType {
 
   var windowScaleFactor: CGFloat {
     if let window {
-      #if os(macOS)
+      #if canImport(AppKit)
       return window.backingScaleFactor
-      #elseif os(visionOS)
-      // visionOS doesn't support fixed scale factor.
-      // just use 2.0 as a default value.
-      return Constants.defaultScaleFactor
-      #else
+      #elseif canImport(UIKit)
       return window.contentScaleFactor
       #endif
     } else {
-      #if os(macOS)
+      #if canImport(AppKit)
       return NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
       #elseif os(visionOS)
       return Constants.defaultScaleFactor
