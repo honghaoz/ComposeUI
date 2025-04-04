@@ -69,5 +69,19 @@ class ComposeView_CachedLayoutTests: XCTestCase {
 
     expect(state.layoutCount) == 2 // size change should trigger layout
     expect(state.renderCount) == 4 // size change should trigger render
+
+    view.frame = .zero
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    expect(state.layoutCount) == 3 // size change should trigger layout
+    expect(state.renderCount) == 5 // size change should trigger render
+
+    view.setContentOffset(CGPoint(x: 0, y: 110))
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    expect(state.layoutCount) == 3 // scroll should not trigger layout
+    expect(state.renderCount) == 6 // scroll should trigger render
   }
 }
