@@ -74,6 +74,30 @@ extension Playground {
 
           Spacer()
 
+          LayerNode()
+            .transition(.none)
+            .border(color: .black, width: 1)
+            .cornerRadius(cornerRadius)
+            .underlay {
+              DropShadowNode(
+                color: shadowColor,
+                opacity: shadowOpacity,
+                radius: shadowRadius,
+                offset: shadowOffset,
+                path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
+                  let size = renderItem.frame.size
+                  let cornerRadius = self.cornerRadius
+                  return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                },
+                clipsOutShadowPath: true
+              )
+            }
+            .transition(.opacity(timing: .linear()))
+            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+            .frame(size)
+
+          Spacer()
+
           ColorNode(.white)
             .border(color: .black, width: 1)
             .cornerRadius(cornerRadius)

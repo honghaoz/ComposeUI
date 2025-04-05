@@ -35,9 +35,6 @@ import AppKit
 import UIKit
 #endif
 
-// TODO: support scale factor, rasterization
-// TODO: support clip out main shape
-
 /// A node that renders a drop shadow.
 ///
 /// The node has a flexible size.
@@ -48,6 +45,7 @@ public struct DropShadowNode: ComposeNode {
   private let radius: Themed<CGFloat>
   private let offset: Themed<CGSize>
   private let path: (Renderable) -> CGPath
+  private let clipsOutShadowPath: Bool
 
   /// Initialize a themed drop shadow node.
   ///
@@ -57,12 +55,14 @@ public struct DropShadowNode: ComposeNode {
   ///   - radius: The themed radius of the drop shadow.
   ///   - offset: The themed offset of the drop shadow.
   ///   - path: The path of the drop shadow.
-  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: @escaping (Renderable) -> CGPath) {
+  ///   - clipsOutShadowPath: Whether to clip the shadow path so that only the outer shadow is visible. Default to `false`.
+  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: @escaping (Renderable) -> CGPath, clipsOutShadowPath: Bool = false) {
     self.color = color
     self.opacity = opacity
     self.radius = radius
     self.offset = offset
     self.path = path
+    self.clipsOutShadowPath = clipsOutShadowPath
   }
 
   /// Initialize a drop shadow node.
@@ -72,8 +72,9 @@ public struct DropShadowNode: ComposeNode {
   ///   - opacity: The opacity of the drop shadow.
   ///   - radius: The radius of the drop shadow.
   ///   - offset: The offset of the drop shadow.
-  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (Renderable) -> CGPath) {
-    self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
+  ///   - clipsOutShadowPath: Whether to clip the shadow path so that only the outer shadow is visible. Default to `false`.
+  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (Renderable) -> CGPath, clipsOutShadowPath: Bool = false) {
+    self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path, clipsOutShadowPath: clipsOutShadowPath)
   }
 
   // MARK: - ComposeNode
@@ -107,6 +108,8 @@ public struct DropShadowNode: ComposeNode {
         guard context.updateType.requiresFullUpdate else {
           return
         }
+
+        layer.clipsOutShadowPath = clipsOutShadowPath
 
         let theme = context.contentView.theme
 

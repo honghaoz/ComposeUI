@@ -43,7 +43,7 @@ public extension CALayer {
   /// Example:
   ///
   /// ```swift
-  /// layer.withoutActions(for: "position", "bounds", "transform") {
+  /// layer.disableActions(for: "position", "bounds", "transform") {
   ///   layer.frame = newFrame
   ///   layer.transform = CATransform3DIdentity
   /// }
@@ -67,7 +67,7 @@ public extension CALayer {
   /// Example:
   ///
   /// ```swift
-  /// layer.withoutActions(for: ["position", "bounds", "transform"]) {
+  /// layer.disableActions(for: ["position", "bounds", "transform"]) {
   ///   layer.frame = newFrame
   ///   layer.transform = CATransform3DIdentity
   /// }

@@ -47,6 +47,14 @@ open class DropShadowLayer: CALayer {
     set {} // do nothing
   }
 
+  /// The mask layer to clip the drop shadow out of the main shape.
+  private lazy var maskLayer = CAShapeLayer()
+
+  /// Whether to clip the drop shadow out of the shadow path so that only the outer shadow is visible.
+  ///
+  /// Default to `false`.
+  public var clipsOutShadowPath: Bool = false
+
   override init() {
     super.init()
 
@@ -107,6 +115,7 @@ open class DropShadowLayer: CALayer {
   {
     let color = color.cgColor
     let opacity = Float(opacity)
+    let shadowPath = path(self)
 
     if let animationTiming {
       animate(
@@ -122,16 +131,67 @@ open class DropShadowLayer: CALayer {
         keyPath: "shadowPath",
         timing: animationTiming,
         from: { $0.presentation()?.shadowPath },
-        to: { path($0 as! DropShadowLayer) } // swiftlint:disable:this force_cast
+        to: { _ in shadowPath }
       )
+
+      if clipsOutShadowPath {
+        updateMaskLayer(shadowPath: shadowPath, radius: radius, offset: offset, animationTiming: animationTiming)
+      }
     } else {
       disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
         shadowColor = color
         shadowOpacity = opacity
         shadowRadius = radius
         shadowOffset = offset
-        shadowPath = path(self)
+        self.shadowPath = shadowPath
+      }
+
+      if clipsOutShadowPath {
+        updateMaskLayer(shadowPath: shadowPath, radius: radius, offset: offset, animationTiming: nil)
       }
     }
+  }
+
+  private func updateMaskLayer(shadowPath: CGPath,
+                               radius: CGFloat,
+                               offset: CGSize,
+                               animationTiming: AnimationTiming?)
+  {
+    if mask !== maskLayer {
+      mask = maskLayer
+      maskLayer.disableActions(for: "position", "bounds") {
+        maskLayer.frame = bounds
+      }
+      maskLayer.fillRule = .evenOdd // to match the clip out path
+    }
+
+    let maskPath = clipOutMaskLayerPath(shadowPath: shadowPath, radius: radius, offset: offset)
+
+    if let animationTiming {
+      maskLayer.animateFrame(to: bounds, timing: animationTiming)
+      maskLayer.animate(
+        keyPath: "path",
+        timing: animationTiming,
+        from: { ($0.presentation() as? CAShapeLayer)?.path },
+        to: { _ in maskPath }
+      )
+    } else {
+      maskLayer.disableActions(for: "position", "bounds", "path") {
+        maskLayer.frame = bounds
+        maskLayer.path = maskPath
+      }
+    }
+  }
+
+  private func clipOutMaskLayerPath(shadowPath: CGPath, radius: CGFloat, offset: CGSize, spread: CGFloat = 0) -> CGPath {
+    let hExtraSize = radius + abs(offset.width) + abs(spread) + 1000
+    let vExtraSize = radius + abs(offset.height) + abs(spread) + 1000
+    assert(bounds.origin == .zero, "check if boundingBoxOfPath works for non zero origin bounds")
+    let biggerBounds = shadowPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
+
+    let biggerPath = CGMutablePath()
+    biggerPath.addPath(CGPath(rect: biggerBounds, transform: nil))
+    biggerPath.addPath(shadowPath)
+    return biggerPath
   }
 }
