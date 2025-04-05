@@ -173,6 +173,7 @@ open class Label: NSTextField {
       lineBreakMode = .byTruncatingMiddle
     }
 
+    cell?.usesSingleLineMode = true
     multilineTruncatesLastVisibleLine = false
   }
 
@@ -191,6 +192,7 @@ open class Label: NSTextField {
       lineBreakMode = .byCharWrapping
     }
 
+    cell?.usesSingleLineMode = false
     multilineTruncatesLastVisibleLine = truncatesLastVisibleLine
   }
 

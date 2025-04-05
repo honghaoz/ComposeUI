@@ -92,24 +92,39 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
-      updateLabel(sizingLabel, theme: .light)
-      let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
-      size = intrinsicSize
+      size = intrinsicTextSize(for: containerSize)
       return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
     case (true, false):
-      updateLabel(sizingLabel, theme: .light)
-      let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
+      let intrinsicSize = intrinsicTextSize(for: containerSize)
       size = CGSize(width: intrinsicSize.width, height: containerSize.height)
       return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
     case (false, true):
-      updateLabel(sizingLabel, theme: .light)
-      let intrinsicSize = sizingLabel.sizeThatFits(containerSize)
+      let intrinsicSize = intrinsicTextSize(for: containerSize)
       size = CGSize(width: containerSize.width, height: intrinsicSize.height)
       return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
     case (false, false):
       size = containerSize
       return ComposeNodeSizing(width: .flexible, height: .flexible)
     }
+  }
+
+  private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
+    updateLabel(sizingLabel, theme: .light)
+    let rawIntrinsicSize = sizingLabel.sizeThatFits(containerSize)
+
+    #if canImport(AppKit)
+    if numberOfLines == 1 {
+      // on Mac, `sizeThatFits` returns the height for multiline text like "Hello\nWorld"
+      let lineHeight = font.ascender + abs(font.descender)
+      return CGSize(width: rawIntrinsicSize.width, height: lineHeight).roundedUp(scaleFactor: 1)
+    } else {
+      return rawIntrinsicSize.roundedUp(scaleFactor: 1)
+    }
+    #endif
+
+    #if canImport(UIKit)
+    return rawIntrinsicSize.roundedUp(scaleFactor: 1)
+    #endif
   }
 
   public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {

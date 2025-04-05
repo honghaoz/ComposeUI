@@ -75,6 +75,20 @@ extension Playground {
           $0.width(100).border()
         }
 
+        // single line with newline, enough width
+        HStack(spacing: 10) {
+          for alignment in alignments {
+            Text("ComposéUI\nHello")
+              .font(.systemFont(ofSize: 12))
+              .fixedSize(width: false, height: true)
+              .numberOfLines(1)
+              .textAlignment(alignment)
+          }
+        }
+        .mapChildren {
+          $0.width(100).border()
+        }
+
         Spacer(height: 16)
 
         // single line, not enough width
@@ -83,6 +97,26 @@ extension Playground {
             VStack(spacing: 10) {
               for lineBreakMode in lineBreakModes {
                 Text("ComposéUI")
+                  .textColor(ThemedColor(light: ComposeUI.Color.black.withAlphaComponent(0.8), dark: ComposeUI.Color.white.withAlphaComponent(0.8)))
+                  .font(.systemFont(ofSize: 12))
+                  .fixedSize(width: false, height: true) // make width flexible so that the container can set the width
+                  .numberOfLines(1)
+                  .textAlignment(alignment)
+                  .lineBreakMode(lineBreakMode)
+              }
+            }
+            .mapChildren { $0.width(50).border() }
+          }
+        }
+
+        Spacer(height: 16)
+
+        // single line with newline, not enough width
+        HStack(spacing: 10) {
+          for alignment in alignments {
+            VStack(spacing: 10) {
+              for lineBreakMode in lineBreakModes {
+                Text("ComposéUI\nHello")
                   .textColor(ThemedColor(light: ComposeUI.Color.black.withAlphaComponent(0.8), dark: ComposeUI.Color.white.withAlphaComponent(0.8)))
                   .font(.systemFont(ofSize: 12))
                   .fixedSize(width: false, height: true) // make width flexible so that the container can set the width
@@ -146,7 +180,7 @@ private extension ComposeNode {
   func border() -> some ComposeNode {
     self.underlay {
       LayerNode()
-        .border(color: Color.gray, width: 1)
+        .border(color: Color.red.withAlphaComponent(0.5), width: 1)
     }
   }
 }
