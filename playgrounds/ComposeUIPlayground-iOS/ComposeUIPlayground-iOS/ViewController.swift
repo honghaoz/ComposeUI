@@ -97,7 +97,7 @@ class ViewController: UIViewController {
             .border(color: Color.gray, width: 1)
         }
         .padding(horizontal: Constants.padding)
-        .frame(width: .flexible, height: contentView.bounds.width)
+        .frame(width: .flexible, height: 600)
 
       ButtonNode { state in
         switch state {

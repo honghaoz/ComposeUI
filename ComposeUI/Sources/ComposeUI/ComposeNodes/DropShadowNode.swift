@@ -35,6 +35,26 @@ import AppKit
 import UIKit
 #endif
 
+/// A model contains the shadow path and cutout path for a drop shadow.
+public struct DropShadowPaths {
+
+  /// The shadow path.
+  public let shadowPath: CGPath
+
+  /// The cutout path. If provided, the shadow will be clipped for the cutout path.
+  public let cutoutPath: CGPath?
+
+  /// Initialize a shadow paths model.
+  ///
+  /// - Parameters:
+  ///   - shadowPath: The shadow path.
+  ///   - cutoutPath: The cutout path.
+  public init(shadowPath: CGPath, cutoutPath: CGPath?) {
+    self.shadowPath = shadowPath
+    self.cutoutPath = cutoutPath
+  }
+}
+
 /// A node that renders a drop shadow.
 ///
 /// The node has a flexible size.
@@ -44,8 +64,7 @@ public struct DropShadowNode: ComposeNode {
   private let opacity: Themed<CGFloat>
   private let radius: Themed<CGFloat>
   private let offset: Themed<CGSize>
-  private let path: (Renderable) -> CGPath
-  private let clipsOutShadowPath: Bool
+  private let paths: (Renderable) -> DropShadowPaths
 
   /// Initialize a themed drop shadow node.
   ///
@@ -55,14 +74,28 @@ public struct DropShadowNode: ComposeNode {
   ///   - radius: The themed radius of the drop shadow.
   ///   - offset: The themed offset of the drop shadow.
   ///   - path: The path of the drop shadow.
-  ///   - clipsOutShadowPath: Whether to clip the shadow path so that only the outer shadow is visible. Default to `false`.
-  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: @escaping (Renderable) -> CGPath, clipsOutShadowPath: Bool = false) {
+  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: @escaping (Renderable) -> CGPath) {
     self.color = color
     self.opacity = opacity
     self.radius = radius
     self.offset = offset
-    self.path = path
-    self.clipsOutShadowPath = clipsOutShadowPath
+    self.paths = { DropShadowPaths(shadowPath: path($0), cutoutPath: nil) }
+  }
+
+  /// Initialize a themed drop shadow node.
+  ///
+  /// - Parameters:
+  ///   - color: The themed color of the drop shadow.
+  ///   - opacity: The themed opacity of the drop shadow.
+  ///   - radius: The themed radius of the drop shadow.
+  ///   - offset: The themed offset of the drop shadow.
+  ///   - paths: The paths of the drop shadow. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
+  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, paths: @escaping (Renderable) -> DropShadowPaths) {
+    self.color = color
+    self.opacity = opacity
+    self.radius = radius
+    self.offset = offset
+    self.paths = paths
   }
 
   /// Initialize a drop shadow node.
@@ -72,9 +105,20 @@ public struct DropShadowNode: ComposeNode {
   ///   - opacity: The opacity of the drop shadow.
   ///   - radius: The radius of the drop shadow.
   ///   - offset: The offset of the drop shadow.
-  ///   - clipsOutShadowPath: Whether to clip the shadow path so that only the outer shadow is visible. Default to `false`.
-  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (Renderable) -> CGPath, clipsOutShadowPath: Bool = false) {
-    self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path, clipsOutShadowPath: clipsOutShadowPath)
+  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (Renderable) -> CGPath) {
+    self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
+  }
+
+  /// Initialize a drop shadow node.
+  ///
+  /// - Parameters:
+  ///   - color: The color of the drop shadow.
+  ///   - opacity: The opacity of the drop shadow.
+  ///   - radius: The radius of the drop shadow.
+  ///   - offset: The offset of the drop shadow.
+  ///   - paths: The paths of the drop shadow. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
+  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, paths: @escaping (Renderable) -> DropShadowPaths) {
+    self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), paths: paths)
   }
 
   // MARK: - ComposeNode
@@ -109,16 +153,16 @@ public struct DropShadowNode: ComposeNode {
           return
         }
 
-        layer.clipsOutShadowPath = clipsOutShadowPath
-
         let theme = context.contentView.theme
+        let paths = paths(.layer(layer))
 
         layer.update(
           color: color.resolve(for: theme),
           opacity: opacity.resolve(for: theme),
           radius: radius.resolve(for: theme),
           offset: offset.resolve(for: theme),
-          path: { path(.layer($0)) },
+          path: { _ in paths.shadowPath },
+          cutoutPath: paths.cutoutPath.map { cutoutPath in { _ in cutoutPath } },
           animationTiming: context.animationTiming
         )
       }
@@ -173,6 +217,52 @@ public extension ComposeNode {
   {
     underlay {
       DropShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, path: path)
+    }
+  }
+
+  /// Add a themed drop shadow underlay to the node.
+  ///
+  /// - Note: This is different than `shadow(color:opacity:radius:offset:path:)` which sets the shadow to all of the node's renderables.
+  /// This method adds a drop shadow underlay to the node. The shadow is applied to a dedicated shadow layer.
+  ///
+  /// - Parameters:
+  ///   - color: The themed color of the drop shadow.
+  ///   - opacity: The themed opacity of the drop shadow.
+  ///   - radius: The themed radius of the drop shadow.
+  ///   - offset: The themed offset of the drop shadow.
+  ///   - paths: The paths of the drop shadow. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
+  /// - Returns: A new node with the drop shadow underlay set.
+  func dropShadow(color: ThemedColor,
+                  opacity: Themed<CGFloat>,
+                  radius: Themed<CGFloat>,
+                  offset: Themed<CGSize>,
+                  paths: @escaping (Renderable) -> DropShadowPaths) -> some ComposeNode
+  {
+    underlay {
+      DropShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, paths: paths)
+    }
+  }
+
+  /// Add a drop shadow underlay to the node.
+  ///
+  /// - Note: This is different than `shadow(color:opacity:radius:offset:path:)` which sets the shadow to all of the node's renderables.
+  /// This method adds a drop shadow underlay to the node. The shadow is applied to a dedicated shadow layer.
+  ///
+  /// - Parameters:
+  ///   - color: The color of the drop shadow.
+  ///   - opacity: The opacity of the drop shadow.
+  ///   - radius: The radius of the drop shadow.
+  ///   - offset: The offset of the drop shadow.
+  ///   - paths: The paths of the drop shadow. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
+  /// - Returns: A new node with the drop shadow underlay set.
+  func dropShadow(color: Color,
+                  opacity: CGFloat,
+                  radius: CGFloat,
+                  offset: CGSize,
+                  paths: @escaping (Renderable) -> DropShadowPaths) -> some ComposeNode
+  {
+    underlay {
+      DropShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, paths: paths)
     }
   }
 }

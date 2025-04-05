@@ -60,6 +60,26 @@ extension Playground {
           Spacer()
 
           ColorNode(.white)
+            .border(color: .black, width: 1)
+            .cornerRadius(cornerRadius)
+            .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { renderItem in
+              let size = renderItem.frame.size
+              let cornerRadius = renderItem.layer.cornerRadius
+              return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+            })
+            .overlay {
+              Text("direct\nshadow")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
+            .transition(.opacity(timing: .linear()))
+            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+            .frame(size)
+
+          Spacer()
+
+          ColorNode(.white)
             .transition(.none)
             .border(color: .black, width: 1)
             .cornerRadius(cornerRadius)
@@ -68,10 +88,23 @@ extension Playground {
               let cornerRadius = self.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
             })
+            .overlay {
+              Text("shadow\nunderlay")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
             .transition(.opacity(timing: .linear()))
             .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
             .frame(size)
 
+          Spacer()
+        }
+
+        Spacer()
+
+        // shadow cutout
+        HStack {
           Spacer()
 
           LayerNode()
@@ -88,9 +121,14 @@ extension Playground {
                   let size = renderItem.frame.size
                   let cornerRadius = self.cornerRadius
                   return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-                },
-                clipsOutShadowPath: true
+                }
               )
+            }
+            .overlay {
+              Text("no shadow\ncutout")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
             }
             .transition(.opacity(timing: .linear()))
             .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
@@ -98,14 +136,28 @@ extension Playground {
 
           Spacer()
 
-          ColorNode(.white)
+          LayerNode()
+            .transition(.none)
             .border(color: .black, width: 1)
             .cornerRadius(cornerRadius)
-            .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { renderItem in
-              let size = renderItem.frame.size
-              let cornerRadius = renderItem.layer.cornerRadius
-              return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-            })
+            .dropShadow(
+              color: shadowColor,
+              opacity: shadowOpacity,
+              radius: shadowRadius,
+              offset: shadowOffset,
+              paths: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
+                let size = renderItem.frame.size
+                let cornerRadius = self.cornerRadius
+                let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                return DropShadowPaths(shadowPath: path, cutoutPath: path)
+              }
+            )
+            .overlay {
+              Text("has shadow\ncutout")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
             .transition(.opacity(timing: .linear()))
             .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
             .frame(size)
@@ -122,24 +174,6 @@ extension Playground {
           ColorNode(.white)
             .border(color: .black, width: 1)
             .cornerRadius(16)
-            .dropShadow(
-              color: ThemedColor(light: .black, dark: .yellow),
-              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 8, dark: 16),
-              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
-              path: { renderItem in
-                let size = renderItem.frame.size
-                let cornerRadius: CGFloat = 16
-                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-              }
-            )
-            .frame(width: 100, height: 80)
-
-          Spacer()
-
-          ColorNode(.white)
-            .border(color: .black, width: 1)
-            .cornerRadius(16)
             .shadow(
               color: ThemedColor(light: .black, dark: .yellow),
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
@@ -151,6 +185,36 @@ extension Playground {
                 return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
               }
             )
+            .overlay {
+              Text("direct\nshadow")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
+            .frame(width: 100, height: 80)
+
+          Spacer()
+
+          ColorNode(.white)
+            .border(color: .black, width: 1)
+            .cornerRadius(16)
+            .dropShadow(
+              color: ThemedColor(light: .black, dark: .yellow),
+              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+              radius: Themed<CGFloat>(light: 8, dark: 16),
+              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
+              path: { renderItem in
+                let size = renderItem.frame.size
+                let cornerRadius: CGFloat = 16
+                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+              }
+            )
+            .overlay {
+              Text("shadow\nunderlay")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
             .frame(width: 100, height: 80)
 
           Spacer()
