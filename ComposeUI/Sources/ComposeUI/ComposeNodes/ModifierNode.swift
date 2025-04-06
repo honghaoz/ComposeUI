@@ -496,4 +496,27 @@ public extension ComposeNode {
       #endif
     }
   }
+
+  /// Set whether the node's renderables are rasterized.
+  ///
+  /// - Note: All renderables provided by the node will have the `shouldRasterize` set.
+  ///
+  /// - Parameter scale: The scale of the rasterized content. Specify `nil` to disable rasterization.
+  /// - Returns: A new node with the rasterization set.
+  func rasterize(_ scale: CGFloat?) -> some ComposeNode {
+    onUpdate { item, context in
+      guard context.updateType.requiresFullUpdate else {
+        return
+      }
+
+      let layer = item.layer
+      if let scale = scale {
+        layer.shouldRasterize = true
+        layer.rasterizationScale = scale
+      } else {
+        layer.shouldRasterize = false
+        layer.rasterizationScale = 1
+      }
+    }
+  }
 }

@@ -37,18 +37,33 @@ import UIKit
 #endif
 
 /// A type that represents a view.
-public protocol ViewType: View {}
+public protocol ViewType: View {
+
+  /// The content scale factor.
+  var contentScaleFactor: CGFloat { get set }
+}
 
 extension View: ViewType {}
+
+public extension ViewType {
+
+  #if canImport(AppKit)
+  var contentScaleFactor: CGFloat {
+    get {
+      layer().contentsScale
+    }
+    set {
+      layer().contentsScale = newValue
+    }
+  }
+  #endif
+}
 
 /// A type that represents a cross-platform view.
 protocol _ViewType: View {
 
   /// Get the backing `CALayer` of the view.
   func layer() -> CALayer
-
-  /// The content scale factor.
-  var contentScaleFactor: CGFloat { get set }
 
   /// The host window's scale factor or the main screen's scale factor.
   var windowScaleFactor: CGFloat { get }
@@ -71,23 +86,12 @@ extension _ViewType {
     #endif
   }
 
-  #if canImport(AppKit)
-  var contentScaleFactor: CGFloat {
-    get {
-      layer().contentsScale
-    }
-    set {
-      layer().contentsScale = newValue
-    }
-  }
-  #endif
-
   var windowScaleFactor: CGFloat {
     if let window {
       #if canImport(AppKit)
       return window.backingScaleFactor
       #elseif canImport(UIKit)
-      return window.contentScaleFactor
+      return window.screen.scale
       #endif
     } else {
       #if canImport(AppKit)

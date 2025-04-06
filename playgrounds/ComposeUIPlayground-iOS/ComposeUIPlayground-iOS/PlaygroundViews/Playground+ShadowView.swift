@@ -67,6 +67,9 @@ extension Playground {
               let cornerRadius = renderItem.layer.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
             })
+            .onUpdate { renderable, _ in
+              renderable.layer.drawsAsynchronously = true
+            }
             .overlay {
               Text("direct\nshadow")
                 .font(.systemFont(ofSize: 12))
@@ -88,6 +91,9 @@ extension Playground {
               let cornerRadius = self.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
             })
+            .onUpdate { renderable, _ in
+              renderable.layer.drawsAsynchronously = true
+            }
             .overlay {
               Text("shadow\nunderlay")
                 .font(.systemFont(ofSize: 12))
@@ -123,6 +129,9 @@ extension Playground {
                   return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
                 }
               )
+              .onUpdate { renderable, _ in
+                renderable.layer.drawsAsynchronously = true
+              }
             }
             .overlay {
               Text("no shadow\ncutout")
@@ -152,6 +161,9 @@ extension Playground {
                 return DropShadowPaths(shadowPath: path, cutoutPath: path)
               }
             )
+            .onUpdate { renderable, _ in
+              renderable.layer.drawsAsynchronously = true
+            }
             .overlay {
               Text("has shadow\ncutout")
                 .font(.systemFont(ofSize: 12))
@@ -171,7 +183,7 @@ extension Playground {
         HStack {
           Spacer()
 
-          ColorNode(.white)
+          LayerNode()
             .transition(.none)
             .cornerRadius(cornerRadius)
             .innerShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
@@ -179,6 +191,9 @@ extension Playground {
               let cornerRadius = self.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
             })
+            .onUpdate { renderable, _ in
+              renderable.layer.drawsAsynchronously = true
+            }
             .overlay {
               Text("inner\nshadow")
                 .font(.systemFont(ofSize: 12))
@@ -199,10 +214,10 @@ extension Playground {
           Spacer()
 
           LayerNode()
-            .border(color: .black, width: 1)
+            .border(color: .black, width: 1 / self.contentScaleFactor)
             .cornerRadius(16)
             .shadow(
-              color: ThemedColor(light: .black, dark: .yellow),
+              color: ThemedColor(light: .black, dark: .red),
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 8, dark: 16),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
@@ -223,10 +238,10 @@ extension Playground {
           Spacer()
 
           LayerNode()
-            .border(color: .black, width: 1)
+            .border(color: .black, width: 1 / self.contentScaleFactor)
             .cornerRadius(16)
             .dropShadow(
-              color: ThemedColor(light: .black, dark: .yellow),
+              color: ThemedColor(light: .black, dark: .red),
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 8, dark: 16),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
@@ -247,10 +262,10 @@ extension Playground {
           Spacer()
 
           LayerNode()
-            .border(color: .black, width: 1)
+            .border(color: .black, width: 1 / self.contentScaleFactor)
             .cornerRadius(16, cornerCurve: .circular)
             .dropShadow(
-              color: ThemedColor(light: .black, dark: .yellow),
+              color: ThemedColor(light: .black, dark: .red),
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 8, dark: 16),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
@@ -280,7 +295,7 @@ extension Playground {
           LayerNode()
             .cornerRadius(16, cornerCurve: .continuous)
             .dropShadow(
-              color: ThemedColor(light: .black, dark: .yellow),
+              color: ThemedColor(light: .black, dark: .red),
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 4, dark: 8),
               offset: Themed<CGSize>(.zero),
