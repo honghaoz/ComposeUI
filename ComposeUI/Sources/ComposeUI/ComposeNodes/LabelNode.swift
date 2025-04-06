@@ -109,21 +109,30 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   }
 
   private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
-    updateLabel(sizingLabel, theme: .light)
-    let rawIntrinsicSize = sizingLabel.sizeThatFits(containerSize)
-
     #if canImport(AppKit)
     if numberOfLines == 1 {
       // on Mac, `sizeThatFits` returns the height for multiline text like "Hello\nWorld"
-      let lineHeight = font.ascender + abs(font.descender)
-      return CGSize(width: rawIntrinsicSize.width, height: lineHeight).roundedUp(scaleFactor: 1)
+      let style = NSMutableParagraphStyle()
+      style.alignment = textAlignment
+      style.lineBreakMode = lineBreakMode
+      style.lineBreakStrategy = []
+
+      let attributedString = NSAttributedString(string: text, attributes: [
+        .font: font,
+        .foregroundColor: Color.black,
+        .paragraphStyle: style,
+      ])
+      // use `.greatestFiniteMagnitude` to calculate the single line text intrinsic size
+      return attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: .greatestFiniteMagnitude).roundedUp(scaleFactor: 1)
     } else {
-      return rawIntrinsicSize.roundedUp(scaleFactor: 1)
+      updateLabel(sizingLabel, theme: .light)
+      return sizingLabel.sizeThatFits(containerSize).roundedUp(scaleFactor: 1)
     }
     #endif
 
     #if canImport(UIKit)
-    return rawIntrinsicSize.roundedUp(scaleFactor: 1)
+    updateLabel(sizingLabel, theme: .light)
+    return sizingLabel.sizeThatFits(containerSize).roundedUp(scaleFactor: 1)
     #endif
   }
 
@@ -136,13 +145,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     let viewItem = ViewItem<BaseLabel>(
       id: id,
       frame: frame,
-      make: { context in
-        if let initialFrame = context.initialFrame {
-          return BaseLabel(frame: initialFrame)
-        } else {
-          return BaseLabel()
-        }
-      },
+      make: { BaseLabel(frame: $0.initialFrame ?? .zero) },
       update: { view, context in
         guard context.updateType.requiresFullUpdate else {
           return
@@ -286,6 +289,10 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   }
 
   /// Set the line break mode of the label node.
+  ///
+  /// For AppKit:
+  /// For single line text: `.byWordWrapping` and `.byCharWrapping` will be overridden to `.byTruncatingTail`.
+  /// For multiline text: Only `.byWordWrapping` and `.byCharWrapping` are supported. Non supported values will be overridden to `.byWordWrapping`.
   ///
   /// - Parameter value: The line break mode to set.
   /// - Returns: A new label node with the updated line break mode.

@@ -73,7 +73,7 @@ open class Label: NSTextField {
   }
 
   /// The alignment mode of the text.
-  var textAlignment: NSTextAlignment {
+  public var textAlignment: NSTextAlignment {
     get {
       alignment
     }
@@ -83,7 +83,7 @@ open class Label: NSTextField {
   }
 
   /// The maximum number of lines for rendering text.
-  var numberOfLines: Int {
+  public var numberOfLines: Int {
     get {
       maximumNumberOfLines
     }
@@ -93,7 +93,7 @@ open class Label: NSTextField {
   }
 
   /// The attributed text.
-  var attributedText: NSAttributedString {
+  public var attributedText: NSAttributedString {
     get {
       attributedStringValue
     }
@@ -137,6 +137,7 @@ open class Label: NSTextField {
     cell?.truncatesLastVisibleLine = true
 
     /// Don't set `usesSingleLineMode` as it can affect the text baseline.
+    /// https://stackoverflow.com/questions/36179012/nstextfield-non-system-font-content-clipped-when-usessinglelinemode-is-true
     // usesSingleLineMode = true
     // cell?.usesSingleLineMode = true
 
@@ -173,7 +174,8 @@ open class Label: NSTextField {
       lineBreakMode = .byTruncatingMiddle
     }
 
-    cell?.usesSingleLineMode = true
+    /// Don't set `usesSingleLineMode` as it can affect non system font rendering
+    // cell?.usesSingleLineMode = true
     multilineTruncatesLastVisibleLine = false
   }
 
@@ -192,7 +194,8 @@ open class Label: NSTextField {
       lineBreakMode = .byCharWrapping
     }
 
-    cell?.usesSingleLineMode = false
+    /// Don't set `usesSingleLineMode` as it can affect non system font rendering
+    // cell?.usesSingleLineMode = false
     multilineTruncatesLastVisibleLine = truncatesLastVisibleLine
   }
 
@@ -245,7 +248,20 @@ private class BaseNSTextFieldCell: NSTextFieldCell {
   }
 
   private func adjustRect(_ rect: CGRect) -> CGRect {
-    let adjustRect = rect.insetBy(dx: -horizontalPadding, dy: 0)
+    let adjustRect: CGRect
+    switch alignment {
+    case .left,
+         .right,
+         .natural,
+         .justified:
+      adjustRect = rect.insetBy(dx: -horizontalPadding, dy: 0)
+    case .center:
+      // text with center alignment can be truncated without additional adjustment
+      adjustRect = rect.insetBy(dx: -(horizontalPadding + 2), dy: 0)
+    @unknown default:
+      adjustRect = rect.insetBy(dx: -horizontalPadding, dy: 0)
+    }
+
     switch verticalAlignment {
     case .top:
       // by default, NSTextField uses top alignment

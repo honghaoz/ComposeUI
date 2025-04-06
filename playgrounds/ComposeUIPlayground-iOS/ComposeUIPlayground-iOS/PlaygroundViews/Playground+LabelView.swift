@@ -47,6 +47,8 @@ extension Playground {
       .left,
       .center,
       .right,
+      .justified,
+      .natural,
     ]
 
     private let lineBreakModes: [NSLineBreakMode] = [
@@ -61,32 +63,46 @@ extension Playground {
     @ComposeContentBuilder
     override var content: ComposeContent {
       VStack(spacing: 10) {
-        // single line, enough width
+        // single line, enough width, custom font
         HStack(spacing: 10) {
           for alignment in alignments {
             Text("ComposéUI")
-              .font(.systemFont(ofSize: 12))
-              .fixedSize(width: false, height: true)
+              .font(Font(name: "HelveticaNeue", size: 13)!) // swiftlint:disable:this force_unwrapping
+              .fixedSize(width: true, height: true)
               .numberOfLines(1)
               .textAlignment(alignment)
           }
         }
         .mapChildren {
-          $0.width(100).border()
+          $0.underlay { ColorNode(.red) }.width(100).border()
         }
 
-        // single line with newline, enough width
+        // single line, enough width, system font
+        HStack(spacing: 10) {
+          for alignment in alignments {
+            Text("ComposéUI")
+              .font(.systemFont(ofSize: 13))
+              .fixedSize(width: true, height: true)
+              .numberOfLines(1)
+              .textAlignment(alignment)
+          }
+        }
+        .mapChildren {
+          $0.underlay { ColorNode(.red) }.width(100).border()
+        }
+
+        // single line with newline, enough width, custom font
         HStack(spacing: 10) {
           for alignment in alignments {
             Text("ComposéUI\nHello")
-              .font(.systemFont(ofSize: 12))
-              .fixedSize(width: false, height: true)
+              .font(Font(name: "HelveticaNeue", size: 13) ?? .systemFont(ofSize: 13))
+              .fixedSize(width: true, height: true)
               .numberOfLines(1)
               .textAlignment(alignment)
           }
         }
         .mapChildren {
-          $0.width(100).border()
+          $0.underlay { ColorNode(.red) }.width(100).border()
         }
 
         Spacer(height: 16)
@@ -105,7 +121,9 @@ extension Playground {
                   .lineBreakMode(lineBreakMode)
               }
             }
-            .mapChildren { $0.width(50).border() }
+            .mapChildren {
+              $0.underlay { ColorNode(.red) }.width(50).border()
+            }
           }
         }
 
@@ -125,7 +143,9 @@ extension Playground {
                   .lineBreakMode(lineBreakMode)
               }
             }
-            .mapChildren { $0.width(50).border() }
+            .mapChildren {
+              $0.underlay { ColorNode(.red) }.width(50).border()
+            }
           }
         }
 
