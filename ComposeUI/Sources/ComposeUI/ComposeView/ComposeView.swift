@@ -109,7 +109,7 @@ open class ComposeView: BaseScrollView {
   // MARK: - Private
 
   /// The block to make content.
-  private var makeContent: (ComposeView) -> ComposeContent
+  private var makeContent: (ComposeView) throws -> ComposeContent
 
   /// The current content node that the view is rendering.
   private var contentNode: LayoutCacheNode?
@@ -142,7 +142,7 @@ open class ComposeView: BaseScrollView {
   /// Creates a `ComposeView` with the given content.
   ///
   /// - Parameter content: The content builder block. It passes in the content view that renders the content.
-  public init(@ComposeContentBuilder content: @escaping (ComposeView) -> ComposeContent) {
+  public init(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     self.makeContent = content
 
     super.init(frame: .zero)
@@ -153,8 +153,8 @@ open class ComposeView: BaseScrollView {
   /// Creates a `ComposeView` with the given content.
   ///
   /// - Parameter content: The content builder block.
-  public init(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
-    makeContent = { _ in content() }
+  public init(@ComposeContentBuilder content: @escaping () throws -> ComposeContent) {
+    makeContent = { _ in try content() }
 
     super.init(frame: .zero)
 
@@ -221,15 +221,26 @@ open class ComposeView: BaseScrollView {
   /// Set a new content.
   ///
   /// - Parameter content: The content builder block. It passes in the content view that renders the content.
-  open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) -> ComposeContent) {
+  open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     makeContent = content
   }
 
   /// Set a new content.
   ///
   /// - Parameter content: The content builder block.
-  open func setContent(@ComposeContentBuilder content: @escaping () -> ComposeContent) {
-    makeContent = { _ in content() }
+  open func setContent(@ComposeContentBuilder content: @escaping () throws -> ComposeContent) {
+    makeContent = { _ in try content() }
+  }
+
+  /// Makes the content node.
+  private func _makeContent() -> ComposeNode {
+    do {
+      return try makeContent(self).asVStack()
+    } catch {
+      print("[ComposeUI] Failed to make content: \(error)")
+      assertionFailure("Failed to make content: \(error)")
+      return Empty()
+    }
   }
 
   // MARK: - Size
@@ -253,7 +264,7 @@ open class ComposeView: BaseScrollView {
   #endif
 
   private func _sizeThatFits(_ size: CGSize) -> CGSize {
-    var contentNode = makeContent(self).asVStack()
+    var contentNode = _makeContent()
     _ = contentNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
   }
@@ -455,7 +466,7 @@ open class ComposeView: BaseScrollView {
     assert(Thread.isMainThread, "refresh() must be called on the main thread")
 
     // explicit render request, should make a new content
-    contentNode = LayoutCacheNode(node: makeContent(self).asVStack())
+    contentNode = LayoutCacheNode(node: _makeContent())
     contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated))
 
     render()
@@ -509,7 +520,7 @@ open class ComposeView: BaseScrollView {
 
       if contentNode == nil || bounds.size != lastRenderBounds.size {
         // the content is never made or bounds size changed, should make a new content
-        contentNode = LayoutCacheNode(node: makeContent(self).asVStack())
+        contentNode = LayoutCacheNode(node: _makeContent())
       }
 
       contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds))
