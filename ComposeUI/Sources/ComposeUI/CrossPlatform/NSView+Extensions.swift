@@ -99,6 +99,10 @@ public extension NSView {
         }
       }, context: viewPointer)
     }
+
+    if let parentLayer = layer, let viewLayer = view.layer {
+      parentLayer.bringSublayerToFront(viewLayer)
+    }
   }
 
   // MARK: - ignoreHitTest
