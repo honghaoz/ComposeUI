@@ -241,13 +241,23 @@ public extension ComposeNode {
   /// - Parameter color: The background color to set.
   /// - Returns: A new node with the background color set.
   func backgroundColor(_ color: Color) -> some ComposeNode {
+    backgroundColor(ThemedColor(color))
+  }
+
+  /// Set the themed background color of the node's renderables.
+  ///
+  /// - Note: All renderables provided by the node will have the background color set.
+  ///
+  /// - Parameter color: The themed background color to set.
+  /// - Returns: A new node with the background color set.
+  func backgroundColor(_ color: ThemedColor) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
       }
 
       let layer = item.layer
-      let color = color.cgColor
+      let color = color.resolve(for: context.contentView.theme).cgColor
       if let animationTiming = context.animationTiming {
         layer.animate(
           keyPath: "backgroundColor",
@@ -270,12 +280,22 @@ public extension ComposeNode {
   /// - Parameter opacity: The opacity to set.
   /// - Returns: A new node with the opacity set.
   func opacity(_ opacity: CGFloat) -> some ComposeNode {
+    self.opacity(Themed<CGFloat>(opacity))
+  }
+
+  /// Set the themed opacity of the node's renderables.
+  ///
+  /// - Note: All renderables provided by the node will have the opacity set.
+  ///
+  /// - Parameter opacity: The themed opacity to set.
+  /// - Returns: A new node with the opacity set.
+  func opacity(_ opacity: Themed<CGFloat>) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
       }
       let layer = item.layer
-      let opacity = Float(opacity)
+      let opacity = Float(opacity.resolve(for: context.contentView.theme))
       if let animationTiming = context.animationTiming {
         layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
       } else {
@@ -295,13 +315,26 @@ public extension ComposeNode {
   ///   - width: The width of the border.
   /// - Returns: A new node with the border set.
   func border(color: Color, width: CGFloat) -> some ComposeNode {
+    border(color: ThemedColor(color), width: Themed<CGFloat>(width))
+  }
+
+  /// Set the themed border of the node's renderables.
+  ///
+  /// - Note: All renderables provided by the node will have the border set.
+  ///
+  /// - Parameters:
+  ///   - color: The themed color of the border.
+  ///   - width: The themed width of the border.
+  /// - Returns: A new node with the border set.
+  func border(color: ThemedColor, width: Themed<CGFloat>) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
       }
 
       let layer = item.layer
-      let color = color.cgColor
+      let color = color.resolve(for: context.contentView.theme).cgColor
+      let width: CGFloat = width.resolve(for: context.contentView.theme)
       if let animationTiming = context.animationTiming {
         layer.animate(
           keyPath: "borderColor",
