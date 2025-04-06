@@ -87,20 +87,26 @@ extension _ViewType {
   }
 
   var windowScaleFactor: CGFloat {
+    #if os(visionOS)
+    return Constants.defaultScaleFactor
+    #else
     if let window {
       #if canImport(AppKit)
       return window.backingScaleFactor
-      #elseif canImport(UIKit)
+      #endif
+
+      #if canImport(UIKit)
       return window.screen.scale
       #endif
     } else {
       #if canImport(AppKit)
       return NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
-      #elseif os(visionOS)
-      return Constants.defaultScaleFactor
-      #else
+      #endif
+
+      #if canImport(UIKit)
       return UIScreen.main.scale
       #endif
     }
+    #endif
   }
 }

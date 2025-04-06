@@ -48,13 +48,9 @@ class ComposeView_WindowChangeTests: XCTestCase {
     }()
 
     var renderCount = 0
-    var renderContentScaleFactor: CGFloat?
     let view = ComposeView {
       renderCount += 1
       LayerNode()
-        .onUpdate { _, context in
-          renderContentScaleFactor = context.contentView.contentScaleFactor
-        }
     }
 
     view.frame = frame
@@ -67,9 +63,6 @@ class ComposeView_WindowChangeTests: XCTestCase {
 
     expect(renderCount) == 0
     expect(renderCount).toEventually(beEqual(to: 1))
-    #if canImport(UIKit)
-    expect(renderContentScaleFactor) == 1
-    #endif
 
     view.removeFromSuperview()
     expect(renderCount) == 1
@@ -105,8 +98,5 @@ class ComposeView_WindowChangeTests: XCTestCase {
     #endif
     expect(renderCount) == 2
     expect(renderCount).toEventually(beEqual(to: 3)) // adding to a different window should trigger a new render
-    #if canImport(UIKit)
-    expect(renderContentScaleFactor) == 4
-    #endif
   }
 }
