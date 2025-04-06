@@ -101,7 +101,7 @@ extension Playground {
           Spacer()
         }
 
-        Spacer()
+        Spacer(height: 16)
 
         // shadow cutout
         HStack {
@@ -165,7 +165,34 @@ extension Playground {
           Spacer()
         }
 
-        Spacer()
+        Spacer(height: 16)
+
+        // inner shadow
+        HStack {
+          Spacer()
+
+          ColorNode(.white)
+            .transition(.none)
+            .cornerRadius(cornerRadius)
+            .innerShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
+              let size = renderItem.frame.size
+              let cornerRadius = self.cornerRadius
+              return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+            })
+            .overlay {
+              Text("inner\nshadow")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
+            .transition(.opacity(timing: .linear()))
+            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+            .frame(size)
+
+          Spacer()
+        }
+
+        Spacer(height: 64)
 
         // static shadow
         HStack {
@@ -227,10 +254,11 @@ extension Playground {
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 8, dark: 16),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
-              path: { renderItem in
+              paths: { renderItem in
                 let size = renderItem.frame.size
                 let cornerRadius: CGFloat = 16
-                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                return DropShadowPaths(shadowPath: path, cutoutPath: path)
               }
             )
             .overlay {
@@ -273,6 +301,36 @@ extension Playground {
             )
             .overlay {
               Text("shadow spread")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
+            .frame(width: 100, height: 80)
+
+          Spacer()
+        }
+
+        Spacer(height: 64)
+
+        // inner shadow
+        HStack {
+          Spacer()
+
+          LayerNode()
+            .cornerRadius(16)
+            .innerShadow(
+              color: ThemedColor(light: .black, dark: .red),
+              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+              radius: Themed<CGFloat>(light: 8, dark: 4),
+              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
+              path: { renderItem in
+                let size = renderItem.frame.size
+                let cornerRadius: CGFloat = 16
+                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+              }
+            )
+            .overlay {
+              Text("inner shadow")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)

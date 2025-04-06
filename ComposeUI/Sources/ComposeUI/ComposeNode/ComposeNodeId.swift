@@ -44,6 +44,7 @@ enum StandardComposeNodeId: String {
   case gesture
 
   case dropShadow
+  case innerShadow
 
   case spacer
   case frame

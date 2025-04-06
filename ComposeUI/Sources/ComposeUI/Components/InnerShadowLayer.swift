@@ -1,8 +1,8 @@
 //
-//  DropShadowLayer.swift
+//  InnerShadowLayer.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 4/1/25.
+//  Created by Honghao Zhang on 4/5/25.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -38,16 +38,9 @@ import UIKit
 
 import QuartzCore
 
-/// A layer that renders a drop shadow.
-open class DropShadowLayer: CALayer {
+/// A layer that renders an inner shadow.
+open class InnerShadowLayer: CALayer {
 
-  /// The drop shadow layer never clips the content.
-  override public final var masksToBounds: Bool {
-    get { super.masksToBounds }
-    set {} // do nothing
-  }
-
-  /// The mask layer to clip the drop shadow out of the main shape.
   private lazy var maskLayer = CAShapeLayer()
 
   override init() {
@@ -65,8 +58,6 @@ open class DropShadowLayer: CALayer {
     contentsScale = UIScreen.main.scale
     #endif
     #endif
-
-    super.masksToBounds = false
   }
 
   @available(*, unavailable)
@@ -75,14 +66,15 @@ open class DropShadowLayer: CALayer {
   }
 
   override init(layer: Any) {
-    guard let layer = layer as? DropShadowLayer else {
+    guard let layer = layer as? InnerShadowLayer else {
       // swiftlint:disable:next fatal_error
       fatalError("expect the `layer` to be the same type during an animation.")
     }
+
     super.init(layer: layer)
   }
 
-  /// Update the drop shadow layer with a new shadow.
+  /// Update the inner shadow layer with a new shadow.
   ///
   /// - Parameters:
   ///   - color: The color of the shadow.
@@ -90,20 +82,37 @@ open class DropShadowLayer: CALayer {
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
   ///   - path: The path of the shadow.
-  ///   - cutoutPath: The path of the cutout. If provided, the shadow will be clipped for the cutout path. Default to `nil`.
   ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     path: @escaping (DropShadowLayer) -> CGPath,
-                     cutoutPath: ((DropShadowLayer) -> CGPath)? = nil,
+                     path: @escaping (InnerShadowLayer) -> CGPath,
                      animationTiming: AnimationTiming? = nil)
   {
     let color = color.cgColor
     let opacity = Float(opacity)
 
+    // initialize mask layer if not initialized
+    if mask !== maskLayer {
+      mask = maskLayer
+      maskLayer.disableActions(for: "position", "bounds") {
+        maskLayer.frame = bounds
+      }
+    }
+
+    let shadowShapePath = path(self)
+    let innerShadowPath = innerShadowPath(path: shadowShapePath, radius: radius, offset: offset)
+
     if let animationTiming {
+      maskLayer.animateFrame(to: bounds, timing: animationTiming)
+      maskLayer.animate(
+        keyPath: "path",
+        timing: animationTiming,
+        from: { ($0.presentation() as? CAShapeLayer).assertNotNil()?.path },
+        to: { _ in shadowShapePath }
+      )
+
       animate(
         keyPath: "shadowColor",
         timing: animationTiming,
@@ -117,64 +126,34 @@ open class DropShadowLayer: CALayer {
         keyPath: "shadowPath",
         timing: animationTiming,
         from: { $0.presentation()?.shadowPath },
-        to: { path($0 as! DropShadowLayer) } // swiftlint:disable:this force_cast
+        to: { _ in innerShadowPath }
       )
     } else {
+      maskLayer.disableActions(for: "position", "bounds", "path") {
+        maskLayer.frame = bounds
+        maskLayer.path = shadowShapePath
+      }
+
       disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
         shadowColor = color
         shadowOpacity = opacity
         shadowRadius = radius
         shadowOffset = offset
-        shadowPath = path(self)
-      }
-    }
-
-    if let cutoutPath {
-      updateMaskLayer(cutoutPath: cutoutPath, radius: radius, offset: offset, animationTiming: animationTiming)
-    }
-  }
-
-  private func updateMaskLayer(cutoutPath: (DropShadowLayer) -> CGPath,
-                               radius: CGFloat,
-                               offset: CGSize,
-                               animationTiming: AnimationTiming?)
-  {
-    // initialize mask layer if not initialized
-    if mask !== maskLayer {
-      mask = maskLayer
-      maskLayer.disableActions(for: "position", "bounds") {
-        maskLayer.frame = bounds
-      }
-      maskLayer.fillRule = .evenOdd // to match the clip out path
-    }
-
-    let maskPath = maskLayerPath(cutoutPath: cutoutPath(self), radius: radius, offset: offset)
-
-    if let animationTiming {
-      maskLayer.animateFrame(to: bounds, timing: animationTiming)
-      maskLayer.animate(
-        keyPath: "path",
-        timing: animationTiming,
-        from: { ($0.presentation() as? CAShapeLayer).assertNotNil()?.path },
-        to: { _ in maskPath }
-      )
-    } else {
-      maskLayer.disableActions(for: "position", "bounds", "path") {
-        maskLayer.frame = bounds
-        maskLayer.path = maskPath
+        shadowPath = innerShadowPath
       }
     }
   }
 
-  private func maskLayerPath(cutoutPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
-    let hExtraSize = radius + abs(offset.width) + 1000
-    let vExtraSize = radius + abs(offset.height) + 1000
-    assert(bounds.origin == .zero, "check if boundingBoxOfPath works for non zero origin bounds")
-    let biggerBounds = cutoutPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
+  private func innerShadowPath(path: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
+    // make a bigger rect to contain the shadow
+    let hExtraSize = radius + abs(offset.width) + 10
+    let vExtraSize = radius + abs(offset.height) + 10
+    let biggerBounds = path.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
+    let biggerPath = BezierPath(rect: biggerBounds)
 
-    let biggerPath = CGMutablePath()
-    biggerPath.addPath(CGPath(rect: biggerBounds, transform: nil))
-    biggerPath.addPath(cutoutPath)
-    return biggerPath
+    // then cut the shadow path from the bigger rect
+    let shadowPath = BezierPath(cgPath: path)
+    biggerPath.append(shadowPath.reversing())
+    return biggerPath.cgPath
   }
 }
