@@ -171,7 +171,7 @@ extension Playground {
         HStack {
           Spacer()
 
-          ColorNode(.white)
+          LayerNode()
             .border(color: .black, width: 1)
             .cornerRadius(16)
             .shadow(
@@ -195,7 +195,7 @@ extension Playground {
 
           Spacer()
 
-          ColorNode(.white)
+          LayerNode()
             .border(color: .black, width: 1)
             .cornerRadius(16)
             .dropShadow(
@@ -211,6 +211,68 @@ extension Playground {
             )
             .overlay {
               Text("shadow\nunderlay")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
+            .frame(width: 100, height: 80)
+
+          Spacer()
+
+          LayerNode()
+            .border(color: .black, width: 1)
+            .cornerRadius(16, cornerCurve: .circular)
+            .dropShadow(
+              color: ThemedColor(light: .black, dark: .yellow),
+              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+              radius: Themed<CGFloat>(light: 8, dark: 16),
+              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
+              path: { renderItem in
+                let size = renderItem.frame.size
+                let cornerRadius: CGFloat = 16
+                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+              }
+            )
+            .overlay {
+              Text("has shadow cutout")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
+            .frame(width: 100, height: 80)
+
+          Spacer()
+        }
+
+        Spacer(height: 32)
+
+        HStack {
+          Spacer()
+
+          LayerNode()
+            .cornerRadius(16, cornerCurve: .continuous)
+            .dropShadow(
+              color: ThemedColor(light: .black, dark: .yellow),
+              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+              radius: Themed<CGFloat>(light: 4, dark: 8),
+              offset: Themed<CGSize>(.zero),
+              paths: { renderItem in
+                let spread: CGFloat = 8
+                let size = renderItem.frame.size
+                let cornerRadius: CGFloat = 16
+
+                let shadowPathRect = CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: -spread * 2, dy: -spread * 2)
+                let shadowCornerRadius: CGFloat = 16 + spread
+                let shadowPath = CGPath(roundedRect: shadowPathRect, cornerWidth: shadowCornerRadius, cornerHeight: shadowCornerRadius, transform: nil)
+
+                let cutoutPathRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+                let cutoutPath = CGPath(roundedRect: cutoutPathRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+
+                return DropShadowPaths(shadowPath: shadowPath, cutoutPath: cutoutPath)
+              }
+            )
+            .overlay {
+              Text("shadow spread")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)

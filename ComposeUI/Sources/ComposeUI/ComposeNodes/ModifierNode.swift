@@ -323,9 +323,11 @@ public extension ComposeNode {
   ///
   /// - Note: All renderables provided by the node will have the corner radius set.
   ///
-  /// - Parameter radius: The corner radius to set.
+  /// - Parameters:
+  ///   - radius: The corner radius to set.
+  ///   - cornerCurve: The corner curve to set. The default is `.continuous`.
   /// - Returns: A new node with the corner radius set.
-  func cornerRadius(_ radius: CGFloat) -> some ComposeNode {
+  func cornerRadius(_ radius: CGFloat, cornerCurve: CALayerCornerCurve = .continuous) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
@@ -333,7 +335,7 @@ public extension ComposeNode {
 
       let layer = item.layer
       layer.masksToBounds = true
-      layer.cornerCurve = .continuous
+      layer.cornerCurve = cornerCurve
 
       if let animationTiming = context.animationTiming {
         layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
