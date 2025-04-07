@@ -36,6 +36,7 @@ class ComposeView_RefreshTests: XCTestCase {
 
   func test_refresh() {
     var renderCount = 0
+    var refreshCount = 0
     var isAnimated: Bool?
     let view = ComposeView {
       renderCount += 1
@@ -43,6 +44,7 @@ class ComposeView_RefreshTests: XCTestCase {
         .animation(.linear())
         .onUpdate { _, context in
           isAnimated = context.animationTiming != nil
+          refreshCount += 1
         }
     }
 
@@ -50,28 +52,34 @@ class ComposeView_RefreshTests: XCTestCase {
 
     view.refresh()
     expect(renderCount) == 1
+    expect(refreshCount) == 1
     expect(isAnimated) == false // initial render is always not animated
     isAnimated = nil
 
     view.refresh()
     expect(renderCount) == 2
+    expect(refreshCount) == 2
     expect(isAnimated) == true
     isAnimated = nil
 
     view.refresh(animated: false)
     expect(renderCount) == 3
+    expect(refreshCount) == 3
     expect(isAnimated) == false
     isAnimated = nil
 
     view.setNeedsRefresh(animated: true)
     expect(renderCount) == 3
+    expect(refreshCount) == 3
     view.setNeedsRefresh()
     expect(renderCount) == 3
+    expect(refreshCount) == 3
     view.setNeedsRefresh(animated: false)
     expect(renderCount) == 3
+    expect(refreshCount) == 3
 
     expect(renderCount).toEventually(beEqual(to: 4))
+    expect(refreshCount) == 4
     expect(isAnimated) == false // the refresh animation flag should be the last scheduled refresh
-    isAnimated = nil
   }
 }

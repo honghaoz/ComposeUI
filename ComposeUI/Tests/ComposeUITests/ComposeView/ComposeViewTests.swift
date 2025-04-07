@@ -41,23 +41,9 @@ class ComposeViewTests: XCTestCase {
     contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
   }
 
-  func test_refresh() {
-    var refreshCount = 0
-    contentView.setContent {
-      ColorNode(.red)
-        .onUpdate { _, _ in
-          refreshCount += 1
-        }
-    }
-    contentView.refresh(animated: false)
-    expect(refreshCount) == 1
-
-    contentView.setNeedsRefresh(animated: false)
-    contentView.setNeedsRefresh(animated: false)
-    expect(refreshCount) == 1
-
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-9))
-    expect(refreshCount) == 2
+  func test_defaultContent() {
+    let contentView = ComposeView()
+    expect("\(contentView.content)") == "EmptyNode(id: ComposeUI.ComposeNodeId(id: \"empty\", isFixed: false), size: (0.0, 0.0))"
   }
 
   func test_centerContent() {
@@ -142,5 +128,14 @@ class ComposeViewTests: XCTestCase {
     expect(contentView.contentSize) == CGSize(width: 100, height: 100)
     expect(isTopRendered) == true
     expect(isBottomRendered) == true
+  }
+
+  func test_sizeThatFits() {
+    let contentView = ComposeView {
+      LayerNode()
+        .frame(width: .flexible, height: 30)
+    }
+    expect(contentView.sizeThatFits(CGSize(width: 10, height: 10))) == CGSize(width: 10, height: 30)
+    expect(contentView.sizeThatFits(CGSize(width: 50, height: 50))) == CGSize(width: 50, height: 30)
   }
 }

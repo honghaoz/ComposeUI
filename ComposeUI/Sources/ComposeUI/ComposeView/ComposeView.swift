@@ -246,20 +246,22 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Size
 
+  #if canImport(AppKit)
+  /// Get the size that fits the content.
+  ///
+  /// - Parameter size: The container size.
+  /// - Returns: The size that fits the content.
+  open func sizeThatFits(_ size: CGSize) -> CGSize {
+    _sizeThatFits(size)
+  }
+  #endif
+
   #if canImport(UIKit)
   /// Get the size that fits the content.
   ///
   /// - Parameter size: The container size.
   /// - Returns: The size that fits the content.
   override open func sizeThatFits(_ size: CGSize) -> CGSize {
-    _sizeThatFits(size)
-  }
-  #else
-  /// Get the size that fits the content.
-  ///
-  /// - Parameter size: The container size.
-  /// - Returns: The size that fits the content.
-  open func sizeThatFits(_ size: CGSize) -> CGSize {
     _sizeThatFits(size)
   }
   #endif
