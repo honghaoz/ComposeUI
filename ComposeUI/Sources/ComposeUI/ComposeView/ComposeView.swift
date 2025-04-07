@@ -223,13 +223,14 @@ open class ComposeView: BaseScrollView {
   /// - Parameter content: The content builder block. It passes in the content view that renders the content.
   open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     makeContent = content
+    setNeedsRefresh()
   }
 
   /// Set a new content.
   ///
   /// - Parameter content: The content builder block.
   open func setContent(@ComposeContentBuilder content: @escaping () throws -> ComposeContent) {
-    makeContent = { _ in try content() }
+    setContent(content: { _ in try content() })
   }
 
   /// Makes the content node.
