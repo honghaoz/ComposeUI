@@ -34,7 +34,7 @@ import ComposeUI
 
 class ModifierNodeTests: XCTestCase {
 
-  func test_calls() {
+  func test_lifeCycleCalls() {
     // given many modifiers
     var willInsertCalls: [String] = []
     var didInsertCalls: [String] = []
@@ -124,5 +124,36 @@ class ModifierNodeTests: XCTestCase {
     composeView.refresh(animated: true)
 
     wait(for: [expectation], timeout: 1)
+  }
+
+  // MARK: - Rasterization
+
+  func test_rasterize() {
+    var layer: CALayer?
+    let contentView = ComposeView {
+      LayerNode()
+        .rasterize(nil)
+        .onInsert { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh()
+
+    expect(layer?.shouldRasterize) == false
+    expect(layer?.rasterizationScale) == 1
+
+    contentView.setContent {
+      LayerNode()
+        .rasterize(3)
+        .onInsert { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    contentView.refresh()
+
+    expect(layer?.shouldRasterize) == true
+    expect(layer?.rasterizationScale) == 3
   }
 }
