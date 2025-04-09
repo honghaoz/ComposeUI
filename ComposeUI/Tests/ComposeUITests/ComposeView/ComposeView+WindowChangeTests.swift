@@ -36,16 +36,10 @@ class ComposeView_WindowChangeTests: XCTestCase {
 
   func test_windowDidChange() {
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let window: Window = {
-      #if canImport(AppKit)
-      return Window(contentRect: frame, styleMask: [], backing: .buffered, defer: false)
-      #endif
-      #if canImport(UIKit)
-      let window = Window(frame: frame)
-      window.contentScaleFactor = 1
-      return window
-      #endif
-    }()
+    let window = TestWindow()
+    #if canImport(UIKit)
+    window.contentScaleFactor = 1
+    #endif
 
     var renderCount = 0
     let view = ComposeView {
@@ -79,16 +73,10 @@ class ComposeView_WindowChangeTests: XCTestCase {
     expect(renderCount) == 1
     expect(renderCount).toEventually(beEqual(to: 2)) // adding to the same window again should trigger a new render
 
-    let window2: Window = {
-      #if canImport(AppKit)
-      return Window(contentRect: frame, styleMask: [], backing: .buffered, defer: false)
-      #endif
-      #if canImport(UIKit)
-      let window = Window(frame: frame)
-      window.contentScaleFactor = 4
-      return window
-      #endif
-    }()
+    let window2 = TestWindow()
+    #if canImport(UIKit)
+    window.contentScaleFactor = 4
+    #endif
 
     #if canImport(AppKit)
     window2.contentView?.addSubview(view)

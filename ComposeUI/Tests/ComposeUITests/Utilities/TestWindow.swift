@@ -1,8 +1,8 @@
 //
-//  ComposeView+KeyWindowTests.swift
+//  TestWindow.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 3/30/25.
+//  Created by Honghao Zhang on 4/8/25.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -29,46 +29,57 @@
 //
 
 #if canImport(AppKit)
-import ChouTiTest
+import AppKit
+#endif
+
+#if canImport(UIKit)
+import UIKit
+#endif
+
+import QuartzCore
 
 import ComposeUI
 
-class ComposeView_KeyWindowTests: XCTestCase {
+final class TestWindow: Window {
 
-  func test_keyWindowDidChange() {
-    let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let window = TestWindow()
+  #if canImport(AppKit)
+  override var canBecomeMain: Bool { true }
+  override var canBecomeKey: Bool { true }
+  #endif
 
-    var renderCount = 0
-    let view = ComposeView {
-      renderCount += 1
-      Empty()
-    }
+  #if canImport(AppKit)
+  private(set) var layer: CALayer!
+  #endif
 
-    view.frame = frame
-
-    view.refresh()
-    expect(renderCount) == 1 // initial render
-
-    window.contentView?.addSubview(view)
-
-    window.makeKey()
-    expect(renderCount).toEventually(beEqual(to: 2))
-
-    window.resignKey()
-    expect(renderCount).toEventually(beEqual(to: 3))
-
-    window.makeKey()
-    expect(renderCount).toEventually(beEqual(to: 4))
-
-    view.removeFromSuperview()
-
-    window.resignKey()
-    expect(renderCount) == 4
-
-    window.makeKey()
-    expect(renderCount) == 4
+  #if canImport(AppKit)
+  init() {
+    super.init(
+      contentRect: CGRect(x: 0, y: 0, width: 500, height: 500),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    contentView?.wantsLayer = true
+    layer = contentView!.layer! // swiftlint:disable:this force_unwrapping
   }
-}
+  #endif
 
-#endif
+  #if canImport(UIKit)
+  init() {
+    super.init(frame: CGRect(x: 0, y: 0, width: 500, height: 500))
+  }
+  #endif
+
+  @available(*, unavailable)
+  public required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+
+  #if canImport(AppKit)
+  override func makeKey() {
+    super.makeKey()
+
+    NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: self)
+  }
+  #endif
+}
