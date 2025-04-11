@@ -34,6 +34,11 @@ import ChouTiTest
 
 class ComposeNodeIdTests: XCTestCase {
 
+  func test_standard() {
+    let id = ComposeNodeId.standard(.color)
+    expect(id.id) == "color"
+  }
+
   func test_custom() {
     let id = ComposeNodeId.custom("test", isFixed: false)
     expect(id.id) == "test"
