@@ -43,7 +43,7 @@ class ComposeViewTests: XCTestCase {
 
   func test_defaultContent() {
     let contentView = ComposeView()
-    expect("\(contentView.content)") == "EmptyNode(id: ComposeUI.ComposeNodeId(id: \"empty\", isFixed: false), size: (0.0, 0.0))"
+    expect("\(contentView.content)") == "EmptyNode(id: ComposeUI.ComposeNodeId(id: ComposeUI.ComposeNodeId.Id.standard(ComposeUI.StandardComposeNodeId.empty), isFixed: false), size: (0.0, 0.0))"
   }
 
   func test_centerContent() {

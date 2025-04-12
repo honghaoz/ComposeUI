@@ -30,7 +30,7 @@
 
 import Foundation
 
-enum StandardComposeNodeId: String {
+enum StandardComposeNodeId: UInt8 {
 
   case empty
 
@@ -67,20 +67,22 @@ public struct ComposeNodeId: Equatable {
   ///   - isFixed: If the id is fixed.
   /// - Returns: A `ComposeNodeId`.
   public static func custom(_ id: String, isFixed: Bool) -> ComposeNodeId {
-    guard StandardComposeNodeId(rawValue: id) == nil else {
-      assertionFailure("Conflict with standard id: \(id), please use a unique id.")
-      return ComposeNodeId(id: "\(id)-\(UUID().uuidString)", isFixed: isFixed)
-    }
-    return ComposeNodeId(id: id, isFixed: isFixed)
+    ComposeNodeId(id: .custom(id), isFixed: isFixed)
   }
 
   /// Create a standard id for a node.
   static func standard(_ id: StandardComposeNodeId) -> ComposeNodeId {
-    ComposeNodeId(id: id.rawValue, isFixed: false)
+    ComposeNodeId(id: .standard(id), isFixed: false)
+  }
+
+  indirect enum Id: Hashable {
+    case standard(StandardComposeNodeId)
+    case custom(String)
+    case nested(parent: Id, suffix: String? = nil, child: Id)
   }
 
   /// The id of the node.
-  let id: String
+  let id: Id
 
   /// If the id is fixed, `makeId` will not add the parent node's id to the child node's id.
   private let isFixed: Bool
@@ -97,11 +99,7 @@ public struct ComposeNodeId: Equatable {
     if childRenderItemId.isFixed {
       return childRenderItemId
     } else {
-      if let suffix {
-        return ComposeNodeId(id: "\(id)|\(suffix)|\(childRenderItemId.id)", isFixed: isFixed)
-      } else {
-        return ComposeNodeId(id: "\(id)|\(childRenderItemId.id)", isFixed: isFixed)
-      }
+      return ComposeNodeId(id: .nested(parent: id, suffix: suffix, child: childRenderItemId.id), isFixed: isFixed)
     }
   }
 }

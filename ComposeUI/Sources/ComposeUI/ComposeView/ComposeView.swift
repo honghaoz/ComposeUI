@@ -121,21 +121,21 @@ open class ComposeView: BaseScrollView {
   private var lastRenderBounds: CGRect = .zero
 
   /// The ids of the renderable items that are being rendered.
-  private var renderableItemIds: [String] = []
+  private var renderableItemIds: [ComposeNodeId.Id] = []
 
   /// The map of the renderable items that are being rendered.
-  private var renderableItemMap: [String: RenderableItem] = [:]
+  private var renderableItemMap: [ComposeNodeId.Id: RenderableItem] = [:]
 
   /// The map of the renderables that are being rendered.
-  private var renderableMap: [String: Renderable] = [:]
+  private var renderableMap: [ComposeNodeId.Id: Renderable] = [:]
 
   /// The map of the renderables that are being removed.
   ///
   /// The removing renderables are the ones that are not in the renderable hierarchy but still rendered due to the transition.
-  private var removingRenderableMap: [String: Renderable] = [:]
+  private var removingRenderableMap: [ComposeNodeId.Id: Renderable] = [:]
 
   /// The map of the removing renderable transition completion blocks.
-  private var removingRenderableTransitionCompletionMap: [String: CancellableBlock] = [:]
+  private var removingRenderableTransitionCompletionMap: [ComposeNodeId.Id: CancellableBlock] = [:]
 
   // MARK: - Initialization
 
@@ -654,7 +654,7 @@ open class ComposeView: BaseScrollView {
     }
 
     // update the renderables
-    var reusingIds: Set<String> = []
+    var reusingIds: Set<ComposeNodeId.Id> = []
 
     for oldId in oldRenderableItemIds {
       if renderableItemMap[oldId] == nil {
@@ -845,11 +845,11 @@ open class ComposeView: BaseScrollView {
       self.host = host
     }
 
-    var removingRenderableMap: [String: Renderable] {
+    var removingRenderableMap: [ComposeNodeId.Id: Renderable] {
       host.removingRenderableMap
     }
 
-    var removingRenderableTransitionCompletionMap: [String: CancellableBlock] {
+    var removingRenderableTransitionCompletionMap: [ComposeNodeId.Id: CancellableBlock] {
       host.removingRenderableTransitionCompletionMap
     }
   }
