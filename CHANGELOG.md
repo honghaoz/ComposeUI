@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [0.0.3](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.3) (2025-04-12)
+
+- Added animation support
+- Added drop shadow, inner shadow support
+- Added `TextAreaNode`
+- Added more theming support
+- `ComposeView` now automatically refreshes on key window change
+- Improved scroll behavior
+- Improved layout performance
+- Fixed various text view bugs
+
 ## [0.0.2](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.2) (2025-03-23)
 
 - Added theming support
