@@ -30,32 +30,32 @@
 
 import Foundation
 
-enum StandardComposeNodeId: UInt8 {
+enum StandardComposeNodeId: String {
 
-  case empty
+  case empty = "E"
 
-  case color
-  case label
-  case textView
-  case button
-  case view
-  case layer
-  case swiftui
-  case gesture
+  case color = "C"
+  case label = "TL" // text label
+  case textView = "TV" // text view
+  case button = "B"
+  case view = "V"
+  case layer = "L"
+  case swiftui = "SUI"
+  case gesture = "G"
 
-  case dropShadow
-  case innerShadow
+  case dropShadow = "DS"
+  case innerShadow = "IS"
 
-  case spacer
-  case frame
-  case padding
-  case offset
+  case spacer = "S"
+  case frame = "F"
+  case padding = "P"
+  case offset = "O"
 
-  case overlay
-  case underlay
-  case vStack
-  case hStack
-  case zStack
+  case overlay = "OV"
+  case underlay = "UL"
+  case vStack = "VS"
+  case hStack = "HS"
+  case zStack = "ZS"
 }
 
 public struct ComposeNodeId: Equatable {
@@ -67,39 +67,43 @@ public struct ComposeNodeId: Equatable {
   ///   - isFixed: If the id is fixed.
   /// - Returns: A `ComposeNodeId`.
   public static func custom(_ id: String, isFixed: Bool) -> ComposeNodeId {
-    ComposeNodeId(id: .custom(id), isFixed: isFixed)
+    guard StandardComposeNodeId(rawValue: id) == nil else {
+      assertionFailure("[ComposeUI] Custom id conflict with standard id: \(id), please use a unique id.")
+      return ComposeNodeId(id: "\(id)-\(UUID().uuidString)", isFixed: isFixed)
+    }
+    return ComposeNodeId(id: id, isFixed: isFixed)
   }
 
   /// Create a standard id for a node.
   static func standard(_ id: StandardComposeNodeId) -> ComposeNodeId {
-    ComposeNodeId(id: .standard(id), isFixed: false)
-  }
-
-  indirect enum Id: Hashable {
-    case standard(StandardComposeNodeId)
-    case custom(String)
-    case nested(parent: Id, suffix: String? = nil, child: Id)
+    ComposeNodeId(id: id.rawValue, isFixed: false)
   }
 
   /// The id of the node.
-  let id: Id
+  let id: String
 
-  /// If the id is fixed, `makeId` will not add the parent node's id to the child node's id.
+  /// If the id is fixed.
+  ///
+  /// If the id is fixed, `join` will not add the parent node's id to the child node's id.
   private let isFixed: Bool
 
-  /// Make a `ComposeNodeId` by joining the current node's id to a child renderable item's id.
+  /// Make a `ComposeNodeId` by joining the current node's id with a child node's id.
   ///
-  /// If the `childRenderItemId` is fixed, it will return the `childRenderItemId` directly.
+  /// If the `childNodeId` is fixed, it will return the `childNodeId` directly.
   ///
   /// - Parameters:
-  ///   - childRenderItemId: The child renderable's id.
+  ///   - childNodeId: The child node's id.
   ///   - suffix: An optional suffix to be added to the current node's id.
   /// - Returns: A `ComposeNodeId`.
-  public func join(with childRenderItemId: ComposeNodeId, suffix: String? = nil) -> ComposeNodeId {
-    if childRenderItemId.isFixed {
-      return childRenderItemId
+  public func join(with childNodeId: ComposeNodeId, suffix: String? = nil) -> ComposeNodeId {
+    if childNodeId.isFixed {
+      return childNodeId
     } else {
-      return ComposeNodeId(id: .nested(parent: id, suffix: suffix, child: childRenderItemId.id), isFixed: isFixed)
+      if let suffix {
+        return ComposeNodeId(id: "\(id)|\(suffix)|\(childNodeId.id)", isFixed: isFixed)
+      } else {
+        return ComposeNodeId(id: "\(id)|\(childNodeId.id)", isFixed: isFixed)
+      }
     }
   }
 }

@@ -51,40 +51,9 @@ class UnderlayNodeTests: XCTestCase {
       return
     }
 
-    // "underlay|U|color"
-    expect(items[0].id.id) == .nested(
-      parent: .standard(.underlay), suffix: "U", child: .standard(.color)
-    )
-
-    // "underlay|underlay|U|color"
-    expect(items[1].id.id) == .nested(
-      parent: .standard(.underlay),
-      child: .nested(
-        parent: .standard(.underlay), suffix: "U", child: .standard(.color)
-      )
-    )
-
-    // "underlay|underlay|underlay|U|color"
-    expect(items[2].id.id) == .nested(
-      parent: .standard(.underlay),
-      child: .nested(
-        parent: .standard(.underlay),
-        child: .nested(
-          parent: .standard(.underlay), suffix: "U", child: .standard(.color)
-        )
-      )
-    )
-
-    // "underlay|underlay|underlay|color"
-    expect(items[3].id.id) == .nested(
-      parent: .standard(.underlay),
-      child: .nested(
-        parent: .standard(.underlay),
-        child: .nested(
-          parent: .standard(.underlay),
-          child: .standard(.color)
-        )
-      )
-    )
+    expect(items[0].id.id) == "UL|U|C"
+    expect(items[1].id.id) == "UL|UL|U|C"
+    expect(items[2].id.id) == "UL|UL|UL|U|C"
+    expect(items[3].id.id) == "UL|UL|UL|C"
   }
 }

@@ -36,36 +36,36 @@ class ComposeNodeIdTests: XCTestCase {
 
   func test_standard() {
     let id = ComposeNodeId.standard(.color)
-    expect(id.id) == .standard(.color)
+    expect(id.id) == "C"
   }
 
   func test_custom() {
     let id = ComposeNodeId.custom("test", isFixed: false)
-    expect(id.id) == .custom("test")
+    expect(id.id) == "test"
 
     let parentId = ComposeNodeId.custom("parent", isFixed: false)
     do {
       let childId = parentId.join(with: id)
-      expect(childId.id) == .nested(parent: .custom("parent"), suffix: nil, child: .custom("test"))
+      expect(childId.id) == "parent|test"
     }
     do {
-      let childId = parentId.join(with: id, suffix: "U")
-      expect(childId.id) == .nested(parent: .custom("parent"), suffix: "U", child: .custom("test"))
+      let childId = parentId.join(with: id, suffix: "suffix")
+      expect(childId.id) == "parent|suffix|test"
     }
   }
 
   func test_custom_fixed() {
     let id = ComposeNodeId.custom("test", isFixed: true)
-    expect(id.id) == .custom("test")
+    expect(id.id) == "test"
 
     let parentId = ComposeNodeId.custom("parent", isFixed: false)
     do {
       let childId = parentId.join(with: id)
-      expect(childId.id) == .custom("test")
+      expect(childId.id) == "test"
     }
     do {
       let childId = parentId.join(with: id, suffix: "suffix")
-      expect(childId.id) == .custom("test")
+      expect(childId.id) == "test"
     }
   }
 }
