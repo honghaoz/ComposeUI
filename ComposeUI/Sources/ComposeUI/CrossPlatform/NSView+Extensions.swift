@@ -2,7 +2,7 @@
 //  NSView+Extensions.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 10/27/24.
+//  Created by Honghao Zhang on 8/28/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -34,26 +34,38 @@ import AppKit
 
 public extension NSView {
 
-  internal var alpha: CGFloat {
+  /// Update common settings for a layer-backed view.
+  @_spi(Private)
+  func updateCommonSettings() {
+    // It seems like using auto layout can avoid certain ambiguous layout issues
+    //
+    // translatesAutoresizingMaskIntoConstraints = false
+
+    wantsLayer = true
+
+    // Don't set cornerCurve to .continuous to match the UIKit's default value
+    //
+    // layer?.cornerCurve = .continuous
+
+    layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
+
+    // turns off clipping
+    // https://stackoverflow.com/a/53176282/3164091
+    layer?.masksToBounds = false
+  }
+
+  // MARK: - UIKit Compatibility
+
+  /// The alpha value of the view.
+  @inlinable
+  @inline(__always)
+  var alpha: CGFloat {
     get {
       alphaValue
     }
     set {
       alphaValue = newValue
     }
-  }
-
-  /// Update common settings for a layer-backed view.
-  internal func updateCommonSettings() {
-    wantsLayer = true
-
-    // don't set cornerCurve to .continuous to match the UIKit's default value
-    // layer?.cornerCurve = .continuous
-
-    layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
-
-    // turns off clipping
-    layer?.masksToBounds = false
   }
 
   // MARK: - Layout
@@ -107,7 +119,7 @@ public extension NSView {
 
   // MARK: - ignoreHitTest
 
-  private static let _ignoreHitTestKey: String = ["ignoreH", "it", "T", "est"].joined()
+  private static let _ignoreHitTestKey: String = ["ign", "oreH", "it", "T", "est"].joined()
 
   /// A boolean flag indicating whether the view should ignore hit testing.
   var ignoreHitTest: Bool {
@@ -119,6 +131,10 @@ public extension NSView {
     set {
       setValue(newValue, forKey: Self._ignoreHitTestKey)
     }
+
+    /// https://avaidyam.github.io/2018/03/22/Exercise-Modern-Cocoa-Views.html
+    /// https://stackoverflow.com/a/2906605/3164091
+    /// https://stackoverflow.com/questions/11923597/using-valueforkey-to-access-view-in-uibarbuttonitem-private-api-violation
   }
 }
 

@@ -2,7 +2,7 @@
 //  NSView+ExtensionsTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 4/7/25.
+//  Created by Honghao Zhang on 8/28/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -32,9 +32,19 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class NSView_ExtensionsTests: XCTestCase {
+
+  func test_updateCommonSettings() {
+    let view = NSView()
+    view.updateCommonSettings()
+
+    expect(view.wantsLayer) == true
+    expect(view.layer?.cornerCurve) == .circular
+    expect(view.layer?.contentsScale) == NSScreen.main?.backingScaleFactor
+    expect(view.layer?.masksToBounds) == false
+  }
 
   func test_alpha() {
     let view = NSView()
@@ -42,15 +52,6 @@ class NSView_ExtensionsTests: XCTestCase {
     view.alpha = 0.5
     expect(view.alpha) == 0.5
     expect(view.alphaValue) == 0.5
-  }
-
-  func test_updateCommonSettings() {
-    let view = NSView()
-    view.updateCommonSettings()
-
-    expect(view.wantsLayer) == true
-    expect(view.layer?.contentsScale) == NSScreen.main?.backingScaleFactor
-    expect(view.layer?.masksToBounds) == false
   }
 
   func test_setNeedsLayout() {
@@ -82,6 +83,22 @@ class NSView_ExtensionsTests: XCTestCase {
     expect(view.subviews[0]) == subview1
     expect(view.subviews[1]) == subview3
     expect(view.subviews[2]) == subview2
+  }
+
+  func test_ignoreHitTest() {
+    let view = NSTextField(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    // verify hit test
+    expect(view.ignoreHitTest) == false
+    let point = CGPoint(x: 5, y: 5)
+    let hitView = view.hitTest(point)
+    expect(hitView) === view
+
+    // verify ignore hit test
+    view.ignoreHitTest = true
+    expect(view.ignoreHitTest) == true
+    let hitView2 = view.hitTest(point)
+    expect(hitView2) == nil
   }
 }
 
