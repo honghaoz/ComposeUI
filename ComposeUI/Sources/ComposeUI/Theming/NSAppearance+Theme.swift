@@ -32,7 +32,7 @@
 
 import AppKit
 
-extension NSAppearance {
+public extension NSAppearance {
 
   /// The theme that matches the current appearance.
   var theme: Theme {
@@ -45,3 +45,12 @@ extension NSAppearance {
 }
 
 #endif
+
+/// References:
+/// - https://indiestack.com/2018/10/supporting-dark-mode-checking-appearances/
+/// - https://developer.apple.com/forums/thread/105584
+/// - https://stackoverflow.com/a/58448816/3164091
+
+/// See also:
+/// - https://developer.apple.com/forums/thread/105584
+/// - https://stackoverflow.com/a/58448816/12969481

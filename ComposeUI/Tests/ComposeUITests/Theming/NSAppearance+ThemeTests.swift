@@ -1,8 +1,8 @@
 //
-//  UIUserInterfaceStyle+Theme.swift
+//  NSAppearance+ThemeTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 11/28/22.
+//  Created by Honghao Zhang on 10/12/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,26 +28,20 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(UIKit)
+#if canImport(AppKit)
+import AppKit
 
-import UIKit
+import ChouTiTest
 
-public extension UIUserInterfaceStyle {
+import ComposeUI
 
-  /// The theme that matches the current user interface style.
-  var theme: Theme {
-    switch self {
-    case .unspecified:
-      return .light
-    case .light:
-      return .light
-    case .dark:
-      return .dark
-    @unknown default:
-      assertionFailure("unknown UIUserInterfaceStyle: \(self)")
-      return .light
-    }
+class NSAppearance_ThemeTests: XCTestCase {
+
+  func test_theme() {
+    expect(NSAppearance(named: .aqua)?.theme) == .light
+    expect(NSAppearance(named: .darkAqua)?.theme) == .dark
+    expect(NSAppearance(named: .vibrantDark)?.theme) == .dark
+    expect(NSAppearance(named: .vibrantLight)?.theme) == .light
   }
 }
-
 #endif
