@@ -191,32 +191,33 @@ open class Label: NSTextField {
   }
 }
 
-class BaseNSTextFieldCell: NSTextFieldCell {
+@_spi(Private)
+open class BaseNSTextFieldCell: NSTextFieldCell {
 
   /// The additional horizontal padding to add to the text frame.
-  var horizontalPadding: CGFloat = 0
+  open var horizontalPadding: CGFloat = 0
 
   /// The vertical alignment of the text.
-  var verticalAlignment: TextVerticalAlignment = .center
+  open var verticalAlignment: TextVerticalAlignment = .center
 
-  override func drawingRect(forBounds rect: NSRect) -> NSRect {
+  override open func drawingRect(forBounds rect: NSRect) -> NSRect {
     super.drawingRect(forBounds: adjustRect(rect))
   }
 
-  override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
+  override open func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
     super.draw(withFrame: adjustRect(cellFrame), in: controlView)
   }
 
-  override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+  override open func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
     super.drawInterior(withFrame: adjustRect(cellFrame), in: controlView)
   }
 
-  override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+  override open func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
     // the rect controls the text frame when editing
     super.edit(withFrame: adjustRect(rect), in: controlView, editor: textObj, delegate: delegate, event: event)
   }
 
-  override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+  override open func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
     super.select(withFrame: adjustRect(rect), in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
   }
 
