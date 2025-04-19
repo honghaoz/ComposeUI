@@ -1,5 +1,5 @@
 //
-//  LabelTests.swift
+//  NSLabelTests.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 10/18/20.
@@ -34,24 +34,25 @@ import AppKit
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
-class LabelTests: XCTestCase {
+class NSLabelTests: XCTestCase {
 
   func testCellClass() {
-    // "Optional(ComposeUI.(unknown context at $1039d9be4).BaseNSTextFieldCell)"
-    let cellClassString = String(describing: Label.cellClass)
-    let pattern = #"Optional\(ComposeUI(\.?.*?)\.BaseNSTextFieldCell\)"#
+    // "Optional(ComposeUI.(unknown context at $1039d9be4).TextFieldCell)"
+    // "Optional(ComposeUI.TextFieldCell)"
+    let cellClassString = String(describing: NSLabel.cellClass)
+    let pattern = #"Optional\(ComposeUI(\.?.*?)\.TextFieldCell\)"#
     expect(cellClassString.range(of: pattern, options: .regularExpression), cellClassString) != nil
 
     // set cell class has no effect
     Label.cellClass = NSTextFieldCell.self
-    let updatedCellClassString = String(describing: Label.cellClass)
+    let updatedCellClassString = String(describing: NSLabel.cellClass)
     expect(updatedCellClassString.range(of: pattern, options: .regularExpression)) != nil
   }
 
   func testVerticalAlignment() {
-    let label = Label()
+    let label = NSLabel()
     expect(label.verticalAlignment) == .center
 
     label.verticalAlignment = .top
@@ -59,7 +60,7 @@ class LabelTests: XCTestCase {
   }
 
   func testText() {
-    let label = Label()
+    let label = NSLabel()
     expect(label.text) == ""
     expect(label.stringValue) == ""
 
@@ -73,7 +74,7 @@ class LabelTests: XCTestCase {
   }
 
   func testMultilineTruncatesLastVisibleLine() {
-    let label = Label()
+    let label = NSLabel()
     expect(label.multilineTruncatesLastVisibleLine) == true
 
     label.multilineTruncatesLastVisibleLine = false
@@ -81,7 +82,7 @@ class LabelTests: XCTestCase {
   }
 
   func testCommonInit() {
-    let label = Label()
+    let label = NSLabel()
     expect(label.layerContentsRedrawPolicy) == .onSetNeedsDisplay
     expect(label.maximumNumberOfLines) == 1
     expect(label.cell?.truncatesLastVisibleLine) == true
@@ -106,7 +107,7 @@ class LabelTests: XCTestCase {
   }
 
   func testSetToSingleLineMode() {
-    let label = Label()
+    let label = NSLabel()
 
     label.setToSingleLineMode(truncationMode: .none)
     expect(label.lineBreakMode) == .byClipping
@@ -126,7 +127,7 @@ class LabelTests: XCTestCase {
   }
 
   func testSetToMultilineMode() {
-    let label = Label()
+    let label = NSLabel()
 
     label.setToMultilineMode(numberOfLines: 0, lineWrapMode: .byWord, truncatesLastVisibleLine: true)
     expect(label.maximumNumberOfLines) == 0
@@ -140,7 +141,7 @@ class LabelTests: XCTestCase {
   }
 
   func testSetToSelectable() {
-    let label = Label()
+    let label = NSLabel()
     label.setIsSelectable(true)
     expect(label.isSelectable) == true
     expect(label.allowsEditingTextAttributes) == true
@@ -151,16 +152,16 @@ class LabelTests: XCTestCase {
   }
 }
 
-class BaseNSTextFieldCellTests: XCTestCase {
+class TextFieldCellTests: XCTestCase {
 
   func testInit() {
-    let cell = BaseNSTextFieldCell()
+    let cell = TextFieldCell()
     expect(cell.horizontalPadding) == 0
     expect(cell.verticalAlignment) == .center
   }
 
   func testAdjustRect() {
-    let cell = BaseNSTextFieldCell()
+    let cell = TextFieldCell()
     cell.stringValue = "hello world"
     cell.font = NSFont.systemFont(ofSize: 32)
     let boundingRect = NSRect(x: 0, y: 0, width: 100, height: 100)
@@ -193,7 +194,7 @@ class BaseNSTextFieldCellTests: XCTestCase {
   }
 
   func test_calls() {
-    let cell = BaseNSTextFieldCell()
+    let cell = TextFieldCell()
     cell.stringValue = "hello world"
     cell.font = NSFont.systemFont(ofSize: 32)
     let boundingRect = NSRect(x: 0, y: 0, width: 100, height: 100)

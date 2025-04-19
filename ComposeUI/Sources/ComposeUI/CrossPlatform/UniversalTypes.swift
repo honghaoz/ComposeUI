@@ -33,6 +33,7 @@ import AppKit
 
 public typealias Window = NSWindow
 public typealias View = NSView
+public typealias Label = NSLabel
 public typealias TextView = NSTextView
 public typealias Color = NSColor
 public typealias Font = NSFont
@@ -50,6 +51,7 @@ import UIKit
 
 public typealias Window = UIWindow
 public typealias View = UIView
+public typealias Label = UILabel
 public typealias TextView = UITextView
 public typealias Color = UIColor
 public typealias Font = UIFont

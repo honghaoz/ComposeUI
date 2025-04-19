@@ -30,15 +30,9 @@
 
 #if canImport(AppKit)
 import AppKit
-#endif
 
-#if canImport(UIKit)
-import UIKit
-#endif
-
-open class BaseLabel: Label {
-
-  #if canImport(AppKit)
+/// A base class of `NSLabel`.
+open class BaseLabel: NSLabel {
 
   override open var isFlipped: Bool { true }
 
@@ -68,9 +62,15 @@ open class BaseLabel: Label {
       return super.becomeFirstResponder()
     }
   }
-  #endif
+}
+#endif
 
-  #if canImport(UIKit)
+#if canImport(UIKit)
+import UIKit
+
+/// A base class of `UILabel`.
+open class BaseLabel: UILabel {
+
   /// The vertical alignment of the text. Default to `.center`.
   public var verticalAlignment: TextVerticalAlignment = .center
 
@@ -88,5 +88,5 @@ open class BaseLabel: Label {
       super.drawText(in: rect)
     }
   }
-  #endif
 }
+#endif

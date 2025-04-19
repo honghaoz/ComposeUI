@@ -1,5 +1,5 @@
 //
-//  Label.swift
+//  NSLabel.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 5/22/22.
@@ -41,15 +41,15 @@ import AppKit
 /// - In single-line mode, `lineBreakMode` can be set to `.byTruncatingTail`, `.byTruncatingMiddle`, `.byTruncatingHead`, or `.byClipping`.
 /// - To support multiline text, set `numberOfLines` to 0 (unlimited) or 2+ and `lineBreakMode` to `.byWordWrapping` or `.byCharWrapping`.
 /// - In multiline mode, the label only supports `.byTruncatingTail` truncation mode, with `multilineTruncatesLastVisibleLine` set to `true`.
-open class Label: NSTextField {
+open class NSLabel: NSTextField {
 
   override public class var cellClass: AnyClass? {
-    get { BaseNSTextFieldCell.self }
+    get { TextFieldCell.self }
     set {}
   }
 
-  private var theCell: BaseNSTextFieldCell? {
-    (cell as? BaseNSTextFieldCell).assertNotNil("cell is not BaseNSTextFieldCell")
+  private var theCell: TextFieldCell? {
+    (cell as? TextFieldCell).assertNotNil("incorrect cell type")
   }
 
   /// The vertical alignment of the text. Default to `.center`.
@@ -148,6 +148,7 @@ open class Label: NSTextField {
 
     /// Don't set `usesSingleLineMode` as it can affect non system font rendering
     // cell?.usesSingleLineMode = true
+
     multilineTruncatesLastVisibleLine = false
   }
 
@@ -192,7 +193,7 @@ open class Label: NSTextField {
 }
 
 @_spi(Private)
-open class BaseNSTextFieldCell: NSTextFieldCell {
+open class TextFieldCell: NSTextFieldCell {
 
   /// The additional horizontal padding to add to the text frame.
   open var horizontalPadding: CGFloat = 0
@@ -266,10 +267,4 @@ open class BaseNSTextFieldCell: NSTextFieldCell {
   // https://stackoverflow.com/questions/10205088/nstextfield-vertical-alignment
 }
 
-#endif
-
-#if canImport(UIKit)
-import UIKit
-
-public typealias Label = UILabel
 #endif
