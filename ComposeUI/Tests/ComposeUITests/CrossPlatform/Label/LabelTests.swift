@@ -41,13 +41,13 @@ class LabelTests: XCTestCase {
   func testCellClass() {
     // "Optional(ComposeUI.(unknown context at $1039d9be4).BaseNSTextFieldCell)"
     let cellClassString = String(describing: Label.cellClass)
-    let pattern = #"Optional\(ComposeUI\.(.*?)\.BaseNSTextFieldCell\)"#
-    expect(cellClassString.range(of: pattern, options: .regularExpression) != nil) == true
+    let pattern = #"Optional\(ComposeUI(\.?.*?)\.BaseNSTextFieldCell\)"#
+    expect(cellClassString.range(of: pattern, options: .regularExpression), cellClassString) != nil
 
     // set cell class has no effect
     Label.cellClass = NSTextFieldCell.self
     let updatedCellClassString = String(describing: Label.cellClass)
-    expect(updatedCellClassString.range(of: pattern, options: .regularExpression) != nil) == true
+    expect(updatedCellClassString.range(of: pattern, options: .regularExpression)) != nil
   }
 
   func testVerticalAlignment() {
@@ -178,18 +178,18 @@ class BaseNSTextFieldCellTests: XCTestCase {
       expect(drawingRect) == CGRect(x: 0.0, y: 0.0, width: 100.0, height: 100) // hmm, why this has height 100?
     }
 
-//    // when vertical alignment is bottom
-//    do {
-//      Assert.setTestAssertionFailureHandler { message, metadata, file, line, column in
-//        expect(message) == "unsupported bottom alignment"
-//      }
-//
-//      cell.verticalAlignment = .bottom
-//      let drawingRect = cell.drawingRect(forBounds: boundingRect)
-//      expect(drawingRect) == CGRect(x: 0.0, y: 0.0, width: 100.0, height: 100)
-//
-//      Assert.resetTestAssertionFailureHandler()
-//    }
+    // when vertical alignment is bottom
+    do {
+      Assert.setTestAssertionFailureHandler { message, file, line, column in
+        expect(message) == "unsupported bottom alignment"
+      }
+
+      cell.verticalAlignment = .bottom
+      let drawingRect = cell.drawingRect(forBounds: boundingRect)
+      expect(drawingRect) == CGRect(x: 0.0, y: 0.0, width: 100.0, height: 100)
+
+      Assert.resetTestAssertionFailureHandler()
+    }
   }
 
   func test_calls() {

@@ -389,7 +389,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     private let host: ButtonView
 
     fileprivate init(host: ButtonView) {
-      assert(Thread.isRunningXCTest, "Test namespace should only be used in test target.")
+      ComposeUI.assert(Thread.isRunningXCTest, "Test namespace should only be used in test target.")
       self.host = host
     }
 

@@ -41,7 +41,7 @@ extension Optional {
   func assertNotNil(_ assertionMessage: @autoclosure () -> String = "Unexpected nil value") -> Wrapped? {
     #if DEBUG
     guard let unwrapped = self else {
-      assertionFailure(assertionMessage())
+      ComposeUI.assertFailure(assertionMessage())
       return self
     }
     return unwrapped

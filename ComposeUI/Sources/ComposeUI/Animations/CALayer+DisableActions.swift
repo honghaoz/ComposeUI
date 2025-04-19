@@ -135,7 +135,7 @@ public extension CALayer {
       self.delegate = nil
     } else {
       // if delegate exists, use the subclass approach to disable actions
-      assert(Thread.isMainThread, "CALayer.disableActions() must be called on the main thread")
+      ComposeUI.assert(Thread.isMainThread, "CALayer.disableActions() must be called on the main thread")
 
       let originalClass: AnyClass = object_getClass(self)! // swiftlint:disable:this force_unwrapping
       let subclassClassName = "\(originalClass)_DisabledActions"
@@ -154,7 +154,7 @@ public extension CALayer {
 
         // create a new subclass and cache it
         guard let newClass = objc_allocateClassPair(originalClass, subclassClassName, 0) else {
-          assertionFailure("Unable to allocate class pair for \(subclassClassName). Actions will not be disabled.")
+          ComposeUI.assertFailure("Unable to allocate class pair for \(subclassClassName). Actions will not be disabled.")
           return originalClass
         }
 

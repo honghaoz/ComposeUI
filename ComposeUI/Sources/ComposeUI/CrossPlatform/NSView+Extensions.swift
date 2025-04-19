@@ -90,7 +90,7 @@ public extension NSView {
   /// - Parameter view: The subview to move to the front.
   func bringSubviewToFront(_ view: NSView) {
     guard view.superview === self else {
-      assertionFailure("view: \(view) is not a subview")
+      ComposeUI.assertFailure("view: \(view) is not a subview")
       return
     }
 
@@ -125,7 +125,7 @@ public extension NSView {
   var ignoreHitTest: Bool {
     get {
       let value = value(forKey: Self._ignoreHitTestKey) as? Bool
-      assert(value != nil, "missing value for \(Self._ignoreHitTestKey)")
+      ComposeUI.assert(value != nil, "missing value for \(Self._ignoreHitTestKey)")
       return value ?? false
     }
     set {

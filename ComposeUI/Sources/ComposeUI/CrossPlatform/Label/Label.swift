@@ -242,7 +242,7 @@ class BaseNSTextFieldCell: NSTextFieldCell {
     case .center:
       return adjustedFrame(toVerticallyCenterText: adjustRect)
     case .bottom:
-      assertionFailure("unsupported bottom alignment")
+      ComposeUI.assertFailure("unsupported bottom alignment")
       return adjustRect
     }
   }

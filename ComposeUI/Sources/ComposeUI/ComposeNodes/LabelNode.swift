@@ -186,7 +186,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
       case .byTruncatingTail:
         textTruncationMode = .tail
       @unknown default:
-        assertionFailure("Unsupported line break mode: \(lineBreakMode)")
+        ComposeUI.assertFailure("Unsupported line break mode: \(lineBreakMode)")
         textTruncationMode = .tail
       }
       label.setToSingleLineMode(truncationMode: textTruncationMode)
@@ -205,7 +205,7 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
         // setting the line break mode to other values will make the label become single line
         lineWrapMode = .byWord
       @unknown default:
-        assertionFailure("Unsupported line break mode: \(lineBreakMode)")
+        ComposeUI.assertFailure("Unsupported line break mode: \(lineBreakMode)")
         lineWrapMode = .byWord
       }
       label.setToMultilineMode(numberOfLines: numberOfLines, lineWrapMode: lineWrapMode, truncatesLastVisibleLine: true)

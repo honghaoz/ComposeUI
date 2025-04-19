@@ -261,7 +261,7 @@ extension CALayer {
         backedView.alpha = CGFloat(newValue)
         opacity = newValue
       }
-      assert(CGFloat(opacity) == backedView.alpha)
+      ComposeUI.assert(CGFloat(opacity) == backedView.alpha)
       return
     }
 

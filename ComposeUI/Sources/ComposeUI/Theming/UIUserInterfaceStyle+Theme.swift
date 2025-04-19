@@ -44,7 +44,7 @@ public extension UIUserInterfaceStyle {
     case .dark:
       return .dark
     @unknown default:
-      assertionFailure("unknown UIUserInterfaceStyle: \(self)")
+      ComposeUI.assertFailure("unknown UIUserInterfaceStyle: \(self)")
       return .light
     }
   }

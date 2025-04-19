@@ -86,11 +86,11 @@ public extension ComposeNodeSizing {
       switch self {
       case .fixed(let size):
         if size < 0 {
-          assertionFailure("fixed sizing must have a size greater than or equal to 0, got \(size)")
+          ComposeUI.assertFailure("fixed sizing must have a size greater than or equal to 0, got \(size)")
           return .fixed(0)
         }
         if size == .infinity {
-          assertionFailure("fixed sizing must have a non-infinite size")
+          ComposeUI.assertFailure("fixed sizing must have a non-infinite size")
           return .flexible
         }
         return .fixed(size)
@@ -100,11 +100,11 @@ public extension ComposeNodeSizing {
         var min = min
         var max = max
         if min < 0 {
-          assertionFailure("range sizing must have a min greater than or equal to 0, got \(min)")
+          ComposeUI.assertFailure("range sizing must have a min greater than or equal to 0, got \(min)")
           min = 0
         }
         if min >= max {
-          assertionFailure("range sizing must have a min less than max, got \(min) and \(max)")
+          ComposeUI.assertFailure("range sizing must have a min less than max, got \(min) and \(max)")
           // clamp the max to min
           max = min
         }

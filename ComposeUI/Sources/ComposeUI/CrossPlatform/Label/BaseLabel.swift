@@ -84,7 +84,7 @@ open class BaseLabel: Label {
       // by default, the text is centered
       super.drawText(in: rect)
     case .bottom:
-      assertionFailure("unsupported bottom alignment")
+      ComposeUI.assertFailure("unsupported bottom alignment")
       super.drawText(in: rect)
     }
   }

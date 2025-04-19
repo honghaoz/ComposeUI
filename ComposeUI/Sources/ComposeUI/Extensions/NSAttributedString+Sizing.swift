@@ -58,7 +58,7 @@ extension NSAttributedString {
     let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
 
     guard let lines = CTFrameGetLines(frame) as? [CTLine], lines.count > 0 else {
-      assertionFailure("failed to get non-empty lines")
+      ComposeUI.assertFailure("failed to get non-empty lines")
       return .zero
     }
 
@@ -112,7 +112,7 @@ extension NSAttributedString {
     let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
 
     guard let lines = CTFrameGetLines(frame) as? [CTLine], lines.count > 0 else {
-      assertionFailure("failed to get non-empty lines")
+      ComposeUI.assertFailure("failed to get non-empty lines")
       return .zero
     }
 

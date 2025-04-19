@@ -119,10 +119,10 @@ public extension ScrollViewType {
   func setContentSize(_ size: CGSize) {
     #if canImport(AppKit)
     guard let documentView = documentView else {
-      assertionFailure("NSScrollView has no document view. Please set `documentView`.")
+      ComposeUI.assertFailure("NSScrollView has no document view. Please set `documentView`.")
       return
     }
-    assert(documentView.frame.origin == .zero)
+    ComposeUI.assert(documentView.frame.origin == .zero)
     documentView.frame = CGRect(origin: .zero, size: size)
     #endif
 
@@ -144,7 +144,7 @@ public extension ScrollViewType {
   func contentView() -> View {
     #if canImport(AppKit)
     guard let documentView = documentView else {
-      assertionFailure("NSScrollView has no document view. Please set `documentView`.")
+      ComposeUI.assertFailure("NSScrollView has no document view. Please set `documentView`.")
       return self
     }
     return documentView

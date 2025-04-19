@@ -67,7 +67,7 @@ extension NSBezierPath {
         case .closePath:
           path.closeSubpath()
         @unknown default:
-          assertionFailure("Unknown CGPath element type: \(type)")
+          ComposeUI.assertFailure("Unknown CGPath element type: \(type)")
         }
       }
 
@@ -111,7 +111,7 @@ extension NSBezierPath {
       case .closeSubpath:
         self.close()
       @unknown default:
-        assertionFailure("Unknown CGPath element type: \(element.type)")
+        ComposeUI.assertFailure("Unknown CGPath element type: \(element.type)")
       }
     }
   }

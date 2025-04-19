@@ -43,7 +43,7 @@ open class ScrollView: NSScrollView {
       documentView().bounds.size
     }
     set {
-      assert(documentView().frame.origin == .zero)
+      ComposeUI.assert(documentView().frame.origin == .zero)
       documentView().frame = CGRect(origin: .zero, size: newValue)
     }
   }
@@ -93,7 +93,7 @@ open class ScrollView: NSScrollView {
         guard let self else {
           return
         }
-        assert((notification.object as? NSClipView) === self.contentView)
+        ComposeUI.assert((notification.object as? NSClipView) === self.contentView)
         self.layoutSubviews()
       }
     )

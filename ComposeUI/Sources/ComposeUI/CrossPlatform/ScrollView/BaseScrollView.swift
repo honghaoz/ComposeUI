@@ -211,7 +211,7 @@ open class BaseScrollView: ScrollView {
       switch self.traitCollection.userInterfaceStyle {
       case .unspecified:
         #if !os(tvOS)
-        assertionFailure("unspecified traitCollection.userInterfaceStyle")
+        ComposeUI.assertFailure("unspecified traitCollection.userInterfaceStyle")
         #endif
         return .light
       case .light:
@@ -219,7 +219,7 @@ open class BaseScrollView: ScrollView {
       case .dark:
         return .dark
       @unknown default:
-        assertionFailure("unknown UIUserInterfaceStyle: \(self.traitCollection.userInterfaceStyle)")
+        ComposeUI.assertFailure("unknown UIUserInterfaceStyle: \(self.traitCollection.userInterfaceStyle)")
         return .light
       }
     }
@@ -232,7 +232,7 @@ open class BaseScrollView: ScrollView {
     case .dark:
       return .dark
     @unknown default:
-      assertionFailure("unknown overrideUserInterfaceStyle: \(overrideUserInterfaceStyle)")
+      ComposeUI.assertFailure("unknown overrideUserInterfaceStyle: \(overrideUserInterfaceStyle)")
       return getThemeFromTraitCollection()
     }
   }

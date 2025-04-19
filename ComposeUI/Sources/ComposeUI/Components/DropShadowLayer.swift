@@ -169,7 +169,7 @@ open class DropShadowLayer: CALayer {
   private func maskLayerPath(cutoutPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
     let hExtraSize = radius + abs(offset.width) + 1000
     let vExtraSize = radius + abs(offset.height) + 1000
-    assert(bounds.origin == .zero, "check if boundingBoxOfPath works for non zero origin bounds")
+    ComposeUI.assert(bounds.origin == .zero, "check if boundingBoxOfPath works for non zero origin bounds")
     let biggerBounds = cutoutPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
 
     let biggerPath = CGMutablePath()

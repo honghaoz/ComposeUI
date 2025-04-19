@@ -50,7 +50,7 @@ extension CALayer {
   ///   - frame: The layer's frame.
   /// - Returns: The layer's position.
   func position(from frame: CGRect) -> CGPoint {
-    assert(CATransform3DEqualToTransform(transform, CATransform3DIdentity), "only works with identity transform.")
+    ComposeUI.assert(CATransform3DEqualToTransform(transform, CATransform3DIdentity), "only works with identity transform.")
     return CGPoint(
       x: frame.origin.x + anchorPoint.x * frame.width,
       y: frame.origin.y + anchorPoint.y * frame.height
