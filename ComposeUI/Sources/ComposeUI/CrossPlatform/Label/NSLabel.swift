@@ -28,8 +28,6 @@
 //  IN THE SOFTWARE.
 //
 
-// From: https://github.com/honghaoz/ChouTiUI/blob/c2cc7b8452d269d6ee55993a977ed4b5fabf15d4/ChouTiUI/Sources/ChouTiUI/AppKit/Text/NSLabel.swift
-
 #if canImport(AppKit)
 
 import AppKit
