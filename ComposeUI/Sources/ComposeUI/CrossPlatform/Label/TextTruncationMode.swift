@@ -38,8 +38,16 @@ import UIKit
 
 /// Text truncation mode.
 public enum TextTruncationMode: Hashable {
+
+  /// No truncation.
   case none
+
+  /// Truncate the text from the head.
   case head
+
+  /// Truncate the text from the tail.
   case tail
+
+  /// Truncate the text from the middle.
   case middle
 }

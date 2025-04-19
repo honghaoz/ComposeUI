@@ -38,6 +38,10 @@ import UIKit
 
 /// Line wrap mode.
 public enum LineWrapMode: Hashable {
+
+  /// Wrap the text by word.
   case byWord
+
+  /// Wrap the text by character.
   case byChar
 }

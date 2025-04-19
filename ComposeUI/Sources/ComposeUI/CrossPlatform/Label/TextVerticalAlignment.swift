@@ -30,8 +30,15 @@
 
 import Foundation
 
+/// The vertical alignment of text.
 public enum TextVerticalAlignment: Hashable {
+
+  /// The text is aligned to the top.
   case top
+
+  /// The text is aligned to the center.
   case center
+
+  /// The text is aligned to the bottom.
   case bottom
 }
