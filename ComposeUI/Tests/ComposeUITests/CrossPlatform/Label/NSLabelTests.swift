@@ -75,17 +75,17 @@ class NSLabelTests: XCTestCase {
 
   func testMultilineTruncatesLastVisibleLine() {
     let label = NSLabel()
-    expect(label.multilineTruncatesLastVisibleLine) == true
-
-    label.multilineTruncatesLastVisibleLine = false
     expect(label.multilineTruncatesLastVisibleLine) == false
+
+    label.multilineTruncatesLastVisibleLine = true
+    expect(label.multilineTruncatesLastVisibleLine) == true
   }
 
   func testCommonInit() {
     let label = NSLabel()
     expect(label.layerContentsRedrawPolicy) == .onSetNeedsDisplay
     expect(label.maximumNumberOfLines) == 1
-    expect(label.cell?.truncatesLastVisibleLine) == true
+    expect(label.cell?.truncatesLastVisibleLine) == false
 
     expect(label.wantsLayer) == true
     expect(label.layer?.cornerCurve) == .circular

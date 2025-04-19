@@ -75,8 +75,6 @@ open class NSLabel: NSTextField {
   }
 
   /// If the label is in multiline mode, this property controls whether the label truncates the text at the end of the last visible line.
-  ///
-  /// Default to `true`.
   public var multilineTruncatesLastVisibleLine: Bool {
     get {
       theCell?.truncatesLastVisibleLine ?? false
@@ -104,10 +102,6 @@ open class NSLabel: NSTextField {
     // Note: This compensates for macOS's default inset, possibly caused by the default border.
     theCell?.horizontalPadding = 2
 
-    // Default to single line mode
-    maximumNumberOfLines = 1
-    cell?.truncatesLastVisibleLine = true
-
     /// Don't set `usesSingleLineMode` as it can affect the text baseline.
     /// https://stackoverflow.com/questions/36179012/nstextfield-non-system-font-content-clipped-when-usessinglelinemode-is-true
     // usesSingleLineMode = true
@@ -128,6 +122,9 @@ open class NSLabel: NSTextField {
     backgroundColor = .clear
 
     ignoreHitTest = true
+
+    // Default to single line mode
+    setToSingleLineMode()
   }
 
   /// Set label to single line mode.
@@ -169,6 +166,7 @@ open class NSLabel: NSTextField {
 
     /// Don't set `usesSingleLineMode` as it can affect non system font rendering
     // cell?.usesSingleLineMode = false
+
     multilineTruncatesLastVisibleLine = truncatesLastVisibleLine
   }
 
