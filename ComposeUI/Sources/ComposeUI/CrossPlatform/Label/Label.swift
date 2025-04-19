@@ -48,7 +48,9 @@ open class Label: NSTextField {
     set {}
   }
 
-  private var theCell: BaseNSTextFieldCell? { cell as? BaseNSTextFieldCell }
+  private var theCell: BaseNSTextFieldCell? {
+    (cell as? BaseNSTextFieldCell).assertNotNil("cell is not BaseNSTextFieldCell")
+  }
 
   /// The vertical alignment of the text. Default to `.center`.
   public var verticalAlignment: TextVerticalAlignment {
@@ -69,36 +71,6 @@ open class Label: NSTextField {
     }
     set {
       stringValue = newValue ?? ""
-    }
-  }
-
-  /// The alignment mode of the text.
-  public var textAlignment: NSTextAlignment {
-    get {
-      alignment
-    }
-    set {
-      alignment = newValue
-    }
-  }
-
-  /// The maximum number of lines for rendering text.
-  public var numberOfLines: Int {
-    get {
-      maximumNumberOfLines
-    }
-    set {
-      maximumNumberOfLines = newValue
-    }
-  }
-
-  /// The attributed text.
-  public var attributedText: NSAttributedString {
-    get {
-      attributedStringValue
-    }
-    set {
-      attributedStringValue = newValue
     }
   }
 
@@ -219,7 +191,7 @@ open class Label: NSTextField {
   }
 }
 
-private class BaseNSTextFieldCell: NSTextFieldCell {
+class BaseNSTextFieldCell: NSTextFieldCell {
 
   /// The additional horizontal padding to add to the text frame.
   var horizontalPadding: CGFloat = 0
@@ -240,6 +212,7 @@ private class BaseNSTextFieldCell: NSTextFieldCell {
   }
 
   override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+    // the rect controls the text frame when editing
     super.edit(withFrame: adjustRect(rect), in: controlView, editor: textObj, delegate: delegate, event: event)
   }
 
@@ -275,10 +248,21 @@ private class BaseNSTextFieldCell: NSTextFieldCell {
   }
 
   private func adjustedFrame(toVerticallyCenterText rect: NSRect) -> NSRect {
-    let titleRect = titleRect(forBounds: rect)
-    let cellHeight = cellSize(forBounds: rect).height
+    // From: https://stackoverflow.com/questions/11775128/set-text-vertical-center-in-nstextfield
+
+    // super would normally draw text at the top of the cell
+    // var titleRect = super.titleRect(forBounds: rect) // (-2.0, 0.0, 312.0, 130.0)
+    //
+    // let minimumHeight = self.cellSize(forBounds: rect).height // (294.84000000000003, 89.0)
+    // titleRect.origin.y += (titleRect.height - minimumHeight) / 2
+    // titleRect.size.height = minimumHeight
+
+    let titleRect = titleRect(forBounds: rect) // (-2.0, 0.0, 312.0, 130.0)
+    let cellHeight = cellSize(forBounds: rect).height // (294.84000000000003, 89.0)
     return CGRect(x: titleRect.origin.x, y: (titleRect.height - cellHeight) / 2, width: titleRect.width, height: cellHeight)
   }
+
+  // https://stackoverflow.com/questions/10205088/nstextfield-vertical-alignment
 }
 
 #endif
