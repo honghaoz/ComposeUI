@@ -32,21 +32,21 @@ import CoreGraphics
 
 public enum Layout {
 
-  /// The horizontal alignment.
+  /// The horizontal alignment of a subcomponent relative to its parent.
   public enum HorizontalAlignment: Hashable, Sendable, CaseIterable {
     case center
     case left
     case right
   }
 
-  /// The vertical alignment.
+  /// The vertical alignment of a subcomponent relative to its parent.
   public enum VerticalAlignment: Hashable, Sendable, CaseIterable {
     case center
     case top
     case bottom
   }
 
-  /// The alignment.
+  /// The alignment of a subcomponent relative to its parent.
   public enum Alignment: Hashable, Sendable, CaseIterable {
     case center
     case left
@@ -59,14 +59,14 @@ public enum Layout {
     case bottomRight
   }
 
-  /// Position a rectangle in a container.
+  /// Get the frame of a child rectangle positioned within a container rectangle based on a specified alignment.
   ///
   /// - Parameters:
-  ///   - size: The size of the rectangle.
-  ///   - containerSize: The size of the container.
+  ///   - size: The size of the child rectangle.
+  ///   - containerSize: The size of the container rectangle in which the child will be positioned.
   ///   - alignment: The alignment of the rectangle.
-  /// - Returns: The position of the rectangle.
-  static func position(rect size: CGSize, in containerSize: CGSize, alignment: Layout.Alignment) -> CGRect {
+  /// - Returns: A `CGRect` representing the frame of the child rectangle positioned within the container according to the specified alignment.
+  public static func position(rect size: CGSize, in containerSize: CGSize, alignment: Layout.Alignment) -> CGRect {
     CGRect(
       origin: {
         switch alignment {
