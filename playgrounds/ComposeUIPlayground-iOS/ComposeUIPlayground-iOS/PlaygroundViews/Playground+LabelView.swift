@@ -172,6 +172,19 @@ extension Playground {
           }
         }
 
+        Spacer(height: 16)
+
+        ViewNode<BaseLabel>(
+          update: { view, context in
+            view.text = "[Selectable] Building UI using UIKit/AppKit with declarative syntax"
+            view.setToMultilineMode()
+            view.setIsSelectable(true)
+          }
+        )
+        .frame(width: 100, height: 50)
+
+        Spacer(height: 16)
+
         SwiftUIViewNode {
           if #available(macOS 12.0, iOS 15.0, *) {
             AnyView(

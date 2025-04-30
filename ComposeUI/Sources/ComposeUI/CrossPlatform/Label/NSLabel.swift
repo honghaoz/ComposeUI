@@ -180,9 +180,11 @@ open class NSLabel: NSTextField {
       // avoid selecting text changes font
       // https://stackoverflow.com/a/38966031/3164091
       self.isSelectable = true
+      self.ignoreHitTest = false
       allowsEditingTextAttributes = true
     } else {
       self.isSelectable = false
+      self.ignoreHitTest = true
       allowsEditingTextAttributes = false
     }
   }
