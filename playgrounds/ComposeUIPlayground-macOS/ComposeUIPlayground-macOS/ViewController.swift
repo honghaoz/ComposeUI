@@ -106,24 +106,8 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
-      ButtonNode { state in
-        switch state {
-        case .normal,
-             .hovered:
-          ColorNode(Colors.blueGray)
-        case .pressed,
-             .selected:
-          ColorNode(Colors.darkBlueGray)
-        case .disabled:
-          ColorNode(Colors.lightBlueGray)
-        }
-      } onTap: {
-        print("tap")
-      }
-      .onDoubleTap {
-        print("double tap")
-      }
-      .frame(width: 88, height: 44)
+      ViewNode<Playground.Button>()
+        .frame(width: 88, height: 44)
 
       Spacer(height: 16)
 

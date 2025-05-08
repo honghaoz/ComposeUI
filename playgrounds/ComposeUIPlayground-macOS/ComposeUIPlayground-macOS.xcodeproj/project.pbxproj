@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		E504D9692D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E504D9682D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift */; };
+		E58BA09C2DCC82FC00333061 /* Playground+Button.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BA09B2DCC82FC00333061 /* Playground+Button.swift */; };
 		E58FCD732D8FCAA2003138BE /* Playground+ScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58FCD722D8FCAA2003138BE /* Playground+ScrollView.swift */; };
 		E59D808F2CA8DFD3006A6467 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59D808E2CA8DFD3006A6467 /* AppDelegate.swift */; };
 		E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59D80902CA8DFD3006A6467 /* ViewController.swift */; };
@@ -28,6 +29,7 @@
 
 /* Begin PBXFileReference section */
 		E504D9682D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+SwiftUIView.swift"; sourceTree = "<group>"; };
+		E58BA09B2DCC82FC00333061 /* Playground+Button.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+Button.swift"; sourceTree = "<group>"; };
 		E58FCD722D8FCAA2003138BE /* Playground+ScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+ScrollView.swift"; sourceTree = "<group>"; };
 		E59D808B2CA8DFD3006A6467 /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E59D808E2CA8DFD3006A6467 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -105,6 +107,7 @@
 				E5D636D82D7D016D0080A152 /* Playground.swift */,
 				E5ED82012D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift */,
 				E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */,
+				E58BA09B2DCC82FC00333061 /* Playground+Button.swift */,
 				E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */,
 				E504D9682D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift */,
 				E5F901F72D8DF4CC00BFE2EE /* Playground+LabelView.swift */,
@@ -203,6 +206,7 @@
 				E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */,
 				E5D636D72D7D01560080A152 /* Colors.swift in Sources */,
 				E5ED82022D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift in Sources */,
+				E58BA09C2DCC82FC00333061 /* Playground+Button.swift in Sources */,
 				E59D808F2CA8DFD3006A6467 /* AppDelegate.swift in Sources */,
 				E5D636DB2D7D016D0080A152 /* Playground+FrameView.swift in Sources */,
 				E5D636DC2D7D016D0080A152 /* Playground.swift in Sources */,
