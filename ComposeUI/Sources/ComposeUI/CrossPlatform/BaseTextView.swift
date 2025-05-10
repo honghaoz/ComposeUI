@@ -57,8 +57,7 @@ open class BaseTextView: TextView {
       }
 
       invalidateIntrinsicContentSize()
-
-      forceLayout()
+      scheduleLayout()
     }
   }
 
@@ -76,8 +75,7 @@ open class BaseTextView: TextView {
       }
 
       invalidateIntrinsicContentSize()
-
-      forceLayout()
+      scheduleLayout()
     }
   }
 
@@ -145,10 +143,10 @@ open class BaseTextView: TextView {
     invalidateIntrinsicContentSize()
   }
 
-  private func forceLayout() {
-    // force a layout on the next runloop to avoid an issue where the underlying `_NSTextViewportElementView`
-    // doesn't update when setting text with different lengths
-    RunLoop.main.perform(inModes: [.common]) { [weak self] in
+  private func scheduleLayout() {
+    // schedule a layout on the next runloop to avoid an issue where the underlying `_NSTextViewportElementView`
+    // doesn't update immediately when setting text with different lengths
+    onNextRunLoop { [weak self] in
       self?.setNeedsLayout()
       self?.layoutIfNeeded()
     }
