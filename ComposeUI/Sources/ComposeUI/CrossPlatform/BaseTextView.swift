@@ -57,7 +57,8 @@ open class BaseTextView: TextView {
       }
 
       invalidateIntrinsicContentSize()
-      needsLayout = true
+
+      forceLayout()
     }
   }
 
@@ -75,6 +76,8 @@ open class BaseTextView: TextView {
       }
 
       invalidateIntrinsicContentSize()
+
+      forceLayout()
     }
   }
 
@@ -140,6 +143,15 @@ open class BaseTextView: TextView {
     textContainer?.size = CGSize(width: size.width - textContainerInset.width * 2, height: size.height > 0 ? size.height : .greatestFiniteMagnitude)
 
     invalidateIntrinsicContentSize()
+  }
+
+  private func forceLayout() {
+    // force a layout on the next runloop to avoid an issue where the underlying `_NSTextViewportElementView`
+    // doesn't update when setting text with different lengths
+    RunLoop.main.perform(inModes: [.common]) { [weak self] in
+      self?.setNeedsLayout()
+      self?.layoutIfNeeded()
+    }
   }
 }
 
