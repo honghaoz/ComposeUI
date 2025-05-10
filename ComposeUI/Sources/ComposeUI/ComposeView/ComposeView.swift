@@ -328,6 +328,24 @@ open class ComposeView: BaseScrollView {
     }
   }
 
+  // MARK: - Clipping
+
+  /// The view's clipping behavior.
+  public enum ClippingBehavior {
+
+    /// The view clips the content to the bounds when the view is scrollable.
+    case auto
+
+    /// The view always clips the content to the bounds.
+    case always
+
+    /// The view never clips the content.
+    case never
+  }
+
+  /// The view's clipping behavior. The default value is `.auto`.
+  public var clippingBehavior: ClippingBehavior = .auto
+
   // MARK: - Theme
 
   private var themeObservation: AnyCancellable?
@@ -609,6 +627,18 @@ open class ComposeView: BaseScrollView {
       alwaysBounceHorizontal = false
       alwaysBounceVertical = false
     }
+
+    switch clippingBehavior {
+    case .auto:
+      clipsToBounds = isScrollable
+    case .always:
+      clipsToBounds = true
+    case .never:
+      clipsToBounds = false
+    }
+    #if canImport(AppKit)
+    contentView.clipsToBounds = clipsToBounds
+    #endif
 
     // update scroll indicator behavior
     let oldShowsHorizontalScrollIndicator = showsHorizontalScrollIndicator

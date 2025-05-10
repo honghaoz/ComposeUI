@@ -61,6 +61,7 @@ extension Playground {
       super.init(frame: frame)
 
       // animationBehavior = .disabled
+      // clippingBehavior = .never
     }
 
     override func animate() {
