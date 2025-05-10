@@ -93,6 +93,7 @@ public extension NSBezierPath {
     }
   }
 
+  @available(macOS, obsoleted: 14.0)
   private func addQuadCurve_below_macOS14(to point: CGPoint, controlPoint: CGPoint) {
     let (d1x, d1y) = (controlPoint.x - currentPoint.x, controlPoint.y - currentPoint.y)
     let (d2x, d2y) = (point.x - controlPoint.x, point.y - controlPoint.y)
@@ -104,6 +105,7 @@ public extension NSBezierPath {
   // MARK: - CGPath
 
   /// The Core Graphics representation of the path.
+  @available(macOS, obsoleted: 14.0)
   var cgPath: CGPath {
     get {
       let path = CGMutablePath()

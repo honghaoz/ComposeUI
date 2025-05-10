@@ -191,7 +191,7 @@ class NSBezierPath_ExtensionsTests: XCTestCase {
     path.addQuadCurve(to: CGPoint(x: 10, y: 10), controlPoint: CGPoint(x: 0.5, y: 1))
     path.close()
 
-    let cgPath = path.cgPath
+    var cgPath = path.cgPath
     let cgPathMemoryAddressString = memoryAddressString(cgPath)
 
     #if canImport(AppKit)
@@ -203,16 +203,21 @@ class NSBezierPath_ExtensionsTests: XCTestCase {
 
     let newCGPath = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 10), transform: nil)
     let newCGPathMemoryAddressString = memoryAddressString(newCGPath)
+    expect(String(describing: newCGPath)) == "Path \(newCGPathMemoryAddressString):\n  moveto (0, 0)\n    lineto (10, 0)\n    lineto (10, 10)\n    lineto (0, 10)\n    closepath\n"
 
     path.cgPath = newCGPath
-    let pathCGPathMemoryAddressString = memoryAddressString(path.cgPath)
+    cgPath = path.cgPath
+    let pathCGPathMemoryAddressString = memoryAddressString(cgPath)
 
-    expect(String(describing: newCGPath)) == "Path \(newCGPathMemoryAddressString):\n  moveto (0, 0)\n    lineto (10, 0)\n    lineto (10, 10)\n    lineto (0, 10)\n    closepath\n"
     #if canImport(AppKit)
-    expect(String(describing: path.cgPath)) == "Path \(pathCGPathMemoryAddressString):\n  moveto (0, 0)\n    lineto (10, 0)\n    lineto (10, 10)\n    lineto (0, 10)\n    closepath\n  moveto (0, 0)\n"
+    if #available(macOS 14.0, *) {
+      expect(String(describing: cgPath)) == "Path \(pathCGPathMemoryAddressString):\n  moveto (0, 0)\n    lineto (10, 0)\n    lineto (10, 10)\n    lineto (0, 10)\n    closepath\n"
+    } else {
+      expect(String(describing: cgPath)) == "Path \(pathCGPathMemoryAddressString):\n  moveto (0, 0)\n    lineto (10, 0)\n    lineto (10, 10)\n    lineto (0, 10)\n    closepath\n  moveto (0, 0)\n"
+    }
     #endif
     #if canImport(UIKit)
-    expect(String(describing: path.cgPath)) == "Path \(pathCGPathMemoryAddressString):\n  moveto (0, 0)\n    lineto (10, 0)\n    lineto (10, 10)\n    lineto (0, 10)\n    closepath\n"
+    expect(String(describing: cgPath)) == "Path \(pathCGPathMemoryAddressString):\n  moveto (0, 0)\n    lineto (10, 0)\n    lineto (10, 10)\n    lineto (0, 10)\n    closepath\n"
     #endif
   }
 
