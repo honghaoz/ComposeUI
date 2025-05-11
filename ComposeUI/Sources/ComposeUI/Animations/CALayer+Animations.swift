@@ -30,13 +30,14 @@
 
 import QuartzCore
 
-extension CALayer {
+public extension CALayer {
 
   /// Animate the layer's frame additively.
   ///
   /// - Parameters:
   ///   - to: The frame to animate to.
   ///   - timing: The animation timing.
+  @_spi(Private)
   func animateFrame(to: CGRect, timing: AnimationTiming) {
     animate(
       keyPath: "position",
@@ -63,6 +64,7 @@ extension CALayer {
   ///   - to: The value to animate to.
   ///   - timing: The animation timing.
   ///   - updateAnimation: An optional closure to update the animation.
+  @_spi(Private)
   func animate<T: FloatingPoint>(keyPath: String, to: T, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
     animate(
       keyPath: keyPath,
@@ -84,6 +86,7 @@ extension CALayer {
   ///   - to: The value to animate to.
   ///   - timing: The animation timing.
   ///   - updateAnimation: An optional closure to update the animation.
+  @_spi(Private)
   func animate(keyPath: String, to: CGSize, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
     animate(
       keyPath: keyPath,
@@ -105,6 +108,7 @@ extension CALayer {
   ///   - to: The value to animate to.
   ///   - timing: The animation timing.
   ///   - updateAnimation: An optional closure to update the animation.
+  @_spi(Private)
   func animate(keyPath: String, to: CGPoint, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
     animate(
       keyPath: keyPath,
@@ -130,6 +134,7 @@ extension CALayer {
   ///   - to: The value to animate to.
   ///   - model: The model value to set. If `nil`, the `to` value will be used.
   ///   - updateAnimation: An optional closure to update the animation.
+  @_spi(Private)
   func animate<T>(keyPath: String,
                   timing: AnimationTiming,
                   from: @escaping (CALayer) -> T,
@@ -168,7 +173,7 @@ extension CALayer {
     }
   }
 
-  func setKeyPathValue(_ keyPath: String, _ value: Any) {
+  internal func setKeyPathValue(_ keyPath: String, _ value: Any) {
     #if os(macOS)
     if keyPath.hasPrefix("position"), let backedView {
       CATransaction.disableAnimations {
@@ -279,7 +284,7 @@ extension CALayer {
   /// - Parameters:
   ///   - key: The desired animation key.
   /// - Returns: A unique animation key.
-  func uniqueAnimationKey(key: String) -> String {
+  internal func uniqueAnimationKey(key: String) -> String {
     var currentKey = key
     var counter = 1
 

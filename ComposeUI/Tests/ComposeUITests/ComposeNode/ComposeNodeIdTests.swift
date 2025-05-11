@@ -40,10 +40,10 @@ class ComposeNodeIdTests: XCTestCase {
   }
 
   func test_custom() {
-    let id = ComposeNodeId.custom("test", isFixed: false)
+    let id = ComposeNodeId.custom("test")
     expect(id.id) == "test"
 
-    let parentId = ComposeNodeId.custom("parent", isFixed: false)
+    let parentId = ComposeNodeId.custom("parent")
     do {
       let childId = parentId.join(with: id)
       expect(childId.id) == "parent|test"
