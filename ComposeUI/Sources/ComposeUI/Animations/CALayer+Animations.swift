@@ -128,6 +128,7 @@ public extension CALayer {
   /// - Important: You must make sure the value type matches the key path type.
   ///
   /// - Parameters:
+  ///   - key: The key to use for the animation. If `nil`, the key path will be used.
   ///   - keyPath: The key path to animate.
   ///   - timing: The animation timing.
   ///   - from: The value to animate from.
@@ -135,7 +136,8 @@ public extension CALayer {
   ///   - model: The model value to set. If `nil`, the `to` value will be used.
   ///   - updateAnimation: An optional closure to update the animation.
   @_spi(Private)
-  func animate<T>(keyPath: String,
+  func animate<T>(key: String? = nil,
+                  keyPath: String,
                   timing: AnimationTiming,
                   from: @escaping (CALayer) -> T,
                   to: @escaping (CALayer) -> T,
@@ -161,11 +163,12 @@ public extension CALayer {
 
       updateAnimation?(animation)
 
+      let rawKey = key ?? keyPath
       let key: String
       if animation.isAdditive {
-        key = self.uniqueAnimationKey(key: keyPath)
+        key = self.uniqueAnimationKey(key: rawKey)
       } else {
-        key = keyPath
+        key = rawKey
       }
       self.add(animation, forKey: key)
 
@@ -284,7 +287,8 @@ public extension CALayer {
   /// - Parameters:
   ///   - key: The desired animation key.
   /// - Returns: A unique animation key.
-  internal func uniqueAnimationKey(key: String) -> String {
+  @_spi(Private)
+  func uniqueAnimationKey(key: String) -> String {
     var currentKey = key
     var counter = 1
 

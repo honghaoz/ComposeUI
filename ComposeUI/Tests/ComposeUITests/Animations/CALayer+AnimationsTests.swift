@@ -32,9 +32,21 @@ import QuartzCore
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class CALayer_AnimationsTests: XCTestCase {
+
+  func test_animationKey() {
+    let layer = CALayer()
+    layer.animate(
+      key: "test",
+      keyPath: "position",
+      timing: .easeInEaseOut(duration: 1),
+      from: { _ in CGPoint(x: 100, y: 100) },
+      to: { _ in CGPoint(x: 200, y: 200) }
+    )
+    expect(layer.animationKeys()) == ["test"]
+  }
 
   func test_setKeyPath() {
     #if os(macOS)
