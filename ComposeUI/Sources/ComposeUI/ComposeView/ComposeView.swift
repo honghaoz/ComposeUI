@@ -668,6 +668,16 @@ open class ComposeView: BaseScrollView {
     let oldRenderableItemMap = renderableItemMap
     let oldRenderableMap = renderableMap
 
+    #if DEBUG
+    // sanity check for old renderable item ids and maps before rendering
+    ComposeUI.assert(oldRenderableItemIds.count == oldRenderableItemMap.count, "mismatched old renderable item count")
+    ComposeUI.assert(oldRenderableItemIds.count == oldRenderableMap.count, "mismatched old renderable count")
+    for id in oldRenderableItemIds {
+      ComposeUI.assert(oldRenderableItemMap[id] != nil, "missing old renderable item: \(id)")
+      ComposeUI.assert(oldRenderableMap[id] != nil, "missing old renderable: \(id)")
+    }
+    #endif
+
     let renderableItemsCount = renderableItems.count
     renderableItemIds = []
     renderableItemIds.reserveCapacity(renderableItemsCount)
@@ -858,6 +868,16 @@ open class ComposeView: BaseScrollView {
 
       renderableMap[id] = renderable
     }
+
+    #if DEBUG
+    // sanity check for renderable item ids and maps after rendering
+    ComposeUI.assert(renderableItemIds.count == renderableItemMap.count, "mismatched renderable item count")
+    ComposeUI.assert(renderableItemIds.count == renderableMap.count, "mismatched renderable count")
+    for id in renderableItemIds {
+      ComposeUI.assert(renderableItemMap[id] != nil, "missing renderable item: \(id)")
+      ComposeUI.assert(renderableMap[id] != nil, "missing renderable: \(id)")
+    }
+    #endif
   }
 
   // MARK: - Testing
