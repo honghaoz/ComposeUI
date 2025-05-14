@@ -392,6 +392,7 @@ open class ComposeView: BaseScrollView {
   private weak var observingWindow: NSWindow?
   private var observingDidBecomeKeyToken: Any?
   private var observingDidResignKeyToken: Any?
+  private var observingDidBecomeActiveToken: Any?
   private var observingWindowBackingPropertiesToken: Any?
 
   private func startObservingWindow() {
@@ -427,6 +428,17 @@ open class ComposeView: BaseScrollView {
       }
     )
 
+    // `NSWindow.didBecomeKeyNotification` can be missed sometimes, observe `NSApplication.didBecomeActiveNotification`
+    // to make sure the key window state is reliably observed
+    observingDidBecomeActiveToken = NotificationCenter.default.addObserver(
+      forName: NSApplication.didBecomeActiveNotification,
+      object: nil,
+      queue: nil,
+      using: { [weak self] _ in
+        self?.keyWindowDidChange()
+      }
+    )
+
     observingWindowBackingPropertiesToken = NotificationCenter.default.addObserver(
       forName: NSWindow.didChangeBackingPropertiesNotification,
       object: window,
@@ -450,20 +462,32 @@ open class ComposeView: BaseScrollView {
       self.observingDidResignKeyToken = nil
     }
 
+    if let observingDidBecomeActiveToken {
+      NotificationCenter.default.removeObserver(observingDidBecomeActiveToken, name: NSApplication.didBecomeActiveNotification, object: nil)
+      self.observingDidBecomeActiveToken = nil
+    }
+
     if let observingWindowBackingPropertiesToken {
       NotificationCenter.default.removeObserver(observingWindowBackingPropertiesToken, name: NSWindow.didChangeBackingPropertiesNotification, object: observingWindow)
       self.observingWindowBackingPropertiesToken = nil
     }
 
     observingWindow = nil
+    oldIsKeyWindow = false
   }
 
+  private var oldIsKeyWindow: Bool = false
+
   private func keyWindowDidChange() {
-    guard window != nil else {
+    guard let window else {
       return
     }
 
-    setNeedsRefresh()
+    if window.isKeyWindow != oldIsKeyWindow {
+      setNeedsRefresh()
+    }
+
+    oldIsKeyWindow = window.isKeyWindow
   }
 
   private func windowBackingPropertiesDidChange() {

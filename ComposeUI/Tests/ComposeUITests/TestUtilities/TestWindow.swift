@@ -76,10 +76,31 @@ final class TestWindow: Window {
   }
 
   #if canImport(AppKit)
+
+  private var _isKey: Bool = false
+
+  override var isKeyWindow: Bool {
+    get {
+      _isKey
+    }
+    set {
+      _isKey = newValue
+    }
+  }
+
   override func makeKey() {
     super.makeKey()
 
+    // somehow no `didBecomeKeyNotification` is triggered, so we need to post it manually
     NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: self)
+
+    _isKey = true
+  }
+
+  override func resignKey() {
+    super.resignKey()
+
+    _isKey = false
   }
   #endif
 }
