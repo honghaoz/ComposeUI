@@ -45,11 +45,15 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, FixedSizableC
 
   private var viewNode: ViewNode<View>
 
-  /// Create a SwiftUI view node.
+  /// Create a static SwiftUI view node.
+  ///
+  /// This is a static SwiftUI view node. The SwiftUI view will be rendered once and not updated.
+  /// Use `SwiftUIViewNode { ... }` to create a dynamic SwiftUI view node.
   ///
   /// - Parameters:
+  ///   - id: The id used to differentiate the SwiftUI content. The id should be unique to the SwiftUI content.
   ///   - content: The SwiftUI view to render.
-  public init(_ content: Content) {
+  public init(id: String, _ content: Content) {
     self.viewNode = ViewNode(
       make: { context in
         let view = SwiftUIHostingView(rootView: AnyView(content))
@@ -59,10 +63,10 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, FixedSizableC
         return view
       }
     )
-    self.viewNode.id = .standard(.swiftui)
+    self.viewNode.id = .custom("SUI-\(id)")
   }
 
-  /// Create a SwiftUI view node.
+  /// Create a dynamic SwiftUI view node.
   ///
   /// - Parameters:
   ///   - content: A closure that returns the SwiftUI view to render.

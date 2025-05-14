@@ -39,7 +39,7 @@ class SwiftUIViewNodeTests: XCTestCase {
     var view1: SwiftUIHostingView<AnyView>?
     var view2: MutableSwiftUIHostingView?
     let contentView = ComposeView {
-      SwiftUIViewNode(Text("Hello, World!"))
+      SwiftUIViewNode(id: "text", Text("Hello, World!"))
         .onInsert { renderable, _ in
           view1 = renderable.view as? SwiftUIHostingView<AnyView>
         }
