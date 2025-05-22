@@ -362,8 +362,8 @@ extension Playground {
             .innerShadow(
               color: ThemedColor(light: .black, dark: .red),
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 0, dark: 5),
-              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 0, height: 0)),
+              radius: Themed<CGFloat>(light: 8, dark: 4),
+              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
               paths: { renderItem in
                 let size = renderItem.frame.size
                 let spread: CGFloat = 4
@@ -388,7 +388,7 @@ extension Playground {
               LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
             }
             .overlay {
-              Text("inner shadow")
+              Text("inner shadow with spread")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)

@@ -46,8 +46,9 @@ class DropShadowNodeTests: XCTestCase {
         DropShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), paths: { renderItem in
           let size = renderItem.frame.size
           let cornerRadius = renderItem.layer.cornerRadius
-          let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-          return DropShadowPaths(shadowPath: path, cutoutPath: path)
+          let shadowPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+          let cutoutPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 10, dy: 10), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+          return DropShadowPaths(shadowPath: shadowPath, cutoutPath: cutoutPath)
         })
       }
     }
@@ -84,6 +85,18 @@ class DropShadowNodeTests: XCTestCase {
 
     let maskLayer = try unwrap(shadowLayer2.mask as? CAShapeLayer)
     expect(maskLayer.fillRule) == .evenOdd
-    expect(maskLayer.path) != nil
+
+    let cutoutPath = CGPath(roundedRect: CGRect(x: 10, y: 10, width: 80, height: 30), cornerWidth: 0, cornerHeight: 0, transform: nil)
+
+    let radius: CGFloat = 10
+    let offset = CGSize(width: 2, height: 5)
+    let hExtraSize = radius + abs(offset.width) + 1000
+    let vExtraSize = radius + abs(offset.height) + 1000
+    let biggerBounds = cutoutPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
+
+    let biggerPath = CGMutablePath()
+    biggerPath.addPath(CGPath(rect: biggerBounds, transform: nil))
+    biggerPath.addPath(cutoutPath)
+    expect(maskLayer.path) == biggerPath
   }
 }

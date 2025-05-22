@@ -46,8 +46,9 @@ class InnerShadowNodeTests: XCTestCase {
         InnerShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), paths: { renderItem in
           let size = renderItem.frame.size
           let cornerRadius = renderItem.layer.cornerRadius
-          let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-          return InnerShadowPaths(shadowPath: path, clipPath: path)
+          let shadowPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+          let clipPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 10, dy: 10), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+          return InnerShadowPaths(shadowPath: shadowPath, clipPath: clipPath)
         })
       }
     }
@@ -86,6 +87,6 @@ class InnerShadowNodeTests: XCTestCase {
     expect(shadowLayer2.shadowPath) != nil
 
     let maskLayer2 = try unwrap(shadowLayer2.mask as? CAShapeLayer)
-    expect(maskLayer2.path) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 0, cornerHeight: 0, transform: nil)
+    expect(maskLayer2.path) == CGPath(roundedRect: CGRect(x: 10, y: 10, width: 80, height: 30), cornerWidth: 0, cornerHeight: 0, transform: nil)
   }
 }
