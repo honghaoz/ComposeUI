@@ -438,23 +438,20 @@ public extension ComposeNode {
         layer.animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
         layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
         layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
-        if let path = path?(item) {
-          layer.animate(
-            keyPath: "shadowPath",
-            timing: animationTiming,
-            from: { $0.presentation()?.shadowPath },
-            to: { _ in path }
-          )
-        }
+        let path = path?(item)
+        layer.animate(
+          keyPath: "shadowPath",
+          timing: animationTiming,
+          from: { $0.presentation()?.shadowPath },
+          to: { _ in path }
+        )
       } else {
         layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
           layer.shadowColor = color
           layer.shadowOpacity = opacity
           layer.shadowRadius = radius
           layer.shadowOffset = offset
-          if let path = path?(item) {
-            layer.shadowPath = path
-          }
+          layer.shadowPath = path?(item)
         }
       }
     }

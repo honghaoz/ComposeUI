@@ -76,18 +76,25 @@ open class InnerShadowLayer: CALayer {
 
   /// Update the inner shadow layer with a new shadow.
   ///
+  /// Note: The inner shadow is achieved with a "punch hole" path with drop shadow.
+  /// The `path` is the "punch hole" path, and the `clipPath` is the shape of the layer.
+  ///
+  /// For a shadow without "spread" effect, the `path` and `clipPath` should be the same, which is the shape of the layer.
+  ///
   /// - Parameters:
   ///   - color: The color of the shadow.
   ///   - opacity: The opacity of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
   ///   - path: The path of the shadow.
+  ///   - clipPath: The path to clip the layer. This should be a path representing the shape of the layer.
   ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
                      path: @escaping (InnerShadowLayer) -> CGPath,
+                     clipPath: ((InnerShadowLayer) -> CGPath)?,
                      animationTiming: AnimationTiming? = nil)
   {
     let color = color.cgColor
@@ -131,7 +138,11 @@ open class InnerShadowLayer: CALayer {
     } else {
       maskLayer.disableActions(for: "position", "bounds", "path") {
         maskLayer.frame = bounds
-        maskLayer.path = shadowShapePath
+        if let clipPath {
+          maskLayer.path = clipPath(self)
+        } else {
+          maskLayer.path = shadowShapePath
+        }
       }
 
       disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {

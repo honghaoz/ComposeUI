@@ -42,6 +42,13 @@ class InnerShadowNodeTests: XCTestCase {
           let cornerRadius = renderItem.layer.cornerRadius
           return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
         })
+
+        InnerShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), paths: { renderItem in
+          let size = renderItem.frame.size
+          let cornerRadius = renderItem.layer.cornerRadius
+          let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+          return InnerShadowPaths(shadowPath: path, clipPath: path)
+        })
       }
     }
 
@@ -50,19 +57,35 @@ class InnerShadowNodeTests: XCTestCase {
     view.refresh()
 
     #if canImport(AppKit)
-    let shadowLayer = try unwrap(view.contentView().layer?.sublayers?[0])
+    let shadowLayer1 = try unwrap(view.contentView().layer?.sublayers?[0])
     #endif
     #if canImport(UIKit)
-    let shadowLayer = try unwrap(view.contentView().layer.sublayers?[0])
+    let shadowLayer1 = try unwrap(view.contentView().layer.sublayers?[0])
     #endif
 
-    expect(shadowLayer.shadowColor) == Color.black.cgColor
-    expect(shadowLayer.shadowOpacity) == 0.5
-    expect(shadowLayer.shadowRadius) == 10
-    expect(shadowLayer.shadowOffset) == CGSize(width: 2, height: 5)
-    expect(shadowLayer.shadowPath) != nil
+    expect(shadowLayer1.shadowColor) == Color.black.cgColor
+    expect(shadowLayer1.shadowOpacity) == 0.5
+    expect(shadowLayer1.shadowRadius) == 10
+    expect(shadowLayer1.shadowOffset) == CGSize(width: 2, height: 5)
+    expect(shadowLayer1.shadowPath) != nil
 
-    let maskLayer = try unwrap(shadowLayer.mask as? CAShapeLayer)
-    expect(maskLayer.path) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 100), cornerWidth: 0, cornerHeight: 0, transform: nil)
+    let maskLayer1 = try unwrap(shadowLayer1.mask as? CAShapeLayer)
+    expect(maskLayer1.path) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 0, cornerHeight: 0, transform: nil)
+
+    #if canImport(AppKit)
+    let shadowLayer2 = try unwrap(view.contentView().layer?.sublayers?[1])
+    #endif
+    #if canImport(UIKit)
+    let shadowLayer2 = try unwrap(view.contentView().layer.sublayers?[1])
+    #endif
+
+    expect(shadowLayer2.shadowColor) == Color.black.cgColor
+    expect(shadowLayer2.shadowOpacity) == 0.5
+    expect(shadowLayer2.shadowRadius) == 10
+    expect(shadowLayer2.shadowOffset) == CGSize(width: 2, height: 5)
+    expect(shadowLayer2.shadowPath) != nil
+
+    let maskLayer2 = try unwrap(shadowLayer2.mask as? CAShapeLayer)
+    expect(maskLayer2.path) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 0, cornerHeight: 0, transform: nil)
   }
 }

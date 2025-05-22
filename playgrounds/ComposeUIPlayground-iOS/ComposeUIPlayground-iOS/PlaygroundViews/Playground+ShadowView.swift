@@ -344,6 +344,49 @@ extension Playground {
                 return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
               }
             )
+            .background {
+              LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
+            }
+            .overlay {
+              Text("inner shadow")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+            }
+            .frame(width: 100, height: 80)
+
+          Spacer(width: 16)
+
+          LayerNode()
+            .cornerRadius(16)
+            .innerShadow(
+              color: ThemedColor(light: .black, dark: .red),
+              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+              radius: Themed<CGFloat>(light: 0, dark: 5),
+              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 0, height: 0)),
+              paths: { renderItem in
+                let size = renderItem.frame.size
+                let spread: CGFloat = 4
+                let cornerRadius: CGFloat = 16
+                let shadowCornerRadius: CGFloat = cornerRadius - spread
+                let shadowPath = CGPath(
+                  roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 8, dy: 8),
+                  cornerWidth: shadowCornerRadius,
+                  cornerHeight: shadowCornerRadius,
+                  transform: nil
+                )
+                let shapePath = CGPath(
+                  roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
+                  cornerWidth: cornerRadius,
+                  cornerHeight: cornerRadius,
+                  transform: nil
+                )
+                return InnerShadowPaths(shadowPath: shadowPath, clipPath: shapePath)
+              }
+            )
+            .background {
+              LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
+            }
             .overlay {
               Text("inner shadow")
                 .font(.systemFont(ofSize: 12))
