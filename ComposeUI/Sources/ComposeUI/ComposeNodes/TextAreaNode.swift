@@ -38,10 +38,7 @@ import UIKit
 
 public typealias TextArea = TextAreaNode
 
-/// A node that renders a multi-line, editable text area.
-///
-/// By default, the text area node is multi-line with flexible width and height.
-/// Use `fixedSize(width:height:)` to set the width and height to be fixed or flexible.
+/// A node that renders text.
 ///
 /// Performance note: Using `fixedSize(width:height:)` will make the text area node
 /// re-calculate the intrinsic text size on layout, which is expensive. So it is
@@ -55,6 +52,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   // MARK: - Text layout
 
   private var numberOfLines: Int
+  private var lineBreakMode: NSLineBreakMode
 
   private var textContainerInset: CGSize
   private var intrinsicTextSizeAdjustment: CGSize
@@ -65,12 +63,28 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
 
-  /// Initialize a text area node with attributed text.
+  /// Initialize a text node with attributed text.
+  ///
+  /// By default, the text is multi-line with flexible size. Use `fixedSize(width:height:)` to set the width and height to be fixed or flexible.
+  /// By default, the text is selectable but not editable. Use `editable(_:)` and `selectable(_:)` to change the behavior.
+  ///
+  /// Note for line break mode:
+  /// - For single line text:
+  ///   - If the text node's line break mode is `.byWordWrapping`, `.byCharWrapping`, or `.byClipping`, all line break modes in the attributed string's paragraph styles work.
+  ///   - If the text node's line break mode is `.byTruncatingHead`, `.byTruncatingTail`, or `.byTruncatingMiddle`, only the line break modes: `.byClipping`, `.byTruncatingHead`, `.byTruncatingTail`, and `.byTruncatingMiddle` in the attributed string's paragraph styles work.
+  ///     The line break modes: `.byWordWrapping`, `.byCharWrapping` in the attributed string's paragraph styles are ignored.
+  /// - For multiline text:
+  ///   - For attributed string's paragraph styles:
+  ///     - Use `.byWordWrapping` or `.byCharWrapping`, it will render the text as multiple lines.
+  ///     - Don't use `.byClipping`, `.byTruncatingHead`, `.byTruncatingTail`, and `.byTruncatingMiddle` as it makes the text render as a **single line**.
+  ///   - Set text node's line break mode to `.byTruncatingHead`, `.byTruncatingTail`, or `.byTruncatingMiddle` so that the last line of the text is truncated with ellipsis.
   ///
   /// - Parameter attributedString: The attributed text to display.
   public init(_ attributedString: NSAttributedString) {
     self.attributedString = attributedString
+
     numberOfLines = 0
+    lineBreakMode = .byWordWrapping
 
     textContainerInset = .zero
     intrinsicTextSizeAdjustment = Constants.defaultIntrinsicTextSizeAdjustment
@@ -90,6 +104,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   /// TextArea(
   ///   "Hello, world!",
   ///   font: .systemFont(ofSize: 18),
+  ///   foregroundColor: ThemedColor(light: .black, dark: .white),
   ///   backgroundColor: ThemedColor(light: .red.withAlphaComponent(0.1), dark: .green.withAlphaComponent(0.1)),
   ///   shadow: Themed<NSShadow>(
   ///     light: {
@@ -120,7 +135,8 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   ///   - backgroundColor: The themed background color to use for the text. Default value is `nil`.
   ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
   ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
-  ///   - lineBreakMode: The line break mode to use for the text. The default value is `.byWordWrapping`.
+  ///   - lineBreakMode: The line break mode to use for the text. The default value is `.byWordWrapping`. This line break mode is used in the attributed string's paragraph style. It is unrelated to the text node's line break mode.
+  ///                    For multiline text, use `.byWordWrapping` or `.byCharWrapping` to render the text as multiple lines. Use other line break modes will make the text render as a single line.
   public init(_ string: String,
               font: Font = Font.systemFont(ofSize: 17),
               foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
@@ -150,6 +166,67 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     self.init(NSAttributedString(string: string, attributes: attributes))
   }
 
+  /// Initialize a text area node with single line text.
+  ///
+  /// By default, the text is truncated with tail ellipsis. Use `lineBreakMode(_:)` to change the truncation behavior.
+  ///
+  /// By default, the text has fixed size. Use `fixedSize(width:height:)` to change the size behavior.
+  ///
+  /// - Parameters:
+  ///   - string: The string to display.
+  ///   - font: The font to use for the text. The default value is `Font.systemFont(ofSize: 17)`.
+  ///   - foregroundColor: The themed foreground color to use for the text. Default value is foreground text color.
+  ///   - backgroundColor: The themed background color to use for the text. Default value is `nil`.
+  ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
+  ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
+  static func singleLineText(_ string: String,
+                             font: Font = Font.systemFont(ofSize: 17),
+                             foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
+                             backgroundColor: ThemedColor? = nil,
+                             shadow: Themed<NSShadow>? = nil,
+                             textAlignment: NSTextAlignment = .natural) -> Self
+  {
+    var node = TextArea(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
+
+    node.numberOfLines = 1
+    node.lineBreakMode = .byTruncatingTail
+
+    node.isFixedWidth = true
+    node.isFixedHeight = true
+
+    return node
+  }
+
+  /// Initialize a text area node with multi-line text.
+  ///
+  /// By default, the text last line is truncated with tail ellipsis. Use `lineBreakMode(_:)` to change the truncation behavior.
+  ///
+  /// By default, the text has flexible size. Use `fixedSize(width:height:)` to change the size behavior.
+  ///
+  /// - Parameters:
+  ///   - string: The string to display.
+  ///   - font: The font to use for the text. The default value is `Font.systemFont(ofSize: 17)`.
+  ///   - foregroundColor: The themed foreground color to use for the text. Default value is foreground text color.
+  ///   - backgroundColor: The themed background color to use for the text. Default value is `nil`.
+  ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
+  ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
+  ///   - numberOfLines: The number of lines to display. The default value is `0`.
+  static func multiLineText(_ string: String,
+                            font: Font = Font.systemFont(ofSize: 17),
+                            foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
+                            backgroundColor: ThemedColor? = nil,
+                            shadow: Themed<NSShadow>? = nil,
+                            textAlignment: NSTextAlignment = .natural,
+                            numberOfLines: Int = 0) -> Self
+  {
+    var node = TextArea(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
+
+    node.numberOfLines = numberOfLines
+    node.lineBreakMode = .byTruncatingTail
+
+    return node
+  }
+
   // MARK: - ComposeNode
 
   public var id: ComposeNodeId = .standard(.textView)
@@ -176,23 +253,11 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   }
 
   private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
-    #if canImport(AppKit)
-    var rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width - textContainerInset.width * 2)
-    rawIntrinsicSize = CGSize(width: rawIntrinsicSize.width, height: rawIntrinsicSize.height + textContainerInset.height * 2)
-    #endif
-
-    #if canImport(UIKit)
-    var rawIntrinsicSize: CGSize = .zero
-    if numberOfLines == 1 {
-      rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width - textContainerInset.width * 2)
-      rawIntrinsicSize = CGSize(width: rawIntrinsicSize.width, height: rawIntrinsicSize.height + textContainerInset.height * 2)
-    } else {
-      updateTextView(sizingTextView, theme: .light)
-      rawIntrinsicSize = sizingTextView.sizeThatFits(containerSize)
-    }
-    #endif
-
-    let intrinsicSize = CGSize(width: rawIntrinsicSize.width + intrinsicTextSizeAdjustment.width, height: rawIntrinsicSize.height + intrinsicTextSizeAdjustment.height)
+    let rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width - textContainerInset.width * 2)
+    let intrinsicSize = CGSize(
+      width: rawIntrinsicSize.width + intrinsicTextSizeAdjustment.width,
+      height: rawIntrinsicSize.height + textContainerInset.height * 2 + intrinsicTextSizeAdjustment.height
+    )
     return intrinsicSize.roundedUp(scaleFactor: 1)
   }
 
@@ -224,6 +289,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     textView.attributedString = mutableAttributedString.apply(theme: theme)
 
     textView.numberOfLines = numberOfLines
+    textView.lineBreakMode = lineBreakMode
 
     #if canImport(AppKit)
     textView.textContainerInset = textContainerInset
@@ -258,6 +324,20 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
 
     var copy = self
     copy.numberOfLines = value
+    return copy
+  }
+
+  /// Set the line break mode of the text area.
+  ///
+  /// - Parameter value: The line break mode to set.
+  /// - Returns: A new text area node with the updated line break mode.
+  public func lineBreakMode(_ value: NSLineBreakMode) -> Self {
+    guard lineBreakMode != value else {
+      return self
+    }
+
+    var copy = self
+    copy.lineBreakMode = value
     return copy
   }
 
@@ -334,7 +414,3 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     static let defaultIntrinsicTextSizeAdjustment = CGSize(width: 0, height: 1)
   }
 }
-
-#if canImport(UIKit)
-let sizingTextView = BaseTextView()
-#endif

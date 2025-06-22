@@ -62,17 +62,23 @@ open class BaseTextView: TextView {
   }
 
   /// The number of lines to display. Set to 0 for unlimited lines (default).
-  ///
-  /// The line break mode is set to `byTruncatingTail` for 1 line, and `byWordWrapping` for multiple lines.
   open var numberOfLines: Int = 0 {
     didSet {
       if numberOfLines == 1 {
         textContainer?.maximumNumberOfLines = 1
-        textContainer?.lineBreakMode = .byTruncatingTail
       } else {
         textContainer?.maximumNumberOfLines = numberOfLines > 0 ? numberOfLines : 0
-        textContainer?.lineBreakMode = .byWordWrapping
       }
+
+      invalidateIntrinsicContentSize()
+      scheduleLayout()
+    }
+  }
+
+  /// The line break mode to use for the text view. Default is `byWordWrapping`.
+  open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
+    didSet {
+      textContainer?.lineBreakMode = lineBreakMode
 
       invalidateIntrinsicContentSize()
       scheduleLayout()
@@ -103,6 +109,9 @@ open class BaseTextView: TextView {
     }
 
     updateCommonSettings()
+
+    textContainer?.maximumNumberOfLines = numberOfLines
+    textContainer?.lineBreakMode = lineBreakMode
 
     isEditable = false
     isSelectable = true
@@ -170,22 +179,28 @@ open class BaseTextView: UITextView {
   }
 
   /// The number of lines to display. Set to 0 for unlimited lines (default).
-  ///
-  /// The line break mode is set to `byTruncatingTail` for 1 line, and `byWordWrapping` for multiple lines.
   open var numberOfLines: Int = 0 {
     didSet {
       if numberOfLines == 1 {
         textContainer.maximumNumberOfLines = 1
-        textContainer.lineBreakMode = .byTruncatingTail
       } else {
         textContainer.maximumNumberOfLines = numberOfLines > 0 ? numberOfLines : 0
-        textContainer.lineBreakMode = .byWordWrapping
       }
+    }
+  }
+
+  /// The line break mode to use for the text view. Default is `byWordWrapping`.
+  open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
+    didSet {
+      textContainer.lineBreakMode = lineBreakMode
     }
   }
 
   override public init(frame: CGRect, textContainer: NSTextContainer?) {
     super.init(frame: frame, textContainer: textContainer)
+
+    self.textContainer.maximumNumberOfLines = numberOfLines
+    self.textContainer.lineBreakMode = lineBreakMode
 
     contentInsetAdjustmentBehavior = .never
 

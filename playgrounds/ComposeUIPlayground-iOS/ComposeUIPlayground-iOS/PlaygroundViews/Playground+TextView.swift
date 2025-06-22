@@ -59,7 +59,7 @@ extension Playground {
 
     @ComposeContentBuilder
     override var content: ComposeContent {
-      TextArea(attributedString(alignment: .center, lineBreakMode: .byWordWrapping))
+      TextArea(attributedString(alignment: .center))
         .numberOfLines(0)
         .fixedSize(width: false, height: true)
         .textContainerInset(horizontal: 16, vertical: 16)
@@ -83,6 +83,7 @@ extension Playground {
       TextArea(
         longText,
         font: .systemFont(ofSize: 14),
+        foregroundColor: ThemedColor(light: .purple, dark: .red),
         backgroundColor: ThemedColor(light: .red.withAlphaComponent(0.1), dark: .green.withAlphaComponent(0.1)),
         shadow: Themed<NSShadow>(
           light: {
@@ -100,8 +101,7 @@ extension Playground {
             return shadow
           }()
         ),
-        textAlignment: .left,
-        lineBreakMode: .byWordWrapping
+        textAlignment: .left
       )
       .fixedSize(width: false, height: true)
       .padding(horizontal: 4, vertical: 4)
@@ -116,8 +116,9 @@ extension Playground {
             for lineBreakMode in lineBreakModes {
               HStack(alignment: .top, spacing: 10) {
                 for alignment in alignments {
-                  TextArea(attributedString(alignment: alignment, lineBreakMode: lineBreakMode))
+                  TextArea(attributedString(alignment: alignment, lineBreakMode: numberOfLines == 1 ? lineBreakMode : nil))
                     .numberOfLines(numberOfLines)
+                    .lineBreakMode(lineBreakMode)
                     .fixedSize(width: false, height: true)
                     .editable()
                     .transition(.opacity())
@@ -147,10 +148,10 @@ private let longText = """
 Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.
 """
 
-private func attributedString(alignment: NSTextAlignment, lineBreakMode: NSLineBreakMode) -> NSAttributedString {
+private func attributedString(alignment: NSTextAlignment, lineBreakMode: NSLineBreakMode? = nil) -> NSAttributedString {
   let style = NSMutableParagraphStyle()
   style.alignment = alignment
-  style.lineBreakMode = lineBreakMode
+  style.lineBreakMode = lineBreakMode ?? .byWordWrapping
   style.lineBreakStrategy = []
 
   return NSAttributedString(string: longText, attributes: [
