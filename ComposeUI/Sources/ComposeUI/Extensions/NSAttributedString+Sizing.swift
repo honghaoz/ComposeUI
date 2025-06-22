@@ -31,6 +31,14 @@
 import Foundation
 import CoreText
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if canImport(UIKit)
+import UIKit
+#endif
+
 extension NSAttributedString {
 
   /// Calculate the bounding size of the attributed string.
@@ -40,9 +48,21 @@ extension NSAttributedString {
   /// - Parameters:
   ///   - numberOfLines: The number of lines to calculate the bounding size for. Use 0 for unlimited lines.
   ///   - layoutWidth: The width of the layout. For single line text, the smaller of the layout width and the text's intrinsic size is returned.
+  ///   - lineBreakMode: The line break mode to use for the layout. The line break mode should be either `byWordWrapping` or `byCharWrapping`. Default is `byWordWrapping`.
   /// - Returns: The bounding size of the attributed string.
-  func boundingRectSize(numberOfLines: Int, layoutWidth: CGFloat) -> CGSize {
-    let attributedString = self
+  func boundingRectSize(numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode = .byWordWrapping) -> CGSize {
+    let sanitizedLineBreakMode: NSLineBreakMode
+    switch lineBreakMode {
+    case .byClipping,
+         .byTruncatingTail,
+         .byTruncatingHead,
+         .byTruncatingMiddle:
+      sanitizedLineBreakMode = .byWordWrapping
+    default:
+      sanitizedLineBreakMode = lineBreakMode
+    }
+
+    let attributedString = self.adjustingLineBreakMode(sanitizedLineBreakMode)
     guard attributedString.length > 0 else {
       return .zero
     }
@@ -128,5 +148,50 @@ extension NSAttributedString {
     let lineBottom = lineOriginY + descent + leading
 
     return CGSize(width: min(width, layoutWidth), height: lineBottom)
+  }
+
+  /// Adjust the line break mode of the attributed string.
+  ///
+  /// The CoreText (`CTFrameGetLines`) returns decreased number of lines (`CTLine`) if the attributed string has
+  /// paragraph style with the `lineBreakMode` set to truncating mode such as `.byClipping`, `.byTruncatingTail`,
+  /// `.byTruncatingHead` or `.byTruncatingMiddle`. In this case, each line can have two `CTRun`s.
+  ///
+  /// With `byWordWrapping` or `byCharWrapping` line break mode, CoreText can return correct lines with each line have
+  /// one `CTRun`.
+  ///
+  /// This method returns the attributed string as is if no paragraph style with different line break mode is found.
+  /// Otherwise, it will return a new attributed string with the updated line break mode.
+  ///
+  /// - Parameter lineBreakMode: The line break mode to set.
+  /// - Returns: An attributed string with the updated line break mode.
+  private func adjustingLineBreakMode(_ lineBreakMode: NSLineBreakMode) -> NSAttributedString {
+    var needsAdjustment = false
+    var rangesToUpdate: [(NSRange, NSParagraphStyle)] = []
+
+    // first pass: check if any adjustments are needed and collect ranges
+    enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: length), options: []) { value, range, _ in
+      if let paragraphStyle = value as? NSParagraphStyle, paragraphStyle.lineBreakMode != lineBreakMode {
+        needsAdjustment = true
+        rangesToUpdate.append((range, paragraphStyle))
+      }
+    }
+
+    // return original if no changes are needed
+    guard needsAdjustment else {
+      return self
+    }
+
+    // second pass: apply changes efficiently
+    let mutableCopy = NSMutableAttributedString(attributedString: self)
+
+    for (range, originalStyle) in rangesToUpdate {
+      guard let newParagraphStyle = originalStyle.mutableCopy() as? NSMutableParagraphStyle else {
+        continue
+      }
+      newParagraphStyle.lineBreakMode = lineBreakMode
+      mutableCopy.addAttribute(.paragraphStyle, value: newParagraphStyle, range: range)
+    }
+
+    return mutableCopy
   }
 }
