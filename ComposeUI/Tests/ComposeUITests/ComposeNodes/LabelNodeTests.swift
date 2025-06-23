@@ -352,11 +352,11 @@ private extension NSAttributedString {
     attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.paragraphStyle] as? NSParagraphStyle
   }
 
-  func font() -> NSFont? {
-    attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.font] as? NSFont
+  func font() -> Font? {
+    attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.font] as? Font
   }
 
-  func foregroundColor() -> NSColor? {
-    attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.foregroundColor] as? NSColor
+  func foregroundColor() -> Color? {
+    attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.foregroundColor] as? Color
   }
 }
