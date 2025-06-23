@@ -1,8 +1,8 @@
 //
-//  TextVerticalAlignment.swift
+//  TextTruncationMode.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 3/14/23.
+//  Created by Honghao Zhang on 12/24/23.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,17 +28,26 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
-/// The vertical alignment of text.
-public enum TextVerticalAlignment: Hashable {
-
-  /// The text is aligned to the top.
-  case top
-
-  /// The text is aligned to the center.
-  case center
-
-  /// The text is aligned to the bottom.
-  case bottom
-}
+//  #if canImport(AppKit)
+//  import AppKit
+//  #endif
+//
+//  #if canImport(UIKit)
+//  import UIKit
+//  #endif
+//
+//  /// Text truncation mode.
+//  public enum TextTruncationMode: Hashable {
+//
+//    /// No truncation.
+//    case none
+//
+//    /// Truncate the text from the head.
+//    case head
+//
+//    /// Truncate the text from the tail.
+//    case tail
+//
+//    /// Truncate the text from the middle.
+//    case middle
+//  }

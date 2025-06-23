@@ -102,7 +102,7 @@ extension Playground {
         }
 
         node.overlay {
-          TextArea(
+          Text(
             "Download",
             font: .systemFont(ofSize: NSFont.systemFontSize),
             foregroundColor: ThemedColor(Color.white),

@@ -28,20 +28,20 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
-import UIKit
-#endif
-
-/// Line wrap mode.
-public enum LineWrapMode: Hashable {
-
-  /// Wrap the text by word.
-  case byWord
-
-  /// Wrap the text by character.
-  case byChar
-}
+//  #if canImport(AppKit)
+//  import AppKit
+//  #endif
+//
+//  #if canImport(UIKit)
+//  import UIKit
+//  #endif
+//
+//  /// Line wrap mode.
+//  public enum LineWrapMode: Hashable {
+//
+//    /// Wrap the text by word.
+//    case byWord
+//
+//    /// Wrap the text by character.
+//    case byChar
+//  }

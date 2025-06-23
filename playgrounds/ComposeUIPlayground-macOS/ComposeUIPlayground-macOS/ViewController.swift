@@ -45,13 +45,12 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
-      Text("Hello, ComposéUI!")
-        .frame(width: .intrinsic, height: .intrinsic)
+      Label("Hello, ComposéUI!")
         .transition(.opacity(timing: .linear(duration: 2)))
 
       Spacer(height: 8)
 
-      Text("Building UI using UIKit/AppKit with declarative syntax")
+      Label("Building UI using UIKit/AppKit with declarative syntax")
         .textColor(.secondaryLabelColor)
         .transition(.opacity(timing: .linear(duration: 2, delay: 0.5)))
 

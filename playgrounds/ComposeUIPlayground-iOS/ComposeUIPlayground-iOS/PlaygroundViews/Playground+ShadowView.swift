@@ -71,7 +71,7 @@ extension Playground {
               renderable.layer.drawsAsynchronously = true
             }
             .overlay {
-              Text("direct\nshadow")
+              Label("direct\nshadow")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -95,7 +95,7 @@ extension Playground {
               renderable.layer.drawsAsynchronously = true
             }
             .overlay {
-              Text("shadow\nunderlay")
+              Label("shadow\nunderlay")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -134,7 +134,7 @@ extension Playground {
               }
             }
             .overlay {
-              Text("no shadow\ncutout")
+              Label("no shadow\ncutout")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -165,7 +165,7 @@ extension Playground {
               renderable.layer.drawsAsynchronously = true
             }
             .overlay {
-              Text("has shadow\ncutout")
+              Label("has shadow\ncutout")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -195,7 +195,7 @@ extension Playground {
               renderable.layer.drawsAsynchronously = true
             }
             .overlay {
-              Text("inner\nshadow")
+              Label("inner\nshadow")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -228,7 +228,7 @@ extension Playground {
               }
             )
             .overlay {
-              Text("direct\nshadow")
+              Label("direct\nshadow")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -252,7 +252,7 @@ extension Playground {
               }
             )
             .overlay {
-              Text("shadow\nunderlay")
+              Label("shadow\nunderlay")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -277,7 +277,7 @@ extension Playground {
               }
             )
             .overlay {
-              Text("has shadow cutout")
+              Label("has shadow cutout")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -315,7 +315,7 @@ extension Playground {
               }
             )
             .overlay {
-              Text("shadow spread")
+              Label("shadow spread")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -348,7 +348,7 @@ extension Playground {
               LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
             }
             .overlay {
-              Text("inner shadow")
+              Label("inner shadow")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
@@ -388,7 +388,7 @@ extension Playground {
               LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
             }
             .overlay {
-              Text("inner shadow with spread")
+              Label("inner shadow with spread")
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)

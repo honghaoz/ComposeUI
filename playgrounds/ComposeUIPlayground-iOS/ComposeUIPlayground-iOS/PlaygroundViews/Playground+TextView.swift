@@ -59,7 +59,7 @@ extension Playground {
 
     @ComposeContentBuilder
     override var content: ComposeContent {
-      TextArea(attributedString(alignment: .center))
+      Text(attributedString(alignment: .center))
         .numberOfLines(0)
         .fixedSize(width: false, height: true)
         .textContainerInset(horizontal: 16, vertical: 16)
@@ -80,7 +80,7 @@ extension Playground {
 
       Spacer(height: 16)
 
-      TextArea(
+      Text(
         longText,
         font: .systemFont(ofSize: 14),
         foregroundColor: ThemedColor(light: .purple, dark: .red),
@@ -116,7 +116,7 @@ extension Playground {
             for lineBreakMode in lineBreakModes {
               HStack(alignment: .top, spacing: 10) {
                 for alignment in alignments {
-                  TextArea(attributedString(alignment: alignment, lineBreakMode: numberOfLines == 1 ? lineBreakMode : nil))
+                  Text(attributedString(alignment: alignment, lineBreakMode: numberOfLines == 1 ? lineBreakMode : nil))
                     .numberOfLines(numberOfLines)
                     .lineBreakMode(lineBreakMode)
                     .fixedSize(width: false, height: true)

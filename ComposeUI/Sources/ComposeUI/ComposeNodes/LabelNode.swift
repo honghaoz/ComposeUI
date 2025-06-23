@@ -36,7 +36,7 @@ import AppKit
 import UIKit
 #endif
 
-public typealias Text = LabelNode
+public typealias Label = LabelNode
 
 /// A node that renders a text label.
 ///
@@ -48,19 +48,28 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   private let text: String
   private var font: Font
+
   private var textColor: ThemedColor
+  private var backgroundColor: ThemedColor?
+  private var shadow: Themed<NSShadow>?
+
   private var textAlignment: NSTextAlignment
   private var numberOfLines: Int
   private var lineBreakMode: NSLineBreakMode
 
+  private var isSelectable: Bool
+
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
+
+  private var node: TextNode?
 
   /// Initialize a label node with a single line of text.
   ///
   /// - Parameter text: The text to render.
   public init(_ text: String) {
     self.text = text
+
     #if canImport(AppKit)
     font = .systemFont(ofSize: NSFont.systemFontSize)
     textColor = ThemedColor(light: .labelColor, dark: .labelColor)
@@ -75,9 +84,14 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     textColor = ThemedColor(light: .label, dark: .label)
     #endif
 
+    backgroundColor = nil
+    shadow = nil
+
     textAlignment = .center
     numberOfLines = 1
     lineBreakMode = .byTruncatingTail
+
+    isSelectable = false
 
     isFixedWidth = true
     isFixedHeight = true
@@ -87,135 +101,58 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   public var id: ComposeNodeId = .standard(.label)
 
-  public private(set) var size: CGSize = .zero
-
-  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    switch (isFixedWidth, isFixedHeight) {
-    case (true, true):
-      size = intrinsicTextSize(for: containerSize)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
-    case (true, false):
-      let intrinsicSize = intrinsicTextSize(for: containerSize)
-      size = CGSize(width: intrinsicSize.width, height: containerSize.height)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
-    case (false, true):
-      let intrinsicSize = intrinsicTextSize(for: containerSize)
-      size = CGSize(width: containerSize.width, height: intrinsicSize.height)
-      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
-    case (false, false):
-      size = containerSize
-      return ComposeNodeSizing(width: .flexible, height: .flexible)
+  public var size: CGSize {
+    guard let node else {
+      ComposeUI.assertFailure("layout(containerSize:context:) should be called before calling size")
+      return .zero
     }
+    return node.size
   }
 
-  private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
-    #if canImport(AppKit)
-    if numberOfLines == 1 {
-      // on Mac, `sizeThatFits` returns the height for multiline text like "Hello\nWorld"
-      let style = NSMutableParagraphStyle()
-      style.alignment = textAlignment
-      style.lineBreakMode = lineBreakMode
-      style.lineBreakStrategy = []
+  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    if node == nil {
+      if numberOfLines == 1 {
+        node = TextNode.singleLineText(
+          text,
+          font: font,
+          foregroundColor: textColor,
+          backgroundColor: backgroundColor,
+          shadow: shadow,
+          textAlignment: textAlignment
+        )
+      } else {
+        node = TextNode.multiLineText(
+          text,
+          font: font,
+          foregroundColor: textColor,
+          backgroundColor: backgroundColor,
+          shadow: shadow,
+          textAlignment: textAlignment,
+          numberOfLines: numberOfLines
+        )
+      }
 
-      let attributedString = NSAttributedString(string: text, attributes: [
-        .font: font,
-        .foregroundColor: Color.black,
-        .paragraphStyle: style,
-      ])
-      // use `.greatestFiniteMagnitude` to calculate the single line text intrinsic size
-      return attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: .greatestFiniteMagnitude).roundedUp(scaleFactor: 1)
-    } else {
-      updateLabel(sizingLabel, theme: .light)
-      return sizingLabel.sizeThatFits(containerSize).roundedUp(scaleFactor: 1)
+      node = node?.lineBreakMode(lineBreakMode)
+        .selectable(isSelectable)
+        .fixedSize(width: isFixedWidth, height: isFixedHeight)
+
+      node?.id = id
     }
-    #endif
 
-    #if canImport(UIKit)
-    updateLabel(sizingLabel, theme: .light)
-    return sizingLabel.sizeThatFits(containerSize).roundedUp(scaleFactor: 1)
-    #endif
+    return node!.layout(containerSize: containerSize, context: context) // swiftlint:disable:this force_unwrapping
   }
 
   public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    let frame = CGRect(origin: .zero, size: size)
-    guard visibleBounds.intersects(frame) else {
+    guard let node else {
+      ComposeUI.assertFailure("layout(containerSize:context:) should be called before calling renderableItems(in:)")
       return []
     }
-
-    let viewItem = ViewItem<BaseLabel>(
-      id: id,
-      frame: frame,
-      make: { BaseLabel(frame: $0.initialFrame ?? .zero) },
-      update: { view, context in
-        guard context.updateType.requiresFullUpdate else {
-          return
-        }
-        updateLabel(view, theme: context.contentView.theme)
-      }
-    )
-
-    return [viewItem.eraseToRenderableItem()]
-  }
-
-  // MARK: - Private
-
-  private func updateLabel(_ label: BaseLabel, theme: Theme) {
-    label.isUserInteractionEnabled = false
-
-    label.text = text
-    label.font = font
-    label.textColor = textColor.resolve(for: theme)
-    label.textAlignment = textAlignment
-    label.numberOfLines = numberOfLines
-    label.lineBreakMode = lineBreakMode
-
-    #if canImport(AppKit)
-    // special handling for NSLabel (NSTextField)
-    if numberOfLines == 1 {
-      let textTruncationMode: TextTruncationMode
-      switch lineBreakMode {
-      case .byWordWrapping,
-           .byCharWrapping:
-        textTruncationMode = .tail
-      case .byClipping:
-        textTruncationMode = .none
-      case .byTruncatingHead:
-        textTruncationMode = .head
-      case .byTruncatingMiddle:
-        textTruncationMode = .middle
-      case .byTruncatingTail:
-        textTruncationMode = .tail
-      @unknown default:
-        ComposeUI.assertFailure("Unsupported line break mode: \(lineBreakMode)")
-        textTruncationMode = .tail
-      }
-      label.setToSingleLineMode(truncationMode: textTruncationMode)
-    } else {
-      let lineWrapMode: LineWrapMode
-      switch lineBreakMode {
-      case .byWordWrapping:
-        lineWrapMode = .byWord
-      case .byCharWrapping:
-        lineWrapMode = .byChar
-      case .byClipping,
-           .byTruncatingHead,
-           .byTruncatingMiddle,
-           .byTruncatingTail:
-        // if NSLabel (NSTextField) uses multiline, only .byWordWrapping or .byCharWrapping is supported
-        // setting the line break mode to other values will make the label become single line
-        lineWrapMode = .byWord
-      @unknown default:
-        ComposeUI.assertFailure("Unsupported line break mode: \(lineBreakMode)")
-        lineWrapMode = .byWord
-      }
-      label.setToMultilineMode(numberOfLines: numberOfLines, lineWrapMode: lineWrapMode, truncatesLastVisibleLine: true)
-    }
-    #endif
+    return node.renderableItems(in: visibleBounds)
   }
 
   // MARK: - Public
 
-  /// Set the font of the label node.
+  /// Set the font of the label.
   ///
   /// - Parameter value: The font to set.
   /// - Returns: A new label node with the updated font.
@@ -226,10 +163,11 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
     var copy = self
     copy.font = value
+    copy.node = nil // invalidate the node so that it will be recreated with the new font
     return copy
   }
 
-  /// Set the text color of the label node.
+  /// Set the text color of the label.
   ///
   /// - Parameter value: The text color to set.
   /// - Returns: A new label node with the updated text color.
@@ -240,10 +178,11 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
     var copy = self
     copy.textColor = value
+    copy.node = nil // invalidate the node so that it will be recreated with the new text color
     return copy
   }
 
-  /// Set the text color of the label node.
+  /// Set the text color of the label.
   ///
   /// - Parameter value: The text color to set.
   /// - Returns: A new label node with the updated text color.
@@ -251,7 +190,37 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     textColor(ThemedColor(light: value, dark: value))
   }
 
-  /// Set the text alignment of the label node.
+  /// Set the background color of the label.
+  ///
+  /// - Parameter value: The background color to set.
+  /// - Returns: A new label node with the updated background color.
+  public func backgroundColor(_ value: ThemedColor?) -> Self {
+    guard backgroundColor != value else {
+      return self
+    }
+
+    var copy = self
+    copy.backgroundColor = value
+    copy.node = nil // invalidate the node so that it will be recreated with the new background color
+    return copy
+  }
+
+  /// Set the shadow of the label text.
+
+  /// - Parameter value: The shadow to set.
+  /// - Returns: A new label node with the updated shadow.
+  public func shadow(_ value: Themed<NSShadow>?) -> Self {
+    guard shadow != value else {
+      return self
+    }
+
+    var copy = self
+    copy.shadow = value
+    copy.node = nil // invalidate the node so that it will be recreated with the new shadow
+    return copy
+  }
+
+  /// Set the text alignment of the label.
   ///
   /// - Parameter value: The text alignment to set.
   /// - Returns: A new label node with the updated text alignment.
@@ -262,10 +231,11 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
     var copy = self
     copy.textAlignment = value
+    copy.node = nil // invalidate the node so that it will be recreated with the new text alignment
     return copy
   }
 
-  /// Set the number of lines of the label node.
+  /// Set the number of lines of the label.
   ///
   /// Set `numberOfLines` to 0 or 2+ will make the label node have a flexible width and a fixed height.
   ///
@@ -273,26 +243,30 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   /// - Returns: A new label node with the updated number of lines.
   public func numberOfLines(_ value: Int) -> Self {
     let value = max(value, 0)
-    guard numberOfLines != value else {
+    let isMultiLine = value != 1
+
+    // only want to change fixed size if it's multi-line
+    let targetIsFixedWidth: Bool? = isMultiLine ? !isMultiLine : nil
+    let targetIsFixedHeight: Bool? = isMultiLine ? isMultiLine : nil
+
+    guard numberOfLines != value || (targetIsFixedWidth != nil && isFixedWidth != targetIsFixedWidth) || (targetIsFixedHeight != nil && isFixedHeight != targetIsFixedHeight) else {
       return self
     }
 
     var copy = self
     copy.numberOfLines = value
 
-    if numberOfLines != 1 {
+    if isMultiLine {
       copy.isFixedWidth = false
       copy.isFixedHeight = true
     }
 
+    copy.node = nil // invalidate the node so that it will be recreated with the new number of lines
+
     return copy
   }
 
-  /// Set the line break mode of the label node.
-  ///
-  /// For AppKit:
-  /// For single line text: `.byWordWrapping` and `.byCharWrapping` will be overridden to `.byTruncatingTail`.
-  /// For multiline text: Only `.byWordWrapping` and `.byCharWrapping` are supported. Non supported values will be overridden to `.byWordWrapping`.
+  /// Set the line break mode of the label.
   ///
   /// - Parameter value: The line break mode to set.
   /// - Returns: A new label node with the updated line break mode.
@@ -303,9 +277,22 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
     var copy = self
     copy.lineBreakMode = value
+    copy.node = nil // invalidate the node so that it will be recreated with the new line break mode
+    return copy
+  }
+
+  /// Set whether the label is selectable.
+  ///
+  /// - Parameter value: A boolean indicating whether the label is selectable. The default value is `true`.
+  /// - Returns: A new label node with the updated selectable state.
+  public func selectable(_ value: Bool = true) -> Self {
+    guard isSelectable != value else {
+      return self
+    }
+
+    var copy = self
+    copy.isSelectable = value
+    copy.node = nil // invalidate the node so that it will be recreated with the new selectable state
     return copy
   }
 }
-
-/// A label used to calculate label's intrinsic size.
-private let sizingLabel = BaseLabel()

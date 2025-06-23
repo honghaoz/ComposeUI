@@ -1,5 +1,5 @@
 //
-//  TextAreaNode.swift
+//  TextNode.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 3/23/25.
@@ -36,14 +36,14 @@ import AppKit
 import UIKit
 #endif
 
-public typealias TextArea = TextAreaNode
+public typealias Text = TextNode
 
 /// A node that renders text.
 ///
-/// Performance note: Using `fixedSize(width:height:)` will make the text area node
+/// Performance note: Using `fixedSize(width:height:)` will make the text node
 /// re-calculate the intrinsic text size on layout, which is expensive. So it is
 /// preferred to use flexible size and do the size calculation once on your side.
-public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
+public struct TextNode: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - Text storage
 
@@ -96,12 +96,12 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     isFixedHeight = false
   }
 
-  /// Initialize a text area node with simple text.
+  /// Initialize a text node with simple text.
   ///
   /// Example:
   ///
   /// ```swift
-  /// TextArea(
+  /// Text(
   ///   "Hello, world!",
   ///   font: .systemFont(ofSize: 18),
   ///   foregroundColor: ThemedColor(light: .black, dark: .white),
@@ -166,7 +166,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     self.init(NSAttributedString(string: string, attributes: attributes))
   }
 
-  /// Initialize a text area node with single line text.
+  /// Initialize a text node with single line text.
   ///
   /// By default, the text is truncated with tail ellipsis. Use `lineBreakMode(_:)` to change the truncation behavior.
   ///
@@ -186,7 +186,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
                              shadow: Themed<NSShadow>? = nil,
                              textAlignment: NSTextAlignment = .natural) -> Self
   {
-    var node = TextArea(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
+    var node = TextNode(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
 
     node.numberOfLines = 1
     node.lineBreakMode = .byTruncatingTail
@@ -197,7 +197,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     return node
   }
 
-  /// Initialize a text area node with multi-line text.
+  /// Initialize a text node with multi-line text.
   ///
   /// By default, the text last line is truncated with tail ellipsis. Use `lineBreakMode(_:)` to change the truncation behavior.
   ///
@@ -219,7 +219,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
                             textAlignment: NSTextAlignment = .natural,
                             numberOfLines: Int = 0) -> Self
   {
-    var node = TextArea(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
+    var node = TextNode(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
 
     node.numberOfLines = numberOfLines
     node.lineBreakMode = .byTruncatingTail
@@ -312,10 +312,10 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
 
   // MARK: - Public
 
-  /// Set the number of lines of the text area.
+  /// Set the number of lines of the text.
   ///
   /// - Parameter value: The number of lines to set.
-  /// - Returns: A new text area node with the updated number of lines.
+  /// - Returns: A new text node with the updated number of lines.
   public func numberOfLines(_ value: Int) -> Self {
     let value = max(value, 0)
     guard numberOfLines != value else {
@@ -327,10 +327,10 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     return copy
   }
 
-  /// Set the line break mode of the text area.
+  /// Set the line break mode of the text.
   ///
   /// - Parameter value: The line break mode to set.
-  /// - Returns: A new text area node with the updated line break mode.
+  /// - Returns: A new text node with the updated line break mode.
   public func lineBreakMode(_ value: NSLineBreakMode) -> Self {
     guard lineBreakMode != value else {
       return self
@@ -341,10 +341,10 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     return copy
   }
 
-  /// Set whether the text area is editable.
+  /// Set whether the text is editable.
   ///
-  /// - Parameter value: A boolean indicating whether the text area is editable.
-  /// - Returns: A new text area node with the updated editable state.
+  /// - Parameter value: A boolean indicating whether the text is editable.
+  /// - Returns: A new text node with the updated editable state.
   public func editable(_ value: Bool = true) -> Self {
     guard isEditable != value else {
       return self
@@ -355,10 +355,10 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     return copy
   }
 
-  /// Set whether the text area is selectable.
+  /// Set whether the text is selectable.
   ///
-  /// - Parameter value: A boolean indicating whether the text area is selectable.
-  /// - Returns: A new text area node with the updated selectable state.
+  /// - Parameter value: A boolean indicating whether the text is selectable.
+  /// - Returns: A new text node with the updated selectable state.
   public func selectable(_ value: Bool = true) -> Self {
     guard isSelectable != value else {
       return self
@@ -375,7 +375,7 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   ///
   /// - Parameter horizontal: The horizontal inset to set.
   /// - Parameter vertical: The vertical inset to set.
-  /// - Returns: A new text area node with the updated text container inset.
+  /// - Returns: A new text node with the updated text container inset.
   public func textContainerInset(horizontal: CGFloat, vertical: CGFloat) -> Self {
     guard textContainerInset != CGSize(width: horizontal, height: vertical) else {
       return self
@@ -386,17 +386,19 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
     return copy
   }
 
+  // TODO: pass raw intrinsic size intrinsicTextSizeAdjustment
+
   /// Set the intrinsic text size adjustment.
   ///
-  /// The text area node with fixed size uses the intrinsic text size to determine
-  /// the size of the text area. You can use this method to apply an additional
+  /// The text node with fixed size uses the intrinsic text size to determine
+  /// the size of the text. You can use this method to apply an additional
   /// size adjustment to the intrinsic text size.
   ///
-  /// The default adjustment is `(0, 1)`.
+  /// The default adjustment is `(0, 0)`.
   ///
   /// - Parameter width: The width adjustment to set.
   /// - Parameter height: The height adjustment to set.
-  /// - Returns: A new text area node with the updated intrinsic text size adjustment.
+  /// - Returns: A new text node with the updated intrinsic text size adjustment.
   public func intrinsicTextSizeAdjustment(width: CGFloat = 0, height: CGFloat = 0) -> Self {
     let adjustment = CGSize(width: width, height: height)
     guard intrinsicTextSizeAdjustment != adjustment else {
@@ -411,6 +413,6 @@ public struct TextAreaNode: ComposeNode, FixedSizableComposeNode {
   // MARK: - Constants
 
   private enum Constants {
-    static let defaultIntrinsicTextSizeAdjustment = CGSize(width: 0, height: 1)
+    static let defaultIntrinsicTextSizeAdjustment = CGSize(width: 0, height: 0)
   }
 }

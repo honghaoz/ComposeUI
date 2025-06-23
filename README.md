@@ -50,7 +50,7 @@ class MyContentView: ComposeView {
 
   @ComposeContentBuilder
   override var content: ComposeContent {
-    Text("Hello, ComposéUI!")
+    Label("Hello, ComposéUI!")
       .transition(.slide(from: .top))
   }
 }

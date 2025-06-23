@@ -65,7 +65,7 @@ class ViewController: UIViewController {
   private lazy var contentView = ComposeView { [state] contentView in
     Spacer().height(60)
 
-    Text("Hello, ComposéUI!")
+    Label("Hello, ComposéUI!")
       .transition(.slide(from: .top))
       .frame(width: 200, height: 50)
       .transition(.opacity(timing: .linear(duration: 2)))

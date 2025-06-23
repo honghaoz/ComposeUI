@@ -66,9 +66,8 @@ extension Playground {
         // single line, enough width, custom font
         HStack(spacing: 10) {
           for alignment in alignments {
-            Text("ComposéUI")
+            Label("ComposéUI")
               .font(Font(name: "HelveticaNeue", size: 13)!) // swiftlint:disable:this force_unwrapping
-              .fixedSize(width: true, height: true)
               .numberOfLines(1)
               .textAlignment(alignment)
           }
@@ -80,9 +79,8 @@ extension Playground {
         // single line, enough width, system font
         HStack(spacing: 10) {
           for alignment in alignments {
-            Text("ComposéUI")
+            Label("ComposéUI")
               .font(.systemFont(ofSize: 13))
-              .fixedSize(width: true, height: true)
               .numberOfLines(1)
               .textAlignment(alignment)
           }
@@ -94,11 +92,11 @@ extension Playground {
         // single line with newline, enough width, custom font
         HStack(spacing: 10) {
           for alignment in alignments {
-            Text("ComposéUI\nHello")
+            Label("ComposéUI\nHello")
               .font(Font(name: "HelveticaNeue", size: 13) ?? .systemFont(ofSize: 13))
-              .fixedSize(width: true, height: true)
               .numberOfLines(1)
               .textAlignment(alignment)
+              .lineBreakMode(.byClipping)
           }
         }
         .mapChildren {
@@ -112,7 +110,7 @@ extension Playground {
           for alignment in alignments {
             VStack(spacing: 10) {
               for lineBreakMode in lineBreakModes {
-                Text("ComposéUI")
+                Label("ComposéUI")
                   .textColor(ThemedColor(light: ComposeUI.Color.black.withAlphaComponent(0.8), dark: ComposeUI.Color.white.withAlphaComponent(0.8)))
                   .font(.systemFont(ofSize: 12))
                   .fixedSize(width: false, height: true) // make width flexible so that the container can set the width
@@ -134,7 +132,7 @@ extension Playground {
           for alignment in alignments {
             VStack(spacing: 10) {
               for lineBreakMode in lineBreakModes {
-                Text("ComposéUI\nHello")
+                Label("ComposéUI\nHello")
                   .textColor(ThemedColor(light: ComposeUI.Color.black.withAlphaComponent(0.8), dark: ComposeUI.Color.white.withAlphaComponent(0.8)))
                   .font(.systemFont(ofSize: 12))
                   .fixedSize(width: false, height: true) // make width flexible so that the container can set the width
@@ -156,7 +154,7 @@ extension Playground {
             for lineBreakMode in lineBreakModes {
               HStack(alignment: .top, spacing: 10) {
                 for alignment in alignments {
-                  Text("Building UI using UIKit/AppKit with declarative syntax")
+                  Label("Building UI using UIKit/AppKit with declarative syntax")
                     .font(.systemFont(ofSize: 12))
                     .numberOfLines(numberOfLines)
                     .textAlignment(alignment)
@@ -174,14 +172,9 @@ extension Playground {
 
         Spacer(height: 16)
 
-        ViewNode<BaseLabel>(
-          update: { view, context in
-            view.text = "[Selectable] Building UI using UIKit/AppKit with declarative syntax"
-            view.setToMultilineMode()
-            view.setIsSelectable(true)
-          }
-        )
-        .frame(width: 100, height: 50)
+        Label("selectable text")
+          .selectable()
+          .frame(width: 200, height: 50)
 
         Spacer(height: 16)
 

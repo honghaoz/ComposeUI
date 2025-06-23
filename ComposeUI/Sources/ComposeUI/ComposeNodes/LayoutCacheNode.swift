@@ -35,9 +35,9 @@ import Foundation
 /// This node is useful when you want to cache the layout result of a node so that
 /// duplicated layouts are avoided.
 ///
-/// For example, fixed sized `TextAreaNode` is expensive in layout because it
+/// For example, fixed sized `TextNode` is expensive in layout because it
 /// needs to calculate the intrinsic text size. If you want to cache the layout
-/// result of `TextAreaNode`, you can use `CacheNode` to wrap it. So that the for
+/// result of `TextNode`, you can use `LayoutCacheNode` to wrap it. So that the for
 /// the layout with the same container size, the layout result is cached and reused.
 public final class LayoutCacheNode: ComposeNode {
 

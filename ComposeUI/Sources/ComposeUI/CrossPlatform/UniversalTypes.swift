@@ -33,7 +33,6 @@ import AppKit
 
 public typealias Window = NSWindow
 public typealias View = NSView
-public typealias Label = NSLabel
 public typealias TextView = NSTextView
 public typealias Color = NSColor
 public typealias Font = NSFont
@@ -45,6 +44,9 @@ public typealias GestureRecognizerDelegate = NSGestureRecognizerDelegate
 public typealias TapGestureRecognizer = NSClickGestureRecognizer
 public typealias PressGestureRecognizer = NSPressGestureRecognizer
 public typealias PanGestureRecognizer = NSPanGestureRecognizer
+
+/// DEPRECATED: Use `TextView` instead.
+// public typealias Label = NSLabel
 #endif
 
 #if canImport(UIKit)
@@ -52,7 +54,6 @@ import UIKit
 
 public typealias Window = UIWindow
 public typealias View = UIView
-public typealias Label = UILabel
 public typealias TextView = UITextView
 public typealias Color = UIColor
 public typealias Font = UIFont
@@ -64,4 +65,7 @@ public typealias GestureRecognizerDelegate = UIGestureRecognizerDelegate
 public typealias TapGestureRecognizer = UITapGestureRecognizer
 public typealias PressGestureRecognizer = UILongPressGestureRecognizer
 public typealias PanGestureRecognizer = UIPanGestureRecognizer
+
+/// DEPRECATED: Use `TextView` instead.
+// public typealias Label = UILabel
 #endif

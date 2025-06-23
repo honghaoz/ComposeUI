@@ -1,5 +1,5 @@
 //
-//  TextAreaNodeTests.swift
+//  TextNodeTests.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 3/31/25.
@@ -32,10 +32,10 @@ import ChouTiTest
 
 import ComposeUI
 
-class TextAreaNodeTests: XCTestCase {
+class TextNodeTests: XCTestCase {
 
   func test_defaultSize() {
-    var node = TextAreaNode("Hello, world!")
+    var node = TextNode("Hello, world!")
 
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
@@ -46,25 +46,25 @@ class TextAreaNodeTests: XCTestCase {
 
   func test_fixedSize() throws {
     let font = try unwrap(Font(name: "HelveticaNeue", size: 18))
-    var node = TextAreaNode("Hello, world!", font: font).fixedSize()
+    var node = TextNode("Hello, world!", font: font).fixedSize()
 
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
 
     #if canImport(AppKit)
-    expect(sizing) == ComposeNodeSizing(width: .fixed(51), height: .fixed(45))
-    expect(node.size) == CGSize(width: 51, height: 45)
+    expect(sizing) == ComposeNodeSizing(width: .fixed(51), height: .fixed(44))
+    expect(node.size) == CGSize(width: 51, height: 44)
     #endif
 
     #if canImport(UIKit)
-    expect(sizing) == ComposeNodeSizing(width: .fixed(51), height: .fixed(44))
-    expect(node.size) == CGSize(width: 51, height: 44)
+    expect(sizing) == ComposeNodeSizing(width: .fixed(51), height: .fixed(43))
+    expect(node.size) == CGSize(width: 51, height: 43)
     #endif
   }
 
   func test_longString_multipleLines() throws {
     let font = try unwrap(Font(name: "HelveticaNeue", size: 18))
-    var node = TextAreaNode(
+    var node = TextNode(
       "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
       font: font
     )
@@ -75,19 +75,19 @@ class TextAreaNodeTests: XCTestCase {
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
 
     #if canImport(AppKit)
-    expect(sizing) == ComposeNodeSizing(width: .fixed(105), height: .fixed(287.0))
-    expect(node.size) == CGSize(width: 105.0, height: 287.0)
+    expect(sizing) == ComposeNodeSizing(width: .fixed(105), height: .fixed(286))
+    expect(node.size) == CGSize(width: 105, height: 286)
     #endif
 
     #if canImport(UIKit)
-    expect(sizing) == ComposeNodeSizing(width: .fixed(100), height: .fixed(281))
-    expect(node.size) == CGSize(width: 100.0, height: 281)
+    expect(sizing) == ComposeNodeSizing(width: .fixed(100), height: .fixed(280))
+    expect(node.size) == CGSize(width: 100, height: 280)
     #endif
   }
 
   func test_longString_singleLine() throws {
     let font = try unwrap(Font(name: "HelveticaNeue", size: 18))
-    var node = TextAreaNode(
+    var node = TextNode(
       "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut",
       font: font
     )
@@ -97,14 +97,14 @@ class TextAreaNodeTests: XCTestCase {
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     let sizing = node.layout(containerSize: CGSize(width: 1000, height: 50), context: context)
 
-    expect(sizing) == ComposeNodeSizing(width: .fixed(751.0), height: .fixed(23))
-    expect(node.size) == CGSize(width: 751.0, height: 23)
+    expect(sizing) == ComposeNodeSizing(width: .fixed(751.0), height: .fixed(22))
+    expect(node.size) == CGSize(width: 751.0, height: 22)
   }
 
   func test_view() {
     var textView: TextView?
     let contentView = ComposeView {
-      TextAreaNode("Hello, world!")
+      TextNode("Hello, world!")
         .onUpdate { item, _ in
           textView = item.view as? TextView
         }
@@ -119,7 +119,7 @@ class TextAreaNodeTests: XCTestCase {
     expect(textView?.isSelectable) == true
 
     contentView.setContent {
-      TextAreaNode("Hello, world!")
+      TextNode("Hello, world!")
         .selectable(false)
         .editable(false)
         .onUpdate { item, _ in
@@ -134,7 +134,7 @@ class TextAreaNodeTests: XCTestCase {
     expect(textView?.isSelectable) == false
 
     contentView.setContent {
-      TextAreaNode("Hello, world!")
+      TextNode("Hello, world!")
         .selectable()
         .editable()
         .onUpdate { item, _ in
@@ -149,7 +149,7 @@ class TextAreaNodeTests: XCTestCase {
     expect(textView?.isSelectable) == true
 
     contentView.setContent {
-      TextAreaNode("Hello, world!")
+      TextNode("Hello, world!")
         .textContainerInset(horizontal: 10, vertical: 20)
         .onUpdate { item, _ in
           textView = item.view as? TextView
