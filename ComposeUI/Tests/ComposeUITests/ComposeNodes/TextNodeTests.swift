@@ -165,4 +165,24 @@ class TextNodeTests: XCTestCase {
     expect(textView?.textContainerInset) == EdgeInsets(top: 20, left: 10, bottom: 20, right: 10)
     #endif
   }
+
+  func test_adjustIntrinsicTextSize() throws {
+    var textView: BaseTextView?
+    let view = ComposeView {
+      try TextNode("Hello, world!", font: unwrap(Font(name: "HelveticaNeue", size: 13)))
+        .numberOfLines(1)
+        .fixedSize()
+        .intrinsicTextSizeAdjustment { original in
+          CGSize(width: 10, height: 20)
+        }
+        .onInsert { renderable, _ in
+          textView = renderable.view as? BaseTextView
+        }
+    }
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    view.refresh()
+
+    expect(textView?.bounds.size) == CGSize(width: 83, height: 36)
+  }
 }

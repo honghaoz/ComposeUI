@@ -55,7 +55,7 @@ public struct TextNode: ComposeNode, FixedSizableComposeNode {
   private var lineBreakMode: NSLineBreakMode
 
   private var textContainerInset: CGSize
-  private var intrinsicTextSizeAdjustment: CGSize
+  private var adjustIntrinsicTextSize: ((_ original: CGSize) -> CGSize)?
 
   private var isEditable: Bool
   private var isSelectable: Bool
@@ -87,7 +87,7 @@ public struct TextNode: ComposeNode, FixedSizableComposeNode {
     lineBreakMode = .byWordWrapping
 
     textContainerInset = .zero
-    intrinsicTextSizeAdjustment = Constants.defaultIntrinsicTextSizeAdjustment
+    adjustIntrinsicTextSize = nil
 
     isEditable = false
     isSelectable = true
@@ -254,9 +254,10 @@ public struct TextNode: ComposeNode, FixedSizableComposeNode {
 
   private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
     let rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width - textContainerInset.width * 2)
+    let sizeAdjustment = adjustIntrinsicTextSize?(rawIntrinsicSize) ?? .zero
     let intrinsicSize = CGSize(
-      width: rawIntrinsicSize.width + intrinsicTextSizeAdjustment.width,
-      height: rawIntrinsicSize.height + textContainerInset.height * 2 + intrinsicTextSizeAdjustment.height
+      width: rawIntrinsicSize.width + sizeAdjustment.width,
+      height: rawIntrinsicSize.height + textContainerInset.height * 2 + sizeAdjustment.height
     )
     return intrinsicSize.roundedUp(scaleFactor: 1)
   }
@@ -386,33 +387,17 @@ public struct TextNode: ComposeNode, FixedSizableComposeNode {
     return copy
   }
 
-  // TODO: pass raw intrinsic size intrinsicTextSizeAdjustment
-
-  /// Set the intrinsic text size adjustment.
+  /// Apply an additional size adjustment to the intrinsic text size.
   ///
   /// The text node with fixed size uses the intrinsic text size to determine
   /// the size of the text. You can use this method to apply an additional
   /// size adjustment to the intrinsic text size.
   ///
-  /// The default adjustment is `(0, 0)`.
-  ///
-  /// - Parameter width: The width adjustment to set.
-  /// - Parameter height: The height adjustment to set.
+  /// - Parameter adjustment: The adjustment to apply to the intrinsic text size. The block will be called with the original intrinsic text size.
   /// - Returns: A new text node with the updated intrinsic text size adjustment.
-  public func intrinsicTextSizeAdjustment(width: CGFloat = 0, height: CGFloat = 0) -> Self {
-    let adjustment = CGSize(width: width, height: height)
-    guard intrinsicTextSizeAdjustment != adjustment else {
-      return self
-    }
-
+  public func intrinsicTextSizeAdjustment(_ adjustment: ((_ original: CGSize) -> CGSize)?) -> Self {
     var copy = self
-    copy.intrinsicTextSizeAdjustment = adjustment
+    copy.adjustIntrinsicTextSize = adjustment
     return copy
-  }
-
-  // MARK: - Constants
-
-  private enum Constants {
-    static let defaultIntrinsicTextSizeAdjustment = CGSize(width: 0, height: 0)
   }
 }
