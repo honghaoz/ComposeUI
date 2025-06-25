@@ -50,8 +50,8 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   private var font: Font
 
   private var textColor: ThemedColor
-  private var backgroundColor: ThemedColor?
-  private var shadow: Themed<NSShadow>?
+  private var textBackgroundColor: ThemedColor?
+  private var textShadow: Themed<NSShadow>?
 
   private var textAlignment: NSTextAlignment
   private var numberOfLines: Int
@@ -84,8 +84,8 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
     textColor = ThemedColor(light: .label, dark: .label)
     #endif
 
-    backgroundColor = nil
-    shadow = nil
+    textBackgroundColor = nil
+    textShadow = nil
 
     textAlignment = .center
     numberOfLines = 1
@@ -116,8 +116,8 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
           text,
           font: font,
           foregroundColor: textColor,
-          backgroundColor: backgroundColor,
-          shadow: shadow,
+          backgroundColor: textBackgroundColor,
+          shadow: textShadow,
           textAlignment: textAlignment
         )
       } else {
@@ -125,8 +125,8 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
           text,
           font: font,
           foregroundColor: textColor,
-          backgroundColor: backgroundColor,
-          shadow: shadow,
+          backgroundColor: textBackgroundColor,
+          shadow: textShadow,
           textAlignment: textAlignment,
           numberOfLines: numberOfLines
         )
@@ -194,13 +194,13 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
   ///
   /// - Parameter value: The background color to set.
   /// - Returns: A new label node with the updated background color.
-  public func backgroundColor(_ value: ThemedColor?) -> Self {
-    guard backgroundColor != value else {
+  public func textBackgroundColor(_ value: ThemedColor?) -> Self {
+    guard textBackgroundColor != value else {
       return self
     }
 
     var copy = self
-    copy.backgroundColor = value
+    copy.textBackgroundColor = value
     copy.node = nil // invalidate the node so that it will be recreated with the new background color
     return copy
   }
@@ -209,13 +209,13 @@ public struct LabelNode: ComposeNode, FixedSizableComposeNode {
 
   /// - Parameter value: The shadow to set.
   /// - Returns: A new label node with the updated shadow.
-  public func shadow(_ value: Themed<NSShadow>?) -> Self {
-    guard shadow != value else {
+  public func textShadow(_ value: Themed<NSShadow>?) -> Self {
+    guard textShadow != value else {
       return self
     }
 
     var copy = self
-    copy.shadow = value
+    copy.textShadow = value
     copy.node = nil // invalidate the node so that it will be recreated with the new shadow
     return copy
   }

@@ -330,7 +330,17 @@ class LabelNodeTests: XCTestCase {
       try LabelNode("Hello World")
         .font(unwrap(Font(name: "HelveticaNeue", size: 20)))
         .textColor(.red)
+        .textColor(ThemedColor(.blue))
+        .textBackgroundColor(ThemedColor(.green))
+        .textShadow(Themed<NSShadow>({
+          let shadow = NSShadow()
+          shadow.shadowOffset = CGSize(width: 0, height: 1)
+          return shadow
+        }()))
         .textAlignment(.right)
+        .numberOfLines(1)
+        .lineBreakMode(.byTruncatingMiddle)
+        .selectable()
         .onInsert { renderable, _ in
           textView = renderable.view as? BaseTextView
         }
@@ -341,16 +351,22 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     try expect(textView?.attributedString.font()) == unwrap(Font(name: "HelveticaNeue", size: 20))
-    expect(textView?.attributedString.foregroundColor()) == .red
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .right
+    expect(textView?.attributedString.foregroundColor()) == .blue
+    expect(textView?.attributedString.backgroundColor()) == .green
+    expect(textView?.attributedString.shadow()) == {
+      let shadow = NSShadow()
+      shadow.shadowOffset = CGSize(width: 0, height: 1)
+      return shadow
+    }()
+    let paragraphStyle = try unwrap(textView?.attributedString.paragraphStyle())
+    expect(paragraphStyle.alignment) == .right
+    expect(paragraphStyle.lineBreakMode) == .byWordWrapping
+    expect(textView?.lineBreakMode) == .byTruncatingMiddle
+    expect(textView?.isSelectable) == true
   }
 }
 
 private extension NSAttributedString {
-
-  func paragraphStyle() -> NSParagraphStyle? {
-    attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.paragraphStyle] as? NSParagraphStyle
-  }
 
   func font() -> Font? {
     attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.font] as? Font
@@ -358,5 +374,17 @@ private extension NSAttributedString {
 
   func foregroundColor() -> Color? {
     attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.foregroundColor] as? Color
+  }
+
+  func backgroundColor() -> Color? {
+    attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.backgroundColor] as? Color
+  }
+
+  func shadow() -> NSShadow? {
+    attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.shadow] as? NSShadow
+  }
+
+  func paragraphStyle() -> NSParagraphStyle? {
+    attributes(at: 0, effectiveRange: nil)[NSAttributedString.Key.paragraphStyle] as? NSParagraphStyle
   }
 }
