@@ -102,7 +102,7 @@ class LabelNodeTests: XCTestCase {
       view.refresh()
 
       expect(textView?.attributedString.string) == "Hello World"
-      expect(textView?.bounds.size) == CGSize(width: 50, height: 16)
+      expect(textView?.bounds.size) == CGSize(width: 67, height: 16)
       expect(textView?.numberOfLines) == 1
       expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
       expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping

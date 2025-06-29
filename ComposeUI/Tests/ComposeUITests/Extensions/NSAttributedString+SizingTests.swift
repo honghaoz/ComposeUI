@@ -40,10 +40,10 @@ class NSAttributedString_SizingTests: XCTestCase {
     let attributedString = try makeAttributedString(lineBreakMode: .byClipping)
     let size = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
     #if os(macOS)
-    expect(size.width) == 100
+    expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 18.8, within: 1e-1))
     #else
-    expect(size.width) == 100
+    expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 18.8, within: 1e-1))
     #endif
   }
@@ -52,10 +52,10 @@ class NSAttributedString_SizingTests: XCTestCase {
     let attributedString = try makeAttributedString(lineBreakMode: .byTruncatingTail)
     let size = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
     #if os(macOS)
-    expect(size.width) == 100
+    expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 18.8, within: 1e-1))
     #else
-    expect(size.width) == 100
+    expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 18.8, within: 1e-1))
     #endif
   }
@@ -64,10 +64,10 @@ class NSAttributedString_SizingTests: XCTestCase {
     let attributedString = try makeAttributedString(lineBreakMode: .byTruncatingHead)
     let size = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
     #if os(macOS)
-    expect(size.width) == 100
+    expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 18.8, within: 1e-1))
     #else
-    expect(size.width) == 100
+    expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 18.8, within: 1e-1))
     #endif
   }
@@ -76,10 +76,10 @@ class NSAttributedString_SizingTests: XCTestCase {
     let attributedString = try makeAttributedString(lineBreakMode: .byTruncatingMiddle)
     let size = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
     #if os(macOS)
-    expect(size.width) == 100
+    expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 18.8, within: 1e-1))
     #else
-    expect(size.width) == 100
+    expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 18.8, within: 1e-1))
     #endif
   }

@@ -114,6 +114,7 @@ extension Playground {
               return shadow
             }())
           )
+          .numberOfLines(1)
           .selectable(false)
           .fixedSize()
         }

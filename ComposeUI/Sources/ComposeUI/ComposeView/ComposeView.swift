@@ -596,7 +596,24 @@ open class ComposeView: BaseScrollView {
       return
     }
 
+    #if canImport(AppKit)
+    // before accessing the bounds(), aka the contentView's bounds, we need to disable the scrollers so that the scrollers
+    // don't affect the bounds.
+    // the scrollers have 15 point in size, if we don't disable them, the bounds will be 15 point smaller than the actual bounds.
+    let oldHasHorizontalScroller = hasHorizontalScroller
+    let oldHasVerticalScroller = hasVerticalScroller
+    hasHorizontalScroller = false
+    hasVerticalScroller = false
+    #endif
+
     let bounds = bounds()
+
+    #if canImport(AppKit)
+    // restore the scrollers
+    hasHorizontalScroller = oldHasHorizontalScroller
+    hasVerticalScroller = oldHasVerticalScroller
+    #endif
+
     let boundsSize = bounds.size
     let visibleBounds = bounds.inset(by: visibleBoundsInsets)
 

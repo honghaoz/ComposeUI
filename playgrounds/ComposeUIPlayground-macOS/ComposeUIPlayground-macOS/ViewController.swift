@@ -140,6 +140,25 @@ class ViewController: NSViewController {
 
       Spacer().height(20)
 
+      ViewNode(
+        make: { _ in
+          let view = ComposeView(content: {
+            LabelNode("Text with Scroll Bars")
+              .font(Font.systemFont(ofSize: 14, weight: .regular))
+              .background {
+                ColorNode(.red)
+              }
+          })
+          view.frame.size = view.sizeThatFits(
+            CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+          )
+          return view
+        },
+      )
+      .fixedSize()
+
+      Spacer().height(20)
+
       VStack {
         rainbowColorNodes(isKeyWindow: isKey).map { $0.frame(width: .flexible, height: 100) }
       }

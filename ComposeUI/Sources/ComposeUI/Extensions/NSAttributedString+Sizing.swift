@@ -47,7 +47,7 @@ extension NSAttributedString {
   ///
   /// - Parameters:
   ///   - numberOfLines: The number of lines to calculate the bounding size for. Use 0 for unlimited lines.
-  ///   - layoutWidth: The width of the layout. For single line text, the smaller of the layout width and the text's intrinsic size is returned.
+  ///   - layoutWidth: The width of the layout.
   ///   - lineBreakMode: The line break mode to use for the layout. The line break mode should be either `byWordWrapping` or `byCharWrapping`. Default is `byWordWrapping`.
   /// - Returns: The bounding size of the attributed string.
   func boundingRectSize(numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode = .byWordWrapping) -> CGSize {
@@ -68,7 +68,7 @@ extension NSAttributedString {
     }
 
     if numberOfLines == 1 {
-      return singleLineTextBoundingRectSize(layoutWidth: layoutWidth)
+      return singleLineTextBoundingRectSize()
     }
 
     let framesetter = CTFramesetterCreateWithAttributedString(attributedString as CFAttributedString)
@@ -115,10 +115,8 @@ extension NSAttributedString {
   ///
   /// Ported from: https://github.com/honghaoz/ChouTiUI/blob/c2cc7b8452d269d6ee55993a977ed4b5fabf15d4/ChouTiUI/Sources/ChouTiUI/Universal/Text/TextSizeProvider.swift#L312
   ///
-  /// - Parameters:
-  ///   - layoutWidth: The proposing layout width. This width determines the final size's width if it is smaller than the text's intrinsic size.
   /// - Returns: The bounding box for the text.
-  private func singleLineTextBoundingRectSize(layoutWidth: CGFloat = .greatestFiniteMagnitude) -> CGSize {
+  private func singleLineTextBoundingRectSize() -> CGSize {
     let attributedString = self
     guard attributedString.length > 0 else {
       return .zero
@@ -147,7 +145,7 @@ extension NSAttributedString {
     let width = CTLineGetTypographicBounds(line, nil, &descent, &leading)
     let lineBottom = lineOriginY + descent + leading
 
-    return CGSize(width: min(width, layoutWidth), height: lineBottom)
+    return CGSize(width: width, height: lineBottom)
   }
 
   /// Adjust the line break mode of the attributed string.
