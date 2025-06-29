@@ -244,6 +244,22 @@ open class ComposeView: BaseScrollView {
     }
   }
 
+  // MARK: - Debug
+
+  #if DEBUG
+  private var debug: Debug?
+
+  /// Set a debug handler to the ComposeView.
+  ///
+  /// - Parameter eventHandler: The event handler to handle the debug events.
+  /// - Returns: The ComposeView itself.
+  @discardableResult
+  public func debug(eventHandler: @escaping (_ view: ComposeView, _ event: ComposeView.Debug.Event) -> Void) -> Self {
+    debug = Debug(composeView: self, eventHandler: eventHandler)
+    return self
+  }
+  #endif
+
   // MARK: - Size
 
   #if canImport(AppKit)
@@ -617,9 +633,17 @@ open class ComposeView: BaseScrollView {
     let boundsSize = bounds.size
     let visibleBounds = bounds.inset(by: visibleBoundsInsets)
 
+    #if DEBUG
+    debug?.onEvent(.renderWillLayout(contentNode: contentNode, bounds: bounds, visibleBounds: visibleBounds))
+    #endif
+
     // do the layout
     _ = contentNode.layout(containerSize: boundsSize, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
     var contentSize = contentNode.size
+
+    #if DEBUG
+    debug?.onEvent(.renderDidLayout(contentSize: contentSize))
+    #endif
 
     // get renderable items
     let renderableItems: [RenderableItem]
@@ -634,6 +658,11 @@ open class ComposeView: BaseScrollView {
       // logic copied from FrameNode
       let childFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
       let boundsInChild = visibleBounds.translate(-childFrame.origin)
+
+      #if DEBUG
+      debug?.onEvent(.renderWillRender(visibleBounds: boundsInChild))
+      #endif
+
       let childItems = contentNode.renderableItems(in: boundsInChild)
 
       var mappedChildItems: [RenderableItem] = []
@@ -647,11 +676,19 @@ open class ComposeView: BaseScrollView {
       renderableItems = mappedChildItems
       contentSize = adjustedContentSize
     } else {
+      #if DEBUG
+      debug?.onEvent(.renderWillRender(visibleBounds: visibleBounds))
+      #endif
+
       renderableItems = contentNode.renderableItems(in: visibleBounds)
     }
 
     // set content size
     setContentSize(contentSize.roundedUp(scaleFactor: contentScaleFactor))
+
+    #if DEBUG
+    debug?.onEvent(.renderDidRender(renderableItems: renderableItems, contentSize: contentSize))
+    #endif
 
     // update scrollable behavior
     switch scrollBehavior {
@@ -669,6 +706,10 @@ open class ComposeView: BaseScrollView {
       alwaysBounceVertical = false
     }
 
+    #if DEBUG
+    debug?.onEvent(.renderDidUpdateScrollableBehavior(isScrollable: isScrollable, alwaysBounceHorizontal: alwaysBounceHorizontal, alwaysBounceVertical: alwaysBounceVertical))
+    #endif
+
     switch clippingBehavior {
     case .auto:
       clipsToBounds = isScrollable
@@ -679,6 +720,10 @@ open class ComposeView: BaseScrollView {
     }
     #if canImport(AppKit)
     contentView.clipsToBounds = clipsToBounds
+    #endif
+
+    #if DEBUG
+    debug?.onEvent(.renderDidUpdateClippingBehavior(clipsToBounds: clipsToBounds))
     #endif
 
     // update scroll indicator behavior
@@ -699,6 +744,10 @@ open class ComposeView: BaseScrollView {
     {
       flashScrollIndicators()
     }
+
+    #if DEBUG
+    debug?.onEvent(.renderDidUpdateScrollIndicatorBehavior(showsHorizontalScrollIndicator: showsHorizontalScrollIndicator, showsVerticalScrollIndicator: showsVerticalScrollIndicator))
+    #endif
 
     #if canImport(AppKit)
     invalidateScrollElasticity()
@@ -750,7 +799,7 @@ open class ComposeView: BaseScrollView {
           }
 
           if context.shouldAnimate(contentView: self, animationBehavior: animationBehavior), let transition = oldRenderableItem.transition?.remove {
-            // if theres a remove transition, it can take time to complete, we need to track the old renderable until the
+            // if there's a remove transition, it can take time to complete, we need to track the old renderable until the
             // transition is completed because the renderable may be re-inserted into the renderable hierarchy later
             removingRenderableMap[oldId] = oldRenderable
 
@@ -764,15 +813,28 @@ open class ComposeView: BaseScrollView {
               self.removingRenderableTransitionCompletionMap.removeValue(forKey: oldId)
 
               removeBlock()
+
+              #if DEBUG
+              debug?.onEvent(.renderDidRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+              #endif
+
             } cancel: { [weak self] in
               guard let self else {
                 return
               }
               self.removingRenderableMap.removeValue(forKey: oldId)
               self.removingRenderableTransitionCompletionMap.removeValue(forKey: oldId)
+
+              #if DEBUG
+              debug?.onEvent(.renderDidCancelRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+              #endif
             }
 
             removingRenderableTransitionCompletionMap[oldId] = completion
+
+            #if DEBUG
+            debug?.onEvent(.renderWillRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+            #endif
 
             transition.animate(
               renderable: oldRenderable,
@@ -780,7 +842,15 @@ open class ComposeView: BaseScrollView {
               completion: completion.execute
             )
           } else {
+            #if DEBUG
+            debug?.onEvent(.renderWillRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+            #endif
+
             removeBlock()
+
+            #if DEBUG
+            debug?.onEvent(.renderDidRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+            #endif
           }
         } else {
           ComposeUI.assertFailure("old renderable item or old renderable not found: \(oldId)")
@@ -798,6 +868,10 @@ open class ComposeView: BaseScrollView {
       if reusingIds.contains(id) {
         // [2/3] ♻️ reuse the renderable item that is still in the content
         renderable = oldRenderableMap[id]! // swiftlint:disable:this force_unwrapping
+
+        #if DEBUG
+        debug?.onEvent(.renderWillReuseRenderable(item: renderableItem, renderable: renderable))
+        #endif
 
         renderable.layer.reset()
 
@@ -845,6 +919,10 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.update(renderable, renderableUpdateContext)
 
+        #if DEBUG
+        debug?.onEvent(.renderDidReuseRenderable(item: renderableItem, renderable: renderable))
+        #endif
+
       } else {
         // [3/3] 🆕 insert the renderable item that is new
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
@@ -860,6 +938,10 @@ open class ComposeView: BaseScrollView {
             renderableItem.make(RenderableMakeContext(initialFrame: newFrame, contentView: self))
           }
         }
+
+        #if DEBUG
+        debug?.onEvent(.renderWillInsertRenderable(item: renderableItem, renderable: renderable))
+        #endif
 
         renderable.layer.reset()
 
@@ -891,7 +973,7 @@ open class ComposeView: BaseScrollView {
           transition.animate(
             renderable: renderable,
             context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, contentView: self),
-            completion: {
+            completion: { [weak self] in
               ComposeUI.assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
               // at the moment, the renderable's frame may not be the target frame, this is because during the insert transition,
               // the renderable can be refreshed, and the renderable's frame may be updated to a different frame.
@@ -899,11 +981,19 @@ open class ComposeView: BaseScrollView {
               // insert: [-------------------] setting frame to frame1
               // reuse:        [-----]         during the insert transition, the renderable's frame is updated to frame2
               renderableItem.didInsert?(renderable, renderableInsertContext)
+
+              #if DEBUG
+              self?.debug?.onEvent(.renderDidInsertRenderable(item: renderableItem, renderable: renderable))
+              #endif
             }
           )
         } else {
           // no insert transition, just call did insert
           renderableItem.didInsert?(renderable, renderableInsertContext)
+
+          #if DEBUG
+          debug?.onEvent(.renderDidInsertRenderable(item: renderableItem, renderable: renderable))
+          #endif
         }
       }
 
@@ -918,6 +1008,10 @@ open class ComposeView: BaseScrollView {
       ComposeUI.assert(renderableItemMap[id] != nil, "missing renderable item: \(id)")
       ComposeUI.assert(renderableMap[id] != nil, "missing renderable: \(id)")
     }
+    #endif
+
+    #if DEBUG
+    debug?.onEvent(.renderDidFinish(renderableItemIds: renderableItemIds, renderableItemMap: renderableItemMap, renderableMap: renderableMap))
     #endif
   }
 
