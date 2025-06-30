@@ -40,10 +40,16 @@ import UIKit
 
 /// A node that renders a SwiftUI view.
 ///
-/// The node will be flexible in width and height. Use `fixedSize(width:height:)` to set the size of the node.
+/// The node will be flexible in width and height.
+/// Use `fixedSize(width:height:)` to control whether the node uses the view's intrinsic size
+/// or adapts to the container size for each dimension.
 public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSizableComposeNode {
 
-  private var viewNode: ViewNode<View>
+  public var isFixedWidth: Bool = false
+  public var isFixedHeight: Bool = false
+
+  private var content: () -> Content
+  private var isStaticContent: Bool
 
   /// Create a static SwiftUI view node.
   ///
@@ -54,16 +60,9 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   ///   - id: The id used to differentiate the SwiftUI content. The id should be unique to the SwiftUI content.
   ///   - content: The SwiftUI view to render.
   public init(id: String, _ content: Content) {
-    self.viewNode = ViewNode(
-      make: { context in
-        let view = SwiftUIHostingView(rootView: AnyView(content))
-        if let initialFrame = context.initialFrame {
-          view.frame = initialFrame
-        }
-        return view
-      }
-    )
-    self.viewNode.id = .custom("SUI-\(id)")
+    self.content = { content }
+    self.isStaticContent = true
+    self.id = .custom("SUI-\(id)")
   }
 
   /// Create a dynamic SwiftUI view node.
@@ -71,50 +70,65 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   /// - Parameters:
   ///   - content: A closure that returns the SwiftUI view to render.
   public init(_ content: @escaping () -> Content) {
-    self.viewNode = ViewNode<View>(
+    self.content = content
+    self.isStaticContent = false
+    self.id = .standard(.swiftui)
+  }
+
+  // MARK: - ComposeNode
+
+  public var id: ComposeNodeId
+
+  public private(set) var size: CGSize = .zero
+
+  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    switch (isFixedWidth, isFixedHeight) {
+    case (true, true):
+      size = content().sizeThatFits(containerSize)
+      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+    case (true, false):
+      size = CGSize(width: content().sizeThatFits(containerSize).width, height: containerSize.height)
+      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
+    case (false, true):
+      size = CGSize(width: containerSize.width, height: content().sizeThatFits(containerSize).height)
+      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
+    case (false, false):
+      size = containerSize
+      return ComposeNodeSizing(width: .flexible, height: .flexible)
+    }
+  }
+
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    let frame = CGRect(origin: .zero, size: size)
+    guard visibleBounds.intersects(frame) else {
+      return []
+    }
+
+    let viewItem = ViewItem<View>(
+      id: id,
+      frame: frame,
       make: { context in
-        let view = MutableSwiftUIHostingView()
+        let view: SwiftUIHostingView<AnyView>
+        if isStaticContent {
+          view = SwiftUIHostingView(rootView: AnyView(content()))
+        } else {
+          view = MutableSwiftUIHostingView()
+        }
         if let initialFrame = context.initialFrame {
           view.frame = initialFrame
         }
         return view
       },
       update: { view, context in
-        guard context.updateType.requiresFullUpdate else {
+        guard !isStaticContent, context.updateType.requiresFullUpdate else {
           return
         }
-        (view as? MutableSwiftUIHostingView)?.content = AnyView(content())
+        (view as? MutableSwiftUIHostingView)
+          .assertNotNil("view should be a MutableSwiftUIHostingView")?
+          .content = AnyView(content())
       }
     )
-    self.viewNode.id = .standard(.swiftui)
-  }
 
-  // MARK: - IntrinsicSizableComposeNode
-
-  public var isFixedWidth: Bool {
-    get { viewNode.isFixedWidth }
-    set { viewNode.isFixedWidth = newValue }
-  }
-
-  public var isFixedHeight: Bool {
-    get { viewNode.isFixedHeight }
-    set { viewNode.isFixedHeight = newValue }
-  }
-
-  // MARK: - ComposeNode
-
-  public var id: ComposeNodeId {
-    get { viewNode.id }
-    set { viewNode.id = newValue }
-  }
-
-  public var size: CGSize { viewNode.size }
-
-  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    viewNode.layout(containerSize: containerSize, context: context)
-  }
-
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    viewNode.renderableItems(in: visibleBounds)
+    return [viewItem.eraseToRenderableItem()]
   }
 }

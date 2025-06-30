@@ -39,11 +39,16 @@ class SwiftUIViewNodeTests: XCTestCase {
     var view1: SwiftUIHostingView<AnyView>?
     var view2: MutableSwiftUIHostingView?
     let contentView = ComposeView {
-      SwiftUIViewNode(id: "text", Text("Hello, World!"))
-        .onInsert { renderable, _ in
-          view1 = renderable.view as? SwiftUIHostingView<AnyView>
-        }
+      // static
+      SwiftUIViewNode(
+        id: "text",
+        Text("Hello, World!")
+      )
+      .onInsert { renderable, _ in
+        view1 = renderable.view as? SwiftUIHostingView<AnyView>
+      }
 
+      // dynamic
       SwiftUIViewNode {
         Text("Hello, World!")
       }
@@ -60,5 +65,118 @@ class SwiftUIViewNodeTests: XCTestCase {
     expect(view1?.isUserInteractionEnabled) == true
     expect(view2?.bounds.size) == CGSize(width: 100, height: 25)
     expect(view2?.isUserInteractionEnabled) == true
+  }
+
+  func test_static_fixedWidth_fixedHeight() {
+    var view: SwiftUIHostingView<AnyView>?
+    let contentView = ComposeView {
+      // static
+      SwiftUIViewNode(
+        id: "text",
+        SwiftUI.Color.black
+          .frame(width: 80, height: 50)
+      )
+      .fixedSize(width: true, height: true)
+      .onInsert { renderable, _ in
+        view = renderable.view as? SwiftUIHostingView<AnyView>
+      }
+    }
+
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    contentView.refresh()
+
+    expect(view?.bounds.size) == CGSize(width: 80, height: 50)
+  }
+
+  func test_static_fixedWidth_flexibleHeight() {
+    var view: SwiftUIHostingView<AnyView>?
+    let contentView = ComposeView {
+      // static
+      SwiftUIViewNode(
+        id: "text",
+        SwiftUI.Color.black
+          .frame(width: 80, height: 50)
+      )
+      .fixedSize(width: true, height: false)
+      .onInsert { renderable, _ in
+        view = renderable.view as? SwiftUIHostingView<AnyView>
+      }
+    }
+
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    contentView.refresh()
+
+    expect(view?.bounds.size) == CGSize(width: 80, height: 100)
+  }
+
+  func test_static_flexibleWidth_fixedHeight() {
+    var view: SwiftUIHostingView<AnyView>?
+    let contentView = ComposeView {
+      // static
+      SwiftUIViewNode(
+        id: "text",
+        SwiftUI.Color.black
+          .frame(width: 80, height: 50)
+      )
+      .fixedSize(width: false, height: true)
+      .onInsert { renderable, _ in
+        view = renderable.view as? SwiftUIHostingView<AnyView>
+      }
+    }
+
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    contentView.refresh()
+
+    expect(view?.bounds.size) == CGSize(width: 100, height: 50)
+  }
+
+  func test_static_flexibleWidth_flexibleHeight() {
+    var view: SwiftUIHostingView<AnyView>?
+    let contentView = ComposeView {
+      // static
+      SwiftUIViewNode(
+        id: "text",
+        SwiftUI.Color.black
+          .frame(width: 80, height: 50)
+      )
+      .fixedSize(width: false, height: false)
+      .onInsert { renderable, _ in
+        view = renderable.view as? SwiftUIHostingView<AnyView>
+      }
+    }
+
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    contentView.refresh()
+
+    expect(view?.bounds.size) == CGSize(width: 100, height: 100)
+  }
+
+  func test_view_outOfBounds() {
+    var view: SwiftUIHostingView<AnyView>?
+    let contentView = ComposeView {
+      VStack {
+        Spacer(width: 0, height: 100)
+        // static
+        SwiftUIViewNode(
+          id: "text",
+          SwiftUI.Color.black
+            .frame(width: 80, height: 50)
+        )
+        .fixedSize(width: true, height: true)
+        .onInsert { renderable, _ in
+          view = renderable.view as? SwiftUIHostingView<AnyView>
+        }
+      }
+    }
+
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    contentView.refresh()
+
+    expect(view) == nil
   }
 }

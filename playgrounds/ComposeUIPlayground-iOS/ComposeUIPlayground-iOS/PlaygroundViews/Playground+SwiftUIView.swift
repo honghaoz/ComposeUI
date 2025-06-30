@@ -47,12 +47,33 @@ extension Playground {
 
     @ComposeContentBuilder
     override var content: ComposeContent {
-      SwiftUIViewNode { [weak self] in
-        guard let self else {
-          return AnyView(Text("..."))
+      VStack {
+        HStack {
+          Label("Static SwiftUI View: ").font(.systemFont(ofSize: 11)).textAlignment(.left)
+            .fixedSize(width: false, height: true)
+            .frame(width: 120, height: .intrinsic)
+          Spacer(width: 4)
+          SwiftUIViewNode(id: "static", SwiftUIPlaygroundView())
+            .border(color: Color.green.withAlphaComponent(0.25), width: 1)
         }
-        return isShowing ? AnyView(SwiftUIPlaygroundView()) : AnyView(Text("..."))
+
+        Spacer(height: 16)
+
+        HStack {
+          Label("Dynamic SwiftUI View: ").font(.systemFont(ofSize: 11)).textAlignment(.left)
+            .fixedSize(width: false, height: true)
+            .frame(width: 120, height: .intrinsic)
+          Spacer(width: 4)
+          SwiftUIViewNode { [weak self] in
+            guard let self else {
+              return AnyView(Text("..."))
+            }
+            return isShowing ? AnyView(SwiftUIPlaygroundView()) : AnyView(Text("..."))
+          }
+          .border(color: Color.green.withAlphaComponent(0.25), width: 1)
+        }
       }
+      .padding(8)
     }
 
     override func animate() {
