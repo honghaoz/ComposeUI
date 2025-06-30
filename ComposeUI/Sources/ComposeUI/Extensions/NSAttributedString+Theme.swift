@@ -71,17 +71,17 @@ extension NSAttributedString {
   func apply(theme: Theme) -> NSAttributedString {
     let mutable: NSMutableAttributedString = self as? NSMutableAttributedString ?? NSMutableAttributedString(attributedString: self)
     mutable.enumerateAttribute(.themedForegroundColor, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, stop in
-      if let color = value as? ThemedColor {
+      if let value = value, let color = (value as? ThemedColor).assertNotNil("expected ThemedColor for .themedForegroundColor, got \(value)") {
         mutable.addAttribute(.foregroundColor, value: color.resolve(for: theme), range: range)
       }
     }
     mutable.enumerateAttribute(.themedBackgroundColor, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, stop in
-      if let color = value as? ThemedColor {
+      if let value = value, let color = (value as? ThemedColor).assertNotNil("expected ThemedColor for .themedBackgroundColor, got \(value)") {
         mutable.addAttribute(.backgroundColor, value: color.resolve(for: theme), range: range)
       }
     }
     mutable.enumerateAttribute(.themedShadow, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, stop in
-      if let shadow = value as? Themed<NSShadow> {
+      if let value = value, let shadow = (value as? Themed<NSShadow>).assertNotNil("expected Themed<NSShadow> for .themedShadow, got \(value)") {
         mutable.addAttribute(.shadow, value: shadow.resolve(for: theme), range: range)
       }
     }
