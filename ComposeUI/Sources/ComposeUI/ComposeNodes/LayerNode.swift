@@ -31,7 +31,14 @@
 import QuartzCore
 
 /// A node that renders a `CALayer`.
-public struct LayerNode<T: CALayer>: ComposeNode, FixedSizableComposeNode {
+///
+/// **Intrinsic Sizing Behavior:**
+/// - **External layer**: Uses the layer's `bounds.size` as intrinsic size (both dimensions fixed by default)
+/// - **Factory-created layer**: Adapts to container size (both dimensions flexible by default)
+///
+/// Use `fixedSize(width:height:)` to control whether the node uses the layer's intrinsic size
+/// or adapts to the container size for each dimension.
+public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
   private let make: (RenderableMakeContext) -> T
   private let willInsert: ((T, RenderableInsertContext) -> Void)?
@@ -48,8 +55,8 @@ public struct LayerNode<T: CALayer>: ComposeNode, FixedSizableComposeNode {
 
   /// Make a layer node with an external layer.
   ///
-  /// The node with external layer will have a fixed size (with `isFixedWidth` and `isFixedHeight` set to `true`)
-  /// and the size of the node is fixed to the size of the provided layer (`bounds.size`).
+  /// The node with external layer will use the layer's intrinsic size (with `isFixedWidth` and `isFixedHeight` set to `true`)
+  /// and the size of the node matches the provided layer's `bounds.size`.
   /// You need to make sure the layer's size is updated.
   ///
   /// - Parameters:

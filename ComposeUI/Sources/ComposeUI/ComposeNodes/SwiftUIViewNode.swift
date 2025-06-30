@@ -41,7 +41,7 @@ import UIKit
 /// A node that renders a SwiftUI view.
 ///
 /// The node will be flexible in width and height. Use `fixedSize(width:height:)` to set the size of the node.
-public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, FixedSizableComposeNode {
+public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSizableComposeNode {
 
   private var viewNode: ViewNode<View>
 
@@ -89,7 +89,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, FixedSizableC
     self.viewNode.id = .standard(.swiftui)
   }
 
-  // MARK: - FixedSizableComposeNode
+  // MARK: - IntrinsicSizableComposeNode
 
   public var isFixedWidth: Bool {
     get { viewNode.isFixedWidth }

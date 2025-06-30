@@ -37,7 +37,14 @@ import UIKit
 #endif
 
 /// A node that renders a `View`.
-public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
+///
+/// **Intrinsic Sizing Behavior:**
+/// - **External view**: Uses the view's `bounds.size` as intrinsic size (both dimensions fixed by default)
+/// - **Factory-created view**: Adapts to container size (both dimensions flexible by default)
+///
+/// Use `fixedSize(width:height:)` to control whether the node uses the view's intrinsic size
+/// or adapts to the container size for each dimension.
+public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 
   private let make: (RenderableMakeContext) -> T
   private let willInsert: ((T, RenderableInsertContext) -> Void)?
@@ -54,8 +61,8 @@ public struct ViewNode<T: View>: ComposeNode, FixedSizableComposeNode {
 
   /// Make a view node with an external view.
   ///
-  /// The node with external view will have a fixed size (with `isFixedWidth` and `isFixedHeight` set to `true`)
-  /// and the size of the node is fixed to the size of the provided view (`bounds.size`).
+  /// The node with external view will use the view's intrinsic size (with `isFixedWidth` and `isFixedHeight` set to `true`)
+  /// and the size of the node matches the provided view's `bounds.size`.
   /// You need to make sure the view's size is updated.
   ///
   /// If the view is constraint-based layout, don't set the node to flexible sizing by using `.flexible()` and

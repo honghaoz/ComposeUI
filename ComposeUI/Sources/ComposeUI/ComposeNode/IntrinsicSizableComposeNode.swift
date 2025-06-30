@@ -1,5 +1,5 @@
 //
-//  FixedSizableComposeNode.swift
+//  IntrinsicSizableComposeNode.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -30,24 +30,33 @@
 
 import Foundation
 
-/// A node that supports fixed width and height.
-public protocol FixedSizableComposeNode: ComposeNode {
+/// A protocol for compose nodes whose underlying content has an intrinsic size.
+///
+/// This protocol allows control over the sizing behavior of nodes that have content with inherent dimensions
+/// (like text, images). Nodes can either use their intrinsic content size or adapt to the container size.
+public protocol IntrinsicSizableComposeNode: ComposeNode {
 
-  /// Whether the width is fixed. If `true`, the width of the node uses its intrinsic width.
+  /// Whether the width should use the intrinsic content width.
+  ///
+  /// When `true`, the node uses its content's intrinsic width.
+  /// When `false`, the node adapts its width to the container width.
   var isFixedWidth: Bool { get set }
 
-  /// Whether the height is fixed. If `true`, the height of the node uses its intrinsic height.
+  /// Whether the height should use the intrinsic content height.
+  ///
+  /// When `true`, the node uses its content's intrinsic height.
+  /// When `false`, the node adapts its height to the container height.
   var isFixedHeight: Bool { get set }
 }
 
-public extension FixedSizableComposeNode {
+public extension IntrinsicSizableComposeNode {
 
-  /// Set whether the width and height of the node are fixed.
+  /// Configure the node to use its intrinsic content size for width and/or height.
   ///
   /// - Parameters:
-  ///   - width: Whether the width is fixed.
-  ///   - height: Whether the height is fixed.
-  /// - Returns: A new node with the width and height set.
+  ///   - width: When `true`, use the content's intrinsic width. When `false`, adapt to container width.
+  ///   - height: When `true`, use the content's intrinsic height. When `false`, adapt to container height.
+  /// - Returns: A new node with the specified sizing behavior.
   func fixedSize(width: Bool = true, height: Bool = true) -> Self {
     var node = self
     node.isFixedWidth = width
@@ -55,9 +64,11 @@ public extension FixedSizableComposeNode {
     return node
   }
 
-  /// Set the node to be flexible.
+  /// Configure the node to adapt to the container size for both width and height.
   ///
-  /// - Returns: A new node with the width and height set to flexible.
+  /// This is equivalent to calling `fixedSize(width: false, height: false)`.
+  ///
+  /// - Returns: A new node with flexible width and height.
   func flexibleSize() -> Self {
     var node = self
     node.isFixedWidth = false

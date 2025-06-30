@@ -43,7 +43,7 @@ public typealias Text = TextNode
 /// Performance note: Using `fixedSize(width:height:)` will make the text node
 /// re-calculate the intrinsic text size on layout, which is expensive. So it is
 /// preferred to use flexible size and do the size calculation once on your side.
-public struct TextNode: ComposeNode, FixedSizableComposeNode {
+public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
   // MARK: - Text storage
 
@@ -170,7 +170,7 @@ public struct TextNode: ComposeNode, FixedSizableComposeNode {
   ///
   /// By default, the text is truncated with tail ellipsis. Use `lineBreakMode(_:)` to change the truncation behavior.
   ///
-  /// By default, the text has fixed size. Use `fixedSize(width:height:)` to change the size behavior.
+  /// By default, the node uses the text's intrinsic size. Use `fixedSize(width:height:)` to change the sizing behavior.
   ///
   /// - Parameters:
   ///   - string: The string to display.
@@ -201,7 +201,7 @@ public struct TextNode: ComposeNode, FixedSizableComposeNode {
   ///
   /// By default, the text last line is truncated with tail ellipsis. Use `lineBreakMode(_:)` to change the truncation behavior.
   ///
-  /// By default, the text has flexible size. Use `fixedSize(width:height:)` to change the size behavior.
+  /// By default, the node has flexible size. Use `fixedSize(width:height:)` to change the sizing behavior.
   ///
   /// - Parameters:
   ///   - string: The string to display.
