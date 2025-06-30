@@ -47,45 +47,10 @@ public extension SwiftUI.View {
   /// - Returns: The fitting size of the view.
   func sizeThatFits(_ proposingSize: CGSize) -> CGSize {
     #if canImport(AppKit)
-    var computedSize: CGSize?
-
-    let semaphore = DispatchSemaphore(value: 0)
-    let sizeComputingView = onSizeChange { newSize in
-      computedSize = newSize
-      semaphore.signal()
-    }
-    let hostingView = NSHostingView(rootView: sizeComputingView)
-    hostingView.frame = CGRect(origin: .zero, size: proposingSize)
-
-    hostingView.setNeedsLayout()
-    hostingView.layoutIfNeeded()
-
-    semaphore.wait()
-    return computedSize.assertNotNil("computedSize should not be nil") ?? .zero
+    return NSHostingController(rootView: self).sizeThatFits(in: proposingSize)
     #endif
-
     #if canImport(UIKit)
     return UIHostingController(rootView: self).sizeThatFits(in: proposingSize)
     #endif
   }
 }
-
-#if canImport(AppKit)
-private struct SizePreferenceKey: PreferenceKey {
-  static let defaultValue: CGSize = .zero
-  static func reduce(value: inout CGSize, nextValue: () -> CGSize) {}
-}
-
-private extension SwiftUI.View {
-
-  func onSizeChange(_ onChangeClosure: @escaping (CGSize) -> Void) -> some SwiftUI.View {
-    background(
-      GeometryReader { proxy in
-        SwiftUI.Rectangle()
-          .preference(key: SizePreferenceKey.self, value: proxy.size)
-      }
-    )
-    .onPreferenceChange(SizePreferenceKey.self, perform: onChangeClosure)
-  }
-}
-#endif
