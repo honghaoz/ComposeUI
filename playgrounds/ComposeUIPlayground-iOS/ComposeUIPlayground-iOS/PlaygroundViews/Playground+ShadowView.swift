@@ -362,7 +362,7 @@ extension Playground {
             .innerShadow(
               color: ThemedColor(light: .black, dark: .red),
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 8, dark: 4),
+              radius: Themed<CGFloat>(light: 2, dark: 4),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
               paths: { renderItem in
                 let size = renderItem.frame.size
@@ -370,7 +370,7 @@ extension Playground {
                 let cornerRadius: CGFloat = 16
                 let shadowCornerRadius: CGFloat = cornerRadius - spread
                 let shadowPath = CGPath(
-                  roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 8, dy: 8),
+                  roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 18, dy: 18),
                   cornerWidth: shadowCornerRadius,
                   cornerHeight: shadowCornerRadius,
                   transform: nil

@@ -76,24 +76,27 @@ open class InnerShadowLayer: CALayer {
 
   /// Update the inner shadow layer with a new shadow.
   ///
-  /// Note: The inner shadow is achieved with a "punch hole" path with drop shadow.
-  /// The `path` is the "punch hole" path, and the `clipPath` is the shape of the layer.
+  /// The inner shadow is rendered by a drop shadow from a "punch hole":
+  /// The `holePath` is the "punch hole" path.
+  /// The `clipPath` is the path that is bigger than the "punch hole" path to clip the shadow.
   ///
-  /// For a shadow without "spread" effect, the `path` and `clipPath` should be the same, which is the shape of the layer.
+  /// By separating the "punch hole" and the "clip path", we can achieve an inner shadow with "spread" effect:
+  /// - For a shadow without "spread" effect, the `holePath` and `clipPath` are the same.
+  /// - For a shadow with "spread" effect, the `clipPath` is bigger than the `holePath`.
   ///
   /// - Parameters:
   ///   - color: The color of the shadow.
   ///   - opacity: The opacity of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
-  ///   - path: The path of the shadow.
-  ///   - clipPath: The path to clip the layer. This should be a path representing the shape of the layer.
+  ///   - holePath: The path of the "punch hole".
+  ///   - clipPath: The path to clip the shadow. If `nil`, the shadow will be clipped by the `holePath`.
   ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     path: @escaping (InnerShadowLayer) -> CGPath,
+                     holePath: @escaping (InnerShadowLayer) -> CGPath,
                      clipPath: ((InnerShadowLayer) -> CGPath)?,
                      animationTiming: AnimationTiming? = nil)
   {
@@ -108,8 +111,9 @@ open class InnerShadowLayer: CALayer {
       }
     }
 
-    let shadowShapePath = path(self)
-    let innerShadowPath = innerShadowPath(path: shadowShapePath, radius: radius, offset: offset)
+    let holePath = holePath(self)
+    let clipPath = clipPath?(self) ?? holePath
+    let innerShadowPath = innerShadowPath(holePath: holePath, clipPath: clipPath, radius: radius, offset: offset)
 
     if let animationTiming {
       maskLayer.animateFrame(to: bounds, timing: animationTiming)
@@ -117,7 +121,7 @@ open class InnerShadowLayer: CALayer {
         keyPath: "path",
         timing: animationTiming,
         from: { ($0.presentation() as? CAShapeLayer).assertNotNil()?.path },
-        to: { _ in shadowShapePath }
+        to: { _ in clipPath }
       )
 
       animate(
@@ -138,11 +142,7 @@ open class InnerShadowLayer: CALayer {
     } else {
       maskLayer.disableActions(for: "position", "bounds", "path") {
         maskLayer.frame = bounds
-        if let clipPath {
-          maskLayer.path = clipPath(self)
-        } else {
-          maskLayer.path = shadowShapePath
-        }
+        maskLayer.path = clipPath
       }
 
       disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
@@ -155,15 +155,15 @@ open class InnerShadowLayer: CALayer {
     }
   }
 
-  private func innerShadowPath(path: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
+  private func innerShadowPath(holePath: CGPath, clipPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
     // make a bigger rect to contain the shadow
-    let hExtraSize = radius + abs(offset.width) + 10
-    let vExtraSize = radius + abs(offset.height) + 10
-    let biggerBounds = path.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
+    let hExtraSize = radius + abs(offset.width) + 20
+    let vExtraSize = radius + abs(offset.height) + 20
+    let biggerBounds = clipPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
     let biggerPath = BezierPath(rect: biggerBounds)
 
     // then cut the shadow path from the bigger rect
-    let shadowPath = BezierPath(cgPath: path)
+    let shadowPath = BezierPath(cgPath: holePath)
     biggerPath.append(shadowPath.reversing())
     return biggerPath.cgPath
   }

@@ -41,20 +41,27 @@ public struct InnerShadowPaths {
 
   /// The shadow path.
   ///
-  /// The inner shadow is rendered by a drop shadow from a "punch hole" path. This is the "punch hole" path.
+  /// The inner shadow is rendered by a drop shadow from a "punch hole".
+  /// This is the "punch hole" path.
+  ///
+  /// - For inner shadow without "spread" effect, the shadow path is the same as the clip path.
+  /// - For inner shadow with "spread" effect, the shadow path is the "punch hole" path, which is smaller than the clip path.
   public let shadowPath: CGPath
 
   /// The clip path.
   ///
-  /// The inner shadow is rendered by a drop shadow from a "punch hole" path.
-  /// This is the path that is bigger than the "punch hole" path. This path should match the shape of the object that the shadow is applied to.
+  /// The clip path is the path that is bigger than the "punch hole" path to clip the shadow.
+  /// Generally, the clip path is the shape of the object that the shadow is applied to.
+  ///
+  /// - For inner shadow without "spread" effect, the clip path is the same as the shadow path.
+  /// - For inner shadow with "spread" effect, the clip path is bigger than the shadow path.
   public let clipPath: CGPath?
 
   /// Initialize a shadow paths model.
   ///
   /// - Parameters:
   ///   - shadowPath: The shadow path.
-  ///   - clipPath: The clip path.
+  ///   - clipPath: The clip path. If `nil`, the shadow will be clipped by the `shadowPath`.
   public init(shadowPath: CGPath, clipPath: CGPath?) {
     self.shadowPath = shadowPath
     self.clipPath = clipPath
@@ -168,7 +175,7 @@ public struct InnerShadowNode: ComposeNode {
           opacity: opacity.resolve(for: theme),
           radius: radius.resolve(for: theme),
           offset: offset.resolve(for: theme),
-          path: { _ in paths.shadowPath },
+          holePath: { _ in paths.shadowPath },
           clipPath: paths.clipPath.map { clipPath in { _ in clipPath } },
           animationTiming: context.animationTiming
         )
