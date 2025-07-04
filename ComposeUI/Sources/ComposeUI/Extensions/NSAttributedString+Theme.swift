@@ -82,7 +82,13 @@ extension NSAttributedString {
     }
     mutable.enumerateAttribute(.themedShadow, in: NSRange(location: 0, length: mutable.length), options: []) { value, range, stop in
       if let value = value, let shadow = (value as? Themed<NSShadow>).assertNotNil("expected Themed<NSShadow> for .themedShadow, got \(value)") {
-        mutable.addAttribute(.shadow, value: shadow.resolve(for: theme), range: range)
+        var shadow = shadow.resolve(for: theme)
+        #if canImport(AppKit)
+        // flip shadow vertical offset to match UIKit
+        shadow = shadow.copy() as! NSShadow // swiftlint:disable:this force_cast
+        shadow.shadowOffset.height = -shadow.shadowOffset.height
+        #endif
+        mutable.addAttribute(.shadow, value: shadow, range: range)
       }
     }
     return mutable

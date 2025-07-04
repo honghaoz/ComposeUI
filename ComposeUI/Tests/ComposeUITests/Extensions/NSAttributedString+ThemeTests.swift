@@ -37,8 +37,10 @@ class NSAttributedString_ThemeTests: XCTestCase {
   func test() {
     let lightShadow = NSShadow()
     lightShadow.shadowColor = Color.black
+    lightShadow.shadowOffset = CGSize(width: 1, height: 1)
     let darkShadow = NSShadow()
     darkShadow.shadowColor = Color.white
+    darkShadow.shadowOffset = CGSize(width: 1, height: -1)
 
     let attributedString = NSAttributedString(
       string: "Hello, world!",
@@ -54,7 +56,12 @@ class NSAttributedString_ThemeTests: XCTestCase {
       let attributes = darkAttributedString.attributes(at: 0, effectiveRange: nil)
       expect(attributes[.foregroundColor] as? Color) == Color.blue
       expect(attributes[.backgroundColor] as? Color) == Color.yellow
-      expect(attributes[.shadow] as? NSShadow) == darkShadow
+      expect((attributes[.shadow] as? NSShadow)?.shadowColor as? Color) == Color.white
+      #if canImport(AppKit)
+      expect((attributes[.shadow] as? NSShadow)?.shadowOffset.height) == -darkShadow.shadowOffset.height
+      #else
+      expect((attributes[.shadow] as? NSShadow)?.shadowOffset.height) == darkShadow.shadowOffset.height
+      #endif
 
       expect(attributes[.themedForegroundColor] as? ThemedColor) == ThemedColor(light: .red, dark: .blue)
       expect(attributes[.themedBackgroundColor] as? ThemedColor) == ThemedColor(light: .green, dark: .yellow)
@@ -66,7 +73,12 @@ class NSAttributedString_ThemeTests: XCTestCase {
       let attributes = lightAttributedString.attributes(at: 0, effectiveRange: nil)
       expect(attributes[.foregroundColor] as? Color) == Color.red
       expect(attributes[.backgroundColor] as? Color) == Color.green
-      expect(attributes[.shadow] as? NSShadow) == lightShadow
+      expect((attributes[.shadow] as? NSShadow)?.shadowColor as? Color) == Color.black
+      #if canImport(AppKit)
+      expect((attributes[.shadow] as? NSShadow)?.shadowOffset.height) == -lightShadow.shadowOffset.height
+      #else
+      expect((attributes[.shadow] as? NSShadow)?.shadowOffset.height) == lightShadow.shadowOffset.height
+      #endif
 
       expect(attributes[.themedForegroundColor] as? ThemedColor) == ThemedColor(light: .red, dark: .blue)
       expect(attributes[.themedBackgroundColor] as? ThemedColor) == ThemedColor(light: .green, dark: .yellow)

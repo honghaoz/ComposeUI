@@ -355,7 +355,11 @@ class LabelNodeTests: XCTestCase {
     expect(textView?.attributedString.backgroundColor()) == .green
     expect(textView?.attributedString.shadow()) == {
       let shadow = NSShadow()
+      #if canImport(AppKit)
+      shadow.shadowOffset = CGSize(width: 0, height: -1)
+      #else
       shadow.shadowOffset = CGSize(width: 0, height: 1)
+      #endif
       return shadow
     }()
     let paragraphStyle = try unwrap(textView?.attributedString.paragraphStyle())
