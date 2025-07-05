@@ -160,6 +160,13 @@ open class BaseTextView: TextView {
       self?.layoutIfNeeded()
     }
   }
+
+  override open func resignFirstResponder() -> Bool {
+    // clear text selection when losing focus
+    setSelectedRange(NSRange(location: 0, length: 0))
+
+    return super.resignFirstResponder()
+  }
 }
 
 // "What's new in TextKit and text views" (https://developer.apple.com/videos/play/wwdc2022/10090/)
