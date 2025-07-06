@@ -172,6 +172,10 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
   private var isDoubleTap: Bool = false
 
   @objc private func handlePress() {
+    _handlePress(with: pressGestureRecognizer)
+  }
+
+  private func _handlePress(with pressGestureRecognizer: PressGestureRecognizerType) {
     switch pressGestureRecognizer.state {
     case .possible:
       break
@@ -358,6 +362,38 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     #endif
   }
 
+  #if canImport(AppKit)
+
+  // MARK: - Key Equivalent
+
+  /// A closure that determines whether the button should perform a key equivalent.
+  ///
+  /// The default value is `nil`.
+  ///
+  /// If this value is set, the button will simulate a button press when the closure returns `true`.
+  ///
+  /// - Note: Long press key equivalent will trigger multiple button presses.
+  public var shouldPerformKeyEquivalent: ((NSEvent) -> Bool)?
+
+  override open func performKeyEquivalent(with event: NSEvent) -> Bool {
+    guard let shouldPerformKeyEquivalent = shouldPerformKeyEquivalent, shouldPerformKeyEquivalent(event) else {
+      return super.performKeyEquivalent(with: event)
+    }
+
+    // simulate a button press
+    let pressGestureRecognizer = PressGestureRecognizerMock()
+    pressGestureRecognizer.state = .began
+    _handlePress(with: pressGestureRecognizer)
+
+    RunLoop.main.perform { // delay to make sure the button UI can be updated
+      pressGestureRecognizer.state = .ended
+      self._handlePress(with: pressGestureRecognizer)
+    }
+
+    return true
+  }
+  #endif
+
   // MARK: - Accessibility
 
   #if canImport(AppKit)
@@ -426,3 +462,31 @@ private extension UIView {
   }
 }
 #endif
+
+// MARK: - PressGestureRecognizerType
+
+/// A protocol that represents a press gesture recognizer.
+private protocol PressGestureRecognizerType {
+
+  var state: GestureRecognizer.State { get }
+
+  func location(in view: View?) -> CGPoint
+  func cancel()
+}
+
+extension PressGestureRecognizer: PressGestureRecognizerType {}
+
+/// A mock press gesture recognizer.
+private class PressGestureRecognizerMock: PressGestureRecognizerType {
+
+  var state: GestureRecognizer.State = .possible
+
+  func location(in view: View?) -> CGPoint {
+    guard let view else {
+      return .zero
+    }
+    return CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+  }
+
+  func cancel() {}
+}

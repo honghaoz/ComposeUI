@@ -106,7 +106,14 @@ class ViewController: NSViewController {
       Spacer(height: 16)
 
       ViewNode<Playground.Button>()
-        .frame(width: 88, height: 44)
+        .frame(width: .flexible, height: 44)
+        .padding(horizontal: 0, vertical: 16)
+        .frame(width: .flexible, height: .intrinsic)
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
 
       Spacer(height: 16)
 

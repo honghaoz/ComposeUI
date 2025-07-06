@@ -47,6 +47,10 @@ public struct ButtonNode: ComposeNode {
   private var hapticFeedbackStyle: UIImpactFeedbackGenerator.FeedbackStyle?
   #endif
 
+  #if canImport(AppKit)
+  private var shouldPerformKeyEquivalent: ((NSEvent) -> Bool)?
+  #endif
+
   private var buttonNode: ComposeNode
 
   /// Creates a button node.
@@ -111,6 +115,9 @@ public struct ButtonNode: ComposeNode {
         #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
         view.hapticFeedbackStyle = hapticFeedbackStyle
         #endif
+        #if canImport(AppKit)
+        view.shouldPerformKeyEquivalent = shouldPerformKeyEquivalent
+        #endif
       }
     )
 
@@ -135,6 +142,17 @@ public struct ButtonNode: ComposeNode {
   public func hapticFeedbackStyle(_ style: UIImpactFeedbackGenerator.FeedbackStyle?) -> Self {
     var copy = self
     copy.hapticFeedbackStyle = style
+    return copy
+  }
+  #endif
+
+  #if canImport(AppKit)
+  /// Set the closure that determines whether the button should perform a key equivalent.
+  ///
+  /// - Parameter block: The closure that determines whether the button should perform a key equivalent.
+  public func shouldPerformKeyEquivalent(_ block: @escaping (NSEvent) -> Bool) -> Self {
+    var copy = self
+    copy.shouldPerformKeyEquivalent = block
     return copy
   }
   #endif
