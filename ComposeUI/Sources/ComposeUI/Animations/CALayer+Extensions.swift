@@ -49,7 +49,8 @@ extension CALayer {
   /// - Parameters:
   ///   - frame: The layer's frame.
   /// - Returns: The layer's position.
-  func position(from frame: CGRect) -> CGPoint {
+  @_spi(Private)
+  public func position(from frame: CGRect) -> CGPoint {
     ComposeUI.assert(CATransform3DEqualToTransform(transform, CATransform3DIdentity), "only works with identity transform.")
     return CGPoint(
       x: frame.origin.x + anchorPoint.x * frame.width,

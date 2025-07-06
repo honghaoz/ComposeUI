@@ -31,7 +31,7 @@
 import Foundation
 import QuartzCore
 
-extension CABasicAnimation {
+public extension CABasicAnimation {
 
   /// Make an animation based on the timing.
   ///
