@@ -34,6 +34,24 @@ import AppKit
 /// A base text view.
 open class BaseTextView: TextView {
 
+  /// A flag to indicate whether to use TextKit 2.
+  ///
+  /// Even though TextKit 2 is available on macOS 12, however, using TextKit 2 on macOS 12 could result in various
+  /// issues, such as text not updated on `attributedString` set.
+  ///
+  /// Bumping up the minimum macOS version to 13 to use TextKit 2.
+  ///
+  /// References:
+  /// - "Meet TextKit 2" (https://developer.apple.com/videos/play/wwdc2021/10061)
+  /// - "What's new in TextKit and text views" (https://developer.apple.com/videos/play/wwdc2022/10090/)
+  private static let shouldUseTextKit2 = {
+    if #available(macOS 13.0, *) {
+      return true
+    } else {
+      return false
+    }
+  }()
+
   override open var isFlipped: Bool { true }
 
   // ⚠️ DON'T OVERRIDE `wantsUpdateLayer` ⚠️
@@ -54,7 +72,7 @@ open class BaseTextView: TextView {
   /// The attributed string content of the text view.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
-      if #available(macOS 12.0, *) {
+      if BaseTextView.shouldUseTextKit2, #available(macOS 12.0, *) {
         // TextKit 2
         textContentStorage?.textStorage?.setAttributedString(attributedString)
       } else {
@@ -92,7 +110,7 @@ open class BaseTextView: TextView {
   }
 
   override public init(frame: CGRect) {
-    if #available(macOS 12.0, *) {
+    if BaseTextView.shouldUseTextKit2, #available(macOS 12.0, *) {
       let textContainer = NSTextContainer(size: frame.size)
 
       let textLayoutManager = NSTextLayoutManager()
@@ -194,8 +212,6 @@ open class BaseTextView: TextView {
   }
 }
 
-// "What's new in TextKit and text views" (https://developer.apple.com/videos/play/wwdc2022/10090/)
-// "Meet TextKit 2" (https://developer.apple.com/videos/play/wwdc2021/10061)
 #endif
 
 #if canImport(UIKit)
