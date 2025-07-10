@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/honghaoz/ChouTi",
       "state" : {
-        "revision" : "2178ef522e724e14dbf44fa4bf4e39d1c8dac79a",
-        "version" : "0.0.9"
+        "branch" : "master",
+        "revision" : "aec34d5d0dfc453e20864527be33f88ec40552d3"
       }
     }
   ],

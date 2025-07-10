@@ -36,14 +36,20 @@ open class BaseTextView: TextView {
 
   override open var isFlipped: Bool { true }
 
-  override open var wantsUpdateLayer: Bool {
-    if #available(macOS 12.0, *) {
-      return true
-    } else {
-      // TextKit 1 doesn't support layer-based rendering
-      return false
-    }
-  }
+  // ⚠️ DON'T OVERRIDE `wantsUpdateLayer` ⚠️
+  //
+  // Override `wantsUpdateLayer` to return `true` could cause the text view to render nothing on macOS 12.
+  //
+  // Returning `true` is fine on macOS 15.
+  //
+  // override open var wantsUpdateLayer: Bool {
+  //   if #available(macOS 12.0, *) {
+  //     return true
+  //   } else {
+  //     // TextKit 1 doesn't support layer-based rendering
+  //     return false
+  //   }
+  // }
 
   /// The attributed string content of the text view.
   public var attributedString: NSAttributedString = NSAttributedString() {
