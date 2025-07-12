@@ -30,7 +30,7 @@
 
 import QuartzCore
 
-extension CATransaction {
+public extension CATransaction {
 
   /// Execute the block with Core Animation implicit animations disabled and return the result.
   ///
@@ -38,6 +38,7 @@ extension CATransaction {
   ///
   /// - Parameter work: The block to execute.
   /// - Returns: The result of the work block.
+  @_spi(Private)
   @inlinable
   @inline(__always)
   static func disableAnimations<T>(_ work: () throws -> T) rethrows -> T {

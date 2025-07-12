@@ -34,7 +34,7 @@ import QuartzCore
 /// A `CAAnimation` delegate object.
 ///
 /// `CAAnimation` strongly retain `delegate`, you can just assign the delegate without retaining it.
-final class AnimationDelegate: NSObject, CAAnimationDelegate {
+public final class AnimationDelegate: NSObject, CAAnimationDelegate {
 
   private let animationDidStart: ((_ animation: CAAnimation) -> Void)?
   private let animationDidStop: ((_ animation: CAAnimation, _ finished: Bool) -> Void)?
@@ -42,28 +42,30 @@ final class AnimationDelegate: NSObject, CAAnimationDelegate {
   private var didStart: Bool = false
   private var didStop: Bool = false
 
-  /// Create a new animation delegate.
+  /// Initialize a new `AnimationDelegate`.
   ///
   /// - Parameters:
-  ///   - animationDidStart: The block to be called when the animation starts.
-  ///   - animationDidStop: The block to be called when the animation stops.
-  init(animationDidStart: ((_ animation: CAAnimation) -> Void)? = nil,
-       animationDidStop: ((_ animation: CAAnimation, _ finished: Bool) -> Void)? = nil)
+  ///   - animationDidStart: The block to be called when the animation starts. It passes the animation as an argument.
+  ///   - animationDidStop: The block to be called when the animation stops. It passes the animation and a boolean value indicating whether the animation finished as arguments.
+  public init(animationDidStart: ((_ animation: CAAnimation) -> Void)? = nil,
+              animationDidStop: ((_ animation: CAAnimation, _ finished: Bool) -> Void)? = nil)
   {
     self.animationDidStart = animationDidStart
     self.animationDidStop = animationDidStop
   }
 
-  func animationDidStart(_ animation: CAAnimation) {
+  public func animationDidStart(_ animation: CAAnimation) {
     guard !didStart else {
+      ComposeUI.assertFailure("animation already started: \(animation)")
       return
     }
     didStart = true
     animationDidStart?(animation)
   }
 
-  func animationDidStop(_ animation: CAAnimation, finished: Bool) {
+  public func animationDidStop(_ animation: CAAnimation, finished: Bool) {
     guard !didStop else {
+      ComposeUI.assertFailure("animation already stopped: \(animation)")
       return
     }
     didStop = true

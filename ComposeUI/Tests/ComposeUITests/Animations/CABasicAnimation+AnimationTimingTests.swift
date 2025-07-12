@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class CABasicAnimation_AnimationTimingTests: XCTestCase {
 
