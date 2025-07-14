@@ -57,8 +57,14 @@ extension ComposeView {
         switch updateType {
         case .refresh(let isAnimated):
           return isAnimated
-        case .boundsChange:
-          return true
+        case .boundsChange(let previousBounds):
+          if previousBounds.size == contentView.bounds.size {
+            // scroll
+            return true
+          } else {
+            // size change
+            return false
+          }
         }
       case .disabled:
         return false

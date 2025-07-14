@@ -32,7 +32,7 @@ import Foundation
 import QuartzCore
 
 /// A descriptor for an animation timing.
-public struct AnimationTiming {
+public struct AnimationTiming: Hashable {
 
   /// Create a linear animation timing.
   ///

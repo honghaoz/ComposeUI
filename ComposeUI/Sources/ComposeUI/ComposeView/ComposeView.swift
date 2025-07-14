@@ -83,7 +83,7 @@ open class ComposeView: BaseScrollView {
     ///
     /// With this behavior, the content update is animated if:
     /// - the content is refreshed with `animated: true`
-    /// - the content is scrolled or resized
+    /// - the content is scrolled
     case `default`
 
     /// The animation is disabled.
