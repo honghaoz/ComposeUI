@@ -75,6 +75,7 @@ extension Playground {
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
+                .fixedSize()
             }
             .transition(.opacity(timing: .linear()))
             .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
@@ -99,6 +100,7 @@ extension Playground {
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
+                .fixedSize()
             }
             .transition(.opacity(timing: .linear()))
             .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
@@ -138,6 +140,7 @@ extension Playground {
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
+                .fixedSize()
             }
             .transition(.opacity(timing: .linear()))
             .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
@@ -169,6 +172,7 @@ extension Playground {
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
+                .fixedSize()
             }
             .transition(.opacity(timing: .linear()))
             .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
@@ -199,6 +203,7 @@ extension Playground {
                 .font(.systemFont(ofSize: 12))
                 .textColor(.black)
                 .numberOfLines(2)
+                .fixedSize()
             }
             .transition(.opacity(timing: .linear()))
             .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))

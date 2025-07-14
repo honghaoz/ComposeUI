@@ -601,7 +601,9 @@ open class ComposeView: BaseScrollView {
     contentUpdateContext.isRendering = true
     self.contentUpdateContext = contentUpdateContext
 
-    render(contentUpdateContext)
+    CATransaction.disableAnimations { // disable all implicit animations to have a clean environment for rendering
+      render(contentUpdateContext)
+    }
 
     self.contentUpdateContext = nil
     lastRenderBounds = bounds()
@@ -912,9 +914,7 @@ open class ComposeView: BaseScrollView {
         if let animationTiming {
           renderable.layer.animateFrame(to: newFrame, timing: animationTiming)
         } else {
-          CATransaction.disableAnimations {
-            renderable.setFrame(newFrame)
-          }
+          renderable.setFrame(newFrame)
         }
 
         renderableItem.update(renderable, renderableUpdateContext)
@@ -934,9 +934,7 @@ open class ComposeView: BaseScrollView {
           removingRenderableTransitionCompletionMap.removeValue(forKey: id)
           renderable = removingRenderable
         } else {
-          renderable = CATransaction.disableAnimations { // no animation context for making new renderables
-            renderableItem.make(RenderableMakeContext(initialFrame: newFrame, contentView: self))
-          }
+          renderable = renderableItem.make(RenderableMakeContext(initialFrame: newFrame, contentView: self))
         }
 
         #if DEBUG
@@ -960,10 +958,7 @@ open class ComposeView: BaseScrollView {
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
 
         renderable.addToParent(contentView())
-
-        CATransaction.disableAnimations {
-          renderable.setFrame(newFrame) // no animation context for insertion
-        }
+        renderable.setFrame(newFrame)
 
         renderableItem.update(renderable, renderableUpdateContext)
 
