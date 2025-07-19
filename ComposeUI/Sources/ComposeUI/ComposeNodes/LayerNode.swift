@@ -91,7 +91,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
   /// Make a layer node with a layer factory.
   ///
-  /// The node will have a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
+  /// The node has a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
   ///
   /// - Parameters:
   ///   - make: A closure to create a layer. To avoid incorrect transition animation, the layer should be created with frame set to `context.initialFrame` if it's provided.
@@ -162,24 +162,12 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
       id: id,
       frame: frame,
       make: make,
-      willInsert: { layer, context in
-        willInsert?(layer, context)
-      },
-      didInsert: { layer, context in
-        didInsert?(layer, context)
-      },
-      willUpdate: { layer, context in
-        willUpdate?(layer, context)
-      },
-      update: { layer, context in
-        update(layer, context)
-      },
-      willRemove: { layer, context in
-        willRemove?(layer, context)
-      },
-      didRemove: { layer, context in
-        didRemove?(layer, context)
-      }
+      willInsert: willInsert,
+      didInsert: didInsert,
+      willUpdate: willUpdate,
+      update: update,
+      willRemove: willRemove,
+      didRemove: didRemove
     )
 
     return [layerItem.eraseToRenderableItem()]

@@ -35,17 +35,17 @@ public enum FrameSize: Hashable {
 
   /// A fixed size.
   ///
-  /// The node will have a fixed size regardless of the container size.
+  /// The node has a fixed size regardless of the container size.
   case fixed(CGFloat)
 
   /// A flexible size.
   ///
-  /// The node will have a flexible size that can grow or shrink based on the container size.
+  /// The node has a flexible size that can grow or shrink based on the container size.
   case flexible
 
   /// An intrinsic size.
   ///
-  /// The node will have an intrinsic size based on its content.
+  /// The node has an intrinsic size based on its content.
   case intrinsic
 }
 

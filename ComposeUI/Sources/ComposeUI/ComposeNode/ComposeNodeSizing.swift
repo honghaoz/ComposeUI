@@ -61,7 +61,7 @@ public extension ComposeNodeSizing {
 
     /// The sizing is fixed.
     ///
-    /// Node will always have a fixed size regardless of the container size.
+    /// Node always have a fixed size regardless of the container size.
     case fixed(CGFloat)
 
     /// The sizing is flexible.

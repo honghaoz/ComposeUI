@@ -196,27 +196,17 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
       id: id,
       frame: frame,
       make: make,
-      willInsert: { view, context in
-        willInsert?(view, context)
-      },
-      didInsert: { view, context in
-        didInsert?(view, context)
-      },
-      willUpdate: { view, context in
-        willUpdate?(view, context)
-      },
+      willInsert: willInsert,
+      didInsert: didInsert,
+      willUpdate: willUpdate,
       update: { view, context in
         #if canImport(AppKit)
         ComposeUI.assert(view.layer != nil, "\(T.self) should be layer backed. Please set `wantsLayer == true`.")
         #endif
         update(view, context)
       },
-      willRemove: { view, context in
-        willRemove?(view, context)
-      },
-      didRemove: { view, context in
-        didRemove?(view, context)
-      }
+      willRemove: willRemove,
+      didRemove: didRemove
     )
 
     return [viewItem.eraseToRenderableItem()]
