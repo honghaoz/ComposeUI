@@ -308,6 +308,37 @@ class ViewNodeTests: XCTestCase {
     expect(view.contentView().subviews[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
   }
 
+  func test_renderableItems_visibleBounds() {
+    // given a view node with specific size
+    let view = BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
+    var node = ViewNode(view)
+
+    // layout the node to set its size
+    _ = node.layout(containerSize: CGSize(width: 50, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    expect(node.size) == CGSize(width: 50, height: 50)
+
+    // when visible bounds intersects with the node frame
+    do {
+      let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 100) // intersects
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 1
+    }
+
+    // when visible bounds partially intersects with the node frame
+    do {
+      let visibleBounds = CGRect(x: 25, y: 25, width: 50, height: 50) // partially intersects
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 1
+    }
+
+    // when visible bounds does not intersect with the node frame
+    do {
+      let visibleBounds = CGRect(x: 100, y: 100, width: 50, height: 50) // no intersection
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 0 // should return empty array
+    }
+  }
+
   #if canImport(AppKit)
   func test_nonLayerBackedView_assertion() {
     // given a view that is not layer backed

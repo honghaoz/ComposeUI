@@ -238,6 +238,38 @@ class LayerNodeTests: XCTestCase {
     }
   }
 
+  func test_renderableItems_visibleBounds() {
+    // given a layer node with specific size
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    var node = LayerNode(layer)
+
+    // layout the node to set its size
+    _ = node.layout(containerSize: CGSize(width: 50, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    expect(node.size) == CGSize(width: 50, height: 50)
+
+    // when visible bounds intersects with the node frame
+    do {
+      let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 100) // intersects
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 1
+    }
+
+    // when visible bounds partially intersects with the node frame
+    do {
+      let visibleBounds = CGRect(x: 25, y: 25, width: 50, height: 50) // partially intersects
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 1
+    }
+
+    // when visible bounds does not intersect with the node frame
+    do {
+      let visibleBounds = CGRect(x: 100, y: 100, width: 50, height: 50) // no intersection
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 0 // should return empty array
+    }
+  }
+
   func test_layer_as_composeContent() {
     let view = ComposeView {
       let layer = CALayer()
