@@ -67,6 +67,20 @@ class ComposeNode_ConditionalTests: XCTestCase {
     }
   }
 
+  func test_if_sameType() {
+    _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
+      .if(true) {
+        $0.onDoubleTap {}
+      }
+      .shouldPerformKeyEquivalent { _ in true }
+
+    _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
+      .shouldPerformKeyEquivalent { _ in true }
+      .if(true) {
+        $0.onDoubleTap {}
+      }
+  }
+
   func test_if_else() {
     func makeNode(condition: Bool) -> any ComposeNode {
       ViewNode()
@@ -105,5 +119,23 @@ class ComposeNode_ConditionalTests: XCTestCase {
       expect(renderableItems.count) == 1
       expect(renderableItems[0].frame.origin.x) == 2
     }
+  }
+
+  func test_if_else_sameType() {
+    _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
+      .if(true, then: {
+        $0.onDoubleTap {}
+      }, else: {
+        $0.shouldPerformKeyEquivalent { _ in true }
+      })
+      .shouldPerformKeyEquivalent { _ in true }
+
+    _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
+      .shouldPerformKeyEquivalent { _ in true }
+      .if(true, then: {
+        $0.onDoubleTap {}
+      }, else: {
+        $0.shouldPerformKeyEquivalent { _ in true }
+      })
   }
 }

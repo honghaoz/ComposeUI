@@ -42,6 +42,16 @@ public extension ComposeNode {
     return condition ? then(self) : self
   }
 
+  /// If the condition is true, then return the result of the then closure. Otherwise, return the original node.
+  ///
+  /// - Parameters:
+  ///   - condition: The condition to check.
+  ///   - then: The closure to evaluate if the condition is true.
+  /// - Returns: A new node with the result of the then closure if the condition is true, otherwise the original node.
+  func `if`(_ condition: Bool, then: (Self) -> Self) -> Self {
+    return condition ? then(self) : self
+  }
+
   /// If the condition is true, then return the result of the then closure. Otherwise, return the result of the else closure.
   ///
   /// - Parameters:
@@ -50,6 +60,17 @@ public extension ComposeNode {
   ///   - else: The closure to evaluate if the condition is false.
   /// - Returns: A new node with the result of the then closure if the condition is true, otherwise the result of the else closure.
   func `if`(_ condition: Bool, then: (Self) -> any ComposeNode, else: (Self) -> any ComposeNode) -> any ComposeNode {
+    condition ? then(self) : `else`(self)
+  }
+
+  /// If the condition is true, then return the result of the then closure. Otherwise, return the result of the else closure.
+  ///
+  /// - Parameters:
+  ///   - condition: The condition to check.
+  ///   - then: The closure to evaluate if the condition is true.
+  ///   - else: The closure to evaluate if the condition is false.
+  /// - Returns: A new node with the result of the then closure if the condition is true, otherwise the result of the else closure.
+  func `if`(_ condition: Bool, then: (Self) -> Self, else: (Self) -> Self) -> Self {
     condition ? then(self) : `else`(self)
   }
 }

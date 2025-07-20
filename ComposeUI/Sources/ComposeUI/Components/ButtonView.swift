@@ -76,7 +76,12 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
   /// When the value is `nil`, for UIKit, the duration is `0.15` seconds, for AppKit, the duration is `NSEvent.doubleClickInterval`.
   public var doubleTapInterval: TimeInterval?
 
+  // TODO: considering using ResponderView + TrackingView to make the button accept click when the app is inactive
   private lazy var pressGestureRecognizer = PressGestureRecognizer()
+
+  #if canImport(AppKit)
+  private lazy var hoverGestureRecognizer = HoverGestureRecognizer()
+  #endif
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -91,6 +96,12 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     pressGestureRecognizer.action = #selector(handlePress)
     #endif
     addGestureRecognizer(pressGestureRecognizer)
+
+    #if canImport(AppKit)
+    hoverGestureRecognizer.target = self
+    hoverGestureRecognizer.action = #selector(handleHover)
+    addGestureRecognizer(hoverGestureRecognizer)
+    #endif
 
     clipsToBounds = false
 
@@ -175,6 +186,12 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     _handlePress(with: pressGestureRecognizer)
   }
 
+  #if canImport(AppKit)
+  @objc private func handleHover() {
+    _handleHover(with: hoverGestureRecognizer)
+  }
+  #endif
+
   private func _handlePress(with pressGestureRecognizer: PressGestureRecognizerType) {
     switch pressGestureRecognizer.state {
     case .possible:
@@ -244,7 +261,12 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
             // there's a double-tap timeout task, this means the first up is before the double-tap timeout
             // we should schedule the single tap action
 
+            #if canImport(AppKit)
+            buttonState = hoverGestureRecognizer.isHovering ? .hovered : .normal // reset button style before triggering actions
+            #endif
+            #if canImport(UIKit)
             buttonState = .normal // reset button style before triggering actions
+            #endif
             doubleTapTimeoutBlock = { [weak self] in
               guard let self else {
                 return
@@ -277,8 +299,30 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     }
   }
 
+  #if canImport(AppKit)
+  private func _handleHover(with hoverGestureRecognizer: HoverGestureRecognizer) {
+    switch hoverGestureRecognizer.state {
+    case .began:
+      if buttonState == .normal {
+        buttonState = .hovered
+      }
+    case .ended:
+      if buttonState == .hovered {
+        buttonState = .normal
+      }
+    default:
+      break
+    }
+  }
+  #endif
+
   private func reset() {
+    #if canImport(AppKit)
+    buttonState = hoverGestureRecognizer.isHovering ? .hovered : .normal
+    #endif
+    #if canImport(UIKit)
     buttonState = .normal
+    #endif
     isDoubleTap = false
     cancelDoubleTapTimeoutTask()
   }

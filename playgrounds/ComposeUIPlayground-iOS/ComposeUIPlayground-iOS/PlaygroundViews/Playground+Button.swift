@@ -45,7 +45,10 @@ extension Playground {
 
     @ComposeContentBuilder
     override var content: ComposeContent {
-      DownloadButton()
+      HStack(spacing: 16) {
+        DownloadButton(hasDoubleTap: false)
+        DownloadButton(hasDoubleTap: true)
+      }
     }
   }
 }
@@ -56,20 +59,21 @@ private enum Constants {
 
   static let cornerRadius: CGFloat = 8
   static let backgroundColor = Color(red: 50 / 255, green: 142 / 255, blue: 204 / 255, alpha: 1)
+  static let hoverBackgroundColor = Color(red: 100 / 255, green: 142 / 255, blue: 204 / 255, alpha: 1)
   // static let borderColor = Color(red: 51 / 255, green: 124 / 255, blue: 172 / 255, alpha: 1)
   static let borderColor = Color(white: 0, alpha: 0.2)
 }
 
 // MARK: - Download Button
 
-func DownloadButton() -> ComposeNode {
+func DownloadButton(hasDoubleTap: Bool) -> ComposeNode {
   ButtonNode { state in
 
     let node: ComposeNode
     switch state {
     case .normal,
          .hovered:
-      node = ColorNode(Constants.backgroundColor)
+      node = ColorNode(state == .hovered ? Constants.hoverBackgroundColor : Constants.backgroundColor)
         .cornerRadius(Constants.cornerRadius)
         .border(color: Constants.borderColor, width: 1)
         .overlay {
@@ -140,11 +144,14 @@ func DownloadButton() -> ComposeNode {
   } onTap: {
     print("tap")
   }
-  .onDoubleTap {
-    print("double tap")
+  .if(hasDoubleTap) {
+    $0.onDoubleTap {
+      print("double tap")
+    }
   }
   .shouldPerformKeyEquivalent { event in
     event.keyCode == UInt16(kVK_DownArrow) && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.numericPad, .function]
   }
+
   .frame(width: 88, height: 44)
 }
