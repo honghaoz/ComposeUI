@@ -76,7 +76,7 @@ extension _ViewType {
   func layer() -> CALayer {
     #if canImport(AppKit)
     guard let layer else {
-      ComposeUI.assertFailure("NSView should be layer backed. Please set `wantsLayer == true`.")
+      ComposeUI.assertFailure("\(self) should be layer backed. Please set `wantsLayer == true`.")
       wantsLayer = true
       return self.layer! // swiftlint:disable:this force_unwrapping
     }

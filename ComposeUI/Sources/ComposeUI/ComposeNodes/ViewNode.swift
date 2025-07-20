@@ -215,12 +215,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: { view, context in
-        #if canImport(AppKit)
-        ComposeUI.assert(view.layer != nil, "\(T.self) should be layer backed. Please set `wantsLayer == true`.")
-        #endif
-        update(view, context)
-      },
+      update: update,
       willRemove: willRemove,
       didRemove: didRemove
     )

@@ -307,4 +307,29 @@ class ViewNodeTests: XCTestCase {
     expect(view.contentView().subviews.count) == 1
     expect(view.contentView().subviews[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
   }
+
+  #if canImport(AppKit)
+  func test_nonLayerBackedView_assertion() {
+    // given a view that is not layer backed
+    let view = BaseView()
+    view.wantsLayer = false // explicitly disable layer backing
+
+    let node = ViewNode(view)
+      .frame(width: 100, height: 100)
+
+    let container = ComposeView(content: { node })
+    container.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+
+    var assertionCount = 0
+    Assert.setTestAssertionFailureHandler { message, file, line, column in
+      expect(message) == "\(view) should be layer backed. Please set `wantsLayer == true`."
+      assertionCount += 1
+    }
+
+    // when refreshing the compose view
+    // then it should trigger the assertion for non-layer-backed view
+    container.refresh(animated: false)
+    expect(assertionCount) == 1
+  }
+  #endif
 }
