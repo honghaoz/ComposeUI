@@ -1,5 +1,5 @@
 //
-//  ViewNodeTests.swift
+//  LayerNodeTests.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -32,12 +32,12 @@ import ChouTiTest
 
 @testable import ComposeUI
 
-class ViewNodeTests: XCTestCase {
+class LayerNodeTests: XCTestCase {
 
   func test_fixedSize() {
     do {
-      // when using view factory
-      var node = ViewNode()
+      // when using layer factory
+      var node = LayerNode<CALayer>()
 
       // then the size is flexible
       expect(node.isFixedWidth) == false
@@ -52,8 +52,8 @@ class ViewNodeTests: XCTestCase {
     }
 
     do {
-      // when using external view
-      var node = ViewNode(View())
+      // when using external layer
+      var node = LayerNode(CALayer())
 
       // then the size is fixed
       expect(node.isFixedWidth) == true
@@ -68,81 +68,14 @@ class ViewNodeTests: XCTestCase {
     }
   }
 
-  func test_constraint_based_view() {
-    // given a view with constraints
-    let view = BaseView(frame: CGRect(x: 10, y: 20, width: 100, height: 50))
-    expect(view.frame) == CGRect(x: 10, y: 20, width: 100, height: 50) // test initial frame
-
-    // with constraints
-    view.translatesAutoresizingMaskIntoConstraints = false
-    view.widthAnchor.constraint(equalToConstant: 200).isActive = true
-    view.heightAnchor.constraint(equalToConstant: 100).isActive = true
-
-    // when the view is used in ViewNode with fixed size
-    do {
-      let node = ViewNode(view)
-        .fixedSize()
-        .padding(10)
-        .frame(.flexible, alignment: .topLeft)
-
-      let container = ComposeView(content: { node })
-      container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
-
-      container.refresh(animated: false)
-
-      // the view's translatesAutoresizingMaskIntoConstraints is changed to true
-      expect(view.translatesAutoresizingMaskIntoConstraints) == true
-
-      // the view's size should not be changed
-      expect(view.frame) == CGRect(x: 10, y: 10, width: 100, height: 50)
-
-      // force a layout pass
-      container.setNeedsLayout()
-      container.layoutIfNeeded()
-      // the view's size should not be changed
-      expect(view.frame) == CGRect(x: 10, y: 10, width: 100, height: 50)
-
-      // have the view update its size by constraints
-      view.translatesAutoresizingMaskIntoConstraints = false
-      view.setNeedsLayout()
-      view.layoutIfNeeded()
-      expect(view.bounds.size) == view.intrinsicSize(for: CGSize(width: 500, height: 500))
-      container.refresh(animated: false)
-      // the view's frame should be changed to the size of the constraints
-      expect(view.frame) == CGRect(x: 10, y: 10, width: 200, height: 100)
-    }
-
-    // when the view is used in ViewNode with flexible size
-    do {
-      let node = ViewNode(view)
-        .flexibleSize()
-        .frame(width: 210, height: 110)
-        .padding(10)
-        .frame(.flexible, alignment: .topLeft)
-
-      let container = ComposeView(content: { node })
-      container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
-
-      container.refresh(animated: false)
-
-      // the view's frame should be set by ComposéUI, not by the constraints
-      expect(view.frame) == CGRect(x: 10, y: 10, width: 210, height: 110)
-
-      // force a layout pass
-      container.setNeedsLayout()
-      container.layoutIfNeeded()
-      // the view's frame should not be changed by the constraints
-      expect(view.frame) == CGRect(x: 10, y: 10, width: 210, height: 110)
-    }
-  }
-
   func test_size() {
-    // using view's bounds.size as intrinsic size
+    // using layer's bounds.size as intrinsic size
     do {
-      // with external view
+      // with external layer
       do {
-        let view = BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-        var node = ViewNode(view)
+        let layer = CALayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+        var node = LayerNode(layer)
 
         // fixed size
         do {
@@ -176,10 +109,14 @@ class ViewNodeTests: XCTestCase {
         }
       }
 
-      // with view factory
+      // with layer factory
       do {
-        var node = ViewNode(
-          make: { _ in BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) },
+        var node = LayerNode(
+          make: { _ in
+            let layer = CALayer()
+            layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+            return layer
+          },
           intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
         )
 
@@ -218,10 +155,11 @@ class ViewNodeTests: XCTestCase {
 
     // using custom intrinsic size
     do {
-      // with external view
+      // with external layer
       do {
-        let view = BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-        var node = ViewNode(view, intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) })
+        let layer = CALayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+        var node = LayerNode(layer, intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) })
 
         // fixed size
         do {
@@ -255,10 +193,14 @@ class ViewNodeTests: XCTestCase {
         }
       }
 
-      // with view factory
+      // with layer factory
       do {
-        var node = ViewNode(
-          make: { _ in BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) },
+        var node = LayerNode(
+          make: { _ in
+            let layer = CALayer()
+            layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+            return layer
+          },
           intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
         )
 
@@ -296,15 +238,23 @@ class ViewNodeTests: XCTestCase {
     }
   }
 
-  func test_view_as_composeContent() {
+  func test_layer_as_composeContent() {
     let view = ComposeView {
-      BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) as ViewType
+      let layer = CALayer()
+      layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+      return layer
     }
 
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     view.refresh(animated: false)
 
-    expect(view.contentView().subviews.count) == 1
-    expect(view.contentView().subviews[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
+    #if canImport(AppKit)
+    expect(view.contentView().layer?.sublayers?.count) == 1
+    expect(view.contentView().layer?.sublayers?[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
+    #endif
+    #if canImport(UIKit)
+    expect(view.contentView().layer.sublayers?.count) == 1
+    expect(view.contentView().layer.sublayers?[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
+    #endif
   }
 }

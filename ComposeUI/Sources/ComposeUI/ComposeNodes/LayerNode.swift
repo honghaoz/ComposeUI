@@ -32,15 +32,15 @@ import QuartzCore
 
 /// A node that renders a `CALayer`.
 ///
-/// **Intrinsic Sizing Behavior:**
-/// - **External layer**: Uses the layer's `bounds.size` as intrinsic size (both dimensions fixed by default)
-/// - **Factory-created layer**: Adapts to container size (both dimensions flexible by default)
+/// **Sizing Behavior:**
+/// - **External layer**: Fixed size. By default, the node uses the layer's `bounds.size` as intrinsic size.
+/// - **Factory-created layer**: Flexible size. By default, the node adapts to container size.
 ///
-/// Use `fixedSize(width:height:)` to control whether the node uses the layer's intrinsic size
-/// or adapts to the container size for each dimension.
+/// Use `fixedSize(width:height:)` to control whether the node uses the layer's intrinsic size or adapts to the container size for each dimension.
 public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
   private let make: (RenderableMakeContext) -> T
+  private var intrinsicSize: ((_ layer: T, _ proposedSize: CGSize) -> CGSize)?
   private let willInsert: ((T, RenderableInsertContext) -> Void)?
   private let didInsert: ((T, RenderableInsertContext) -> Void)?
   private let willUpdate: ((T, RenderableUpdateContext) -> Void)?
@@ -48,19 +48,16 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   private let willRemove: ((T, RenderableRemoveContext) -> Void)?
   private let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
-  public var isFixedWidth: Bool
-  public var isFixedHeight: Bool
-
-  private var cachedLayer: T?
-
   /// Make a layer node with an external layer.
   ///
-  /// The node with external layer will use the layer's intrinsic size (with `isFixedWidth` and `isFixedHeight` set to `true`)
-  /// and the size of the node matches the provided layer's `bounds.size`.
-  /// You need to make sure the layer's size is updated.
+  /// The node has a fixed size (with `isFixedWidth` and `isFixedHeight` set to `true`).
+  /// It uses the layer's `bounds.size` as intrinsic size. You need to make sure the layer's size is updated.
+  ///
+  /// You can also use `intrinsicSize` to provide a custom intrinsic size based on the proposed container size.
   ///
   /// - Parameters:
   ///   - layer: The external layer.
+  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size.
   ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the layer is about to be updated.
@@ -68,6 +65,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
   public init(_ layer: T,
+              intrinsicSize: ((_ layer: T, _ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               willUpdate: ((_ layer: T, _ context: RenderableUpdateContext) -> Void)? = nil,
@@ -76,6 +74,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
               didRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil)
   {
     self.make = { _ in layer }
+    self.intrinsicSize = intrinsicSize
     self.willInsert = willInsert
     self.didInsert = didInsert
     self.willUpdate = willUpdate
@@ -95,6 +94,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - make: A closure to create a layer. To avoid incorrect transition animation, the layer should be created with frame set to `context.initialFrame` if it's provided.
+  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size.
   ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the layer is about to be updated.
@@ -102,6 +102,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
   public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
+              intrinsicSize: ((_ layer: T, _ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               willUpdate: ((_ layer: T, _ context: RenderableUpdateContext) -> Void)? = nil,
@@ -116,6 +117,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
       }
       return layer
     }
+    self.intrinsicSize = intrinsicSize
     self.willInsert = willInsert
     self.didInsert = didInsert
     self.willUpdate = willUpdate
@@ -124,6 +126,21 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
     self.didRemove = didRemove
     self.isFixedWidth = false
     self.isFixedHeight = false
+  }
+
+  // MARK: - IntrinsicSizableComposeNode
+
+  public var isFixedWidth: Bool
+  public var isFixedHeight: Bool
+
+  private mutating func intrinsicSize(for size: CGSize) -> CGSize {
+    let layer = getLayer()
+
+    if let intrinsicSizeProvider = intrinsicSize {
+      return intrinsicSizeProvider(layer, size)
+    }
+
+    return layer.bounds.size
   }
 
   // MARK: - ComposeNode
@@ -135,16 +152,15 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
-      let layer = getLayer()
-      size = layer.bounds.size
+      size = self.intrinsicSize(for: containerSize)
       return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
     case (true, false):
-      let layer = getLayer()
-      size = CGSize(width: layer.bounds.width, height: containerSize.height)
+      let intrinsicSize = self.intrinsicSize(for: containerSize)
+      size = CGSize(width: intrinsicSize.width, height: containerSize.height)
       return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
     case (false, true):
-      let layer = getLayer()
-      size = CGSize(width: containerSize.width, height: layer.bounds.height)
+      let intrinsicSize = self.intrinsicSize(for: containerSize)
+      size = CGSize(width: containerSize.width, height: intrinsicSize.height)
       return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
     case (false, false):
       size = containerSize
@@ -175,6 +191,8 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
   // MARK: - Private
 
+  private var cachedLayer: T?
+
   private mutating func getLayer() -> T {
     if let cachedLayer = cachedLayer {
       return cachedLayer
@@ -192,14 +210,5 @@ extension CALayer: ComposeContent {
 
   public func asNodes() -> [ComposeNode] {
     [LayerNode(self)]
-  }
-}
-
-/// Extension for CALayer to help with compose node creation
-public extension LayerType {
-
-  /// Wraps the layer into a `LayerNode`.
-  func asComposeNode() -> LayerNode<Self> {
-    LayerNode(self)
   }
 }
