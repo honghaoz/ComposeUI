@@ -50,7 +50,7 @@ public struct InnerShadowPaths {
 
   /// The clip path.
   ///
-  /// The clip path is the path that is bigger than the "punch hole" path to clip the shadow.
+  /// The clip path is the path that encloses the "punch hole" path to clip the shadow.
   /// Generally, the clip path is the shape of the object that the shadow is applied to.
   ///
   /// - For inner shadow without "spread" effect, the clip path is the same as the shadow path.

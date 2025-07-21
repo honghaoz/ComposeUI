@@ -400,6 +400,14 @@ extension Playground {
             }
             .frame(width: 100, height: 80)
 
+          Spacer(width: 16)
+
+          innerShadowByInvertsShadow()
+
+          Spacer(width: 16)
+
+          innerShadowByDropShadow()
+
           Spacer()
         }
 
@@ -421,4 +429,78 @@ extension Playground {
       refresh()
     }
   }
+}
+
+private func innerShadowByInvertsShadow() -> ComposeNode {
+  LayerNode()
+    .cornerRadius(16)
+    .onUpdate { renderable, context in
+      let layer = renderable.layer
+      let cornerRadius: CGFloat = 16
+      let spread: CGFloat = 4
+      let shadowCornerRadius: CGFloat = cornerRadius - spread
+      let shadowPath = CGPath(
+        roundedRect: CGRect(x: 0, y: 0, width: layer.bounds.width, height: layer.bounds.height).insetBy(dx: 18, dy: 18),
+        cornerWidth: shadowCornerRadius,
+        cornerHeight: shadowCornerRadius,
+        transform: nil
+      )
+
+      layer.shadowPath = shadowPath
+      layer.shadowColor = Color.black.cgColor
+      layer.shadowOpacity = 0.5
+      layer.shadowRadius = 2
+      layer.shadowOffset = CGSize(width: 5, height: 5)
+
+      layer.setValue(true, forKey: "invertsShadow")
+      layer.masksToBounds = true
+    }
+    .background {
+      LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
+    }
+    .overlay {
+      Label("inner shadow by \"invertsShadow\"")
+        .font(.systemFont(ofSize: 12))
+        .textColor(.black)
+        .numberOfLines(2)
+    }
+    .frame(width: 100, height: 80)
+}
+
+private func innerShadowByDropShadow() -> ComposeNode {
+  LayerNode()
+    .cornerRadius(16)
+    .onUpdate { renderable, context in
+      let layer = renderable.layer
+      let cornerRadius: CGFloat = 16
+      let spread: CGFloat = 4
+      let shadowCornerRadius: CGFloat = cornerRadius - spread
+      let shadowOffset = CGSize(width: 5, height: 5)
+
+      let shadowPath = CGPath(
+        roundedRect: CGRect(x: 0, y: 0, width: layer.bounds.width, height: layer.bounds.height).insetBy(dx: 18, dy: 18),
+        cornerWidth: shadowCornerRadius,
+        cornerHeight: shadowCornerRadius,
+        transform: nil
+      )
+
+      let biggerPath = BezierPath(rect: layer.bounds.insetBy(dx: -100, dy: -100))
+      biggerPath.append(BezierPath(cgPath: shadowPath).reversing())
+
+      layer.shadowPath = biggerPath.cgPath
+      layer.shadowColor = Color.black.cgColor
+      layer.shadowOpacity = 0.5
+      layer.shadowRadius = 2
+      layer.shadowOffset = shadowOffset
+    }
+    .background {
+      LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
+    }
+    .overlay {
+      Label("inner shadow by \"drop shadow\"")
+        .font(.systemFont(ofSize: 12))
+        .textColor(.black)
+        .numberOfLines(2)
+    }
+    .frame(width: 100, height: 80)
 }

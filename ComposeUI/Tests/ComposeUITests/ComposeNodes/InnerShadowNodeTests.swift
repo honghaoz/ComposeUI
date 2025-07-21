@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class InnerShadowNodeTests: XCTestCase {
 
@@ -69,6 +69,7 @@ class InnerShadowNodeTests: XCTestCase {
     expect(shadowLayer1.shadowRadius) == 10
     expect(shadowLayer1.shadowOffset) == CGSize(width: 2, height: 5)
     expect(shadowLayer1.shadowPath) != nil
+    expect(shadowLayer1.invertsShadow) == true
 
     let maskLayer1 = try unwrap(shadowLayer1.mask as? CAShapeLayer)
     expect(maskLayer1.path) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 0, cornerHeight: 0, transform: nil)
@@ -85,6 +86,7 @@ class InnerShadowNodeTests: XCTestCase {
     expect(shadowLayer2.shadowRadius) == 10
     expect(shadowLayer2.shadowOffset) == CGSize(width: 2, height: 5)
     expect(shadowLayer2.shadowPath) != nil
+    expect(shadowLayer1.invertsShadow) == true
 
     let maskLayer2 = try unwrap(shadowLayer2.mask as? CAShapeLayer)
     expect(maskLayer2.path) == CGPath(roundedRect: CGRect(x: 10, y: 10, width: 80, height: 30), cornerWidth: 0, cornerHeight: 0, transform: nil)

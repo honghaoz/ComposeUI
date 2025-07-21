@@ -47,7 +47,7 @@ open class InnerShadowLayer: CALayer {
     super.init()
 
     #if canImport(AppKit)
-    contentsScale = NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
+    contentsScale = NSScreen.main?.backingScaleFactor ?? ComposeUI.Constants.defaultScaleFactor
     #endif
 
     #if canImport(UIKit)
@@ -78,7 +78,7 @@ open class InnerShadowLayer: CALayer {
   ///
   /// The inner shadow is rendered by a drop shadow from a "punch hole":
   /// The `holePath` is the "punch hole" path.
-  /// The `clipPath` is the path that is bigger than the "punch hole" path to clip the shadow.
+  /// The `clipPath` is the path that encloses the "punch hole" path to clip the shadow.
   ///
   /// By separating the "punch hole" and the "clip path", we can achieve an inner shadow with "spread" effect:
   /// - For a shadow without "spread" effect, the `holePath` and `clipPath` are the same.
@@ -113,7 +113,14 @@ open class InnerShadowLayer: CALayer {
 
     let holePath = holePath(self)
     let clipPath = clipPath?(self) ?? holePath
-    let innerShadowPath = innerShadowPath(holePath: holePath, clipPath: clipPath, radius: radius, offset: offset)
+
+    let innerShadowPath: CGPath
+    if Constants.useInvertsShadow {
+      innerShadowPath = holePath
+      invertsShadow = true
+    } else {
+      innerShadowPath = makeInnerShadowPath(holePath: holePath, clipPath: clipPath, radius: radius, offset: offset)
+    }
 
     if let animationTiming {
       maskLayer.animateFrame(to: bounds, timing: animationTiming)
@@ -155,7 +162,7 @@ open class InnerShadowLayer: CALayer {
     }
   }
 
-  private func innerShadowPath(holePath: CGPath, clipPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
+  private func makeInnerShadowPath(holePath: CGPath, clipPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
     // make a bigger rect to contain the shadow
     let hExtraSize = radius + abs(offset.width) + 20
     let vExtraSize = radius + abs(offset.height) + 20
@@ -166,5 +173,13 @@ open class InnerShadowLayer: CALayer {
     let shadowPath = BezierPath(cgPath: holePath)
     biggerPath.append(shadowPath.reversing())
     return biggerPath.cgPath
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// Whether to use the CALayer's `invertsShadow` property to render the inner shadow.
+    static let useInvertsShadow: Bool = true
   }
 }
