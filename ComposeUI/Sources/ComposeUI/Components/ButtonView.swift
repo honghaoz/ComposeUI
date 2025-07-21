@@ -76,31 +76,33 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
   /// When the value is `nil`, for UIKit, the duration is `0.15` seconds, for AppKit, the duration is `NSEvent.doubleClickInterval`.
   public var doubleTapInterval: TimeInterval?
 
-  // TODO: considering using ResponderView + TrackingView to make the button accept click when the app is inactive
-  private lazy var pressGestureRecognizer = PressGestureRecognizer()
-
   #if canImport(AppKit)
-  private lazy var hoverGestureRecognizer = HoverGestureRecognizer()
+  private lazy var mouseEventView = ButtonMouseEventView()
+  #endif
+  #if canImport(UIKit)
+  private lazy var pressGestureRecognizer = PressGestureRecognizer()
   #endif
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
 
+    #if canImport(AppKit)
+    mouseEventView.pressHandler = { [weak self] view in
+      self?._handlePress(with: view)
+    }
+    mouseEventView.hoverHandler = { [weak self] _, _ in
+      guard let self = self else {
+        return
+      }
+      self._handleHover(with: self.mouseEventView)
+    }
+    self.addSubview(mouseEventView)
+    #endif
+    #if canImport(UIKit)
     pressGestureRecognizer.minimumPressDuration = 0
     pressGestureRecognizer.delegate = self
-    #if canImport(UIKit)
     pressGestureRecognizer.addTarget(self, action: #selector(handlePress))
-    #endif
-    #if canImport(AppKit)
-    pressGestureRecognizer.target = self
-    pressGestureRecognizer.action = #selector(handlePress)
-    #endif
     addGestureRecognizer(pressGestureRecognizer)
-
-    #if canImport(AppKit)
-    hoverGestureRecognizer.target = self
-    hoverGestureRecognizer.action = #selector(handleHover)
-    addGestureRecognizer(hoverGestureRecognizer)
     #endif
 
     clipsToBounds = false
@@ -122,6 +124,14 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     setAccessibilityRole(.button)
     #endif
   }
+
+  #if canImport(AppKit)
+  override public func layout() {
+    super.layout()
+
+    mouseEventView.frame = bounds
+  }
+  #endif
 
   /// Configure the button with a content provider with handlers.
   ///
@@ -182,17 +192,13 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
 
   private var isDoubleTap: Bool = false
 
+  #if canImport(UIKit)
   @objc private func handlePress() {
     _handlePress(with: pressGestureRecognizer)
   }
-
-  #if canImport(AppKit)
-  @objc private func handleHover() {
-    _handleHover(with: hoverGestureRecognizer)
-  }
   #endif
 
-  private func _handlePress(with pressGestureRecognizer: PressGestureRecognizerType) {
+  private func _handlePress(with pressGestureRecognizer: ButtonPressGestureRecognizerType) {
     switch pressGestureRecognizer.state {
     case .possible:
       break
@@ -261,12 +267,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
             // there's a double-tap timeout task, this means the first up is before the double-tap timeout
             // we should schedule the single tap action
 
-            #if canImport(AppKit)
-            buttonState = hoverGestureRecognizer.isHovering ? .hovered : .normal // reset button style before triggering actions
-            #endif
-            #if canImport(UIKit)
-            buttonState = .normal // reset button style before triggering actions
-            #endif
+            buttonState = buttonResetState
             doubleTapTimeoutBlock = { [weak self] in
               guard let self else {
                 return
@@ -300,31 +301,34 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
   }
 
   #if canImport(AppKit)
-  private func _handleHover(with hoverGestureRecognizer: HoverGestureRecognizer) {
-    switch hoverGestureRecognizer.state {
-    case .began:
+  private func _handleHover(with mouseEventView: ButtonMouseEventView) {
+    if mouseEventView.isHovering {
       if buttonState == .normal {
         buttonState = .hovered
       }
-    case .ended:
+    } else {
       if buttonState == .hovered {
         buttonState = .normal
       }
-    default:
-      break
     }
   }
   #endif
 
   private func reset() {
-    #if canImport(AppKit)
-    buttonState = hoverGestureRecognizer.isHovering ? .hovered : .normal
-    #endif
-    #if canImport(UIKit)
-    buttonState = .normal
-    #endif
+    buttonState = buttonResetState
+
     isDoubleTap = false
     cancelDoubleTapTimeoutTask()
+  }
+
+  /// The state to reset the button to.
+  private var buttonResetState: ButtonState {
+    #if canImport(AppKit)
+    return mouseEventView.isHovering ? .hovered : .normal
+    #endif
+    #if canImport(UIKit)
+    return .normal
+    #endif
   }
 
   // MARK: - Double-tap Delay
@@ -477,6 +481,19 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
       host.buttonState
     }
 
+    #if canImport(AppKit)
+    var mouseEventView: ButtonMouseEventView {
+      host.mouseEventView
+    }
+
+    func handlePress(with state: GestureRecognizer.State) {
+      let recognizer = PressGestureRecognizerMock()
+      recognizer.state = state
+      host._handlePress(with: recognizer)
+    }
+    #endif
+
+    #if canImport(UIKit)
     var pressGestureRecognizer: PressGestureRecognizer {
       host.pressGestureRecognizer
     }
@@ -484,6 +501,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     func press() {
       host.handlePress()
     }
+    #endif
   }
   #endif
 }
@@ -507,10 +525,10 @@ private extension UIView {
 }
 #endif
 
-// MARK: - PressGestureRecognizerType
+// MARK: - ButtonPressGestureRecognizerType
 
 /// A protocol that represents a press gesture recognizer.
-private protocol PressGestureRecognizerType {
+protocol ButtonPressGestureRecognizerType {
 
   var state: GestureRecognizer.State { get }
 
@@ -518,10 +536,11 @@ private protocol PressGestureRecognizerType {
   func cancel()
 }
 
-extension PressGestureRecognizer: PressGestureRecognizerType {}
+extension PressGestureRecognizer: ButtonPressGestureRecognizerType {}
 
+#if canImport(AppKit)
 /// A mock press gesture recognizer.
-private class PressGestureRecognizerMock: PressGestureRecognizerType {
+private class PressGestureRecognizerMock: ButtonPressGestureRecognizerType {
 
   var state: GestureRecognizer.State = .possible
 
@@ -534,3 +553,98 @@ private class PressGestureRecognizerMock: PressGestureRecognizerType {
 
   func cancel() {}
 }
+#endif
+
+// MARK: - ButtonMouseEventView
+
+#if canImport(AppKit)
+class ButtonMouseEventView: MouseEventView, ButtonPressGestureRecognizerType {
+
+  /// Callback when the mouse is pressed.
+  var pressHandler: ((ButtonMouseEventView) -> Void)?
+
+  /// Whether the view is currently hovering.
+  private(set) var isHovering: Bool = false {
+    didSet {
+      if isHovering != oldValue {
+        hoverHandler?(self, isHovering)
+      }
+    }
+  }
+
+  /// Callback when hovering state changes.
+  var hoverHandler: ((ButtonMouseEventView, _ isHovering: Bool) -> Void)?
+
+  // MARK: - Mouse Tracking
+
+  override func mouseEntered(with event: NSEvent) {
+    super.mouseEntered(with: event)
+
+    if !isHovering {
+      isHovering = true
+    }
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    super.mouseMoved(with: event)
+
+    if !isHovering {
+      isHovering = true
+    }
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    super.mouseExited(with: event)
+
+    if isHovering {
+      isHovering = false
+    }
+  }
+
+  // MARK: - Mouse Click/Drag
+
+  override func mouseDown(with event: NSEvent) {
+    super.mouseDown(with: event)
+    state = .began
+  }
+
+  override func mouseDragged(with event: NSEvent) {
+    super.mouseDragged(with: event)
+    state = .changed
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    super.mouseUp(with: event)
+    state = .ended
+  }
+
+  // MARK: - ButtonPressGestureRecognizerType
+
+  /// The state of the press gesture recognizer.
+  var state: GestureRecognizer.State = .possible {
+    didSet {
+      pressHandler?(self)
+    }
+  }
+
+  func location(in view: View?) -> CGPoint {
+    guard let targetView = view else {
+      return .zero
+    }
+
+    // Get the current mouse location in the window
+    guard let window = window else {
+      return .zero
+    }
+
+    let mouseLocationInWindow = window.mouseLocationOutsideOfEventStream
+
+    // convert the mouse location from window coordinates to the target view's coordinates
+    return targetView.convert(mouseLocationInWindow, from: nil)
+  }
+
+  func cancel() {
+    state = .cancelled
+  }
+}
+#endif

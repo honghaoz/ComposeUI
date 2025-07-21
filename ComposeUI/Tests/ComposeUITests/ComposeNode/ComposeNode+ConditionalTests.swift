@@ -68,6 +68,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
   }
 
   func test_if_sameType() {
+    #if canImport(AppKit)
     _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
       .if(true) {
         $0.onDoubleTap {}
@@ -79,6 +80,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
       .if(true) {
         $0.onDoubleTap {}
       }
+    #endif
   }
 
   func test_if_else() {
@@ -122,6 +124,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
   }
 
   func test_if_else_sameType() {
+    #if canImport(AppKit)
     _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
       .if(true, then: {
         $0.onDoubleTap {}
@@ -137,5 +140,6 @@ class ComposeNode_ConditionalTests: XCTestCase {
       }, else: {
         $0.shouldPerformKeyEquivalent { _ in true }
       })
+    #endif
   }
 }

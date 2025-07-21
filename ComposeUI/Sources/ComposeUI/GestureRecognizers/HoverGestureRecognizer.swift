@@ -28,15 +28,17 @@
 //  IN THE SOFTWARE.
 //
 
+#if DEBUG
+
 #if canImport(AppKit)
 
 import AppKit
 
 /// A gesture recognizer that detects mouse hover events on AppKit.
-public class HoverGestureRecognizer: NSGestureRecognizer {
+class HoverGestureRecognizer: NSGestureRecognizer {
 
   /// Whether the mouse is currently hovering over the view.
-  public private(set) var isHovering: Bool = false
+  private(set) var isHovering: Bool = false
 
   private var trackingArea: NSTrackingArea?
   private var trackingResponder: HoverTrackingResponder!
@@ -46,7 +48,7 @@ public class HoverGestureRecognizer: NSGestureRecognizer {
   private var boundsObservation: NSKeyValueObservation?
   private var frameObservation: NSKeyValueObservation?
 
-  override public init(target: Any?, action: Selector?) {
+  override init(target: Any?, action: Selector?) {
     super.init(target: target, action: action)
     trackingResponder = HoverTrackingResponder(gestureRecognizer: self)
     setupViewObservation()
@@ -189,5 +191,7 @@ private final class HoverTrackingResponder: NSResponder {
     gestureRecognizer?.handleMouseExited(with: event)
   }
 }
+
+#endif
 
 #endif

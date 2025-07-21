@@ -51,6 +51,7 @@ final class ButtonViewTests: XCTestCase {
     )
 
     var state = GestureRecognizer.State.possible
+    #if canImport(UIKit)
     buttonView.buttonTest.pressGestureRecognizer.override(
       locationInView: { view in
         CGPoint(x: 10, y: 10)
@@ -59,28 +60,49 @@ final class ButtonViewTests: XCTestCase {
         state
       }
     )
+    #endif
 
     // down
     state = .began
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 0
 
     // up
     state = .ended
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 1 // first up triggers the tap block
 
     // down
     state = .began
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 1
 
     // up
     state = .ended
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 2 // second up triggers the tap block
   }
@@ -101,6 +123,7 @@ final class ButtonViewTests: XCTestCase {
     )
 
     var state = GestureRecognizer.State.possible
+    #if canImport(UIKit)
     buttonView.buttonTest.pressGestureRecognizer.override(
       locationInView: { view in
         CGPoint(x: 10, y: 10)
@@ -109,19 +132,30 @@ final class ButtonViewTests: XCTestCase {
         state
       }
     )
+    #endif
 
     buttonView.doubleTapInterval = 0.01
 
     // down
     state = .began
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 0
     expect(doubleTapCount) == 0
 
     // up
     state = .ended
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 0 // first up does not trigger the tap block
     expect(doubleTapCount) == 0
@@ -145,6 +179,7 @@ final class ButtonViewTests: XCTestCase {
     )
 
     var state = GestureRecognizer.State.possible
+    #if canImport(UIKit)
     buttonView.buttonTest.pressGestureRecognizer.override(
       locationInView: { view in
         CGPoint(x: 10, y: 10)
@@ -153,33 +188,54 @@ final class ButtonViewTests: XCTestCase {
         state
       }
     )
+    #endif
 
     buttonView.doubleTapInterval = 0.01
 
     // down
     state = .began
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 0
     expect(doubleTapCount) == 0
 
     // up
     state = .ended
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 0
     expect(doubleTapCount) == 0
 
     // down
     state = .began
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 0
     expect(doubleTapCount) == 0
 
     // up
     state = .ended
+    #if canImport(UIKit)
     buttonView.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    buttonView.buttonTest.handlePress(with: state)
+    #endif
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 0
     expect(doubleTapCount) == 1 // second up triggers the double tap block

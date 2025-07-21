@@ -66,7 +66,7 @@ class HoverGestureRecognizerTests: XCTestCase {
 
     let trackingArea = try view.trackingAreas.first.unwrap()
     expect(trackingArea.rect) == view.bounds
-    expect(trackingArea.options == [.activeAlways, .mouseEnteredAndExited]) == true
+    expect(trackingArea.options == [.activeAlways, .mouseEnteredAndExited, .enabledDuringMouseDrag]) == true
   }
 
   func test_trackingAreaRectUpdate_frame() throws {
