@@ -64,7 +64,8 @@ func assertFailure(_ message: @autoclosure () -> String = String(),
 enum Assert {
 
   /// The test assertion failure type.
-  public typealias TestAssertionFailureHandler = (_ message: String, _ file: StaticString, _ line: UInt, _ column: UInt) -> Void
+  @usableFromInline
+  typealias TestAssertionFailureHandler = (_ message: String, _ file: StaticString, _ line: UInt, _ column: UInt) -> Void
 
   /// The test assertion failure handler.
   @usableFromInline
