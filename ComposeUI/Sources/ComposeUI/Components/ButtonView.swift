@@ -125,14 +125,6 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     #endif
   }
 
-  #if canImport(AppKit)
-  override public func layout() {
-    super.layout()
-
-    mouseEventView.frame = bounds
-  }
-  #endif
-
   /// Configure the button with a content provider with handlers.
   ///
   /// - Parameters:
@@ -158,6 +150,10 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     #endif
     #if canImport(AppKit)
     subviews.forEach { $0.setAccessibilityElement(false) }
+    #endif
+
+    #if canImport(AppKit)
+    mouseEventView.frame = bounds
     #endif
   }
 
@@ -428,6 +424,10 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
       return super.performKeyEquivalent(with: event)
     }
 
+    // temporarily disable double tap to avoid triggering double tap action with the key equivalent
+    let onDoubleTap = self.onDoubleTap
+    self.onDoubleTap = nil
+
     // simulate a button press
     let pressGestureRecognizer = PressGestureRecognizerMock()
     pressGestureRecognizer.state = .began
@@ -436,6 +436,9 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { // delay to have the button UI show pressed state briefly
       pressGestureRecognizer.state = .ended
       self._handlePress(with: pressGestureRecognizer)
+
+      // restore the double tap handler
+      self.onDoubleTap = onDoubleTap
     }
 
     return true

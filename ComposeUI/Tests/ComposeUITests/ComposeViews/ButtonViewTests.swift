@@ -28,6 +28,14 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if canImport(UIKit)
+import UIKit
+#endif
+
 import ChouTiTest
 
 @testable import ComposeUI
@@ -240,7 +248,158 @@ final class ButtonViewTests: XCTestCase {
     expect(tapCount) == 0
     expect(doubleTapCount) == 1 // second up triggers the double tap block
   }
+
+  #if canImport(AppKit)
+  func test_performKeyEquivalent_withoutHandler() {
+    let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    buttonView.configure(content: { _, _ in Empty() }, onTap: {})
+
+    let keyEvent = createMockKeyEvent()
+
+    // should return false and call super when no shouldPerformKeyEquivalent is set
+    let result = buttonView.performKeyEquivalent(with: keyEvent)
+    expect(result) == false
+  }
+
+  func test_performKeyEquivalent_handlerReturnsFalse() {
+    let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var tapCount = 0
+    buttonView.configure(content: { _, _ in Empty() }, onTap: {
+      tapCount += 1
+    })
+
+    var receivedEvent: NSEvent?
+    buttonView.shouldPerformKeyEquivalent = { event in
+      receivedEvent = event
+      return false
+    }
+
+    let keyEvent = createMockKeyEvent()
+    let result = buttonView.performKeyEquivalent(with: keyEvent)
+
+    expect(result) == false
+    expect(receivedEvent) === keyEvent
+    expect(tapCount) == 0 // should not trigger tap when handler returns false
+  }
+
+  func test_performKeyEquivalent_handlerReturnsTrue() {
+    let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var tapCount = 0
+    buttonView.configure(content: { _, _ in Empty() }, onTap: {
+      tapCount += 1
+    })
+
+    var receivedEvent: NSEvent?
+    buttonView.shouldPerformKeyEquivalent = { event in
+      receivedEvent = event
+      return true
+    }
+
+    let keyEvent = createMockKeyEvent()
+    let result = buttonView.performKeyEquivalent(with: keyEvent)
+
+    expect(result) == true
+    expect(receivedEvent) === keyEvent
+
+    // should trigger button press sequence
+    expect(buttonView.buttonTest.buttonState) == .pressed
+
+    // wait for async completion
+    expect(tapCount).toEventually(beEqual(to: 1))
+    expect(buttonView.buttonTest.buttonState).toEventually(beEqual(to: .normal))
+  }
+
+  func test_performKeyEquivalent_withDoubleTap() {
+    let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var tapCount = 0
+    var doubleTapCount = 0
+    buttonView.configure(
+      content: { _, _ in Empty() },
+      onTap: { tapCount += 1 },
+      onDoubleTap: { doubleTapCount += 1 }
+    )
+
+    buttonView.shouldPerformKeyEquivalent = { _ in true }
+
+    let keyEvent = createMockKeyEvent()
+
+    // first key equivalent
+    let result1 = buttonView.performKeyEquivalent(with: keyEvent)
+    expect(result1) == true
+
+    // second key equivalent - should be treated as separate tap for better UX
+    // rapid keyboard shortcuts should not trigger double-tap behavior
+    let result2 = buttonView.performKeyEquivalent(with: keyEvent)
+    expect(result2) == true
+
+    // wait for async completion
+    expect(tapCount).toEventually(beEqual(to: 2))
+    expect(doubleTapCount) == 0 // keyboard shortcuts should not trigger double-tap
+  }
+
+  func test_performKeyEquivalent_buttonStateSequence() {
+    let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    buttonView.configure(content: { _, _ in Empty() }, onTap: {})
+
+    buttonView.shouldPerformKeyEquivalent = { _ in true }
+
+    expect(buttonView.buttonTest.buttonState) == .normal
+
+    let keyEvent = createMockKeyEvent()
+    let result = buttonView.performKeyEquivalent(with: keyEvent)
+
+    expect(result) == true
+    expect(buttonView.buttonTest.buttonState) == .pressed
+
+    // Should return to normal after delay
+    expect(buttonView.buttonTest.buttonState).toEventually(beEqual(to: .normal))
+  }
+
+  func test_performKeyEquivalent_multipleHandlerCalls() {
+    let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    buttonView.configure(content: { _, _ in Empty() }, onTap: {})
+
+    var handlerCallCount = 0
+    buttonView.shouldPerformKeyEquivalent = { _ in
+      handlerCallCount += 1
+      return handlerCallCount % 2 == 0 // Return true every other call
+    }
+
+    let keyEvent = createMockKeyEvent()
+
+    // First call - should return false
+    let result1 = buttonView.performKeyEquivalent(with: keyEvent)
+    expect(result1) == false
+    expect(handlerCallCount) == 1
+
+    // Second call - should return true
+    let result2 = buttonView.performKeyEquivalent(with: keyEvent)
+    expect(result2) == true
+    expect(handlerCallCount) == 2
+  }
+  #endif
 }
+
+#if canImport(AppKit)
+private func createMockKeyEvent() -> NSEvent {
+  // Create a mock key event using keyDown type
+  return NSEvent.keyEvent(
+    with: .keyDown,
+    location: CGPoint(x: 0, y: 0),
+    modifierFlags: [],
+    timestamp: 0,
+    windowNumber: 0,
+    context: nil,
+    characters: "a",
+    charactersIgnoringModifiers: "a",
+    isARepeat: false,
+    keyCode: 0
+  ) ?? NSEvent()
+}
+#endif
 
 private extension GestureRecognizer {
 
