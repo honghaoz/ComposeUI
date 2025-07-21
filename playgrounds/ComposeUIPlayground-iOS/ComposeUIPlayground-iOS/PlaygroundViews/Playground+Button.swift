@@ -48,6 +48,21 @@ extension Playground {
       HStack(spacing: 16) {
         DownloadButton(hasDoubleTap: false)
         DownloadButton(hasDoubleTap: true)
+
+        ButtonNode(
+          content: { state in
+            LabelNode("\(state)")
+              .frame(width: 88, height: 44)
+              .underlay {
+                LayerNode()
+                  .border(color: ThemedColor(light: .black, dark: .white), width: Themed<CGFloat>(1))
+              }
+          },
+          onTap: {}
+        )
+        .shouldPerformKeyEquivalent { event in
+          event.keyCode == UInt16(kVK_UpArrow) && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.numericPad, .function]
+        }
       }
     }
   }
@@ -152,6 +167,5 @@ func DownloadButton(hasDoubleTap: Bool) -> ComposeNode {
   .shouldPerformKeyEquivalent { event in
     event.keyCode == UInt16(kVK_DownArrow) && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.numericPad, .function]
   }
-
   .frame(width: 88, height: 44)
 }

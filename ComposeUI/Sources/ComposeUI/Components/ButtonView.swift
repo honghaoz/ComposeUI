@@ -36,7 +36,7 @@ import AppKit
 import UIKit
 #endif
 
-public enum ButtonState {
+public enum ButtonState: Hashable {
   case normal
   case hovered
   case pressed // highlighted
@@ -433,7 +433,7 @@ open class ButtonView: ComposeView, GestureRecognizerDelegate {
     pressGestureRecognizer.state = .began
     _handlePress(with: pressGestureRecognizer)
 
-    RunLoop.main.perform { // delay to make sure the button UI can be updated
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { // delay to have the button UI show pressed state briefly
       pressGestureRecognizer.state = .ended
       self._handlePress(with: pressGestureRecognizer)
     }
