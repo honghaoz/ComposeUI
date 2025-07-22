@@ -29,6 +29,7 @@
 //
 
 import Foundation
+import QuartzCore
 
 import ChouTiTest
 
@@ -36,35 +37,36 @@ import ChouTiTest
 
 class DelayTests: XCTestCase {
 
-  func tes_positiveDelay() {
-    let expectation = expectation(description: "Delayed task")
-
+  func test_positiveDelay() {
     var isExecuted = false
+    let startTime = CACurrentMediaTime()
+    var delayTime: CFTimeInterval = 0
     delay(0.01) {
+      let endTime = CACurrentMediaTime()
+      delayTime = endTime - startTime
+      expect(Thread.isMainThread) == true
       isExecuted = true
-      expectation.fulfill()
     }
-
     expect(isExecuted) == false
-    wait(for: [expectation], timeout: 1)
-    expect(isExecuted) == true
+    expect(isExecuted).toEventually(beTrue(), timeout: 0.05)
+    expect(delayTime).to(beApproximatelyEqual(to: 0.01, within: 1e-3))
   }
 
-  func tes_negativeDelay() {
+  func test_negativeDelay() {
     var isExecuted = false
     delay(-0.01) {
+      expect(Thread.isMainThread) == true
       isExecuted = true
     }
-
     expect(isExecuted) == true
   }
 
-  func tes_zeroDelay() {
+  func test_zeroDelay() {
     var isExecuted = false
     delay(0) {
+      expect(Thread.isMainThread) == true
       isExecuted = true
     }
-
     expect(isExecuted) == true
   }
 }
