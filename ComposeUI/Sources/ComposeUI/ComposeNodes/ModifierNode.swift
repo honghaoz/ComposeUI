@@ -367,7 +367,6 @@ public extension ComposeNode {
       }
 
       let layer = item.layer
-      layer.masksToBounds = true
       layer.cornerCurve = cornerCurve
 
       if let animationTiming = context.animationTiming {

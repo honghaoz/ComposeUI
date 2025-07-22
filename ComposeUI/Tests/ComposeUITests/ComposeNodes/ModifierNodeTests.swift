@@ -126,6 +126,66 @@ class ModifierNodeTests: XCTestCase {
     wait(for: [expectation], timeout: 1)
   }
 
+  // MARK: - Corner Radius
+
+  func test_cornerRadius() {
+    // default cornerCurve
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .cornerRadius(10)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.cornerRadius) == 10
+      expect(layer?.cornerCurve) == .continuous
+    }
+
+    // explicit cornerCurve
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .cornerRadius(15, cornerCurve: .circular)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.cornerRadius) == 15
+      expect(layer?.cornerCurve) == .circular
+    }
+
+    // with animation
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .cornerRadius(15)
+          .animation(.easeInEaseOut(duration: 1))
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh(animated: true)
+      contentView.refresh(animated: true)
+
+      expect(layer?.cornerRadius) == 15
+      expect(layer?.animationKeys()?.contains("cornerRadius")) == true
+    }
+  }
+
   // MARK: - Rasterization
 
   func test_rasterize() {
