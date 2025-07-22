@@ -126,6 +126,259 @@ class ModifierNodeTests: XCTestCase {
     wait(for: [expectation], timeout: 1)
   }
 
+  // MARK: - Background Color
+
+  func test_backgroundColor() {
+    // solid color
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .backgroundColor(.red)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.backgroundColor) == Color.red.cgColor
+    }
+
+    // themed color
+    do {
+      var layer: CALayer?
+      let themedColor = ThemedColor(light: .blue, dark: .green)
+      let contentView = ComposeView {
+        LayerNode()
+          .backgroundColor(themedColor)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+      contentView.overrideTheme = .dark
+      contentView.refresh()
+      expect(layer?.backgroundColor) == Color.green.cgColor
+
+      contentView.overrideTheme = .light
+      contentView.refresh()
+      expect(layer?.backgroundColor) == Color.blue.cgColor
+    }
+
+    // multiple modifiers (last one wins)
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .backgroundColor(.red)
+          .backgroundColor(.blue) // this should win
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.backgroundColor) == Color.blue.cgColor
+    }
+
+    // with animation
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .backgroundColor(.red)
+          .animation(.easeInEaseOut(duration: 1))
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh(animated: true)
+      contentView.refresh(animated: true)
+
+      expect(layer?.backgroundColor) == Color.red.cgColor
+      expect(layer?.animationKeys()?.contains("backgroundColor")) == true
+    }
+  }
+
+  // MARK: - Opacity
+
+  func test_opacity() {
+    // normal opacity value
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .opacity(0.5)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.opacity) == 0.5
+    }
+
+    // themed opacity
+    do {
+      var layer: CALayer?
+      let themedOpacity = Themed<CGFloat>(light: 0.8, dark: 0.3)
+      let contentView = ComposeView {
+        LayerNode()
+          .opacity(themedOpacity)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+      contentView.overrideTheme = .light
+      contentView.refresh()
+      expect(layer?.opacity) == 0.8
+
+      contentView.overrideTheme = .dark
+      contentView.refresh()
+      expect(layer?.opacity) == 0.3
+    }
+
+    // multiple modifiers (last one wins)
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .opacity(0.3)
+          .opacity(0.7) // this should win
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.opacity) == 0.7
+    }
+
+    // with animation
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .opacity(0.6)
+          .animation(.easeInEaseOut(duration: 1))
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh(animated: true)
+      contentView.refresh(animated: true)
+
+      expect(layer?.opacity) == 0.6
+      expect(layer?.animationKeys()?.contains("opacity")) == true
+    }
+  }
+
+  // MARK: - Border
+
+  func test_border() {
+    // basic border
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .border(color: .red, width: 2)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.borderColor) == Color.red.cgColor
+      expect(layer?.borderWidth) == 2
+    }
+
+    // themed border
+    do {
+      var layer: CALayer?
+      let themedColor = ThemedColor(light: .green, dark: .orange)
+      let themedWidth = Themed<CGFloat>(light: 1, dark: 3)
+      let contentView = ComposeView {
+        LayerNode()
+          .border(color: themedColor, width: themedWidth)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+      contentView.overrideTheme = .light
+      contentView.refresh()
+      expect(layer?.borderColor) == Color.green.cgColor
+      expect(layer?.borderWidth) == 1
+
+      contentView.overrideTheme = .dark
+      contentView.refresh()
+      expect(layer?.borderColor) == Color.orange.cgColor
+      expect(layer?.borderWidth) == 3
+    }
+
+    // multiple modifiers (last one wins)
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .border(color: .red, width: 1)
+          .border(color: .blue, width: 3) // this should win
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.borderColor) == Color.blue.cgColor
+      expect(layer?.borderWidth) == 3
+    }
+
+    // with animation
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .border(color: .cyan, width: 4)
+          .animation(.easeInEaseOut(duration: 1))
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh(animated: true)
+      contentView.refresh(animated: true)
+
+      expect(layer?.borderColor) == Color.cyan.cgColor
+      expect(layer?.borderWidth) == 4
+      expect(layer?.animationKeys()?.contains("borderColor")) == true
+      expect(layer?.animationKeys()?.contains("borderWidth")) == true
+    }
+  }
+
   // MARK: - Corner Radius
 
   func test_cornerRadius() {
@@ -285,6 +538,221 @@ class ModifierNodeTests: XCTestCase {
       contentView.refresh()
 
       expect(layer?.masksToBounds) == false
+    }
+  }
+
+  // MARK: - Shadow
+
+  func test_shadow() {
+    // basic shadow
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .shadow(color: .red, opacity: 0.5, radius: 4, offset: CGSize(width: 2, height: 2), path: nil)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.shadowColor) == Color.red.cgColor
+      expect(layer?.shadowOpacity) == 0.5
+      expect(layer?.shadowRadius) == 4
+      expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
+      expect(layer?.masksToBounds) == false
+    }
+
+    // themed shadow
+    do {
+      var layer: CALayer?
+      let themedColor = ThemedColor(light: .gray, dark: .white)
+      let themedOpacity = Themed<CGFloat>(light: 0.3, dark: 0.8)
+      let themedRadius = Themed<CGFloat>(light: 2, dark: 6)
+      let themedOffset = Themed<CGSize>(light: CGSize(width: 1, height: 1), dark: CGSize(width: 4, height: 4))
+
+      let contentView = ComposeView {
+        LayerNode()
+          .shadow(color: themedColor, opacity: themedOpacity, radius: themedRadius, offset: themedOffset, path: nil)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+      contentView.overrideTheme = .light
+      contentView.refresh()
+      expect(layer?.shadowColor) == Color.gray.cgColor
+      expect(layer?.shadowOpacity) == 0.3
+      expect(layer?.shadowRadius) == 2
+      expect(layer?.shadowOffset) == CGSize(width: 1, height: 1)
+      expect(layer?.shadowPath) == nil
+
+      contentView.overrideTheme = .dark
+      contentView.refresh()
+      expect(layer?.shadowColor) == Color.white.cgColor
+      expect(layer?.shadowOpacity) == 0.8
+      expect(layer?.shadowRadius) == 6
+      expect(layer?.shadowOffset) == CGSize(width: 4, height: 4)
+      expect(layer?.shadowPath) == nil
+    }
+
+    // shadow with custom path
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .shadow(color: .blue, opacity: 0.7, radius: 3, offset: .zero, path: { renderable in
+            return BezierPath(rect: CGRect(x: 0, y: 0, width: 50, height: 25)).cgPath
+          })
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.shadowColor) == Color.blue.cgColor
+      expect(layer?.shadowOpacity) == 0.7
+      expect(layer?.shadowRadius) == 3
+      expect(layer?.shadowOffset) == .zero
+      expect(layer?.shadowPath) == BezierPath(rect: CGRect(x: 0, y: 0, width: 50, height: 25)).cgPath
+    }
+
+    // multiple modifiers (last one wins)
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .shadow(color: .red, opacity: 0.1, radius: 1, offset: .zero, path: nil)
+          .shadow(color: .blue, opacity: 0.6, radius: 5, offset: CGSize(width: 2, height: 3), path: nil) // this should win
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.shadowColor) == Color.blue.cgColor
+      expect(layer?.shadowOpacity) == 0.6
+      expect(layer?.shadowRadius) == 5
+      expect(layer?.shadowOffset) == CGSize(width: 2, height: 3)
+    }
+
+    // with animation
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .shadow(color: .orange, opacity: 0.5, radius: 6, offset: CGSize(width: 3, height: 3), path: nil)
+          .animation(.easeInEaseOut(duration: 1))
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh(animated: true)
+      contentView.refresh(animated: true)
+
+      expect(layer?.shadowColor) == Color.orange.cgColor
+      expect(layer?.shadowOpacity) == 0.5
+      expect(layer?.shadowRadius) == 6
+      expect(layer?.shadowOffset) == CGSize(width: 3, height: 3)
+      expect(layer?.animationKeys()?.contains("shadowColor")) == true
+      expect(layer?.animationKeys()?.contains("shadowOpacity")) == true
+      expect(layer?.animationKeys()?.contains("shadowRadius")) == true
+      expect(layer?.animationKeys()?.contains("shadowOffset")) == true
+    }
+  }
+
+  // MARK: - Z-Index
+
+  func test_zIndex() {
+    // positive z index
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .zIndex(5)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.zPosition) == 5
+    }
+
+    // multiple modifiers (last one wins)
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .zIndex(2)
+          .zIndex(8) // this should win
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.zPosition) == 8
+    }
+  }
+
+  // MARK: - Interactive
+
+  func test_interactive() {
+    do {
+      var view: View?
+      let contentView = ComposeView {
+        ViewNode()
+          .interactive()
+          .onInsert { renderable, _ in
+            view = renderable.view
+          }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      #if canImport(AppKit)
+      expect(view?.ignoreHitTest) == false
+      #endif
+
+      #if canImport(UIKit)
+      expect(view?.isUserInteractionEnabled) == true
+      #endif
+    }
+
+    do {
+      var view: View?
+      let contentView = ComposeView {
+        ViewNode()
+          .interactive(false)
+          .onInsert { renderable, _ in
+            view = renderable.view
+          }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      #if canImport(AppKit)
+      expect(view?.ignoreHitTest) == true
+      #endif
+
+      #if canImport(UIKit)
+      expect(view?.isUserInteractionEnabled) == false
+      #endif
     }
   }
 
