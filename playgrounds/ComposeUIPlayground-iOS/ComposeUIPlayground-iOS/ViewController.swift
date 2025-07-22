@@ -91,6 +91,14 @@ class ViewController: UIViewController {
         .padding(horizontal: Constants.padding)
         .frame(width: .flexible, height: contentView.bounds.width)
 
+      ViewNode<Playground.LayersView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: contentView.bounds.width)
+
       ViewNode<Playground.ShadowView>()
         .underlay {
           ColorNode(.white)

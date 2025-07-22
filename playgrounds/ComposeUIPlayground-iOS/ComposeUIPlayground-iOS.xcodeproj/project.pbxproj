@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		021EAA042E2F6C190094431C /* Playground+LayersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021EAA032E2F6C190094431C /* Playground+LayersView.swift */; };
 		E504D96B2D8B2F8800FC20F8 /* Playground+SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E504D96A2D8B2F8800FC20F8 /* Playground+SwiftUIView.swift */; };
 		E58E92452CCF40FD0076FEFB /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58E92442CCF40FD0076FEFB /* AppDelegate.swift */; };
 		E58E92472CCF40FD0076FEFB /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58E92462CCF40FD0076FEFB /* SceneDelegate.swift */; };
@@ -28,6 +29,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		021EAA032E2F6C190094431C /* Playground+LayersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+LayersView.swift"; sourceTree = "<group>"; };
 		E504D96A2D8B2F8800FC20F8 /* Playground+SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+SwiftUIView.swift"; sourceTree = "<group>"; };
 		E58E92412CCF40FD0076FEFB /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E58E92442CCF40FD0076FEFB /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -100,6 +102,7 @@
 				E5ED82032D87B2AF00B3FE3A /* Playground+AnimatingComposeView.swift */,
 				E5ED82042D87B2AF00B3FE3A /* Playground+TransitionView.swift */,
 				E5D636CD2D7CEA270080A152 /* Playground+FrameView.swift */,
+				021EAA032E2F6C190094431C /* Playground+LayersView.swift */,
 				E5F25D7E2D9A5BEF00183721 /* Playground+ShadowView.swift */,
 				E504D96A2D8B2F8800FC20F8 /* Playground+SwiftUIView.swift */,
 				E58FCD702D8E77F9003138BE /* Playground+LabelView.swift */,
@@ -192,6 +195,7 @@
 				E5D636CE2D7CEA270080A152 /* Playground+FrameView.swift in Sources */,
 				E5D636D22D7CEA9B0080A152 /* Playground.swift in Sources */,
 				E58E92492CCF40FD0076FEFB /* ViewController.swift in Sources */,
+				021EAA042E2F6C190094431C /* Playground+LayersView.swift in Sources */,
 				E58FCD712D8E77F9003138BE /* Playground+LabelView.swift in Sources */,
 				E5ED82052D87B2AF00B3FE3A /* Playground+AnimatingComposeView.swift in Sources */,
 				E5ED82062D87B2AF00B3FE3A /* Playground+TransitionView.swift in Sources */,
