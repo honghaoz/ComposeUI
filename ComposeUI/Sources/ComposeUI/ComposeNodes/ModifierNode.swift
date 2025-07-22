@@ -379,6 +379,23 @@ public extension ComposeNode {
     }
   }
 
+  /// Set whether the node's renderables are masked to bounds.
+  ///
+  /// - Note: All renderables provided by the node will have the `masksToBounds` set.
+  ///
+  /// - Parameter masksToBounds: Whether the renderable is masked to bounds. The default is `true`.
+  /// - Returns: A new node with the `masksToBounds` set.
+  func masksToBounds(_ masksToBounds: Bool = true) -> some ComposeNode {
+    onUpdate { item, context in
+      guard context.updateType.requiresFullUpdate else {
+        return
+      }
+
+      let layer = item.layer
+      layer.masksToBounds = masksToBounds
+    }
+  }
+
   /// Set the shadow of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the shadow set.

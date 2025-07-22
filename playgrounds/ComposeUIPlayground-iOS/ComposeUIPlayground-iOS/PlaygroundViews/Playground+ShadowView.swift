@@ -492,6 +492,8 @@ private func innerShadowByDropShadow() -> ComposeNode {
       layer.shadowOpacity = 0.5
       layer.shadowRadius = 2
       layer.shadowOffset = shadowOffset
+
+      layer.masksToBounds = true
     }
     .background {
       LayerNode().cornerRadius(16).border(color: .black, width: 0.5)

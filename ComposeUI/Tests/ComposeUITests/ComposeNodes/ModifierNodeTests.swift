@@ -186,6 +186,108 @@ class ModifierNodeTests: XCTestCase {
     }
   }
 
+  // MARK: - Masks To Bounds
+
+  func test_masksToBounds() {
+    // default value (true)
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .masksToBounds()
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.masksToBounds) == true
+    }
+
+    // explicit true
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .masksToBounds(true)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.masksToBounds) == true
+    }
+
+    // explicit false
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .masksToBounds(false)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.masksToBounds) == false
+    }
+
+    // update from true to false
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .masksToBounds(true)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.masksToBounds) == true
+
+      // Update to false
+      contentView.setContent {
+        LayerNode()
+          .masksToBounds(false)
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+      contentView.refresh()
+
+      expect(layer?.masksToBounds) == false
+    }
+
+    // multiple modifiers (last one wins)
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .masksToBounds(true)
+          .masksToBounds(false) // This should win
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.masksToBounds) == false
+    }
+  }
+
   // MARK: - Rasterization
 
   func test_rasterize() {
