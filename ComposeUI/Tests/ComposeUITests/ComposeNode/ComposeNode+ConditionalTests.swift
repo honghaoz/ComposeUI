@@ -68,19 +68,25 @@ class ComposeNode_ConditionalTests: XCTestCase {
   }
 
   func test_if_sameType() {
-    #if canImport(AppKit)
-    _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
+    _ = LabelNode("")
       .if(true) {
-        $0.onDoubleTap {}
+        $0.font(.systemFont(ofSize: 20))
       }
-      .shouldPerformKeyEquivalent { _ in true }
+      .if(false) {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: 20))
+      }
+      .lineBreakMode(.byCharWrapping)
 
-    _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
-      .shouldPerformKeyEquivalent { _ in true }
+    _ = LabelNode("")
+      .lineBreakMode(.byCharWrapping)
       .if(true) {
-        $0.onDoubleTap {}
+        $0.font(.systemFont(ofSize: 20))
       }
-    #endif
+      .if(false) {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: 20))
+      }
   }
 
   func test_if_else() {
@@ -124,22 +130,167 @@ class ComposeNode_ConditionalTests: XCTestCase {
   }
 
   func test_if_else_sameType() {
-    #if canImport(AppKit)
-    _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
+    _ = LabelNode("")
       .if(true, then: {
-        $0.onDoubleTap {}
+        $0.font(.systemFont(ofSize: 20))
       }, else: {
-        $0.shouldPerformKeyEquivalent { _ in true }
+        fail("shouldn't call")
+        return $0.lineBreakMode(.byCharWrapping)
       })
-      .shouldPerformKeyEquivalent { _ in true }
+      .if(false, then: {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: 20))
+      }, else: {
+        $0.lineBreakMode(.byCharWrapping)
+      })
+      .lineBreakMode(.byCharWrapping)
 
-    _ = ButtonNode(content: { _ in ColorNode(.red) }, onTap: {})
-      .shouldPerformKeyEquivalent { _ in true }
+    _ = LabelNode("")
+      .lineBreakMode(.byCharWrapping)
       .if(true, then: {
-        $0.onDoubleTap {}
+        $0.font(.systemFont(ofSize: 20))
       }, else: {
-        $0.shouldPerformKeyEquivalent { _ in true }
+        fail("shouldn't call")
+        return $0.lineBreakMode(.byCharWrapping)
       })
-    #endif
+      .if(false, then: {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: 20))
+      }, else: {
+        $0.lineBreakMode(.byCharWrapping)
+      })
+  }
+
+  // MARK: - ifLet Tests
+
+  func test_ifLet_withValue() {
+    let optionalColor: Color? = .red
+
+    var node = ViewNode()
+      .ifLet(optionalColor) { node, color in
+        expect(color) == .red
+        return node.background {
+          ColorNode(color)
+        }
+      }
+
+    node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+    expect(renderableItems.count) == 2 // ViewNode + ColorNode background
+  }
+
+  func test_ifLet_withNil() {
+    let optionalColor: Color? = nil
+
+    var node = ViewNode()
+      .ifLet(optionalColor) { node, color in
+        fail("shouldn't call")
+        return node.background {
+          ColorNode(color)
+        }
+      }
+
+    node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+    expect(renderableItems.count) == 1 // Only ViewNode, no background
+  }
+
+  func test_ifLet_sameType() {
+    _ = LabelNode("")
+      .ifLet(20 as CGFloat?) {
+        expect($1) == 20
+        return $0.font(.systemFont(ofSize: $1))
+      }
+      .ifLet(nil as CGFloat?) {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: $1))
+      }
+      .lineBreakMode(.byCharWrapping)
+
+    _ = LabelNode("")
+      .lineBreakMode(.byCharWrapping)
+      .ifLet(20 as CGFloat?) {
+        expect($1) == 20
+        return $0.font(.systemFont(ofSize: $1))
+      }
+      .ifLet(nil as CGFloat?) {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: $1))
+      }
+  }
+
+  func test_ifLet_then_else_withValue() {
+    let optionalColor: Color? = .red
+
+    var node = ViewNode()
+      .ifLet(optionalColor, then: { node, color in
+        expect(color) == .red
+        return node.background {
+          ColorNode(color)
+        }
+      }, else: { node in
+        fail("shouldn't call")
+        return node.background {
+          ColorNode(.blue)
+        }
+      })
+
+    node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+    expect(renderableItems.count) == 2 // ViewNode + red background
+  }
+
+  func test_ifLet_then_else_withNil() {
+    let optionalColor: Color? = nil
+
+    var node = ViewNode()
+      .ifLet(optionalColor, then: { node, color in
+        fail("shouldn't call")
+        return node.background {
+          ColorNode(color)
+        }
+      }, else: { node in
+        return node.background {
+          ColorNode(.blue)
+        }
+      })
+
+    node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+    expect(renderableItems.count) == 2 // ViewNode + blue background
+  }
+
+  func test_ifLet_then_else_sameType() {
+    _ = LabelNode("")
+      .ifLet(20 as CGFloat?, then: {
+        expect($1) == 20
+        return $0.font(.systemFont(ofSize: $1))
+      }, else: {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: 10))
+      })
+      .ifLet(nil as CGFloat?, then: {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: $1))
+      }, else: {
+        return $0.lineBreakMode(.byCharWrapping)
+      })
+      .lineBreakMode(.byCharWrapping)
+
+    _ = LabelNode("")
+      .lineBreakMode(.byCharWrapping)
+      .ifLet(20 as CGFloat?, then: {
+        expect($1) == 20
+        return $0.font(.systemFont(ofSize: $1))
+      }, else: {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: 10))
+      })
+      .ifLet(nil as CGFloat?, then: {
+        fail("shouldn't call")
+        return $0.font(.systemFont(ofSize: $1))
+      }, else: {
+        return $0.lineBreakMode(.byCharWrapping)
+      })
   }
 }
