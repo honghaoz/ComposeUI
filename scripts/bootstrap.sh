@@ -44,6 +44,11 @@ case "$OS" in
     echo "🪝 Install git hooks..."
     "$REPO_ROOT/scripts/git/install-git-hooks.sh"
 
+    # update packages
+    echo ""
+    echo "🔄 Update packages..."
+    "$REPO_ROOT/scripts/swift-package/update-packages.sh" ComposeUI
+
     echo ""
     echo "🎉 Done."
     ;;
