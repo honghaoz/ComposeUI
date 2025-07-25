@@ -54,6 +54,7 @@ class ViewController: NSViewController {
 
       Label("Building UI using UIKit/AppKit with declarative syntax")
         .textColor(.secondaryLabelColor)
+        .selectable()
         .transition(.opacity(timing: .linear(duration: 2, delay: 0.5)))
 
       Spacer(height: 16)

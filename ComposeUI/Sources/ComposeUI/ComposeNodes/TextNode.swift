@@ -79,6 +79,44 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///     - Don't use `.byClipping`, `.byTruncatingHead`, `.byTruncatingTail`, and `.byTruncatingMiddle` as it makes the text render as a **single line**.
   ///   - Set text node's line break mode to `.byTruncatingHead`, `.byTruncatingTail`, or `.byTruncatingMiddle` so that the last line of the text is truncated with ellipsis.
   ///
+  /// Example:
+  /// ```swift
+  /// TextNode(
+  ///   NSAttributedString(
+  ///     string: "ComposéUI is a Swift framework for building UI using AppKit and UIKit with declarative syntax.",
+  ///     attributes: [
+  ///       .font: Font.systemFont(ofSize: 12, weight: .regular),
+  ///       .themedForegroundColor: ThemedColor(
+  ///         light: Color.black.withAlphaComponent(0.8),
+  ///         dark: Color.white.withAlphaComponent(0.8)
+  ///       ),
+  ///       .themedShadow: Themed<NSShadow>(
+  ///         light: {
+  ///           let shadow = NSShadow()
+  ///           shadow.shadowColor = Color.white.withAlphaComponent(0.5)
+  ///           shadow.shadowOffset = CGSize(width: 0, height: 1)
+  ///           return shadow
+  ///         }(),
+  ///         dark: {
+  ///           let shadow = NSShadow()
+  ///           shadow.shadowColor = Color.black.withAlphaComponent(0.5)
+  ///           shadow.shadowOffset = CGSize(width: 0, height: -1)
+  ///           return shadow
+  ///         }()
+  ///       ),
+  ///       .paragraphStyle: {
+  ///         let style = NSMutableParagraphStyle()
+  ///         style.alignment = .left
+  ///         style.lineBreakMode = .byWordWrapping
+  ///         style.lineSpacing = 2
+  ///         return style
+  ///       }()
+  ///     ]
+  ///   )
+  /// )
+  /// .fixedSize(width: false, height: true)
+  /// ```
+  ///
   /// - Parameter attributedString: The attributed text to display.
   public init(_ attributedString: NSAttributedString) {
     self.attributedString = attributedString
