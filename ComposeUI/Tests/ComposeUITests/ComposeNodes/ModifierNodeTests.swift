@@ -34,6 +34,62 @@ import ComposeUI
 
 class ModifierNodeTests: XCTestCase {
 
+  // MARK: - ComposeNode
+
+  func test_id() {
+    // test that id property delegates to underlying node
+    let baseNode = ViewNode()
+    let originalId = baseNode.id
+
+    let modifierNode = baseNode.opacity(0.5)
+
+    // initial id should match the base node
+    expect(modifierNode.id) == originalId
+
+    // setting id on modifier should affect the inner node, hence the renderable items
+    let newId = ComposeNodeId.custom("new")
+    var mutableModifierNode = modifierNode
+    mutableModifierNode.id = newId
+
+    expect(mutableModifierNode.id) == newId
+
+    let containerSize = CGSize(width: 100, height: 50)
+    let context = ComposeNodeLayoutContext(scaleFactor: 2)
+    mutableModifierNode.layout(containerSize: containerSize, context: context)
+    let renderableItems = mutableModifierNode.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 50))
+    expect(renderableItems.first?.id) == newId
+  }
+
+  func test_size() {
+    // test that size property delegates to underlying node
+
+    // initial size should be zero
+    do {
+      let baseNode = ViewNode()
+      let modifierNode = baseNode.opacity(0.5)
+
+      expect(modifierNode.size) == .zero
+      expect(modifierNode.size) == baseNode.size
+    }
+
+    // modifier node with pre-layout node
+    do {
+      var baseNode = ViewNode()
+
+      let containerSize = CGSize(width: 100, height: 50)
+      let context = ComposeNodeLayoutContext(scaleFactor: 2)
+
+      _ = baseNode.layout(containerSize: containerSize, context: context)
+
+      let modifierNode = baseNode.opacity(0.5)
+
+      expect(modifierNode.size) == containerSize
+      expect(modifierNode.size) == baseNode.size
+    }
+  }
+
+  // MARK: - Life cycle calls
+
   func test_lifeCycleCalls() {
     // given many modifiers
     var willInsertCalls: [String] = []
@@ -89,9 +145,9 @@ class ModifierNodeTests: XCTestCase {
     expect(didRemoveCalls) == ["first", "second"]
   }
 
-  // MARK: - Animation and Transition Priority
+  // MARK: - Animation
 
-  func test_animationAndTransitionPriority() {
+  func test_animation() {
     let expectation = expectation(description: "animation")
 
     // given a view node with multiple animations
@@ -124,6 +180,110 @@ class ModifierNodeTests: XCTestCase {
     composeView.refresh(animated: true)
 
     wait(for: [expectation], timeout: 1)
+  }
+
+  // MARK: - Transition
+
+  func test_transition() {
+    // basic transition
+    do {
+      var insertionCompleted = false
+      var removalCompleted = false
+
+      let transition = RenderableTransition(
+        insert: RenderableTransition.InsertTransition { renderable, context, completion in
+          renderable.setFrame(context.targetFrame)
+          insertionCompleted = true
+          completion()
+        },
+        remove: RenderableTransition.RemoveTransition { renderable, context, completion in
+          removalCompleted = true
+          completion()
+        }
+      )
+
+      let contentView = ComposeView {
+        LayerNode()
+          .transition(transition)
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh(animated: true)
+
+      expect(insertionCompleted) == true
+      expect(removalCompleted) == false
+
+      // remove the content to test removal transition
+      contentView.setContent { Empty() }
+      contentView.refresh(animated: true)
+
+      expect(insertionCompleted) == true
+      expect(removalCompleted) == true
+    }
+
+    // multiple transitions (inner one wins)
+    do {
+      var firstTransitionUsed = false
+      var secondTransitionUsed = false
+
+      let firstTransition = RenderableTransition(
+        insert: RenderableTransition.InsertTransition { renderable, context, completion in
+          renderable.setFrame(context.targetFrame)
+          firstTransitionUsed = true
+          completion()
+        },
+        remove: RenderableTransition.RemoveTransition { renderable, context, completion in
+          completion()
+        }
+      )
+
+      let secondTransition = RenderableTransition(
+        insert: RenderableTransition.InsertTransition { renderable, context, completion in
+          renderable.setFrame(context.targetFrame)
+          secondTransitionUsed = true
+          completion()
+        },
+        remove: RenderableTransition.RemoveTransition { renderable, context, completion in
+          completion()
+        }
+      )
+
+      let contentView = ComposeView {
+        LayerNode()
+          .transition(firstTransition) // this should win
+          .transition(secondTransition)
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh(animated: true)
+
+      expect(firstTransitionUsed) == true
+      expect(secondTransitionUsed) == false
+    }
+
+    // predefined opacity transition
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .transition(.opacity(from: 0, to: 1, timing: .easeInEaseOut(duration: 0.1)))
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh(animated: true)
+
+      // Layer should eventually have full opacity after transition
+      let expectation = expectation(description: "opacity transition")
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        expect(layer?.opacity) == 1.0
+        expectation.fulfill()
+      }
+
+      wait(for: [expectation], timeout: 1)
+    }
   }
 
   // MARK: - Background Color
@@ -206,6 +366,39 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.backgroundColor) == Color.red.cgColor
       expect(layer?.animationKeys()?.contains("backgroundColor")) == true
     }
+
+    // early return when requiresFullUpdate is false
+    do {
+      var layer: CALayer?
+      var color: Color = .red
+
+      let contentView = ComposeView {
+        LayerNode()
+          .backgroundColor(color)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      expect(layer?.backgroundColor) == Color.red.cgColor
+
+      // bounds change should not set new color
+      color = .blue
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.backgroundColor) == Color.red.cgColor
+
+      // refresh should set new color
+      color = .green
+      contentView.refresh()
+
+      expect(layer?.backgroundColor) == Color.green.cgColor
+    }
   }
 
   // MARK: - Opacity
@@ -287,6 +480,39 @@ class ModifierNodeTests: XCTestCase {
 
       expect(layer?.opacity) == 0.6
       expect(layer?.animationKeys()?.contains("opacity")) == true
+    }
+
+    // early return when requiresFullUpdate is false
+    do {
+      var layer: CALayer?
+      var opacity: CGFloat = 0.5
+
+      let contentView = ComposeView {
+        LayerNode()
+          .opacity(opacity)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      expect(layer?.opacity) == 0.5
+
+      // bounds change should not set new opacity
+      opacity = 0.8
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.opacity) == 0.5
+
+      // refresh should set new opacity
+      opacity = 0.3
+      contentView.refresh()
+
+      expect(layer?.opacity) == 0.3
     }
   }
 
@@ -377,6 +603,45 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("borderColor")) == true
       expect(layer?.animationKeys()?.contains("borderWidth")) == true
     }
+
+    // early return when requiresFullUpdate is false
+    do {
+      var layer: CALayer?
+      var borderColor: Color = .red
+      var borderWidth: CGFloat = 2
+
+      let contentView = ComposeView {
+        LayerNode()
+          .border(color: borderColor, width: borderWidth)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      expect(layer?.borderColor) == Color.red.cgColor
+      expect(layer?.borderWidth) == 2
+
+      // bounds change should not set new border
+      borderColor = .blue
+      borderWidth = 5
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.borderColor) == Color.red.cgColor
+      expect(layer?.borderWidth) == 2
+
+      // refresh should set new border
+      borderColor = .green
+      borderWidth = 3
+      contentView.refresh()
+
+      expect(layer?.borderColor) == Color.green.cgColor
+      expect(layer?.borderWidth) == 3
+    }
   }
 
   // MARK: - Corner Radius
@@ -436,6 +701,39 @@ class ModifierNodeTests: XCTestCase {
 
       expect(layer?.cornerRadius) == 15
       expect(layer?.animationKeys()?.contains("cornerRadius")) == true
+    }
+
+    // early return when requiresFullUpdate is false
+    do {
+      var layer: CALayer?
+      var cornerRadius: CGFloat = 10
+
+      let contentView = ComposeView {
+        LayerNode()
+          .cornerRadius(cornerRadius)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      expect(layer?.cornerRadius) == 10
+
+      // bounds change should not set new corner radius
+      cornerRadius = 20
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.cornerRadius) == 10
+
+      // refresh should set new corner radius
+      cornerRadius = 8
+      contentView.refresh()
+
+      expect(layer?.cornerRadius) == 8
     }
   }
 
@@ -535,6 +833,39 @@ class ModifierNodeTests: XCTestCase {
       }
 
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer?.masksToBounds) == false
+    }
+
+    // early return when requiresFullUpdate is false
+    do {
+      var layer: CALayer?
+      var masksToBounds: Bool = true
+
+      let contentView = ComposeView {
+        LayerNode()
+          .masksToBounds(masksToBounds)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      expect(layer?.masksToBounds) == true
+
+      // bounds change should not set new masksToBounds
+      masksToBounds = false
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.masksToBounds) == true
+
+      // refresh should set new masksToBounds
+      masksToBounds = false
       contentView.refresh()
 
       expect(layer?.masksToBounds) == false
@@ -669,6 +1000,57 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("shadowRadius")) == true
       expect(layer?.animationKeys()?.contains("shadowOffset")) == true
     }
+
+    // early return when requiresFullUpdate is false
+    do {
+      var layer: CALayer?
+      var shadowColor: Color = .red
+      var shadowOpacity: CGFloat = 0.5
+      var shadowRadius: CGFloat = 4
+      var shadowOffset: CGSize = CGSize(width: 2, height: 2)
+
+      let contentView = ComposeView {
+        LayerNode()
+          .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: nil)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      expect(layer?.shadowColor) == Color.red.cgColor
+      expect(layer?.shadowOpacity) == 0.5
+      expect(layer?.shadowRadius) == 4
+      expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
+
+      // bounds change should not set new shadow
+      shadowColor = .blue
+      shadowOpacity = 0.8
+      shadowRadius = 8
+      shadowOffset = CGSize(width: 5, height: 5)
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.shadowColor) == Color.red.cgColor
+      expect(layer?.shadowOpacity) == 0.5
+      expect(layer?.shadowRadius) == 4
+      expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
+
+      // refresh should set new shadow
+      shadowColor = .green
+      shadowOpacity = 0.3
+      shadowRadius = 6
+      shadowOffset = CGSize(width: 1, height: 1)
+      contentView.refresh()
+
+      expect(layer?.shadowColor) == Color.green.cgColor
+      expect(layer?.shadowOpacity) == 0.3
+      expect(layer?.shadowRadius) == 6
+      expect(layer?.shadowOffset) == CGSize(width: 1, height: 1)
+    }
   }
 
   // MARK: - Z-Index
@@ -707,6 +1089,39 @@ class ModifierNodeTests: XCTestCase {
       contentView.refresh()
 
       expect(layer?.zPosition) == 8
+    }
+
+    // early return when requiresFullUpdate is false
+    do {
+      var layer: CALayer?
+      var zIndex: CGFloat = 5
+
+      let contentView = ComposeView {
+        LayerNode()
+          .zIndex(zIndex)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      expect(layer?.zPosition) == 5
+
+      // bounds change should not set new z index
+      zIndex = 10
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.zPosition) == 5
+
+      // refresh should set new z index
+      zIndex = 3
+      contentView.refresh()
+
+      expect(layer?.zPosition) == 3
     }
   }
 
@@ -754,6 +1169,57 @@ class ModifierNodeTests: XCTestCase {
       expect(view?.isUserInteractionEnabled) == false
       #endif
     }
+
+    // early return when requiresFullUpdate is false
+    do {
+      var view: View?
+      var isInteractive: Bool = true
+
+      let contentView = ComposeView {
+        ViewNode()
+          .interactive(isInteractive)
+          .onUpdate { renderable, context in
+            view = renderable.view
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      #if canImport(AppKit)
+      expect(view?.ignoreHitTest) == false
+      #endif
+
+      #if canImport(UIKit)
+      expect(view?.isUserInteractionEnabled) == true
+      #endif
+
+      // bounds change should not set new interactive state
+      isInteractive = false
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      #if canImport(AppKit)
+      expect(view?.ignoreHitTest) == false
+      #endif
+
+      #if canImport(UIKit)
+      expect(view?.isUserInteractionEnabled) == true
+      #endif
+
+      // refresh should set new interactive state
+      isInteractive = false
+      contentView.refresh()
+
+      #if canImport(AppKit)
+      expect(view?.ignoreHitTest) == true
+      #endif
+
+      #if canImport(UIKit)
+      expect(view?.isUserInteractionEnabled) == false
+      #endif
+    }
   }
 
   // MARK: - Rasterization
@@ -785,5 +1251,41 @@ class ModifierNodeTests: XCTestCase {
 
     expect(layer?.shouldRasterize) == true
     expect(layer?.rasterizationScale) == 3
+
+    // early return when requiresFullUpdate is false
+    do {
+      var layer: CALayer?
+      var rasterizeScale: CGFloat? = 2
+
+      let contentView = ComposeView {
+        LayerNode()
+          .rasterize(rasterizeScale)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh() // initial refresh
+
+      expect(layer?.shouldRasterize) == true
+      expect(layer?.rasterizationScale) == 2
+
+      // bounds change should not set new rasterize settings
+      rasterizeScale = nil
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.shouldRasterize) == true
+      expect(layer?.rasterizationScale) == 2
+
+      // refresh should set new rasterize settings
+      rasterizeScale = nil
+      contentView.refresh()
+
+      expect(layer?.shouldRasterize) == false
+      expect(layer?.rasterizationScale) == 1
+    }
   }
 }

@@ -125,4 +125,14 @@ public struct RenderableTransition {
 
   /// The remove transition.
   public let remove: RemoveTransition?
+
+  /// Creates a new renderable transition with the given insert and remove transitions.
+  ///
+  /// - Parameters:
+  ///   - insert: The insert transition.
+  ///   - remove: The remove transition.
+  public init(insert: InsertTransition?, remove: RemoveTransition?) {
+    self.insert = insert
+    self.remove = remove
+  }
 }
