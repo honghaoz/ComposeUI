@@ -47,9 +47,27 @@ final class TestWindow: Window {
   override var canBecomeKey: Bool { true }
   #endif
 
+  // MARK: - Content View
+
+  func contentView() -> View {
+    #if canImport(AppKit)
+    return contentView! // swiftlint:disable:this force_unwrapping
+    #else
+    return _contentView! // swiftlint:disable:this force_unwrapping
+    #endif
+  }
+
+  #if canImport(UIKit)
+  private var _contentView: UIView!
+  #endif
+
+  // MARK: - Layer
+
   #if canImport(AppKit)
   private(set) var layer: CALayer!
   #endif
+
+  // MARK: - Init
 
   #if canImport(AppKit)
   init() {
@@ -67,6 +85,7 @@ final class TestWindow: Window {
   #if canImport(UIKit)
   init() {
     super.init(frame: CGRect(x: 0, y: 0, width: 500, height: 500))
+    _contentView = UIView(frame: self.bounds)
   }
   #endif
 
@@ -74,6 +93,8 @@ final class TestWindow: Window {
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
   }
+
+  // MARK: - Key Window
 
   #if canImport(AppKit)
 
