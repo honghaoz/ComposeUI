@@ -36,17 +36,221 @@ import ChouTiTest
 
 class CALayer_AnimationsTests: XCTestCase {
 
-  func test_animationKey() {
+  // MARK: - animate
+
+  func test_animateFrame() throws {
+    let testWindow = TestWindow()
+
     let layer = CALayer()
+    testWindow.layer.addSublayer(layer)
+    layer.frame = testWindow.layer.bounds
+
+    expect(layer.frame) == CGRect(x: 0, y: 0, width: 500, height: 500)
+    layer.animateFrame(to: CGRect(x: 100, y: 100, width: 50, height: 50), timing: .easeInEaseOut(duration: 1))
+
+    expect(layer.animationKeys()) == ["position", "bounds.size"]
+
+    let positionAnimation = try (layer.animation(forKey: "position") as? CABasicAnimation).unwrap()
+    expect(positionAnimation.fromValue as? CGPoint) == CGPoint(x: 125, y: 125)
+    expect(positionAnimation.toValue as? CGPoint) == .zero
+    expect(positionAnimation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+    expect(positionAnimation.duration) == 1
+    expect(positionAnimation.isAdditive) == true
+    expect(positionAnimation.isRemovedOnCompletion) == true
+    expect(positionAnimation.fillMode) == .both
+
+    let boundsSizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(boundsSizeAnimation.fromValue as? CGSize) == CGSize(width: 450, height: 450)
+    expect(boundsSizeAnimation.toValue as? CGSize) == .zero
+    expect(boundsSizeAnimation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+    expect(boundsSizeAnimation.duration) == 1
+    expect(boundsSizeAnimation.isAdditive) == true
+    expect(boundsSizeAnimation.isRemovedOnCompletion) == true
+    expect(boundsSizeAnimation.fillMode) == .both
+  }
+
+  func test_animateFloatingPoint() throws {
+    let testWindow = TestWindow()
+
+    let layer = CALayer()
+    testWindow.layer.addSublayer(layer)
+    layer.opacity = 1.0
+
+    layer.animate(keyPath: "opacity", to: CGFloat(0.5), timing: .easeInEaseOut(duration: 1))
+
+    let animation = try (layer.animation(forKey: "opacity") as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGFloat) == 0.5 // current (1.0) - target (0.5) = 0.5
+    expect(animation.toValue as? CGFloat) == 0.0
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+    expect(animation.duration) == 1
+    expect(animation.isAdditive) == true
+    expect(animation.isRemovedOnCompletion) == true
+    expect(animation.fillMode) == .both
+    expect(layer.opacity) == 0.5 // model value should be set
+  }
+
+  func test_animateCGSize() throws {
+    let testWindow = TestWindow()
+
+    let layer = CALayer()
+    testWindow.layer.addSublayer(layer)
+    layer.bounds.size = CGSize(width: 100, height: 50)
+
+    layer.animate(keyPath: "bounds.size", to: CGSize(width: 200, height: 100), timing: .easeInEaseOut(duration: 1))
+
+    let animation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGSize) == CGSize(width: -100, height: -50) // current (100,50) - target (200,100) = (-100,-50)
+    expect(animation.toValue as? CGSize) == CGSize.zero
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+    expect(animation.duration) == 1
+    expect(animation.isAdditive) == true
+    expect(animation.isRemovedOnCompletion) == true
+    expect(animation.fillMode) == .both
+    expect(layer.bounds.size) == CGSize(width: 200, height: 100) // model value should be set
+  }
+
+  func test_animateCGPoint() throws {
+    let testWindow = TestWindow()
+
+    let layer = CALayer()
+    testWindow.layer.addSublayer(layer)
+    layer.position = CGPoint(x: 50, y: 75)
+
+    layer.animate(keyPath: "position", to: CGPoint(x: 150, y: 200), timing: .easeInEaseOut(duration: 1))
+
+    let animation = try (layer.animation(forKey: "position") as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGPoint) == CGPoint(x: -100, y: -125) // current (50,75) - target (150,200) = (-100,-125)
+    expect(animation.toValue as? CGPoint) == CGPoint.zero
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+    expect(animation.duration) == 1
+    expect(animation.isAdditive) == true
+    expect(animation.isRemovedOnCompletion) == true
+    expect(animation.fillMode) == .both
+    expect(layer.position) == CGPoint(x: 150, y: 200) // model value should be set
+  }
+
+  func test_animate() throws {
+    let testWindow = TestWindow()
+
+    let layer = CALayer()
+    testWindow.layer.addSublayer(layer)
+    layer.frame = testWindow.layer.bounds
+
     layer.animate(
-      key: "test",
       keyPath: "position",
       timing: .easeInEaseOut(duration: 1),
       from: { _ in CGPoint(x: 100, y: 100) },
       to: { _ in CGPoint(x: 200, y: 200) }
     )
-    expect(layer.animationKeys()) == ["test"]
+
+    let animation = try (layer.animation(forKey: "position") as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGPoint) == CGPoint(x: 100, y: 100)
+    expect(animation.toValue as? CGPoint) == CGPoint(x: 200, y: 200)
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+    expect(animation.duration) == 1
+    expect(animation.isAdditive) == false
+    expect(animation.isRemovedOnCompletion) == true
+    expect(animation.fillMode) == .both
   }
+
+  func test_animate_delayZero() throws {
+    let testWindow = TestWindow()
+
+    let layer = CALayer()
+    testWindow.layer.addSublayer(layer)
+    layer.frame = testWindow.layer.bounds
+
+    layer.animate(
+      keyPath: "position",
+      timing: .easeInEaseOut(duration: 0),
+      from: { _ in CGPoint(x: 100, y: 100) },
+      to: { _ in CGPoint(x: 200, y: 200) }
+    )
+
+    expect(layer.animationKeys()?.isEmpty) == nil
+    expect(layer.position) == CGPoint(x: 200, y: 200)
+  }
+
+  func test_animationKey() {
+    // with implicit key
+    do {
+      let layer = CALayer()
+      layer.animate(
+        keyPath: "position",
+        timing: .easeInEaseOut(duration: 1),
+        from: { _ in CGPoint(x: 100, y: 100) },
+        to: { _ in CGPoint(x: 200, y: 200) }
+      )
+      expect(layer.animationKeys()) == ["position"]
+    }
+
+    // with explicit key
+    do {
+      let layer = CALayer()
+      layer.animate(
+        key: "test",
+        keyPath: "position",
+        timing: .easeInEaseOut(duration: 1),
+        from: { _ in CGPoint(x: 100, y: 100) },
+        to: { _ in CGPoint(x: 200, y: 200) }
+      )
+      expect(layer.animationKeys()) == ["test"]
+    }
+  }
+
+  func test_animationKey_additive() {
+    // with implicit key
+    do {
+      let layer = CALayer()
+      layer.animate(
+        keyPath: "position",
+        timing: .easeInEaseOut(duration: 1),
+        from: { $0.position - CGPoint(x: 100, y: 100) },
+        to: { _ in .zero },
+        model: { _ in CGPoint(x: 100, y: 100) },
+        updateAnimation: { $0.isAdditive = true }
+      )
+      expect(layer.animationKeys()) == ["position"]
+
+      layer.animate(
+        keyPath: "position",
+        timing: .easeInEaseOut(duration: 1),
+        from: { $0.position - CGPoint(x: 100, y: 100) },
+        to: { _ in .zero },
+        model: { _ in CGPoint(x: 100, y: 100) },
+        updateAnimation: { $0.isAdditive = true }
+      )
+      expect(layer.animationKeys()) == ["position", "position-1"]
+    }
+
+    // with explicit key
+    do {
+      let layer = CALayer()
+      layer.animate(
+        key: "test",
+        keyPath: "position",
+        timing: .easeInEaseOut(duration: 1),
+        from: { $0.position - CGPoint(x: 100, y: 100) },
+        to: { _ in .zero },
+        model: { _ in CGPoint(x: 100, y: 100) },
+        updateAnimation: { $0.isAdditive = true }
+      )
+      expect(layer.animationKeys()) == ["test"]
+
+      layer.animate(
+        key: "test",
+        keyPath: "position",
+        timing: .easeInEaseOut(duration: 1),
+        from: { $0.position - CGPoint(x: 100, y: 100) },
+        to: { _ in .zero },
+        model: { _ in CGPoint(x: 100, y: 100) },
+        updateAnimation: { $0.isAdditive = true }
+      )
+      expect(layer.animationKeys()) == ["test", "test-1"]
+    }
+  }
+
+  // MARK: - setKeyPathValue
 
   func test_setKeyPathValue_position() {
     let testWindow = TestWindow()
@@ -270,6 +474,8 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(view.alpha) == CGFloat(layer.opacity) // view alpha should match layer opacity
     #endif
   }
+
+  // MARK: - uniqueAnimationKey
 
   func test_uniqueAnimationKey_noExistingAnimations() {
     let layer = CALayer()
