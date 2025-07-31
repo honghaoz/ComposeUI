@@ -26,6 +26,7 @@ let package = Package(
       name: "ComposeUITests",
       dependencies: [
         "ComposeUI",
+        .product(name: "ChouTi", package: "ChouTi"),
         .product(name: "ChouTiTest", package: "ChouTi"),
       ],
       path: "Tests"
