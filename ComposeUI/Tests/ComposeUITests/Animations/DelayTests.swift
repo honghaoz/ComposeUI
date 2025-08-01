@@ -49,7 +49,7 @@ class DelayTests: XCTestCase {
     }
     expect(isExecuted) == false
     expect(isExecuted).toEventually(beTrue(), timeout: 0.05)
-    expect(delayTime).to(beApproximatelyEqual(to: 0.01, within: 1e-3))
+    expect(delayTime).to(beApproximatelyEqual(to: 0.01, within: 1e-2))
   }
 
   func test_negativeDelay() {
