@@ -70,6 +70,7 @@ class ColorNodeTests: XCTestCase {
       expect(item.id.id) == "C"
       expect(item.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
 
+      // make
       do {
         let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: nil))
         expect(renderable.layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
@@ -79,6 +80,7 @@ class ColorNodeTests: XCTestCase {
       expect(item.didInsert) == nil
       expect(item.willUpdate) == nil
 
+      // update
       do {
         // when with light theme
         do {
@@ -134,6 +136,18 @@ class ColorNodeTests: XCTestCase {
             expect(animation.duration) == Animations.defaultAnimationDuration
             expect(animation.toValue as! CGColor) == Color.blue.cgColor // swiftlint:disable:this force_cast
           }
+        }
+
+        // requires full update
+        do {
+          let contentView = ComposeView()
+          let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+
+          // scroll doesn't require a full update
+          let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+          item.update(renderable, context)
+          let layer = renderable.layer
+          expect(layer.backgroundColor) == nil // doesn't update
         }
       }
 

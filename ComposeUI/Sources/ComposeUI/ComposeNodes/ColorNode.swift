@@ -85,6 +85,10 @@ public struct ColorNode: ComposeNode {
         return layer
       },
       update: { layer, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
+
         let color = self.color.resolve(for: context.contentView.theme).cgColor
         if let animationTiming = context.animationTiming {
           layer.animate(
