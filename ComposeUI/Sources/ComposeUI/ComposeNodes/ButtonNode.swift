@@ -58,10 +58,9 @@ public struct ButtonNode: ComposeNode {
   /// - Parameters:
   ///   - content: The content of the button for different states.
   ///   - onTap: The action to perform when the button is tapped.
-  public init(
-    @ComposeContentBuilder content: @escaping (ButtonState) -> ComposeContent,
-    onTap: @escaping () -> Void
-  ) {
+  public init(@ComposeContentBuilder content: @escaping (ButtonState) -> ComposeContent,
+              onTap: @escaping () -> Void)
+  {
     self.init(
       content: { state, _ in
         content(state)
@@ -75,10 +74,9 @@ public struct ButtonNode: ComposeNode {
   /// - Parameters:
   ///   - content: The content of the button for different states and the button view.
   ///   - onTap: The action to perform when the button is tapped.
-  public init(
-    @ComposeContentBuilder content: @escaping (ButtonState, ComposeView?) -> ComposeContent,
-    onTap: @escaping () -> Void
-  ) {
+  public init(@ComposeContentBuilder content: @escaping (ButtonState, ComposeView?) -> ComposeContent,
+              onTap: @escaping () -> Void)
+  {
     makeButtonContent = content
     self.onTap = onTap
 
