@@ -65,6 +65,10 @@ private struct GestureRecognizerNode: ComposeNode {
   func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     let childItems = node.renderableItems(in: visibleBounds)
 
+    guard !childItems.isEmpty else {
+      return []
+    }
+
     let gestureOverlayViewItem = ViewItem<GestureView>(
       id: id,
       frame: CGRect(origin: .zero, size: size),

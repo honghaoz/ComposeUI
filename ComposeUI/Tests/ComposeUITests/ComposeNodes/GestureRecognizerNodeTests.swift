@@ -49,24 +49,76 @@ class GestureRecognizerNodeTests: XCTestCase {
 
   // MARK: - Renderable Items Tests
 
-  func test_renderableItems() {
-    let baseNode = LayerNode().frame(width: 100, height: 50)
-    var gestureNode = baseNode.onTap { _ in }
+  func test_renderableItems() throws {
+    var node = ColorNode(.red).frame(width: 100, height: 50).onTap { _ in }
 
-    let containerSize = CGSize(width: 200, height: 100)
-    let context = ComposeNodeLayoutContext(scaleFactor: 2)
-    gestureNode.layout(containerSize: containerSize, context: context)
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-    let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
-    let renderableItems = gestureNode.renderableItems(in: visibleBounds)
+    // when visible bounds intersects with the node's frame
+    do {
+      let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 2
 
-    // should have base node items + gesture overlay view
-    expect(renderableItems.count) == 2
+      let item = items[1]
+      expect(item.id.id) == "G"
+      expect(item.frame) == CGRect(x: 0, y: 0, width: 100, height: 50)
 
-    // check that last item is the gesture overlay view
-    let lastItem = renderableItems.last
-    expect(lastItem?.id) == .standard(.gesture)
-    expect(lastItem?.frame) == CGRect(origin: .zero, size: CGSize(width: 100, height: 50))
+      // make
+      do {
+        let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: nil))
+        expect(renderable.view?.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
+      }
+
+      expect(item.willInsert) == nil
+      expect(item.didInsert) == nil
+      expect(item.willUpdate) == nil
+
+      // update
+      do {
+        // normal update
+        do {
+          let contentView = ComposeView()
+          let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+
+          let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+          item.update(renderable, context)
+          let view = try (renderable.view).unwrap()
+          let viewLookup = DynamicLookup(view)
+          expect((viewLookup.property("handlers") as? [AnyHashable: Any])?.count) == 1
+          expect((viewLookup.property("installedGestureRecognizers") as? [AnyHashable: Any])?.count) == 1
+
+          expect((view as? GestureRecognizerDelegate)?.gestureRecognizer?(GestureRecognizer(), shouldRecognizeSimultaneouslyWith: GestureRecognizer())) == true
+        }
+
+        // requires full update
+        do {
+          let contentView = ComposeView()
+          let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+
+          // scroll doesn't require a full update
+          let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+          item.update(renderable, context)
+          let view = try (renderable.view).unwrap()
+          let viewLookup = DynamicLookup(view)
+          expect((viewLookup.property("handlers") as? [AnyHashable: Any])?.count) == 0 // doesn't update
+          expect((viewLookup.property("installedGestureRecognizers") as? [AnyHashable: Any])?.count) == 0 // doesn't update
+        }
+      }
+
+      expect(item.willRemove) == nil
+      expect(item.didRemove) == nil
+      expect(item.transition) == nil
+      expect(item.animationTiming) == nil
+    }
+
+    // when visible bounds does not intersect with the node's frame
+    do {
+      let visibleBounds = CGRect(x: 0, y: 100, width: 100, height: 100)
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 0
+    }
   }
 
   // MARK: - Gesture Handler Coalescing Tests
