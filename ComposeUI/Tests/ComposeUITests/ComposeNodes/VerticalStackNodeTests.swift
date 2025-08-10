@@ -34,6 +34,12 @@ import ComposeUI
 
 class VerticalStackNodeTests: XCTestCase {
 
+  func test_typealias() {
+    _ = VStack {}
+    _ = VerticalStack {}
+    _ = VerticalStackNode {}
+  }
+
   func test_empty() {
     var node = VStack {}
 

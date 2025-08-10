@@ -34,6 +34,12 @@ import ComposeUI
 
 class LayeredStackNodeTests: XCTestCase {
 
+  func test_typealias() {
+    _ = ZStack {}
+    _ = LayeredStack {}
+    _ = LayeredStackNode {}
+  }
+
   func test_empty() {
     var node = ZStack {}
 

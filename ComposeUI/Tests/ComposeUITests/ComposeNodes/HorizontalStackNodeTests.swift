@@ -34,6 +34,12 @@ import ComposeUI
 
 class HorizontalStackNodeTests: XCTestCase {
 
+  func test_typealias() {
+    _ = HStack {}
+    _ = HorizontalStack {}
+    _ = HorizontalStackNode {}
+  }
+
   func test_empty() {
     var node = HStack {}
 
