@@ -114,7 +114,16 @@ class DropShadowNodeTests: XCTestCase {
 
   func test_layout() throws {
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
-    var node = ColorNode(.red)
+    var node = DropShadowNode(
+      color: .black,
+      opacity: 0.5,
+      radius: 10,
+      offset: CGSize(width: 2, height: 5),
+      paths: { renderable in
+        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+        return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
+      }
+    )
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
     expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
     expect(node.size) == CGSize(width: 100, height: 100)
@@ -247,7 +256,10 @@ class DropShadowNodeTests: XCTestCase {
           let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
           item.update(renderable, context)
           let layer = renderable.layer
-          expect(layer.backgroundColor) == nil // doesn't update
+          expect(layer.shadowOpacity) == 0 // doesn't update
+          expect(layer.shadowRadius) == 3 // doesn't update
+          expect(layer.shadowOffset) == CGSize(width: 0, height: -3) // doesn't update
+          expect(layer.shadowPath) == nil // doesn't update
         }
       }
 
