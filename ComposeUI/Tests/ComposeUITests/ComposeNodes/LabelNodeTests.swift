@@ -30,9 +30,44 @@
 
 import ChouTiTest
 
-import ComposeUI
+import ChouTi
+@testable import ComposeUI
 
 class LabelNodeTests: XCTestCase {
+
+  func test_size_assertion() throws {
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, file, line, column in
+      expect(message) == "layout(containerSize:context:) should be called before calling size"
+      assertionCount += 1
+    }
+
+    let labelNode = LabelNode("Test")
+
+    // when accessing size without calling layout first
+    // then it should trigger the assertion
+    _ = labelNode.size
+    expect(assertionCount) == 1
+
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+  }
+
+  func test_renderableItems_assertion() throws {
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, file, line, column in
+      expect(message) == "layout(containerSize:context:) should be called before calling renderableItems(in:)"
+      assertionCount += 1
+    }
+
+    let labelNode = LabelNode("Test")
+
+    // when accessing renderableItems without calling layout first
+    // then it should trigger the assertion
+    _ = labelNode.renderableItems(in: CGRect(0, 0, 100, 100))
+    expect(assertionCount) == 1
+
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+  }
 
   // MARK: - Single-line
 
@@ -367,6 +402,203 @@ class LabelNodeTests: XCTestCase {
     expect(paragraphStyle.lineBreakMode) == .byWordWrapping
     expect(textView?.lineBreakMode) == .byTruncatingMiddle
     expect(textView?.isSelectable) == true
+  }
+
+  func test_modifiers_resetNode() throws {
+    // given a node
+    var node = LabelNode("Hello World")
+
+    // font
+    do {
+      try node = node.font(unwrap(Font(name: "HelveticaNeue", size: 20)))
+
+      // when layout is triggered
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // the underlying node should have been set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // when a duplicate modifier is triggered
+      try node = node.font(unwrap(Font(name: "HelveticaNeue", size: 20)))
+
+      // the underlying node should still be set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // then a new modifier is triggered
+      try node = node.font(unwrap(Font(name: "HelveticaNeue", size: 13)))
+
+      // the underlying node should be cleared
+      expect(DynamicLookup(node).property("node")) == nil
+    }
+
+    // textColor
+    do {
+      node = node.textColor(.red)
+
+      // when layout is triggered
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // the underlying node should have been set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // when a duplicate modifier is triggered
+      node = node.textColor(.red)
+
+      // the underlying node should still be set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // then a new modifier is triggered
+      node = node.textColor(ThemedColor(.blue))
+
+      // the underlying node should be cleared
+      expect(DynamicLookup(node).property("node")) == nil
+    }
+
+    // textBackgroundColor
+    do {
+      node = node.textBackgroundColor(ThemedColor(.green))
+
+      // when layout is triggered
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // the underlying node should have been set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // when a duplicate modifier is triggered
+      node = node.textBackgroundColor(ThemedColor(.green))
+
+      // the underlying node should still be set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // then a new modifier is triggered
+      node = node.textBackgroundColor(nil)
+
+      // the underlying node should be cleared
+      expect(DynamicLookup(node).property("node")) == nil
+    }
+
+    // textShadow
+    do {
+      node = node.textShadow(Themed<NSShadow>({
+        let shadow = NSShadow()
+        shadow.shadowOffset = CGSize(width: 0, height: 1)
+        return shadow
+      }()))
+
+      // when layout is triggered
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // the underlying node should have been set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // when a duplicate modifier is triggered
+      node = node.textShadow(Themed<NSShadow>({
+        let shadow = NSShadow()
+        shadow.shadowOffset = CGSize(width: 0, height: 1)
+        return shadow
+      }()))
+
+      // the underlying node should still be set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // then a new modifier is triggered
+      node = node.textShadow(nil)
+
+      // the underlying node should be cleared
+      expect(DynamicLookup(node).property("node")) == nil
+    }
+
+    // textAlignment
+    do {
+      // when layout is triggered
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // the underlying node should have been set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // when a duplicate modifier is triggered
+      node = node.textAlignment(.center)
+
+      // the underlying node should still be set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // then a new modifier is triggered
+      node = node.textAlignment(.left)
+
+      // the underlying node should be cleared
+      expect(DynamicLookup(node).property("node")) == nil
+    }
+
+    // numberOfLines
+    do {
+      // when layout is triggered
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // the underlying node should have been set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // when a duplicate modifier is triggered
+      node = node.numberOfLines(1)
+
+      // the underlying node should still be set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // then a new modifier is triggered
+      node = node.numberOfLines(0)
+
+      // the underlying node should be cleared
+      expect(DynamicLookup(node).property("node")) == nil
+    }
+
+    // lineBreakMode
+    do {
+      // when layout is triggered
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // the underlying node should have been set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // when a duplicate modifier is triggered
+      node = node.lineBreakMode(.byTruncatingTail)
+
+      // the underlying node should still be set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // then a new modifier is triggered
+      node = node.lineBreakMode(.byTruncatingMiddle)
+
+      // the underlying node should be cleared
+      expect(DynamicLookup(node).property("node")) == nil
+    }
+
+    // selectable
+    do {
+      // when layout is triggered
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // the underlying node should have been set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // when a duplicate modifier is triggered
+      node = node.selectable(false)
+
+      // the underlying node should still be set
+      expect(DynamicLookup(node).property("node")) != nil
+
+      // then a new modifier is triggered
+      node = node.selectable(true)
+
+      // the underlying node should be cleared
+      expect(DynamicLookup(node).property("node")) == nil
+    }
   }
 }
 
