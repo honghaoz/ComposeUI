@@ -34,6 +34,14 @@ import ChouTiTest
 
 class LayerNodeTests: XCTestCase {
 
+  func test_id() throws {
+    expect(LayerNode().id.id) == "L"
+
+    let layer = CALayer()
+    let id = ObjectIdentifier(layer)
+    expect(LayerNode(layer).id.id) == "layer-\(id)"
+  }
+
   func test_fixedSize() {
     do {
       // when using layer factory
@@ -235,6 +243,56 @@ class LayerNodeTests: XCTestCase {
           expect(node.size) == CGSize(width: 200, height: 200)
         }
       }
+    }
+  }
+
+  func test_renderableItems() throws {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    var node = LayerNode()
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    // when visible bounds intersects with the node's frame
+    do {
+      let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 1
+
+      let item = items[0]
+      expect(item.id.id) == "L"
+      expect(item.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // make
+      do {
+        let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: nil))
+        expect(renderable.layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
+      }
+
+      expect(item.willInsert) == nil
+      expect(item.didInsert) == nil
+      expect(item.willUpdate) == nil
+
+      // update
+      do {
+        let contentView = ComposeView()
+        let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+
+        let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+        item.update(renderable, context)
+        let layer = renderable.layer
+        expect(layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
+      }
+
+      expect(item.willRemove) == nil
+      expect(item.didRemove) == nil
+      expect(item.transition) == nil
+      expect(item.animationTiming) == nil
+    }
+
+    // when visible bounds does not intersect with the node's frame
+    do {
+      let visibleBounds = CGRect(x: 0, y: 100, width: 100, height: 100)
+      let items = node.renderableItems(in: visibleBounds)
+      expect(items.count) == 0
     }
   }
 
