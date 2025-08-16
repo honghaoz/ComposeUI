@@ -43,7 +43,7 @@ extension NSAttributedString {
 
   /// Calculate the bounding size of the attributed string.
   ///
-  /// Ported from https://github.com/honghaoz/ChouTiUI/blob/c2cc7b8452d269d6ee55993a977ed4b5fabf15d4/ChouTiUI/Sources/ChouTiUI/Universal/Text/TextSizeProvider.swift#L258
+  /// Related: https://github.com/honghaoz/ChouTiUI/blob/c2cc7b8452d269d6ee55993a977ed4b5fabf15d4/ChouTiUI/Sources/ChouTiUI/Universal/Text/TextSizeProvider.swift#L258
   ///
   /// - Parameters:
   ///   - numberOfLines: The number of lines to calculate the bounding size for. Use 0 for unlimited lines.
@@ -91,6 +91,7 @@ extension NSAttributedString {
       endLineIndex = numberOfLines - 1
     }
 
+    #if canImport(AppKit)
     var lineOrigins = [CGPoint](repeating: .zero, count: linesCount)
     CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &lineOrigins)
     let lineOriginYs = lineOrigins.map { frameHeight - $0.y }
@@ -105,8 +106,24 @@ extension NSAttributedString {
     let endLineBottom = endLineOrigin + endLineDescent + endLineLeading
 
     // swiftlint:disable:next force_unwrapping
-    let maxWidth = lines.map { CTLineGetBoundsWithOptions($0, []).width }.max()!
+    let maxWidth = lines.map { line in CTLineGetTypographicBounds(line, nil, nil, nil) }.max()!
     return CGSize(width: maxWidth, height: endLineBottom)
+    #else
+    var maxWidth: CGFloat = 0
+    var totalHeight: CGFloat = 0
+    for i in 0 ... endLineIndex {
+      let line = lines[i]
+      var ascent: CGFloat = 0
+      var descent: CGFloat = 0
+      var leading: CGFloat = 0
+      let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+      let lineHeight = ascent + descent + leading
+
+      maxWidth = max(maxWidth, width)
+      totalHeight += lineHeight
+    }
+    return CGSize(width: maxWidth, height: totalHeight)
+    #endif
   }
 
   /// Returns single line text bounding box size in fractional size.
@@ -134,18 +151,14 @@ extension NSAttributedString {
       return .zero
     }
 
-    let linesCount = lines.count
-    var lineOrigins = [CGPoint](repeating: .zero, count: linesCount)
-    CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &lineOrigins)
-    let lineOriginY = frameHeight - lineOrigins[0].y
-
     let line = lines[0] // only take the first line size
+    var ascent: CGFloat = 0
     var descent: CGFloat = 0
     var leading: CGFloat = 0
-    let width = CTLineGetTypographicBounds(line, nil, &descent, &leading)
-    let lineBottom = lineOriginY + descent + leading
+    let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+    let lineHeight = ascent + descent + leading
 
-    return CGSize(width: width, height: lineBottom)
+    return CGSize(width: width, height: lineHeight)
   }
 
   /// Adjust the line break mode of the attributed string.
@@ -193,3 +206,36 @@ extension NSAttributedString {
     return mutableCopy
   }
 }
+
+// Notes on CoreText API:
+//
+// 1. CTFramesetterSuggestFrameSizeWithConstraints:
+//    CTFramesetterSuggestFrameSizeWithConstraints is NOT accurate for multiline text.
+//    It may return a height that is not enough to contain the text.
+// 2. CTFrameGetLineOrigins:
+//    CTFrameGetLineOrigins is NOT precise. The baseline origins retutned are snapped to an integral “pixel grid” in user space (points).
+//    The intergral points may result in a height that is either too small or too large.
+//    Based on my testing, CTFrameGetLineOrigins provides a better origins on macOS than iOS.
+// 3. CTLineGetTypographicBounds:
+//    CTLineGetTypographicBounds is precise. It returns the exact bounds of the line, with line ascent, descent, and leading.
+//
+// CTTypesetter vs. CTFramesetter:
+// 1. CTTypesetter:
+//    CTTypesetter is the lowest-level line-breaking engine.
+//    Given an attributed string, it can break text into lines that fit a given width.
+//    CTTypesetter is like a “word wrapping” helper — it just tells you where the line breaks should be, not how to position the lines.
+//
+//    CTTypesetterSuggestLineBreak vs CTTypesetterSuggestClusterBreak:
+//    a. CTTypesetterSuggestLineBreak:
+//       It breaks the text into lines that fit a given width at "word" level.
+//    b. CTTypesetterSuggestClusterBreak:
+//       It breaks the text into lines that fit a given width at "character" level.
+//
+// 2. CTFramesetter:
+//    CTFramesetter is a higher-level layout object that sits on top of CTTypesetter.
+//    Given an attributed string and a path (CGPath), it lays out the text automatically to fill the shape.
+//    CTFramesetter is like a “full layout manager” — you give it the box, it fills it with text according to Core Text’s rules.
+//
+// References:
+// - https://stackoverflow.com/a/3956161/3164091
+// - https://chatgpt.com/share/68a0affc-8db0-8009-b0e3-62f5d7860bb2
