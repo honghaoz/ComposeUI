@@ -48,22 +48,10 @@ extension NSAttributedString {
   /// - Parameters:
   ///   - numberOfLines: The number of lines to calculate the bounding size for. Use 0 for unlimited lines.
   ///   - layoutWidth: The width of the layout.
-  ///   - lineBreakMode: The line break mode to use for the layout. The line break mode should be either `byWordWrapping` or `byCharWrapping`. Default is `byWordWrapping`.
+  ///   - lineBreakMode: The line break mode to use for the layout. Default is `byWordWrapping`.
   /// - Returns: The bounding size of the attributed string.
   func boundingRectSize(numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode = .byWordWrapping) -> CGSize {
-    let sanitizedLineBreakMode: NSLineBreakMode
-    switch lineBreakMode {
-    case .byClipping,
-         .byTruncatingTail,
-         .byTruncatingHead,
-         .byTruncatingMiddle:
-      sanitizedLineBreakMode = .byWordWrapping
-    default:
-      sanitizedLineBreakMode = lineBreakMode
-    }
-
-    let attributedString = self.adjustingLineBreakMode(sanitizedLineBreakMode)
-    guard attributedString.length > 0 else {
+    guard self.length > 0 else {
       return .zero
     }
 
@@ -71,59 +59,134 @@ extension NSAttributedString {
       return singleLineTextBoundingRectSize()
     }
 
-    let framesetter = CTFramesetterCreateWithAttributedString(attributedString as CFAttributedString)
-    let frameHeight: CGFloat = 1000000000
-    let path = CGPath(rect: CGRect(x: 0, y: 0, width: layoutWidth, height: frameHeight), transform: nil)
+    // === TextKit [BEGIN] ===
 
-    let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
+    let textStorage = NSTextStorage(attributedString: self)
 
-    guard let lines = CTFrameGetLines(frame) as? [CTLine], lines.count > 0 else {
-      ComposeUI.assertFailure("failed to get non-empty lines")
-      return .zero
-    }
+    let layoutManager = NSLayoutManager()
+    textStorage.addLayoutManager(layoutManager)
 
-    let linesCount = lines.count
+    let textContainer = NSTextContainer(size: CGSize(width: layoutWidth, height: .greatestFiniteMagnitude))
+    textContainer.lineFragmentPadding = 0
+    textContainer.maximumNumberOfLines = numberOfLines
+    textContainer.lineBreakMode = lineBreakMode
 
-    let endLineIndex: Int
-    if numberOfLines <= 0 || numberOfLines >= linesCount {
-      endLineIndex = linesCount - 1
-    } else {
-      endLineIndex = numberOfLines - 1
-    }
+    layoutManager.addTextContainer(textContainer)
 
-    #if canImport(AppKit)
-    var lineOrigins = [CGPoint](repeating: .zero, count: linesCount)
-    CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &lineOrigins)
-    let lineOriginYs = lineOrigins.map { frameHeight - $0.y }
+    layoutManager.ensureLayout(for: textContainer)
+    return layoutManager.usedRect(for: textContainer).size
 
-    /// the origin is relative to the bottom left corner of the path bounding box.
-    let endLineOrigin = lineOriginYs[endLineIndex]
+    // === TextKit [END] ===
 
-    let endLine = lines[endLineIndex]
-    var endLineDescent: CGFloat = 0
-    var endLineLeading: CGFloat = 0
-    _ = CTLineGetTypographicBounds(endLine, nil, &endLineDescent, &endLineLeading)
-    let endLineBottom = endLineOrigin + endLineDescent + endLineLeading
+    //    let sanitizedLineBreakMode: NSLineBreakMode
+    //    switch lineBreakMode {
+    //    case .byClipping,
+    //         .byTruncatingTail,
+    //         .byTruncatingHead,
+    //         .byTruncatingMiddle:
+    //      sanitizedLineBreakMode = .byWordWrapping
+    //    default:
+    //      sanitizedLineBreakMode = lineBreakMode
+    //    }
+    //
+    //    let attributedString = self.adjustingLineBreakMode(sanitizedLineBreakMode)
+    //    guard attributedString.length > 0 else {
+    //      return .zero
+    //    }
+    //
+    //    if numberOfLines == 1 {
+    //      return singleLineTextBoundingRectSize()
+    //    }
 
-    // swiftlint:disable:next force_unwrapping
-    let maxWidth = lines.map { line in CTLineGetTypographicBounds(line, nil, nil, nil) }.max()!
-    return CGSize(width: maxWidth, height: endLineBottom)
-    #else
-    var maxWidth: CGFloat = 0
-    var totalHeight: CGFloat = 0
-    for i in 0 ... endLineIndex {
-      let line = lines[i]
-      var ascent: CGFloat = 0
-      var descent: CGFloat = 0
-      var leading: CGFloat = 0
-      let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-      let lineHeight = ascent + descent + leading
+    // === CTTypesetter [BEGIN] ===
+    //
+    //    let typesetter = CTTypesetterCreateWithAttributedString(attributedString)
+    //    var index = 0
+    //    var lineIndex = 0
+    //    var maxWidth: CGFloat = 0
+    //    var totalHeight: CGFloat = 0
+    //
+    //    while index < attributedString.length {
+    //      let count = CTTypesetterSuggestLineBreak(typesetter, index, Double(layoutWidth))
+    //      let range = CFRange(location: index, length: count)
+    //      let line = CTTypesetterCreateLine(typesetter, range)
+    //
+    //      var ascent: CGFloat = 0
+    //      var descent: CGFloat = 0
+    //      var leading: CGFloat = 0
+    //      let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+    //
+    //      maxWidth = max(maxWidth, width)
+    //      totalHeight += ascent + descent + leading
+    //
+    //      lineIndex += 1
+    //      if lineIndex >= numberOfLines && numberOfLines > 0 {
+    //        break
+    //      }
+    //
+    //      index += count
+    //    }
+    //
+    //    return CGSize(width: maxWidth, height: totalHeight)
+    //
+    // === CTTypesetter [END] ===
 
-      maxWidth = max(maxWidth, width)
-      totalHeight += lineHeight
-    }
-    return CGSize(width: maxWidth, height: totalHeight)
-    #endif
+    // === CTFramesetter [BEGIN] ===
+    //
+    //    let framesetter = CTFramesetterCreateWithAttributedString(attributedString as CFAttributedString)
+    //    let frameHeight: CGFloat = 1000000000
+    //    let path = CGPath(rect: CGRect(x: 0, y: 0, width: layoutWidth, height: frameHeight), transform: nil)
+    //
+    //    let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
+    //
+    //    guard let lines = CTFrameGetLines(frame) as? [CTLine], lines.count > 0 else {
+    //      ComposeUI.assertFailure("failed to get non-empty lines")
+    //      return .zero
+    //    }
+    //
+    //    let linesCount = lines.count
+    //
+    //    let endLineIndex: Int
+    //    if numberOfLines <= 0 || numberOfLines >= linesCount {
+    //      endLineIndex = linesCount - 1
+    //    } else {
+    //      endLineIndex = numberOfLines - 1
+    //    }
+    //
+    //    #if canImport(AppKit)
+    //    var lineOrigins = [CGPoint](repeating: .zero, count: linesCount)
+    //    CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &lineOrigins)
+    //    let lineOriginYs = lineOrigins.map { frameHeight - $0.y }
+    //
+    //    /// the origin is relative to the bottom left corner of the path bounding box.
+    //    let endLineOrigin = lineOriginYs[endLineIndex]
+    //
+    //    let endLine = lines[endLineIndex]
+    //    var endLineDescent: CGFloat = 0
+    //    var endLineLeading: CGFloat = 0
+    //    _ = CTLineGetTypographicBounds(endLine, nil, &endLineDescent, &endLineLeading)
+    //    let endLineBottom = endLineOrigin + endLineDescent + endLineLeading
+    //
+    //    let maxWidth = lines.map { line in CTLineGetTypographicBounds(line, nil, nil, nil) }.max()!
+    //    return CGSize(width: maxWidth, height: endLineBottom)
+    //    #else
+    //    var maxWidth: CGFloat = 0
+    //    var totalHeight: CGFloat = 0
+    //    for i in 0 ... endLineIndex {
+    //      let line = lines[i]
+    //      var ascent: CGFloat = 0
+    //      var descent: CGFloat = 0
+    //      var leading: CGFloat = 0
+    //      let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+    //      let lineHeight = ascent + descent + leading
+    //
+    //      maxWidth = max(maxWidth, width)
+    //      totalHeight += lineHeight
+    //    }
+    //    return CGSize(width: maxWidth, height: totalHeight)
+    //    #endif
+    //
+    // === CTFramesetter [END] ===
   }
 
   /// Returns single line text bounding box size in fractional size.
@@ -139,72 +202,65 @@ extension NSAttributedString {
       return .zero
     }
 
-    let framesetter = CTFramesetterCreateWithAttributedString(attributedString as CFAttributedString)
-    let frameWidth: CGFloat = 1e9
-    let frameHeight: CGFloat = 1e9
-    let path = CGPath(rect: CGRect(x: 0, y: 0, width: frameWidth, height: frameHeight), transform: nil)
+    let typesetter = CTTypesetterCreateWithAttributedString(attributedString)
 
-    let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
+    let count = CTTypesetterSuggestLineBreak(typesetter, 0, .greatestFiniteMagnitude)
+    let range = CFRange(location: 0, length: count)
+    let line = CTTypesetterCreateLine(typesetter, range)
 
-    guard let lines = CTFrameGetLines(frame) as? [CTLine], lines.count > 0 else {
-      ComposeUI.assertFailure("failed to get non-empty lines")
-      return .zero
-    }
-
-    let line = lines[0] // only take the first line size
     var ascent: CGFloat = 0
     var descent: CGFloat = 0
     var leading: CGFloat = 0
     let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-    let lineHeight = ascent + descent + leading
+    let height = ascent + descent + leading
 
-    return CGSize(width: width, height: lineHeight)
+    return CGSize(width: width, height: height)
   }
 
-  /// Adjust the line break mode of the attributed string.
-  ///
-  /// The CoreText (`CTFrameGetLines`) returns decreased number of lines (`CTLine`) if the attributed string has
-  /// paragraph style with the `lineBreakMode` set to truncating mode such as `.byClipping`, `.byTruncatingTail`,
-  /// `.byTruncatingHead` or `.byTruncatingMiddle`. In this case, each line can have two `CTRun`s.
-  ///
-  /// With `byWordWrapping` or `byCharWrapping` line break mode, CoreText can return correct lines with each line have
-  /// one `CTRun`.
-  ///
-  /// This method returns the attributed string as is if no paragraph style with different line break mode is found.
-  /// Otherwise, it will return a new attributed string with the updated line break mode.
-  ///
-  /// - Parameter lineBreakMode: The line break mode to set.
-  /// - Returns: An attributed string with the updated line break mode.
-  private func adjustingLineBreakMode(_ lineBreakMode: NSLineBreakMode) -> NSAttributedString {
-    var needsAdjustment = false
-    var rangesToUpdate: [(NSRange, NSParagraphStyle)] = []
-
-    // first pass: check if any adjustments are needed and collect ranges
-    enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: length), options: []) { value, range, _ in
-      if let paragraphStyle = value as? NSParagraphStyle, paragraphStyle.lineBreakMode != lineBreakMode {
-        needsAdjustment = true
-        rangesToUpdate.append((range, paragraphStyle))
-      }
-    }
-
-    // return original if no changes are needed
-    guard needsAdjustment else {
-      return self
-    }
-
-    // second pass: apply changes efficiently
-    let mutableCopy = NSMutableAttributedString(attributedString: self)
-
-    for (range, originalStyle) in rangesToUpdate {
-      guard let newParagraphStyle = originalStyle.mutableCopy() as? NSMutableParagraphStyle else {
-        continue
-      }
-      newParagraphStyle.lineBreakMode = lineBreakMode
-      mutableCopy.addAttribute(.paragraphStyle, value: newParagraphStyle, range: range)
-    }
-
-    return mutableCopy
-  }
+  //  /// Adjust the line break mode of the attributed string.
+  //  ///
+  //  /// The CoreText (`CTFrameGetLines`) returns decreased number of lines (`CTLine`) if the attributed string has
+  //  /// paragraph style with the `lineBreakMode` set to truncating mode such as `.byClipping`, `.byTruncatingTail`,
+  //  /// `.byTruncatingHead` or `.byTruncatingMiddle`. In this case, each line can have two `CTRun`s.
+  //  ///
+  //  /// With `byWordWrapping` or `byCharWrapping` line break mode, CoreText can return correct lines with each line have
+  //  /// one `CTRun`.
+  //  ///
+  //  /// This method returns the attributed string as is if no paragraph style with different line break mode is found.
+  //  /// Otherwise, it will return a new attributed string with the updated line break mode.
+  //  ///
+  //  /// - Parameter lineBreakMode: The line break mode to set.
+  //  /// - Returns: An attributed string with the updated line break mode.
+  //  private func adjustingLineBreakMode(_ lineBreakMode: NSLineBreakMode) -> NSAttributedString {
+  //    var needsAdjustment = false
+  //    var rangesToUpdate: [(NSRange, NSParagraphStyle)] = []
+  //
+  //    // first pass: check if any adjustments are needed and collect ranges
+  //    enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: length), options: []) { value, range, _ in
+  //      if let paragraphStyle = value as? NSParagraphStyle, paragraphStyle.lineBreakMode != lineBreakMode {
+  //        needsAdjustment = true
+  //        rangesToUpdate.append((range, paragraphStyle))
+  //      }
+  //    }
+  //
+  //    // return original if no changes are needed
+  //    guard needsAdjustment else {
+  //      return self
+  //    }
+  //
+  //    // second pass: apply changes efficiently
+  //    let mutableCopy = NSMutableAttributedString(attributedString: self)
+  //
+  //    for (range, originalStyle) in rangesToUpdate {
+  //      guard let newParagraphStyle = originalStyle.mutableCopy() as? NSMutableParagraphStyle else {
+  //        continue
+  //      }
+  //      newParagraphStyle.lineBreakMode = lineBreakMode
+  //      mutableCopy.addAttribute(.paragraphStyle, value: newParagraphStyle, range: range)
+  //    }
+  //
+  //    return mutableCopy
+  //  }
 }
 
 // Notes on CoreText API:
