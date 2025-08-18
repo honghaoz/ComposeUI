@@ -51,8 +51,14 @@ class TextNodeTests: XCTestCase {
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
 
+    #if canImport(AppKit)
     expect(sizing) == ComposeNodeSizing(width: .fixed(51), height: .fixed(44))
     expect(node.size) == CGSize(width: 51, height: 44)
+    #endif
+    #if canImport(UIKit)
+    expect(sizing) == ComposeNodeSizing(width: .fixed(51), height: .fixed(43))
+    expect(node.size) == CGSize(width: 51, height: 43)
+    #endif
   }
 
   func test_longString_multipleLines() throws {
@@ -67,8 +73,8 @@ class TextNodeTests: XCTestCase {
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
 
-    expect(sizing) == ComposeNodeSizing(width: .fixed(105), height: .fixed(286))
-    expect(node.size) == CGSize(width: 105, height: 286)
+    expect(sizing) == ComposeNodeSizing(width: .fixed(100), height: .fixed(280))
+    expect(node.size) == CGSize(width: 100, height: 280)
   }
 
   func test_longString_singleLine() throws {

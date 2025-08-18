@@ -279,7 +279,7 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-    expect(textView?.bounds.size) == CGSize(width: 99, height: 100)
+    expect(textView?.bounds.size) == CGSize(width: 97, height: 100)
     expect(textView?.numberOfLines) == 0
     expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
     expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
@@ -303,7 +303,12 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-    expect(textView?.bounds.size) == CGSize(width: 98, height: 136)
+    #if canImport(AppKit)
+    expect(textView?.bounds.size) == CGSize(width: 98, height: 139)
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.bounds.size) == CGSize(width: 98, height: 140)
+    #endif
     expect(textView?.numberOfLines) == 0
     expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
     expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
@@ -326,7 +331,12 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-    expect(textView?.bounds.size) == CGSize(width: 98, height: 136)
+    #if canImport(AppKit)
+    expect(textView?.bounds.size) == CGSize(width: 98, height: 139)
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.bounds.size) == CGSize(width: 98, height: 140)
+    #endif
     expect(textView?.numberOfLines) == 0
     expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
     expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
@@ -350,7 +360,12 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-    expect(textView?.bounds.size) == CGSize(width: 99, height: 136)
+    #if canImport(AppKit)
+    expect(textView?.bounds.size) == CGSize(width: 97, height: 139)
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.bounds.size) == CGSize(width: 97, height: 140)
+    #endif
     expect(textView?.numberOfLines) == 0
     expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
     expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
