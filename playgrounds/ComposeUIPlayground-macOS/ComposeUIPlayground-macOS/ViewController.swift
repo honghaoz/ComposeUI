@@ -47,7 +47,7 @@ class ViewController: NSViewController {
 
       Label("Hello, ComposéUI!")
         .font(.systemFont(ofSize: 24))
-        .shadow(color: .black, opacity: 0.5, radius: 1, offset: CGSize(width: 2, height: 2), path: nil)
+        .shadow(color: .black, opacity: 0.3, radius: 0, offset: CGSize(width: 1, height: 1), path: nil)
         .transition(.opacity(timing: .linear(duration: 2)))
 
       Spacer(height: 8)

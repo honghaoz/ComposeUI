@@ -189,6 +189,20 @@ extension Playground {
           }
         }
         .frame(width: .flexible, height: 120)
+
+        HStack(spacing: 32) {
+          Label("★ Rate Us")
+            .font(.boldSystemFont(ofSize: 14))
+            .textBackgroundColor(ThemedColor(ComposeUI.Color.red.withAlphaComponent(0.2)))
+            .border()
+
+          Label("★ Rate Us")
+            .font(Font(name: "HelveticaNeue-Bold", size: 14)!) // swiftlint:disable:this force_unwrapping
+            .textBackgroundColor(ThemedColor(ComposeUI.Color.red.withAlphaComponent(0.2)))
+            .border()
+        }
+
+        Spacer(height: 16)
       }
       .mapChildren { node in
         guard !(node is HorizontalStack), !(node is VerticalStack), !(node is SpacerNode) else {
