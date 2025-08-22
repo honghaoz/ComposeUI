@@ -120,9 +120,19 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
         return view
       },
       update: { view, context in
-        guard !isStaticContent, context.updateType.requiresFullUpdate else {
+        guard !isStaticContent else {
           return
         }
+
+        switch context.updateType {
+        case .insert,
+             .refresh,
+             .boundsChange:
+          break
+        case .scroll:
+          return
+        }
+
         (view as? MutableSwiftUIHostingView)
           .assertNotNil("view should be a MutableSwiftUIHostingView")?
           .content = AnyView(content())

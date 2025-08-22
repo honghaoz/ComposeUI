@@ -67,6 +67,53 @@ class SwiftUIViewNodeTests: XCTestCase {
     expect(view2?.isUserInteractionEnabled) == true
   }
 
+  func test_conditional_update() throws {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    var node = SwiftUIViewNode { Text("Hello, World!") }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+    let items = node.renderableItems(in: visibleBounds)
+    expect(items.count) == 1
+
+    let item = items[0]
+    expect(item.id.id) == "SUI"
+    expect(item.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // normal update
+    do {
+      let contentView = ComposeView()
+      let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+
+      let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+      item.update(renderable, context)
+      let view = try (renderable.view as? MutableSwiftUIHostingView).unwrap()
+      expect("\(view.content)".contains("Hello, World")) == true
+    }
+
+    // conditional update
+    do {
+      let contentView = ComposeView()
+      let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+
+      // scroll doesn't trigger update
+      do {
+        let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+        item.update(renderable, context)
+        let view = try (renderable.view as? MutableSwiftUIHostingView).unwrap()
+        expect("\(view.content)") == "AnyView(EmptyView())" // doesn't update
+      }
+
+      // bounds change triggers update
+      do {
+        let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+        item.update(renderable, context)
+        let view = try (renderable.view as? MutableSwiftUIHostingView).unwrap()
+        expect("\(view.content)".contains("Hello, World")) == true
+      }
+    }
+  }
+
   func test_static_fixedWidth_fixedHeight() {
     var view: SwiftUIHostingView<AnyView>?
     let contentView = ComposeView {

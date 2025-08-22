@@ -75,6 +75,7 @@
        frame: frame,
        make: { _ in <#MyLayer#>() },
        update: { layer, context in
+         // NOTE: if the content update depends on the layer's bounds, should switch context.updateType explicitly (for .boundsChange)
          guard context.updateType.requiresFullUpdate else {
            return
          }

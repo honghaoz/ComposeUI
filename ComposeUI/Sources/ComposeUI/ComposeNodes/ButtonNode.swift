@@ -104,7 +104,12 @@ public struct ButtonNode: ComposeNode {
       frame: frame,
       make: { ButtonView(frame: $0.initialFrame ?? .zero) },
       update: { view, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh,
+             .boundsChange:
+          break
+        case .scroll:
           return
         }
 

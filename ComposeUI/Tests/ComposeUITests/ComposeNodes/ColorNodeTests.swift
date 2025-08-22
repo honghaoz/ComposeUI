@@ -138,16 +138,27 @@ class ColorNodeTests: XCTestCase {
           }
         }
 
-        // requires full update
+        // conditional update
         do {
           let contentView = ComposeView()
+          contentView.overrideTheme = .light
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          // scroll doesn't require a full update
-          let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
-          item.update(renderable, context)
-          let layer = renderable.layer
-          expect(layer.backgroundColor) == nil // doesn't update
+          // scroll doesn't trigger update
+          do {
+            let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            item.update(renderable, context)
+            let layer = renderable.layer
+            expect(layer.backgroundColor) == nil // doesn't update
+          }
+
+          // bounds change doesn't trigger update
+          do {
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            item.update(renderable, context)
+            let layer = renderable.layer
+            expect(layer.backgroundColor) == nil // doesn't update
+          }
         }
       }
 

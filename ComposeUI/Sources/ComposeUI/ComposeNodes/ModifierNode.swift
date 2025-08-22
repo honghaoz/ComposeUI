@@ -430,7 +430,12 @@ public extension ComposeNode {
   /// - Returns: A new node with the shadow set.
   func shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
+      switch context.updateType {
+      case .insert,
+           .refresh,
+           .boundsChange: // the shadow path is affected by the layer's size, should update
+        break
+      case .scroll:
         return
       }
 

@@ -1001,7 +1001,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("shadowOffset")) == true
     }
 
-    // early return when requiresFullUpdate is false
+    // early return when for scroll update
     do {
       var layer: CALayer?
       var shadowColor: Color = .red
@@ -1025,12 +1025,12 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.shadowRadius) == 4
       expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
 
-      // bounds change should not set new shadow
+      // scroll should not set new shadow
       shadowColor = .blue
       shadowOpacity = 0.8
       shadowRadius = 8
       shadowOffset = CGSize(width: 5, height: 5)
-      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
+      contentView.frame = CGRect(x: 0, y: 2, width: 100, height: 50)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
@@ -1039,17 +1039,27 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.shadowRadius) == 4
       expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
 
+      // bounds change should set new shadow
+      contentView.frame = CGRect(x: 0, y: 2, width: 100, height: 60)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      expect(layer?.shadowColor) == Color.blue.cgColor
+      expect(layer?.shadowOpacity) == 0.8
+      expect(layer?.shadowRadius) == 8
+      expect(layer?.shadowOffset) == CGSize(width: 5, height: 5)
+
       // refresh should set new shadow
-      shadowColor = .green
-      shadowOpacity = 0.3
-      shadowRadius = 6
-      shadowOffset = CGSize(width: 1, height: 1)
+      shadowColor = .red
+      shadowOpacity = 0.4
+      shadowRadius = 7
+      shadowOffset = CGSize(width: 2, height: 3)
       contentView.refresh()
 
-      expect(layer?.shadowColor) == Color.green.cgColor
-      expect(layer?.shadowOpacity) == 0.3
-      expect(layer?.shadowRadius) == 6
-      expect(layer?.shadowOffset) == CGSize(width: 1, height: 1)
+      expect(layer?.shadowColor) == Color.red.cgColor
+      expect(layer?.shadowOpacity) == 0.4
+      expect(layer?.shadowRadius) == 7
+      expect(layer?.shadowOffset) == CGSize(width: 2, height: 3)
     }
   }
 

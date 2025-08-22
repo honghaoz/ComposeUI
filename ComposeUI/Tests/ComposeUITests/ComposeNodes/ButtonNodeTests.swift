@@ -154,17 +154,28 @@ class ButtonNodeTests: XCTestCase {
           #endif
         }
 
-        // requires full update
+        // conditional update
         do {
           let contentView = ComposeView()
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          // scroll doesn't require a full update
-          let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
-          item.update(renderable, context)
-          let view = try (renderable.view as? ButtonView).unwrap()
-          let viewLookup = DynamicLookup(view)
-          expect(viewLookup.property("onTap")) == nil // doesn't update
+          // scroll doesn't trigger update
+          do {
+            let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            item.update(renderable, context)
+            let view = try (renderable.view as? ButtonView).unwrap()
+            let viewLookup = DynamicLookup(view)
+            expect(viewLookup.property("onTap")) == nil // doesn't update
+          }
+
+          // bounds change triggers update
+          do {
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            item.update(renderable, context)
+            let view = try (renderable.view as? ButtonView).unwrap()
+            let viewLookup = DynamicLookup(view)
+            expect(viewLookup.property("onTap")) != nil // update
+          }
         }
       }
 

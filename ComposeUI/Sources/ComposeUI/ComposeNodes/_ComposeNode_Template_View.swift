@@ -75,6 +75,7 @@
        frame: frame,
        make: { <#MyView#>(frame: $0.initialFrame ?? .zero) },
        update: { view, context in
+         // NOTE: if the content update depends on the view's bounds, should switch context.updateType explicitly (for .boundsChange)
          guard context.updateType.requiresFullUpdate else {
            return
          }
