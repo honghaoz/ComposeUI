@@ -149,7 +149,12 @@ public struct DropShadowNode: ComposeNode {
         return layer
       },
       update: { layer, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh,
+             .boundsChange: // the shadow path is affected by the layer's size, should update
+          break
+        case .scroll:
           return
         }
 

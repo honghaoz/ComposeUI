@@ -247,19 +247,34 @@ class DropShadowNodeTests: XCTestCase {
           }
         }
 
-        // requires full update
+        // conditional update
         do {
           let contentView = ComposeView()
+          contentView.overrideTheme = .light
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          // scroll doesn't require a full update
-          let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
-          item.update(renderable, context)
-          let layer = renderable.layer
-          expect(layer.shadowOpacity) == 0 // doesn't update
-          expect(layer.shadowRadius) == 3 // doesn't update
-          expect(layer.shadowOffset) == CGSize(width: 0, height: -3) // doesn't update
-          expect(layer.shadowPath) == nil // doesn't update
+          // scroll doesn't trigger update
+          do {
+            let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            item.update(renderable, context)
+            let layer = renderable.layer
+            expect(layer.shadowOpacity) == 0 // doesn't update
+            expect(layer.shadowRadius) == 3 // doesn't update
+            expect(layer.shadowOffset) == CGSize(width: 0, height: -3) // doesn't update
+            expect(layer.shadowPath) == nil // doesn't update
+          }
+
+          // bounds change triggers update
+          do {
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            item.update(renderable, context)
+            let layer = renderable.layer
+            expect(layer.shadowColor) == Color.red.cgColor
+            expect(layer.shadowOpacity) == 0.5
+            expect(layer.shadowRadius) == 10
+            expect(layer.shadowOffset) == CGSize(width: 2, height: 5)
+            expect(layer.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
+          }
         }
       }
 
