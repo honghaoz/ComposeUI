@@ -62,6 +62,16 @@ public enum Renderable {
     }
   }
 
+  /// The bounds of the renderable.
+  public var bounds: CGRect {
+    switch self {
+    case .view(let view):
+      return view.bounds
+    case .layer(let layer):
+      return layer.bounds
+    }
+  }
+
   /// The frame of the renderable.
   public var frame: CGRect {
     switch self {
