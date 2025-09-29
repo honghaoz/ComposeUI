@@ -173,7 +173,7 @@ class ViewController: NSViewController {
             CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
           )
           return view
-        },
+        }
       )
       .fixedSize()
 
