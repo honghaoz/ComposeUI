@@ -42,9 +42,16 @@ class ComposeView_WindowChangeTests: XCTestCase {
     #endif
 
     var renderCount = 0
+    var refreshCount = 0
+    var isAnimated: Bool?
     let view = ComposeView {
       renderCount += 1
       LayerNode()
+        .animation(.linear())
+        .onUpdate { _, context in
+          isAnimated = context.animationTiming != nil
+          refreshCount += 1
+        }
     }
 
     view.frame = frame
@@ -56,13 +63,19 @@ class ComposeView_WindowChangeTests: XCTestCase {
     #endif
 
     expect(renderCount) == 0
+    expect(refreshCount) == 0
     expect(renderCount).toEventually(beEqual(to: 1))
+    expect(refreshCount) == 1
+    expect(isAnimated) == false
+    isAnimated = nil
 
     view.removeFromSuperview()
     expect(renderCount) == 1
+    expect(refreshCount) == 1
 
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // flush the pending refresh
     expect(renderCount) == 1 // setting window to nil should not trigger a new render
+    expect(refreshCount) == 1
 
     #if canImport(AppKit)
     window.contentView?.addSubview(view)
@@ -72,6 +85,9 @@ class ComposeView_WindowChangeTests: XCTestCase {
     #endif
     expect(renderCount) == 1
     expect(renderCount).toEventually(beEqual(to: 2)) // adding to the same window again should trigger a new render
+    expect(refreshCount) == 2
+    expect(isAnimated) == false
+    isAnimated = nil
 
     let window2 = TestWindow()
     #if canImport(UIKit)
@@ -86,5 +102,8 @@ class ComposeView_WindowChangeTests: XCTestCase {
     #endif
     expect(renderCount) == 2
     expect(renderCount).toEventually(beEqual(to: 3)) // adding to a different window should trigger a new render
+    expect(refreshCount) == 3
+    expect(isAnimated) == false
+    isAnimated = nil
   }
 }

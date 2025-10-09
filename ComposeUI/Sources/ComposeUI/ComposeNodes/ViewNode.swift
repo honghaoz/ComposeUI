@@ -80,7 +80,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - view: The external view.
-  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size.
+  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size. If nil (default), the view's `bounds.size` will be used.
   ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
@@ -120,7 +120,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with with frame set to `context.initialFrame` if it's provided.
-  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size.
+  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size. If nil (default), the view's `bounds.size` will be used.
   ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.

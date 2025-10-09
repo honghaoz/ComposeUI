@@ -220,6 +220,8 @@ open class ComposeView: BaseScrollView {
 
   /// Set a new content.
   ///
+  /// An animated refresh will be scheduled. To disable the animation, call `setNeedsRefresh(animated: false)` or `refresh(animated: false)`.
+  ///
   /// - Parameter content: The content builder block. It passes in the content view that renders the content.
   open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     makeContent = content
@@ -227,6 +229,8 @@ open class ComposeView: BaseScrollView {
   }
 
   /// Set a new content.
+  ///
+  /// An animated refresh will be scheduled. To disable the animation, call `setNeedsRefresh(animated: false)` or `refresh(animated: false)`.
   ///
   /// - Parameter content: The content builder block.
   open func setContent(@ComposeContentBuilder content: @escaping () throws -> ComposeContent) {
@@ -397,7 +401,7 @@ open class ComposeView: BaseScrollView {
     contentScaleFactor = windowScaleFactor
 
     if window != nil, previousWindow != window {
-      setNeedsRefresh(animated: true) // schedule to refresh when the window is changed
+      setNeedsRefresh(animated: false) // schedule to refresh when the window is changed
     }
     previousWindow = window
   }
@@ -500,7 +504,7 @@ open class ComposeView: BaseScrollView {
     }
 
     if window.isKeyWindow != oldIsKeyWindow {
-      setNeedsRefresh()
+      setNeedsRefresh(animated: false)
     }
 
     oldIsKeyWindow = window.isKeyWindow
@@ -511,7 +515,7 @@ open class ComposeView: BaseScrollView {
     contentScaleFactor = windowScaleFactor
 
     if oldContentScaleFactor != contentScaleFactor {
-      setNeedsRefresh(animated: true)
+      setNeedsRefresh(animated: false)
     }
   }
   #endif
@@ -522,9 +526,9 @@ open class ComposeView: BaseScrollView {
   ///
   /// This call will make a new content from the builder block and re-render the content immediately.
   ///
-  /// - Parameter animated: Whether the refresh is animated.
+  /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func refresh(animated: Bool = true) {
-    ComposeUI.assert(Thread.isMainThread, "refresh() must be called on the main thread")
+    ComposeUI.assert(Thread.isMainThread, "refresh(animated:) must be called on the main thread")
 
     // explicit render request, should make a new content
     contentNode = LayoutCacheNode(node: _makeContent())
@@ -544,9 +548,9 @@ open class ComposeView: BaseScrollView {
   /// This method is non-blocking and will return immediately.
   /// The refresh will be performed on the next run loop iteration.
   ///
-  /// - Parameter animated: Whether the refresh is animated.
+  /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func setNeedsRefresh(animated: Bool = true) {
-    ComposeUI.assert(Thread.isMainThread, "setNeedsRefresh() must be called on the main thread")
+    ComposeUI.assert(Thread.isMainThread, "setNeedsRefresh(animated:) must be called on the main thread")
 
     if pendingRefresh == nil {
       RunLoop.main.perform(inModes: [.common]) { [weak self] in
