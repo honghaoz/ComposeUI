@@ -56,6 +56,7 @@ enum StandardComposeNodeId: String {
   case vStack = "VS"
   case hStack = "HS"
   case zStack = "ZS"
+  case composeView = "CV"
 }
 
 public struct ComposeNodeId: Equatable {
