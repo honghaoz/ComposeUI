@@ -59,14 +59,14 @@ class ComposeViewNodeTests: XCTestCase {
   }
 
   func test_size() throws {
-    // fixed size content
+    // fixed size content + fixed size
     do {
       var node = ComposeViewNode {
         ColorNode(.red)
           .frame(width: 50, height: 50)
       }
 
-      // before layout, size should come from content node
+      // before layout, size should be zero
       expect(node.size) == .zero
 
       // after layout
@@ -75,11 +75,98 @@ class ComposeViewNodeTests: XCTestCase {
       expect(node.size) == CGSize(width: 50, height: 50)
     }
 
-    // flexible size content
+    // fixed size content + fixed width, flexible height
+    do {
+      var node = ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: 50, height: 50)
+      }
+      .fixedSize(width: true, height: false)
+
+      expect(node.size) == .zero
+
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+      expect(node.size) == CGSize(width: 50, height: 100)
+    }
+
+    // fixed size content + flexible width, fixed height
+    do {
+      var node = ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: 50, height: 50)
+      }
+      .fixedSize(width: false, height: true)
+
+      expect(node.size) == .zero
+
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+      expect(node.size) == CGSize(width: 100, height: 50)
+    }
+
+    // fixed size content + flexible size
+    do {
+      var node = ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: 50, height: 50)
+      }
+      .fixedSize(width: false, height: false)
+
+      expect(node.size) == .zero
+
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+      expect(node.size) == CGSize(width: 100, height: 100)
+    }
+
+    // flexible size content + fixed size
     do {
       var node = ComposeViewNode {
         ColorNode(.red)
       }
+
+      expect(node.size) == .zero
+
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+      expect(node.size) == CGSize(width: 100, height: 100)
+    }
+
+    // flexible size content + fixed width, flexible height
+    do {
+      var node = ComposeViewNode {
+        ColorNode(.red)
+      }
+      .fixedSize(width: true, height: false)
+
+      expect(node.size) == .zero
+
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+      expect(node.size) == CGSize(width: 100, height: 100)
+    }
+
+    // flexible size content + flexible width, fixed height
+    do {
+      var node = ComposeViewNode {
+        ColorNode(.red)
+      }
+      .fixedSize(width: false, height: true)
+
+      expect(node.size) == .zero
+
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+      expect(node.size) == CGSize(width: 100, height: 100)
+    }
+
+    // flexible size content + flexible size
+    do {
+      var node = ComposeViewNode {
+        ColorNode(.red)
+      }
+      .fixedSize(width: false, height: false)
 
       expect(node.size) == .zero
 
