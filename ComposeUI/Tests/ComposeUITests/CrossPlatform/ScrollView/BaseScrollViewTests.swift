@@ -52,11 +52,16 @@ class BaseScrollViewTests: XCTestCase {
     expect(scrollView.theme) == overrideTheme
   }
 
-  func test_themePublisher() {
+  func test_themePublisher() throws {
+    #if os(visionOS)
+    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
+    #endif
+
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
     #if canImport(AppKit)
-    let window = NSWindow(contentRect: frame, styleMask: [], backing: .buffered, defer: false)
+    let window = TestWindow()
+    window.setFrame(frame, display: false)
     window.appearance = NSAppearance(named: .darkAqua)
     let scrollView = BaseScrollView()
     window.contentView?.addSubview(scrollView)
@@ -64,7 +69,7 @@ class BaseScrollViewTests: XCTestCase {
     #endif
 
     #if canImport(UIKit)
-    let window = UIWindow()
+    let window = TestWindow()
     window.overrideUserInterfaceStyle = .dark
     window.frame = frame
     let scrollView = BaseScrollView()
@@ -119,13 +124,14 @@ class BaseScrollViewTests: XCTestCase {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
 
     #if canImport(AppKit)
-    let window2 = NSWindow(contentRect: frame, styleMask: [], backing: .buffered, defer: false)
+    let window2 = TestWindow()
+    window2.setFrame(frame, display: false)
     window2.appearance = NSAppearance(named: .aqua)
     window2.contentView?.addSubview(scrollView)
     #endif
 
     #if canImport(UIKit)
-    let window2 = UIWindow()
+    let window2 = TestWindow()
     window2.overrideUserInterfaceStyle = .light
     window2.frame = frame
     window2.addSubview(scrollView)

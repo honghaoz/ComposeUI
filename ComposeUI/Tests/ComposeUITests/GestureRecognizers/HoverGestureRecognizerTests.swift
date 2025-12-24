@@ -115,6 +115,10 @@ class HoverGestureRecognizerTests: XCTestCase {
   }
 
   func test_mouseEntered() throws {
+    #if os(visionOS)
+    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
+    #endif
+
     let target = TestTarget()
     let view = NSView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let window = TestWindow()
@@ -136,6 +140,10 @@ class HoverGestureRecognizerTests: XCTestCase {
   }
 
   func test_mouseExited() throws {
+    #if os(visionOS)
+    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
+    #endif
+
     let target = TestTarget()
     let view = NSView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let window = TestWindow()
@@ -157,6 +165,10 @@ class HoverGestureRecognizerTests: XCTestCase {
   }
 
   func test_multiple_mouse_entered_events_only_trigger_once() throws {
+    #if os(visionOS)
+    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
+    #endif
+
     let target = TestTarget()
     let view = NSView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let window = TestWindow()
@@ -177,6 +189,10 @@ class HoverGestureRecognizerTests: XCTestCase {
   }
 
   func test_multiple_mouse_exited_events_only_trigger_once() throws {
+    #if os(visionOS)
+    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
+    #endif
+
     let target = TestTarget()
     let view = NSView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let window = TestWindow()
@@ -210,6 +226,10 @@ class HoverGestureRecognizerTests: XCTestCase {
   }
 
   func test_multiple_gesture_recognizers_on_same_view() {
+    #if os(visionOS)
+    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
+    #endif
+
     let view = NSView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let window = TestWindow()
     window.contentView?.addSubview(view)
@@ -236,6 +256,10 @@ class HoverGestureRecognizerTests: XCTestCase {
   }
 
   func test_no_action_when_no_target_or_action_set() throws {
+    #if os(visionOS)
+    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
+    #endif
+
     let view = NSView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let window = TestWindow()
     window.contentView?.addSubview(view)
