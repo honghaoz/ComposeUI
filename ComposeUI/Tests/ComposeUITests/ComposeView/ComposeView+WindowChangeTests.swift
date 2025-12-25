@@ -35,10 +35,6 @@ import ChouTiTest
 class ComposeView_WindowChangeTests: XCTestCase {
 
   func test_windowDidChange() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let window = TestWindow()
     #if canImport(UIKit)

@@ -36,10 +36,6 @@ import ComposeUI
 class BaseScrollViewTests: XCTestCase {
 
   func test_theme() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a BaseScrollView.")
-    #endif
-
     let scrollView = BaseScrollView()
     let initialTheme = scrollView.theme
 
@@ -57,10 +53,6 @@ class BaseScrollViewTests: XCTestCase {
   }
 
   func test_themePublisher() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
     #if canImport(AppKit)

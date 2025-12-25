@@ -39,10 +39,6 @@ class CALayer_AnimationsTests: XCTestCase {
   // MARK: - animate
 
   func test_animateFrame() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
 
     let layer = CALayer()
@@ -74,10 +70,6 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_animateFloatingPoint() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
 
     let layer = CALayer()
@@ -98,10 +90,6 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_animateCGSize() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
 
     let layer = CALayer()
@@ -122,10 +110,6 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_animateCGPoint() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
 
     let layer = CALayer()
@@ -146,10 +130,6 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_animate() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
 
     let layer = CALayer()
@@ -174,10 +154,6 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_animate_delayZero() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
 
     let layer = CALayer()
@@ -277,10 +253,6 @@ class CALayer_AnimationsTests: XCTestCase {
   // MARK: - setKeyPathValue
 
   func test_setKeyPathValue_position() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
     let containerView = testWindow.contentView()
 
@@ -330,10 +302,6 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_setKeyPathValue_bounds_size() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
     let containerView = testWindow.contentView()
 
@@ -390,10 +358,6 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_setKeyPathValue_anchorPoint() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
     let containerView = testWindow.contentView()
 
@@ -462,10 +426,6 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_setKeyPathValue_opacity() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let testWindow = TestWindow()
     let containerView = testWindow.contentView()
 

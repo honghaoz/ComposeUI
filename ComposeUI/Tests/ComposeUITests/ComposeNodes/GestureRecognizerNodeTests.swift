@@ -181,10 +181,6 @@ class GestureRecognizerNodeTests: XCTestCase {
   // MARK: - Integration Tests
 
   func test_gestureRecognizer() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     var optionalGestureView: View?
 
     let testWindow = TestWindow()

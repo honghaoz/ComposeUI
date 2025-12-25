@@ -35,10 +35,6 @@ import ComposeUI
 class CALayer_DisableActionsTests: XCTestCase {
 
   func test_disableActions() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
     layer.frame = frame
@@ -73,10 +69,6 @@ class CALayer_DisableActionsTests: XCTestCase {
   }
 
   func test_disableAllActions() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
     layer.frame = frame

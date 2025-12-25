@@ -35,10 +35,6 @@ import ChouTiTest
 class AnimationDelegateTests: XCTestCase {
 
   func test() throws {
-    #if os(visionOS)
-    throw XCTSkip("visionOS on CI machines may hang when creating a UIWindow.")
-    #endif
-
     let didStartExpectation = expectation(description: "didStart")
     didStartExpectation.assertForOverFulfill = true
     let didStopExpectation = expectation(description: "didStop")
