@@ -111,9 +111,6 @@ public extension CALayer {
     }
   }
 
-  /// Cache for disabled subclasses, keyed by the original class’s name.
-  private static var subclassCache: [String: AnyClass] = [:]
-
   /// Execute the block with all actions disabled.
   ///
   /// `CALayer` has implicit animations for some properties, which is not desired in some cases.
@@ -142,17 +139,12 @@ public extension CALayer {
 
       // retrieve or create the subclass with disabled actions
       let subclass: AnyClass = onMainSync {
-        if let cached = CALayer.subclassCache[subclassClassName] {
-          return cached
-        }
-
         // check if the class already exists in the runtime.
         if let theClass = NSClassFromString(subclassClassName) {
-          CALayer.subclassCache[subclassClassName] = theClass
           return theClass
         }
 
-        // create a new subclass and cache it
+        // create a new subclass
         guard let newClass = objc_allocateClassPair(originalClass, subclassClassName, 0) else {
           ComposeUI.assertFailure("Unable to allocate class pair for \(subclassClassName). Actions will not be disabled.")
           return originalClass
@@ -171,8 +163,6 @@ public extension CALayer {
         let selector = #selector(CALayer.action(forKey:))
         class_addMethod(newClass, selector, implementation, typeEncoding)
         objc_registerClassPair(newClass)
-
-        CALayer.subclassCache[subclassClassName] = newClass
 
         return newClass
       }

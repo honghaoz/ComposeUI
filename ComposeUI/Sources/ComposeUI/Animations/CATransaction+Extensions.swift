@@ -43,10 +43,11 @@ public extension CATransaction {
   @inline(__always)
   static func disableAnimations<T>(_ work: () throws -> T) rethrows -> T {
     CATransaction.begin()
+    defer {
+      CATransaction.commit()
+    }
     CATransaction.setDisableActions(true)
     CATransaction.setAnimationDuration(0)
-    let result = try work()
-    CATransaction.commit()
-    return result
+    return try work()
   }
 }

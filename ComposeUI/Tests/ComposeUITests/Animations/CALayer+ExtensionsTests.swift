@@ -70,4 +70,23 @@ class CALayer_ExtensionsTests: XCTestCase {
     layer.bringSublayerToFront(sublayer3)
     expect(layer.sublayers) == [sublayer2, sublayer1]
   }
+
+  func test_positionFromFrame_nonIdentityTransform() {
+    let layer = CALayer()
+    layer.transform = CATransform3DMakeRotation(CGFloat.pi / 4, 0, 0, 1)
+    let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
+    layer.frame = frame
+    layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+
+    var assertionCount = 0
+    Assert.setTestAssertionFailureHandler { message, file, line, column in
+      expect(message) == "CALayer.position(from:frame:) only works with identity transform."
+      assertionCount += 1
+    }
+
+    expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
+    expect(assertionCount) == 1
+
+    Assert.resetTestAssertionFailureHandler()
+  }
 }
