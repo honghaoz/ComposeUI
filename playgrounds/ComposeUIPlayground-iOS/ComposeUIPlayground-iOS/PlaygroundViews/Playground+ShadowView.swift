@@ -87,7 +87,7 @@ extension Playground {
             .transition(.none)
             .border(color: .black, width: 1)
             .cornerRadius(cornerRadius)
-            .dropShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
+            .dropShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
               let size = renderItem.frame.size
               let cornerRadius = self.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
@@ -125,7 +125,7 @@ extension Playground {
                 opacity: shadowOpacity,
                 radius: shadowRadius,
                 offset: shadowOffset,
-                path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
+                path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
                   let size = renderItem.frame.size
                   let cornerRadius = self.cornerRadius
                   return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
@@ -157,7 +157,7 @@ extension Playground {
               opacity: shadowOpacity,
               radius: shadowRadius,
               offset: shadowOffset,
-              paths: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
+              paths: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
                 let size = renderItem.frame.size
                 let cornerRadius = self.cornerRadius
                 let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
@@ -190,7 +190,7 @@ extension Playground {
           LayerNode()
             .transition(.none)
             .cornerRadius(cornerRadius)
-            .innerShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable
+            .innerShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
               let size = renderItem.frame.size
               let cornerRadius = self.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)

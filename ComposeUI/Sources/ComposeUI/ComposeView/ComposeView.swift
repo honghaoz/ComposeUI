@@ -176,7 +176,7 @@ open class ComposeView: BaseScrollView {
 
     super.init(frame: frame)
 
-    makeContent = { [unowned self] _ in content } // swiftlint:disable:this unowned_variable
+    makeContent = { [unowned self] _ in content } // swiftlint:disable:this unowned_variable_capture
     commonInit()
   }
 
