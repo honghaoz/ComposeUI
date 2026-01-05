@@ -16,7 +16,7 @@ Add the following to your `Package.swift` file:
 ```swift
 dependencies: [
   // add the package to your package's dependencies
-  .package(url: "https://github.com/honghaoz/ComposeUI", from: "0.0.3"),
+  .package(url: "https://github.com/honghaoz/ComposeUI", from: "0.0.4"),
 ],
 targets: [
   // add the product to your target's dependencies

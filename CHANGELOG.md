@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [0.0.4](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.4) (2026-01-04)
+
+- Optimized text support.
+- Optimized SwiftUI support.
+- Added `clippingBehavior` to `ComposeView`.
+- Added `ifLet` support for `ComposeNode`.
+- Added `ComposeViewNode` to render nested compose content.
+- Updated inner shadow layer/node to support "spread" effect.
+- Added key equivalent support for button view/node.
+- Exposed various CA layer animation APIs.
+- Other various improvements and bug fixes.
+
 ## [0.0.3](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.3) (2025-04-12)
 
 - Added animation support
