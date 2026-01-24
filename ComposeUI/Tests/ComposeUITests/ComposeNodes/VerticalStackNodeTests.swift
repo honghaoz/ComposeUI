@@ -238,4 +238,45 @@ class VerticalStackNodeTests: XCTestCase {
       expect(items[1].frame) == CGRect(x: 10, y: 50, width: 20, height: 20)
     }
   }
+
+  func test_renderableItems_filtersOffscreenChildren() {
+    var node = VStack {
+      LayerNode().frame(width: 10, height: 10)
+      LayerNode().frame(width: 10, height: 10)
+      LayerNode().frame(width: 10, height: 10)
+    }
+
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 10, height: 30), context: context)
+
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10))
+
+    guard items.count == 1 else {
+      fail("Expected 1 item")
+      return
+    }
+
+    expect(items[0].frame) == CGRect(x: 0, y: 0, width: 10, height: 10)
+  }
+
+  func test_renderableItems_includesOffsetChildren() {
+    var node = VStack {
+      LayerNode().frame(width: 10, height: 10)
+      LayerNode().frame(width: 10, height: 10)
+        .offset(x: 0, y: -10)
+    }
+
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 10, height: 20), context: context)
+
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10))
+
+    guard items.count == 2 else {
+      fail("Expected 2 items")
+      return
+    }
+
+    expect(items[0].frame) == CGRect(x: 0, y: 0, width: 10, height: 10)
+    expect(items[1].frame) == CGRect(x: 0, y: 0, width: 10, height: 10)
+  }
 }
