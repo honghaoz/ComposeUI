@@ -177,13 +177,3 @@ public extension CALayer {
     }
   }
 }
-
-private func onMainSync<T>(_ work: () throws -> T) rethrows -> T {
-  if Thread.isMainThread {
-    return try work()
-  }
-
-  return try DispatchQueue.main.sync {
-    try work()
-  }
-}

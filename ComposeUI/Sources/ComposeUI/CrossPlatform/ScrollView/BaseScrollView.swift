@@ -165,19 +165,24 @@ open class BaseScrollView: ScrollView {
   #if canImport(AppKit)
   /// The theme of the view.
   public var theme: Theme {
-    effectiveAppearance.theme
+    // Logic copied and adapted from ChouTiUI:
+    // https://github.com/honghaoz/ChouTiUI/blob/master/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/NSView%2BTheming.swift
+
+    onMainSync { effectiveAppearance.theme }
   }
 
   /// The override theme of the view.
   public var overrideTheme: Theme? {
     get {
-      appearance?.theme ?? nil
+      onMainSync { appearance?.theme ?? nil }
     }
     set {
-      if let newValue {
-        appearance = NSAppearance(named: newValue.isLight ? .aqua : .darkAqua)
-      } else {
-        appearance = nil
+      onMainSync {
+        if let newValue {
+          appearance = NSAppearance(named: newValue.isLight ? .aqua : .darkAqua)
+        } else {
+          appearance = nil
+        }
       }
     }
   }
@@ -207,46 +212,66 @@ open class BaseScrollView: ScrollView {
   #if canImport(UIKit)
   /// The theme of the view.
   public var theme: Theme {
+    // Logic copied and adapted from ChouTiUI:
+    // https://github.com/honghaoz/ChouTiUI/blob/master/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/UIView%2BTheming.swift
+
     let getThemeFromTraitCollection: () -> Theme = {
       switch self.traitCollection.userInterfaceStyle {
       case .unspecified:
         #if !os(tvOS)
         ComposeUI.assertFailure("unspecified traitCollection.userInterfaceStyle")
         #endif
-        return .light
+        return (self.superview as? BaseScrollView)?.theme ?? .light
       case .light:
         return .light
       case .dark:
         return .dark
       @unknown default:
         ComposeUI.assertFailure("unknown UIUserInterfaceStyle: \(self.traitCollection.userInterfaceStyle)")
-        return .light
+        return (self.superview as? BaseScrollView)?.theme ?? .light
       }
     }
 
+    let overrideUserInterfaceStyle = onMainSync { self.overrideUserInterfaceStyle }
     switch overrideUserInterfaceStyle {
     case .unspecified:
-      return getThemeFromTraitCollection()
+      return onMainSync { getThemeFromTraitCollection() }
     case .light:
       return .light
     case .dark:
       return .dark
     @unknown default:
       ComposeUI.assertFailure("unknown overrideUserInterfaceStyle: \(overrideUserInterfaceStyle)")
-      return getThemeFromTraitCollection()
+      return onMainSync { getThemeFromTraitCollection() }
     }
   }
 
   /// The override theme of the view.
   public var overrideTheme: Theme? {
+    // Logic copied and adapted from ChouTiUI:
+    // https://github.com/honghaoz/ChouTiUI/blob/master/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/UIView%2BTheming.swift
+
     get {
-      overrideUserInterfaceStyle.theme
+      let overrideUserInterfaceStyle = onMainSync { self.overrideUserInterfaceStyle }
+      switch overrideUserInterfaceStyle {
+      case .unspecified:
+        return nil
+      case .light:
+        return .light
+      case .dark:
+        return .dark
+      @unknown default:
+        assertionFailure("unknown UIUserInterfaceStyle: \(self)")
+        return nil
+      }
     }
     set {
-      if let newValue {
-        overrideUserInterfaceStyle = newValue.isLight ? .light : .dark
-      } else {
-        overrideUserInterfaceStyle = .unspecified
+      onMainSync {
+        if let newValue {
+          overrideUserInterfaceStyle = newValue.isLight ? .light : .dark
+        } else {
+          overrideUserInterfaceStyle = .unspecified
+        }
       }
     }
   }
