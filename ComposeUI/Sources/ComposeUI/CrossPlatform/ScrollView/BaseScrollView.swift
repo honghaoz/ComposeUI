@@ -129,9 +129,9 @@ open class BaseScrollView: ScrollView {
   /// A publisher that emits the theme of the view.
   ///
   /// The publisher emits the current theme when subscribed.
-  public private(set) lazy var themePublisher: AnyPublisher<Theme, Never> = themeSubject.compactMap { $0 }.eraseToAnyPublisher()
+  public private(set) lazy var themePublisher: AnyPublisher<Theme, Never> = themeSubject.eraseToAnyPublisher()
 
-  private lazy var themeSubject = CurrentValueSubject<Theme?, Never>(nil)
+  private lazy var themeSubject = CurrentValueSubject<Theme, Never>(theme)
 
   private var pendingThemeToUpdate: Theme?
   private func scheduleThemeUpdate(_ newTheme: Theme) {
@@ -166,13 +166,16 @@ open class BaseScrollView: ScrollView {
   /// The theme of the view.
   public var theme: Theme {
     // Logic copied and adapted from ChouTiUI:
-    // https://github.com/honghaoz/ChouTiUI/blob/master/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/NSView%2BTheming.swift
+    // https://github.com/honghaoz/ChouTiUI/blob/e67ac0e292ebfe71340a2ba4ae740b2c0edf1efb/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/NSView%2BTheming.swift
 
     onMainSync { effectiveAppearance.theme }
   }
 
   /// The override theme of the view.
   public var overrideTheme: Theme? {
+    // Logic copied and adapted from ChouTiUI:
+    // https://github.com/honghaoz/ChouTiUI/blob/e67ac0e292ebfe71340a2ba4ae740b2c0edf1efb/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/NSView%2BTheming.swift
+
     get {
       onMainSync { appearance?.theme ?? nil }
     }
@@ -213,7 +216,7 @@ open class BaseScrollView: ScrollView {
   /// The theme of the view.
   public var theme: Theme {
     // Logic copied and adapted from ChouTiUI:
-    // https://github.com/honghaoz/ChouTiUI/blob/master/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/UIView%2BTheming.swift
+    // https://github.com/honghaoz/ChouTiUI/blob/e67ac0e292ebfe71340a2ba4ae740b2c0edf1efb/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/UIView%2BTheming.swift
 
     let getThemeFromTraitCollection: () -> Theme = {
       switch self.traitCollection.userInterfaceStyle {
@@ -249,7 +252,7 @@ open class BaseScrollView: ScrollView {
   /// The override theme of the view.
   public var overrideTheme: Theme? {
     // Logic copied and adapted from ChouTiUI:
-    // https://github.com/honghaoz/ChouTiUI/blob/master/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/UIView%2BTheming.swift
+    // https://github.com/honghaoz/ChouTiUI/blob/e67ac0e292ebfe71340a2ba4ae740b2c0edf1efb/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/UIView%2BTheming.swift
 
     get {
       let overrideUserInterfaceStyle = onMainSync { self.overrideUserInterfaceStyle }
