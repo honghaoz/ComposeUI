@@ -867,6 +867,14 @@ open class ComposeView: BaseScrollView {
       }
     }
 
+    // determine if z-order needs updating.
+    //
+    // If no items were removed and no new items are inserted, the existing subview order is already correct and
+    // `moveToFront()` calls can be skipped entirely. Each `moveToFront()` triggers `bringSubviewToFront` → `CA::Layer::set_sublayers`
+    // → `update_sublayers` → `qsort`, which is O(N log N) per call. With N views that compounds to O(N² log N).
+    // This flag avoids all of it in the common case, i.e. scrolling, same content.
+    let needsZOrderUpdate: Bool = renderableItemIds != oldRenderableItemIds
+
     for id in renderableItemIds {
       let renderableItem = renderableItemMap[id]! // swiftlint:disable:this force_unwrapping
 
@@ -913,7 +921,9 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
 
-        renderable.moveToFront()
+        if needsZOrderUpdate {
+          renderable.moveToFront()
+        }
 
         if let animationTiming {
           renderable.layer.animateFrame(to: newFrame, timing: animationTiming)

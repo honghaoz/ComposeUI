@@ -100,9 +100,26 @@ public enum Renderable {
   public func addToParent(_ parent: View) {
     switch self {
     case .view(let view):
-      parent.addSubview(view)
+      if view.superview !== parent {
+        // view is not in the parent, add it.
+        //
+        // this avoids calling addSubview which triggers `_didMoveFromWindow:toWindow:`
+        // that recursively traverses the entire subview hierarchy.
+        parent.addSubview(view)
+      } else if parent.subviews.last !== view {
+        // view is already in the parent, but not at the front, bring it to front.
+        //
+        // this avoids bringSubviewToFront which triggers `CA::Layer::set_sublayers`
+        // → `update_sublayers` → `qsort`, which is O(N log N) per call. With N views that compounds to O(N² log N).
+        parent.bringSubviewToFront(view)
+      }
     case .layer(let layer):
-      parent.layer().addSublayer(layer)
+      let parentLayer = parent.layer()
+      if layer.superlayer !== parentLayer {
+        parentLayer.addSublayer(layer)
+      } else if parentLayer.sublayers?.last !== layer {
+        parentLayer.bringSublayerToFront(layer)
+      }
     }
   }
 
@@ -120,9 +137,13 @@ public enum Renderable {
   public func moveToFront() {
     switch self {
     case .view(let view):
-      view.superview?.bringSubviewToFront(view)
+      if let superview = view.superview, superview.subviews.last !== view {
+        superview.bringSubviewToFront(view)
+      }
     case .layer(let layer):
-      layer.superlayer?.bringSublayerToFront(layer)
+      if let superlayer = layer.superlayer, superlayer.sublayers?.last !== layer {
+        superlayer.bringSublayerToFront(layer)
+      }
     }
   }
 }

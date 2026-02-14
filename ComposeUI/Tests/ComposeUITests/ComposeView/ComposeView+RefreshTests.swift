@@ -82,4 +82,46 @@ class ComposeView_RefreshTests: XCTestCase {
     expect(refreshCount) == 4
     expect(isAnimated) == false // the refresh animation flag should be the last scheduled refresh
   }
+
+  func test_subview_order() {
+    // verify that the subviews are in the correct order after a refresh.
+
+    let view1 = BaseView()
+    let view2 = BaseView()
+    let view3 = BaseView()
+
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 300, height: 100))
+
+    contentView.setContent {
+      HStack {
+        ViewNode(view1, update: { _, _ in })
+          .frame(width: 100, height: 100)
+        ViewNode(view2, update: { _, _ in })
+          .frame(width: 100, height: 100)
+        ViewNode(view3, update: { _, _ in })
+          .frame(width: 100, height: 100)
+      }
+    }
+    contentView.refresh(animated: false)
+
+    expect(contentView.contentView().subviews) == [view1, view2, view3]
+
+    contentView.refresh(animated: false)
+
+    expect(contentView.contentView().subviews) == [view1, view2, view3]
+
+    // change the order of the views
+    contentView.setContent {
+      HStack {
+        ViewNode(view3, update: { _, _ in })
+          .frame(width: 100, height: 100)
+        ViewNode(view2, update: { _, _ in })
+          .frame(width: 100, height: 100)
+      }
+    }
+
+    contentView.refresh(animated: false)
+
+    expect(contentView.contentView().subviews) == [view3, view2]
+  }
 }

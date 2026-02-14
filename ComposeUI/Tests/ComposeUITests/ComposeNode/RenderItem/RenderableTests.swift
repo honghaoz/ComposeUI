@@ -85,6 +85,60 @@ class RenderableTests: XCTestCase {
     expect(parentView.subviews.contains(childView)) == true
   }
 
+  func test_view_case_addToParent_alreadyInSameParent() {
+    let parentView = View()
+    let childView = View()
+    parentView.addSubview(childView)
+
+    let renderable = Renderable.view(childView)
+
+    let otherView = View()
+    parentView.addSubview(otherView)
+
+    expect(parentView.subviews) == [childView, otherView]
+
+    // when: add the renderable to the parent
+    renderable.addToParent(parentView)
+
+    // then: the child view should be brought to the front
+    expect(childView.superview) === parentView
+    expect(parentView.subviews) == [otherView, childView]
+  }
+
+  func test_view_case_addToParent_alreadyAtFront() {
+    let parentView = View()
+    let otherView = View()
+    let childView = View()
+    parentView.addSubview(otherView)
+    parentView.addSubview(childView)
+
+    let renderable = Renderable.view(childView)
+
+    expect(parentView.subviews) == [otherView, childView]
+
+    // childView is already the front-most subview, should be a no-op.
+    renderable.addToParent(parentView)
+
+    expect(childView.superview) === parentView
+    expect(parentView.subviews) == [otherView, childView]
+  }
+
+  func test_view_case_addToParent_differentParent() {
+    let parentView1 = View()
+    let parentView2 = View()
+    let childView = View()
+    parentView1.addSubview(childView)
+
+    let renderable = Renderable.view(childView)
+
+    // moving to a different parent should still call addSubview.
+    renderable.addToParent(parentView2)
+
+    expect(childView.superview) === parentView2
+    expect(parentView1.subviews.contains(childView)) == false
+    expect(parentView2.subviews.contains(childView)) == true
+  }
+
   func test_view_case_removeFromParent() {
     let parentView = View()
     let childView = View()
@@ -165,6 +219,60 @@ class RenderableTests: XCTestCase {
 
     expect(childLayer.superlayer) === parentView.layer()
     expect(parentView.layer().sublayers?.contains(childLayer)) == true
+  }
+
+  func test_layer_case_addToParent_alreadyInSameParent() {
+    let parentView = BaseView()
+    let childLayer = CALayer()
+    parentView.layer().addSublayer(childLayer)
+
+    let renderable = Renderable.layer(childLayer)
+
+    let otherLayer = CALayer()
+    parentView.layer().addSublayer(otherLayer)
+
+    expect(parentView.layer().sublayers) == [childLayer, otherLayer]
+
+    // when: add the renderable to the parent
+    renderable.addToParent(parentView)
+
+    // then: the child layer should be brought to the front
+    expect(childLayer.superlayer) === parentView.layer()
+    expect(parentView.layer().sublayers) == [otherLayer, childLayer]
+  }
+
+  func test_layer_case_addToParent_alreadyAtFront() {
+    let parentView = BaseView()
+    let otherLayer = CALayer()
+    let childLayer = CALayer()
+    parentView.layer().addSublayer(otherLayer)
+    parentView.layer().addSublayer(childLayer)
+
+    let renderable = Renderable.layer(childLayer)
+
+    expect(parentView.layer().sublayers) == [otherLayer, childLayer]
+
+    // childLayer is already the front-most sublayer, should be a no-op.
+    renderable.addToParent(parentView)
+
+    expect(childLayer.superlayer) === parentView.layer()
+    expect(parentView.layer().sublayers) == [otherLayer, childLayer]
+  }
+
+  func test_layer_case_addToParent_differentParent() {
+    let parentView1 = BaseView()
+    let parentView2 = BaseView()
+    let childLayer = CALayer()
+    parentView1.layer().addSublayer(childLayer)
+
+    let renderable = Renderable.layer(childLayer)
+
+    // moving to a different parent should still call addSublayer.
+    renderable.addToParent(parentView2)
+
+    expect(childLayer.superlayer) === parentView2.layer()
+    expect(parentView1.layer().sublayers) == nil
+    expect(parentView2.layer().sublayers?.contains(childLayer)) == true
   }
 
   func test_layer_case_removeFromParent() {
