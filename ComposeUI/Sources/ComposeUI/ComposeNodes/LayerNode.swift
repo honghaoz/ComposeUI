@@ -40,7 +40,7 @@ import QuartzCore
 public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
   private let make: (RenderableMakeContext) -> T
-  private var intrinsicSize: ((_ layer: T, _ proposedSize: CGSize) -> CGSize)?
+  private let intrinsicSizeProvider: ((_ proposedSize: CGSize) -> CGSize)?
   private let willInsert: ((T, RenderableInsertContext) -> Void)?
   private let didInsert: ((T, RenderableInsertContext) -> Void)?
   private let willUpdate: ((T, RenderableUpdateContext) -> Void)?
@@ -53,11 +53,12 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   /// The node has a fixed size (with `isFixedWidth` and `isFixedHeight` set to `true`).
   /// It uses the layer's `bounds.size` as intrinsic size. You need to make sure the layer's size is updated.
   ///
-  /// You can also use `intrinsicSize` to provide a custom intrinsic size based on the proposed container size.
+  /// You can also provide `intrinsicSize` to return a custom size based on the proposed container size.
+  /// This closure is evaluated during layout and must be synchronous.
   ///
   /// - Parameters:
   ///   - layer: The external layer.
-  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size.
+  ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size. If nil (default), the layer's `bounds.size` is used.
   ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the layer is about to be updated.
@@ -65,7 +66,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
   public init(_ layer: T,
-              intrinsicSize: ((_ layer: T, _ proposedSize: CGSize) -> CGSize)? = nil,
+              intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               willUpdate: ((_ layer: T, _ context: RenderableUpdateContext) -> Void)? = nil,
@@ -74,7 +75,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
               didRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil)
   {
     self.make = { _ in layer }
-    self.intrinsicSize = intrinsicSize
+    self.intrinsicSizeProvider = intrinsicSize ?? { _ in layer.bounds.size }
     self.willInsert = willInsert
     self.didInsert = didInsert
     self.willUpdate = willUpdate
@@ -94,7 +95,8 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - make: A closure to create a layer. To avoid incorrect transition animation, the layer should be created with frame set to `context.initialFrame` if it's provided.
-  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size.
+  ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
+  ///     Required for fixed sizing (when using `fixedSize(width:height:)`).
   ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the layer is about to be updated.
@@ -102,7 +104,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
   public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
-              intrinsicSize: ((_ layer: T, _ proposedSize: CGSize) -> CGSize)? = nil,
+              intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               willUpdate: ((_ layer: T, _ context: RenderableUpdateContext) -> Void)? = nil,
@@ -117,7 +119,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
       }
       return layer
     }
-    self.intrinsicSize = intrinsicSize
+    self.intrinsicSizeProvider = intrinsicSize
     self.willInsert = willInsert
     self.didInsert = didInsert
     self.willUpdate = willUpdate
@@ -133,14 +135,13 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
 
-  private mutating func intrinsicSize(for size: CGSize) -> CGSize {
-    let layer = getLayer()
-
-    if let intrinsicSizeProvider = intrinsicSize {
-      return intrinsicSizeProvider(layer, size)
+  private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
+    guard let intrinsicSizeProvider else {
+      ComposeUI.assertFailure("LayerNode requires `intrinsicSize` when using fixed size with a layer factory.")
+      return .zero
     }
 
-    return layer.bounds.size
+    return intrinsicSizeProvider(proposedSize)
   }
 
   // MARK: - ComposeNode
@@ -187,20 +188,6 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
     )
 
     return [layerItem.eraseToRenderableItem()]
-  }
-
-  // MARK: - Private
-
-  private var cachedLayer: T?
-
-  private mutating func getLayer() -> T {
-    if let cachedLayer = cachedLayer {
-      return cachedLayer
-    }
-
-    let layer = make(RenderableMakeContext(initialFrame: nil, contentView: nil))
-    cachedLayer = layer
-    return layer
   }
 }
 

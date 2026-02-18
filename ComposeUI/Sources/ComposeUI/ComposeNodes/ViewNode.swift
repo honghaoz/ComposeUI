@@ -46,7 +46,7 @@ import UIKit
 public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 
   private let make: (RenderableMakeContext) -> T
-  private var intrinsicSize: ((_ view: T, _ proposedSize: CGSize) -> CGSize)?
+  private let intrinsicSizeProvider: ((_ proposedSize: CGSize) -> CGSize)?
   private let willInsert: ((T, RenderableInsertContext) -> Void)?
   private let didInsert: ((T, RenderableInsertContext) -> Void)?
   private let willUpdate: ((T, RenderableUpdateContext) -> Void)?
@@ -76,11 +76,13 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// Or use `systemLayoutSizeFitting(_:)` to get the size of the view and set its `bounds.size`.
   ///
-  /// You can also use `intrinsicSize` to provide a custom intrinsic size based on the proposed container size. Usually, you should use view's `sizeThatFits(_:)` to get the intrinsic size.
+  /// You can also provide `intrinsicSize` to return a custom size based on the proposed container size.
+  /// This closure is evaluated during layout and must be synchronous. If you need to measure the
+  /// view (for example, `sizeThatFits(_:)`), capture the external view and compute it there.
   ///
   /// - Parameters:
   ///   - view: The external view.
-  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size. If nil (default), the view's `bounds.size` will be used.
+  ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size. If nil (default), the view's `bounds.size` is used.
   ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
@@ -88,7 +90,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
   public init(_ view: T,
-              intrinsicSize: ((_ view: T, _ proposedSize: CGSize) -> CGSize)? = nil,
+              intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
               willUpdate: ((_ view: T, _ context: RenderableUpdateContext) -> Void)? = nil,
@@ -100,7 +102,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
       return view
     }
-    self.intrinsicSize = intrinsicSize
+    self.intrinsicSizeProvider = intrinsicSize ?? { _ in view.bounds.size }
     self.willInsert = willInsert
     self.didInsert = didInsert
     self.willUpdate = willUpdate
@@ -120,7 +122,8 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with with frame set to `context.initialFrame` if it's provided.
-  ///   - intrinsicSize: A closure to provide custom intrinsic size based on the proposed container size. If nil (default), the view's `bounds.size` will be used.
+  ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
+  ///     Required for fixed sizing (when using `fixedSize(width:height:)`).
   ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
@@ -128,7 +131,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
   public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
-              intrinsicSize: ((_ view: T, _ proposedSize: CGSize) -> CGSize)? = nil,
+              intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
               willUpdate: ((_ view: T, _ context: RenderableUpdateContext) -> Void)? = nil,
@@ -151,7 +154,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
       return view
     }
-    self.intrinsicSize = intrinsicSize
+    self.intrinsicSizeProvider = intrinsicSize
     self.willInsert = willInsert
     self.didInsert = didInsert
     self.willUpdate = willUpdate
@@ -167,14 +170,13 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
 
-  private mutating func intrinsicSize(for size: CGSize) -> CGSize {
-    let view = getView()
-
-    if let intrinsicSizeProvider = intrinsicSize {
-      return intrinsicSizeProvider(view, size)
+  private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
+    guard let intrinsicSizeProvider else {
+      ComposeUI.assertFailure("ViewNode requires `intrinsicSize` when using fixed size with a view factory.")
+      return .zero
     }
 
-    return view.bounds.size
+    return intrinsicSizeProvider(proposedSize)
   }
 
   // MARK: - ComposeNode
@@ -221,20 +223,6 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     )
 
     return [viewItem.eraseToRenderableItem()]
-  }
-
-  // MARK: - Private
-
-  private var cachedView: T?
-
-  private mutating func getView() -> T {
-    if let cachedView = cachedView {
-      return cachedView
-    }
-
-    let view = make(RenderableMakeContext(initialFrame: nil, contentView: nil))
-    cachedView = view
-    return view
   }
 }
 

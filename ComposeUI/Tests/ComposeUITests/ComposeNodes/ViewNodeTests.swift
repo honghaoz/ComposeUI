@@ -188,7 +188,7 @@ class ViewNodeTests: XCTestCase {
       do {
         var node = ViewNode(
           make: { _ in BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) },
-          intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
+          intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
         )
 
         // flexible size
@@ -229,7 +229,7 @@ class ViewNodeTests: XCTestCase {
       // with external view
       do {
         let view = BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-        var node = ViewNode(view, intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) })
+        var node = ViewNode(view, intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) })
 
         // fixed size
         do {
@@ -267,7 +267,7 @@ class ViewNodeTests: XCTestCase {
       do {
         var node = ViewNode(
           make: { _ in BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) },
-          intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
+          intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
         )
 
         // flexible size
@@ -302,6 +302,24 @@ class ViewNodeTests: XCTestCase {
         }
       }
     }
+  }
+
+  func test_factoryView_requiresIntrinsicSizeForFixedSizing() {
+    var node = ViewNode()
+      .fixedSize()
+
+    var assertionCount = 0
+    Assert.setTestAssertionFailureHandler { message, file, line, column in
+      expect(message) == "ViewNode requires `intrinsicSize` when using fixed size with a view factory."
+      assertionCount += 1
+    }
+
+    let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+    expect(node.size) == .zero
+    expect(assertionCount) == 1
+
+    Assert.resetTestAssertionFailureHandler()
   }
 
   func test_view_as_composeContent() {

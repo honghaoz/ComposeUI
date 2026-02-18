@@ -125,7 +125,7 @@ class LayerNodeTests: XCTestCase {
             layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
             return layer
           },
-          intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
+          intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
         )
 
         // flexible size
@@ -167,7 +167,7 @@ class LayerNodeTests: XCTestCase {
       do {
         let layer = CALayer()
         layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
-        var node = LayerNode(layer, intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) })
+        var node = LayerNode(layer, intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) })
 
         // fixed size
         do {
@@ -209,7 +209,7 @@ class LayerNodeTests: XCTestCase {
             layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
             return layer
           },
-          intrinsicSize: { _, containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
+          intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
         )
 
         // flexible size
@@ -244,6 +244,24 @@ class LayerNodeTests: XCTestCase {
         }
       }
     }
+  }
+
+  func test_factoryLayer_requiresIntrinsicSizeForFixedSizing() {
+    var node = LayerNode()
+      .fixedSize()
+
+    var assertionCount = 0
+    Assert.setTestAssertionFailureHandler { message, file, line, column in
+      expect(message) == "LayerNode requires `intrinsicSize` when using fixed size with a layer factory."
+      assertionCount += 1
+    }
+
+    let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+    expect(node.size) == .zero
+    expect(assertionCount) == 1
+
+    Assert.resetTestAssertionFailureHandler()
   }
 
   func test_renderableItems() throws {
