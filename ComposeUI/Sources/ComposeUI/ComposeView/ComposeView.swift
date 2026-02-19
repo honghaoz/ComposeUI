@@ -618,6 +618,10 @@ open class ComposeView: BaseScrollView {
       return
     }
 
+    #if DEBUG
+    debug?.onEvent(.renderWillBegin(contentNode: contentNode))
+    #endif
+
     #if canImport(AppKit)
     // before accessing the bounds(), aka the contentView's bounds, we need to disable the scrollers so that the scrollers
     // don't affect the bounds.
@@ -666,7 +670,7 @@ open class ComposeView: BaseScrollView {
       let boundsInChild = visibleBounds.translate(-childFrame.origin)
 
       #if DEBUG
-      debug?.onEvent(.renderWillRender(visibleBounds: boundsInChild))
+      debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: boundsInChild))
       #endif
 
       let childItems = contentNode.renderableItems(in: boundsInChild)
@@ -683,7 +687,7 @@ open class ComposeView: BaseScrollView {
       contentSize = adjustedContentSize
     } else {
       #if DEBUG
-      debug?.onEvent(.renderWillRender(visibleBounds: visibleBounds))
+      debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: visibleBounds))
       #endif
 
       renderableItems = contentNode.renderableItems(in: visibleBounds)
@@ -693,7 +697,7 @@ open class ComposeView: BaseScrollView {
     setContentSize(contentSize.roundedUp(scaleFactor: contentScaleFactor))
 
     #if DEBUG
-    debug?.onEvent(.renderDidRender(renderableItems: renderableItems, contentSize: contentSize))
+    debug?.onEvent(.renderDidReceiveRenderableItems(renderableItems: renderableItems, contentSize: contentSize))
     #endif
 
     // update scrollable behavior
