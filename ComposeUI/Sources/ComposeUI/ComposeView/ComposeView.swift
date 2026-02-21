@@ -535,6 +535,12 @@ open class ComposeView: BaseScrollView {
     contentNode = LayoutCacheNode(node: _makeContent())
     contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated), renderBounds: renderBounds())
 
+    // cancel the pending refresh if there is any to avoid double rendering
+    // this can happen if `setNeedsRefresh(animated:)` is called then `refresh(animated:)` is called immediately
+    if pendingRefresh != nil {
+      pendingRefresh = nil
+    }
+
     render()
   }
 

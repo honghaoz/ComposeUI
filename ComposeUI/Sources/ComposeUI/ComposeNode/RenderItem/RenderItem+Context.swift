@@ -60,7 +60,7 @@ public struct RenderableInsertContext {
 // MARK: - Update
 
 /// The renderable update type.
-public enum RenderableUpdateType {
+public enum RenderableUpdateType: Equatable {
 
   /// The renderable is inserted into a renderable hierarchy.
   case insert
@@ -87,7 +87,7 @@ public enum RenderableUpdateType {
   }
 }
 
-public struct RenderableUpdateContext {
+public struct RenderableUpdateContext: Equatable {
 
   /// The update type.
   public let updateType: RenderableUpdateType

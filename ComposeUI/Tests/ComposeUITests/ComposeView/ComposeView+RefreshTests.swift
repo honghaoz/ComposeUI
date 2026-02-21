@@ -31,6 +31,7 @@
 import ChouTiTest
 
 import ComposeUI
+import ChouTi
 
 class ComposeView_RefreshTests: XCTestCase {
 
@@ -81,6 +82,62 @@ class ComposeView_RefreshTests: XCTestCase {
     expect(renderCount).toEventually(beEqual(to: 4))
     expect(refreshCount) == 4
     expect(isAnimated) == false // the refresh animation flag should be the last scheduled refresh
+  }
+
+  func test_setNeedsRefresh() {
+    // given: a compose view
+    var renderCount = 0
+    var refreshCount = 0
+    var isAnimated: Bool?
+    let view = ComposeView {
+      renderCount += 1
+      LayerNode()
+        .animation(.linear())
+        .onUpdate { _, context in
+          isAnimated = context.animationTiming != nil
+          refreshCount += 1
+        }
+    }
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+    // when: set needs refresh
+    view.setNeedsRefresh()
+
+    // then: expect a pending refresh is scheduled but the refresh is not performed immediately
+    expect(DynamicLookup(view).property("pendingRefresh")) != nil
+    expect(renderCount) == 0
+    expect(refreshCount) == 0
+    expect(isAnimated) == nil
+    isAnimated = nil
+
+    // wait for next run loop iteration
+    wait(timeout: 0.01)
+
+    // then: expect the refresh is performed
+    expect(DynamicLookup(view).property("pendingRefresh")) == nil
+    expect(renderCount) == 1
+    expect(refreshCount) == 1
+    expect(isAnimated) == false
+    isAnimated = nil
+
+    // when: set needs refresh again
+    view.setNeedsRefresh()
+
+    expect(DynamicLookup(view).property("pendingRefresh")) != nil
+    expect(renderCount) == 1
+    expect(refreshCount) == 1
+    expect(isAnimated) == nil
+    isAnimated = nil
+
+    // when: refresh the view
+    view.refresh()
+
+    // then: expect the refresh is performed and the pending refresh is cancelled
+    expect(DynamicLookup(view).property("pendingRefresh")) == nil
+    expect(renderCount) == 2
+    expect(refreshCount) == 2
+    expect(isAnimated) == true
   }
 
   func test_subview_order() {

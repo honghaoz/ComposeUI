@@ -158,7 +158,7 @@ public extension ComposeNode {
   /// - Note: All renderables provided by the node will have the block executed.
   /// - Parameter willInsert: The block to execute.
   /// - Returns: A new node with the block added.
-  func willInsert(_ willInsert: @escaping (Renderable, RenderableInsertContext) -> Void) -> some ComposeNode {
+  func willInsert(_ willInsert: @escaping (_ renderable: Renderable, _ context: RenderableInsertContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willInsert: willInsert)
   }
 
@@ -168,7 +168,7 @@ public extension ComposeNode {
   ///
   /// - Parameter didInsert: The block to execute.
   /// - Returns: A new node with the block added.
-  func onInsert(_ didInsert: @escaping (Renderable, RenderableInsertContext) -> Void) -> some ComposeNode {
+  func onInsert(_ didInsert: @escaping (_ renderable: Renderable, _ context: RenderableInsertContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, didInsert: didInsert)
   }
 
@@ -178,7 +178,7 @@ public extension ComposeNode {
   ///
   /// - Parameter willUpdate: The block to execute.
   /// - Returns: A new node with the block added.
-  func willUpdate(_ willUpdate: @escaping (Renderable, RenderableUpdateContext) -> Void) -> some ComposeNode {
+  func willUpdate(_ willUpdate: @escaping (_ renderable: Renderable, _ context: RenderableUpdateContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willUpdate: willUpdate)
   }
 
@@ -188,7 +188,7 @@ public extension ComposeNode {
   ///
   /// - Parameter update: The block to execute.
   /// - Returns: A new node with the block added.
-  func onUpdate(_ update: @escaping (Renderable, RenderableUpdateContext) -> Void) -> some ComposeNode {
+  func onUpdate(_ update: @escaping (_ renderable: Renderable, _ context: RenderableUpdateContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, update: update)
   }
 
@@ -198,7 +198,7 @@ public extension ComposeNode {
   ///
   /// - Parameter willRemove: The block to execute.
   /// - Returns: A new node with the block added.
-  func willRemove(_ willRemove: @escaping (Renderable, RenderableRemoveContext) -> Void) -> some ComposeNode {
+  func willRemove(_ willRemove: @escaping (_ renderable: Renderable, _ context: RenderableRemoveContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willRemove: willRemove)
   }
 
@@ -208,7 +208,7 @@ public extension ComposeNode {
   ///
   /// - Parameter didRemove: The block to execute.
   /// - Returns: A new node with the block added.
-  func onRemove(_ didRemove: @escaping (Renderable, RenderableRemoveContext) -> Void) -> some ComposeNode {
+  func onRemove(_ didRemove: @escaping (_ renderable: Renderable, _ context: RenderableRemoveContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, didRemove: didRemove)
   }
 
