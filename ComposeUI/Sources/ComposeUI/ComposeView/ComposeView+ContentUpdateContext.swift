@@ -39,8 +39,8 @@ extension ComposeView {
       /// Explicit refresh request, with a flag to indicate if the refresh is animated.
       case refresh(isAnimated: Bool)
 
-      /// The view bounds changed.
-      case boundsChange(previousBounds: CGRect)
+      /// The view bounds changed, the previous render bounds is provided.
+      case boundsChange(previousRenderBounds: CGRect)
     }
 
     /// The render update type.
@@ -62,8 +62,8 @@ extension ComposeView {
         switch updateType {
         case .refresh(let isAnimated):
           return isAnimated
-        case .boundsChange(let previousBounds):
-          if previousBounds.size == contentView.bounds.size {
+        case .boundsChange(let previousRenderBounds):
+          if previousRenderBounds.size == renderBounds.size {
             // scroll
             return true
           } else {
@@ -78,11 +78,11 @@ extension ComposeView {
         switch updateType {
         case .refresh(let isAnimated):
           renderType = .refresh(isAnimated: isAnimated)
-        case .boundsChange(let previousBounds):
-          if previousBounds.size == contentView.bounds.size {
-            renderType = .scroll(previousBounds: previousBounds)
+        case .boundsChange(let previousRenderBounds):
+          if previousRenderBounds.size == renderBounds.size {
+            renderType = .scroll(previousBounds: previousRenderBounds)
           } else {
-            renderType = .boundsChange(previousBounds: previousBounds)
+            renderType = .boundsChange(previousBounds: previousRenderBounds)
           }
         }
         return shouldAnimate(contentView, renderType)

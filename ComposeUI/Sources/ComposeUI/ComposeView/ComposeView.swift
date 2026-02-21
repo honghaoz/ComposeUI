@@ -64,7 +64,7 @@ open class ComposeView: BaseScrollView {
   // MARK: - Animation Behavior
 
   /// The type of the render pass.
-  public enum RenderType {
+  public enum RenderType: Equatable {
 
     /// The content is explicitly refreshed.
     case refresh(isAnimated: Bool)
@@ -578,7 +578,7 @@ open class ComposeView: BaseScrollView {
         contentNode = LayoutCacheNode(node: _makeContent())
       }
 
-      contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds), renderBounds: renderBounds)
+      contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousRenderBounds: lastRenderBounds), renderBounds: renderBounds)
     }
 
     render()
@@ -871,8 +871,8 @@ open class ComposeView: BaseScrollView {
         switch context.updateType {
         case .refresh:
           updateType = .refresh
-        case .boundsChange(let previousBounds):
-          if previousBounds.size == bounds.size {
+        case .boundsChange(let previousRenderBounds):
+          if previousRenderBounds.size == bounds.size {
             updateType = .scroll
           } else {
             updateType = .boundsChange

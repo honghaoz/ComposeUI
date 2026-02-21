@@ -88,7 +88,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // expect the contentUpdateContext is set with correct render bounds
     var expectedContext = ComposeView.ContentUpdateContext(
-      updateType: .boundsChange(previousBounds: .zero),
+      updateType: .boundsChange(previousRenderBounds: .zero),
       renderBounds: CGRect(x: 0, y: 0, width: 120, height: 80)
     )
     expectedContext.isRendering = true
@@ -118,7 +118,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // expect the contentUpdateContext is set with correct render bounds
     expectedContext = ComposeView.ContentUpdateContext(
-      updateType: .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 120, height: 80)),
+      updateType: .boundsChange(previousRenderBounds: CGRect(x: 0, y: 0, width: 120, height: 80)),
       renderBounds: CGRect(x: 0, y: 10, width: 120, height: 80)
     )
     expectedContext.isRendering = true

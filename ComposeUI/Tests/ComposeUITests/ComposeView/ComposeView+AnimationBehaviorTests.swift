@@ -212,4 +212,65 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(calledIsAnimated) == true
     expect(calledPreviousBounds) == nil
   }
+
+  func test_previousBounds_withAppKitScrollers() {
+    // given: a compose view with a layer node that has an animation and an update hook to track the context
+    var calledContext: RenderableUpdateContext?
+    let view = ComposeView {
+      LayerNode()
+        .frame(width: 200, height: 200)
+        .animation(.easeInEaseOut(duration: 1))
+        .onUpdate { _, context in
+          calledContext = context
+        }
+    }
+
+    view.frame = CGRect(x: 0, y: 0, width: 120, height: 80)
+
+    #if canImport(AppKit)
+    // use legacy scrollers so the scroller thickness affects bounds().
+    view.scrollerStyle = .legacy
+    view.hasHorizontalScroller = true
+    view.hasVerticalScroller = true
+    #endif
+
+    view.layoutIfNeeded()
+
+    // verify the scrollers does affect the bounds
+    expect(view.bounds()) == CGRect(x: 0, y: 0, width: 105, height: 65)
+
+    // with default animation behavior
+    view.animationBehavior = .default
+
+    // when: scroll the view
+    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.layoutIfNeeded()
+
+    // verify the scrollers does affect the bounds
+    expect(view.bounds()) == CGRect(x: 0, y: 10, width: 105, height: 65)
+
+    // expect the update should be animated, this verifies the underlying render bounds is correct
+    try expect(calledContext.unwrap().animationTiming) != nil
+
+    // then set the animation behavior to dynamic so we can verify the render type
+    var calledRenderType: ComposeView.RenderType?
+    view.animationBehavior = .dynamic { _, renderType in
+      calledRenderType = renderType
+      return false
+    }
+
+    // when: scroll the view again
+    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.layoutIfNeeded()
+
+    // expect the render type should have correct previous bounds
+    expect(calledRenderType) == .scroll(previousBounds: CGRect(x: 0, y: 10, width: 120, height: 80))
+
+    // when: resize the view
+    view.frame.size = CGSize(width: 140, height: 90)
+    view.layoutIfNeeded()
+
+    // expect the render type should have correct previous bounds
+    expect(calledRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 120, height: 80))
+  }
 }
