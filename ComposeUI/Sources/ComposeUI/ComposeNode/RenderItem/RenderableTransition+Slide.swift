@@ -43,14 +43,17 @@ public extension RenderableTransition {
 
   /// Creates a slide transition.
   ///
+  /// For insertion, the renderable starts outside the content view on the `from` side (with `overshoot` applied) and slides into `targetFrame`.
+  /// For removal, the renderable slides from its current frame to outside the content view on the `to` side (or `from` when `to` is nil).
+  ///
   /// - Parameters:
   ///   - from: The side of the slide transition to slide from.
-  ///   - to: The side of the slide transition to slide to.
+  ///   - to: The side of the slide transition to slide to for removal. Defaults to `from` when nil.
   ///   - overshoot: The amount of overshoot for the slide transition. Defaults to 8.
   ///   - timing: The timing of the slide transition.
   ///   - options: The options for the slide transition.
   static func slide(from fromSide: SlideSide,
-                    to toSide: SlideSide? = nil, // TODO: clean this up
+                    to toSide: SlideSide? = nil,
                     overshoot: CGFloat = 8,
                     timing: AnimationTiming = .spring(),
                     options: RenderableTransition.Options = .both) -> Self
@@ -92,7 +95,7 @@ public extension RenderableTransition {
         let currentFrame = layer.frame
 
         let targetFrame: CGRect
-        switch fromSide {
+        switch toSide ?? fromSide {
         case .top:
           targetFrame = currentFrame.translate(dy: -currentFrame.maxY - overshoot)
         case .bottom:

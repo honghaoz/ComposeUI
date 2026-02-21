@@ -352,6 +352,47 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
+  func test_removeTransition_with_toSide() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .left,
+      to: .bottom,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try transition.remove.unwrap()
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedTargetFrame = CGRect(
+      x: currentFrame.origin.x,
+      y: Constants.contentSize.height + Constants.overshoot,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    expect(layer.capturedFrame) == currentFrame
+
+    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+    expect(layer.addedAnimationKey) == "position"
+    expect(layer.animationKeys()) == ["position"]
+    expect(animation.keyPath) == "position"
+    expect(animation.fromValue as? CGPoint) == layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame)
+    expect(animation.toValue as? CGPoint) == .zero
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .linear)
+    expect(animation.duration) == Constants.duration
+    expect(animation.isAdditive) == true
+    expect(animation.isRemovedOnCompletion) == true
+    expect(animation.fillMode) == .both
+    expect(layer.frame) == expectedTargetFrame
+  }
+
   // MARK: - ComposeView Integration
 
   func test_composeViewIntegration() throws {
