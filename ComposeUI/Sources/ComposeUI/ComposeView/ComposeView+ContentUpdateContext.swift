@@ -32,9 +32,9 @@ import Foundation
 
 extension ComposeView {
 
-  struct ContentUpdateContext {
+  struct ContentUpdateContext: Equatable {
 
-    enum ContentUpdateType {
+    enum ContentUpdateType: Equatable {
 
       /// Explicit refresh request, with a flag to indicate if the refresh is animated.
       case refresh(isAnimated: Bool)
@@ -43,12 +43,17 @@ extension ComposeView {
       case boundsChange(previousBounds: CGRect)
     }
 
+    /// The render update type.
     let updateType: ContentUpdateType
+
+    /// The bounds used for rendering.
+    let renderBounds: CGRect
 
     var isRendering: Bool = false
 
-    init(updateType: ContentUpdateType) {
+    init(updateType: ContentUpdateType, renderBounds: CGRect) {
       self.updateType = updateType
+      self.renderBounds = renderBounds
     }
 
     func shouldAnimate(contentView: ComposeView, animationBehavior: AnimationBehavior) -> Bool {

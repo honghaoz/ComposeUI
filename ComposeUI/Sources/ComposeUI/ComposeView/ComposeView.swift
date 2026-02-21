@@ -196,16 +196,6 @@ open class ComposeView: BaseScrollView {
     // this is to make the scroll indicators are visible immediately when scrolling for the first time
     showsHorizontalScrollIndicator = true
     showsVerticalScrollIndicator = true
-
-    #if DEBUG
-    if Thread.isRunningXCTest {
-      // when running tests, the scroller may affect the scroll view's content size.
-      scrollIndicatorBehavior = .never
-      hasHorizontalScroller = false
-      hasVerticalScroller = false
-    }
-    #endif
-
     #endif
 
     #if canImport(UIKit)
@@ -532,7 +522,7 @@ open class ComposeView: BaseScrollView {
 
     // explicit render request, should make a new content
     contentNode = LayoutCacheNode(node: _makeContent())
-    contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated))
+    contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated), renderBounds: renderBounds())
 
     render()
   }
@@ -579,16 +569,16 @@ open class ComposeView: BaseScrollView {
       return
     }
 
-    let bounds = bounds()
-    if contentUpdateContext == nil, bounds != lastRenderBounds {
+    let renderBounds = renderBounds()
+    if contentUpdateContext == nil, renderBounds != lastRenderBounds {
       // no pending render request but bounds changed, should re-render the content
 
-      if contentNode == nil || bounds.size != lastRenderBounds.size {
+      if contentNode == nil || renderBounds.size != lastRenderBounds.size {
         // the content is never made or bounds size changed, should make a new content
         contentNode = LayoutCacheNode(node: _makeContent())
       }
 
-      contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds))
+      contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousBounds: lastRenderBounds), renderBounds: renderBounds)
     }
 
     render()
@@ -610,7 +600,7 @@ open class ComposeView: BaseScrollView {
     }
 
     self.contentUpdateContext = nil
-    lastRenderBounds = bounds()
+    lastRenderBounds = contentUpdateContext.renderBounds
   }
 
   private func render(_ context: ContentUpdateContext) {
@@ -622,23 +612,7 @@ open class ComposeView: BaseScrollView {
     debug?.onEvent(.renderWillBegin(contentNode: contentNode))
     #endif
 
-    #if canImport(AppKit)
-    // before accessing the bounds(), aka the contentView's bounds, we need to disable the scrollers so that the scrollers
-    // don't affect the bounds.
-    // the scrollers have 15 point in size, if we don't disable them, the bounds will be 15 point smaller than the actual bounds.
-    let oldHasHorizontalScroller = hasHorizontalScroller
-    let oldHasVerticalScroller = hasVerticalScroller
-    hasHorizontalScroller = false
-    hasVerticalScroller = false
-    #endif
-
-    let bounds = bounds()
-
-    #if canImport(AppKit)
-    // restore the scrollers
-    hasHorizontalScroller = oldHasHorizontalScroller
-    hasVerticalScroller = oldHasVerticalScroller
-    #endif
+    let bounds = context.renderBounds
 
     let boundsSize = bounds.size
     let visibleBounds = bounds.inset(by: visibleBoundsInsets)
@@ -1026,6 +1000,31 @@ open class ComposeView: BaseScrollView {
     #if DEBUG
     debug?.onEvent(.renderDidFinish(renderableItemIds: renderableItemIds, renderableItemMap: renderableItemMap, renderableMap: renderableMap))
     #endif
+  }
+
+  /// Returns the bounds used for layout/rendering.
+  ///
+  /// On AppKit, this temporarily disables scrollers so the bounds aren't reduced by scroller thickness.
+  private func renderBounds() -> CGRect {
+    #if canImport(AppKit)
+    // before accessing the bounds(), aka the contentView's bounds, we need to disable the scrollers so that the scrollers
+    // don't affect the bounds.
+    // the scrollers have 15 point in size, if we don't disable them, the bounds will be 15 point smaller than the actual bounds.
+    let oldHasHorizontalScroller = hasHorizontalScroller
+    let oldHasVerticalScroller = hasVerticalScroller
+    hasHorizontalScroller = false
+    hasVerticalScroller = false
+    #endif
+
+    let bounds = bounds()
+
+    #if canImport(AppKit)
+    // restore the scrollers
+    hasHorizontalScroller = oldHasHorizontalScroller
+    hasVerticalScroller = oldHasVerticalScroller
+    #endif
+
+    return bounds
   }
 
   // MARK: - Testing
