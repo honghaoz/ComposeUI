@@ -50,7 +50,7 @@ public extension RenderableTransition {
   ///   - timing: The timing of the slide transition.
   ///   - options: The options for the slide transition.
   static func slide(from fromSide: SlideSide,
-                    to toSide: SlideSide? = nil,
+                    to toSide: SlideSide? = nil, // TODO: clean this up
                     overshoot: CGFloat = 8,
                     timing: AnimationTiming = .spring(),
                     options: RenderableTransition.Options = .both) -> Self
@@ -65,11 +65,11 @@ public extension RenderableTransition {
         case .top:
           initialFrame = targetFrame.translate(dy: -targetFrame.maxY - overshoot)
         case .bottom:
-          initialFrame = targetFrame.translate(dy: context.contentView.bounds.height - targetFrame.minY + overshoot)
+          initialFrame = targetFrame.translate(dy: context.contentView.bounds().height - targetFrame.minY + overshoot)
         case .left:
           initialFrame = targetFrame.translate(dx: -targetFrame.maxX - overshoot)
         case .right:
-          initialFrame = targetFrame.translate(dx: context.contentView.bounds.width - targetFrame.minX + overshoot)
+          initialFrame = targetFrame.translate(dx: context.contentView.bounds().width - targetFrame.minX + overshoot)
         }
         renderable.setFrame(initialFrame)
 
@@ -96,11 +96,11 @@ public extension RenderableTransition {
         case .top:
           targetFrame = currentFrame.translate(dy: -currentFrame.maxY - overshoot)
         case .bottom:
-          targetFrame = currentFrame.translate(dy: context.contentView.bounds.height - currentFrame.minY + overshoot)
+          targetFrame = currentFrame.translate(dy: context.contentView.bounds().height - currentFrame.minY + overshoot)
         case .left:
           targetFrame = currentFrame.translate(dx: -currentFrame.maxX - overshoot)
         case .right:
-          targetFrame = currentFrame.translate(dx: context.contentView.bounds.width - currentFrame.minX + overshoot)
+          targetFrame = currentFrame.translate(dx: context.contentView.bounds().width - currentFrame.minX + overshoot)
         }
 
         layer.animate(

@@ -43,7 +43,7 @@ public struct RenderableTransition {
       public let targetFrame: CGRect
 
       /// The content view that the renderable is being inserted into.
-      public private(set) weak var contentView: View!
+      public private(set) weak var contentView: ComposeView!
     }
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
@@ -76,7 +76,7 @@ public struct RenderableTransition {
     public struct Context {
 
       /// The content view that the renderable is being removed from.
-      public private(set) weak var contentView: View!
+      public private(set) weak var contentView: ComposeView!
     }
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
