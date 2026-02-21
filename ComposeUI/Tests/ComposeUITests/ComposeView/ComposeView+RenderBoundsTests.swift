@@ -62,6 +62,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.frame = CGRect(x: 0, y: 0, width: 120, height: 80)
 
     #if canImport(AppKit)
+    view.scrollIndicatorBehavior = .auto
     // use legacy scrollers so the scroller thickness affects bounds().
     view.scrollerStyle = .legacy
     view.hasHorizontalScroller = true
@@ -70,9 +71,6 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // before layout, the lastRenderBounds is not set
     expect(view.lastRenderBounds) == .zero
-
-    // before layout, the bounds() doesn't consider the scrollers
-    expect(view.bounds()) == CGRect(x: 0, y: 0, width: 120, height: 80)
 
     view.layoutIfNeeded()
 

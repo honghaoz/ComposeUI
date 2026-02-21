@@ -228,6 +228,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.frame = CGRect(x: 0, y: 0, width: 120, height: 80)
 
     #if canImport(AppKit)
+    view.scrollIndicatorBehavior = .auto
     // use legacy scrollers so the scroller thickness affects bounds().
     view.scrollerStyle = .legacy
     view.hasHorizontalScroller = true
@@ -236,8 +237,13 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
 
     view.layoutIfNeeded()
 
+    #if canImport(AppKit)
     // verify the scrollers does affect the bounds
     expect(view.bounds()) == CGRect(x: 0, y: 0, width: 105, height: 65)
+    #endif
+    #if canImport(UIKit)
+    expect(view.bounds()) == CGRect(x: 0, y: 0, width: 120, height: 80)
+    #endif
 
     // with default animation behavior
     view.animationBehavior = .default
@@ -246,8 +252,13 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
+    #if canImport(AppKit)
     // verify the scrollers does affect the bounds
     expect(view.bounds()) == CGRect(x: 0, y: 10, width: 105, height: 65)
+    #endif
+    #if canImport(UIKit)
+    expect(view.bounds()) == CGRect(x: 0, y: 10, width: 120, height: 80)
+    #endif
 
     // expect the update should be animated, this verifies the underlying render bounds is correct
     try expect(calledContext.unwrap().animationTiming) != nil

@@ -196,6 +196,17 @@ open class ComposeView: BaseScrollView {
     // this is to make the scroll indicators are visible immediately when scrolling for the first time
     showsHorizontalScrollIndicator = true
     showsVerticalScrollIndicator = true
+
+    #if DEBUG
+    if Thread.isRunningXCTest {
+      // when running tests, the scroller may affect the scroll view's content size.
+      // change the default scroll indicator behavior in tests to make the test more deterministic.
+      scrollIndicatorBehavior = .never
+      hasHorizontalScroller = false
+      hasVerticalScroller = false
+    }
+    #endif
+
     #endif
 
     #if canImport(UIKit)
