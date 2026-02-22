@@ -249,6 +249,44 @@ open class ComposeView: BaseScrollView {
     }
   }
 
+  // MARK: - Render Callbacks
+
+  /// The context for the pre-render handler.
+  public struct PreRenderContext {
+
+    /// The content size after layout.
+    ///
+    /// If the content is smaller than the bounds in either dimension, the content size is adjusted to be the same as the bounds.
+    public let contentSize: CGSize
+
+    /// The bounds that is used for layout and will be used for rendering if no change is detected in the pre-render handler.
+    ///
+    /// The bounds's size is the layout container size.
+    public let renderBounds: CGRect
+
+    /// The render type for this pass.
+    public let renderType: RenderType
+  }
+
+  private var preRenderHandler: ((_ view: ComposeView, _ context: PreRenderContext) -> Void)?
+
+  /// Set a handler to be called after layout computed the content size and updated the scroll view's content size,
+  /// but before renderable items are requested.
+  ///
+  /// This handler gives you a chance to adjust the content offset so it affects the visible bounds for rendering.
+  ///
+  /// For example, for chat-like UI, you can use this handler to adjust the content offset to be at the bottom, so the renderable items are rendered from the bottom.
+  ///
+  /// Calling this replaces any previously set handler.
+  ///
+  /// - Parameter handler: The pre-render handler.
+  /// - Returns: The ComposeView itself.
+  @discardableResult
+  public func onPreRender(_ handler: @escaping (_ view: ComposeView, _ context: PreRenderContext) -> Void) -> Self {
+    preRenderHandler = handler
+    return self
+  }
+
   // MARK: - Debug
 
   #if DEBUG
@@ -605,7 +643,7 @@ open class ComposeView: BaseScrollView {
   open func render() {
     ComposeUI.assert(Thread.isMainThread, "render() must be called on the main thread")
 
-    guard var contentUpdateContext, !contentUpdateContext.isRendering else {
+    guard var contentUpdateContext = self.contentUpdateContext, !contentUpdateContext.isRendering else {
       return
     }
 
@@ -617,7 +655,6 @@ open class ComposeView: BaseScrollView {
     }
 
     self.contentUpdateContext = nil
-    lastRenderBounds = contentUpdateContext.renderBounds
   }
 
   private func render(_ context: ContentUpdateContext) {
@@ -629,13 +666,12 @@ open class ComposeView: BaseScrollView {
     debug?.onEvent(.renderWillBegin(contentNode: contentNode))
     #endif
 
-    let bounds = context.renderBounds
-
+    var bounds = context.renderBounds
     let boundsSize = bounds.size
-    let visibleBounds = bounds.inset(by: visibleBoundsInsets)
 
     #if DEBUG
-    debug?.onEvent(.renderWillLayout(contentNode: contentNode, bounds: bounds, visibleBounds: visibleBounds))
+    let layoutVisibleBounds = bounds.inset(by: visibleBoundsInsets)
+    debug?.onEvent(.renderWillLayout(contentNode: contentNode, bounds: bounds, visibleBounds: layoutVisibleBounds))
     #endif
 
     // do the layout
@@ -646,8 +682,7 @@ open class ComposeView: BaseScrollView {
     debug?.onEvent(.renderDidLayout(contentSize: contentSize))
     #endif
 
-    // get renderable items
-    let renderableItems: [RenderableItem]
+    var centeredChildFrame: CGRect?
     if contentSize.width < boundsSize.width || contentSize.height < boundsSize.height {
       // if content is smaller than the bounds in either dimension, should center the content
 
@@ -656,9 +691,56 @@ open class ComposeView: BaseScrollView {
         height: max(contentSize.height, boundsSize.height)
       )
 
-      // logic copied from FrameNode
-      let childFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
-      let boundsInChild = visibleBounds.translate(-childFrame.origin)
+      // logic copied from FrameNode.renderableItems(in:) (part 1)
+      centeredChildFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
+      contentSize = adjustedContentSize
+    }
+
+    let roundedContentSize = contentSize.roundedUp(scaleFactor: contentScaleFactor)
+
+    // set content size
+    setContentSize(roundedContentSize)
+
+    // call the pre-render handler if there is any
+    // this gives the caller a chance to adjust the content offset before the renderable items are requested
+    let hasPreRenderHandler = preRenderHandler != nil
+    if let preRenderHandler {
+      let renderType: RenderType
+      switch context.updateType {
+      case .refresh(let isAnimated):
+        renderType = .refresh(isAnimated: isAnimated)
+      case .boundsChange(let previousRenderBounds):
+        if previousRenderBounds.size == boundsSize {
+          renderType = .scroll(previousBounds: previousRenderBounds)
+        } else {
+          renderType = .boundsChange(previousBounds: previousRenderBounds)
+        }
+      }
+      preRenderHandler(self, PreRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: renderType))
+    }
+
+    if hasPreRenderHandler {
+      // the pre-render handler may change the bounds, so we need to adjust the bounds accordingly
+      let updatedBounds = renderBounds()
+
+      // only pick up the origin from the updated bounds so that the content offset is updated correctly
+      // ignore the size from the updated bounds because the above layout step has already used the old size
+      bounds.origin = updatedBounds.origin
+
+      // if the bounds size changed, schedule a follow-up refresh to make sure the new bounds size is used for rendering
+      if updatedBounds.size != bounds.size {
+        onNextRunLoop { [weak self] in
+          self?.layoutIfNeeded()
+        }
+      }
+    }
+    let visibleBounds = bounds.inset(by: visibleBoundsInsets)
+
+    // get renderable items
+    let renderableItems: [RenderableItem]
+    if let centeredChildFrame {
+      // logic copied from FrameNode.renderableItems(in:) (part 2)
+      let boundsInChild = visibleBounds.translate(-centeredChildFrame.origin)
 
       #if DEBUG
       debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: boundsInChild))
@@ -670,12 +752,11 @@ open class ComposeView: BaseScrollView {
       mappedChildItems.reserveCapacity(childItems.count)
 
       for var item in childItems {
-        item.frame = item.frame.translate(childFrame.origin)
+        item.frame = item.frame.translate(centeredChildFrame.origin)
         mappedChildItems.append(item)
       }
 
       renderableItems = mappedChildItems
-      contentSize = adjustedContentSize
     } else {
       #if DEBUG
       debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: visibleBounds))
@@ -683,9 +764,6 @@ open class ComposeView: BaseScrollView {
 
       renderableItems = contentNode.renderableItems(in: visibleBounds)
     }
-
-    // set content size
-    setContentSize(contentSize.roundedUp(scaleFactor: contentScaleFactor))
 
     #if DEBUG
     debug?.onEvent(.renderDidReceiveRenderableItems(renderableItems: renderableItems, contentSize: contentSize))
@@ -1017,6 +1095,8 @@ open class ComposeView: BaseScrollView {
     #if DEBUG
     debug?.onEvent(.renderDidFinish(renderableItemIds: renderableItemIds, renderableItemMap: renderableItemMap, renderableMap: renderableMap))
     #endif
+
+    lastRenderBounds = bounds
   }
 
   /// Returns the bounds used for layout/rendering.

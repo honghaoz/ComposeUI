@@ -42,6 +42,9 @@ public protocol ScrollViewType: ScrollView {
   /// The bounds of the scroll view.
   func bounds() -> CGRect
 
+  /// Set the bounds of the scroll view.
+  func setBounds(_ bounds: CGRect)
+
   /// The content size of the scroll view.
   func contentSize() -> CGSize
 
@@ -103,6 +106,17 @@ public extension ScrollViewType {
 
     #if canImport(UIKit)
     return self.bounds
+    #endif
+  }
+
+  func setBounds(_ bounds: CGRect) {
+    #if canImport(AppKit)
+    self.frame.size = bounds.size
+    self.contentView()?.scroll(CGPoint(x: 0, y: bounds.origin.y))
+    #endif
+
+    #if canImport(UIKit)
+    self.bounds = bounds
     #endif
   }
 
