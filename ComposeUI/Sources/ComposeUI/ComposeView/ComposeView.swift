@@ -1139,6 +1139,14 @@ open class ComposeView: BaseScrollView {
       self.host = host
     }
 
+    var lastRenderBounds: CGRect? {
+      host.lastRenderBounds
+    }
+
+    var contentUpdateContext: ContentUpdateContext? {
+      host.contentUpdateContext
+    }
+
     var removingRenderableMap: [String: Renderable] {
       host.removingRenderableMap
     }

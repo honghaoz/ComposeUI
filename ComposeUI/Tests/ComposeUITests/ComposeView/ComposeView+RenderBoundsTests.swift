@@ -31,7 +31,6 @@
 import ChouTiTest
 
 @testable import ComposeUI
-import ChouTi
 
 class ComposeView_RenderBoundsTests: XCTestCase {
 
@@ -53,7 +52,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.debug(eventHandler: { view, event in
       switch event {
       case .renderWillBegin:
-        invokedContentUpdateContext = view.contentUpdateContext
+        invokedContentUpdateContext = view.test.contentUpdateContext
       default:
         break
       }
@@ -70,7 +69,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     #endif
 
     // before layout, the lastRenderBounds is not set
-    expect(view.lastRenderBounds) == .zero
+    expect(view.test.lastRenderBounds) == .zero
 
     view.layoutIfNeeded()
 
@@ -93,7 +92,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(invokedContentUpdateContext) == expectedContext
 
     // expect the lastRenderBounds should NOT consider the scrollers
-    expect(view.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
 
     // reset
     invokedContentUpdateContext = nil
@@ -105,7 +104,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // should not update as no bounds change
     expect(updateCount) == 1
     expect(invokedContentUpdateContext) == nil
-    expect(view.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
 
     // adjust scroll position and layout again
     view.setContentOffset(CGPoint(x: 0, y: 10))
@@ -122,17 +121,6 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expectedContext.isRendering = true
     expect(invokedContentUpdateContext) == expectedContext
 
-    expect(view.lastRenderBounds) == CGRect(x: 0, y: 10, width: 120, height: 80)
-  }
-}
-
-private extension ComposeView {
-
-  var contentUpdateContext: ContentUpdateContext? {
-    try? (DynamicLookup(self).property("contentUpdateContext") as? ContentUpdateContext).unwrap()
-  }
-
-  var lastRenderBounds: CGRect? {
-    try? (DynamicLookup(self).property("lastRenderBounds") as? CGRect).unwrap()
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 10, width: 120, height: 80)
   }
 }
