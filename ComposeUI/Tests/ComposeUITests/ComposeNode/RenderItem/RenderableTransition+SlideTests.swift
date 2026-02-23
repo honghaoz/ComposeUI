@@ -3,6 +3,29 @@
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 2/21/26.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
 //
 
 import QuartzCore
@@ -12,421 +35,421 @@ import XCTest
 
 class RenderableTransition_SlideTests: XCTestCase {
 
-    // MARK: - Insert Transition
+  // MARK: - Insert Transition
 
-    func test_insertTransition_top() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let targetFrame = Constants.targetFrame
-        let layer = TestLayer()
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .top,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .insert
-        )
+  func test_insertTransition_top() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .top,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .insert
+    )
 
-        let insertTransition = try XCTUnwrap(transition.insert)
-        let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
+    let insertTransition = try XCTUnwrap(transition.insert)
+    let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
 
-        insertTransition.animate(renderable: renderable, context: context, completion: {})
+    insertTransition.animate(renderable: renderable, context: context, completion: {})
 
-        let expectedInitialFrame = CGRect(
-            x: targetFrame.origin.x,
-            y: -targetFrame.height - Constants.overshoot,
-            width: targetFrame.width,
-            height: targetFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
+    let expectedInitialFrame = CGRect(
+      x: targetFrame.origin.x,
+      y: -targetFrame.height - Constants.overshoot,
+      width: targetFrame.width,
+      height: targetFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
 
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+  }
+
+  func test_insertTransition_bottom() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .bottom,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .insert
+    )
+
+    let insertTransition = try XCTUnwrap(transition.insert)
+    let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
+
+    insertTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedInitialFrame = CGRect(
+      x: targetFrame.origin.x,
+      y: Constants.contentSize.height + Constants.overshoot,
+      width: targetFrame.width,
+      height: targetFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
+
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+  }
+
+  func test_insertTransition_left() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .left,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .insert
+    )
+
+    let insertTransition = try XCTUnwrap(transition.insert)
+    let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
+
+    insertTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedInitialFrame = CGRect(
+      x: -targetFrame.width - Constants.overshoot,
+      y: targetFrame.origin.y,
+      width: targetFrame.width,
+      height: targetFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
+
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+  }
+
+  func test_insertTransition_right() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .right,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .insert
+    )
+
+    let insertTransition = try XCTUnwrap(transition.insert)
+    let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
+
+    insertTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedInitialFrame = CGRect(
+      x: Constants.contentSize.width + Constants.overshoot,
+      y: targetFrame.origin.y,
+      width: targetFrame.width,
+      height: targetFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
+
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+  }
+
+  // MARK: - Remove Transition
+
+  func test_removeTransition_top() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .top,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try XCTUnwrap(transition.remove)
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedTargetFrame = CGRect(
+      x: currentFrame.origin.x,
+      y: -currentFrame.height - Constants.overshoot,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, currentFrame)
+
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+    XCTAssertEqual(layer.frame, expectedTargetFrame)
+  }
+
+  func test_removeTransition_bottom() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .bottom,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try XCTUnwrap(transition.remove)
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedTargetFrame = CGRect(
+      x: currentFrame.origin.x,
+      y: Constants.contentSize.height + Constants.overshoot,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, currentFrame)
+
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+    XCTAssertEqual(layer.frame, expectedTargetFrame)
+  }
+
+  func test_removeTransition_left() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .left,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try XCTUnwrap(transition.remove)
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedTargetFrame = CGRect(
+      x: -currentFrame.width - Constants.overshoot,
+      y: currentFrame.origin.y,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, currentFrame)
+
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+    XCTAssertEqual(layer.frame, expectedTargetFrame)
+  }
+
+  func test_removeTransition_right() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .right,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try XCTUnwrap(transition.remove)
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedTargetFrame = CGRect(
+      x: Constants.contentSize.width + Constants.overshoot,
+      y: currentFrame.origin.y,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, currentFrame)
+
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+    XCTAssertEqual(layer.frame, expectedTargetFrame)
+  }
+
+  func test_removeTransition_with_toSide() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .left,
+      to: .bottom,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try XCTUnwrap(transition.remove)
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    let expectedTargetFrame = CGRect(
+      x: currentFrame.origin.x,
+      y: Constants.contentSize.height + Constants.overshoot,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    XCTAssertEqual(layer.capturedFrame, currentFrame)
+
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
+    XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+    XCTAssertEqual(layer.frame, expectedTargetFrame)
+  }
+
+  // MARK: - ComposeView Integration
+
+  func test_composeViewIntegration() throws {
+    let layer = TestLayer()
+    let targetSize = Constants.targetFrame.size
+    layer.bounds = CGRect(origin: .zero, size: targetSize)
+
+    let composeView = ComposeView {
+      LayerNode(layer)
+        .alignment(.topLeft)
+        .transition(.slide(from: .right, overshoot: Constants.overshoot, timing: Constants.timing, options: .insert))
     }
 
-    func test_insertTransition_bottom() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let targetFrame = Constants.targetFrame
-        let layer = TestLayer()
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .bottom,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .insert
-        )
+    composeView.frame = CGRect(origin: .zero, size: Constants.contentSize)
+    composeView.refresh(animated: true)
 
-        let insertTransition = try XCTUnwrap(transition.insert)
-        let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
+    let expectedTargetFrame = CGRect(origin: .zero, size: targetSize)
+    let expectedInitialFrame = expectedTargetFrame.translate(dx: Constants.contentSize.width + Constants.overshoot)
 
-        insertTransition.animate(renderable: renderable, context: context, completion: {})
+    XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
 
-        let expectedInitialFrame = CGRect(
-            x: targetFrame.origin.x,
-            y: Constants.contentSize.height + Constants.overshoot,
-            width: targetFrame.width,
-            height: targetFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
+    let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
+    XCTAssertEqual(layer.addedAnimationKey, "position")
+    XCTAssertEqual(layer.animationKeys(), ["position"])
+    XCTAssertEqual(animation.keyPath, "position")
 
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-    }
+    let expectedFromValue = layer.position(from: expectedInitialFrame) - layer.position(from: expectedTargetFrame)
+    XCTAssertEqual(animation.fromValue as? CGPoint, expectedFromValue)
+    XCTAssertEqual(animation.toValue as? CGPoint, .zero)
+    XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
+    XCTAssertEqual(animation.duration, Constants.duration)
+    XCTAssertEqual(animation.isAdditive, true)
+    XCTAssertEqual(animation.isRemovedOnCompletion, true)
+    XCTAssertEqual(animation.fillMode, .both)
+  }
 
-    func test_insertTransition_left() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let targetFrame = Constants.targetFrame
-        let layer = TestLayer()
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .left,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .insert
-        )
+  // MARK: - Constants
 
-        let insertTransition = try XCTUnwrap(transition.insert)
-        let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
+  private enum Constants {
 
-        insertTransition.animate(renderable: renderable, context: context, completion: {})
-
-        let expectedInitialFrame = CGRect(
-            x: -targetFrame.width - Constants.overshoot,
-            y: targetFrame.origin.y,
-            width: targetFrame.width,
-            height: targetFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
-
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-    }
-
-    func test_insertTransition_right() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let targetFrame = Constants.targetFrame
-        let layer = TestLayer()
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .right,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .insert
-        )
-
-        let insertTransition = try XCTUnwrap(transition.insert)
-        let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
-
-        insertTransition.animate(renderable: renderable, context: context, completion: {})
-
-        let expectedInitialFrame = CGRect(
-            x: Constants.contentSize.width + Constants.overshoot,
-            y: targetFrame.origin.y,
-            width: targetFrame.width,
-            height: targetFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
-
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-    }
-
-    // MARK: - Remove Transition
-
-    func test_removeTransition_top() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let currentFrame = Constants.targetFrame
-        let layer = TestLayer()
-        layer.frame = currentFrame
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .top,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .remove
-        )
-
-        let removeTransition = try XCTUnwrap(transition.remove)
-        let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
-
-        removeTransition.animate(renderable: renderable, context: context, completion: {})
-
-        let expectedTargetFrame = CGRect(
-            x: currentFrame.origin.x,
-            y: -currentFrame.height - Constants.overshoot,
-            width: currentFrame.width,
-            height: currentFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, currentFrame)
-
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-        XCTAssertEqual(layer.frame, expectedTargetFrame)
-    }
-
-    func test_removeTransition_bottom() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let currentFrame = Constants.targetFrame
-        let layer = TestLayer()
-        layer.frame = currentFrame
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .bottom,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .remove
-        )
-
-        let removeTransition = try XCTUnwrap(transition.remove)
-        let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
-
-        removeTransition.animate(renderable: renderable, context: context, completion: {})
-
-        let expectedTargetFrame = CGRect(
-            x: currentFrame.origin.x,
-            y: Constants.contentSize.height + Constants.overshoot,
-            width: currentFrame.width,
-            height: currentFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, currentFrame)
-
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-        XCTAssertEqual(layer.frame, expectedTargetFrame)
-    }
-
-    func test_removeTransition_left() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let currentFrame = Constants.targetFrame
-        let layer = TestLayer()
-        layer.frame = currentFrame
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .left,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .remove
-        )
-
-        let removeTransition = try XCTUnwrap(transition.remove)
-        let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
-
-        removeTransition.animate(renderable: renderable, context: context, completion: {})
-
-        let expectedTargetFrame = CGRect(
-            x: -currentFrame.width - Constants.overshoot,
-            y: currentFrame.origin.y,
-            width: currentFrame.width,
-            height: currentFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, currentFrame)
-
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-        XCTAssertEqual(layer.frame, expectedTargetFrame)
-    }
-
-    func test_removeTransition_right() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let currentFrame = Constants.targetFrame
-        let layer = TestLayer()
-        layer.frame = currentFrame
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .right,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .remove
-        )
-
-        let removeTransition = try XCTUnwrap(transition.remove)
-        let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
-
-        removeTransition.animate(renderable: renderable, context: context, completion: {})
-
-        let expectedTargetFrame = CGRect(
-            x: Constants.contentSize.width + Constants.overshoot,
-            y: currentFrame.origin.y,
-            width: currentFrame.width,
-            height: currentFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, currentFrame)
-
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-        XCTAssertEqual(layer.frame, expectedTargetFrame)
-    }
-
-    func test_removeTransition_with_toSide() throws {
-        let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-        let currentFrame = Constants.targetFrame
-        let layer = TestLayer()
-        layer.frame = currentFrame
-        let renderable = Renderable.layer(layer)
-        let transition = RenderableTransition.slide(
-            from: .left,
-            to: .bottom,
-            overshoot: Constants.overshoot,
-            timing: Constants.timing,
-            options: .remove
-        )
-
-        let removeTransition = try XCTUnwrap(transition.remove)
-        let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
-
-        removeTransition.animate(renderable: renderable, context: context, completion: {})
-
-        let expectedTargetFrame = CGRect(
-            x: currentFrame.origin.x,
-            y: Constants.contentSize.height + Constants.overshoot,
-            width: currentFrame.width,
-            height: currentFrame.height
-        )
-        XCTAssertEqual(layer.capturedFrame, currentFrame)
-
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-        XCTAssertEqual(animation.fromValue as? CGPoint, layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame))
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-        XCTAssertEqual(layer.frame, expectedTargetFrame)
-    }
-
-    // MARK: - ComposeView Integration
-
-    func test_composeViewIntegration() throws {
-        let layer = TestLayer()
-        let targetSize = Constants.targetFrame.size
-        layer.bounds = CGRect(origin: .zero, size: targetSize)
-
-        let composeView = ComposeView {
-            LayerNode(layer)
-                .alignment(.topLeft)
-                .transition(.slide(from: .right, overshoot: Constants.overshoot, timing: Constants.timing, options: .insert))
-        }
-
-        composeView.frame = CGRect(origin: .zero, size: Constants.contentSize)
-        composeView.refresh(animated: true)
-
-        let expectedTargetFrame = CGRect(origin: .zero, size: targetSize)
-        let expectedInitialFrame = expectedTargetFrame.translate(dx: Constants.contentSize.width + Constants.overshoot)
-
-        XCTAssertEqual(layer.capturedFrame, expectedInitialFrame)
-
-        let animation = try XCTUnwrap(layer.addedAnimation as? CABasicAnimation)
-        XCTAssertEqual(layer.addedAnimationKey, "position")
-        XCTAssertEqual(layer.animationKeys(), ["position"])
-        XCTAssertEqual(animation.keyPath, "position")
-
-        let expectedFromValue = layer.position(from: expectedInitialFrame) - layer.position(from: expectedTargetFrame)
-        XCTAssertEqual(animation.fromValue as? CGPoint, expectedFromValue)
-        XCTAssertEqual(animation.toValue as? CGPoint, .zero)
-        XCTAssertEqual(animation.timingFunction, CAMediaTimingFunction(name: .linear))
-        XCTAssertEqual(animation.duration, Constants.duration)
-        XCTAssertEqual(animation.isAdditive, true)
-        XCTAssertEqual(animation.isRemovedOnCompletion, true)
-        XCTAssertEqual(animation.fillMode, .both)
-    }
-
-    // MARK: - Constants
-
-    private enum Constants {
-
-        static let contentSize = CGSize(width: 200, height: 120)
-        static let targetFrame = CGRect(x: 20, y: 30, width: 40, height: 50)
-        static let overshoot: CGFloat = 12
-        static let duration: TimeInterval = 0.5
-        static let timing: AnimationTiming = .linear(duration: duration)
-    }
+    static let contentSize = CGSize(width: 200, height: 120)
+    static let targetFrame = CGRect(x: 20, y: 30, width: 40, height: 50)
+    static let overshoot: CGFloat = 12
+    static let duration: TimeInterval = 0.5
+    static let timing: AnimationTiming = .linear(duration: duration)
+  }
 }
 
 private final class TestLayer: CALayer {
 
-    var capturedFrame: CGRect?
-    var addedAnimation: CAAnimation?
-    var addedAnimationKey: String?
+  var capturedFrame: CGRect?
+  var addedAnimation: CAAnimation?
+  var addedAnimationKey: String?
 
-    override func add(_ animation: CAAnimation, forKey key: String?) {
-        capturedFrame = frame
-        addedAnimation = animation
-        addedAnimationKey = key
-        super.add(animation, forKey: key)
-    }
+  override func add(_ animation: CAAnimation, forKey key: String?) {
+    capturedFrame = frame
+    addedAnimation = animation
+    addedAnimationKey = key
+    super.add(animation, forKey: key)
+  }
 }

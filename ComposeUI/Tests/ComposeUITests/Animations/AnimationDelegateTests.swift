@@ -3,6 +3,29 @@
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 3/29/25.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
 //
 
 import XCTest
@@ -11,82 +34,82 @@ import XCTest
 
 class AnimationDelegateTests: XCTestCase {
 
-    func test() throws {
-        let didStartExpectation = expectation(description: "didStart")
-        didStartExpectation.assertForOverFulfill = true
-        let didStopExpectation = expectation(description: "didStop")
-        didStopExpectation.assertForOverFulfill = true
+  func test() throws {
+    let didStartExpectation = expectation(description: "didStart")
+    didStartExpectation.assertForOverFulfill = true
+    let didStopExpectation = expectation(description: "didStop")
+    didStopExpectation.assertForOverFulfill = true
 
-        let animation = CABasicAnimation(keyPath: "backgroundColor")
-        animation.fromValue = UIColor.red.cgColor
-        animation.toValue = UIColor.blue.cgColor
-        animation.duration = 0.1
-        animation.delegate = AnimationDelegate(
-            animationDidStart: { animation in
-                didStartExpectation.fulfill()
-            },
-            animationDidStop: { animation, finished in
-                if finished {
-                    didStopExpectation.fulfill()
-                }
-            }
-        )
-
-        let window = TestWindow()
-
-        let layer = CALayer()
-        layer.backgroundColor = UIColor.red.cgColor
-
-        window.layer.addSublayer(layer)
-
-        layer.add(animation, forKey: "backgroundColor")
-
-        wait(for: [didStartExpectation, didStopExpectation], timeout: 0.5)
-    }
-
-    func test_redundantCalls() {
-        let animation = CABasicAnimation(keyPath: "backgroundColor")
-
-        var didStartCount = 0
-        var didStopCount = 0
-
-        let delegate = AnimationDelegate(
-            animationDidStart: { animation in
-                didStartCount += 1
-            },
-            animationDidStop: { animation, finished in
-                didStopCount += 1
-            }
-        )
-
-        delegate.animationDidStart(animation)
-        delegate.animationDidStop(animation, finished: true)
-
-        XCTAssertEqual(didStartCount, 1)
-        XCTAssertEqual(didStopCount, 1)
-
-        // redundant calls
-
-        var assertionCount = 0
-        ComposeAssert.setTestAssertionFailureHandler { message, file, line, column in
-            switch assertionCount {
-            case 0:
-                XCTAssertEqual(message, "animation already started: \(animation)")
-            case 1:
-                XCTAssertEqual(message, "animation already stopped: \(animation)")
-            default:
-                XCTFail("unexpected assertion")
-            }
-
-            assertionCount += 1
+    let animation = CABasicAnimation(keyPath: "backgroundColor")
+    animation.fromValue = UIColor.red.cgColor
+    animation.toValue = UIColor.blue.cgColor
+    animation.duration = 0.1
+    animation.delegate = AnimationDelegate(
+      animationDidStart: { animation in
+        didStartExpectation.fulfill()
+      },
+      animationDidStop: { animation, finished in
+        if finished {
+          didStopExpectation.fulfill()
         }
+      }
+    )
 
-        delegate.animationDidStart(animation)
-        delegate.animationDidStop(animation, finished: true)
+    let window = TestWindow()
 
-        XCTAssertEqual(didStartCount, 1)
-        XCTAssertEqual(didStopCount, 1)
+    let layer = CALayer()
+    layer.backgroundColor = UIColor.red.cgColor
 
-        ComposeAssert.resetTestAssertionFailureHandler()
+    window.layer.addSublayer(layer)
+
+    layer.add(animation, forKey: "backgroundColor")
+
+    wait(for: [didStartExpectation, didStopExpectation], timeout: 0.5)
+  }
+
+  func test_redundantCalls() {
+    let animation = CABasicAnimation(keyPath: "backgroundColor")
+
+    var didStartCount = 0
+    var didStopCount = 0
+
+    let delegate = AnimationDelegate(
+      animationDidStart: { animation in
+        didStartCount += 1
+      },
+      animationDidStop: { animation, finished in
+        didStopCount += 1
+      }
+    )
+
+    delegate.animationDidStart(animation)
+    delegate.animationDidStop(animation, finished: true)
+
+    XCTAssertEqual(didStartCount, 1)
+    XCTAssertEqual(didStopCount, 1)
+
+    // redundant calls
+
+    var assertionCount = 0
+    ComposeAssert.setTestAssertionFailureHandler { message, file, line, column in
+      switch assertionCount {
+      case 0:
+        XCTAssertEqual(message, "animation already started: \(animation)")
+      case 1:
+        XCTAssertEqual(message, "animation already stopped: \(animation)")
+      default:
+        XCTFail("unexpected assertion")
+      }
+
+      assertionCount += 1
     }
+
+    delegate.animationDidStart(animation)
+    delegate.animationDidStop(animation, finished: true)
+
+    XCTAssertEqual(didStartCount, 1)
+    XCTAssertEqual(didStopCount, 1)
+
+    ComposeAssert.resetTestAssertionFailureHandler()
+  }
 }

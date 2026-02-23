@@ -3,6 +3,29 @@
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 3/28/25.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
 //
 
 import XCTest
@@ -11,181 +34,181 @@ import XCTest
 
 class ComposeView_RenderableTests: XCTestCase {
 
-    func test_lifecycle() {
-        let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+  func test_lifecycle() {
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
-        var willInsertCount = 0
-        var didInsertCount = 0
-        var willUpdateCount = 0
-        var updateCount = 0
-        var willRemoveCount = 0
-        var didRemoveCount = 0
+    var willInsertCount = 0
+    var didInsertCount = 0
+    var willUpdateCount = 0
+    var updateCount = 0
+    var willRemoveCount = 0
+    var didRemoveCount = 0
 
-        // show view
-        contentView.setContent {
-            ViewNode(
-                willInsert: { view, context in
-                    willInsertCount += 1
-                },
-                didInsert: { view, context in
-                    didInsertCount += 1
-                },
-                willUpdate: { view, context in
-                    willUpdateCount += 1
-                },
-                update: { view, context in
-                    updateCount += 1
-                },
-                willRemove: { view, context in
-                    willRemoveCount += 1
-                },
-                didRemove: { view, context in
-                    didRemoveCount += 1
-                }
-            )
+    // show view
+    contentView.setContent {
+      ViewNode(
+        willInsert: { view, context in
+          willInsertCount += 1
+        },
+        didInsert: { view, context in
+          didInsertCount += 1
+        },
+        willUpdate: { view, context in
+          willUpdateCount += 1
+        },
+        update: { view, context in
+          updateCount += 1
+        },
+        willRemove: { view, context in
+          willRemoveCount += 1
+        },
+        didRemove: { view, context in
+          didRemoveCount += 1
         }
-        contentView.refresh(animated: false)
+      )
+    }
+    contentView.refresh(animated: false)
 
-        XCTAssertEqual(willInsertCount, 1)
-        XCTAssertEqual(didInsertCount, 1)
-        XCTAssertEqual(updateCount, 1)
-        XCTAssertEqual(willRemoveCount, 0)
-        XCTAssertEqual(didRemoveCount, 0)
+    XCTAssertEqual(willInsertCount, 1)
+    XCTAssertEqual(didInsertCount, 1)
+    XCTAssertEqual(updateCount, 1)
+    XCTAssertEqual(willRemoveCount, 0)
+    XCTAssertEqual(didRemoveCount, 0)
 
-        // remove view
-        contentView.setContent {
-            EmptyNode()
-        }
-
-        contentView.refresh(animated: false)
-
-        XCTAssertEqual(willInsertCount, 1)
-        XCTAssertEqual(didInsertCount, 1)
-        XCTAssertEqual(willUpdateCount, 1)
-        XCTAssertEqual(updateCount, 1)
-        XCTAssertEqual(willRemoveCount, 1)
-        XCTAssertEqual(didRemoveCount, 1)
+    // remove view
+    contentView.setContent {
+      EmptyNode()
     }
 
-    func test_updateContext() {
-        // test the update context provided to the renderable update block is correct
+    contentView.refresh(animated: false)
 
-        // given: a compose view
-        var willUpdateContext: RenderableUpdateContext?
-        var updateContext: RenderableUpdateContext?
-        let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 150))
+    XCTAssertEqual(willInsertCount, 1)
+    XCTAssertEqual(didInsertCount, 1)
+    XCTAssertEqual(willUpdateCount, 1)
+    XCTAssertEqual(updateCount, 1)
+    XCTAssertEqual(willRemoveCount, 1)
+    XCTAssertEqual(didRemoveCount, 1)
+  }
 
-        view.setContent {
-            ViewNode()
-                .frame(width: 100, height: 200)
-                .willUpdate { renderable, context in
-                    willUpdateContext = context
-                }
-                .onUpdate { renderable, context in
-                    updateContext = context
-                }
+  func test_updateContext() {
+    // test the update context provided to the renderable update block is correct
+
+    // given: a compose view
+    var willUpdateContext: RenderableUpdateContext?
+    var updateContext: RenderableUpdateContext?
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 150))
+
+    view.setContent {
+      ViewNode()
+        .frame(width: 100, height: 200)
+        .willUpdate { renderable, context in
+          willUpdateContext = context
         }
-
-        // when: refresh the view initially
-        view.refresh(animated: false)
-
-        // then: expect the update context is correct
-        XCTAssertEqual(
-            willUpdateContext,
-            RenderableUpdateContext(
-                updateType: .insert,
-                oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                animationTiming: nil,
-                contentView: view
-            )
-        )
-        XCTAssertEqual(
-            updateContext,
-            RenderableUpdateContext(
-                updateType: .insert,
-                oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                animationTiming: nil,
-                contentView: view
-            )
-        )
-
-        // when: refresh the view again
-        view.refresh(animated: false)
-
-        // then: expect the update context is correct
-        XCTAssertEqual(
-            willUpdateContext,
-            RenderableUpdateContext(
-                updateType: .refresh,
-                oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                animationTiming: nil,
-                contentView: view
-            )
-        )
-        XCTAssertEqual(
-            updateContext,
-            RenderableUpdateContext(
-                updateType: .refresh,
-                oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                animationTiming: nil,
-                contentView: view
-            )
-        )
-
-        // when: scroll the view
-        view.setContentOffset(CGPoint(x: 0, y: 10), animated: false)
-        view.layoutIfNeeded()
-
-        // then: expect the update context is correct
-        XCTAssertEqual(
-            willUpdateContext,
-            RenderableUpdateContext(
-                updateType: .scroll,
-                oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                animationTiming: nil,
-                contentView: view
-            )
-        )
-        XCTAssertEqual(
-            updateContext,
-            RenderableUpdateContext(
-                updateType: .scroll,
-                oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                animationTiming: nil,
-                contentView: view
-            )
-        )
-
-        // when: resize the view
-        view.frame.size = CGSize(width: 200, height: 200)
-        view.layoutIfNeeded()
-
-        // then: expect the update context is correct
-        XCTAssertEqual(
-            willUpdateContext,
-            RenderableUpdateContext(
-                updateType: .boundsChange,
-                oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
-                animationTiming: nil,
-                contentView: view
-            )
-        )
-        XCTAssertEqual(
-            updateContext,
-            RenderableUpdateContext(
-                updateType: .boundsChange,
-                oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
-                newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
-                animationTiming: nil,
-                contentView: view
-            )
-        )
+        .onUpdate { renderable, context in
+          updateContext = context
+        }
     }
+
+    // when: refresh the view initially
+    view.refresh(animated: false)
+
+    // then: expect the update context is correct
+    XCTAssertEqual(
+      willUpdateContext,
+      RenderableUpdateContext(
+        updateType: .insert,
+        oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        animationTiming: nil,
+        contentView: view
+      )
+    )
+    XCTAssertEqual(
+      updateContext,
+      RenderableUpdateContext(
+        updateType: .insert,
+        oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        animationTiming: nil,
+        contentView: view
+      )
+    )
+
+    // when: refresh the view again
+    view.refresh(animated: false)
+
+    // then: expect the update context is correct
+    XCTAssertEqual(
+      willUpdateContext,
+      RenderableUpdateContext(
+        updateType: .refresh,
+        oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        animationTiming: nil,
+        contentView: view
+      )
+    )
+    XCTAssertEqual(
+      updateContext,
+      RenderableUpdateContext(
+        updateType: .refresh,
+        oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        animationTiming: nil,
+        contentView: view
+      )
+    )
+
+    // when: scroll the view
+    view.setContentOffset(CGPoint(x: 0, y: 10), animated: false)
+    view.layoutIfNeeded()
+
+    // then: expect the update context is correct
+    XCTAssertEqual(
+      willUpdateContext,
+      RenderableUpdateContext(
+        updateType: .scroll,
+        oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        animationTiming: nil,
+        contentView: view
+      )
+    )
+    XCTAssertEqual(
+      updateContext,
+      RenderableUpdateContext(
+        updateType: .scroll,
+        oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        animationTiming: nil,
+        contentView: view
+      )
+    )
+
+    // when: resize the view
+    view.frame.size = CGSize(width: 200, height: 200)
+    view.layoutIfNeeded()
+
+    // then: expect the update context is correct
+    XCTAssertEqual(
+      willUpdateContext,
+      RenderableUpdateContext(
+        updateType: .boundsChange,
+        oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
+        animationTiming: nil,
+        contentView: view
+      )
+    )
+    XCTAssertEqual(
+      updateContext,
+      RenderableUpdateContext(
+        updateType: .boundsChange,
+        oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+        newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
+        animationTiming: nil,
+        contentView: view
+      )
+    )
+  }
 }

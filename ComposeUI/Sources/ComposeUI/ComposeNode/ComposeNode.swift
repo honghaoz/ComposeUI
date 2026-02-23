@@ -3,6 +3,29 @@
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
 //
 
 import UIKit
@@ -10,74 +33,74 @@ import UIKit
 /// The basic building block of ComposéUI.
 public protocol ComposeNode: ComposeContent {
 
-    /// The id of the node.
-    ///
-    /// The id must be unique for a node type.
-    ///
-    /// For your own node type, don't use `.standard` id. Instead, use `.custom`
-    /// with a prefix to avoid conflicts.
-    ///
-    /// For example, if you have a `MyCustomNode`, you can use id like
-    /// `.custom("com.myapp.mycustomnode", isFixed: false)`.
-    ///
-    /// The id is used to generate unique ids for the renderable items, which is used
-    /// to diff the renderable items in the renderable hierarchy.
-    var id: ComposeNodeId { get set }
+  /// The id of the node.
+  ///
+  /// The id must be unique for a node type.
+  ///
+  /// For your own node type, don't use `.standard` id. Instead, use `.custom`
+  /// with a prefix to avoid conflicts.
+  ///
+  /// For example, if you have a `MyCustomNode`, you can use id like
+  /// `.custom("com.myapp.mycustomnode", isFixed: false)`.
+  ///
+  /// The id is used to generate unique ids for the renderable items, which is used
+  /// to diff the renderable items in the renderable hierarchy.
+  var id: ComposeNodeId { get set }
 
-    /// The size of the node.
-    var size: CGSize { get }
+  /// The size of the node.
+  var size: CGSize { get }
 
-    /// Layout the node in the given container size.
-    ///
-    /// - Parameters:
-    ///   - containerSize: The container size.
-    ///   - context: The layout context.
-    /// - Returns: The sizing information of the node.
-    @discardableResult
-    mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing
+  /// Layout the node in the given container size.
+  ///
+  /// - Parameters:
+  ///   - containerSize: The container size.
+  ///   - context: The layout context.
+  /// - Returns: The sizing information of the node.
+  @discardableResult
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing
 
-    /// Get the renderable items that are visible in the given bounds.
-    ///
-    /// For the same render item id, you must make sure the underlying renderable has the same view or layer type.
-    /// Otherwise, it may cause unexpected behavior.
-    ///
-    /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
-    /// - Returns: The renderable items that are visible in the given bounds.
-    func renderableItems(in visibleBounds: CGRect) -> [RenderableItem]
+  /// Get the renderable items that are visible in the given bounds.
+  ///
+  /// For the same render item id, you must make sure the underlying renderable has the same view or layer type.
+  /// Otherwise, it may cause unexpected behavior.
+  ///
+  /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
+  /// - Returns: The renderable items that are visible in the given bounds.
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem]
 }
 
 // MARK: - ComposeContent
 
 public extension ComposeNode {
 
-    func asNodes() -> [any ComposeNode] {
-        [self]
-    }
+  func asNodes() -> [any ComposeNode] {
+    [self]
+  }
 }
 
 // MARK: - Id
 
 public extension ComposeNode {
 
-    /// Set the id of the node.
-    func id(_ id: String) -> Self {
-        self.id(.custom(id, isFixed: false))
+  /// Set the id of the node.
+  func id(_ id: String) -> Self {
+    self.id(.custom(id, isFixed: false))
+  }
+
+  /// Set a fixed id of the node.
+  ///
+  /// The renderable items provided by this node should have the fixed id.
+  func fixedId(_ id: String) -> Self {
+    self.id(.custom(id, isFixed: true))
+  }
+
+  private func id(_ id: ComposeNodeId) -> Self {
+    guard self.id != id else {
+      return self
     }
 
-    /// Set a fixed id of the node.
-    ///
-    /// The renderable items provided by this node should have the fixed id.
-    func fixedId(_ id: String) -> Self {
-        self.id(.custom(id, isFixed: true))
-    }
-
-    private func id(_ id: ComposeNodeId) -> Self {
-        guard self.id != id else {
-            return self
-        }
-
-        var node = self
-        node.id = id
-        return node
-    }
+    var node = self
+    node.id = id
+    return node
+  }
 }
