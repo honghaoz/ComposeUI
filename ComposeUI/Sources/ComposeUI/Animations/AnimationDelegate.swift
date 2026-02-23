@@ -33,7 +33,7 @@ public final class AnimationDelegate: NSObject, CAAnimationDelegate {
 
     public func animationDidStart(_ animation: CAAnimation) {
         guard !didStart else {
-            assertionFailure("animation already started: \(animation)")
+            ComposeAssert.assertionFailure("animation already started: \(animation)")
             return
         }
         didStart = true
@@ -42,7 +42,7 @@ public final class AnimationDelegate: NSObject, CAAnimationDelegate {
 
     public func animationDidStop(_ animation: CAAnimation, finished: Bool) {
         guard !didStop else {
-            assertionFailure("animation already stopped: \(animation)")
+            ComposeAssert.assertionFailure("animation already stopped: \(animation)")
             return
         }
         didStop = true
