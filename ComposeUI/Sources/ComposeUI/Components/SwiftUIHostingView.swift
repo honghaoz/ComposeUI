@@ -117,7 +117,7 @@ private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIH
             .ignoresSafeArea(.container, edges: .all)
             .ignoresSafeArea(.keyboard, edges: .all)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .eraseToAnyView()
+            ._eraseToAnyView()
         } else {
             return SwiftUI.ZStack {
                 SwiftUI.Color.clear
@@ -126,7 +126,7 @@ private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIH
             }
             .edgesIgnoringSafeArea(.all)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .eraseToAnyView()
+            ._eraseToAnyView()
         }
     }
 
@@ -168,7 +168,7 @@ private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIH
 
 private extension SwiftUI.View {
 
-    func eraseToAnyView() -> AnyView {
+    func _eraseToAnyView() -> AnyView {
         AnyView(self)
     }
 }
