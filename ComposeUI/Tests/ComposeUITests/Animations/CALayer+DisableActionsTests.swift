@@ -43,7 +43,7 @@ class CALayer_DisableActionsTests: XCTestCase {
     window.layer.addSublayer(layer)
 
     // wait for the layer to have a presentation layer
-    wait(timeout: 0.05)
+    expect(layer.presentation()).toEventuallyNot(beNil())
 
     // with disableAction
     do {

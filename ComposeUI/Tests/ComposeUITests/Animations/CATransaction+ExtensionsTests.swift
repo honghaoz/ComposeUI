@@ -82,9 +82,7 @@ class CATransaction_ExtensionsTests: XCTestCase {
     testWindow.layer.addSublayer(layer)
 
     // wait for the layer to have a presentation layer
-    wait(timeout: 0.05)
-
-    expect(layer.presentation()) != nil
+    expect(layer.presentation()).toEventuallyNot(beNil())
 
     return layer
   }
