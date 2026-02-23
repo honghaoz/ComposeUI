@@ -9,11 +9,11 @@ import UIKit
 
 extension UIView {
 
-  var windowScaleFactor: CGFloat {
-    if let window {
-      return window.screen.scale
-    } else {
-      return UIScreen.main.scale
+    var windowScaleFactor: CGFloat {
+        if let window {
+            return window.screen.scale
+        } else {
+            return UIScreen.main.scale
+        }
     }
-  }
 }

@@ -11,160 +11,160 @@ import ChouTiTest
 
 class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
 
-  func testSwapRemove() {
-    var array = [1, 2, 3, 4, 5]
-    let removed = array.swapRemove(at: 2)
-    expect(removed) == 3
-    expect(array) == [1, 2, 5, 4]
-  }
-
-  // Test correctness
-  func testSwapRemoveCorrectness() {
-    var array = [1, 2, 3, 4, 5]
-    let removed = array.swapRemove(at: 1)
-
-    expect(removed) == 2
-    expect(array) == [1, 5, 3, 4]
-  }
-
-  // Test edge cases
-  func testSwapRemoveLastElement() {
-    var array = [1, 2, 3]
-    let removed = array.swapRemove(at: 2)
-
-    expect(removed) == 3
-    expect(array) == [1, 2]
-  }
-
-  // MARK: - Performance tests
-
-  func testPerformanceSwapRemoveBulk() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
-
-    let size = 100000
-    let array = Array(0 ..< size)
-
-    measure {
-      var testArray = array
-      for i in stride(from: 0, to: size / 2, by: 1) {
-        _ = testArray.swapRemove(at: i)
-      }
+    func testSwapRemove() {
+        var array = [1, 2, 3, 4, 5]
+        let removed = array.swapRemove(at: 2)
+        expect(removed) == 3
+        expect(array) == [1, 2, 5, 4]
     }
-  }
 
-  func testPerformanceRegularRemoveBulk() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    // Test correctness
+    func testSwapRemoveCorrectness() {
+        var array = [1, 2, 3, 4, 5]
+        let removed = array.swapRemove(at: 1)
 
-    let size = 100000
-    let array = Array(0 ..< size)
-
-    measure {
-      var testArray = array
-      for i in stride(from: 0, to: size / 2, by: 1) {
-        _ = testArray.remove(at: i)
-      }
+        expect(removed) == 2
+        expect(array) == [1, 5, 3, 4]
     }
-  }
 
-  func testPerformanceSwapRemoveFirst() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    // Test edge cases
+    func testSwapRemoveLastElement() {
+        var array = [1, 2, 3]
+        let removed = array.swapRemove(at: 2)
 
-    let size = 100000
-    let array = Array(0 ..< size)
-
-    measure {
-      var testArray = array
-      _ = testArray.swapRemove(at: 0)
+        expect(removed) == 3
+        expect(array) == [1, 2]
     }
-  }
 
-  func testPerformanceRegularRemoveFirst() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    // MARK: - Performance tests
 
-    let size = 100000
-    let array = Array(0 ..< size)
+    func testPerformanceSwapRemoveBulk() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
-    measure {
-      var testArray = array
-      _ = testArray.remove(at: 0)
+        let size = 100000
+        let array = Array(0 ..< size)
+
+        measure {
+            var testArray = array
+            for i in stride(from: 0, to: size / 2, by: 1) {
+                _ = testArray.swapRemove(at: i)
+            }
+        }
     }
-  }
 
-  func testPerformanceSwapRemoveMiddle() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    func testPerformanceRegularRemoveBulk() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
-    let size = 100000
-    let array = Array(0 ..< size)
-    let middleIndex = size / 2
+        let size = 100000
+        let array = Array(0 ..< size)
 
-    measure {
-      var testArray = array
-      _ = testArray.swapRemove(at: middleIndex)
+        measure {
+            var testArray = array
+            for i in stride(from: 0, to: size / 2, by: 1) {
+                _ = testArray.remove(at: i)
+            }
+        }
     }
-  }
 
-  func testPerformanceRegularRemoveMiddle() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    func testPerformanceSwapRemoveFirst() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
-    let size = 100000
-    let array = Array(0 ..< size)
-    let middleIndex = size / 2
+        let size = 100000
+        let array = Array(0 ..< size)
 
-    measure {
-      var testArray = array
-      _ = testArray.remove(at: middleIndex)
+        measure {
+            var testArray = array
+            _ = testArray.swapRemove(at: 0)
+        }
     }
-  }
 
-  func testPerformanceSwapRemoveLast() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    func testPerformanceRegularRemoveFirst() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
-    let size = 100000
-    let array = Array(0 ..< size)
-    let lastIndex = size - 1
+        let size = 100000
+        let array = Array(0 ..< size)
 
-    measure {
-      var testArray = array
-      _ = testArray.swapRemove(at: lastIndex)
+        measure {
+            var testArray = array
+            _ = testArray.remove(at: 0)
+        }
     }
-  }
 
-  func testPerformanceRegularRemoveLast() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    func testPerformanceSwapRemoveMiddle() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
-    let size = 100000
-    let array = Array(0 ..< size)
-    let lastIndex = size - 1
+        let size = 100000
+        let array = Array(0 ..< size)
+        let middleIndex = size / 2
 
-    measure {
-      var testArray = array
-      _ = testArray.remove(at: lastIndex)
+        measure {
+            var testArray = array
+            _ = testArray.swapRemove(at: middleIndex)
+        }
     }
-  }
 
-  func testPerformanceSwapRemoveContiguousArray() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    func testPerformanceRegularRemoveMiddle() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
-    let size = 100000
-    let array = ContiguousArray(0 ..< size)
-    let middleIndex = size / 2
+        let size = 100000
+        let array = Array(0 ..< size)
+        let middleIndex = size / 2
 
-    measure {
-      var testArray = array
-      _ = testArray.swapRemove(at: middleIndex)
+        measure {
+            var testArray = array
+            _ = testArray.remove(at: middleIndex)
+        }
     }
-  }
 
-  func testPerformanceRegularRemoveContiguousArray() throws {
-    try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+    func testPerformanceSwapRemoveLast() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
-    let size = 100000
-    let array = ContiguousArray(0 ..< size)
-    let middleIndex = size / 2
+        let size = 100000
+        let array = Array(0 ..< size)
+        let lastIndex = size - 1
 
-    measure {
-      var testArray = array
-      _ = testArray.remove(at: middleIndex)
+        measure {
+            var testArray = array
+            _ = testArray.swapRemove(at: lastIndex)
+        }
     }
-  }
+
+    func testPerformanceRegularRemoveLast() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
+        let size = 100000
+        let array = Array(0 ..< size)
+        let lastIndex = size - 1
+
+        measure {
+            var testArray = array
+            _ = testArray.remove(at: lastIndex)
+        }
+    }
+
+    func testPerformanceSwapRemoveContiguousArray() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
+        let size = 100000
+        let array = ContiguousArray(0 ..< size)
+        let middleIndex = size / 2
+
+        measure {
+            var testArray = array
+            _ = testArray.swapRemove(at: middleIndex)
+        }
+    }
+
+    func testPerformanceRegularRemoveContiguousArray() throws {
+        try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
+
+        let size = 100000
+        let array = ContiguousArray(0 ..< size)
+        let middleIndex = size / 2
+
+        measure {
+            var testArray = array
+            _ = testArray.remove(at: middleIndex)
+        }
+    }
 }

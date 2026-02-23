@@ -18,40 +18,40 @@ import Foundation
 /// the layout with the same container size, the layout result is cached and reused.
 public final class LayoutCacheNode: ComposeNode {
 
-  /// The node to cache the layout result of.
-  private var node: ComposeNode
+    /// The node to cache the layout result of.
+    private var node: ComposeNode
 
-  /// The cached layout result of the wrapped node.
-  private var cachedLayout: (containerSize: CGSize, sizing: ComposeNodeSizing)?
+    /// The cached layout result of the wrapped node.
+    private var cachedLayout: (containerSize: CGSize, sizing: ComposeNodeSizing)?
 
-  public init(node: ComposeNode) {
-    self.node = node
-  }
-
-  // MARK: - ComposeNode
-
-  public var id: ComposeNodeId {
-    get { node.id }
-    set { node.id = newValue }
-  }
-
-  public var size: CGSize {
-    node.size
-  }
-
-  public func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    if let cachedLayout, cachedLayout.containerSize == containerSize {
-      // layout size is the same, reuse the cached layout result
-      return cachedLayout.sizing
-    } else {
-      // layout size is different, layout the wrapped node and cache the result
-      let sizing = node.layout(containerSize: containerSize, context: context)
-      cachedLayout = (containerSize, sizing)
-      return sizing
+    public init(node: ComposeNode) {
+        self.node = node
     }
-  }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    node.renderableItems(in: visibleBounds)
-  }
+    // MARK: - ComposeNode
+
+    public var id: ComposeNodeId {
+        get { node.id }
+        set { node.id = newValue }
+    }
+
+    public var size: CGSize {
+        node.size
+    }
+
+    public func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+        if let cachedLayout, cachedLayout.containerSize == containerSize {
+            // layout size is the same, reuse the cached layout result
+            return cachedLayout.sizing
+        } else {
+            // layout size is different, layout the wrapped node and cache the result
+            let sizing = node.layout(containerSize: containerSize, context: context)
+            cachedLayout = (containerSize, sizing)
+            return sizing
+        }
+    }
+
+    public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+        node.renderableItems(in: visibleBounds)
+    }
 }

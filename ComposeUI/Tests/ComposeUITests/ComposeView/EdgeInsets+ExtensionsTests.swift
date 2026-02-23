@@ -11,9 +11,9 @@ import ChouTiTest
 
 class EdgeInsets_ExtensionsTests: XCTestCase {
 
-  func test() {
-    let insets = EdgeInsets(inset: 10)
-    expect(insets.horizontal) == 20
-    expect(insets.vertical) == 20
-  }
+    func test() {
+        let insets = EdgeInsets(inset: 10)
+        expect(insets.horizontal) == 20
+        expect(insets.vertical) == 20
+    }
 }

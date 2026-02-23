@@ -9,6 +9,6 @@ import QuartzCore
 
 public extension RenderableTransition {
 
-  /// The none transition.
-  static let none = RenderableTransition(insert: nil, remove: nil)
+    /// The none transition.
+    static let none = RenderableTransition(insert: nil, remove: nil)
 }

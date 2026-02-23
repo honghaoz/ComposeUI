@@ -11,8 +11,8 @@ import ChouTiTest
 
 class GestureRecognizer_ExtensionsTests: XCTestCase {
 
-  func test_cancel() {
-    let recognizer = TapGestureRecognizer()
-    recognizer.cancel()
-  }
+    func test_cancel() {
+        let recognizer = TapGestureRecognizer()
+        recognizer.cancel()
+    }
 }

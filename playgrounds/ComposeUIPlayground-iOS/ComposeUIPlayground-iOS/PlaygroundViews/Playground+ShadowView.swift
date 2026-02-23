@@ -17,469 +17,469 @@ import ComposeUI
 
 extension Playground {
 
-  final class ShadowView: AnimatingComposeView {
+    final class ShadowView: AnimatingComposeView {
 
-    private var size = CGSize(width: 100, height: 100)
-    private var cornerRadius = 0.01 // for smooth path animation
+        private var size = CGSize(width: 100, height: 100)
+        private var cornerRadius = 0.01 // for smooth path animation
 
-    private var shadowColor = Color.black
-    private var shadowOpacity = 0.5
-    private var shadowRadius = 10.0
-    private var shadowOffset = CGSize(width: 0, height: 0)
+        private var shadowColor = Color.black
+        private var shadowOpacity = 0.5
+        private var shadowRadius = 10.0
+        private var shadowOffset = CGSize(width: 0, height: 0)
 
-    @ComposeContentBuilder
-    override var content: ComposeContent {
-      VStack {
-        Spacer()
+        @ComposeContentBuilder
+        override var content: ComposeContent {
+            VStack {
+                Spacer()
 
-        // animated shadow
-        HStack {
-          Spacer()
+                // animated shadow
+                HStack {
+                    Spacer()
 
-          ColorNode(.white)
-            .border(color: .black, width: 1)
-            .cornerRadius(cornerRadius)
-            .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { renderItem in
-              let size = renderItem.frame.size
-              let cornerRadius = renderItem.layer.cornerRadius
-              return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-            })
-            .onUpdate { renderable, _ in
-              renderable.layer.drawsAsynchronously = true
-            }
-            .overlay {
-              Label("direct\nshadow")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-                .fixedSize()
-            }
-            .transition(.opacity(timing: .linear()))
-            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
-            .frame(size)
+                    ColorNode(.white)
+                        .border(color: .black, width: 1)
+                        .cornerRadius(cornerRadius)
+                        .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { renderItem in
+                            let size = renderItem.frame.size
+                            let cornerRadius = renderItem.layer.cornerRadius
+                            return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                        })
+                        .onUpdate { renderable, _ in
+                            renderable.layer.drawsAsynchronously = true
+                        }
+                        .overlay {
+                            Label("direct\nshadow")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                                .fixedSize()
+                        }
+                        .transition(.opacity(timing: .linear()))
+                        .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+                        .frame(size)
 
-          Spacer()
+                    Spacer()
 
-          ColorNode(.white)
-            .transition(.none)
-            .border(color: .black, width: 1)
-            .cornerRadius(cornerRadius)
-            .dropShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
-              let size = renderItem.frame.size
-              let cornerRadius = self.cornerRadius
-              return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-            })
-            .onUpdate { renderable, _ in
-              renderable.layer.drawsAsynchronously = true
-            }
-            .overlay {
-              Label("shadow\nunderlay")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-                .fixedSize()
-            }
-            .transition(.opacity(timing: .linear()))
-            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
-            .frame(size)
+                    ColorNode(.white)
+                        .transition(.none)
+                        .border(color: .black, width: 1)
+                        .cornerRadius(cornerRadius)
+                        .dropShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
+                            let size = renderItem.frame.size
+                            let cornerRadius = self.cornerRadius
+                            return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                        })
+                        .onUpdate { renderable, _ in
+                            renderable.layer.drawsAsynchronously = true
+                        }
+                        .overlay {
+                            Label("shadow\nunderlay")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                                .fixedSize()
+                        }
+                        .transition(.opacity(timing: .linear()))
+                        .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+                        .frame(size)
 
-          Spacer()
-        }
-
-        Spacer(height: 16)
-
-        // shadow cutout
-        HStack {
-          Spacer()
-
-          LayerNode()
-            .transition(.none)
-            .border(color: .black, width: 1)
-            .cornerRadius(cornerRadius)
-            .underlay {
-              DropShadowNode(
-                color: shadowColor,
-                opacity: shadowOpacity,
-                radius: shadowRadius,
-                offset: shadowOffset,
-                path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
-                  let size = renderItem.frame.size
-                  let cornerRadius = self.cornerRadius
-                  return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                    Spacer()
                 }
-              )
-              .onUpdate { renderable, _ in
-                renderable.layer.drawsAsynchronously = true
-              }
-            }
-            .overlay {
-              Label("no shadow\ncutout")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-                .fixedSize()
-            }
-            .transition(.opacity(timing: .linear()))
-            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
-            .frame(size)
 
-          Spacer()
+                Spacer(height: 16)
 
-          LayerNode()
-            .transition(.none)
-            .border(color: .black, width: 1)
-            .cornerRadius(cornerRadius)
-            .dropShadow(
-              color: shadowColor,
-              opacity: shadowOpacity,
-              radius: shadowRadius,
-              offset: shadowOffset,
-              paths: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
-                let size = renderItem.frame.size
-                let cornerRadius = self.cornerRadius
-                let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-                return DropShadowPaths(shadowPath: path, cutoutPath: path)
-              }
-            )
-            .onUpdate { renderable, _ in
-              renderable.layer.drawsAsynchronously = true
-            }
-            .overlay {
-              Label("has shadow\ncutout")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-                .fixedSize()
-            }
-            .transition(.opacity(timing: .linear()))
-            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
-            .frame(size)
+                // shadow cutout
+                HStack {
+                    Spacer()
 
-          Spacer()
+                    LayerNode()
+                        .transition(.none)
+                        .border(color: .black, width: 1)
+                        .cornerRadius(cornerRadius)
+                        .underlay {
+                            DropShadowNode(
+                                color: shadowColor,
+                                opacity: shadowOpacity,
+                                radius: shadowRadius,
+                                offset: shadowOffset,
+                                path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
+                                    let size = renderItem.frame.size
+                                    let cornerRadius = self.cornerRadius
+                                    return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                                }
+                            )
+                            .onUpdate { renderable, _ in
+                                renderable.layer.drawsAsynchronously = true
+                            }
+                        }
+                        .overlay {
+                            Label("no shadow\ncutout")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                                .fixedSize()
+                        }
+                        .transition(.opacity(timing: .linear()))
+                        .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+                        .frame(size)
+
+                    Spacer()
+
+                    LayerNode()
+                        .transition(.none)
+                        .border(color: .black, width: 1)
+                        .cornerRadius(cornerRadius)
+                        .dropShadow(
+                            color: shadowColor,
+                            opacity: shadowOpacity,
+                            radius: shadowRadius,
+                            offset: shadowOffset,
+                            paths: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
+                                let size = renderItem.frame.size
+                                let cornerRadius = self.cornerRadius
+                                let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                                return DropShadowPaths(shadowPath: path, cutoutPath: path)
+                            }
+                        )
+                        .onUpdate { renderable, _ in
+                            renderable.layer.drawsAsynchronously = true
+                        }
+                        .overlay {
+                            Label("has shadow\ncutout")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                                .fixedSize()
+                        }
+                        .transition(.opacity(timing: .linear()))
+                        .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+                        .frame(size)
+
+                    Spacer()
+                }
+
+                Spacer(height: 16)
+
+                // inner shadow
+                HStack {
+                    Spacer()
+
+                    LayerNode()
+                        .transition(.none)
+                        .cornerRadius(cornerRadius)
+                        .innerShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
+                            let size = renderItem.frame.size
+                            let cornerRadius = self.cornerRadius
+                            return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                        })
+                        .onUpdate { renderable, _ in
+                            renderable.layer.drawsAsynchronously = true
+                        }
+                        .overlay {
+                            Label("inner\nshadow")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                                .fixedSize()
+                        }
+                        .transition(.opacity(timing: .linear()))
+                        .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
+                        .frame(size)
+
+                    Spacer()
+                }
+
+                Spacer(height: 64)
+
+                // static shadow
+                HStack {
+                    Spacer()
+
+                    LayerNode()
+                        .border(color: .black, width: 1 / self.contentScaleFactor)
+                        .cornerRadius(16)
+                        .shadow(
+                            color: ThemedColor(light: .black, dark: .red),
+                            opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+                            radius: Themed<CGFloat>(light: 8, dark: 16),
+                            offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
+                            path: { renderItem in
+                                let size = renderItem.frame.size
+                                let cornerRadius = renderItem.layer.cornerRadius
+                                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                            }
+                        )
+                        .overlay {
+                            Label("direct\nshadow")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                        }
+                        .frame(width: 100, height: 80)
+
+                    Spacer()
+
+                    LayerNode()
+                        .border(color: .black, width: 1 / self.contentScaleFactor)
+                        .cornerRadius(16)
+                        .dropShadow(
+                            color: ThemedColor(light: .black, dark: .red),
+                            opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+                            radius: Themed<CGFloat>(light: 8, dark: 16),
+                            offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
+                            path: { renderItem in
+                                let size = renderItem.frame.size
+                                let cornerRadius: CGFloat = 16
+                                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                            }
+                        )
+                        .overlay {
+                            Label("shadow\nunderlay")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                        }
+                        .frame(width: 100, height: 80)
+
+                    Spacer()
+
+                    LayerNode()
+                        .border(color: .black, width: 1 / self.contentScaleFactor)
+                        .cornerRadius(16, cornerCurve: .circular)
+                        .dropShadow(
+                            color: ThemedColor(light: .black, dark: .red),
+                            opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+                            radius: Themed<CGFloat>(light: 8, dark: 16),
+                            offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
+                            paths: { renderItem in
+                                let size = renderItem.frame.size
+                                let cornerRadius: CGFloat = 16
+                                let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                                return DropShadowPaths(shadowPath: path, cutoutPath: path)
+                            }
+                        )
+                        .overlay {
+                            Label("has shadow cutout")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                        }
+                        .frame(width: 100, height: 80)
+
+                    Spacer()
+                }
+
+                Spacer(height: 32)
+
+                HStack {
+                    Spacer()
+
+                    LayerNode()
+                        .cornerRadius(16, cornerCurve: .continuous)
+                        .dropShadow(
+                            color: ThemedColor(light: .black, dark: .red),
+                            opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+                            radius: Themed<CGFloat>(light: 4, dark: 8),
+                            offset: Themed<CGSize>(.zero),
+                            paths: { renderItem in
+                                let spread: CGFloat = 8
+                                let size = renderItem.frame.size
+                                let cornerRadius: CGFloat = 16
+
+                                let shadowPathRect = CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: -spread * 2, dy: -spread * 2)
+                                let shadowCornerRadius: CGFloat = 16 + spread
+                                let shadowPath = CGPath(roundedRect: shadowPathRect, cornerWidth: shadowCornerRadius, cornerHeight: shadowCornerRadius, transform: nil)
+
+                                let cutoutPathRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+                                let cutoutPath = CGPath(roundedRect: cutoutPathRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+
+                                return DropShadowPaths(shadowPath: shadowPath, cutoutPath: cutoutPath)
+                            }
+                        )
+                        .overlay {
+                            Label("shadow spread")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                        }
+                        .frame(width: 100, height: 80)
+
+                    Spacer()
+                }
+
+                Spacer(height: 64)
+
+                // inner shadow
+                HStack {
+                    Spacer()
+
+                    LayerNode()
+                        .cornerRadius(16)
+                        .innerShadow(
+                            color: ThemedColor(light: .black, dark: .red),
+                            opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+                            radius: Themed<CGFloat>(light: 8, dark: 4),
+                            offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
+                            path: { renderItem in
+                                let size = renderItem.frame.size
+                                let cornerRadius: CGFloat = 16
+                                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                            }
+                        )
+                        .background {
+                            LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
+                        }
+                        .overlay {
+                            Label("inner shadow")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                        }
+                        .frame(width: 100, height: 80)
+
+                    Spacer(width: 16)
+
+                    LayerNode()
+                        .cornerRadius(16)
+                        .innerShadow(
+                            color: ThemedColor(light: .black, dark: .red),
+                            opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
+                            radius: Themed<CGFloat>(light: 2, dark: 4),
+                            offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
+                            paths: { renderItem in
+                                let size = renderItem.frame.size
+                                let spread: CGFloat = 4
+                                let cornerRadius: CGFloat = 16
+                                let shadowCornerRadius: CGFloat = cornerRadius - spread
+                                let shadowPath = CGPath(
+                                    roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 18, dy: 18),
+                                    cornerWidth: shadowCornerRadius,
+                                    cornerHeight: shadowCornerRadius,
+                                    transform: nil
+                                )
+                                let shapePath = CGPath(
+                                    roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
+                                    cornerWidth: cornerRadius,
+                                    cornerHeight: cornerRadius,
+                                    transform: nil
+                                )
+                                return InnerShadowPaths(shadowPath: shadowPath, clipPath: shapePath)
+                            }
+                        )
+                        .background {
+                            LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
+                        }
+                        .overlay {
+                            Label("inner shadow with spread")
+                                .font(.systemFont(ofSize: 12))
+                                .textColor(.black)
+                                .numberOfLines(2)
+                        }
+                        .frame(width: 100, height: 80)
+
+                    Spacer(width: 16)
+
+                    innerShadowByInvertsShadow()
+
+                    Spacer(width: 16)
+
+                    innerShadowByDropShadow()
+
+                    Spacer()
+                }
+
+                Spacer(height: 32)
+            }
+
+            .frame(.flexible)
         }
 
-        Spacer(height: 16)
+        override func animate() {
+            size = CGSize(width: CGFloat.random(in: 50 ... 150), height: CGFloat.random(in: 50 ... 150))
+            cornerRadius = CGFloat.random(in: 0 ... 25)
 
-        // inner shadow
-        HStack {
-          Spacer()
+            shadowColor = Colors.RetroApple.all.randomElement()! // swiftlint:disable:this force_unwrapping
+            shadowOpacity = CGFloat.random(in: 0.1 ... 1)
+            shadowRadius = CGFloat.random(in: 1 ... 16)
+            shadowOffset = CGSize(width: CGFloat.random(in: -20 ... 20), height: CGFloat.random(in: -20 ... 20))
 
-          LayerNode()
-            .transition(.none)
-            .cornerRadius(cornerRadius)
-            .innerShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
-              let size = renderItem.frame.size
-              let cornerRadius = self.cornerRadius
-              return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-            })
-            .onUpdate { renderable, _ in
-              renderable.layer.drawsAsynchronously = true
-            }
-            .overlay {
-              Label("inner\nshadow")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-                .fixedSize()
-            }
-            .transition(.opacity(timing: .linear()))
-            .animation(.spring(dampingRatio: 1, response: 1, initialVelocity: 0, delay: 0, speed: 1))
-            .frame(size)
-
-          Spacer()
+            refresh()
         }
-
-        Spacer(height: 64)
-
-        // static shadow
-        HStack {
-          Spacer()
-
-          LayerNode()
-            .border(color: .black, width: 1 / self.contentScaleFactor)
-            .cornerRadius(16)
-            .shadow(
-              color: ThemedColor(light: .black, dark: .red),
-              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 8, dark: 16),
-              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
-              path: { renderItem in
-                let size = renderItem.frame.size
-                let cornerRadius = renderItem.layer.cornerRadius
-                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-              }
-            )
-            .overlay {
-              Label("direct\nshadow")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-            }
-            .frame(width: 100, height: 80)
-
-          Spacer()
-
-          LayerNode()
-            .border(color: .black, width: 1 / self.contentScaleFactor)
-            .cornerRadius(16)
-            .dropShadow(
-              color: ThemedColor(light: .black, dark: .red),
-              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 8, dark: 16),
-              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
-              path: { renderItem in
-                let size = renderItem.frame.size
-                let cornerRadius: CGFloat = 16
-                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-              }
-            )
-            .overlay {
-              Label("shadow\nunderlay")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-            }
-            .frame(width: 100, height: 80)
-
-          Spacer()
-
-          LayerNode()
-            .border(color: .black, width: 1 / self.contentScaleFactor)
-            .cornerRadius(16, cornerCurve: .circular)
-            .dropShadow(
-              color: ThemedColor(light: .black, dark: .red),
-              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 8, dark: 16),
-              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
-              paths: { renderItem in
-                let size = renderItem.frame.size
-                let cornerRadius: CGFloat = 16
-                let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-                return DropShadowPaths(shadowPath: path, cutoutPath: path)
-              }
-            )
-            .overlay {
-              Label("has shadow cutout")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-            }
-            .frame(width: 100, height: 80)
-
-          Spacer()
-        }
-
-        Spacer(height: 32)
-
-        HStack {
-          Spacer()
-
-          LayerNode()
-            .cornerRadius(16, cornerCurve: .continuous)
-            .dropShadow(
-              color: ThemedColor(light: .black, dark: .red),
-              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 4, dark: 8),
-              offset: Themed<CGSize>(.zero),
-              paths: { renderItem in
-                let spread: CGFloat = 8
-                let size = renderItem.frame.size
-                let cornerRadius: CGFloat = 16
-
-                let shadowPathRect = CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: -spread * 2, dy: -spread * 2)
-                let shadowCornerRadius: CGFloat = 16 + spread
-                let shadowPath = CGPath(roundedRect: shadowPathRect, cornerWidth: shadowCornerRadius, cornerHeight: shadowCornerRadius, transform: nil)
-
-                let cutoutPathRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
-                let cutoutPath = CGPath(roundedRect: cutoutPathRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-
-                return DropShadowPaths(shadowPath: shadowPath, cutoutPath: cutoutPath)
-              }
-            )
-            .overlay {
-              Label("shadow spread")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-            }
-            .frame(width: 100, height: 80)
-
-          Spacer()
-        }
-
-        Spacer(height: 64)
-
-        // inner shadow
-        HStack {
-          Spacer()
-
-          LayerNode()
-            .cornerRadius(16)
-            .innerShadow(
-              color: ThemedColor(light: .black, dark: .red),
-              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 8, dark: 4),
-              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
-              path: { renderItem in
-                let size = renderItem.frame.size
-                let cornerRadius: CGFloat = 16
-                return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-              }
-            )
-            .background {
-              LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
-            }
-            .overlay {
-              Label("inner shadow")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-            }
-            .frame(width: 100, height: 80)
-
-          Spacer(width: 16)
-
-          LayerNode()
-            .cornerRadius(16)
-            .innerShadow(
-              color: ThemedColor(light: .black, dark: .red),
-              opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
-              radius: Themed<CGFloat>(light: 2, dark: 4),
-              offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
-              paths: { renderItem in
-                let size = renderItem.frame.size
-                let spread: CGFloat = 4
-                let cornerRadius: CGFloat = 16
-                let shadowCornerRadius: CGFloat = cornerRadius - spread
-                let shadowPath = CGPath(
-                  roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 18, dy: 18),
-                  cornerWidth: shadowCornerRadius,
-                  cornerHeight: shadowCornerRadius,
-                  transform: nil
-                )
-                let shapePath = CGPath(
-                  roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
-                  cornerWidth: cornerRadius,
-                  cornerHeight: cornerRadius,
-                  transform: nil
-                )
-                return InnerShadowPaths(shadowPath: shadowPath, clipPath: shapePath)
-              }
-            )
-            .background {
-              LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
-            }
-            .overlay {
-              Label("inner shadow with spread")
-                .font(.systemFont(ofSize: 12))
-                .textColor(.black)
-                .numberOfLines(2)
-            }
-            .frame(width: 100, height: 80)
-
-          Spacer(width: 16)
-
-          innerShadowByInvertsShadow()
-
-          Spacer(width: 16)
-
-          innerShadowByDropShadow()
-
-          Spacer()
-        }
-
-        Spacer(height: 32)
-      }
-
-      .frame(.flexible)
     }
-
-    override func animate() {
-      size = CGSize(width: CGFloat.random(in: 50 ... 150), height: CGFloat.random(in: 50 ... 150))
-      cornerRadius = CGFloat.random(in: 0 ... 25)
-
-      shadowColor = Colors.RetroApple.all.randomElement()! // swiftlint:disable:this force_unwrapping
-      shadowOpacity = CGFloat.random(in: 0.1 ... 1)
-      shadowRadius = CGFloat.random(in: 1 ... 16)
-      shadowOffset = CGSize(width: CGFloat.random(in: -20 ... 20), height: CGFloat.random(in: -20 ... 20))
-
-      refresh()
-    }
-  }
 }
 
 private func innerShadowByInvertsShadow() -> ComposeNode {
-  LayerNode()
-    .cornerRadius(16)
-    .onUpdate { renderable, context in
-      let layer = renderable.layer
-      let cornerRadius: CGFloat = 16
-      let spread: CGFloat = 4
-      let shadowCornerRadius: CGFloat = cornerRadius - spread
-      let shadowPath = CGPath(
-        roundedRect: CGRect(x: 0, y: 0, width: layer.bounds.width, height: layer.bounds.height).insetBy(dx: 18, dy: 18),
-        cornerWidth: shadowCornerRadius,
-        cornerHeight: shadowCornerRadius,
-        transform: nil
-      )
+    LayerNode()
+        .cornerRadius(16)
+        .onUpdate { renderable, context in
+            let layer = renderable.layer
+            let cornerRadius: CGFloat = 16
+            let spread: CGFloat = 4
+            let shadowCornerRadius: CGFloat = cornerRadius - spread
+            let shadowPath = CGPath(
+                roundedRect: CGRect(x: 0, y: 0, width: layer.bounds.width, height: layer.bounds.height).insetBy(dx: 18, dy: 18),
+                cornerWidth: shadowCornerRadius,
+                cornerHeight: shadowCornerRadius,
+                transform: nil
+            )
 
-      layer.shadowPath = shadowPath
-      layer.shadowColor = Color.black.cgColor
-      layer.shadowOpacity = 0.5
-      layer.shadowRadius = 2
-      layer.shadowOffset = CGSize(width: 5, height: 5)
+            layer.shadowPath = shadowPath
+            layer.shadowColor = Color.black.cgColor
+            layer.shadowOpacity = 0.5
+            layer.shadowRadius = 2
+            layer.shadowOffset = CGSize(width: 5, height: 5)
 
-      layer.setValue(true, forKey: "invertsShadow")
-      layer.masksToBounds = true
-    }
-    .background {
-      LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
-    }
-    .overlay {
-      Label("inner shadow by \"invertsShadow\"")
-        .font(.systemFont(ofSize: 12))
-        .textColor(.black)
-        .numberOfLines(2)
-    }
-    .frame(width: 100, height: 80)
+            layer.setValue(true, forKey: "invertsShadow")
+            layer.masksToBounds = true
+        }
+        .background {
+            LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
+        }
+        .overlay {
+            Label("inner shadow by \"invertsShadow\"")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+        }
+        .frame(width: 100, height: 80)
 }
 
 private func innerShadowByDropShadow() -> ComposeNode {
-  LayerNode()
-    .cornerRadius(16)
-    .onUpdate { renderable, context in
-      let layer = renderable.layer
-      let cornerRadius: CGFloat = 16
-      let spread: CGFloat = 4
-      let shadowCornerRadius: CGFloat = cornerRadius - spread
-      let shadowOffset = CGSize(width: 5, height: 5)
+    LayerNode()
+        .cornerRadius(16)
+        .onUpdate { renderable, context in
+            let layer = renderable.layer
+            let cornerRadius: CGFloat = 16
+            let spread: CGFloat = 4
+            let shadowCornerRadius: CGFloat = cornerRadius - spread
+            let shadowOffset = CGSize(width: 5, height: 5)
 
-      let shadowPath = CGPath(
-        roundedRect: CGRect(x: 0, y: 0, width: layer.bounds.width, height: layer.bounds.height).insetBy(dx: 18, dy: 18),
-        cornerWidth: shadowCornerRadius,
-        cornerHeight: shadowCornerRadius,
-        transform: nil
-      )
+            let shadowPath = CGPath(
+                roundedRect: CGRect(x: 0, y: 0, width: layer.bounds.width, height: layer.bounds.height).insetBy(dx: 18, dy: 18),
+                cornerWidth: shadowCornerRadius,
+                cornerHeight: shadowCornerRadius,
+                transform: nil
+            )
 
-      let biggerPath = BezierPath(rect: layer.bounds.insetBy(dx: -100, dy: -100))
-      biggerPath.append(BezierPath(cgPath: shadowPath).reversing())
+            let biggerPath = BezierPath(rect: layer.bounds.insetBy(dx: -100, dy: -100))
+            biggerPath.append(BezierPath(cgPath: shadowPath).reversing())
 
-      layer.shadowPath = biggerPath.cgPath
-      layer.shadowColor = Color.black.cgColor
-      layer.shadowOpacity = 0.5
-      layer.shadowRadius = 2
-      layer.shadowOffset = shadowOffset
+            layer.shadowPath = biggerPath.cgPath
+            layer.shadowColor = Color.black.cgColor
+            layer.shadowOpacity = 0.5
+            layer.shadowRadius = 2
+            layer.shadowOffset = shadowOffset
 
-      layer.masksToBounds = true
-    }
-    .background {
-      LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
-    }
-    .overlay {
-      Label("inner shadow by \"drop shadow\"")
-        .font(.systemFont(ofSize: 12))
-        .textColor(.black)
-        .numberOfLines(2)
-    }
-    .frame(width: 100, height: 80)
+            layer.masksToBounds = true
+        }
+        .background {
+            LayerNode().cornerRadius(16).border(color: .black, width: 0.5)
+        }
+        .overlay {
+            Label("inner shadow by \"drop shadow\"")
+                .font(.systemFont(ofSize: 12))
+                .textColor(.black)
+                .numberOfLines(2)
+        }
+        .frame(width: 100, height: 80)
 }

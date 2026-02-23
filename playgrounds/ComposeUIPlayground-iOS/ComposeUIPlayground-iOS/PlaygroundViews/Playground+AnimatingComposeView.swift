@@ -17,42 +17,42 @@ import ComposeUI
 
 extension Playground {
 
-  class AnimatingComposeView: ComposeView {
+    class AnimatingComposeView: ComposeView {
 
-    #if canImport(AppKit)
-    override func viewDidMoveToWindow() {
-      super.viewDidMoveToWindow()
+        #if canImport(AppKit)
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
 
-      if window != nil {
-        startAnimation()
-      }
+            if window != nil {
+                startAnimation()
+            }
+        }
+        #endif
+
+        #if canImport(UIKit)
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+
+            if window != nil {
+                startAnimation()
+            }
+        }
+        #endif
+
+        private var isAnimating = false
+        private func startAnimation() {
+            guard !isAnimating else {
+                return
+            }
+
+            isAnimating = true
+
+            let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                self?.animate()
+            }
+            RunLoop.main.add(timer, forMode: .common)
+        }
+
+        func animate() {}
     }
-    #endif
-
-    #if canImport(UIKit)
-    override func didMoveToWindow() {
-      super.didMoveToWindow()
-
-      if window != nil {
-        startAnimation()
-      }
-    }
-    #endif
-
-    private var isAnimating = false
-    private func startAnimation() {
-      guard !isAnimating else {
-        return
-      }
-
-      isAnimating = true
-
-      let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-        self?.animate()
-      }
-      RunLoop.main.add(timer, forMode: .common)
-    }
-
-    func animate() {}
-  }
 }

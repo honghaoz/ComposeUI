@@ -15,33 +15,33 @@ import ComposeUI
 
 class NSTextField_ExtensionsTests: XCTestCase {
 
-  func test_numberOfLines() {
-    let textField = NSTextField()
-    textField.maximumNumberOfLines = 2
-    expect(textField.numberOfLines) == 2
+    func test_numberOfLines() {
+        let textField = NSTextField()
+        textField.maximumNumberOfLines = 2
+        expect(textField.numberOfLines) == 2
 
-    textField.numberOfLines = 3
-    expect(textField.numberOfLines) == 3
-  }
+        textField.numberOfLines = 3
+        expect(textField.numberOfLines) == 3
+    }
 
-  func test_attributedText() {
-    let textField = NSTextField()
-    let attributedText = NSAttributedString(string: "Hello, World!")
-    textField.attributedStringValue = attributedText
-    expect(textField.attributedText) == attributedText
+    func test_attributedText() {
+        let textField = NSTextField()
+        let attributedText = NSAttributedString(string: "Hello, World!")
+        textField.attributedStringValue = attributedText
+        expect(textField.attributedText) == attributedText
 
-    textField.attributedText = attributedText
-    expect(textField.attributedText) == attributedText
-  }
+        textField.attributedText = attributedText
+        expect(textField.attributedText) == attributedText
+    }
 
-  func test_textAlignment() {
-    let textField = NSTextField()
-    textField.alignment = .center
-    expect(textField.textAlignment) == .center
+    func test_textAlignment() {
+        let textField = NSTextField()
+        textField.alignment = .center
+        expect(textField.textAlignment) == .center
 
-    textField.textAlignment = .left
-    expect(textField.textAlignment) == .left
-  }
+        textField.textAlignment = .left
+        expect(textField.textAlignment) == .left
+    }
 }
 
 #endif

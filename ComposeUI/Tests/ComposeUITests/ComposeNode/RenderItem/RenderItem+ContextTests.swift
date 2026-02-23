@@ -11,10 +11,10 @@ import ComposeUI
 
 class RenderItem_ContextTests: XCTestCase {
 
-  func test_renderableInsertContext() {
-    expect(RenderableUpdateType.insert.requiresFullUpdate) == true
-    expect(RenderableUpdateType.refresh.requiresFullUpdate) == true
-    expect(RenderableUpdateType.scroll.requiresFullUpdate) == false
-    expect(RenderableUpdateType.boundsChange.requiresFullUpdate) == false
-  }
+    func test_renderableInsertContext() {
+        expect(RenderableUpdateType.insert.requiresFullUpdate) == true
+        expect(RenderableUpdateType.refresh.requiresFullUpdate) == true
+        expect(RenderableUpdateType.scroll.requiresFullUpdate) == false
+        expect(RenderableUpdateType.boundsChange.requiresFullUpdate) == false
+    }
 }

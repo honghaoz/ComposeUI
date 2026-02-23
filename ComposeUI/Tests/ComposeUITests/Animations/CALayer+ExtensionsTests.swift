@@ -13,57 +13,57 @@ import ChouTiTest
 
 class CALayer_ExtensionsTests: XCTestCase {
 
-  func test_backedView() {
-    #if os(macOS)
-    let view = View()
-    view.wantsLayer = true
-    #else
-    let view = View()
-    #endif
-    let layer = view.layer()
-    expect(layer.backedView) === view
-  }
-
-  func test_positionFromFrame() {
-    let layer = CALayer()
-    let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
-    layer.frame = frame
-    layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-
-    expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
-  }
-
-  func test_bringSublayerToFront() {
-    let layer = CALayer()
-    let sublayer1 = CALayer()
-    let sublayer2 = CALayer()
-    layer.addSublayer(sublayer1)
-    layer.addSublayer(sublayer2)
-    layer.bringSublayerToFront(sublayer1)
-
-    expect(layer.sublayers) == [sublayer2, sublayer1]
-
-    let sublayer3 = CALayer()
-    layer.bringSublayerToFront(sublayer3)
-    expect(layer.sublayers) == [sublayer2, sublayer1]
-  }
-
-  func test_positionFromFrame_nonIdentityTransform() {
-    let layer = CALayer()
-    layer.transform = CATransform3DMakeRotation(CGFloat.pi / 4, 0, 0, 1)
-    let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
-    layer.frame = frame
-    layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "CALayer.position(from:frame:) only works with identity transform."
-      assertionCount += 1
+    func test_backedView() {
+        #if os(macOS)
+        let view = View()
+        view.wantsLayer = true
+        #else
+        let view = View()
+        #endif
+        let layer = view.layer()
+        expect(layer.backedView) === view
     }
 
-    expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
-    expect(assertionCount) == 1
+    func test_positionFromFrame() {
+        let layer = CALayer()
+        let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
+        layer.frame = frame
+        layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
 
-    Assert.resetTestAssertionFailureHandler()
-  }
+        expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
+    }
+
+    func test_bringSublayerToFront() {
+        let layer = CALayer()
+        let sublayer1 = CALayer()
+        let sublayer2 = CALayer()
+        layer.addSublayer(sublayer1)
+        layer.addSublayer(sublayer2)
+        layer.bringSublayerToFront(sublayer1)
+
+        expect(layer.sublayers) == [sublayer2, sublayer1]
+
+        let sublayer3 = CALayer()
+        layer.bringSublayerToFront(sublayer3)
+        expect(layer.sublayers) == [sublayer2, sublayer1]
+    }
+
+    func test_positionFromFrame_nonIdentityTransform() {
+        let layer = CALayer()
+        layer.transform = CATransform3DMakeRotation(CGFloat.pi / 4, 0, 0, 1)
+        let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
+        layer.frame = frame
+        layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+
+        var assertionCount = 0
+        Assert.setTestAssertionFailureHandler { message, file, line, column in
+            expect(message) == "CALayer.position(from:frame:) only works with identity transform."
+            assertionCount += 1
+        }
+
+        expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
+        expect(assertionCount) == 1
+
+        Assert.resetTestAssertionFailureHandler()
+    }
 }

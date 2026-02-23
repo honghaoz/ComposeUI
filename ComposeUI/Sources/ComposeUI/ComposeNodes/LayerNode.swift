@@ -16,163 +16,163 @@ import QuartzCore
 /// Use `fixedSize(width:height:)` to control whether the node uses the layer's intrinsic size or adapts to the container size for each dimension.
 public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
-  private let make: (RenderableMakeContext) -> T
-  private let intrinsicSizeProvider: ((_ proposedSize: CGSize) -> CGSize)?
-  private let willInsert: ((T, RenderableInsertContext) -> Void)?
-  private let didInsert: ((T, RenderableInsertContext) -> Void)?
-  private let willUpdate: ((T, RenderableUpdateContext) -> Void)?
-  private let update: (T, RenderableUpdateContext) -> Void
-  private let willRemove: ((T, RenderableRemoveContext) -> Void)?
-  private let didRemove: ((T, RenderableRemoveContext) -> Void)?
+    private let make: (RenderableMakeContext) -> T
+    private let intrinsicSizeProvider: ((_ proposedSize: CGSize) -> CGSize)?
+    private let willInsert: ((T, RenderableInsertContext) -> Void)?
+    private let didInsert: ((T, RenderableInsertContext) -> Void)?
+    private let willUpdate: ((T, RenderableUpdateContext) -> Void)?
+    private let update: (T, RenderableUpdateContext) -> Void
+    private let willRemove: ((T, RenderableRemoveContext) -> Void)?
+    private let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
-  /// Make a layer node with an external layer.
-  ///
-  /// The node has a fixed size (with `isFixedWidth` and `isFixedHeight` set to `true`).
-  /// It uses the layer's `bounds.size` as intrinsic size. You need to make sure the layer's size is updated.
-  ///
-  /// You can also provide `intrinsicSize` to return a custom size based on the proposed container size.
-  /// This closure is evaluated during layout and must be synchronous.
-  ///
-  /// - Parameters:
-  ///   - layer: The external layer.
-  ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size. If nil (default), the layer's `bounds.size` is used.
-  ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
-  ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
-  ///   - willUpdate: A closure to be called when the layer is about to be updated.
-  ///   - update: A closure to update the layer.
-  ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
-  ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
-  public init(_ layer: T,
-              intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
-              willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
-              didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
-              willUpdate: ((_ layer: T, _ context: RenderableUpdateContext) -> Void)? = nil,
-              update: @escaping (_ layer: T, _ context: RenderableUpdateContext) -> Void = { _, _ in },
-              willRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil,
-              didRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil)
-  {
-    self.make = { _ in layer }
-    self.intrinsicSizeProvider = intrinsicSize ?? { _ in layer.bounds.size }
-    self.willInsert = willInsert
-    self.didInsert = didInsert
-    self.willUpdate = willUpdate
-    self.update = update
-    self.willRemove = willRemove
-    self.didRemove = didRemove
-    self.isFixedWidth = true
-    self.isFixedHeight = true
+    /// Make a layer node with an external layer.
+    ///
+    /// The node has a fixed size (with `isFixedWidth` and `isFixedHeight` set to `true`).
+    /// It uses the layer's `bounds.size` as intrinsic size. You need to make sure the layer's size is updated.
+    ///
+    /// You can also provide `intrinsicSize` to return a custom size based on the proposed container size.
+    /// This closure is evaluated during layout and must be synchronous.
+    ///
+    /// - Parameters:
+    ///   - layer: The external layer.
+    ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size. If nil (default), the layer's `bounds.size` is used.
+    ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
+    ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
+    ///   - willUpdate: A closure to be called when the layer is about to be updated.
+    ///   - update: A closure to update the layer.
+    ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
+    ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
+    public init(_ layer: T,
+                intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
+                willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
+                didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
+                willUpdate: ((_ layer: T, _ context: RenderableUpdateContext) -> Void)? = nil,
+                update: @escaping (_ layer: T, _ context: RenderableUpdateContext) -> Void = { _, _ in },
+                willRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil,
+                didRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil)
+    {
+        self.make = { _ in layer }
+        self.intrinsicSizeProvider = intrinsicSize ?? { _ in layer.bounds.size }
+        self.willInsert = willInsert
+        self.didInsert = didInsert
+        self.willUpdate = willUpdate
+        self.update = update
+        self.willRemove = willRemove
+        self.didRemove = didRemove
+        self.isFixedWidth = true
+        self.isFixedHeight = true
 
-    // use a unique id for the layer node with an external layer so that the layer won't be reused incorrectly on refresh
-    id = .custom("layer-\(ObjectIdentifier(layer))", isFixed: false)
-  }
-
-  /// Make a layer node with a layer factory.
-  ///
-  /// The node has a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
-  ///
-  /// - Parameters:
-  ///   - make: A closure to create a layer. To avoid incorrect transition animation, the layer should be created with frame set to `context.initialFrame` if it's provided.
-  ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
-  ///     Required for fixed sizing (when using `fixedSize(width:height:)`).
-  ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
-  ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
-  ///   - willUpdate: A closure to be called when the layer is about to be updated.
-  ///   - update: A closure to update the layer.
-  ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
-  ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
-  public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
-              intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
-              willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
-              didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
-              willUpdate: ((_ layer: T, _ context: RenderableUpdateContext) -> Void)? = nil,
-              update: @escaping (_ layer: T, _ context: RenderableUpdateContext) -> Void = { _, _ in },
-              willRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil,
-              didRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil)
-  {
-    self.make = make ?? { context in
-      let layer = T()
-      if let initialFrame = context.initialFrame {
-        layer.frame = initialFrame
-      }
-      return layer
-    }
-    self.intrinsicSizeProvider = intrinsicSize
-    self.willInsert = willInsert
-    self.didInsert = didInsert
-    self.willUpdate = willUpdate
-    self.update = update
-    self.willRemove = willRemove
-    self.didRemove = didRemove
-    self.isFixedWidth = false
-    self.isFixedHeight = false
-  }
-
-  // MARK: - IntrinsicSizableComposeNode
-
-  public var isFixedWidth: Bool
-  public var isFixedHeight: Bool
-
-  private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
-    guard let intrinsicSizeProvider else {
-      assertionFailure("LayerNode requires `intrinsicSize` when using fixed size with a layer factory.")
-      return .zero
+        // use a unique id for the layer node with an external layer so that the layer won't be reused incorrectly on refresh
+        id = .custom("layer-\(ObjectIdentifier(layer))", isFixed: false)
     }
 
-    return intrinsicSizeProvider(proposedSize)
-  }
-
-  // MARK: - ComposeNode
-
-  public var id: ComposeNodeId = .standard(.layer)
-
-  public private(set) var size: CGSize = .zero
-
-  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    switch (isFixedWidth, isFixedHeight) {
-    case (true, true):
-      size = self.intrinsicSize(for: containerSize)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
-    case (true, false):
-      let intrinsicSize = self.intrinsicSize(for: containerSize)
-      size = CGSize(width: intrinsicSize.width, height: containerSize.height)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
-    case (false, true):
-      let intrinsicSize = self.intrinsicSize(for: containerSize)
-      size = CGSize(width: containerSize.width, height: intrinsicSize.height)
-      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
-    case (false, false):
-      size = containerSize
-      return ComposeNodeSizing(width: .flexible, height: .flexible)
+    /// Make a layer node with a layer factory.
+    ///
+    /// The node has a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
+    ///
+    /// - Parameters:
+    ///   - make: A closure to create a layer. To avoid incorrect transition animation, the layer should be created with frame set to `context.initialFrame` if it's provided.
+    ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
+    ///     Required for fixed sizing (when using `fixedSize(width:height:)`).
+    ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
+    ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
+    ///   - willUpdate: A closure to be called when the layer is about to be updated.
+    ///   - update: A closure to update the layer.
+    ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
+    ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
+    public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
+                intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
+                willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
+                didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
+                willUpdate: ((_ layer: T, _ context: RenderableUpdateContext) -> Void)? = nil,
+                update: @escaping (_ layer: T, _ context: RenderableUpdateContext) -> Void = { _, _ in },
+                willRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil,
+                didRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil)
+    {
+        self.make = make ?? { context in
+            let layer = T()
+            if let initialFrame = context.initialFrame {
+                layer.frame = initialFrame
+            }
+            return layer
+        }
+        self.intrinsicSizeProvider = intrinsicSize
+        self.willInsert = willInsert
+        self.didInsert = didInsert
+        self.willUpdate = willUpdate
+        self.update = update
+        self.willRemove = willRemove
+        self.didRemove = didRemove
+        self.isFixedWidth = false
+        self.isFixedHeight = false
     }
-  }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    let frame = CGRect(origin: .zero, size: size)
-    guard visibleBounds.intersects(frame) else {
-      return []
+    // MARK: - IntrinsicSizableComposeNode
+
+    public var isFixedWidth: Bool
+    public var isFixedHeight: Bool
+
+    private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
+        guard let intrinsicSizeProvider else {
+            assertionFailure("LayerNode requires `intrinsicSize` when using fixed size with a layer factory.")
+            return .zero
+        }
+
+        return intrinsicSizeProvider(proposedSize)
     }
 
-    let layerItem = LayerItem<T>(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: update,
-      willRemove: willRemove,
-      didRemove: didRemove
-    )
+    // MARK: - ComposeNode
 
-    return [layerItem.eraseToRenderableItem()]
-  }
+    public var id: ComposeNodeId = .standard(.layer)
+
+    public private(set) var size: CGSize = .zero
+
+    public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+        switch (isFixedWidth, isFixedHeight) {
+        case (true, true):
+            size = self.intrinsicSize(for: containerSize)
+            return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+        case (true, false):
+            let intrinsicSize = self.intrinsicSize(for: containerSize)
+            size = CGSize(width: intrinsicSize.width, height: containerSize.height)
+            return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
+        case (false, true):
+            let intrinsicSize = self.intrinsicSize(for: containerSize)
+            size = CGSize(width: containerSize.width, height: intrinsicSize.height)
+            return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
+        case (false, false):
+            size = containerSize
+            return ComposeNodeSizing(width: .flexible, height: .flexible)
+        }
+    }
+
+    public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+        let frame = CGRect(origin: .zero, size: size)
+        guard visibleBounds.intersects(frame) else {
+            return []
+        }
+
+        let layerItem = LayerItem<T>(
+            id: id,
+            frame: frame,
+            make: make,
+            willInsert: willInsert,
+            didInsert: didInsert,
+            willUpdate: willUpdate,
+            update: update,
+            willRemove: willRemove,
+            didRemove: didRemove
+        )
+
+        return [layerItem.eraseToRenderableItem()]
+    }
 }
 
 // MARK: - CALayer + ComposeContent
 
 extension CALayer: ComposeContent {
 
-  public func asNodes() -> [ComposeNode] {
-    [LayerNode(self)]
-  }
+    public func asNodes() -> [ComposeNode] {
+        [LayerNode(self)]
+    }
 }

@@ -9,7 +9,7 @@ import Foundation
 
 extension ProcessInfo {
 
-  static var isRunningInGitHubActions: Bool {
-    ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true"
-  }
+    static var isRunningInGitHubActions: Bool {
+        ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true"
+    }
 }

@@ -37,7 +37,7 @@
 --hexgrouping none
 --ifdef no-indent
 --importgrouping testable-last
---indent 2
+--indent 4
 --octalgrouping none
 --patternlet inline
 --semicolons never

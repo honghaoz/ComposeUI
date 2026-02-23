@@ -19,8 +19,8 @@ import Foundation
 @inlinable
 @inline(__always)
 func rawPointer(_ object: AnyObject) -> UnsafeMutableRawPointer {
-  // From: https://stackoverflow.com/a/48094758/3164091
-  Unmanaged.passUnretained(object).toOpaque()
+    // From: https://stackoverflow.com/a/48094758/3164091
+    Unmanaged.passUnretained(object).toOpaque()
 }
 
 /// Get a pointer's memory address as `Int`.
@@ -38,7 +38,7 @@ func rawPointer(_ object: AnyObject) -> UnsafeMutableRawPointer {
 @inlinable
 @inline(__always)
 func memoryAddress(_ pointer: UnsafeRawPointer) -> Int {
-  Int(bitPattern: pointer)
+    Int(bitPattern: pointer)
 }
 
 /// Get the pointer's memory address as `String`.
@@ -56,7 +56,7 @@ func memoryAddress(_ pointer: UnsafeRawPointer) -> Int {
 @inlinable
 @inline(__always)
 func memoryAddressString(_ pointer: UnsafeRawPointer) -> String {
-  String(format: "%p", memoryAddress(pointer))
+    String(format: "%p", memoryAddress(pointer))
 }
 
 /// Get the object's memory address as `String`.
@@ -73,5 +73,5 @@ func memoryAddressString(_ pointer: UnsafeRawPointer) -> String {
 @inlinable
 @inline(__always)
 func memoryAddressString(_ object: AnyObject) -> String {
-  String(format: "%p", memoryAddress(rawPointer(object)))
+    String(format: "%p", memoryAddress(rawPointer(object)))
 }

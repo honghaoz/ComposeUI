@@ -11,7 +11,7 @@ import Foundation
 ///
 /// - Parameter block: The block to be executed.
 func onNextRunLoop(_ block: @escaping () -> Void) {
-  RunLoop.main.perform(inModes: [.common]) {
-    block()
-  }
+    RunLoop.main.perform(inModes: [.common]) {
+        block()
+    }
 }

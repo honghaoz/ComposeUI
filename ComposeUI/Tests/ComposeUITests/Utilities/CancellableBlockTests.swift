@@ -11,40 +11,40 @@ import ChouTiTest
 
 class CancellableBlockTests: XCTestCase {
 
-  func test_notCancelled() {
-    var isExecuted: Bool?
-    var isCancelled: Bool?
+    func test_notCancelled() {
+        var isExecuted: Bool?
+        var isCancelled: Bool?
 
-    let block = CancellableBlock {
-      isExecuted = true
-    } cancel: {
-      isCancelled = true
+        let block = CancellableBlock {
+            isExecuted = true
+        } cancel: {
+            isCancelled = true
+        }
+
+        block.execute()
+
+        expect(isExecuted) == true
+        expect(isCancelled) == nil
     }
 
-    block.execute()
+    func test_cancelled() {
+        var isExecuted: Bool?
+        var isCancelled: Bool?
 
-    expect(isExecuted) == true
-    expect(isCancelled) == nil
-  }
+        let block = CancellableBlock {
+            isExecuted = true
+        } cancel: {
+            isCancelled = true
+        }
 
-  func test_cancelled() {
-    var isExecuted: Bool?
-    var isCancelled: Bool?
+        block.cancel()
 
-    let block = CancellableBlock {
-      isExecuted = true
-    } cancel: {
-      isCancelled = true
+        expect(isExecuted) == nil
+        expect(isCancelled) == true
+
+        block.execute()
+
+        expect(isExecuted) == nil
+        expect(isCancelled) == true
     }
-
-    block.cancel()
-
-    expect(isExecuted) == nil
-    expect(isCancelled) == true
-
-    block.execute()
-
-    expect(isExecuted) == nil
-    expect(isCancelled) == true
-  }
 }

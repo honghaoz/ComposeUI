@@ -13,32 +13,32 @@ import ChouTiTest
 
 final class CALayerPrivateTests: XCTestCase {
 
-  func test_invertsShadow() {
-    let layer = CALayer()
+    func test_invertsShadow() {
+        let layer = CALayer()
 
-    // default value
-    expect(layer.invertsShadow) == false
-    expect(layer.value(forKey: "invertsShadow") as? Bool) == false
+        // default value
+        expect(layer.invertsShadow) == false
+        expect(layer.value(forKey: "invertsShadow") as? Bool) == false
 
-    // set and get
-    layer.invertsShadow = true
-    expect(layer.invertsShadow) == true
-    expect(layer.value(forKey: "invertsShadow") as? Bool) == true
+        // set and get
+        layer.invertsShadow = true
+        expect(layer.invertsShadow) == true
+        expect(layer.value(forKey: "invertsShadow") as? Bool) == true
 
-    layer.invertsShadow = false
-    expect(layer.invertsShadow) == false
-    expect(layer.value(forKey: "invertsShadow") as? Bool) == false
+        layer.invertsShadow = false
+        expect(layer.invertsShadow) == false
+        expect(layer.value(forKey: "invertsShadow") as? Bool) == false
 
-    layer.invertsShadow = true
-    expect(layer.invertsShadow) == true
-    expect(layer.value(forKey: "invertsShadow") as? Bool) == true
+        layer.invertsShadow = true
+        expect(layer.invertsShadow) == true
+        expect(layer.value(forKey: "invertsShadow") as? Bool) == true
 
-    layer.setValue(false, forKey: "invertsShadow")
-    expect(layer.invertsShadow) == false
-    expect(layer.value(forKey: "invertsShadow") as? Bool) == false
+        layer.setValue(false, forKey: "invertsShadow")
+        expect(layer.invertsShadow) == false
+        expect(layer.value(forKey: "invertsShadow") as? Bool) == false
 
-    layer.setValue(true, forKey: "invertsShadow")
-    expect(layer.invertsShadow) == true
-    expect(layer.value(forKey: "invertsShadow") as? Bool) == true
-  }
+        layer.setValue(true, forKey: "invertsShadow")
+        expect(layer.invertsShadow) == true
+        expect(layer.value(forKey: "invertsShadow") as? Bool) == true
+    }
 }

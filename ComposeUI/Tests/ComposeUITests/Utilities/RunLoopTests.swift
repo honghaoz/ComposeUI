@@ -11,17 +11,17 @@ import ChouTiTest
 
 class RunLoopTests: XCTestCase {
 
-  func test_onNextRunLoop() {
-    let expectation = expectation(description: "onNextRunLoop")
+    func test_onNextRunLoop() {
+        let expectation = expectation(description: "onNextRunLoop")
 
-    var isExecuted = false
-    onNextRunLoop {
-      isExecuted = true
-      expectation.fulfill()
+        var isExecuted = false
+        onNextRunLoop {
+            isExecuted = true
+            expectation.fulfill()
+        }
+
+        expect(isExecuted) == false
+        wait(for: [expectation], timeout: 1)
+        expect(isExecuted) == true
     }
-
-    expect(isExecuted) == false
-    wait(for: [expectation], timeout: 1)
-    expect(isExecuted) == true
-  }
 }

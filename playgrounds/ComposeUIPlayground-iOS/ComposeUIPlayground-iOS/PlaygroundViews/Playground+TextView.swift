@@ -17,108 +17,108 @@ import ComposeUI
 
 extension Playground {
 
-  final class TextView: AnimatingComposeView {
+    final class TextView: AnimatingComposeView {
 
-    private let alignments: [NSTextAlignment] = [
-      .left,
-      .center,
-      .right,
-    ]
+        private let alignments: [NSTextAlignment] = [
+            .left,
+            .center,
+            .right,
+        ]
 
-    private let lineBreakModes: [NSLineBreakMode] = [
-      .byWordWrapping,
-      .byCharWrapping,
-      .byClipping,
-      .byTruncatingTail,
-      .byTruncatingMiddle,
-      .byTruncatingHead,
-    ]
+        private let lineBreakModes: [NSLineBreakMode] = [
+            .byWordWrapping,
+            .byCharWrapping,
+            .byClipping,
+            .byTruncatingTail,
+            .byTruncatingMiddle,
+            .byTruncatingHead,
+        ]
 
-    @ComposeContentBuilder
-    override var content: ComposeContent {
-      Text(attributedString(alignment: .center))
-        .numberOfLines(0)
-        .fixedSize(width: false, height: true)
-        .textContainerInset(horizontal: 16, vertical: 16)
-        .border()
-        .transition(.opacity())
-        .overlay(alignment: .top) {
-          ColorNode(.red.withAlphaComponent(0.1)).height(16)
-        }
-        .overlay(alignment: .bottom) {
-          ColorNode(.red.withAlphaComponent(0.1)).height(16)
-        }
-        .overlay(alignment: .left) {
-          ColorNode(.red.withAlphaComponent(0.1)).width(16)
-        }
-        .overlay(alignment: .right) {
-          ColorNode(.red.withAlphaComponent(0.1)).width(16)
-        }
-
-      Spacer(height: 16)
-
-      Text(
-        longText,
-        font: .systemFont(ofSize: 14),
-        foregroundColor: ThemedColor(light: .purple, dark: .red),
-        backgroundColor: ThemedColor(light: .red.withAlphaComponent(0.1), dark: .green.withAlphaComponent(0.1)),
-        shadow: Themed<NSShadow>(
-          light: {
-            let shadow = NSShadow()
-            shadow.shadowColor = Color.white.withAlphaComponent(0.33)
-            shadow.shadowBlurRadius = 0
-            shadow.shadowOffset = CGSize(width: 0, height: 1)
-            return shadow
-          }(),
-          dark: {
-            let shadow = NSShadow()
-            shadow.shadowColor = Color.black.withAlphaComponent(0.5)
-            shadow.shadowBlurRadius = 0
-            shadow.shadowOffset = CGSize(width: 0, height: -1)
-            return shadow
-          }()
-        ),
-        textAlignment: .left
-      )
-      .fixedSize(width: false, height: true)
-      .padding(horizontal: 4, vertical: 4)
-      .border()
-      .transition(.opacity())
-
-      VStack(spacing: 10) {
-        Spacer(height: 16)
-
-        for (i, numberOfLines) in [1, 2, 0].enumerated() {
-          VStack(spacing: 10) {
-            for lineBreakMode in lineBreakModes {
-              HStack(alignment: .top, spacing: 10) {
-                for alignment in alignments {
-                  Text(attributedString(alignment: alignment, lineBreakMode: numberOfLines == 1 ? lineBreakMode : nil))
-                    .numberOfLines(numberOfLines)
-                    .lineBreakMode(lineBreakMode)
-                    .fixedSize(width: false, height: true)
-                    .editable()
-                    .transition(.opacity())
+        @ComposeContentBuilder
+        override var content: ComposeContent {
+            Text(attributedString(alignment: .center))
+                .numberOfLines(0)
+                .fixedSize(width: false, height: true)
+                .textContainerInset(horizontal: 16, vertical: 16)
+                .border()
+                .transition(.opacity())
+                .overlay(alignment: .top) {
+                    ColorNode(.red.withAlphaComponent(0.1)).height(16)
                 }
-              }
-              .mapChildren { $0.border() }
-            }
-          }
+                .overlay(alignment: .bottom) {
+                    ColorNode(.red.withAlphaComponent(0.1)).height(16)
+                }
+                .overlay(alignment: .left) {
+                    ColorNode(.red.withAlphaComponent(0.1)).width(16)
+                }
+                .overlay(alignment: .right) {
+                    ColorNode(.red.withAlphaComponent(0.1)).width(16)
+                }
 
-          if i == 0 {
             Spacer(height: 16)
-          }
-        }
-      }
-      .mapChildren { node in
-        guard !(node is HStack), !(node is VStack), !(node is Spacer) else {
-          return node
-        }
 
-        return node.border()
-      }
+            Text(
+                longText,
+                font: .systemFont(ofSize: 14),
+                foregroundColor: ThemedColor(light: .purple, dark: .red),
+                backgroundColor: ThemedColor(light: .red.withAlphaComponent(0.1), dark: .green.withAlphaComponent(0.1)),
+                shadow: Themed<NSShadow>(
+                    light: {
+                        let shadow = NSShadow()
+                        shadow.shadowColor = Color.white.withAlphaComponent(0.33)
+                        shadow.shadowBlurRadius = 0
+                        shadow.shadowOffset = CGSize(width: 0, height: 1)
+                        return shadow
+                    }(),
+                    dark: {
+                        let shadow = NSShadow()
+                        shadow.shadowColor = Color.black.withAlphaComponent(0.5)
+                        shadow.shadowBlurRadius = 0
+                        shadow.shadowOffset = CGSize(width: 0, height: -1)
+                        return shadow
+                    }()
+                ),
+                textAlignment: .left
+            )
+            .fixedSize(width: false, height: true)
+            .padding(horizontal: 4, vertical: 4)
+            .border()
+            .transition(.opacity())
+
+            VStack(spacing: 10) {
+                Spacer(height: 16)
+
+                for (i, numberOfLines) in [1, 2, 0].enumerated() {
+                    VStack(spacing: 10) {
+                        for lineBreakMode in lineBreakModes {
+                            HStack(alignment: .top, spacing: 10) {
+                                for alignment in alignments {
+                                    Text(attributedString(alignment: alignment, lineBreakMode: numberOfLines == 1 ? lineBreakMode : nil))
+                                        .numberOfLines(numberOfLines)
+                                        .lineBreakMode(lineBreakMode)
+                                        .fixedSize(width: false, height: true)
+                                        .editable()
+                                        .transition(.opacity())
+                                }
+                            }
+                            .mapChildren { $0.border() }
+                        }
+                    }
+
+                    if i == 0 {
+                        Spacer(height: 16)
+                    }
+                }
+            }
+            .mapChildren { node in
+                guard !(node is HStack), !(node is VStack), !(node is Spacer) else {
+                    return node
+                }
+
+                return node.border()
+            }
+        }
     }
-  }
 }
 
 private let longText = """
@@ -126,24 +126,24 @@ Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
 """
 
 private func attributedString(alignment: NSTextAlignment, lineBreakMode: NSLineBreakMode? = nil) -> NSAttributedString {
-  let style = NSMutableParagraphStyle()
-  style.alignment = alignment
-  style.lineBreakMode = lineBreakMode ?? .byWordWrapping
-  style.lineBreakStrategy = []
+    let style = NSMutableParagraphStyle()
+    style.alignment = alignment
+    style.lineBreakMode = lineBreakMode ?? .byWordWrapping
+    style.lineBreakStrategy = []
 
-  return NSAttributedString(string: longText, attributes: [
-    .font: Font.systemFont(ofSize: 12),
-    .themedForegroundColor: ThemedColor(light: Color.black.withAlphaComponent(0.9), dark: Color.white.withAlphaComponent(0.9)),
-    .paragraphStyle: style,
-  ])
+    return NSAttributedString(string: longText, attributes: [
+        .font: Font.systemFont(ofSize: 12),
+        .themedForegroundColor: ThemedColor(light: Color.black.withAlphaComponent(0.9), dark: Color.white.withAlphaComponent(0.9)),
+        .paragraphStyle: style,
+    ])
 }
 
 private extension ComposeNode {
 
-  func border() -> some ComposeNode {
-    self.underlay {
-      LayerNode()
-        .border(color: Color.gray, width: 1)
+    func border() -> some ComposeNode {
+        self.underlay {
+            LayerNode()
+                .border(color: Color.gray, width: 1)
+        }
     }
-  }
 }

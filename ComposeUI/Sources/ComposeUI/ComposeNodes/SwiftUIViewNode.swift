@@ -16,100 +16,100 @@ import UIKit
 /// or adapts to the container size for each dimension.
 public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSizableComposeNode {
 
-  public var isFixedWidth: Bool = false
-  public var isFixedHeight: Bool = false
+    public var isFixedWidth: Bool = false
+    public var isFixedHeight: Bool = false
 
-  private var content: () -> Content
-  private var isStaticContent: Bool
+    private var content: () -> Content
+    private var isStaticContent: Bool
 
-  /// Create a static SwiftUI view node.
-  ///
-  /// This is a static SwiftUI view node. The SwiftUI view will be rendered once and not updated.
-  /// Use `SwiftUIViewNode { ... }` to create a dynamic SwiftUI view node.
-  ///
-  /// - Parameters:
-  ///   - id: The id used to differentiate the SwiftUI content. The id should be unique to the SwiftUI content.
-  ///   - content: The SwiftUI view to render.
-  public init(id: String, _ content: Content) {
-    self.content = { content }
-    self.isStaticContent = true
-    self.id = .custom("SUI-\(id)")
-  }
-
-  /// Create a dynamic SwiftUI view node.
-  ///
-  /// - Parameters:
-  ///   - content: A closure that returns the SwiftUI view to render.
-  public init(_ content: @escaping () -> Content) {
-    self.content = content
-    self.isStaticContent = false
-    self.id = .standard(.swiftui)
-  }
-
-  // MARK: - ComposeNode
-
-  public var id: ComposeNodeId
-
-  public private(set) var size: CGSize = .zero
-
-  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    switch (isFixedWidth, isFixedHeight) {
-    case (true, true):
-      size = content().sizeThatFits(containerSize)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
-    case (true, false):
-      size = CGSize(width: content().sizeThatFits(containerSize).width, height: containerSize.height)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
-    case (false, true):
-      size = CGSize(width: containerSize.width, height: content().sizeThatFits(containerSize).height)
-      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
-    case (false, false):
-      size = containerSize
-      return ComposeNodeSizing(width: .flexible, height: .flexible)
-    }
-  }
-
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    let frame = CGRect(origin: .zero, size: size)
-    guard visibleBounds.intersects(frame) else {
-      return []
+    /// Create a static SwiftUI view node.
+    ///
+    /// This is a static SwiftUI view node. The SwiftUI view will be rendered once and not updated.
+    /// Use `SwiftUIViewNode { ... }` to create a dynamic SwiftUI view node.
+    ///
+    /// - Parameters:
+    ///   - id: The id used to differentiate the SwiftUI content. The id should be unique to the SwiftUI content.
+    ///   - content: The SwiftUI view to render.
+    public init(id: String, _ content: Content) {
+        self.content = { content }
+        self.isStaticContent = true
+        self.id = .custom("SUI-\(id)")
     }
 
-    let viewItem = ViewItem<UIView>(
-      id: id,
-      frame: frame,
-      make: { context in
-        let view: SwiftUIHostingView<AnyView>
-        if isStaticContent {
-          view = SwiftUIHostingView(rootView: AnyView(content()))
-        } else {
-          view = MutableSwiftUIHostingView()
+    /// Create a dynamic SwiftUI view node.
+    ///
+    /// - Parameters:
+    ///   - content: A closure that returns the SwiftUI view to render.
+    public init(_ content: @escaping () -> Content) {
+        self.content = content
+        self.isStaticContent = false
+        self.id = .standard(.swiftui)
+    }
+
+    // MARK: - ComposeNode
+
+    public var id: ComposeNodeId
+
+    public private(set) var size: CGSize = .zero
+
+    public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+        switch (isFixedWidth, isFixedHeight) {
+        case (true, true):
+            size = content().sizeThatFits(containerSize)
+            return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+        case (true, false):
+            size = CGSize(width: content().sizeThatFits(containerSize).width, height: containerSize.height)
+            return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
+        case (false, true):
+            size = CGSize(width: containerSize.width, height: content().sizeThatFits(containerSize).height)
+            return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
+        case (false, false):
+            size = containerSize
+            return ComposeNodeSizing(width: .flexible, height: .flexible)
         }
-        if let initialFrame = context.initialFrame {
-          view.frame = initialFrame
-        }
-        return view
-      },
-      update: { view, context in
-        guard !isStaticContent else {
-          return
+    }
+
+    public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+        let frame = CGRect(origin: .zero, size: size)
+        guard visibleBounds.intersects(frame) else {
+            return []
         }
 
-        switch context.updateType {
-        case .insert,
-             .refresh,
-             .boundsChange:
-          break
-        case .scroll:
-          return
-        }
+        let viewItem = ViewItem<UIView>(
+            id: id,
+            frame: frame,
+            make: { context in
+                let view: SwiftUIHostingView<AnyView>
+                if isStaticContent {
+                    view = SwiftUIHostingView(rootView: AnyView(content()))
+                } else {
+                    view = MutableSwiftUIHostingView()
+                }
+                if let initialFrame = context.initialFrame {
+                    view.frame = initialFrame
+                }
+                return view
+            },
+            update: { view, context in
+                guard !isStaticContent else {
+                    return
+                }
 
-        (view as? MutableSwiftUIHostingView)
-          .assertNotNil("view should be a MutableSwiftUIHostingView")?
-          .content = AnyView(content())
-      }
-    )
+                switch context.updateType {
+                case .insert,
+                     .refresh,
+                     .boundsChange:
+                    break
+                case .scroll:
+                    return
+                }
 
-    return [viewItem.eraseToRenderableItem()]
-  }
+                (view as? MutableSwiftUIHostingView)
+                    .assertNotNil("view should be a MutableSwiftUIHostingView")?
+                    .content = AnyView(content())
+            }
+        )
+
+        return [viewItem.eraseToRenderableItem()]
+    }
 }

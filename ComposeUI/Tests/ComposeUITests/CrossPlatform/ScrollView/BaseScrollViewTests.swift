@@ -12,398 +12,398 @@ import ComposeUI
 
 class BaseScrollViewTests: XCTestCase {
 
-  // Logic copied and adapted from ChouTiUI:
-  // https://github.com/honghaoz/ChouTiUI/blob/e67ac0e292ebfe71340a2ba4ae740b2c0edf1efb/ChouTiUI/Tests/ChouTiUITests/Universal/Theming/ThemeUpdating/View%2BThemeUpdatingTests.swift
+    // Logic copied and adapted from ChouTiUI:
+    // https://github.com/honghaoz/ChouTiUI/blob/e67ac0e292ebfe71340a2ba4ae740b2c0edf1efb/ChouTiUI/Tests/ChouTiUITests/Universal/Theming/ThemeUpdating/View%2BThemeUpdatingTests.swift
 
-  // MARK: - Theme
+    // MARK: - Theme
 
-  func test_theme() throws {
-    let scrollView = BaseScrollView()
-    let initialTheme = scrollView.theme
+    func test_theme() throws {
+        let scrollView = BaseScrollView()
+        let initialTheme = scrollView.theme
 
-    // set the override theme to the opposite of the initial theme
-    let overrideTheme: Theme
-    switch initialTheme {
-    case .light:
-      overrideTheme = .dark
-    case .dark:
-      overrideTheme = .light
+        // set the override theme to the opposite of the initial theme
+        let overrideTheme: Theme
+        switch initialTheme {
+        case .light:
+            overrideTheme = .dark
+        case .dark:
+            overrideTheme = .light
+        }
+
+        scrollView.overrideTheme = overrideTheme
+        expect(scrollView.theme) == overrideTheme
     }
 
-    scrollView.overrideTheme = overrideTheme
-    expect(scrollView.theme) == overrideTheme
-  }
+    func test_theme_standaloneView() {
+        let currentTheme = ThemingTest.currentTheme
+        let view = BaseScrollView()
 
-  func test_theme_standaloneView() {
-    let currentTheme = ThemingTest.currentTheme
-    let view = BaseScrollView()
+        expect(view.theme) == currentTheme
+        expect(view.overrideTheme) == nil
 
-    expect(view.theme) == currentTheme
-    expect(view.overrideTheme) == nil
+        view.overrideTheme = .dark
+        expect(view.theme) == .dark
+        expect(view.overrideTheme) == .dark
 
-    view.overrideTheme = .dark
-    expect(view.theme) == .dark
-    expect(view.overrideTheme) == .dark
+        view.overrideTheme = nil
+        #if os(macOS)
+        expect(view.theme) == .dark // expected to be currentTheme, but it returns the last override theme
+        #else
+        expect(view.theme) == currentTheme
+        #endif
+        expect(view.overrideTheme) == nil
 
-    view.overrideTheme = nil
-    #if os(macOS)
-    expect(view.theme) == .dark // expected to be currentTheme, but it returns the last override theme
-    #else
-    expect(view.theme) == currentTheme
-    #endif
-    expect(view.overrideTheme) == nil
+        view.overrideTheme = .light
+        expect(view.theme) == .light
+        expect(view.overrideTheme) == .light
 
-    view.overrideTheme = .light
-    expect(view.theme) == .light
-    expect(view.overrideTheme) == .light
-
-    view.overrideTheme = nil
-    #if os(macOS)
-    expect(view.theme) == .light // expected to be currentTheme, but it returns the last override theme
-    #else
-    expect(view.theme) == currentTheme
-    #endif
-    expect(view.overrideTheme) == nil
-  }
-
-  func test_theme_viewInWindow() {
-    let currentTheme = ThemingTest.currentTheme
-
-    let window = TestWindow()
-    let view = BaseScrollView()
-    window.contentView().addSubview(view)
-
-    expect(view.theme) == currentTheme
-    expect(view.overrideTheme) == nil
-
-    view.overrideTheme = .dark
-    expect(view.theme) == .dark
-    expect(view.overrideTheme) == .dark
-
-    view.overrideTheme = nil
-    expect(view.theme) == currentTheme
-    expect(view.overrideTheme) == nil
-
-    view.overrideTheme = .light
-    expect(view.theme) == .light
-    expect(view.overrideTheme) == .light
-
-    view.overrideTheme = nil
-    expect(view.theme) == currentTheme
-    expect(view.overrideTheme) == nil
-  }
-
-  /// Test that view in view hierarchy should follow the parent view's theme.
-  func test_theme_viewInViewHierarchy() {
-    let currentTheme = ThemingTest.currentTheme
-
-    // given a container view in a window
-    let window = TestWindow()
-    let containerView = BaseScrollView()
-    window.contentView().addSubview(containerView)
-    expect(containerView.theme) == currentTheme
-    expect(containerView.overrideTheme) == nil
-
-    // given a child view in the container view
-    let childView1 = BaseScrollView()
-    containerView.addSubview(childView1)
-
-    // then the child view's theme should be the same as the container view's theme
-    expect(childView1.theme) == currentTheme
-    expect(childView1.overrideTheme) == nil
-
-    containerView.overrideTheme = .dark
-    expectTheme(of: childView1, toBe: .dark)
-    expect(childView1.overrideTheme) == nil
-
-    containerView.overrideTheme = nil
-    expectTheme(of: childView1, toBe: currentTheme)
-    expect(childView1.theme) == currentTheme
-    expect(childView1.overrideTheme) == nil
-
-    containerView.overrideTheme = .light
-    expectTheme(of: childView1, toBe: .light)
-    expect(childView1.overrideTheme) == nil
-
-    containerView.overrideTheme = nil
-    expectTheme(of: childView1, toBe: currentTheme)
-    expect(childView1.theme) == currentTheme
-    expect(childView1.overrideTheme) == nil
-
-    // when set the container view's override theme to the opposite of the current theme
-    containerView.overrideTheme = currentTheme.opposite
-    expect(containerView.theme) == currentTheme.opposite
-    expect(containerView.overrideTheme) == currentTheme.opposite
-
-    // given a new child view
-    let childView2 = BaseScrollView()
-
-    // when it is a standalone view, it should follow the current theme
-    expect(childView2.theme) == currentTheme
-    expect(childView2.overrideTheme) == nil
-
-    // when it is added to the container view, it should follow the container view's theme
-    containerView.addSubview(childView2)
-    expectTheme(of: childView2, toBe: currentTheme.opposite)
-    expect(childView2.overrideTheme) == nil
-
-    // when the child view is removed from the container view, it should keep the same theme as before
-    childView2.removeFromSuperview()
-    expectTheme(of: childView2, toBe: currentTheme.opposite)
-    expect(childView2.overrideTheme) == nil
-
-    // given a new nested child view
-    let childView3 = BaseScrollView()
-    let childView4 = BaseScrollView()
-    childView3.addSubview(childView4)
-
-    // when it is a standalone view, it should follow the current theme
-    expect(childView3.theme) == currentTheme
-    expect(childView3.overrideTheme) == nil
-    expect(childView4.theme) == currentTheme
-    expect(childView4.overrideTheme) == nil
-
-    // when they are added to the container view, they should follow the container view's theme
-    containerView.addSubview(childView3)
-    expectTheme(of: childView3, toBe: currentTheme.opposite)
-    expect(childView3.overrideTheme) == nil
-    expectTheme(of: childView4, toBe: currentTheme.opposite)
-    expect(childView4.overrideTheme) == nil
-  }
-
-  // MARK: - Edge Cases
-
-  func test_theme_onBackgroundThread() {
-    let currentTheme = ThemingTest.currentTheme
-
-    let expectation = XCTestExpectation(description: "theme")
-
-    let view = BaseScrollView()
-
-    DispatchQueue.global().async {
-      expect(view.theme) == currentTheme
-      expect(view.overrideTheme) == nil
-
-      view.overrideTheme = .dark
-      expect(view.theme) == .dark
-      expect(view.overrideTheme) == .dark
-
-      expectation.fulfill()
+        view.overrideTheme = nil
+        #if os(macOS)
+        expect(view.theme) == .light // expected to be currentTheme, but it returns the last override theme
+        #else
+        expect(view.theme) == currentTheme
+        #endif
+        expect(view.overrideTheme) == nil
     }
 
-    wait(for: [expectation], timeout: 1)
-  }
+    func test_theme_viewInWindow() {
+        let currentTheme = ThemingTest.currentTheme
 
-  // MARK: - Theme Publisher
+        let window = TestWindow()
+        let view = BaseScrollView()
+        window.contentView().addSubview(view)
 
-  func test_themePublisher() throws {
-    let window = TestWindow()
-    #if canImport(AppKit)
-    window.appearance = NSAppearance(named: .darkAqua)
-    let scrollView = BaseScrollView()
-    window.contentView?.addSubview(scrollView)
-    #endif
+        expect(view.theme) == currentTheme
+        expect(view.overrideTheme) == nil
 
-    #if canImport(UIKit)
-    window.overrideUserInterfaceStyle = .dark
-    let scrollView = BaseScrollView()
-    window.addSubview(scrollView)
-    scrollView.frame = window.bounds
-    #endif
+        view.overrideTheme = .dark
+        expect(view.theme) == .dark
+        expect(view.overrideTheme) == .dark
 
-    // flush the run loop to make sure the theme is set
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+        view.overrideTheme = nil
+        expect(view.theme) == currentTheme
+        expect(view.overrideTheme) == nil
 
-    let initialTheme = scrollView.theme
+        view.overrideTheme = .light
+        expect(view.theme) == .light
+        expect(view.overrideTheme) == .light
 
-    let overrideTheme: Theme
-    switch initialTheme {
-    case .light:
-      overrideTheme = .dark
-    case .dark:
-      overrideTheme = .light
+        view.overrideTheme = nil
+        expect(view.theme) == currentTheme
+        expect(view.overrideTheme) == nil
     }
 
-    let expectation1 = expectation(description: "themePublisher should emit the override theme")
-    let expectation2 = expectation(description: "themePublisher should emit the initial theme")
-    let expectation3 = expectation(description: "themePublisher should emit the new theme")
+    /// Test that view in view hierarchy should follow the parent view's theme.
+    func test_theme_viewInViewHierarchy() {
+        let currentTheme = ThemingTest.currentTheme
 
-    var callCount = 0
-    let cancellable = scrollView.themePublisher.sink { theme in
-      switch callCount {
-      case 0:
-        expect(theme) == initialTheme // the initial emission
-      case 1:
-        expect(theme) == overrideTheme // the override theme
-        expectation1.fulfill()
-      case 2:
-        expect(theme) == initialTheme // remove the override theme
-        expectation2.fulfill()
-      case 3:
-        expect(theme) == .light // moved to the new window
-        expectation3.fulfill()
-      default:
-        fail("excessive emissions")
-      }
-      callCount += 1
+        // given a container view in a window
+        let window = TestWindow()
+        let containerView = BaseScrollView()
+        window.contentView().addSubview(containerView)
+        expect(containerView.theme) == currentTheme
+        expect(containerView.overrideTheme) == nil
+
+        // given a child view in the container view
+        let childView1 = BaseScrollView()
+        containerView.addSubview(childView1)
+
+        // then the child view's theme should be the same as the container view's theme
+        expect(childView1.theme) == currentTheme
+        expect(childView1.overrideTheme) == nil
+
+        containerView.overrideTheme = .dark
+        expectTheme(of: childView1, toBe: .dark)
+        expect(childView1.overrideTheme) == nil
+
+        containerView.overrideTheme = nil
+        expectTheme(of: childView1, toBe: currentTheme)
+        expect(childView1.theme) == currentTheme
+        expect(childView1.overrideTheme) == nil
+
+        containerView.overrideTheme = .light
+        expectTheme(of: childView1, toBe: .light)
+        expect(childView1.overrideTheme) == nil
+
+        containerView.overrideTheme = nil
+        expectTheme(of: childView1, toBe: currentTheme)
+        expect(childView1.theme) == currentTheme
+        expect(childView1.overrideTheme) == nil
+
+        // when set the container view's override theme to the opposite of the current theme
+        containerView.overrideTheme = currentTheme.opposite
+        expect(containerView.theme) == currentTheme.opposite
+        expect(containerView.overrideTheme) == currentTheme.opposite
+
+        // given a new child view
+        let childView2 = BaseScrollView()
+
+        // when it is a standalone view, it should follow the current theme
+        expect(childView2.theme) == currentTheme
+        expect(childView2.overrideTheme) == nil
+
+        // when it is added to the container view, it should follow the container view's theme
+        containerView.addSubview(childView2)
+        expectTheme(of: childView2, toBe: currentTheme.opposite)
+        expect(childView2.overrideTheme) == nil
+
+        // when the child view is removed from the container view, it should keep the same theme as before
+        childView2.removeFromSuperview()
+        expectTheme(of: childView2, toBe: currentTheme.opposite)
+        expect(childView2.overrideTheme) == nil
+
+        // given a new nested child view
+        let childView3 = BaseScrollView()
+        let childView4 = BaseScrollView()
+        childView3.addSubview(childView4)
+
+        // when it is a standalone view, it should follow the current theme
+        expect(childView3.theme) == currentTheme
+        expect(childView3.overrideTheme) == nil
+        expect(childView4.theme) == currentTheme
+        expect(childView4.overrideTheme) == nil
+
+        // when they are added to the container view, they should follow the container view's theme
+        containerView.addSubview(childView3)
+        expectTheme(of: childView3, toBe: currentTheme.opposite)
+        expect(childView3.overrideTheme) == nil
+        expectTheme(of: childView4, toBe: currentTheme.opposite)
+        expect(childView4.overrideTheme) == nil
     }
-    _ = cancellable
 
-    scrollView.overrideTheme = overrideTheme
+    // MARK: - Edge Cases
 
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+    func test_theme_onBackgroundThread() {
+        let currentTheme = ThemingTest.currentTheme
 
-    scrollView.overrideTheme = nil
+        let expectation = XCTestExpectation(description: "theme")
 
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+        let view = BaseScrollView()
 
-    #if canImport(AppKit)
-    let window2 = TestWindow()
-    window2.appearance = NSAppearance(named: .aqua)
-    window2.contentView?.addSubview(scrollView)
-    #endif
+        DispatchQueue.global().async {
+            expect(view.theme) == currentTheme
+            expect(view.overrideTheme) == nil
 
-    #if canImport(UIKit)
-    let window2 = TestWindow()
-    window2.overrideUserInterfaceStyle = .light
-    window2.addSubview(scrollView)
-    #endif
+            view.overrideTheme = .dark
+            expect(view.theme) == .dark
+            expect(view.overrideTheme) == .dark
 
-    waitForExpectations(timeout: 1)
-  }
+            expectation.fulfill()
+        }
 
-  func test_themePublisher_debounce() {
-    let window = TestWindow()
-
-    let view = BaseScrollView()
-    window.contentView().addSubview(view)
-
-    // ensure initial theme is light
-    view.overrideTheme = .light
-    wait(timeout: 0.05)
-    expect(view.theme) == .light
-
-    var receivedThemes: [Theme] = []
-    let cancellable = view.themePublisher.dropFirst().sink { theme in
-      receivedThemes.append(theme)
+        wait(for: [expectation], timeout: 1)
     }
-    _ = cancellable
 
-    view.overrideTheme = .dark
-    expect(view.theme) == .dark
-    expect(receivedThemes) == []
+    // MARK: - Theme Publisher
 
-    view.overrideTheme = .light
-    expect(view.theme) == .light
-    expect(receivedThemes) == []
+    func test_themePublisher() throws {
+        let window = TestWindow()
+        #if canImport(AppKit)
+        window.appearance = NSAppearance(named: .darkAqua)
+        let scrollView = BaseScrollView()
+        window.contentView?.addSubview(scrollView)
+        #endif
 
-    view.overrideTheme = .dark
-    expect(view.theme) == .dark
-    expect(receivedThemes) == []
+        #if canImport(UIKit)
+        window.overrideUserInterfaceStyle = .dark
+        let scrollView = BaseScrollView()
+        window.addSubview(scrollView)
+        scrollView.frame = window.bounds
+        #endif
 
-    // only [.dark] because of trailing debounce
-    expect(receivedThemes).toEventually(beEqual(to: [.dark]))
-  }
+        // flush the run loop to make sure the theme is set
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
 
-  /// Test that when view's override theme is set, the theme publisher should emit the override theme.
-  func test_themePublisher_overrideTheme() {
-    let window = TestWindow()
+        let initialTheme = scrollView.theme
 
-    let currentTheme = ThemingTest.currentTheme
-    let initialTheme = currentTheme.opposite
+        let overrideTheme: Theme
+        switch initialTheme {
+        case .light:
+            overrideTheme = .dark
+        case .dark:
+            overrideTheme = .light
+        }
 
-    // given a view
-    let view = BaseScrollView()
-    window.contentView().addSubview(view)
+        let expectation1 = expectation(description: "themePublisher should emit the override theme")
+        let expectation2 = expectation(description: "themePublisher should emit the initial theme")
+        let expectation3 = expectation(description: "themePublisher should emit the new theme")
 
-    // subscribe to the theme publisher
-    var receivedThemes: [Theme] = []
-    let cancellable = view.themePublisher.dropFirst().sink { theme in
-      receivedThemes.append(theme)
+        var callCount = 0
+        let cancellable = scrollView.themePublisher.sink { theme in
+            switch callCount {
+            case 0:
+                expect(theme) == initialTheme // the initial emission
+            case 1:
+                expect(theme) == overrideTheme // the override theme
+                expectation1.fulfill()
+            case 2:
+                expect(theme) == initialTheme // remove the override theme
+                expectation2.fulfill()
+            case 3:
+                expect(theme) == .light // moved to the new window
+                expectation3.fulfill()
+            default:
+                fail("excessive emissions")
+            }
+            callCount += 1
+        }
+        _ = cancellable
+
+        scrollView.overrideTheme = overrideTheme
+
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+
+        scrollView.overrideTheme = nil
+
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+
+        #if canImport(AppKit)
+        let window2 = TestWindow()
+        window2.appearance = NSAppearance(named: .aqua)
+        window2.contentView?.addSubview(scrollView)
+        #endif
+
+        #if canImport(UIKit)
+        let window2 = TestWindow()
+        window2.overrideUserInterfaceStyle = .light
+        window2.addSubview(scrollView)
+        #endif
+
+        waitForExpectations(timeout: 1)
     }
-    _ = cancellable
 
-    // when set the override theme to the opposite of the current theme
-    view.overrideTheme = initialTheme
+    func test_themePublisher_debounce() {
+        let window = TestWindow()
 
-    // then the view's theme and theme publisher value should be the initial override theme
-    expect(view.theme) == initialTheme
-    expect(receivedThemes).toEventually(beEqual(to: [initialTheme]))
-  }
+        let view = BaseScrollView()
+        window.contentView().addSubview(view)
 
-  /// Test that when view moves to a new parent view, the theme publisher only updates if the new parent view has a different theme.
-  func test_themePublisher_viewHierarchy() {
-    let currentTheme = ThemingTest.currentTheme
+        // ensure initial theme is light
+        view.overrideTheme = .light
+        wait(timeout: 0.05)
+        expect(view.theme) == .light
 
-    let window = TestWindow()
+        var receivedThemes: [Theme] = []
+        let cancellable = view.themePublisher.dropFirst().sink { theme in
+            receivedThemes.append(theme)
+        }
+        _ = cancellable
 
-    // given a container view with an initial theme (the opposite of the current theme)
-    let containerView = BaseScrollView()
-    window.contentView().addSubview(containerView)
-    containerView.overrideTheme = currentTheme.opposite
+        view.overrideTheme = .dark
+        expect(view.theme) == .dark
+        expect(receivedThemes) == []
 
-    // given a child view
-    let childView = BaseScrollView()
+        view.overrideTheme = .light
+        expect(view.theme) == .light
+        expect(receivedThemes) == []
 
-    // observe child view's theme updates
-    var receivedThemes: [Theme] = []
-    let cancellable = childView.themePublisher.sink { theme in
-      receivedThemes.append(theme)
+        view.overrideTheme = .dark
+        expect(view.theme) == .dark
+        expect(receivedThemes) == []
+
+        // only [.dark] because of trailing debounce
+        expect(receivedThemes).toEventually(beEqual(to: [.dark]))
     }
-    _ = cancellable
 
-    expect(childView.theme) == currentTheme // the standalone view should follow the current theme
-    expect(receivedThemes).toEventually(beEqual(to: [currentTheme]))
+    /// Test that when view's override theme is set, the theme publisher should emit the override theme.
+    func test_themePublisher_overrideTheme() {
+        let window = TestWindow()
 
-    // when add the child view to the container view
-    containerView.addSubview(childView)
+        let currentTheme = ThemingTest.currentTheme
+        let initialTheme = currentTheme.opposite
 
-    // then the child view's theme and theme publisher value should be the same as the container view's theme
-    // use toEventually because the theme update happens on next runloop
-    expect(childView.theme).toEventually(beEqual(to: currentTheme.opposite))
-    expect(receivedThemes).toEventually(beEqual(to: [currentTheme, currentTheme.opposite]))
+        // given a view
+        let view = BaseScrollView()
+        window.contentView().addSubview(view)
 
-    // when change the container view's theme
-    containerView.overrideTheme = currentTheme
+        // subscribe to the theme publisher
+        var receivedThemes: [Theme] = []
+        let cancellable = view.themePublisher.dropFirst().sink { theme in
+            receivedThemes.append(theme)
+        }
+        _ = cancellable
 
-    // then the child view's theme and theme publisher value should also update to the new theme
-    expect(childView.theme).toEventually(beEqual(to: currentTheme))
-    expect(receivedThemes).toEventually(beEqual(to: [currentTheme, currentTheme.opposite, currentTheme]))
-  }
+        // when set the override theme to the opposite of the current theme
+        view.overrideTheme = initialTheme
 
-  // MARK: - Helper
+        // then the view's theme and theme publisher value should be the initial override theme
+        expect(view.theme) == initialTheme
+        expect(receivedThemes).toEventually(beEqual(to: [initialTheme]))
+    }
 
-  /// Expect the theme of a view to be the given theme.
-  private func expectTheme(of view: BaseScrollView, toBe expectedTheme: Theme, line: UInt = #line) {
-    #if os(macOS)
-    expect(view.theme, line: line) == expectedTheme // macOS theme update happens immediately
-    #else
-    expect(view.theme, line: line).toEventually(beEqual(to: expectedTheme)) // UIKit theme update happens on next runloop
-    #endif
-  }
+    /// Test that when view moves to a new parent view, the theme publisher only updates if the new parent view has a different theme.
+    func test_themePublisher_viewHierarchy() {
+        let currentTheme = ThemingTest.currentTheme
+
+        let window = TestWindow()
+
+        // given a container view with an initial theme (the opposite of the current theme)
+        let containerView = BaseScrollView()
+        window.contentView().addSubview(containerView)
+        containerView.overrideTheme = currentTheme.opposite
+
+        // given a child view
+        let childView = BaseScrollView()
+
+        // observe child view's theme updates
+        var receivedThemes: [Theme] = []
+        let cancellable = childView.themePublisher.sink { theme in
+            receivedThemes.append(theme)
+        }
+        _ = cancellable
+
+        expect(childView.theme) == currentTheme // the standalone view should follow the current theme
+        expect(receivedThemes).toEventually(beEqual(to: [currentTheme]))
+
+        // when add the child view to the container view
+        containerView.addSubview(childView)
+
+        // then the child view's theme and theme publisher value should be the same as the container view's theme
+        // use toEventually because the theme update happens on next runloop
+        expect(childView.theme).toEventually(beEqual(to: currentTheme.opposite))
+        expect(receivedThemes).toEventually(beEqual(to: [currentTheme, currentTheme.opposite]))
+
+        // when change the container view's theme
+        containerView.overrideTheme = currentTheme
+
+        // then the child view's theme and theme publisher value should also update to the new theme
+        expect(childView.theme).toEventually(beEqual(to: currentTheme))
+        expect(receivedThemes).toEventually(beEqual(to: [currentTheme, currentTheme.opposite, currentTheme]))
+    }
+
+    // MARK: - Helper
+
+    /// Expect the theme of a view to be the given theme.
+    private func expectTheme(of view: BaseScrollView, toBe expectedTheme: Theme, line: UInt = #line) {
+        #if os(macOS)
+        expect(view.theme, line: line) == expectedTheme // macOS theme update happens immediately
+        #else
+        expect(view.theme, line: line).toEventually(beEqual(to: expectedTheme)) // UIKit theme update happens on next runloop
+        #endif
+    }
 }
 
 private enum ThemingTest {
 
-  /// Get the current theme, this is based on the current system theme.
-  static var currentTheme: Theme {
-    #if os(macOS)
-    return NSApplication.shared.effectiveAppearance.theme // current macOS system theme
-    #else
-    return UITraitCollection.current.userInterfaceStyle.theme // current iOS/tvOS/visionOS system theme
-    #endif
-  }
+    /// Get the current theme, this is based on the current system theme.
+    static var currentTheme: Theme {
+        #if os(macOS)
+        return NSApplication.shared.effectiveAppearance.theme // current macOS system theme
+        #else
+        return UITraitCollection.current.userInterfaceStyle.theme // current iOS/tvOS/visionOS system theme
+        #endif
+    }
 }
 
 private extension Theme {
 
-  /// Returns the opposite theme.
-  var opposite: Theme {
-    switch self {
-    case .light:
-      return .dark
-    case .dark:
-      return .light
+    /// Returns the opposite theme.
+    var opposite: Theme {
+        switch self {
+        case .light:
+            return .dark
+        case .dark:
+            return .light
+        }
     }
-  }
 }

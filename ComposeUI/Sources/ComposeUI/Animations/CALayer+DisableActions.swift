@@ -11,63 +11,63 @@ import QuartzCore
 
 public extension CALayer {
 
-  /// Execute the block with the specified actions disabled.
-  ///
-  /// `CALayer` has implicit animations for some properties, which is not desired in some cases.
-  /// This method helps to disable the implicit animations for the given keys.
-  ///
-  /// Example:
-  ///
-  /// ```swift
-  /// layer.disableActions(for: "position", "bounds", "transform") {
-  ///   layer.frame = newFrame
-  ///   layer.transform = CATransform3DIdentity
-  /// }
-  /// ```
-  ///
-  /// If you need to disable all possible actions for the layer, use `disableActions(_:)`.
-  /// - Parameters:
-  ///   - keys: The keys to disable actions for.
-  ///   - work: The block to execute.
-  @inlinable
-  @inline(__always)
-  func disableActions(for keys: String..., work: () throws -> Void) rethrows {
-    try disableActions(for: keys, work)
-  }
-
-  /// Execute the block with the specified actions disabled.
-  ///
-  /// `CALayer` has implicit animations for some properties, which is not desired in some cases.
-  /// This method helps to disable the implicit animations for the given keys.
-  ///
-  /// Example:
-  ///
-  /// ```swift
-  /// layer.disableActions(for: ["position", "bounds", "transform"]) {
-  ///   layer.frame = newFrame
-  ///   layer.transform = CATransform3DIdentity
-  /// }
-  /// ```
-  ///
-  /// If you need to disable all possible actions for the layer, use `disableActions(_:)`.
-  ///
-  /// - Parameters:
-  ///   - keys: The keys to disable actions for.
-  ///   - work: The block to execute.
-  func disableActions(for keys: [String], _ work: () throws -> Void) rethrows {
-    let originalActions = actions
-
-    var disabledActions = [String: CAAction]()
-    disabledActions.reserveCapacity(keys.count)
-
-    for key in keys {
-      disabledActions[key] = NSNull()
+    /// Execute the block with the specified actions disabled.
+    ///
+    /// `CALayer` has implicit animations for some properties, which is not desired in some cases.
+    /// This method helps to disable the implicit animations for the given keys.
+    ///
+    /// Example:
+    ///
+    /// ```swift
+    /// layer.disableActions(for: "position", "bounds", "transform") {
+    ///   layer.frame = newFrame
+    ///   layer.transform = CATransform3DIdentity
+    /// }
+    /// ```
+    ///
+    /// If you need to disable all possible actions for the layer, use `disableActions(_:)`.
+    /// - Parameters:
+    ///   - keys: The keys to disable actions for.
+    ///   - work: The block to execute.
+    @inlinable
+    @inline(__always)
+    func disableActions(for keys: String..., work: () throws -> Void) rethrows {
+        try disableActions(for: keys, work)
     }
 
-    actions = disabledActions
+    /// Execute the block with the specified actions disabled.
+    ///
+    /// `CALayer` has implicit animations for some properties, which is not desired in some cases.
+    /// This method helps to disable the implicit animations for the given keys.
+    ///
+    /// Example:
+    ///
+    /// ```swift
+    /// layer.disableActions(for: ["position", "bounds", "transform"]) {
+    ///   layer.frame = newFrame
+    ///   layer.transform = CATransform3DIdentity
+    /// }
+    /// ```
+    ///
+    /// If you need to disable all possible actions for the layer, use `disableActions(_:)`.
+    ///
+    /// - Parameters:
+    ///   - keys: The keys to disable actions for.
+    ///   - work: The block to execute.
+    func disableActions(for keys: [String], _ work: () throws -> Void) rethrows {
+        let originalActions = actions
 
-    try work()
+        var disabledActions = [String: CAAction]()
+        disabledActions.reserveCapacity(keys.count)
 
-    actions = originalActions
-  }
+        for key in keys {
+            disabledActions[key] = NSNull()
+        }
+
+        actions = disabledActions
+
+        try work()
+
+        actions = originalActions
+    }
 }

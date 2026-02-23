@@ -11,135 +11,135 @@ import QuartzCore
 /// A descriptor for an animation timing.
 public struct AnimationTiming: Hashable {
 
-  /// Create a linear animation timing.
-  ///
-  /// - Parameters:
-  ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
-  ///   - delay: The delay of the animation. Defaults to `0`.
-  ///   - speed: The speed of the animation. Defaults to `1`.
-  /// - Returns: The animation timing.
-  public static func linear(duration: TimeInterval = Animations.defaultAnimationDuration,
-                            delay: TimeInterval = 0,
-                            speed: CGFloat = 1) -> AnimationTiming
-  {
-    AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .linear)), delay: delay, speed: speed)
-  }
-
-  /// Create an ease in animation timing.
-  ///
-  /// - Parameters:
-  ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
-  ///   - delay: The delay of the animation. Defaults to `0`.
-  ///   - speed: The speed of the animation. Defaults to `1`.
-  /// - Returns: The animation timing.
-  public static func easeIn(duration: TimeInterval = Animations.defaultAnimationDuration,
-                            delay: TimeInterval = 0,
-                            speed: CGFloat = 1) -> AnimationTiming
-  {
-    AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeIn)), delay: delay, speed: speed)
-  }
-
-  /// Create an ease out animation timing.
-  ///
-  /// - Parameters:
-  ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
-  ///   - delay: The delay of the animation. Defaults to `0`.
-  ///   - speed: The speed of the animation. Defaults to `1`.
-  /// - Returns: The animation timing.
-  public static func easeOut(duration: TimeInterval = Animations.defaultAnimationDuration,
-                             delay: TimeInterval = 0,
-                             speed: CGFloat = 1) -> AnimationTiming
-  {
-    AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeOut)), delay: delay, speed: speed)
-  }
-
-  /// Create an ease in ease out animation timing.
-  ///
-  /// - Parameters:
-  ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
-  ///   - delay: The delay of the animation. Defaults to `0`.
-  ///   - speed: The speed of the animation. Defaults to `1`.
-  /// - Returns: The animation timing.
-  public static func easeInEaseOut(duration: TimeInterval = Animations.defaultAnimationDuration,
-                                   delay: TimeInterval = 0,
-                                   speed: CGFloat = 1) -> AnimationTiming
-  {
-    AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeInEaseOut)), delay: delay, speed: speed)
-  }
-
-  /// Create a spring animation timing.
-  ///
-  /// - Parameters:
-  ///   - dampingRatio: The damping ratio of the spring. Defaults to `Animations.defaultSpringDampingRatio`.
-  ///   - response: The response of the spring. Defaults to `Animations.defaultSpringResponse`.
-  ///   - initialVelocity: The initial velocity of the spring. Defaults to `0`.
-  ///   - duration: The duration of the animation. Defaults to `nil` which means the duration is determined by the spring descriptor.
-  ///   - delay: The delay of the animation. Defaults to `0`.
-  ///   - speed: The speed of the animation. Defaults to `1`.
-  /// - Returns: The animation timing.
-  public static func spring(dampingRatio: CGFloat = Animations.defaultSpringDampingRatio,
-                            response: CGFloat = Animations.defaultSpringResponse,
-                            initialVelocity: CGFloat = 0,
-                            duration: TimeInterval? = nil,
-                            delay: TimeInterval = 0,
-                            speed: CGFloat = 1) -> AnimationTiming
-  {
-    AnimationTiming(
-      timing: .spring(
-        SpringDescriptor(dampingRatio: dampingRatio, response: response, initialVelocity: initialVelocity),
-        duration: duration
-      ),
-      delay: delay,
-      speed: speed
-    )
-  }
-
-  /// The timing type.
-  public enum Timing: Hashable {
-
-    /// A spring animation.
+    /// Create a linear animation timing.
     ///
     /// - Parameters:
-    ///   - springDescriptor: The spring descriptor.
-    ///   - duration: The duration of the animation. Defaults to `nil` which means the duration is determined by the spring descriptor.
-    case spring(SpringDescriptor, duration: TimeInterval? = nil)
-
-    /// A timing function animation.
-    ///
-    /// - Parameters:
-    ///   - duration: The duration of the animation.
-    ///   - timingFunction: The timing function. Defaults to `easeInEaseOut`.
-    case timingFunction(_ duration: TimeInterval, _ timingFunction: CAMediaTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut))
-
-    /// The timing's duration.
-    public var duration: TimeInterval {
-      switch self {
-      case .spring(let springDescriptor, let duration):
-        return duration ?? springDescriptor.settlingDuration()
-      case .timingFunction(let duration, _):
-        return duration
-      }
+    ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
+    ///   - delay: The delay of the animation. Defaults to `0`.
+    ///   - speed: The speed of the animation. Defaults to `1`.
+    /// - Returns: The animation timing.
+    public static func linear(duration: TimeInterval = Animations.defaultAnimationDuration,
+                              delay: TimeInterval = 0,
+                              speed: CGFloat = 1) -> AnimationTiming
+    {
+        AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .linear)), delay: delay, speed: speed)
     }
-  }
 
-  /// The timing type.
-  public let timing: Timing
+    /// Create an ease in animation timing.
+    ///
+    /// - Parameters:
+    ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
+    ///   - delay: The delay of the animation. Defaults to `0`.
+    ///   - speed: The speed of the animation. Defaults to `1`.
+    /// - Returns: The animation timing.
+    public static func easeIn(duration: TimeInterval = Animations.defaultAnimationDuration,
+                              delay: TimeInterval = 0,
+                              speed: CGFloat = 1) -> AnimationTiming
+    {
+        AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeIn)), delay: delay, speed: speed)
+    }
 
-  /// The delay of the animation.
-  public let delay: TimeInterval
+    /// Create an ease out animation timing.
+    ///
+    /// - Parameters:
+    ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
+    ///   - delay: The delay of the animation. Defaults to `0`.
+    ///   - speed: The speed of the animation. Defaults to `1`.
+    /// - Returns: The animation timing.
+    public static func easeOut(duration: TimeInterval = Animations.defaultAnimationDuration,
+                               delay: TimeInterval = 0,
+                               speed: CGFloat = 1) -> AnimationTiming
+    {
+        AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeOut)), delay: delay, speed: speed)
+    }
 
-  /// The speed of the animation.
-  public let speed: CGFloat
+    /// Create an ease in ease out animation timing.
+    ///
+    /// - Parameters:
+    ///   - duration: The duration of the animation. Defaults to `Animations.defaultAnimationDuration`.
+    ///   - delay: The delay of the animation. Defaults to `0`.
+    ///   - speed: The speed of the animation. Defaults to `1`.
+    /// - Returns: The animation timing.
+    public static func easeInEaseOut(duration: TimeInterval = Animations.defaultAnimationDuration,
+                                     delay: TimeInterval = 0,
+                                     speed: CGFloat = 1) -> AnimationTiming
+    {
+        AnimationTiming(timing: .timingFunction(duration, CAMediaTimingFunction(name: .easeInEaseOut)), delay: delay, speed: speed)
+    }
 
-  /// Creates an animation timing.
-  ///
-  /// - Parameters:
-  ///   - timing: The timing type.
-  ///   - delay: The delay of the animation. Defaults to `0`.
-  ///   - speed: The speed of the animation. Defaults to `1`.
-  public init(timing: Timing, delay: TimeInterval = 0, speed: CGFloat = 1) {
-    self.timing = timing
-    self.delay = delay
-    self.speed = speed
-  }
+    /// Create a spring animation timing.
+    ///
+    /// - Parameters:
+    ///   - dampingRatio: The damping ratio of the spring. Defaults to `Animations.defaultSpringDampingRatio`.
+    ///   - response: The response of the spring. Defaults to `Animations.defaultSpringResponse`.
+    ///   - initialVelocity: The initial velocity of the spring. Defaults to `0`.
+    ///   - duration: The duration of the animation. Defaults to `nil` which means the duration is determined by the spring descriptor.
+    ///   - delay: The delay of the animation. Defaults to `0`.
+    ///   - speed: The speed of the animation. Defaults to `1`.
+    /// - Returns: The animation timing.
+    public static func spring(dampingRatio: CGFloat = Animations.defaultSpringDampingRatio,
+                              response: CGFloat = Animations.defaultSpringResponse,
+                              initialVelocity: CGFloat = 0,
+                              duration: TimeInterval? = nil,
+                              delay: TimeInterval = 0,
+                              speed: CGFloat = 1) -> AnimationTiming
+    {
+        AnimationTiming(
+            timing: .spring(
+                SpringDescriptor(dampingRatio: dampingRatio, response: response, initialVelocity: initialVelocity),
+                duration: duration
+            ),
+            delay: delay,
+            speed: speed
+        )
+    }
+
+    /// The timing type.
+    public enum Timing: Hashable {
+
+        /// A spring animation.
+        ///
+        /// - Parameters:
+        ///   - springDescriptor: The spring descriptor.
+        ///   - duration: The duration of the animation. Defaults to `nil` which means the duration is determined by the spring descriptor.
+        case spring(SpringDescriptor, duration: TimeInterval? = nil)
+
+        /// A timing function animation.
+        ///
+        /// - Parameters:
+        ///   - duration: The duration of the animation.
+        ///   - timingFunction: The timing function. Defaults to `easeInEaseOut`.
+        case timingFunction(_ duration: TimeInterval, _ timingFunction: CAMediaTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut))
+
+        /// The timing's duration.
+        public var duration: TimeInterval {
+            switch self {
+            case .spring(let springDescriptor, let duration):
+                return duration ?? springDescriptor.settlingDuration()
+            case .timingFunction(let duration, _):
+                return duration
+            }
+        }
+    }
+
+    /// The timing type.
+    public let timing: Timing
+
+    /// The delay of the animation.
+    public let delay: TimeInterval
+
+    /// The speed of the animation.
+    public let speed: CGFloat
+
+    /// Creates an animation timing.
+    ///
+    /// - Parameters:
+    ///   - timing: The timing type.
+    ///   - delay: The delay of the animation. Defaults to `0`.
+    ///   - speed: The speed of the animation. Defaults to `1`.
+    public init(timing: Timing, delay: TimeInterval = 0, speed: CGFloat = 1) {
+        self.timing = timing
+        self.delay = delay
+        self.speed = speed
+    }
 }

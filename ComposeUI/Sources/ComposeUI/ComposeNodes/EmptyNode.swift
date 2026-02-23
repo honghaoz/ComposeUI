@@ -14,21 +14,21 @@ public typealias Empty = EmptyNode
 /// The node has a flexible size.
 public struct EmptyNode: ComposeNode {
 
-  /// Initialize an empty node.
-  public init() {}
+    /// Initialize an empty node.
+    public init() {}
 
-  // MARK: - ComposeNode
+    // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .standard(.empty)
+    public var id: ComposeNodeId = .standard(.empty)
 
-  public private(set) var size: CGSize = .zero
+    public private(set) var size: CGSize = .zero
 
-  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    size = containerSize
-    return ComposeNodeSizing(width: .flexible, height: .flexible)
-  }
+    public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+        size = containerSize
+        return ComposeNodeSizing(width: .flexible, height: .flexible)
+    }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    return []
-  }
+    public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+        return []
+    }
 }
