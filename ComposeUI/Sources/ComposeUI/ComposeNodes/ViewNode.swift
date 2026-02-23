@@ -173,7 +173,9 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
     guard let intrinsicSizeProvider else {
       ComposeUI.assertFailure("ViewNode requires `intrinsicSize` when using fixed size with a view factory.")
-      return .zero
+      // fallback to make a throwaway view and get the size that fits the container size
+      let view = make(RenderableMakeContext(initialFrame: .zero))
+      return view.intrinsicSize(for: proposedSize)
     }
 
     return intrinsicSizeProvider(proposedSize)

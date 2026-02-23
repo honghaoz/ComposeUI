@@ -322,6 +322,54 @@ class ViewNodeTests: XCTestCase {
     Assert.resetTestAssertionFailureHandler()
   }
 
+  func test_factoryView_fixedSize_fallbackToSizeThatFits() {
+    // when a factory ViewNode has fixedSize but no intrinsicSize provider,
+    // it should fallback to create a view and use sizeThatFits for sizing
+
+    var assertionCount = 0
+    Assert.setTestAssertionFailureHandler { message, file, line, column in
+      expect(message) == "ViewNode requires `intrinsicSize` when using fixed size with a view factory."
+      assertionCount += 1
+    }
+
+    // fixed size (width: true, height: true)
+    do {
+      var node = ViewNode<FixedSizeView>(
+        make: { _ in FixedSizeView() }
+      ).fixedSize()
+
+      let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
+      expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .fixed(60))
+      expect(node.size) == CGSize(width: 80, height: 60)
+    }
+
+    // fixed width only (width: true, height: false)
+    do {
+      var node = ViewNode<FixedSizeView>(
+        make: { _ in FixedSizeView() }
+      ).fixedSize(width: true, height: false)
+
+      let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
+      expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .flexible)
+      expect(node.size) == CGSize(width: 80, height: 200)
+    }
+
+    // fixed height only (width: false, height: true)
+    do {
+      var node = ViewNode<FixedSizeView>(
+        make: { _ in FixedSizeView() }
+      ).fixedSize(width: false, height: true)
+
+      let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
+      expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(60))
+      expect(node.size) == CGSize(width: 200, height: 60)
+    }
+
+    expect(assertionCount) == 3
+
+    Assert.resetTestAssertionFailureHandler()
+  }
+
   func test_view_as_composeContent() {
     let view = ComposeView {
       BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) as ViewType
@@ -437,6 +485,32 @@ class ViewNodeTests: XCTestCase {
     // then it should trigger the assertion for non-layer-backed view
     container.refresh(animated: false)
     expect(assertionCount) == 1
+  }
+  #endif
+}
+
+// MARK: - Test Helpers
+
+private class FixedSizeView: BaseView {
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+
+    #if canImport(AppKit)
+    translatesAutoresizingMaskIntoConstraints = false
+    widthAnchor.constraint(equalToConstant: 80).isActive = true
+    heightAnchor.constraint(equalToConstant: 60).isActive = true
+    #endif
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+
+  #if canImport(UIKit)
+  override func sizeThatFits(_ size: CGSize) -> CGSize {
+    CGSize(width: 80, height: 60)
   }
   #endif
 }
