@@ -161,7 +161,7 @@ public struct ViewNode<T: UIView>: ComposeNode, IntrinsicSizableComposeNode {
 
   private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
     guard let intrinsicSizeProvider else {
-      ComposeUI.assertFailure("ViewNode requires `intrinsicSize` when using fixed size with a view factory.")
+      assertionFailure("ViewNode requires `intrinsicSize` when using fixed size with a view factory.")
       return .zero
     }
 

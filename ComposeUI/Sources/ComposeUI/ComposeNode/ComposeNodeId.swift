@@ -62,7 +62,7 @@ public struct ComposeNodeId: Equatable {
   /// - Returns: A `ComposeNodeId`.
   public static func custom(_ id: String, isFixed: Bool = false) -> ComposeNodeId {
     guard StandardComposeNodeId(rawValue: id) == nil else {
-      ComposeUI.assertFailure("[ComposeUI] Custom id conflict with standard id: \(id), please use a unique id.")
+      assertionFailure("[ComposeUI] Custom id conflict with standard id: \(id), please use a unique id.")
       return ComposeNodeId(id: "\(id)-\(UUID().uuidString)", isFixed: isFixed)
     }
     return ComposeNodeId(id: id, isFixed: isFixed)

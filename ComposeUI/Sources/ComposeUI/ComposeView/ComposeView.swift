@@ -212,7 +212,7 @@ open class ComposeView: UIScrollView {
       return try makeContent(self).asVStack()
     } catch {
       print("[ComposeUI] Failed to make content: \(error)")
-      ComposeUI.assertFailure("Failed to make content: \(error)")
+      assertionFailure("Failed to make content: \(error)")
       return Empty()
     }
   }
@@ -380,7 +380,7 @@ open class ComposeView: UIScrollView {
   ///
   /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func refresh(animated: Bool = true) {
-    ComposeUI.assert(Thread.isMainThread, "refresh(animated:) must be called on the main thread")
+    assert(Thread.isMainThread, "refresh(animated:) must be called on the main thread")
 
     // explicit render request, should make a new content
     contentNode = LayoutCacheNode(node: _makeContent())
@@ -408,7 +408,7 @@ open class ComposeView: UIScrollView {
   ///
   /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func setNeedsRefresh(animated: Bool = true) {
-    ComposeUI.assert(Thread.isMainThread, "setNeedsRefresh(animated:) must be called on the main thread")
+    assert(Thread.isMainThread, "setNeedsRefresh(animated:) must be called on the main thread")
 
     if pendingRefresh == nil {
       RunLoop.main.perform(inModes: [.common]) { [weak self] in
@@ -454,7 +454,7 @@ open class ComposeView: UIScrollView {
 
   /// Performs a render pass.
   open func render() {
-    ComposeUI.assert(Thread.isMainThread, "render() must be called on the main thread")
+    assert(Thread.isMainThread, "render() must be called on the main thread")
 
     guard var contentUpdateContext = self.contentUpdateContext, !contentUpdateContext.isRendering else {
       return
@@ -645,11 +645,11 @@ open class ComposeView: UIScrollView {
 
     #if DEBUG
     // sanity check for old renderable item ids and maps before rendering
-    ComposeUI.assert(oldRenderableItemIds.count == oldRenderableItemMap.count, "mismatched old renderable item count")
-    ComposeUI.assert(oldRenderableItemIds.count == oldRenderableMap.count, "mismatched old renderable count")
+    assert(oldRenderableItemIds.count == oldRenderableItemMap.count, "mismatched old renderable item count")
+    assert(oldRenderableItemIds.count == oldRenderableMap.count, "mismatched old renderable count")
     for id in oldRenderableItemIds {
-      ComposeUI.assert(oldRenderableItemMap[id] != nil, "missing old renderable item: \(id)")
-      ComposeUI.assert(oldRenderableMap[id] != nil, "missing old renderable: \(id)")
+      assert(oldRenderableItemMap[id] != nil, "missing old renderable item: \(id)")
+      assert(oldRenderableMap[id] != nil, "missing old renderable: \(id)")
     }
     #endif
 
@@ -663,7 +663,7 @@ open class ComposeView: UIScrollView {
 
     for item in renderableItems {
       let id = item.id.id
-      ComposeUI.assert(renderableItemMap[id] == nil, "conflicting renderable item id: \(id)")
+      assert(renderableItemMap[id] == nil, "conflicting renderable item id: \(id)")
       renderableItemIds.append(id)
       renderableItemMap[id] = item
     }
@@ -689,7 +689,7 @@ open class ComposeView: UIScrollView {
             removingRenderableMap[oldId] = oldRenderable
 
             let completion = CancellableBlock { [weak self] in
-              ComposeUI.assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
+              assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
               guard let self else {
                 return
               }
@@ -738,7 +738,7 @@ open class ComposeView: UIScrollView {
             #endif
           }
         } else {
-          ComposeUI.assertFailure("old renderable item or old renderable not found: \(oldId)")
+          assertionFailure("old renderable item or old renderable not found: \(oldId)")
         }
       } else {
         // this renderable item is still in the content, plan to reuse it
@@ -862,7 +862,7 @@ open class ComposeView: UIScrollView {
             renderable: renderable,
             context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, contentView: self),
             completion: { [weak self] in
-              ComposeUI.assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
+              assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
               // at the moment, the renderable's frame may not be the target frame, this is because during the insert transition,
               // the renderable can be refreshed, and the renderable's frame may be updated to a different frame.
               //
@@ -890,11 +890,11 @@ open class ComposeView: UIScrollView {
 
     #if DEBUG
     // sanity check for renderable item ids and maps after rendering
-    ComposeUI.assert(renderableItemIds.count == renderableItemMap.count, "mismatched renderable item count")
-    ComposeUI.assert(renderableItemIds.count == renderableMap.count, "mismatched renderable count")
+    assert(renderableItemIds.count == renderableItemMap.count, "mismatched renderable item count")
+    assert(renderableItemIds.count == renderableMap.count, "mismatched renderable count")
     for id in renderableItemIds {
-      ComposeUI.assert(renderableItemMap[id] != nil, "missing renderable item: \(id)")
-      ComposeUI.assert(renderableMap[id] != nil, "missing renderable: \(id)")
+      assert(renderableItemMap[id] != nil, "missing renderable item: \(id)")
+      assert(renderableMap[id] != nil, "missing renderable: \(id)")
     }
     #endif
 
@@ -921,7 +921,7 @@ open class ComposeView: UIScrollView {
     private let host: ComposeView
 
     fileprivate init(host: ComposeView) {
-      ComposeUI.assert(Thread.isRunningXCTest, "Test namespace should only be used in test target.")
+      assert(Thread.isRunningXCTest, "Test namespace should only be used in test target.")
       self.host = host
     }
 

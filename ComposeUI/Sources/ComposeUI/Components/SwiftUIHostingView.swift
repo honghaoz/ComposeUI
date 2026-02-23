@@ -180,7 +180,7 @@ private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIH
           method_getTypeEncoding(method)
         )
       } else {
-        ComposeUI.assertFailure("no UIView.safeAreaInsets")
+        assertionFailure("no UIView.safeAreaInsets")
       }
 
       objc_registerClassPair(subclass)
