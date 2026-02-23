@@ -28,7 +28,7 @@ open class ComposeView: UIScrollView {
     /// }
     /// ```
     open var content: ComposeContent {
-        Empty()
+        EmptyNode()
     }
 
     // MARK: - Animation Behavior
@@ -142,7 +142,7 @@ open class ComposeView: UIScrollView {
     ///
     /// You should either override `content` to provide the actual content or use `setContent()` to set the content later.
     override public init(frame: CGRect) {
-        makeContent = { _ in Empty() }
+        makeContent = { _ in EmptyNode() }
 
         super.init(frame: frame)
 
@@ -190,7 +190,7 @@ open class ComposeView: UIScrollView {
         } catch {
             print("[ComposeUI] Failed to make content: \(error)")
             assertionFailure("Failed to make content: \(error)")
-            return Empty()
+            return EmptyNode()
         }
     }
 

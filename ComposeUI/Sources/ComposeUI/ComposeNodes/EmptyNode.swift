@@ -7,8 +7,6 @@
 
 import CoreGraphics
 
-public typealias Empty = EmptyNode
-
 /// A node that renders nothing.
 ///
 /// The node has a flexible size.
