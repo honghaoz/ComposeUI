@@ -12,9 +12,9 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
 
     private var node: Node
     private var overlayNode: any ComposeNode
-    private let alignment: Layout.Alignment
+    private let alignment: ComposeLayout.Alignment
 
-    fileprivate init(node: Node, overlayNode: any ComposeNode, alignment: Layout.Alignment) {
+    fileprivate init(node: Node, overlayNode: any ComposeNode, alignment: ComposeLayout.Alignment) {
         self.node = node
         self.overlayNode = overlayNode
         self.alignment = alignment
@@ -45,7 +45,7 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
         }
 
         // for the overlay node
-        let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
+        let overlayFrame = ComposeLayout.position(rect: overlayNode.size, in: size, alignment: alignment)
         let boundsInOverlay = visibleBounds.translate(-overlayFrame.origin)
         let overlayItems = overlayNode.renderableItems(in: boundsInOverlay)
 
@@ -72,7 +72,7 @@ public extension ComposeNode {
     ///   - alignment: The alignment of the overlay content.
     ///   - content: The content to overlay.
     /// - Returns: A new node with the overlay applied.
-    func overlay(alignment: Layout.Alignment = .center,
+    func overlay(alignment: ComposeLayout.Alignment = .center,
                  @ComposeContentBuilder content: () -> ComposeContent) -> some ComposeNode
     {
         OverlayNode(

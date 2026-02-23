@@ -14,10 +14,10 @@ public typealias LayeredStack = LayeredStackNode
 /// The node's size is the maximum size of its children.
 public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
-    private let alignment: Layout.Alignment
+    private let alignment: ComposeLayout.Alignment
     var childNodes: [any ComposeNode]
 
-    public init(alignment: Layout.Alignment = .center, @ComposeContentBuilder content: () -> ComposeContent) {
+    public init(alignment: ComposeLayout.Alignment = .center, @ComposeContentBuilder content: () -> ComposeContent) {
         self.alignment = alignment
         self.childNodes = content().asNodes()
     }
@@ -67,7 +67,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
         for i in 0 ..< childNodes.count {
             let node = childNodes[i]
 
-            let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
+            let childFrame = ComposeLayout.position(rect: node.size, in: size, alignment: alignment)
             let boundsInChild = visibleBounds.translate(-childFrame.origin)
 
             let childItems = node.renderableItems(in: boundsInChild)

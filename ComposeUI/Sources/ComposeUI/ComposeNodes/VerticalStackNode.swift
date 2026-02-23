@@ -15,11 +15,11 @@ public typealias VerticalStack = VerticalStackNode
 /// The node's height is the sum of its children's heights plus the spacing between them.
 public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
-    private let alignment: Layout.HorizontalAlignment
+    private let alignment: ComposeLayout.HorizontalAlignment
     private let spacing: CGFloat
     var childNodes: [any ComposeNode]
 
-    public init(alignment: Layout.HorizontalAlignment = .center,
+    public init(alignment: ComposeLayout.HorizontalAlignment = .center,
                 spacing: CGFloat = 0,
                 @ComposeContentBuilder content: () -> ComposeContent)
     {
@@ -68,7 +68,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
         }
 
         let remainingHeight = containerSize.height - totalSpacing
-        let proposedHeights = Layout.stackLayout(space: remainingHeight, items: childHeightSizings)
+        let proposedHeights = ComposeLayout.stackLayout(space: remainingHeight, items: childHeightSizings)
             .rounded(scaleFactor: context.scaleFactor)
 
         // second pass: layout children with proposed heights

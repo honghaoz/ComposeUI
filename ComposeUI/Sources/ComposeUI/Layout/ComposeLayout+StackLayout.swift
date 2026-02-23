@@ -1,5 +1,5 @@
 //
-//  Layout+StackLayout.swift
+//  ComposeLayout+StackLayout.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 4/2/25.
@@ -7,7 +7,7 @@
 
 import Foundation
 
-extension Layout {
+extension ComposeLayout {
 
     /// Distribute `space` to children items based on their sizings.
     ///

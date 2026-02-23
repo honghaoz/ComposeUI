@@ -7,8 +7,6 @@
 
 import CoreGraphics
 
-public typealias Spacer = SpacerNode
-
 /// A node that occupies the some space.
 public struct SpacerNode: ComposeNode {
 

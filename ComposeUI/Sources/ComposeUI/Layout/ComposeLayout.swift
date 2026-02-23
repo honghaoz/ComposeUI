@@ -1,5 +1,5 @@
 //
-//  Layout.swift
+//  ComposeLayout.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 9/29/24.
@@ -7,7 +7,7 @@
 
 import CoreGraphics
 
-public enum Layout {
+public enum ComposeLayout {
 
     /// The horizontal alignment of a subcomponent relative to its parent.
     public enum HorizontalAlignment: Hashable, Sendable, CaseIterable {
@@ -43,7 +43,7 @@ public enum Layout {
     ///   - containerSize: The size of the container rectangle in which the child will be positioned.
     ///   - alignment: The alignment of the rectangle.
     /// - Returns: A `CGRect` representing the frame of the child rectangle positioned within the container according to the specified alignment.
-    public static func position(rect size: CGSize, in containerSize: CGSize, alignment: Layout.Alignment) -> CGRect {
+    public static func position(rect size: CGSize, in containerSize: CGSize, alignment: ComposeLayout.Alignment) -> CGRect {
         CGRect(
             origin: {
                 switch alignment {

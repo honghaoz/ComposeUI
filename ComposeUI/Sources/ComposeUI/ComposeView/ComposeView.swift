@@ -482,7 +482,7 @@ open class ComposeView: UIScrollView {
             )
 
             // logic copied from FrameNode.renderableItems(in:) (part 1)
-            centeredChildFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
+            centeredChildFrame = ComposeLayout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
             contentSize = adjustedContentSize
         }
 

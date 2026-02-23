@@ -15,11 +15,11 @@ public typealias HorizontalStack = HorizontalStackNode
 /// The node's height is the maximum height of its children.
 public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
-    private let alignment: Layout.VerticalAlignment
+    private let alignment: ComposeLayout.VerticalAlignment
     private let spacing: CGFloat
     var childNodes: [any ComposeNode]
 
-    public init(alignment: Layout.VerticalAlignment = .center,
+    public init(alignment: ComposeLayout.VerticalAlignment = .center,
                 spacing: CGFloat = 0,
                 @ComposeContentBuilder content: () -> ComposeContent)
     {
@@ -68,7 +68,7 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
         }
 
         let remainingWidth = containerSize.width - totalSpacing
-        let proposedWidths = Layout.stackLayout(space: remainingWidth, items: childWidthSizings)
+        let proposedWidths = ComposeLayout.stackLayout(space: remainingWidth, items: childWidthSizings)
             .rounded(scaleFactor: context.scaleFactor)
 
         // second pass: layout children with proposed widths

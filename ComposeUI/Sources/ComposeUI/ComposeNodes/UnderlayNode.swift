@@ -12,11 +12,11 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
 
     private var node: Node
     private var underlayNode: any ComposeNode
-    private let alignment: Layout.Alignment
+    private let alignment: ComposeLayout.Alignment
 
     fileprivate init(node: Node,
                      underlayNode: any ComposeNode,
-                     alignment: Layout.Alignment)
+                     alignment: ComposeLayout.Alignment)
     {
         self.node = node
         self.underlayNode = underlayNode
@@ -48,7 +48,7 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
         }
 
         // for the underlay node
-        let underlayFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
+        let underlayFrame = ComposeLayout.position(rect: underlayNode.size, in: size, alignment: alignment)
         let boundsInUnderlay = visibleBounds.translate(-underlayFrame.origin)
         let underlayItems = underlayNode.renderableItems(in: boundsInUnderlay)
 
@@ -75,7 +75,7 @@ public extension ComposeNode {
     ///   - alignment: The alignment of the underlay content.
     ///   - content: The content to render beneath the node.
     /// - Returns: A new node with the underlay applied.
-    func underlay(alignment: Layout.Alignment = .center,
+    func underlay(alignment: ComposeLayout.Alignment = .center,
                   @ComposeContentBuilder content: () -> ComposeContent) -> some ComposeNode
     {
         UnderlayNode(
@@ -93,7 +93,7 @@ public extension ComposeNode {
     /// - Returns: A new node with the background applied.
     @inlinable
     @inline(__always)
-    func background(alignment: Layout.Alignment = .center,
+    func background(alignment: ComposeLayout.Alignment = .center,
                     @ComposeContentBuilder content: () -> ComposeContent) -> some ComposeNode
     {
         underlay(alignment: alignment, content: content)
@@ -107,7 +107,7 @@ public extension ComposeNode {
     /// - Returns: A new node with the background applied.
     @inlinable
     @inline(__always)
-    func background(alignment: Layout.Alignment = .center, _ content: ComposeContent) -> some ComposeNode {
+    func background(alignment: ComposeLayout.Alignment = .center, _ content: ComposeContent) -> some ComposeNode {
         underlay(alignment: alignment, content: { content })
     }
 }
