@@ -251,39 +251,95 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Render Callbacks
 
-  /// The context for the pre-render handler.
-  public struct PreRenderContext {
+  /// The context for the will-layout handler.
+  public struct WillLayoutContext {
 
-    /// The content size after layout.
-    ///
-    /// If the content is smaller than the bounds in either dimension, the content size is adjusted to be the same as the bounds.
-    public let contentSize: CGSize
+    /// The container size that will be used for layout.
+    public let containerSize: CGSize
 
-    /// The bounds that is used for layout and will be used for rendering if no change is detected in the pre-render handler.
-    ///
-    /// The bounds's size is the layout container size.
-    public let renderBounds: CGRect
-
-    /// The render type for this pass.
+    /// The render type for this render pass.
     public let renderType: RenderType
   }
 
-  private var preRenderHandler: ((_ view: ComposeView, _ context: PreRenderContext) -> Void)?
+  /// The context for the will-render handler.
+  public struct WillRenderContext {
 
-  /// Set a handler to be called after layout computed the content size and updated the scroll view's content size,
-  /// but before renderable items are requested.
+    /// The content size after layout.
+    ///
+    /// If the `content`'s natural size is smaller than the layout container size (`WillLayoutContext.containerSize`) in either dimension, the content size is adjusted to be the same as the container size.
+    public let contentSize: CGSize
+
+    /// The bounds that will be used for rendering.
+    ///
+    /// The bounds's size is the layout container size (`WillLayoutContext.containerSize`).
+    public let renderBounds: CGRect
+
+    /// The render type for this render pass.
+    public let renderType: RenderType
+  }
+
+  /// The context for the did-render handler.
+  public struct DidRenderContext {
+
+    /// The content size after the render pass.
+    public let contentSize: CGSize
+
+    /// The bounds used for rendering.
+    ///
+    /// The bounds's size is the layout container size (`WillLayoutContext.containerSize`).
+    public let renderBounds: CGRect
+
+    /// The render type for this render pass.
+    public let renderType: RenderType
+  }
+
+  private var willLayoutHandler: ((_ view: ComposeView, _ context: WillLayoutContext) -> Void)?
+  private var willRenderHandler: ((_ view: ComposeView, _ context: WillRenderContext) -> Void)?
+  private var didRenderHandler: ((_ view: ComposeView, _ context: DidRenderContext) -> Void)?
+
+  /// Set a handler to be called before layout.
   ///
-  /// This handler gives you a chance to adjust the content offset so it affects the visible bounds for rendering.
-  ///
-  /// For example, for chat-like UI, you can use this handler to adjust the content offset to be at the bottom, so the renderable items are rendered from the bottom.
+  /// This handler runs before the content size is updated.
   ///
   /// Calling this replaces any previously set handler.
   ///
-  /// - Parameter handler: The pre-render handler.
+  /// - Parameter handler: The will-layout handler.
   /// - Returns: The ComposeView itself.
   @discardableResult
-  public func onPreRender(_ handler: @escaping (_ view: ComposeView, _ context: PreRenderContext) -> Void) -> Self {
-    preRenderHandler = handler
+  public func onWillLayout(_ handler: @escaping (_ view: ComposeView, _ context: WillLayoutContext) -> Void) -> Self {
+    willLayoutHandler = handler
+    return self
+  }
+
+  /// Set a handler to be called after layout computed the content size and updated the scroll view's content size, but before renderable items are requested.
+  ///
+  /// This handler gives you a chance to adjust the content offset (which affects the visible bounds) before rendering.
+  ///
+  /// For example, for chat-like UI, you can use this handler to adjust the content offset to be at the bottom, so the renderable items are rendered from the bottom.
+  ///
+  /// You should not change the view's bounds size in this handler, otherwise an additional layout pass will be scheduled.
+  ///
+  /// Calling this replaces any previously set handler.
+  ///
+  /// - Parameter handler: The will-render handler.
+  /// - Returns: The ComposeView itself.
+  @discardableResult
+  public func onWillRender(_ handler: @escaping (_ view: ComposeView, _ context: WillRenderContext) -> Void) -> Self {
+    willRenderHandler = handler
+    return self
+  }
+
+  /// Set a handler to be called after the render pass is completed.
+  ///
+  /// At this point, all renderables have been placed with their new frames (model values updated), animations or transitions may still be running.
+  ///
+  /// Calling this replaces any previously set handler.
+  ///
+  /// - Parameter handler: The did-render handler.
+  /// - Returns: The ComposeView itself.
+  @discardableResult
+  public func onDidRender(_ handler: @escaping (_ view: ComposeView, _ context: DidRenderContext) -> Void) -> Self {
+    didRenderHandler = handler
     return self
   }
 
@@ -662,12 +718,26 @@ open class ComposeView: BaseScrollView {
       return
     }
 
+    var bounds = context.renderBounds
+    let boundsSize = bounds.size
+
     #if DEBUG
     debug?.onEvent(.renderWillBegin(contentNode: contentNode))
     #endif
 
-    var bounds = context.renderBounds
-    let boundsSize = bounds.size
+    let renderType: RenderType
+    switch context.updateType {
+    case .refresh(let isAnimated):
+      renderType = .refresh(isAnimated: isAnimated)
+    case .boundsChange(let previousRenderBounds):
+      if previousRenderBounds.size == boundsSize {
+        renderType = .scroll(previousBounds: previousRenderBounds)
+      } else {
+        renderType = .boundsChange(previousBounds: previousRenderBounds)
+      }
+    }
+
+    willLayoutHandler?(self, WillLayoutContext(containerSize: boundsSize, renderType: renderType))
 
     #if DEBUG
     let layoutVisibleBounds = bounds.inset(by: visibleBoundsInsets)
@@ -701,33 +771,23 @@ open class ComposeView: BaseScrollView {
     // set content size
     setContentSize(roundedContentSize)
 
-    // call the pre-render handler if there is any
+    // call the will-render handler if there is any
     // this gives the caller a chance to adjust the content offset before the renderable items are requested
-    let hasPreRenderHandler = preRenderHandler != nil
-    if let preRenderHandler {
-      let renderType: RenderType
-      switch context.updateType {
-      case .refresh(let isAnimated):
-        renderType = .refresh(isAnimated: isAnimated)
-      case .boundsChange(let previousRenderBounds):
-        if previousRenderBounds.size == boundsSize {
-          renderType = .scroll(previousBounds: previousRenderBounds)
-        } else {
-          renderType = .boundsChange(previousBounds: previousRenderBounds)
-        }
-      }
-      preRenderHandler(self, PreRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: renderType))
+    let hasWillRenderHandler = willRenderHandler != nil
+    if let willRenderHandler {
+      willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: renderType))
     }
 
-    if hasPreRenderHandler {
-      // the pre-render handler may change the bounds, so we need to adjust the bounds accordingly
+    if hasWillRenderHandler {
+      // the will-render handler may change the bounds, so we need to adjust the bounds accordingly
       let updatedBounds = renderBounds()
 
       // only pick up the origin from the updated bounds so that the content offset is updated correctly
-      // ignore the size from the updated bounds because the above layout step has already used the old size
+      // ignore the size change from the updated bounds because the above layout step has already used the old size.
       bounds.origin = updatedBounds.origin
 
-      // if the bounds size changed, schedule a follow-up refresh to make sure the new bounds size is used for rendering
+      // if the bounds size changed (which is not expected but possible), schedule a follow-up refresh to make sure the
+      // rendering is correct for the new bounds size.
       if updatedBounds.size != bounds.size {
         onNextRunLoop { [weak self] in
           self?.layoutIfNeeded()
@@ -1091,6 +1151,10 @@ open class ComposeView: BaseScrollView {
       ComposeUI.assert(renderableMap[id] != nil, "missing renderable: \(id)")
     }
     #endif
+
+    if let didRenderHandler {
+      didRenderHandler(self, DidRenderContext(contentSize: contentSize, renderBounds: bounds, renderType: renderType))
+    }
 
     #if DEBUG
     debug?.onEvent(.renderDidFinish(renderableItemIds: renderableItemIds, renderableItemMap: renderableItemMap, renderableMap: renderableMap))
