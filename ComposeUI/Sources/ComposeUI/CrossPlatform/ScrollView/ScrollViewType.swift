@@ -54,11 +54,19 @@ public protocol ScrollViewType: ScrollView {
   /// The content insets of the scroll view.
   func contentInsets() -> EdgeInsets
 
+  /// Set the content insets of the scroll view.
+  func setContentInsets(_ insets: EdgeInsets)
+
   /// The view you should add your subviews to.
   func contentView() -> View
 
   /// The content offset of the scroll view.
   func contentOffset() -> CGPoint
+
+  // TODO: clarify setContentOffset with animation or not
+  // we need to clean API for setting content offset with/without animation
+  // it seems like UIKit's `contentOffset = " will adjust the offset without affecting live animations
+  // while `self.setContentOffset(..., animated:)` can set offset and stop the live animations
 
   /// Set the content offset of the scroll view.
   func setContentOffset(_ offset: CGPoint)
@@ -152,6 +160,16 @@ public extension ScrollViewType {
 
     #if canImport(UIKit)
     return adjustedContentInset
+    #endif
+  }
+
+  func setContentInsets(_ insets: EdgeInsets) {
+    #if canImport(AppKit)
+    self.contentInsets = insets
+    #endif
+
+    #if canImport(UIKit)
+    self.contentInset = insets
     #endif
   }
 
