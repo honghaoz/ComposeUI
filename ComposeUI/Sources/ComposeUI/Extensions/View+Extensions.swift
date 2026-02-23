@@ -39,7 +39,7 @@ import UIKit
 extension View {
 
   /// Returns true if the view is using constraint-based layout.
-  var usesConstraintBasedLayout: Bool {
+  private var usesConstraintBasedLayout: Bool {
     Self.requiresConstraintBasedLayout || !translatesAutoresizingMaskIntoConstraints || !constraints.isEmpty
   }
 

@@ -34,9 +34,23 @@ import ChouTiTest
 
 class EdgeInsets_ExtensionsTests: XCTestCase {
 
-  func test() {
-    let insets = EdgeInsets(inset: 10)
-    expect(insets.horizontal) == 20
-    expect(insets.vertical) == 20
+  func test_horizontal() {
+    let insets = EdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
+    expect(insets.horizontal) == 6
+  }
+
+  func test_vertical() {
+    let insets = EdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
+    expect(insets.vertical) == 4
+  }
+
+  func test_initInset() {
+    let insets = EdgeInsets(inset: 8)
+    expect(insets.top) == 8
+    expect(insets.left) == 8
+    expect(insets.bottom) == 8
+    expect(insets.right) == 8
+    expect(insets.horizontal) == 16
+    expect(insets.vertical) == 16
   }
 }
