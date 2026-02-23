@@ -249,7 +249,7 @@ open class ComposeView: BaseScrollView {
     }
   }
 
-  // MARK: - Render Callbacks
+  // MARK: - Render Handlers
 
   /// The context for the will-layout handler.
   public struct WillLayoutContext {
