@@ -5,7 +5,7 @@
 //  Created by Honghao on 6/30/25.
 //
 
-import ChouTiTest
+import XCTest
 
 import SwiftUI
 import ComposeUI
@@ -18,14 +18,16 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
             let view = SwiftUI.Color.black.frame(width: 80, height: 50)
 
             // when proposing size is larger
-            expect(
-                view.sizeThatFits(CGSize(width: 100, height: 100))
-            ) == CGSize(width: 80, height: 50)
+            XCTAssertEqual(
+                view.sizeThatFits(CGSize(width: 100, height: 100)),
+                CGSize(width: 80, height: 50)
+            )
 
             // when proposing size is smaller
-            expect(
-                view.sizeThatFits(CGSize(width: 50, height: 40))
-            ) == CGSize(width: 80, height: 50)
+            XCTAssertEqual(
+                view.sizeThatFits(CGSize(width: 50, height: 40)),
+                CGSize(width: 80, height: 50)
+            )
         }
 
         // when the view has a flexible size
@@ -33,14 +35,16 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
             let view = SwiftUI.Color.black
 
             // when proposing size is larger
-            expect(
-                view.sizeThatFits(CGSize(width: 100, height: 100))
-            ) == CGSize(width: 100, height: 100)
+            XCTAssertEqual(
+                view.sizeThatFits(CGSize(width: 100, height: 100)),
+                CGSize(width: 100, height: 100)
+            )
 
             // when proposing size is smaller
-            expect(
-                view.sizeThatFits(CGSize(width: 50, height: 50))
-            ) == CGSize(width: 50, height: 50)
+            XCTAssertEqual(
+                view.sizeThatFits(CGSize(width: 50, height: 50)),
+                CGSize(width: 50, height: 50)
+            )
         }
     }
 }

@@ -5,7 +5,7 @@
 //  Created by Honghao on 5/10/25.
 //
 
-import ChouTiTest
+import XCTest
 
 @testable import ComposeUI
 
@@ -20,8 +20,8 @@ class RunLoopTests: XCTestCase {
             expectation.fulfill()
         }
 
-        expect(isExecuted) == false
+        XCTAssertFalse(isExecuted)
         wait(for: [expectation], timeout: 1)
-        expect(isExecuted) == true
+        XCTAssertTrue(isExecuted)
     }
 }

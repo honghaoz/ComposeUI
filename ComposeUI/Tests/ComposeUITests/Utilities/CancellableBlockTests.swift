@@ -5,7 +5,7 @@
 //  Created by Honghao Zhang on 11/13/24.
 //
 
-import ChouTiTest
+import XCTest
 
 @testable import ComposeUI
 
@@ -23,8 +23,8 @@ class CancellableBlockTests: XCTestCase {
 
         block.execute()
 
-        expect(isExecuted) == true
-        expect(isCancelled) == nil
+        XCTAssertEqual(isExecuted, true)
+        XCTAssertNil(isCancelled)
     }
 
     func test_cancelled() {
@@ -39,12 +39,12 @@ class CancellableBlockTests: XCTestCase {
 
         block.cancel()
 
-        expect(isExecuted) == nil
-        expect(isCancelled) == true
+        XCTAssertNil(isExecuted)
+        XCTAssertEqual(isCancelled, true)
 
         block.execute()
 
-        expect(isExecuted) == nil
-        expect(isCancelled) == true
+        XCTAssertNil(isExecuted)
+        XCTAssertEqual(isCancelled, true)
     }
 }
