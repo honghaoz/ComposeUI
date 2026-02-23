@@ -81,7 +81,7 @@ class CATransaction_ExtensionsTests: XCTestCase {
     testWindow.layer.addSublayer(layer)
 
     // wait for the layer to have a presentation layer
-    RunLoop.main.run(until: Date(timeInterval: 0.05, since: Date()))
+    XCTAssertEventually(layer.presentation() != nil)
 
     XCTAssertNotNil(layer.presentation())
 

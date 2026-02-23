@@ -43,7 +43,7 @@ class AnimationDelegateTests: XCTestCase {
     let animation = CABasicAnimation(keyPath: "backgroundColor")
     animation.fromValue = UIColor.red.cgColor
     animation.toValue = UIColor.blue.cgColor
-    animation.duration = 0.1
+    animation.duration = 0.001
     animation.delegate = AnimationDelegate(
       animationDidStart: { animation in
         didStartExpectation.fulfill()

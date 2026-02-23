@@ -277,13 +277,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.refresh(animated: true)
 
       // Layer should eventually have full opacity after transition
-      let expectation = expectation(description: "opacity transition")
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-        XCTAssertEqual(layer?.opacity, 1.0)
-        expectation.fulfill()
-      }
-
-      wait(for: [expectation], timeout: 1)
+      XCTAssertEventuallyEqual(layer?.opacity, 1.0)
     }
   }
 

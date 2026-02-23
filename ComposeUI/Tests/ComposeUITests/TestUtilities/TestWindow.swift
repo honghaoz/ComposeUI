@@ -29,7 +29,6 @@
 //
 
 import UIKit
-import QuartzCore
 
 /// A test window that can be used to test window-related functionality.
 public final class TestWindow: UIWindow {
@@ -45,7 +44,25 @@ public final class TestWindow: UIWindow {
   // MARK: - Init
 
   public init() {
-    super.init(frame: CGRect(x: 0, y: 0, width: Constants.windowWidth, height: Constants.windowHeight))
+    let scene = UIApplication.shared.connectedScenes
+      .first(where: { scene in
+        guard let scene = scene as? UIWindowScene else {
+          return false
+        }
+
+        if #available(iOS 15.0, *) {
+          return scene.keyWindow != nil
+        } else {
+          return scene.windows.contains(where: \.isKeyWindow)
+        }
+      })
+
+    if let windowScene = scene as? UIWindowScene {
+      super.init(windowScene: windowScene)
+      self.frame = CGRect(x: 0, y: 0, width: Constants.windowWidth, height: Constants.windowHeight)
+    } else {
+      super.init(frame: CGRect(x: 0, y: 0, width: Constants.windowWidth, height: Constants.windowHeight))
+    }
 
     self.makeKeyAndVisible()
 

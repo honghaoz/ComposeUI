@@ -31,6 +31,23 @@
 import XCTest
 import Foundation
 
+func XCTAssertEventually(
+  _ expression: @autoclosure @escaping () -> Bool,
+  _ message: @autoclosure () -> String = "",
+  timeout: TimeInterval = 1,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  let deadline = Date().addingTimeInterval(timeout)
+  while Date() < deadline {
+    if expression() {
+      return
+    }
+    RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 1e-3))
+  }
+  XCTAssertTrue(expression(), message(), file: file, line: line)
+}
+
 func XCTAssertEventuallyEqual<T: Equatable>(
   _ expression: @autoclosure @escaping () -> T,
   _ expected: T,
@@ -43,7 +60,7 @@ func XCTAssertEventuallyEqual<T: Equatable>(
     if expression() == expected {
       break
     }
-    RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
+    RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 1e-3))
   }
   XCTAssertEqual(expression(), expected, file: file, line: line)
 }

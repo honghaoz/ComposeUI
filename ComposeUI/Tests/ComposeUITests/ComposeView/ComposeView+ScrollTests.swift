@@ -104,4 +104,40 @@ class ComposeView_ScrollTests: XCTestCase {
       XCTAssertTrue(contentView.isScrollEnabled)
     }
   }
+
+  func test_scrollBehavior_manual() {
+    // given: a compose view that is not scrollable by default
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: 50, height: 50)
+    }
+
+    // when: change the scroll settings
+    contentView.isScrollEnabled = true
+    contentView.alwaysBounceHorizontal = true
+    contentView.alwaysBounceVertical = true
+
+    // when: refresh
+    contentView.refresh(animated: false)
+
+    // then: the scrolling is disabled as the default scroll behavior is auto
+    XCTAssertFalse(contentView.isScrollEnabled)
+    XCTAssertFalse(contentView.alwaysBounceHorizontal)
+    XCTAssertFalse(contentView.alwaysBounceVertical)
+
+    // when: set the scroll behavior to manual and update the scroll settings again
+    contentView.scrollBehavior = .manual
+    contentView.isScrollEnabled = true
+    contentView.alwaysBounceHorizontal = true
+    contentView.alwaysBounceVertical = true
+
+    // when: refresh
+    contentView.refresh(animated: false)
+
+    // then: the scroll settings are not changed
+    XCTAssertTrue(contentView.isScrollEnabled)
+    XCTAssertTrue(contentView.alwaysBounceHorizontal)
+    XCTAssertTrue(contentView.alwaysBounceVertical)
+  }
 }

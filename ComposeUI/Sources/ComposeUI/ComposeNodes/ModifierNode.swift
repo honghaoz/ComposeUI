@@ -270,7 +270,7 @@ public extension ComposeNode {
       }
       let layer = item.layer
       if let animationTiming = context.animationTiming {
-        layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
+        layer.animate(keyPath: "opacity", to: Float(opacity), timing: animationTiming)
       } else {
         layer.disableActions(for: ["opacity"]) {
           layer.opacity = Float(opacity)

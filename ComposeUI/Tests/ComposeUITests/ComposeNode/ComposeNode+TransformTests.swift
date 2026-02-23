@@ -58,7 +58,6 @@ class ComposeNode_TransformTests: XCTestCase {
     let baseNode = ViewNode()
     var base = baseNode
     _ = base.layout(containerSize: CGSize(width: 200, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 2))
-    let baseSize = base.size
 
     var updated = baseNode
       .map { node in

@@ -112,7 +112,7 @@ class ComposeView_RefreshTests: XCTestCase {
     isAnimated = nil
 
     // wait for next run loop iteration
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
 
     // then: expect the refresh is performed
     XCTAssertFalse(view.test.hasPendingRefresh)

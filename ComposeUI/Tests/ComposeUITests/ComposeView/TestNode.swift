@@ -46,7 +46,7 @@ struct TestNode: ComposeNode {
 
   var id: ComposeNodeId = .custom("test", isFixed: false)
 
-  var size: CGSize = .zero
+  var size: CGSize = CGSize(width: 0, height: 0)
 
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     state.layoutCount += 1
