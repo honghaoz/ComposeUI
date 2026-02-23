@@ -23,6 +23,9 @@ public final class TestWindow: UIWindow {
 
     public init() {
         super.init(frame: CGRect(x: 0, y: 0, width: Constants.windowWidth, height: Constants.windowHeight))
+
+        self.makeKeyAndVisible()
+
         _contentView = UIView(frame: self.bounds)
         addSubview(_contentView)
         _contentView.autoresizingMask = [.flexibleWidth, .flexibleHeight]

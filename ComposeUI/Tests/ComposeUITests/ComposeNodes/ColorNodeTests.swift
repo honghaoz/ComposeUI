@@ -81,7 +81,7 @@ class ColorNodeTests: XCTestCase {
 
                         let animation = try XCTUnwrap(layer.animation(forKey: "backgroundColor") as? CABasicAnimation)
                         XCTAssertEqual(animation.duration, ComposeAnimations.defaultAnimationDuration)
-                        XCTAssertEqual(animation.toValue as? CGColor, UIColor.red.cgColor) // swiftlint:disable:this force_cast
+                        XCTAssertEqual(animation.toValue as! CGColor, UIColor.red.cgColor) // swiftformat:disable:this noForceUnwrapInTests swiftlint:disable:this force_cast
                     }
                 }
 

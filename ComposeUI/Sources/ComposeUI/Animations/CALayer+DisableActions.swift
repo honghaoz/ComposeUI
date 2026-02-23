@@ -25,8 +25,6 @@ public extension CALayer {
     /// }
     /// ```
     ///
-    /// If you need to disable all possible actions for the layer, use `disableActions(_:)`.
-    ///
     /// - Parameters:
     ///   - keys: The keys to disable actions for.
     ///   - work: The block to execute.
