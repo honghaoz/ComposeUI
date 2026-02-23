@@ -9,7 +9,7 @@ import XCTest
 
 @testable import ComposeUI
 
-class Layout_StackLayout: XCTestCase {
+class ComposeLayout_StackLayoutTests: XCTestCase {
 
     func test_emptyNodes() {
         // when proposed space is positive

@@ -6,6 +6,7 @@
 //
 
 import QuartzCore
+import UIKit
 
 public extension CALayer {
 
@@ -14,7 +15,6 @@ public extension CALayer {
     /// - Parameters:
     ///   - to: The frame to animate to.
     ///   - timing: The animation timing.
-    @_spi(Private)
     func animateFrame(to: CGRect, timing: AnimationTiming) {
         animate(
             keyPath: "position",
@@ -41,7 +41,6 @@ public extension CALayer {
     ///   - to: The value to animate to.
     ///   - timing: The animation timing.
     ///   - updateAnimation: An optional closure to update the animation.
-    @_spi(Private)
     func animate<T: FloatingPoint>(keyPath: String, to: T, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
         animate(
             keyPath: keyPath,
@@ -63,7 +62,6 @@ public extension CALayer {
     ///   - to: The value to animate to.
     ///   - timing: The animation timing.
     ///   - updateAnimation: An optional closure to update the animation.
-    @_spi(Private)
     func animate(keyPath: String, to: CGSize, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
         animate(
             keyPath: keyPath,
@@ -85,7 +83,6 @@ public extension CALayer {
     ///   - to: The value to animate to.
     ///   - timing: The animation timing.
     ///   - updateAnimation: An optional closure to update the animation.
-    @_spi(Private)
     func animate(keyPath: String, to: CGPoint, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
         animate(
             keyPath: keyPath,
@@ -112,7 +109,6 @@ public extension CALayer {
     ///   - to: The value to animate to.
     ///   - model: The model value to set. If `nil`, the `to` value will be used.
     ///   - updateAnimation: An optional closure to update the animation.
-    @_spi(Private)
     func animate<T>(key: String? = nil,
                     keyPath: String,
                     timing: AnimationTiming,
@@ -153,7 +149,7 @@ public extension CALayer {
         }
     }
 
-    internal func setKeyPathValue(_ keyPath: String, _ value: Any) {
+    func setKeyPathValue(_ keyPath: String, _ value: Any) {
         if keyPath == "opacity", let backedView {
             CATransaction.disableAnimations {
                 let newValue = value as! Float // swiftlint:disable:this force_cast
@@ -178,7 +174,6 @@ public extension CALayer {
     /// - Parameters:
     ///   - key: The desired animation key.
     /// - Returns: A unique animation key.
-    @_spi(Private)
     func uniqueAnimationKey(key: String) -> String {
         var currentKey = key
         var counter = 1
@@ -189,5 +184,22 @@ public extension CALayer {
         }
 
         return currentKey
+    }
+
+    /// The layer's backed view if it is a backing layer for a view.
+    ///
+    /// On Mac, for layer-backed views, setting the layer's frame won't affect the backed view's frame.
+    /// Use this property to find the backed view if you want to manipulate the view's frame.
+    @inlinable
+    @inline(__always)
+    var backedView: UIView? {
+        delegate as? UIView
+    }
+}
+
+private extension CGSize {
+
+    static func - (left: CGSize, right: CGSize) -> CGSize {
+        CGSize(width: left.width - right.width, height: left.height - right.height)
     }
 }

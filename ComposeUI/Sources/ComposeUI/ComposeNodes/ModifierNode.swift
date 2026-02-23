@@ -227,7 +227,7 @@ public extension ComposeNode {
                     to: { _ in color }
                 )
             } else {
-                layer.disableActions(for: "backgroundColor") {
+                layer.disableActions(for: ["backgroundColor"]) {
                     layer.backgroundColor = color
                 }
             }
@@ -249,7 +249,7 @@ public extension ComposeNode {
             if let animationTiming = context.animationTiming {
                 layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
             } else {
-                layer.disableActions(for: "opacity") {
+                layer.disableActions(for: ["opacity"]) {
                     layer.opacity = Float(opacity)
                 }
             }
@@ -281,7 +281,7 @@ public extension ComposeNode {
                 )
                 layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
             } else {
-                layer.disableActions(for: "borderColor", "borderWidth") {
+                layer.disableActions(for: ["borderColor", "borderWidth"]) {
                     layer.borderColor = color
                     layer.borderWidth = width
                 }
@@ -309,7 +309,7 @@ public extension ComposeNode {
             if let animationTiming = context.animationTiming {
                 layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
             } else {
-                layer.disableActions(for: "cornerRadius") {
+                layer.disableActions(for: ["cornerRadius"]) {
                     layer.cornerRadius = radius
                 }
             }
@@ -384,7 +384,7 @@ public extension ComposeNode {
                     to: { _ in path }
                 )
             } else {
-                layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
+                layer.disableActions(for: ["shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath"]) {
                     layer.shadowColor = color
                     layer.shadowOpacity = opacity
                     layer.shadowRadius = radius
@@ -421,14 +421,7 @@ public extension ComposeNode {
             guard context.updateType.requiresFullUpdate, let view = item.view else {
                 return
             }
-
-            #if canImport(AppKit)
-            view.ignoreHitTest = !isEnabled
-            #endif
-
-            #if canImport(UIKit)
             view.isUserInteractionEnabled = isEnabled
-            #endif
         }
     }
 }

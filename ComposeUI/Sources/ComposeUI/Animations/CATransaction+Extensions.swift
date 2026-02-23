@@ -15,9 +15,6 @@ public extension CATransaction {
     ///
     /// - Parameter work: The block to execute.
     /// - Returns: The result of the work block.
-    @_spi(Private)
-    @inlinable
-    @inline(__always)
     static func disableAnimations<T>(_ work: () throws -> T) rethrows -> T {
         CATransaction.begin()
         defer {

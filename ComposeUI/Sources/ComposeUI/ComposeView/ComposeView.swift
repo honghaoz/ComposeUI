@@ -21,7 +21,7 @@ open class ComposeView: UIScrollView {
     ///
     ///   @ComposeContentBuilder
     ///   override var content: ComposeContent {
-    ///     VStack {
+    ///     VerticalStack {
     ///       Text("Hello, World!")
     ///     }
     ///   }
@@ -489,7 +489,7 @@ open class ComposeView: UIScrollView {
         let roundedContentSize = contentSize.roundedUp(scaleFactor: contentScaleFactor)
 
         // set content size
-        contentSize = roundedContentSize
+        self.contentSize = roundedContentSize
 
         // call the pre-render handler if there is any
         // this gives the caller a chance to adjust the content offset before the renderable items are requested
@@ -902,6 +902,18 @@ open class ComposeView: UIScrollView {
             self.host = host
         }
 
+        var lastRenderBounds: CGRect? {
+            host.lastRenderBounds
+        }
+
+        var hasPendingRefresh: Bool {
+            host.pendingRefresh != nil
+        }
+
+        var contentUpdateContext: ContentUpdateContext? {
+            host.contentUpdateContext
+        }
+
         var removingRenderableMap: [String: Renderable] {
             host.removingRenderableMap
         }
@@ -922,7 +934,7 @@ private extension CALayer {
     ///
     /// To ensure the frame update is applied correctly, the transform is reset to identity.
     func reset() {
-        disableActions(for: "transform") {
+        disableActions(for: ["transform"]) {
             transform = CATransform3DIdentity // setting frame requires an identity transform
         }
     }

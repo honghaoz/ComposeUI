@@ -1,0 +1,90 @@
+//
+//  CATransaction+ExtensionsTests.swift
+//  ComposéUI
+//
+//  Created by Honghao Zhang on 10/22/21.
+//
+
+import QuartzCore
+import XCTest
+
+@_spi(Private) @testable import ComposeUI
+
+class CATransaction_ExtensionsTests: XCTestCase {
+
+    private var testWindow: TestWindow!
+
+    override func setUp() {
+        super.setUp()
+        testWindow = TestWindow()
+    }
+
+    override func tearDown() {
+        testWindow = nil
+        super.tearDown()
+    }
+
+    func test_implicitAnimations() throws {
+        let layer = makeTestLayer()
+
+        // without disableAnimations - should create implicit animations
+        layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        layer.opacity = 0.5
+
+        XCTAssertEqual(layer.animationKeys()?.sorted(), ["bounds", "opacity", "position"])
+        XCTAssertEqual(layer.frame, CGRect(x: 0, y: 0, width: 100, height: 100))
+        XCTAssertEqual(layer.opacity, 0.5)
+    }
+
+    func test_implicitAnimations_disabled() throws {
+        let layer = makeTestLayer()
+
+        // with disableAnimations - should NOT create implicit animations
+        CATransaction.disableAnimations {
+            layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+            layer.opacity = 0.5
+        }
+
+        XCTAssertNil(layer.animationKeys())
+        XCTAssertEqual(layer.frame, CGRect(x: 0, y: 0, width: 100, height: 100))
+        XCTAssertEqual(layer.opacity, 0.5)
+    }
+
+    private func makeTestLayer() -> CALayer {
+        let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+        let layer = CALayer()
+        layer.frame = frame
+
+        testWindow.layer.addSublayer(layer)
+
+        // wait for the layer to have a presentation layer
+        RunLoop.main.run(until: Date(timeInterval: 0.05, since: Date()))
+
+        XCTAssertNotNil(layer.presentation())
+
+        return layer
+    }
+
+    func test_disableAnimations_returnsValue() {
+        let result = CATransaction.disableAnimations {
+            return 42
+        }
+        XCTAssertEqual(result, 42)
+    }
+
+    func test_disableAnimations_throwsError() {
+        struct TestError: Error {}
+
+        var didThrow = false
+        do {
+            try CATransaction.disableAnimations {
+                throw TestError()
+            }
+            XCTFail("Should have thrown")
+        } catch {
+            didThrow = true
+            XCTAssertTrue(error is TestError)
+        }
+        XCTAssertEqual(didThrow, true)
+    }
+}

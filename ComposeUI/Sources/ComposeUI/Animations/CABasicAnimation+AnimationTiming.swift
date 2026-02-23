@@ -15,7 +15,6 @@ public extension CABasicAnimation {
     /// - Parameters:
     ///   - timing: The timing of the animation.
     /// - Returns: The animation.
-    @_spi(Private)
     static func makeAnimation(_ timing: AnimationTiming) -> CABasicAnimation {
         let animation: CABasicAnimation
         switch timing.timing {

@@ -1,0 +1,118 @@
+//
+//  ComposeViewTests.swift
+//  ComposéUI
+//
+//  Created by Honghao Zhang on 11/13/24.
+//
+
+import XCTest
+
+@testable import ComposeUI
+
+class ComposeViewTests: XCTestCase {
+
+    private var contentView: ComposeView!
+
+    override func setUp() {
+        super.setUp()
+        contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    }
+
+    func test_defaultContent() {
+        let contentView = ComposeView()
+        XCTAssertEqual("\(contentView.content)", "EmptyNode(id: ComposeUI.ComposeNodeId(id: \"E\", isFixed: false), size: (0.0, 0.0))")
+    }
+
+    func test_centerContent() {
+        // when content size is smaller than the bounds size
+        do {
+            let view = UIView()
+            contentView.setContent {
+                ViewNode(view)
+                    .flexibleSize()
+                    .frame(width: 50, height: 80)
+            }
+            contentView.refresh(animated: false)
+
+            XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 100))
+            XCTAssertEqual(view.frame, CGRect(x: 25, y: 10, width: 50, height: 80))
+        }
+
+        // when content width is smaller than the bounds width
+        do {
+            let view = UIView()
+            contentView.setContent {
+                ViewNode(view)
+                    .flexibleSize()
+                    .frame(width: 50, height: 120)
+            }
+            contentView.refresh(animated: false)
+
+            XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 120))
+            XCTAssertEqual(view.frame, CGRect(x: 25, y: 0, width: 50, height: 120))
+        }
+
+        // when content height is smaller than the bounds height
+        do {
+            let view = UIView()
+            contentView.setContent {
+                ViewNode(view)
+                    .flexibleSize()
+                    .frame(width: 120, height: 80)
+            }
+            contentView.refresh(animated: false)
+
+            XCTAssertEqual(contentView.contentSize, CGSize(width: 120, height: 100))
+            XCTAssertEqual(view.frame, CGRect(x: 0, y: 10, width: 120, height: 80))
+        }
+    }
+
+    func test_visibleBoundsInsets() {
+        var isTopRendered = false
+        var isBottomRendered = false
+
+        contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+        contentView.visibleBoundsInsets = UIEdgeInsets(top: -1, left: 0, bottom: -1, right: 0)
+
+        contentView.setContent {
+            LayeredStack {
+                // top view
+                ViewNode()
+                    .frame(width: 100, height: 100)
+                    .offset(x: 0, y: -100) // move the view above the normal bounds
+                    .onInsert { _, _ in
+                        isTopRendered = true
+                    }
+                    .onRemove { _, _ in
+                        isTopRendered = false
+                    }
+
+                // bottom view
+                ViewNode()
+                    .frame(width: 100, height: 100)
+                    .offset(x: 0, y: 100) // move the view below the normal bounds
+                    .onInsert { _, _ in
+                        isBottomRendered = true
+                    }
+                    .onRemove { _, _ in
+                        isBottomRendered = false
+                    }
+            }
+        }
+
+        contentView.refresh(animated: false)
+
+        XCTAssertEqual(contentView.contentSize, CGSize(width: 100, height: 100))
+        XCTAssertTrue(isTopRendered)
+        XCTAssertTrue(isBottomRendered)
+    }
+
+    func test_sizeThatFits() {
+        let contentView = ComposeView {
+            LayerNode()
+                .frame(width: .flexible, height: 30)
+        }
+        XCTAssertEqual(contentView.sizeThatFits(CGSize(width: 10, height: 10)), CGSize(width: 10, height: 30))
+        XCTAssertEqual(contentView.sizeThatFits(CGSize(width: 50, height: 50)), CGSize(width: 50, height: 30))
+    }
+}

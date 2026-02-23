@@ -71,13 +71,6 @@ public struct SpringDescriptor: Hashable {
         makeTempAnimation().perceptualDuration()
     }
 
-    /// Get duration with epsilon, using `CASpringAnimation`.
-    /// - Parameter epsilon: The epsilon.
-    /// - Returns: The settling duration.
-    public func duration(epsilon: Double) -> TimeInterval? {
-        makeTempAnimation().duration(epsilon: epsilon)
-    }
-
     private func makeTempAnimation() -> CASpringAnimation {
         let animation = CASpringAnimation(keyPath: "position")
         animation.initialVelocity = initialVelocity
@@ -86,8 +79,6 @@ public struct SpringDescriptor: Hashable {
         animation.damping = damping
         animation.stiffness = stiffness
 
-        /// It seems like `settlingDuration` doesn't respect `from` and `to` value.
-        /// https://twitter.com/b3ll/status/750447919719784448
         animation.fromValue = 0
         animation.toValue = 100
 

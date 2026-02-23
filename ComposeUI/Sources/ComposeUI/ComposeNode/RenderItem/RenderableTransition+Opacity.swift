@@ -18,7 +18,7 @@ public extension RenderableTransition {
     ///   - options: The options for the transition.
     static func opacity(from: CGFloat = 0,
                         to: CGFloat = 1,
-                        timing: AnimationTiming = .easeInEaseOut(duration: Animations.defaultAnimationDuration),
+                        timing: AnimationTiming = .easeInEaseOut(duration: ComposeAnimations.defaultAnimationDuration),
                         options: RenderableTransition.Options = .both) -> RenderableTransition
     {
         RenderableTransition(

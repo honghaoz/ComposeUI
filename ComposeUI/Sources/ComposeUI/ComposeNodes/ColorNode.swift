@@ -62,7 +62,7 @@ public struct ColorNode: ComposeNode {
                         to: { _ in color }
                     )
                 } else {
-                    layer.disableActions(for: "backgroundColor") {
+                    layer.disableActions(for: ["backgroundColor"]) {
                         layer.backgroundColor = color
                     }
                 }
