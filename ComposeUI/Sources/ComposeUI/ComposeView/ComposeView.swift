@@ -395,6 +395,9 @@ open class ComposeView: BaseScrollView {
     /// The view is scrollable if the content is larger than the view's bounds. Otherwise, the view is not scrollable.
     case auto
 
+    /// The view does not modify scroll settings. You are responsible for `isScrollEnabled` and bounce configuration.
+    case manual
+
     /// The view is always scrollable. The view will always bounce.
     case always
 
@@ -406,7 +409,8 @@ open class ComposeView: BaseScrollView {
   public var scrollBehavior: ScrollBehavior = .auto {
     didSet {
       switch scrollBehavior {
-      case .auto:
+      case .auto,
+           .manual:
         break
       case .always:
         isScrollable = true
@@ -835,6 +839,8 @@ open class ComposeView: BaseScrollView {
       isScrollable = contentSize.width > boundsSize.width || contentSize.height > boundsSize.height
       alwaysBounceHorizontal = false
       alwaysBounceVertical = false
+    case .manual:
+      break
     case .always:
       isScrollable = true
       alwaysBounceHorizontal = true
