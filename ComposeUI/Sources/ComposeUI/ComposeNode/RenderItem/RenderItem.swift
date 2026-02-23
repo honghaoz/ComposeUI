@@ -28,16 +28,10 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// A render item that is a view.
-public typealias ViewItem<T: View> = RenderItem<T>
+public typealias ViewItem<T: UIView> = RenderItem<T>
 
 /// A render item that is a layer.
 public typealias LayerItem<T: CALayer> = RenderItem<T>

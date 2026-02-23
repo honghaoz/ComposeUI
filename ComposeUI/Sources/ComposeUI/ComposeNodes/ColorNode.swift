@@ -28,32 +28,19 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// A node that renders a solid color.
 ///
 /// The node has a flexible size.
 public struct ColorNode: ComposeNode {
 
-  private let color: ThemedColor
+  private let color: UIColor
 
   /// Initialize a color node with a color.
   ///
   /// - Parameter color: The color to render.
-  public init(_ color: Color) {
-    self.color = ThemedColor(light: color, dark: color)
-  }
-
-  /// Initialize a color node with a themed color.
-  ///
-  /// - Parameter color: The themed color to render.
-  public init(_ color: ThemedColor) {
+  public init(_ color: UIColor) {
     self.color = color
   }
 
@@ -89,7 +76,7 @@ public struct ColorNode: ComposeNode {
           return
         }
 
-        let color = self.color.resolve(for: context.contentView.theme).cgColor
+        let color = self.color.cgColor
         if let animationTiming = context.animationTiming {
           layer.animate(
             keyPath: "backgroundColor",

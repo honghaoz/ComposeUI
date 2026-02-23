@@ -28,6 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
+import UIKit
 import QuartzCore
 
 extension CALayer {
@@ -38,8 +39,8 @@ extension CALayer {
   /// Use this property to find the backed view if you want to manipulate the view's frame.
   @inlinable
   @inline(__always)
-  var backedView: View? {
-    delegate as? View
+  var backedView: UIView? {
+    delegate as? UIView
   }
 
   /// Get the layer's `position` from its `frame`, based on its `anchorPoint`.

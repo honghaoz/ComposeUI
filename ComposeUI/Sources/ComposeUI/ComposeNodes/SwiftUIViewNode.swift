@@ -30,13 +30,7 @@
 
 import SwiftUI
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// A node that renders a SwiftUI view.
 ///
@@ -104,7 +98,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
       return []
     }
 
-    let viewItem = ViewItem<View>(
+    let viewItem = ViewItem<UIView>(
       id: id,
       frame: frame,
       make: { context in

@@ -35,16 +35,9 @@ enum StandardComposeNodeId: String {
   case empty = "E"
 
   case color = "C"
-  case label = "TL" // text label
-  case textView = "TV" // text view
-  case button = "B"
   case view = "V"
   case layer = "L"
   case swiftui = "SUI"
-  case gesture = "G"
-
-  case dropShadow = "DS"
-  case innerShadow = "IS"
 
   case spacer = "S"
   case frame = "F"

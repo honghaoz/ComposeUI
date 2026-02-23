@@ -73,87 +73,12 @@ public class MutableSwiftUIHostingView: SwiftUIHostingView<AnyView> {
     super.init(rootView: AnyView(ContentView(contentProvider: contentProvider)))
   }
 
-  #if canImport(AppKit)
-  public required init(rootView: AnyView) {
-    fatalError("init(rootView:) is unavailable") // swiftlint:disable:this fatal_error
-  }
-  #endif
-
-  #if canImport(UIKit)
   override public required init(rootView: AnyView) {
     fatalError("init(rootView:) is unavailable") // swiftlint:disable:this fatal_error
   }
-  #endif
 }
-
-// MARK: - SwiftUIHostingView (AppKit)
-
-#if canImport(AppKit)
-
-import AppKit
-
-/// A view that renders a SwiftUI view.
-public class SwiftUIHostingView<ContentView: SwiftUI.View>: NSHostingView<AnyView> {
-
-  public required init(rootView: ContentView) {
-    super.init(rootView: Self.makeWrappedRootView(rootView: rootView))
-
-    updateCommonSettings()
-  }
-
-  @available(*, unavailable)
-  public required init?(coder aDecoder: NSCoder) {
-    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
-  }
-
-  @available(*, unavailable)
-  public required init(rootView: AnyView) {
-    fatalError("init(rootView:) is unavailable") // swiftlint:disable:this fatal_error
-  }
-
-  /// Whether the view is user interactive.
-  public var isUserInteractionEnabled: Bool = true
-
-  override public func becomeFirstResponder() -> Bool {
-    if isUserInteractionEnabled == false {
-      return false
-    } else {
-      return super.becomeFirstResponder()
-    }
-  }
-
-  private static func makeWrappedRootView(rootView: ContentView) -> AnyView {
-    if #available(macOS 11.0, *) {
-      return SwiftUI.ZStack {
-        SwiftUI.Color.clear
-        rootView
-          .ignoresSafeArea(.all, edges: .all)
-          .ignoresSafeArea(.container, edges: .all)
-          .ignoresSafeArea(.keyboard, edges: .all)
-      }
-      .ignoresSafeArea(.all, edges: .all)
-      .ignoresSafeArea(.container, edges: .all)
-      .ignoresSafeArea(.keyboard, edges: .all)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .eraseToAnyView()
-    } else {
-      return SwiftUI.ZStack {
-        SwiftUI.Color.clear
-        rootView
-          .edgesIgnoringSafeArea(.all)
-      }
-      .edgesIgnoringSafeArea(.all)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .eraseToAnyView()
-    }
-  }
-}
-
-#endif
 
 // MARK: - SwiftUIHostingView (UIKit)
-
-#if canImport(UIKit)
 
 import UIKit
 
@@ -263,8 +188,6 @@ private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIH
     }
   }
 }
-
-#endif
 
 private extension SwiftUI.View {
 

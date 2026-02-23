@@ -28,18 +28,11 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
-
 import Combine
 
 /// A view that renders `ComposeContent`.
-open class ComposeView: BaseScrollView {
+open class ComposeView: UIScrollView {
 
   /// The default content when the view is initialized with `init(frame:)`.
   ///
@@ -104,7 +97,7 @@ open class ComposeView: BaseScrollView {
   /// - Positive values shrink the visible bounds in that direction, causing less content to be rendered.
   ///
   /// The default value is zero for all edges, which means the visible bounds are not adjusted.
-  public var visibleBoundsInsets = EdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+  public var visibleBoundsInsets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 
   // MARK: - Private
 
@@ -188,33 +181,8 @@ open class ComposeView: BaseScrollView {
   private func commonInit() {
     contentScaleFactor = windowScaleFactor
 
-    #if canImport(AppKit)
-    drawsBackground = false // make the view transparent
-    automaticallyAdjustsContentInsets = false
-
-    // set the scroll indicators to be shown by default
-    // this is to make the scroll indicators are visible immediately when scrolling for the first time
-    showsHorizontalScrollIndicator = true
-    showsVerticalScrollIndicator = true
-
-    #if DEBUG
-    if Thread.isRunningXCTest {
-      // when running tests, the scroller may affect the scroll view's content size.
-      // change the default scroll indicator behavior in tests to make the test more deterministic.
-      scrollIndicatorBehavior = .never
-      hasHorizontalScroller = false
-      hasVerticalScroller = false
-    }
-    #endif
-
-    #endif
-
-    #if canImport(UIKit)
     // ensure the content inset is consistent regardless of the safe area
     contentInsetAdjustmentBehavior = .never
-    #endif
-
-    observeTheme()
   }
 
   // MARK: - Content
@@ -305,27 +273,11 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Size
 
-  #if canImport(AppKit)
-  /// Get the size that fits the content.
-  ///
-  /// - Parameter size: The container size.
-  /// - Returns: The size that fits the content.
-  open func sizeThatFits(_ size: CGSize) -> CGSize {
-    _sizeThatFits(size)
-  }
-  #endif
-
-  #if canImport(UIKit)
   /// Get the size that fits the content.
   ///
   /// - Parameter size: The container size.
   /// - Returns: The size that fits the content.
   override open func sizeThatFits(_ size: CGSize) -> CGSize {
-    _sizeThatFits(size)
-  }
-  #endif
-
-  private func _sizeThatFits(_ size: CGSize) -> CGSize {
     var contentNode = _makeContent()
     _ = contentNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
@@ -353,11 +305,11 @@ open class ComposeView: BaseScrollView {
       case .auto:
         break
       case .always:
-        isScrollable = true
+        isScrollEnabled = true
         alwaysBounceHorizontal = true
         alwaysBounceVertical = true
       case .never:
-        isScrollable = false
+        isScrollEnabled = false
         alwaysBounceHorizontal = false
         alwaysBounceVertical = false
       }
@@ -405,38 +357,13 @@ open class ComposeView: BaseScrollView {
   /// The view's clipping behavior. The default value is `.auto`.
   public var clippingBehavior: ClippingBehavior = .auto
 
-  // MARK: - Theme
-
-  private var themeObservation: AnyCancellable?
-
-  private func observeTheme() {
-    themeObservation = themePublisher.dropFirst().sink { [weak self] _ in
-      self?.setNeedsRefresh(animated: true)
-    }
-  }
-
   // MARK: - Window
 
-  #if canImport(AppKit)
-  override open func viewDidMoveToWindow() {
-    super.viewDidMoveToWindow()
+  private weak var previousWindow: UIWindow?
 
-    _didMoveToWindow()
-    startObservingWindow()
-  }
-  #endif
-
-  #if canImport(UIKit)
   override open func didMoveToWindow() {
     super.didMoveToWindow()
 
-    _didMoveToWindow()
-  }
-  #endif
-
-  private weak var previousWindow: Window?
-
-  private func _didMoveToWindow() {
     contentScaleFactor = windowScaleFactor
 
     if window != nil, previousWindow != window {
@@ -444,120 +371,6 @@ open class ComposeView: BaseScrollView {
     }
     previousWindow = window
   }
-
-  // MARK: - Observing Window
-
-  #if canImport(AppKit)
-  private weak var observingWindow: NSWindow?
-  private var observingDidBecomeKeyToken: Any?
-  private var observingDidResignKeyToken: Any?
-  private var observingDidBecomeActiveToken: Any?
-  private var observingWindowBackingPropertiesToken: Any?
-
-  private func startObservingWindow() {
-    guard let window else {
-      // no window, stop observing
-      stopObservingWindow()
-      return
-    }
-
-    guard observingWindow != window else {
-      // the window is the same as the current window, no need to observe
-      return
-    }
-
-    stopObservingWindow()
-
-    // update for future key window changes
-    observingDidBecomeKeyToken = NotificationCenter.default.addObserver(
-      forName: NSWindow.didBecomeKeyNotification,
-      object: window,
-      queue: nil,
-      using: { [weak self] _ in
-        self?.keyWindowDidChange()
-      }
-    )
-
-    observingDidResignKeyToken = NotificationCenter.default.addObserver(
-      forName: NSWindow.didResignKeyNotification,
-      object: window,
-      queue: nil,
-      using: { [weak self] _ in
-        self?.keyWindowDidChange()
-      }
-    )
-
-    // `NSWindow.didBecomeKeyNotification` can be missed sometimes, observe `NSApplication.didBecomeActiveNotification`
-    // to make sure the key window state is reliably observed
-    observingDidBecomeActiveToken = NotificationCenter.default.addObserver(
-      forName: NSApplication.didBecomeActiveNotification,
-      object: nil,
-      queue: nil,
-      using: { [weak self] _ in
-        self?.keyWindowDidChange()
-      }
-    )
-
-    observingWindowBackingPropertiesToken = NotificationCenter.default.addObserver(
-      forName: NSWindow.didChangeBackingPropertiesNotification,
-      object: window,
-      queue: nil,
-      using: { [weak self] _ in
-        self?.windowBackingPropertiesDidChange()
-      }
-    )
-
-    observingWindow = window
-  }
-
-  private func stopObservingWindow() {
-    if let observingDidBecomeKeyToken {
-      NotificationCenter.default.removeObserver(observingDidBecomeKeyToken, name: NSWindow.didBecomeKeyNotification, object: observingWindow)
-      self.observingDidBecomeKeyToken = nil
-    }
-
-    if let observingDidResignKeyToken {
-      NotificationCenter.default.removeObserver(observingDidResignKeyToken, name: NSWindow.didResignKeyNotification, object: observingWindow)
-      self.observingDidResignKeyToken = nil
-    }
-
-    if let observingDidBecomeActiveToken {
-      NotificationCenter.default.removeObserver(observingDidBecomeActiveToken, name: NSApplication.didBecomeActiveNotification, object: nil)
-      self.observingDidBecomeActiveToken = nil
-    }
-
-    if let observingWindowBackingPropertiesToken {
-      NotificationCenter.default.removeObserver(observingWindowBackingPropertiesToken, name: NSWindow.didChangeBackingPropertiesNotification, object: observingWindow)
-      self.observingWindowBackingPropertiesToken = nil
-    }
-
-    observingWindow = nil
-    oldIsKeyWindow = false
-  }
-
-  private var oldIsKeyWindow: Bool = false
-
-  private func keyWindowDidChange() {
-    guard let window else {
-      return
-    }
-
-    if window.isKeyWindow != oldIsKeyWindow {
-      setNeedsRefresh(animated: false)
-    }
-
-    oldIsKeyWindow = window.isKeyWindow
-  }
-
-  private func windowBackingPropertiesDidChange() {
-    let oldContentScaleFactor = contentScaleFactor
-    contentScaleFactor = windowScaleFactor
-
-    if oldContentScaleFactor != contentScaleFactor {
-      setNeedsRefresh(animated: false)
-    }
-  }
-  #endif
 
   // MARK: - Render
 
@@ -699,7 +512,7 @@ open class ComposeView: BaseScrollView {
     let roundedContentSize = contentSize.roundedUp(scaleFactor: contentScaleFactor)
 
     // set content size
-    setContentSize(roundedContentSize)
+    contentSize = roundedContentSize
 
     // call the pre-render handler if there is any
     // this gives the caller a chance to adjust the content offset before the renderable items are requested
@@ -772,34 +585,31 @@ open class ComposeView: BaseScrollView {
     // update scrollable behavior
     switch scrollBehavior {
     case .auto:
-      isScrollable = contentSize.width > boundsSize.width || contentSize.height > boundsSize.height
+      isScrollEnabled = contentSize.width > boundsSize.width || contentSize.height > boundsSize.height
       alwaysBounceHorizontal = false
       alwaysBounceVertical = false
     case .always:
-      isScrollable = true
+      isScrollEnabled = true
       alwaysBounceHorizontal = true
       alwaysBounceVertical = true
     case .never:
-      isScrollable = false
+      isScrollEnabled = false
       alwaysBounceHorizontal = false
       alwaysBounceVertical = false
     }
 
     #if DEBUG
-    debug?.onEvent(.renderDidUpdateScrollableBehavior(isScrollable: isScrollable, alwaysBounceHorizontal: alwaysBounceHorizontal, alwaysBounceVertical: alwaysBounceVertical))
+    debug?.onEvent(.renderDidUpdateScrollableBehavior(isScrollable: isScrollEnabled, alwaysBounceHorizontal: alwaysBounceHorizontal, alwaysBounceVertical: alwaysBounceVertical))
     #endif
 
     switch clippingBehavior {
     case .auto:
-      clipsToBounds = isScrollable
+      clipsToBounds = isScrollEnabled
     case .always:
       clipsToBounds = true
     case .never:
       clipsToBounds = false
     }
-    #if canImport(AppKit)
-    contentView.clipsToBounds = clipsToBounds
-    #endif
 
     #if DEBUG
     debug?.onEvent(.renderDidUpdateClippingBehavior(clipsToBounds: clipsToBounds))
@@ -826,10 +636,6 @@ open class ComposeView: BaseScrollView {
 
     #if DEBUG
     debug?.onEvent(.renderDidUpdateScrollIndicatorBehavior(showsHorizontalScrollIndicator: showsHorizontalScrollIndicator, showsVerticalScrollIndicator: showsVerticalScrollIndicator))
-    #endif
-
-    #if canImport(AppKit)
-    invalidateScrollElasticity()
     #endif
 
     // set up the renderable item ids and map
@@ -1044,7 +850,7 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
 
-        renderable.addToParent(contentView())
+        renderable.addToParent(self)
         renderable.setFrame(newFrame)
 
         renderableItem.update(renderable, renderableUpdateContext)
@@ -1100,27 +906,7 @@ open class ComposeView: BaseScrollView {
   }
 
   /// Returns the bounds used for layout/rendering.
-  ///
-  /// On AppKit, this temporarily disables scrollers so the bounds aren't reduced by scroller thickness.
   private func renderBounds() -> CGRect {
-    #if canImport(AppKit)
-    // before accessing the bounds(), aka the contentView's bounds, we need to disable the scrollers so that the scrollers
-    // don't affect the bounds.
-    // the scrollers have 15 point in size, if we don't disable them, the bounds will be 15 point smaller than the actual bounds.
-    let oldHasHorizontalScroller = hasHorizontalScroller
-    let oldHasVerticalScroller = hasVerticalScroller
-    hasHorizontalScroller = false
-    hasVerticalScroller = false
-    #endif
-
-    let bounds = bounds()
-
-    #if canImport(AppKit)
-    // restore the scrollers
-    hasHorizontalScroller = oldHasHorizontalScroller
-    hasVerticalScroller = oldHasVerticalScroller
-    #endif
-
     return bounds
   }
 

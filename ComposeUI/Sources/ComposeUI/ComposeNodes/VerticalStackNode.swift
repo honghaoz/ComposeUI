@@ -30,7 +30,6 @@
 
 import CoreGraphics
 
-public typealias VStack = VerticalStackNode
 public typealias VerticalStack = VerticalStackNode
 
 /// A node that stacks its children vertically.

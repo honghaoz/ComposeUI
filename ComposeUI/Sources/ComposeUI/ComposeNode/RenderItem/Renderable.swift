@@ -28,22 +28,16 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// A renderable that is either a view or a layer.
 public enum Renderable {
 
-  case view(View)
+  case view(UIView)
   case layer(CALayer)
 
   /// The view if the renderable is a view.
-  public var view: View? {
+  public var view: UIView? {
     switch self {
     case .view(let view):
       return view
@@ -56,7 +50,7 @@ public enum Renderable {
   public var layer: CALayer {
     switch self {
     case .view(let view):
-      return view.layer()
+      return view.layer
     case .layer(let layer):
       return layer
     }
@@ -97,7 +91,7 @@ public enum Renderable {
   /// Add the renderable as a sublayer to the parent view.
   ///
   /// - Parameter parent: The parent view.
-  public func addToParent(_ parent: View) {
+  public func addToParent(_ parent: UIView) {
     switch self {
     case .view(let view):
       if view.superview !== parent {
@@ -114,7 +108,7 @@ public enum Renderable {
         parent.bringSubviewToFront(view)
       }
     case .layer(let layer):
-      let parentLayer = parent.layer()
+      let parentLayer = parent.layer
       if layer.superlayer !== parentLayer {
         parentLayer.addSublayer(layer)
       } else if parentLayer.sublayers?.last !== layer {

@@ -28,13 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
 
 import CoreGraphics
 
@@ -42,9 +36,9 @@ import CoreGraphics
 private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
-  private let insets: EdgeInsets
+  private let insets: UIEdgeInsets
 
-  fileprivate init(node: Node, insets: EdgeInsets) {
+  fileprivate init(node: Node, insets: UIEdgeInsets) {
     self.node = node
     self.insets = insets
   }
@@ -108,7 +102,7 @@ public extension ComposeNode {
   ///
   /// - Parameter insets: The insets to add.
   /// - Returns: A new node with the padding applied.
-  func padding(_ insets: EdgeInsets) -> some ComposeNode {
+  func padding(_ insets: UIEdgeInsets) -> some ComposeNode {
     PaddingNode(node: self, insets: insets)
   }
 
@@ -127,7 +121,7 @@ public extension ComposeNode {
                bottom: CGFloat = 0,
                right: CGFloat = 0) -> some ComposeNode
   {
-    padding(EdgeInsets(top: top, left: left, bottom: bottom, right: right))
+    padding(UIEdgeInsets(top: top, left: left, bottom: bottom, right: right))
   }
 
   /// Add padding to the node.
@@ -137,7 +131,7 @@ public extension ComposeNode {
   @inlinable
   @inline(__always)
   func padding(_ distance: CGFloat) -> some ComposeNode {
-    padding(EdgeInsets(top: distance, left: distance, bottom: distance, right: distance))
+    padding(UIEdgeInsets(top: distance, left: distance, bottom: distance, right: distance))
   }
 
   /// Add padding to the node.
@@ -149,6 +143,6 @@ public extension ComposeNode {
   @inlinable
   @inline(__always)
   func padding(horizontal: CGFloat = 0, vertical: CGFloat = 0) -> some ComposeNode {
-    padding(EdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal))
+    padding(UIEdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal))
   }
 }

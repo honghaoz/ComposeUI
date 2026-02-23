@@ -28,13 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// A node that applies a modifier to a child node.
 private struct ModifierNode: ComposeNode {
@@ -240,24 +234,14 @@ public extension ComposeNode {
   ///
   /// - Parameter color: The background color to set.
   /// - Returns: A new node with the background color set.
-  func backgroundColor(_ color: Color) -> some ComposeNode {
-    backgroundColor(ThemedColor(color))
-  }
-
-  /// Set the themed background color of the node's renderables.
-  ///
-  /// - Note: All renderables provided by the node will have the background color set.
-  ///
-  /// - Parameter color: The themed background color to set.
-  /// - Returns: A new node with the background color set.
-  func backgroundColor(_ color: ThemedColor) -> some ComposeNode {
+  func backgroundColor(_ color: UIColor) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
       }
 
       let layer = item.layer
-      let color = color.resolve(for: context.contentView.theme).cgColor
+      let color = color.cgColor
       if let animationTiming = context.animationTiming {
         layer.animate(
           keyPath: "backgroundColor",
@@ -280,27 +264,16 @@ public extension ComposeNode {
   /// - Parameter opacity: The opacity to set.
   /// - Returns: A new node with the opacity set.
   func opacity(_ opacity: CGFloat) -> some ComposeNode {
-    self.opacity(Themed<CGFloat>(opacity))
-  }
-
-  /// Set the themed opacity of the node's renderables.
-  ///
-  /// - Note: All renderables provided by the node will have the opacity set.
-  ///
-  /// - Parameter opacity: The themed opacity to set.
-  /// - Returns: A new node with the opacity set.
-  func opacity(_ opacity: Themed<CGFloat>) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
       }
       let layer = item.layer
-      let opacity = Float(opacity.resolve(for: context.contentView.theme))
       if let animationTiming = context.animationTiming {
         layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
       } else {
         layer.disableActions(for: "opacity") {
-          layer.opacity = opacity
+          layer.opacity = Float(opacity)
         }
       }
     }
@@ -314,27 +287,14 @@ public extension ComposeNode {
   ///   - color: The color of the border.
   ///   - width: The width of the border.
   /// - Returns: A new node with the border set.
-  func border(color: Color, width: CGFloat) -> some ComposeNode {
-    border(color: ThemedColor(color), width: Themed<CGFloat>(width))
-  }
-
-  /// Set the themed border of the node's renderables.
-  ///
-  /// - Note: All renderables provided by the node will have the border set.
-  ///
-  /// - Parameters:
-  ///   - color: The themed color of the border.
-  ///   - width: The themed width of the border.
-  /// - Returns: A new node with the border set.
-  func border(color: ThemedColor, width: Themed<CGFloat>) -> some ComposeNode {
+  func border(color: UIColor, width: CGFloat) -> some ComposeNode {
     onUpdate { item, context in
       guard context.updateType.requiresFullUpdate else {
         return
       }
 
       let layer = item.layer
-      let color = color.resolve(for: context.contentView.theme).cgColor
-      let width: CGFloat = width.resolve(for: context.contentView.theme)
+      let color = color.cgColor
       if let animationTiming = context.animationTiming {
         layer.animate(
           keyPath: "borderColor",
@@ -410,25 +370,7 @@ public extension ComposeNode {
   ///   - offset: The offset of the shadow.
   ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
   /// - Returns: A new node with the shadow set.
-  func shadow(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
-    shadow(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
-  }
-
-  /// Set the themed shadow of the node's renderables.
-  ///
-  /// - Note: All renderables provided by the node will have the shadow set.
-  ///
-  /// - Note: The layer's border may show ghosting effect when the shadow is animating. You may want to avoid adding a shadow to layers that have a border.
-  /// Tip: You can use a dedicated transparent `LayerNode` as an underlay and apply the shadow to the underlay or use `dropShadow(color:opacity:radius:offset:path:)` to add a drop shadow underlay to the node.
-  ///
-  /// - Parameters:
-  ///   - color: The themed color of the shadow. The color should be a solid color.
-  ///   - opacity: The themed opacity of the shadow.
-  ///   - radius: The themed radius of the shadow.
-  ///   - offset: The themed offset of the shadow.
-  ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
-  /// - Returns: A new node with the shadow set.
-  func shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
+  func shadow(color: UIColor, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     onUpdate { item, context in
       switch context.updateType {
       case .insert,
@@ -439,13 +381,11 @@ public extension ComposeNode {
         return
       }
 
-      let theme = context.contentView.theme
-
       let layer = item.layer
-      let color = color.resolve(for: theme).cgColor
-      let opacity = Float(opacity.resolve(for: theme))
-      let radius: CGFloat = radius.resolve(for: theme)
-      let offset: CGSize = offset.resolve(for: theme)
+      let color = color.cgColor
+      let opacity = Float(opacity)
+      let radius: CGFloat = radius
+      let offset: CGSize = offset
 
       layer.masksToBounds = false
 
@@ -512,29 +452,6 @@ public extension ComposeNode {
       #if canImport(UIKit)
       view.isUserInteractionEnabled = isEnabled
       #endif
-    }
-  }
-
-  /// Set whether the node's renderables are rasterized.
-  ///
-  /// - Note: All renderables provided by the node will have the `shouldRasterize` set.
-  ///
-  /// - Parameter scale: The scale of the rasterized content. Specify `nil` to disable rasterization.
-  /// - Returns: A new node with the rasterization set.
-  func rasterize(_ scale: CGFloat?) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
-        return
-      }
-
-      let layer = item.layer
-      if let scale = scale {
-        layer.shouldRasterize = true
-        layer.rasterizationScale = scale
-      } else {
-        layer.shouldRasterize = false
-        layer.rasterizationScale = 1
-      }
     }
   }
 }

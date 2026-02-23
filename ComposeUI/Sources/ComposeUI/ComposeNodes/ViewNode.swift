@@ -28,13 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// A node that renders a `View`.
 ///
@@ -43,7 +37,7 @@ import UIKit
 /// - **Factory-created view**: Flexible size. By default, the node adapts to container size.
 ///
 /// Use `fixedSize(width:height:)` to control whether the node uses the view's intrinsic size or adapts to the container size for each dimension.
-public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
+public struct ViewNode<T: UIView>: ComposeNode, IntrinsicSizableComposeNode {
 
   private let make: (RenderableMakeContext) -> T
   private let intrinsicSizeProvider: ((_ proposedSize: CGSize) -> CGSize)?
@@ -146,11 +140,6 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
       } else {
         view = T()
       }
-      #if canImport(AppKit)
-      if T.self == View.self {
-        view.wantsLayer = true
-      }
-      #endif
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
       return view
     }
@@ -223,15 +212,5 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     )
 
     return [viewItem.eraseToRenderableItem()]
-  }
-}
-
-// MARK: - View + ComposeContent
-
-extension View: ComposeContent {
-
-  /// Wraps the view into a `ViewNode`.
-  public func asNodes() -> [ComposeNode] {
-    [ViewNode(self)]
   }
 }

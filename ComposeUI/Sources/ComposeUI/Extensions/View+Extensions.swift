@@ -28,18 +28,12 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
-#if canImport(UIKit)
 import UIKit
-#endif
 
-extension View {
+extension UIView {
 
   /// Returns true if the view is using constraint-based layout.
-  var usesConstraintBasedLayout: Bool {
+  private var usesConstraintBasedLayout: Bool {
     Self.requiresConstraintBasedLayout || !translatesAutoresizingMaskIntoConstraints || !constraints.isEmpty
   }
 
@@ -49,15 +43,10 @@ extension View {
   ///   - proposedSize: The proposed container size.
   /// - Returns: The intrinsic size of the view.
   func intrinsicSize(for proposedSize: CGSize) -> CGSize {
-    #if canImport(AppKit)
-    return fittingSize
-    #endif
-    #if canImport(UIKit)
     if usesConstraintBasedLayout {
       return systemLayoutSizeFitting(proposedSize)
     } else {
       return sizeThatFits(proposedSize)
     }
-    #endif
   }
 }

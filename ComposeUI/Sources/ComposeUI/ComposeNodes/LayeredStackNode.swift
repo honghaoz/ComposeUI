@@ -30,7 +30,6 @@
 
 import CoreGraphics
 
-public typealias ZStack = LayeredStackNode
 public typealias LayeredStack = LayeredStackNode
 
 /// A node that stacks its children in z-axis.

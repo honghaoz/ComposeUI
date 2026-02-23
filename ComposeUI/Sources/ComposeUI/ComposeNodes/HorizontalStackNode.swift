@@ -30,7 +30,6 @@
 
 import CoreGraphics
 
-public typealias HStack = HorizontalStackNode
 public typealias HorizontalStack = HorizontalStackNode
 
 /// A node that stacks its children horizontally.

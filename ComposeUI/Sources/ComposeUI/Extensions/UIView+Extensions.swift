@@ -1,8 +1,8 @@
 //
-//  LineWrapMode.swift
+//  UIView+Extensions.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 12/24/23.
+//  Created by Honghao Zhang on 10/27/24.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,20 +28,15 @@
 //  IN THE SOFTWARE.
 //
 
-//  #if canImport(AppKit)
-//  import AppKit
-//  #endif
-//
-//  #if canImport(UIKit)
-//  import UIKit
-//  #endif
-//
-//  /// Line wrap mode.
-//  public enum LineWrapMode: Hashable {
-//
-//    /// Wrap the text by word.
-//    case byWord
-//
-//    /// Wrap the text by character.
-//    case byChar
-//  }
+import UIKit
+
+extension UIView {
+
+  var windowScaleFactor: CGFloat {
+    if let window {
+      return window.screen.scale
+    } else {
+      return UIScreen.main.scale
+    }
+  }
+}
