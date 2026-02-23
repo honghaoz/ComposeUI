@@ -38,6 +38,6 @@ extension CGPoint {
 
   /// Get a vector from left to right.
   static func - (left: CGPoint, right: CGPoint) -> CGPoint {
-    Self(x: left.x - right.x, y: left.y - right.y)
+    CGPoint(x: left.x - right.x, y: left.y - right.y)
   }
 }
