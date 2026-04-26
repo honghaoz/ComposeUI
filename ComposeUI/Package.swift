@@ -20,7 +20,10 @@ let package = Package(
     .target(
       name: "ComposeUI",
       dependencies: [],
-      path: "Sources"
+      path: "Sources",
+      exclude: [
+        "ComposeUI/_Deprecated",
+      ]
     ),
     .testTarget(
       name: "ComposeUITests",
@@ -29,7 +32,10 @@ let package = Package(
         .product(name: "ChouTi", package: "ChouTi"),
         .product(name: "ChouTiTest", package: "ChouTi"),
       ],
-      path: "Tests"
+      path: "Tests",
+      exclude: [
+        "ComposeUITests/_Deprecated",
+      ]
     ),
   ]
 )
