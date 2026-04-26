@@ -49,11 +49,15 @@ class ScrollViewTypeTests: XCTestCase {
     scrollView.setContentInsets(EdgeInsets(top: 10, left: 20, bottom: 30, right: 40))
     #if canImport(AppKit)
     scrollView.automaticallyAdjustsContentInsets = false
+    expect(scrollView.contentInsets().top) == 10
+    expect(scrollView.contentInsets().left) == 20
+    expect(scrollView.contentInsets().bottom) == 30
+    expect(scrollView.contentInsets().right) == 40
     #endif
     #if canImport(UIKit)
     scrollView.contentInsetAdjustmentBehavior = .never
-    #endif
     expect(scrollView.contentInsets()) == EdgeInsets(top: 10, left: 20, bottom: 30, right: 40)
+    #endif
   }
 
   func test_offsets() {

@@ -239,7 +239,11 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
 
     #if canImport(AppKit)
     // verify the scrollers does affect the bounds
-    expect(view.bounds()) == CGRect(x: 0, y: 0, width: 105, height: 65)
+    if #available(macOS 26.0, *) {
+      expect(view.bounds()) == CGRect(x: 0, y: 0, width: 103, height: 63)
+    } else {
+      expect(view.bounds()) == CGRect(x: 0, y: 0, width: 105, height: 65)
+    }
     #endif
     #if canImport(UIKit)
     expect(view.bounds()) == CGRect(x: 0, y: 0, width: 120, height: 80)
@@ -254,7 +258,11 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
 
     #if canImport(AppKit)
     // verify the scrollers does affect the bounds
-    expect(view.bounds()) == CGRect(x: 0, y: 10, width: 105, height: 65)
+    if #available(macOS 26.0, *) {
+      expect(view.bounds()) == CGRect(x: 0, y: 10, width: 103, height: 63)
+    } else {
+      expect(view.bounds()) == CGRect(x: 0, y: 10, width: 105, height: 65)
+    }
     #endif
     #if canImport(UIKit)
     expect(view.bounds()) == CGRect(x: 0, y: 10, width: 120, height: 80)

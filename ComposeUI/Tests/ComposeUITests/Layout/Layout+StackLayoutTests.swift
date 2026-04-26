@@ -413,7 +413,7 @@ class Layout_StackLayout: XCTestCase {
       // extra space: 60
       // 60 / 4 = 15
       // node 2 doesn't need the extra space
-      expect(result) == [15 + 5.0 / 3, 20.0, 15 + 5.0 / 3, 35 + 5.0 / 3]
+      expect(result) == [15 + 5.0 / 3, 20.0, 15 + 5.0 / 3, 35 + 5.0 / 3] as ContiguousArray<CGFloat>
     }
 
     do {
@@ -472,7 +472,7 @@ class Layout_StackLayout: XCTestCase {
 
     do {
       let result = Layout.stackLayout(space: 50, items: items)
-      expect(result) == [20, 10 + 5.0 / 3, 5.0 / 3, 15 + 5.0 / 3]
+      expect(result) == [20, 10 + 5.0 / 3, 5.0 / 3, 15 + 5.0 / 3] as ContiguousArray<CGFloat>
     }
 
     do {

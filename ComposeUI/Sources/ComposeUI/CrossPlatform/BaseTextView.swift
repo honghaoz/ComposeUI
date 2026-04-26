@@ -150,7 +150,17 @@ open class BaseTextView: TextView {
     // for attributed text with `.byTruncatingTail` break mode, the text can overflow the bounds of the text view
     clipsToBounds = true
     if #available(macOS 26.0, *) {
-      ComposeUI.assertFailure("check if version returns 26 later.")
+      // macOS 26 (Tahoe) 26.4.1 (25E253)
+      // (lldb) po subviews
+      // ▿ 3 elements
+      //   - 0 : <_NSTextSelectionView: 0x70ee1e080>
+      //   - 1 : <_NSTextRenderingSurfacesGroupView: 0x70ee1e580>
+      //   - 2 : <_NSTextContentView: 0x70ee1de00>
+      if let textContentView = subviews.first(where: { $0.className == "_NSTextContentView" }).assertNotNil(),
+         textContentView.clipsToBounds == false
+      {
+        textContentView.clipsToBounds = true
+      }
     } else if #available(macOS 16.0, *) {
       // macOS 26 (Tahoe) beta 2
       // subviews:

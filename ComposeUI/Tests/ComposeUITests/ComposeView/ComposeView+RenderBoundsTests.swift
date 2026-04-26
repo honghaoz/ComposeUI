@@ -75,7 +75,11 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     #if canImport(AppKit)
     // after layout, the bounds() should consider the scrollers
-    expect(view.bounds()) == CGRect(x: 0, y: 0, width: 105, height: 65)
+    if #available(macOS 26.0, *) {
+      expect(view.bounds()) == CGRect(x: 0, y: 0, width: 103, height: 63)
+    } else {
+      expect(view.bounds()) == CGRect(x: 0, y: 0, width: 105, height: 65)
+    }
     #endif
     #if canImport(UIKit)
     expect(view.bounds()) == CGRect(x: 0, y: 0, width: 120, height: 80)

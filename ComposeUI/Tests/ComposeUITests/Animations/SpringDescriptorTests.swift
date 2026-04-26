@@ -78,11 +78,11 @@ class SpringDescriptorTests: XCTestCase {
     expect(descriptor.mass) == 1
 
     // stiffness = pow(2 * π / response, 2)
-    let expectedStiffness = pow(2 * .pi / 0.5, 2)
+    let expectedStiffness: CGFloat = pow(2 * .pi / 0.5, 2)
     expect(descriptor.stiffness).to(beApproximatelyEqual(to: expectedStiffness, within: 1e-6))
 
     // damping = 4 * π * dampingRatio / response
-    let expectedDamping = 4 * .pi * 0.8 / 0.5
+    let expectedDamping: CGFloat = 4 * .pi * 0.8 / 0.5
     expect(descriptor.damping).to(beApproximatelyEqual(to: expectedDamping, within: 1e-6))
   }
 
@@ -112,7 +112,7 @@ class SpringDescriptorTests: XCTestCase {
       response: 0.5
     )
     // damping = 4 * π * 1.0 / 0.5
-    let expectedDamping = 4 * .pi * 1.0 / 0.5
+    let expectedDamping: CGFloat = 4 * .pi * 1.0 / 0.5
     expect(descriptorHigh.damping).to(beApproximatelyEqual(to: expectedDamping, within: 1e-6))
 
     // Test exact bounds
@@ -126,7 +126,7 @@ class SpringDescriptorTests: XCTestCase {
       dampingRatio: 1.0,
       response: 0.5
     )
-    let expectedDampingOne = 4 * .pi * 1.0 / 0.5
+    let expectedDampingOne: CGFloat = 4 * .pi * 1.0 / 0.5
     expect(descriptorOne.damping).to(beApproximatelyEqual(to: expectedDampingOne, within: 1e-6))
   }
 
@@ -137,7 +137,7 @@ class SpringDescriptorTests: XCTestCase {
       response: 0.001
     )
     // response should be clamped to 0.01
-    let expectedStiffness = pow(2 * .pi / 0.01, 2)
+    let expectedStiffness: CGFloat = pow(2 * .pi / 0.01, 2)
     expect(descriptorSmall.stiffness).to(beApproximatelyEqual(to: expectedStiffness, within: 1e-6))
 
     // Test zero response
@@ -276,7 +276,7 @@ class SpringDescriptorTests: XCTestCase {
     expect(criticallyDamped.stiffness) > 0
 
     // For critically damped: damping = 2 * sqrt(mass * stiffness)
-    let criticalDamping = 2 * sqrt(criticallyDamped.mass * criticallyDamped.stiffness)
+    let criticalDamping: CGFloat = 2 * sqrt(criticallyDamped.mass * criticallyDamped.stiffness)
     expect(criticallyDamped.damping).to(beApproximatelyEqual(to: criticalDamping, within: 1e-6))
   }
 

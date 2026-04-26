@@ -264,7 +264,7 @@ private class TestTarget: NSObject {
 }
 
 private func createMouseEvent(trackingArea: NSTrackingArea) -> NSEvent {
-  // Create a mock event that includes the tracking area
+  // create a mock event that includes the tracking area
   return MockNSEvent(trackingArea: trackingArea)
 }
 
