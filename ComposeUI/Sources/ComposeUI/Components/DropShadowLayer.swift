@@ -117,7 +117,7 @@ open class DropShadowLayer: CALayer {
         keyPath: "shadowPath",
         timing: animationTiming,
         from: { $0.presentation()?.shadowPath },
-        to: { path($0 as! DropShadowLayer) } // swiftlint:disable:this force_cast
+        to: { path($0) }
       )
     } else {
       disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
@@ -155,7 +155,7 @@ open class DropShadowLayer: CALayer {
       maskLayer.animate(
         keyPath: "path",
         timing: animationTiming,
-        from: { ($0.presentation() as? CAShapeLayer).assertNotNil()?.path },
+        from: { $0.presentation().assertNotNil()?.path },
         to: { _ in maskPath }
       )
     } else {

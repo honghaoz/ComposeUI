@@ -120,7 +120,7 @@ open class InnerShadowLayer: CALayer {
       maskLayer.animate(
         keyPath: "path",
         timing: animationTiming,
-        from: { ($0.presentation() as? CAShapeLayer).assertNotNil()?.path },
+        from: { $0.presentation().assertNotNil()?.path },
         to: { _ in clipPath }
       )
 

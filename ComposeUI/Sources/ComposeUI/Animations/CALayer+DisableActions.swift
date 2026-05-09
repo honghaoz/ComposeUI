@@ -134,7 +134,11 @@ public extension CALayer {
       // if delegate exists, use the subclass approach to disable actions
       ComposeUI.assert(Thread.isMainThread, "CALayer.disableActions() must be called on the main thread")
 
-      let originalClass: AnyClass = object_getClass(self)! // swiftlint:disable:this force_unwrapping
+      guard let originalClass: AnyClass = object_getClass(self) else {
+        ComposeUI.assertFailure("Unable to get class for layer")
+        return
+      }
+
       let subclassClassName = "\(originalClass)_DisabledActions"
 
       // retrieve or create the subclass with disabled actions

@@ -59,6 +59,8 @@ public extension CALayer {
 
   /// Animate the layer's value additively.
   ///
+  /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
+  ///
   /// - Parameters:
   ///   - keyPath: The key path to animate.
   ///   - to: The value to animate to.
@@ -80,6 +82,8 @@ public extension CALayer {
   }
 
   /// Animate the layer's value additively.
+  ///
+  /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
   /// - Parameters:
   ///   - keyPath: The key path to animate.
@@ -103,6 +107,8 @@ public extension CALayer {
 
   /// Animate the layer's value additively.
   ///
+  /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
+  ///
   /// - Parameters:
   ///   - keyPath: The key path to animate.
   ///   - to: The value to animate to.
@@ -125,7 +131,39 @@ public extension CALayer {
 
   /// Add an animation to the layer.
   ///
-  /// - Important: You must make sure the value type matches the key path type.
+  /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
+  ///
+  /// - Parameters:
+  ///   - key: The key to use for the animation. If `nil`, the key path will be used.
+  ///   - keyPath: The key path to animate.
+  ///   - timing: The animation timing.
+  ///   - from: The value to animate from.
+  ///   - to: The value to animate to.
+  ///   - updateAnimation: An optional closure to update the animation.
+  @_spi(Private)
+  func animate<T>(key: String? = nil,
+                  keyPath: String,
+                  timing: AnimationTiming,
+                  from: @escaping (Self) -> T,
+                  to: @escaping (Self) -> T,
+                  updateAnimation: ((CABasicAnimation) -> Void)? = nil)
+  {
+    // Cast `self` to `Self` so the compiler resolves the called overload's `Self` to the dynamic type rather than `CALayer`
+    // otherwise, `(Self) -> T` closures fail to convert to `(CALayer) -> T`.
+    (self as! Self).animate( // swiftlint:disable:this force_cast
+      key: key,
+      keyPath: keyPath,
+      timing: timing,
+      from: from,
+      to: to,
+      model: nil,
+      updateAnimation: updateAnimation
+    )
+  }
+
+  /// Add an animation to the layer.
+  ///
+  /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
   /// - Parameters:
   ///   - key: The key to use for the animation. If `nil`, the key path will be used.
@@ -139,14 +177,14 @@ public extension CALayer {
   func animate<T>(key: String? = nil,
                   keyPath: String,
                   timing: AnimationTiming,
-                  from: @escaping (CALayer) -> T,
-                  to: @escaping (CALayer) -> T,
-                  model: ((CALayer) -> T)? = nil,
+                  from: @escaping (Self) -> T,
+                  to: @escaping (Self) -> T,
+                  model: ((Self) -> T)?,
                   updateAnimation: ((CABasicAnimation) -> Void)? = nil)
   {
     delay(timing.delay) { [weak self] in
-      guard let self = self else {
-        return
+      guard let self = self as? Self else {
+        return // impossible
       }
 
       let model = model ?? to
@@ -264,8 +302,11 @@ public extension CALayer {
     #endif
 
     if keyPath == "opacity", let backedView {
+      guard let newValue = value as? Float else {
+        ComposeUI.assertFailure("Expected Float value for \"opacity\" keyPath, got \(type(of: value))")
+        return
+      }
       CATransaction.disableAnimations {
-        let newValue = value as! Float // swiftlint:disable:this force_cast
         backedView.alpha = CGFloat(newValue)
         opacity = newValue
       }
