@@ -46,11 +46,41 @@ public extension SwiftUI.View {
   ///   - proposingSize: The proposing container size.
   /// - Returns: The fitting size of the view.
   func sizeThatFits(_ proposingSize: CGSize) -> CGSize {
-    #if canImport(AppKit)
-    return NSHostingController(rootView: self).sizeThatFits(in: proposingSize)
-    #endif
-    #if canImport(UIKit)
-    return UIHostingController(rootView: self).sizeThatFits(in: proposingSize)
-    #endif
+    SwiftUISizingHostPool.shared.sizeThatFits(self, in: proposingSize)
+  }
+}
+
+#if canImport(AppKit)
+private typealias HostingController = NSHostingController
+#endif
+
+#if canImport(UIKit)
+private typealias HostingController = UIHostingController
+#endif
+
+/// A pool of `HostingController` instances used to measure SwiftUI views, to avoid per-call `HostingController` allocation cost.
+///
+/// A pool (rather than a single shared host) is used so that reentrant calls, e.g. a parent view's body calls `sizeThatFits` on a child
+/// while the parent itself is being measured, each get their own dedicated host controller.
+///
+/// The pool grows lazily to match the deepest observed reentrancy and stays at that size afterwards.
+@MainActor
+private final class SwiftUISizingHostPool {
+
+  static let shared = SwiftUISizingHostPool()
+
+  private var hosts: [HostingController<AnyView>] = []
+
+  private init() {}
+
+  func sizeThatFits(_ view: some SwiftUI.View, in proposingSize: CGSize) -> CGSize {
+    let host = hosts.popLast() ?? HostingController(rootView: AnyView(EmptyView()))
+    host.rootView = AnyView(view)
+    defer {
+      // drop the reference to the user's view before returning the host to the pool.
+      host.rootView = AnyView(EmptyView())
+      hosts.append(host)
+    }
+    return host.sizeThatFits(in: proposingSize)
   }
 }
