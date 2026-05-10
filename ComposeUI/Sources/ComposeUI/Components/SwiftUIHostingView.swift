@@ -99,6 +99,10 @@ public class SwiftUIHostingView<ContentView: SwiftUI.View>: NSHostingView<AnyVie
     super.init(rootView: Self.makeWrappedRootView(rootView: rootView))
 
     updateCommonSettings()
+
+    if #available(macOS 13.3, *) {
+      safeAreaRegions = []
+    }
   }
 
   @available(*, unavailable)
@@ -180,6 +184,28 @@ public class SwiftUIHostingView<ContentView: SwiftUI.View>: UIView {
 
     hostingController.view.frame = bounds
   }
+
+  // MARK: - Testing
+
+  #if DEBUG
+
+  var test: Test { Test(host: self) }
+
+  class Test {
+
+    private let host: SwiftUIHostingView
+
+    fileprivate init(host: SwiftUIHostingView) {
+      ComposeUI.assert(Thread.isRunningXCTest, "test namespace should only be used in test target.")
+      self.host = host
+    }
+
+    var hostingController: UIHostingController<AnyView> {
+      host.hostingController
+    }
+  }
+
+  #endif
 }
 
 private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIHostingController<AnyView> {
@@ -189,6 +215,11 @@ private final class SwiftUIHostingViewController<ContentView: SwiftUI.View>: UIH
 
     // SwiftUI view jumps when scrolling to edges, fix it by disabling safe area.
     disableSafeArea()
+
+    if #available(iOS 16.4, tvOS 16.4, *) {
+      // SwiftUI view moves up when keyboard is shown, fix it by disabling keyboard avoidance.
+      safeAreaRegions = []
+    }
   }
 
   override func viewDidLoad() {
