@@ -123,7 +123,8 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   /// - Parameters:
   ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with with frame set to `context.initialFrame` if it's provided.
   ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
-  ///     Required for fixed sizing (when using `fixedSize(width:height:)`).
+  ///     **Important** when using fixed sizing (via `fixedSize(width:height:)`). If `nil`, the node falls back to creating a measurement view via `make` (without `update` configuration),
+  ///     which is inefficient and may produce wrong sizes for views whose size depends on configuration applied via `update` (e.g., a label with text).
   ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
@@ -172,7 +173,14 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 
   private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
     guard let intrinsicSizeProvider else {
-      ComposeUI.assertFailure("ViewNode requires `intrinsicSize` when using fixed size with a view factory.")
+      #if DEBUG
+      print(
+        """
+        [ComposeUI] Warning: ViewNode<\(T.self)> uses fixed sizing without an `intrinsicSize` closure. Falling back to a measurement view created via `make` (without `update` applied). This is inefficient and may produce wrong sizes if the size depends on `update`. Provide an `intrinsicSize` closure to fix this.
+        """
+      )
+      #endif
+
       // fallback to make a throwaway view and get the size that fits the container size
       let view = make(RenderableMakeContext(initialFrame: .zero))
       return view.intrinsicSize(for: proposedSize)

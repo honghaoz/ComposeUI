@@ -304,70 +304,66 @@ class ViewNodeTests: XCTestCase {
     }
   }
 
-  func test_factoryView_requiresIntrinsicSizeForFixedSizing() {
-    var node = ViewNode()
-      .fixedSize()
+  func test_factoryView_fixedSize_fallbackToMeasurementView() {
+    // when a factory ViewNode has fixedSize but no intrinsicSize provider, it falls back to creating a throwaway view via `make` and using its `intrinsicSize(for:)`.
 
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "ViewNode requires `intrinsicSize` when using fixed size with a view factory."
-      assertionCount += 1
-    }
+    // empty view
+    do {
+      var node = ViewNode()
+        .fixedSize()
 
-    let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
-    expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
-    expect(node.size) == .zero
-    expect(assertionCount) == 1
-
-    Assert.resetTestAssertionFailureHandler()
-  }
-
-  func test_factoryView_fixedSize_fallbackToSizeThatFits() {
-    // when a factory ViewNode has fixedSize but no intrinsicSize provider,
-    // it should fallback to create a view and use sizeThatFits for sizing
-
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "ViewNode requires `intrinsicSize` when using fixed size with a view factory."
-      assertionCount += 1
+      let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+      expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+      expect(node.size) == .zero
     }
 
     // fixed size (width: true, height: true)
     do {
+      var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
-        make: { _ in FixedSizeView() }
+        make: { _ in
+          makeCallCount += 1
+          return FixedSizeView()
+        }
       ).fixedSize()
 
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
       expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .fixed(60))
       expect(node.size) == CGSize(width: 80, height: 60)
+      expect(makeCallCount) == 1
     }
 
     // fixed width only (width: true, height: false)
     do {
+      var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
-        make: { _ in FixedSizeView() }
+        make: { _ in
+          makeCallCount += 1
+          return FixedSizeView()
+        }
       ).fixedSize(width: true, height: false)
 
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
       expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .flexible)
       expect(node.size) == CGSize(width: 80, height: 200)
+      expect(makeCallCount) == 1
     }
 
     // fixed height only (width: false, height: true)
     do {
+      var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
-        make: { _ in FixedSizeView() }
+        make: { _ in
+          makeCallCount += 1
+          return FixedSizeView()
+        }
       ).fixedSize(width: false, height: true)
 
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
       expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(60))
       expect(node.size) == CGSize(width: 200, height: 60)
+      expect(makeCallCount) == 1
     }
-
-    expect(assertionCount) == 3
-
-    Assert.resetTestAssertionFailureHandler()
   }
 
   func test_view_as_composeContent() {
