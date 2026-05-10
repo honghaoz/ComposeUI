@@ -414,6 +414,12 @@ open class ComposeView: BaseScrollView {
     /// The scroll indicators are shown if the content is larger than the view's bounds. Otherwise, the scroll indicators are hidden.
     case auto
 
+    /// The view does not modify scroll indicator settings. `showsHorizontalScrollIndicator` and `showsVerticalScrollIndicator` are managed by you.
+    case manual
+
+    /// The scroll indicators are always shown.
+    case always
+
     /// The scroll indicators are never shown even if the content is larger than the view's bounds.
     case never
   }
@@ -864,6 +870,11 @@ open class ComposeView: BaseScrollView {
     case .auto:
       showsHorizontalScrollIndicator = contentSize.width > boundsSize.width
       showsVerticalScrollIndicator = contentSize.height > boundsSize.height
+    case .manual:
+      break
+    case .always:
+      showsHorizontalScrollIndicator = true
+      showsVerticalScrollIndicator = true
     case .never:
       showsHorizontalScrollIndicator = false
       showsVerticalScrollIndicator = false

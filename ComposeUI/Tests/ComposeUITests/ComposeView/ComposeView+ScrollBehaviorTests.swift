@@ -1,5 +1,5 @@
 //
-//  ComposeView+ScrollTests.swift
+//  ComposeView+ScrollBehaviorTests.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 3/28/25.
@@ -32,7 +32,7 @@ import ChouTiTest
 
 import ComposeUI
 
-class ComposeView_ScrollTests: XCTestCase {
+class ComposeView_ScrollBehaviorTests: XCTestCase {
 
   func test_scrollBehavior() {
     // when content size is smaller than bounds size

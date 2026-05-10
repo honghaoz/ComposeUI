@@ -1,5 +1,5 @@
 //
-//  ComposeView+ClippingTests.swift
+//  ComposeView+ClippingBehaviorTests.swift
 //  ComposéUI
 //
 //  Created by Honghao on 5/10/25.
