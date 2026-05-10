@@ -405,24 +405,8 @@ open class ComposeView: BaseScrollView {
     case never
   }
 
-  /// The view's scrollable behavior. The default value is `.auto`.
-  public var scrollBehavior: ScrollBehavior = .auto {
-    didSet {
-      switch scrollBehavior {
-      case .auto,
-           .manual:
-        break
-      case .always:
-        isScrollable = true
-        alwaysBounceHorizontal = true
-        alwaysBounceVertical = true
-      case .never:
-        isScrollable = false
-        alwaysBounceHorizontal = false
-        alwaysBounceVertical = false
-      }
-    }
-  }
+  /// The view's scrollable behavior. The default value is `.auto`. Requires a refresh to take effect.
+  public var scrollBehavior: ScrollBehavior = .auto
 
   /// The view's scroll indicator behavior.
   public enum ScrollIndicatorBehavior {
@@ -434,18 +418,8 @@ open class ComposeView: BaseScrollView {
     case never
   }
 
-  /// The view's scroll indicator behavior. The default value is `.auto`.
-  public var scrollIndicatorBehavior: ScrollIndicatorBehavior = .auto {
-    didSet {
-      switch scrollIndicatorBehavior {
-      case .auto:
-        break
-      case .never:
-        showsHorizontalScrollIndicator = false
-        showsVerticalScrollIndicator = false
-      }
-    }
-  }
+  /// The view's scroll indicator behavior. The default value is `.auto`. Requires a refresh to take effect.
+  public var scrollIndicatorBehavior: ScrollIndicatorBehavior = .auto
 
   // MARK: - Clipping
 
@@ -465,7 +439,7 @@ open class ComposeView: BaseScrollView {
     case never
   }
 
-  /// The view's clipping behavior. The default value is `.auto`.
+  /// The view's clipping behavior. The default value is `.auto`. Requires a refresh to take effect.
   public var clippingBehavior: ClippingBehavior = .auto
 
   // MARK: - Theme
