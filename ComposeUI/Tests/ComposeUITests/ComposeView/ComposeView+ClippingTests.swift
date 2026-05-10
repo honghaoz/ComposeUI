@@ -44,7 +44,7 @@ class ComposeView_ClippingTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // should not clip
+      // should not clip by default (auto mode)
       expect(contentView.clipsToBounds) == false
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == false
@@ -53,6 +53,7 @@ class ComposeView_ClippingTests: XCTestCase {
       // when set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
+      // then it should clip
       expect(contentView.clipsToBounds) == true
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == true
@@ -61,12 +62,41 @@ class ComposeView_ClippingTests: XCTestCase {
       // when set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
+      // then it should not clip
+      expect(contentView.clipsToBounds) == false
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == false
+      #endif
+
+      // when set to manual mode
+      contentView.clippingBehavior = .manual
+      contentView.refresh(animated: false)
+      // then it should not change
+      expect(contentView.clipsToBounds) == false
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == false
+      #endif
+
+      // when manually flip the clipsToBounds value
+      contentView.clipsToBounds = true
+      contentView.refresh(animated: false)
+      // then it should follow the manual setting
+      expect(contentView.clipsToBounds) == true
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == true
+      #endif
+
+      // when manually set the clipsToBounds again
+      contentView.clipsToBounds = false
+      contentView.refresh(animated: false)
+      // then it should follow the manual setting
       expect(contentView.clipsToBounds) == false
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == false
       #endif
     }
 
+    // when content size is equal to bounds size
     do {
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
@@ -75,7 +105,7 @@ class ComposeView_ClippingTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // should not clip
+      // should not clip by default (auto mode)
       expect(contentView.clipsToBounds) == false
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == false
@@ -84,6 +114,7 @@ class ComposeView_ClippingTests: XCTestCase {
       // when set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
+      // then it should clip
       expect(contentView.clipsToBounds) == true
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == true
@@ -92,6 +123,34 @@ class ComposeView_ClippingTests: XCTestCase {
       // when set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
+      // then it should not clip
+      expect(contentView.clipsToBounds) == false
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == false
+      #endif
+
+      // when set to manual mode
+      contentView.clippingBehavior = .manual
+      contentView.refresh(animated: false)
+      // then it should not change
+      expect(contentView.clipsToBounds) == false
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == false
+      #endif
+
+      // when manually flip the clipsToBounds value
+      contentView.clipsToBounds = true
+      contentView.refresh(animated: false)
+      // then it should follow the manual setting
+      expect(contentView.clipsToBounds) == true
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == true
+      #endif
+
+      // when manually set the clipsToBounds again
+      contentView.clipsToBounds = false
+      contentView.refresh(animated: false)
+      // then it should follow the manual setting
       expect(contentView.clipsToBounds) == false
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == false
@@ -107,7 +166,7 @@ class ComposeView_ClippingTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // should clip
+      // should clip by default (auto mode)
       expect(contentView.clipsToBounds) == true
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == true
@@ -116,6 +175,7 @@ class ComposeView_ClippingTests: XCTestCase {
       // when set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
+      // then it should clip
       expect(contentView.clipsToBounds) == true
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == true
@@ -124,6 +184,34 @@ class ComposeView_ClippingTests: XCTestCase {
       // when set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
+      // then it should not clip
+      expect(contentView.clipsToBounds) == false
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == false
+      #endif
+
+      // when set to manual mode
+      contentView.clippingBehavior = .manual
+      contentView.refresh(animated: false)
+      // then it should not change
+      expect(contentView.clipsToBounds) == false
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == false
+      #endif
+
+      // when manually flip the clipsToBounds value
+      contentView.clipsToBounds = true
+      contentView.refresh(animated: false)
+      // then it should follow the manual setting
+      expect(contentView.clipsToBounds) == true
+      #if canImport(AppKit)
+      expect(contentView.contentView.clipsToBounds) == true
+      #endif
+
+      // when manually set the clipsToBounds again
+      contentView.clipsToBounds = false
+      contentView.refresh(animated: false)
+      // then it should follow the manual setting
       expect(contentView.clipsToBounds) == false
       #if canImport(AppKit)
       expect(contentView.contentView.clipsToBounds) == false

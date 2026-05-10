@@ -395,7 +395,7 @@ open class ComposeView: BaseScrollView {
     /// The view is scrollable if the content is larger than the view's bounds. Otherwise, the view is not scrollable.
     case auto
 
-    /// The view does not modify scroll settings. You are responsible for `isScrollEnabled` and bounce configuration.
+    /// The view does not modify scroll settings. `isScrollable` and `alwaysBounceHorizontal`/`alwaysBounceVertical` are managed by you.
     case manual
 
     /// The view is always scrollable. The view will always bounce.
@@ -454,6 +454,9 @@ open class ComposeView: BaseScrollView {
 
     /// The view clips the content to the bounds when the view is scrollable.
     case auto
+
+    /// The view does not modify `clipsToBounds`. It is managed by you.
+    case manual
 
     /// The view always clips the content to the bounds.
     case always
@@ -858,14 +861,22 @@ open class ComposeView: BaseScrollView {
     switch clippingBehavior {
     case .auto:
       clipsToBounds = isScrollable
+      #if canImport(AppKit)
+      contentView.clipsToBounds = clipsToBounds
+      #endif
+    case .manual:
+      break
     case .always:
       clipsToBounds = true
+      #if canImport(AppKit)
+      contentView.clipsToBounds = clipsToBounds
+      #endif
     case .never:
       clipsToBounds = false
+      #if canImport(AppKit)
+      contentView.clipsToBounds = clipsToBounds
+      #endif
     }
-    #if canImport(AppKit)
-    contentView.clipsToBounds = clipsToBounds
-    #endif
 
     #if DEBUG
     debug?.onEvent(.renderDidUpdateClippingBehavior(clipsToBounds: clipsToBounds))
