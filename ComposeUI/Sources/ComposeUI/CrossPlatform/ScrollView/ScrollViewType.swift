@@ -100,6 +100,9 @@ public protocol ScrollViewType: ScrollView {
 
   /// A boolean value that determines whether bouncing always occurs when horizontal scrolling reaches the end of the content view.
   var alwaysBounceHorizontal: Bool { get set }
+
+  /// A boolean value that determines whether the scroll view clips to its bounds.
+  var clipsToBounds: Bool { get set }
 }
 
 extension ScrollView: ScrollViewType {}

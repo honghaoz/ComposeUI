@@ -84,6 +84,26 @@ open class BaseScrollView: ScrollView {
   }
   #endif
 
+  #if canImport(AppKit)
+  // MARK: - Clipping
+
+  /// A boolean value that determines whether the scroll view clips to its bounds.
+  /// Default value is `true`.
+  public override var clipsToBounds: Bool {
+    get {
+      contentView.clipsToBounds
+    }
+    set {
+      super.clipsToBounds = newValue
+
+      // On AppKit, `NSScrollView`'s own `clipsToBounds` does not clip the document view's content like `UIScrollView` does.
+      // The clipping is performed by the inner `NSClipView` (`contentView`). This override forwards `clipsToBounds` to
+      // both so the property behaves like UIKit.
+      contentView.clipsToBounds = newValue
+    }
+  }
+  #endif
+
   // MARK: - Scroll
 
   /// Whether the scroll view is scrollable.

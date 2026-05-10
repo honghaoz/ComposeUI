@@ -841,21 +841,12 @@ open class ComposeView: BaseScrollView {
     switch clippingBehavior {
     case .auto:
       clipsToBounds = isScrollable
-      #if canImport(AppKit)
-      contentView.clipsToBounds = clipsToBounds
-      #endif
     case .manual:
       break
     case .always:
       clipsToBounds = true
-      #if canImport(AppKit)
-      contentView.clipsToBounds = clipsToBounds
-      #endif
     case .never:
       clipsToBounds = false
-      #if canImport(AppKit)
-      contentView.clipsToBounds = clipsToBounds
-      #endif
     }
 
     #if DEBUG
