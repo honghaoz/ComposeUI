@@ -85,11 +85,12 @@ open class BaseScrollView: ScrollView {
   #endif
 
   #if canImport(AppKit)
+
   // MARK: - Clipping
 
   /// A boolean value that determines whether the scroll view clips to its bounds.
   /// Default value is `true`.
-  public override var clipsToBounds: Bool {
+  override public var clipsToBounds: Bool {
     get {
       contentView.clipsToBounds
     }
