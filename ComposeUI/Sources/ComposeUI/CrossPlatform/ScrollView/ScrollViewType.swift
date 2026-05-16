@@ -241,4 +241,11 @@ public extension ScrollViewType {
   var canScrollToBottom: Bool {
     contentOffset().y < maxOffsetY
   }
+
+  #if canImport(UIKit)
+  /// Stops any ongoing scroll deceleration, freezing the scroll view at its current position.
+  func stopDecelerating() {
+    setContentOffset(contentOffset(), animated: false)
+  }
+  #endif
 }

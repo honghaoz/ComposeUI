@@ -77,7 +77,7 @@ class CALayer_DisableActionsTests: XCTestCase {
     window.layer.addSublayer(layer)
 
     // wait for the layer to have a presentation layer
-    wait(timeout: 0.05)
+    expect(layer.presentation()).toEventuallyNot(beNil())
 
     // without delegate
     do {
@@ -108,7 +108,7 @@ class CALayer_DisableActionsTests: XCTestCase {
     window.layer.addSublayer(layer)
 
     // wait for the layer to have a presentation layer
-    wait(timeout: 0.05)
+    expect(layer.presentation()).toEventuallyNot(beNil())
 
     // with delegate - should trigger assertion when called from background thread
     do {

@@ -112,7 +112,7 @@ class ComposeView_RefreshTests: XCTestCase {
     isAnimated = nil
 
     // wait for next run loop iteration
-    wait(timeout: 0.01)
+    wait(timeout: 1e-3)
 
     // then: expect the refresh is performed
     expect(DynamicLookup(view).property("pendingRefresh")) == nil

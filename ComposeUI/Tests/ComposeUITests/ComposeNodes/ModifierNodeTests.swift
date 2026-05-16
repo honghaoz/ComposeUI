@@ -275,14 +275,8 @@ class ModifierNodeTests: XCTestCase {
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
 
-      // Layer should eventually have full opacity after transition
-      let expectation = expectation(description: "opacity transition")
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-        expect(layer?.opacity) == 1.0
-        expectation.fulfill()
-      }
-
-      wait(for: [expectation], timeout: 1)
+      // layer should eventually have full opacity after transition
+      expect(layer?.opacity).toEventually(beEqual(to: 1.0))
     }
   }
 

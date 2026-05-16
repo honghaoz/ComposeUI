@@ -64,7 +64,7 @@ class LayoutCacheNodeTests: XCTestCase {
     expect(state.layoutCount) == 2
 
     expect(state.renderCount) == 0
-    _ = cachedNode.renderableItems(in: CGRect(0, 0, 100, 100))
+    _ = cachedNode.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
     expect(state.renderCount) == 1
   }
 }
