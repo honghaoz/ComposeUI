@@ -138,4 +138,13 @@ class ComposeViewTests: XCTestCase {
     expect(contentView.sizeThatFits(CGSize(width: 10, height: 10))) == CGSize(width: 10, height: 30)
     expect(contentView.sizeThatFits(CGSize(width: 50, height: 50))) == CGSize(width: 50, height: 30)
   }
+
+  func test_contentInsetAdjustmentBehavior() {
+    #if canImport(AppKit)
+    expect(contentView.automaticallyAdjustsContentInsets) == false
+    #endif
+    #if canImport(UIKit)
+    expect(contentView.contentInsetAdjustmentBehavior) == .never
+    #endif
+  }
 }
