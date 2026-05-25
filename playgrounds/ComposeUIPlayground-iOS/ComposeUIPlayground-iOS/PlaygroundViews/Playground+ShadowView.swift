@@ -413,8 +413,13 @@ extension Playground {
 
         Spacer(height: 32)
       }
-
       .frame(.flexible)
+    }
+
+    override init(frame: CGRect) {
+      super.init(frame: frame)
+
+      clippingBehavior = .always
     }
 
     override func animate() {
