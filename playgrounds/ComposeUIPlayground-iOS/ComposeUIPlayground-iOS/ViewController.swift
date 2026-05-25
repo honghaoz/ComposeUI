@@ -112,11 +112,20 @@ class ViewController: UIViewController {
         case .normal,
              .hovered:
           ColorNode(Colors.blueGray)
+            .overlay {
+              Label("Button").textColor(.white)
+            }
         case .pressed,
              .selected:
           ColorNode(Colors.darkBlueGray)
+            .overlay {
+              Label("Button").textColor(.white)
+            }
         case .disabled:
           ColorNode(Colors.lightBlueGray)
+            .overlay {
+              Label("Button").textColor(.white)
+            }
         }
       } onTap: { [weak self] in
         self?.changeColor()
@@ -138,11 +147,20 @@ class ViewController: UIViewController {
             case .normal,
                  .hovered:
               ColorNode(Colors.blueGray)
+                .overlay {
+                  Label("Button").textColor(.white)
+                }
             case .pressed,
                  .selected:
               ColorNode(Colors.darkBlueGray)
+                .overlay {
+                  Label("Button").textColor(.white)
+                }
             case .disabled:
               ColorNode(Colors.lightBlueGray)
+                .overlay {
+                  Label("Button").textColor(.white)
+                }
             }
           } onTap: { [weak self] in
             self?.changeColor()

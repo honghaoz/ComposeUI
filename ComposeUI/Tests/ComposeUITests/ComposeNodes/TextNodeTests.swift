@@ -110,6 +110,13 @@ class TextNodeTests: XCTestCase {
     #endif
     expect(textView?.isSelectable) == true
 
+    #if canImport(AppKit)
+    expect(textView?.ignoreHitTest) == false
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.isUserInteractionEnabled) == true
+    #endif
+
     contentView.setContent {
       TextNode("Hello, world!")
         .selectable(false)
@@ -125,6 +132,13 @@ class TextNodeTests: XCTestCase {
     #endif
     expect(textView?.isSelectable) == false
 
+    #if canImport(AppKit)
+    expect(textView?.ignoreHitTest) == true
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.isUserInteractionEnabled) == false
+    #endif
+
     contentView.setContent {
       TextNode("Hello, world!")
         .selectable()
@@ -139,6 +153,13 @@ class TextNodeTests: XCTestCase {
     expect(textView?.isEditable) == true
     #endif
     expect(textView?.isSelectable) == true
+
+    #if canImport(AppKit)
+    expect(textView?.ignoreHitTest) == false
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.isUserInteractionEnabled) == true
+    #endif
 
     contentView.setContent {
       TextNode("Hello, world!")

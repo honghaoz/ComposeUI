@@ -347,6 +347,16 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     textView.isEditable = isEditable
     #endif
     textView.isSelectable = isSelectable
+
+    let isInteractive = isSelectable || isEditable
+
+    #if canImport(AppKit)
+    textView.ignoreHitTest = !isInteractive
+    #endif
+
+    #if canImport(UIKit)
+    textView.isUserInteractionEnabled = isInteractive
+    #endif
   }
 
   // MARK: - Public

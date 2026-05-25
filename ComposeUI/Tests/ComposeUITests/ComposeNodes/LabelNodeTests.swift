@@ -372,6 +372,49 @@ class LabelNodeTests: XCTestCase {
     expect(textView?.lineBreakMode) == .byTruncatingTail
   }
 
+  // MARK: - User Interaction
+
+  func test_userInteraction() {
+    var textView: BaseTextView?
+    let view = ComposeView {
+      LabelNode("Hello World")
+        .onInsert { renderable, _ in
+          textView = renderable.view as? BaseTextView
+        }
+    }
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh()
+
+    // by default, the label is not interactive
+    expect(textView?.isSelectable) == false
+    #if canImport(AppKit)
+    expect(textView?.ignoreHitTest) == true
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.isUserInteractionEnabled) == false
+    #endif
+
+    // when set to selectable
+    view.setContent {
+      LabelNode("Hello World")
+        .selectable()
+        .onInsert { renderable, _ in
+          textView = renderable.view as? BaseTextView
+        }
+    }
+    view.refresh()
+
+    // the label is now interactive
+    expect(textView?.isSelectable) == true
+    #if canImport(AppKit)
+    expect(textView?.ignoreHitTest) == false
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.isUserInteractionEnabled) == true
+    #endif
+  }
+
   // MARK: - Modifiers
 
   func test_modifiers() throws {
@@ -417,6 +460,13 @@ class LabelNodeTests: XCTestCase {
     expect(paragraphStyle.lineBreakMode) == .byWordWrapping
     expect(textView?.lineBreakMode) == .byTruncatingMiddle
     expect(textView?.isSelectable) == true
+
+    #if canImport(AppKit)
+    expect(textView?.ignoreHitTest) == false
+    #endif
+    #if canImport(UIKit)
+    expect(textView?.isUserInteractionEnabled) == true
+    #endif
   }
 
   func test_modifiers_resetNode() throws {
