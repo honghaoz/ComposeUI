@@ -37,6 +37,10 @@ extension CALayer {
   /// https://x.com/Barbapapapps/status/1947350892791140593
   private static let invertsShadowKey = String("strevni".reversed() + "Shadow")
 
+  var supportsInvertsShadow: Bool {
+    value(forKey: Self.invertsShadowKey) != nil
+  }
+
   var invertsShadow: Bool {
     get {
       value(forKey: Self.invertsShadowKey).assertNotNil("missing value for key \(Self.invertsShadowKey)") as? Bool ?? false

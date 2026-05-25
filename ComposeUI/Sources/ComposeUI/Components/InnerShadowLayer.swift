@@ -111,9 +111,20 @@ open class InnerShadowLayer: CALayer {
       }
     }
 
-    invertsShadow = true
-    let shadowPath = holePath(self)
-    let clipPath = clipPath?(self) ?? shadowPath
+    let holePath = holePath(self)
+    let clipPath = clipPath?(self) ?? holePath
+
+    let innerShadowPath: CGPath
+    if self.supportsInvertsShadow {
+      innerShadowPath = holePath
+      self.disableActions {
+        if !self.invertsShadow {
+          self.invertsShadow = true // use the invertsShadow API
+        }
+      }
+    } else {
+      innerShadowPath = makeInnerShadowPath(holePath: holePath, clipPath: clipPath, radius: radius, offset: offset)
+    }
 
     if let animationTiming {
       maskLayer.animateFrame(to: bounds, timing: animationTiming)
@@ -137,7 +148,7 @@ open class InnerShadowLayer: CALayer {
         keyPath: "shadowPath",
         timing: animationTiming,
         from: { $0.presentation()?.shadowPath },
-        to: { _ in shadowPath }
+        to: { _ in innerShadowPath }
       )
     } else {
       maskLayer.disableActions(for: "position", "bounds", "path") {
@@ -150,21 +161,22 @@ open class InnerShadowLayer: CALayer {
         shadowOpacity = opacity
         shadowRadius = radius
         shadowOffset = offset
-        self.shadowPath = shadowPath
+        self.shadowPath = innerShadowPath
       }
     }
   }
 
-  // private func makeInnerShadowPath(holePath: CGPath, clipPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
-  //   // make a bigger rect to contain the shadow
-  //   let hExtraSize = radius + abs(offset.width) + 20
-  //   let vExtraSize = radius + abs(offset.height) + 20
-  //   let biggerBounds = clipPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
-  //   let biggerPath = BezierPath(rect: biggerBounds)
-  //
-  //   // then cut the shadow path from the bigger rect
-  //   let shadowPath = BezierPath(cgPath: holePath)
-  //   biggerPath.append(shadowPath.reversing())
-  //   return biggerPath.cgPath
-  // }
+  private func makeInnerShadowPath(holePath: CGPath, clipPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
+    // make a bigger rect to contain the shadow.
+    // `radius + abs(offset)` covers the shadow's nominal extent, add extra 20pt to ensure the shadow is fully contained.
+    let hExtraSize = radius + abs(offset.width) + 20
+    let vExtraSize = radius + abs(offset.height) + 20
+    let biggerBounds = clipPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
+    let biggerPath = BezierPath(rect: biggerBounds)
+
+    // then cut the shadow path from the bigger rect
+    let shadowPath = BezierPath(cgPath: holePath)
+    biggerPath.append(shadowPath.reversing())
+    return biggerPath.cgPath
+  }
 }
