@@ -41,6 +41,10 @@ import QuartzCore
 /// A layer that renders an inner shadow.
 open class InnerShadowLayer: CALayer {
 
+  #if DEBUG
+  private var supportsInvertsShadowOverride: Bool?
+  #endif
+
   private lazy var maskLayer = CAShapeLayer()
 
   override init() {
@@ -70,6 +74,10 @@ open class InnerShadowLayer: CALayer {
       // swiftlint:disable:next fatal_error
       fatalError("expect the `layer` to be the same type during an animation.")
     }
+
+    #if DEBUG
+    supportsInvertsShadowOverride = layer.supportsInvertsShadowOverride
+    #endif
 
     super.init(layer: layer)
   }
@@ -115,7 +123,12 @@ open class InnerShadowLayer: CALayer {
     let clipPath = clipPath?(self) ?? holePath
 
     let innerShadowPath: CGPath
-    if self.supportsInvertsShadow {
+    #if DEBUG
+    let useInvertsShadow: Bool = self.supportsInvertsShadowOverride ?? self.supportsInvertsShadow
+    #else
+    let useInvertsShadow: Bool = self.supportsInvertsShadow
+    #endif
+    if useInvertsShadow {
       innerShadowPath = holePath
       self.disableActions {
         if !self.invertsShadow {
@@ -179,4 +192,31 @@ open class InnerShadowLayer: CALayer {
     biggerPath.append(shadowPath.reversing())
     return biggerPath.cgPath
   }
+
+  // MARK: - Testing
+
+  #if DEBUG
+
+  var test: Test { Test(host: self) }
+
+  class Test {
+
+    private let host: InnerShadowLayer
+
+    fileprivate init(host: InnerShadowLayer) {
+      ComposeUI.assert(Thread.isRunningXCTest, "Test namespace should only be used in test target.")
+      self.host = host
+    }
+
+    var supportsInvertsShadowOverride: Bool? {
+      get {
+        host.supportsInvertsShadowOverride
+      }
+      set {
+        host.supportsInvertsShadowOverride = newValue
+      }
+    }
+  }
+
+  #endif
 }
