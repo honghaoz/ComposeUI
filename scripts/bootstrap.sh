@@ -44,10 +44,16 @@ case "$OS" in
     echo "🪝 Install git hooks..."
     "$REPO_ROOT/scripts/git/install-git-hooks.sh"
 
-    # update packages
+    # update packages if needed
     echo ""
-    echo "🔄 Update packages..."
-    "$REPO_ROOT/scripts/swift-package/update-packages.sh" ComposeUI
+    if [ "${CI:-}" = "true" ]; then
+      echo "Skipping package update in CI"
+    else
+      echo "🔄 Update packages..."
+      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ComposeUI
+      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ./playgrounds/ComposeUIPlayground-macOS/ComposeUIPlayground-macOS.xcodeproj
+      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ./playgrounds/ComposeUIPlayground-iOS/ComposeUIPlayground-iOS.xcodeproj
+    fi
 
     echo ""
     echo "🎉 Done."
