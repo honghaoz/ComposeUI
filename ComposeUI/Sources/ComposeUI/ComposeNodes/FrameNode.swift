@@ -72,6 +72,19 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
   private(set) var size: CGSize = .zero
 
+  var renderableItemsBoundingRect: CGRect {
+    let childRect = node.renderableItemsBoundingRect
+    guard !childRect.isNull else {
+      return childRect
+    }
+
+    // the child node can overflow the frame node's bounds when the child node is bigger than the frame
+    // node, so the bounding rect must be the child node's bounding rect positioned by the alignment,
+    // rather than the default implementation (the frame node's bounds)
+    let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
+    return childRect.translate(childFrame.origin)
+  }
+
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     // prepare the proposing size for the child node
     let childContainerSize: CGSize

@@ -47,6 +47,11 @@ private struct OffsetNode<Node: ComposeNode>: ComposeNode {
 
   var size: CGSize { node.size }
 
+  var renderableItemsBoundingRect: CGRect {
+    let childRect = node.renderableItemsBoundingRect
+    return childRect.isNull ? childRect : childRect.translate(offset)
+  }
+
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     node.layout(containerSize: containerSize, context: context)
   }

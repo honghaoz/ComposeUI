@@ -67,4 +67,14 @@ class LayoutCacheNodeTests: XCTestCase {
     _ = cachedNode.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
     expect(state.renderCount) == 1
   }
+
+  func test_renderableItemsBoundingRect() {
+    // the bounding rect should be forwarded from the wrapped node
+    var node = LayerNode().frame(width: 10, height: 10).offset(x: 5, y: 5)
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    let cachedNode = LayoutCacheNode(node: node)
+    expect(cachedNode.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
+  }
 }

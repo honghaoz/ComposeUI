@@ -55,6 +55,11 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
   private(set) var size: CGSize = .zero
 
+  var renderableItemsBoundingRect: CGRect {
+    let childRect = node.renderableItemsBoundingRect
+    return childRect.isNull ? childRect : childRect.translate(CGPoint(x: insets.left, y: insets.top))
+  }
+
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let containerSize = CGSize(
       width: max(0, containerSize.width - insets.horizontal),

@@ -1,8 +1,8 @@
 //
-//  EmptyNode.swift
+//  StackLayoutCacheTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 9/29/24.
+//  Created by Honghao Zhang on 6/11/26.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -30,32 +30,27 @@
 
 import CoreGraphics
 
-public typealias Empty = EmptyNode
+import ChouTiTest
 
-/// A node that renders nothing.
-///
-/// The node has a flexible size.
-public struct EmptyNode: ComposeNode {
+@testable import ComposeUI
 
-  /// Initialize an empty node.
-  public init() {}
+class StackLayoutCacheTests: XCTestCase {
 
-  // MARK: - ComposeNode
+  func test_update_mismatchedCounts_assertion() {
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      expect(message) == "mismatched child origins and bounding rects count"
+      assertionCount += 1
+    }
 
-  public var id: ComposeNodeId = .standard(.empty)
+    var cache = StackLayoutCache()
+    cache.update(
+      childOrigins: [],
+      childItemsBoundingRects: [CGRect(x: 0, y: 0, width: 10, height: 10)],
+      mainAxis: .vertical
+    )
+    expect(assertionCount) == 1
 
-  public private(set) var size: CGSize = .zero
-
-  public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    size = containerSize
-    return ComposeNodeSizing(width: .flexible, height: .flexible)
-  }
-
-  public var renderableItemsBoundingRect: CGRect {
-    .null // the node provides no renderable items
-  }
-
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    return []
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 }

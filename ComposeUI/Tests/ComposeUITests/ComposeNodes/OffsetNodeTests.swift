@@ -100,4 +100,58 @@ class OffsetNodeTests: XCTestCase {
       expect(items.count) == 0
     }
   }
+
+  func test_renderableItems_childMovedOutsideOriginalBounds() throws {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+
+    // e.g. a (20, 20) child with .offset(x: 30, y: 30) is fully outside (0, 0, 20, 20)
+    do {
+      var node = LayerNode()
+        .frame(width: 20, height: 20)
+        .offset(x: 30, y: 30)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      let originalBounds = CGRect(x: 0, y: 0, width: 20, height: 20)
+      let items = node.renderableItems(in: originalBounds)
+
+      expect(items.count) == 0
+    }
+
+    // querying bounds that intersect the offset child should still return its renderable items
+    do {
+      var node = LayerNode()
+        .frame(width: 20, height: 20)
+        .offset(x: 30, y: 0)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      let visibleBounds = CGRect(x: 11, y: 0, width: 20, height: 20)
+      let items = node.renderableItems(in: visibleBounds)
+
+      expect(items.count) == 1
+      expect(items[0].frame) == CGRect(x: 30, y: 0, width: 20, height: 20)
+      expect(items[0].id.id) == "O|F|L"
+    }
+  }
+
+  func test_renderableItemsBoundingRect() throws {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+
+    // the bounding rect should be translated by the offset
+    do {
+      var node = LayerNode()
+        .frame(width: 20, height: 30)
+        .offset(x: 10, y: 20)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.renderableItemsBoundingRect) == CGRect(x: 10, y: 20, width: 20, height: 30)
+    }
+
+    // when the child node has no renderable items
+    do {
+      var node = Spacer().offset(x: 10, y: 20)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.renderableItemsBoundingRect.isNull) == true
+    }
+  }
 }

@@ -56,6 +56,18 @@ public protocol ComposeNode: ComposeContent {
   /// The size of the node.
   var size: CGSize { get }
 
+  /// The bounding rect of all renderable items that the node can provide, in the node's coordinate space.
+  ///
+  /// Container nodes use this rect to skip querying child nodes that can't provide visible renderable items.
+  /// For visible bounds that don't intersect this rect, `renderableItems(in:)` must return an empty array.
+  ///
+  /// The default implementation returns the node's bounds, i.e. `CGRect(origin: .zero, size: size)`.
+  /// You only need to provide a custom implementation if the node can provide renderable items outside
+  /// of the node's bounds, for example, if the node translates its child node's renderable items.
+  ///
+  /// Like `size`, this value is only valid after `layout(containerSize:context:)` is called.
+  var renderableItemsBoundingRect: CGRect { get }
+
   /// Layout the node in the given container size.
   ///
   /// - Parameters:
@@ -73,6 +85,15 @@ public protocol ComposeNode: ComposeContent {
   /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
   /// - Returns: The renderable items that are visible in the given bounds.
   func renderableItems(in visibleBounds: CGRect) -> [RenderableItem]
+}
+
+// MARK: - Default Implementations
+
+public extension ComposeNode {
+
+  var renderableItemsBoundingRect: CGRect {
+    CGRect(origin: .zero, size: size)
+  }
 }
 
 // MARK: - ComposeContent

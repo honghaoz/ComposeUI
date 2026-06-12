@@ -52,6 +52,18 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
 
   var size: CGSize { node.size }
 
+  var renderableItemsBoundingRect: CGRect {
+    let childRect = node.renderableItemsBoundingRect
+
+    let underlayRect = underlayNode.renderableItemsBoundingRect
+    guard !underlayRect.isNull else {
+      return childRect
+    }
+
+    let underlayFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
+    return childRect.union(underlayRect.translate(underlayFrame.origin))
+  }
+
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let sizing = node.layout(containerSize: containerSize, context: context)
     _ = underlayNode.layout(containerSize: node.size, context: context)

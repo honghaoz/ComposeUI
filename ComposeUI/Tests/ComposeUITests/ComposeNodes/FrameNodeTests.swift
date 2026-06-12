@@ -172,6 +172,26 @@ class FrameNodeTests: XCTestCase {
     expect(item.frame) == CGRect(x: 30, y: 10, width: 10, height: 20)
   }
 
+  func test_renderableItemsBoundingRect_overflowChild() throws {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+
+    // the child node is bigger than the frame node, i.e. the child node overflows the frame
+    var node = FixedSizeNode(size: CGSize(width: 30, height: 30)).frame(width: 10, height: 10, alignment: .center)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    expect(node.size) == CGSize(width: 10, height: 10)
+    expect(node.renderableItemsBoundingRect) == CGRect(x: -10, y: -10, width: 30, height: 30)
+  }
+
+  func test_renderableItemsBoundingRect_noRenderableItemsChild() throws {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+
+    var node = Spacer().frame(width: 10, height: 10)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    expect(node.renderableItemsBoundingRect.isNull) == true
+  }
+
   // MARK: - Frame Modifier Tests
 
   func test_frame_frameSize_frameSize() throws {

@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class HorizontalStackNodeTests: XCTestCase {
 
@@ -278,5 +278,97 @@ class HorizontalStackNodeTests: XCTestCase {
 
     expect(items[0].frame) == CGRect(x: 0, y: 0, width: 10, height: 10)
     expect(items[1].frame) == CGRect(x: 0, y: 0, width: 10, height: 10)
+  }
+
+  func test_renderableItems_culling_onlyQueriesVisibleChildren() {
+    let childCount = 100
+    let states = (0 ..< childCount).map { _ in RenderableItemsProbeNode.State() }
+
+    var node = HStack {
+      for state in states {
+        RenderableItemsProbeNode(state: state, size: CGSize(width: 10, height: 10))
+      }
+    }
+
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 1000, height: 10), context: context)
+
+    // a visible bounds covering children 40 ... 44 (child 45 starts at x == 450, touching, not intersecting)
+    let items = node.renderableItems(in: CGRect(x: 400, y: 0, width: 50, height: 10))
+
+    guard items.count == 5 else {
+      fail("Expected 5 items")
+      return
+    }
+
+    for (i, item) in items.enumerated() {
+      expect(item.frame) == CGRect(x: 400 + CGFloat(i) * 10, y: 0, width: 10, height: 10)
+    }
+
+    // only the visible children should be queried
+    for (i, state) in states.enumerated() {
+      if (40 ... 44).contains(i) {
+        expect(state.renderableItemsCallCount, "child \(i)") == 1
+      } else {
+        expect(state.renderableItemsCallCount, "child \(i)") == 0
+      }
+    }
+  }
+
+  func test_renderableItems_emptyStack() {
+    let node = HStack {}
+    expect(node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).isEmpty) == true
+  }
+
+  func test_renderableItems_visibleBoundsOutsideContent() {
+    var node = HStack {
+      LayerNode().frame(width: 10, height: 10)
+      LayerNode().frame(width: 10, height: 10)
+    }
+
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 20, height: 10), context: context)
+
+    // after the content
+    expect(node.renderableItems(in: CGRect(x: 100, y: 0, width: 10, height: 10)).isEmpty) == true
+
+    // before the content
+    expect(node.renderableItems(in: CGRect(x: -20, y: 0, width: 10, height: 10)).isEmpty) == true
+  }
+
+  func test_renderableItems_assertion() {
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      expect(message) == "renderableItems(in:) requires layout(containerSize:context:) to be called first"
+      assertionCount += 1
+    }
+
+    // when calling renderableItems without calling layout first
+    // then it should trigger the assertion and provide no items
+    let node = HStack {
+      LayerNode()
+    }
+    expect(node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).isEmpty) == true
+    expect(assertionCount) == 1
+
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+  }
+
+  func test_renderableItemsBoundingRect() {
+    // an empty stack has no renderable items
+    var emptyNode = HStack {}
+    _ = emptyNode.layout(containerSize: CGSize(width: 20, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    expect(emptyNode.renderableItemsBoundingRect.isNull) == true
+
+    // a stack with an offset child should include the translated child rect
+    var node = HStack {
+      LayerNode().frame(width: 10, height: 10)
+      LayerNode().frame(width: 10, height: 10)
+        .offset(x: -5, y: 0)
+    }
+    _ = node.layout(containerSize: CGSize(width: 20, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // child 1 items rect: (0, 0, 10, 10), child 2 items rect: (5, 0, 10, 10)
+    expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 15, height: 10)
   }
 }

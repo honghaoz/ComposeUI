@@ -52,9 +52,17 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
   public private(set) var size: CGSize = .zero
 
+  public var renderableItemsBoundingRect: CGRect {
+    layoutCache.itemsBoundingRect
+  }
+
+  /// The cached children layout information, used to cull invisible children in `renderableItems(in:)`.
+  private var layoutCache = StackLayoutCache()
+
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     guard !childNodes.isEmpty else {
       size = .zero
+      layoutCache = StackLayoutCache()
       return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
     }
 
@@ -81,24 +89,54 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     }
 
     size = CGSize(width: maxWidth, height: maxHeight)
+
+    // cache the children layout information for renderableItems(in:)
+    var childOrigins = ContiguousArray<CGPoint>()
+    childOrigins.reserveCapacity(childCount)
+    var childItemsBoundingRects = ContiguousArray<CGRect>()
+    childItemsBoundingRects.reserveCapacity(childCount)
+
+    for node in childNodes {
+      let childOrigin = Layout.position(rect: node.size, in: size, alignment: alignment).origin
+      childOrigins.append(childOrigin)
+
+      let itemsBoundingRect = node.renderableItemsBoundingRect
+      childItemsBoundingRects.append(itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
+    }
+
+    layoutCache.update(childOrigins: childOrigins, childItemsBoundingRects: childItemsBoundingRects, mainAxis: .vertical)
+
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
 
   public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    let childCount = childNodes.count
+    guard layoutCache.childCount == childCount else {
+      ComposeUI.assertFailure("renderableItems(in:) requires layout(containerSize:context:) to be called first")
+      return []
+    }
+
     var mappedChildItems: [RenderableItem] = []
-    mappedChildItems.reserveCapacity(childNodes.count * 4) // use 4x capacity as a rough estimate for the number of items
+    // children in a layered stack overlap each other, so typically all children are visible,
+    // each providing at least one item
+    mappedChildItems.reserveCapacity(childCount)
 
-    for i in 0 ..< childNodes.count {
+    for i in 0 ..< childCount {
+      // children in a layered stack can overlap each other, so there's no visible range to binary search.
+      // instead, skip children whose items bounding rect doesn't intersect the visible bounds.
+      guard visibleBounds.intersects(layoutCache.childItemsBoundingRects[i]) else {
+        continue
+      }
+
       let node = childNodes[i]
-
-      let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
-      let boundsInChild = visibleBounds.translate(-childFrame.origin)
+      let childOrigin = layoutCache.childOrigins[i]
+      let boundsInChild = visibleBounds.translate(-childOrigin)
 
       let childItems = node.renderableItems(in: boundsInChild)
 
       for var item in childItems {
         item.id = id.join(with: item.id, suffix: "\(i)")
-        item.frame = item.frame.translate(childFrame.origin)
+        item.frame = item.frame.translate(childOrigin)
         mappedChildItems.append(item)
       }
     }

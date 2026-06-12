@@ -133,6 +133,35 @@ class GestureRecognizerNodeTests: XCTestCase {
     }
   }
 
+  func test_renderableItemsBoundingRect() {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+
+    // when the child node's items are within the node's bounds
+    do {
+      var node = ColorNode(.red).frame(width: 100, height: 50).onTap { _ in }
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 100, height: 50)
+    }
+
+    // when the child node's items are outside of the node's bounds,
+    // the bounding rect should include both the child items rect and the gesture overlay (the node's bounds)
+    do {
+      var node = ColorNode(.red).frame(width: 50, height: 50).offset(x: -10, y: -10).onTap { _ in }
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.renderableItemsBoundingRect) == CGRect(x: -10, y: -10, width: 60, height: 60)
+    }
+
+    // when the child node has no renderable items, the node provides no items, including the gesture overlay
+    do {
+      var node = Spacer().onTap { _ in }
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.renderableItemsBoundingRect.isNull) == true
+    }
+  }
+
   // MARK: - Gesture Handler Coalescing Tests
 
   func test_gestureHandlerCoalescing() {

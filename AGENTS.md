@@ -80,3 +80,6 @@ Add short, actionable rules here when a pattern repeats.
 - Keep test file organization aligned with source organization; tests for a new source extension should live in a matching test file name (for example `ComposeNode+TransformTests.swift`).
 - For modifier/transform tests, verify observable render output or applied attributes (for example layer color, text font), not only closure execution or indirect proxies like item count.
 - Run internal framework tests from `ComposeUI/` (for example `cd ComposeUI && swift test --filter ...`) rather than relying on the root package, which is configured for public consumption.
+- Comments must explain the decision, not just state a fact: prefer "X can happen, so we do Y (instead of Z)" over "X can happen".
+- In hot paths (layout/render), order computations so work is only done when needed: check early-exit conditions (for example `.isNull`) before computing values used after the check.
+- Newly added code requires full test coverage, including guard/assertion paths and both branches of conditionals. Verify with `swift test --enable-code-coverage` + `xcrun llvm-cov report` on the touched files before claiming done.

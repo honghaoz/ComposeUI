@@ -112,6 +112,10 @@ private struct ModifierNode: ComposeNode {
     node.size
   }
 
+  var renderableItemsBoundingRect: CGRect {
+    node.renderableItemsBoundingRect
+  }
+
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     node.layout(containerSize: containerSize, context: context)
   }

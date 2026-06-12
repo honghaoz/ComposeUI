@@ -58,9 +58,17 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
   public private(set) var size: CGSize = .zero
 
+  public var renderableItemsBoundingRect: CGRect {
+    layoutCache.itemsBoundingRect
+  }
+
+  /// The cached children layout information, used to cull invisible children in `renderableItems(in:)`.
+  private var layoutCache = StackLayoutCache()
+
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     guard !childNodes.isEmpty else {
       size = .zero
+      layoutCache = StackLayoutCache()
       return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
     }
 
@@ -118,16 +126,15 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
     }
 
     size = CGSize(width: totalChildNodesWidth + totalSpacing, height: maxHeight)
-    return ComposeNodeSizing(width: widthSizing, height: heightSizing)
-  }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    var mappedChildItems: [RenderableItem] = []
-    mappedChildItems.reserveCapacity(childNodes.count * 4) // use 4x capacity as a rough estimate for the number of items
+    // cache the children layout information for renderableItems(in:)
+    var childOrigins = ContiguousArray<CGPoint>()
+    childOrigins.reserveCapacity(childCount)
+    var childItemsBoundingRects = ContiguousArray<CGRect>()
+    childItemsBoundingRects.reserveCapacity(childCount)
 
     var x: CGFloat = 0
-    for i in 0 ..< childNodes.count {
-      let node = childNodes[i]
+    for node in childNodes {
       let nodeSize = node.size
 
       let y: CGFloat
@@ -141,6 +148,35 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
       }
 
       let childOrigin = CGPoint(x: x, y: y)
+      childOrigins.append(childOrigin)
+
+      let itemsBoundingRect = node.renderableItemsBoundingRect
+      childItemsBoundingRects.append(itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
+
+      x += nodeSize.width + spacing
+    }
+
+    layoutCache.update(childOrigins: childOrigins, childItemsBoundingRects: childItemsBoundingRects, mainAxis: .horizontal)
+
+    return ComposeNodeSizing(width: widthSizing, height: heightSizing)
+  }
+
+  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    guard layoutCache.childCount == childNodes.count else {
+      ComposeUI.assertFailure("renderableItems(in:) requires layout(containerSize:context:) to be called first")
+      return []
+    }
+
+    let visibleChildRange = layoutCache.visibleChildRange(minPosition: visibleBounds.minX, maxPosition: visibleBounds.maxX)
+
+    var mappedChildItems: [RenderableItem] = []
+    // typically each visible child provides at least one item, so reserving one slot per visible child
+    // avoids the initial growth reallocations without over-allocating for large stacks
+    mappedChildItems.reserveCapacity(visibleChildRange.count)
+
+    for i in visibleChildRange {
+      let node = childNodes[i]
+      let childOrigin = layoutCache.childOrigins[i]
       let boundsInChild = visibleBounds.translate(-childOrigin)
 
       let childItems = node.renderableItems(in: boundsInChild)
@@ -149,8 +185,6 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
         item.frame = item.frame.translate(childOrigin)
         mappedChildItems.append(item)
       }
-
-      x += nodeSize.width + spacing
     }
 
     return mappedChildItems

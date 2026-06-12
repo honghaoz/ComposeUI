@@ -56,4 +56,28 @@ class OverlayNodeTests: XCTestCase {
     expect(items[2].id.id) == "UL|UL|OV|C"
     expect(items[3].id.id) == "UL|UL|OV|O|C"
   }
+
+  func test_renderableItemsBoundingRect() {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+
+    // when the overlay node is bigger than the node, the bounding rect should include the overlay rect
+    do {
+      var node = ColorNode(.red).overlay {
+        ColorNode(.blue).frame(width: 120, height: 120)
+      }
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.renderableItemsBoundingRect) == CGRect(x: -10, y: -10, width: 120, height: 120)
+    }
+
+    // when the overlay node has no renderable items, the bounding rect should be the child node's rect
+    do {
+      var node = ColorNode(.red).overlay {
+        Spacer()
+      }
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    }
+  }
 }

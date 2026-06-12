@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class LayeredStackNodeTests: XCTestCase {
 
@@ -164,5 +164,72 @@ class LayeredStackNodeTests: XCTestCase {
 
     expect(items[0].frame) == CGRect(x: 25, y: 35, width: 50, height: 30)
     expect(items[1].frame) == CGRect(x: 40, y: 40, width: 20, height: 20)
+  }
+
+  func test_renderableItems_culling_onlyQueriesVisibleChildren() {
+    let bigChildState = RenderableItemsProbeNode.State()
+    let smallChildState = RenderableItemsProbeNode.State()
+
+    var node = ZStack(alignment: .topLeft) {
+      RenderableItemsProbeNode(state: bigChildState, size: CGSize(width: 100, height: 100))
+      RenderableItemsProbeNode(state: smallChildState, size: CGSize(width: 10, height: 10))
+    }
+
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    // a visible bounds covering the big child but not the small child
+    let items = node.renderableItems(in: CGRect(x: 50, y: 50, width: 40, height: 40))
+
+    guard items.count == 1 else {
+      fail("Expected 1 item")
+      return
+    }
+
+    expect(items[0].frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    expect(bigChildState.renderableItemsCallCount) == 1
+    expect(smallChildState.renderableItemsCallCount) == 0
+  }
+
+  func test_renderableItems_emptyStack() {
+    let node = ZStack {}
+    expect(node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).isEmpty) == true
+  }
+
+  func test_renderableItems_assertion() {
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      expect(message) == "renderableItems(in:) requires layout(containerSize:context:) to be called first"
+      assertionCount += 1
+    }
+
+    // when calling renderableItems without calling layout first
+    // then it should trigger the assertion and provide no items
+    let node = ZStack {
+      LayerNode()
+    }
+    expect(node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).isEmpty) == true
+    expect(assertionCount) == 1
+
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+  }
+
+  func test_renderableItemsBoundingRect() {
+    // an empty stack has no renderable items
+    var emptyNode = ZStack {}
+    _ = emptyNode.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    expect(emptyNode.renderableItemsBoundingRect.isNull) == true
+
+    // a stack with an offset child should include the translated child rect
+    var node = ZStack {
+      LayerNode().frame(width: 10, height: 10)
+      LayerNode().frame(width: 10, height: 10)
+        .offset(x: 5, y: 5)
+    }
+    _ = node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // child 1 items rect: (0, 0, 10, 10), child 2 items rect: (5, 5, 10, 10)
+    expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 15, height: 15)
   }
 }

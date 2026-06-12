@@ -49,6 +49,18 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
 
   var size: CGSize { node.size }
 
+  var renderableItemsBoundingRect: CGRect {
+    let childRect = node.renderableItemsBoundingRect
+
+    let overlayRect = overlayNode.renderableItemsBoundingRect
+    guard !overlayRect.isNull else {
+      return childRect
+    }
+
+    let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
+    return childRect.union(overlayRect.translate(overlayFrame.origin))
+  }
+
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let sizing = node.layout(containerSize: containerSize, context: context)
     _ = overlayNode.layout(containerSize: node.size, context: context)

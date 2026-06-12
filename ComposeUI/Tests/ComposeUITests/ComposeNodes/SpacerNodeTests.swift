@@ -114,6 +114,16 @@ class SpacerNodeTests: XCTestCase {
     expect(items.isEmpty) == true
   }
 
+  func test_renderableItemsBoundingRect() {
+    var spacer = SpacerNode()
+
+    let context = ComposeNodeLayoutContext(scaleFactor: 2)
+    _ = spacer.layout(containerSize: CGSize(width: 200, height: 200), context: context)
+
+    // the spacer node provides no renderable items
+    expect(spacer.renderableItemsBoundingRect.isNull) == true
+  }
+
   func test_modifier_width() {
     var spacer = SpacerNode()
     spacer = spacer.width(100)

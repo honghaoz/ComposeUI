@@ -1,0 +1,229 @@
+//
+//  RenderPerformanceTests.swift
+//  ComposéUI
+//
+//  Created by Honghao Zhang on 6/11/26.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
+//
+
+import CoreGraphics
+import Foundation
+
+import ChouTiTest
+
+@testable import ComposeUI
+
+/// Render path benchmarks.
+///
+/// These tests are skipped by default. To run them:
+///
+/// ```bash
+/// cd ComposeUI && BENCHMARK=1 swift test -c release -Xswiftc -enable-testing --filter RenderPerformanceTests
+/// ```
+///
+/// Run in release configuration for meaningful numbers.
+class RenderPerformanceTests: XCTestCase {
+
+  override func setUpWithError() throws {
+    try super.setUpWithError()
+    try XCTSkipUnless(ProcessInfo.processInfo.environment["BENCHMARK"] == "1", "benchmarks are skipped by default, run with BENCHMARK=1")
+  }
+
+  // MARK: - Scroll (view-level, full render pass per scroll step)
+
+  func test_scroll_flatRows_10000() {
+    runScrollBenchmark(name: "scroll.flat.10000", rowCount: 10000) { _ in
+      ColorNode(.red)
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+  }
+
+  func test_scroll_flatRows_1000() {
+    runScrollBenchmark(name: "scroll.flat.1000", rowCount: 1000) { _ in
+      ColorNode(.red)
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+  }
+
+  func test_scroll_nestedRows_10000() {
+    runScrollBenchmark(name: "scroll.nested.10000", rowCount: 10000) { i in
+      Self.makeNestedRow(i)
+    }
+  }
+
+  // MARK: - Renderable Items (node-level, isolates the tree walk + id mapping)
+
+  func test_renderableItems_flatRows_10000() {
+    var node: any ComposeNode = VStack {
+      for _ in 0 ..< 10000 {
+        ColorNode(.red)
+          .frame(width: .flexible, height: Constants.rowHeight)
+      }
+    }
+
+    let containerSize = Constants.viewSize
+    _ = node.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    let contentHeight = node.size.height
+    var itemsCount = 0
+
+    let result = measure(warmup: 20, iterations: 500) { i in
+      // vary the visible window position to simulate scrolling, using a step that is
+      // a non-multiple of row height for varied row churn
+      let y = (CGFloat(i) * 977.0).truncatingRemainder(dividingBy: contentHeight - containerSize.height)
+      let visibleBounds = CGRect(origin: CGPoint(x: 0, y: y), size: containerSize)
+      itemsCount = node.renderableItems(in: visibleBounds).count
+    }
+
+    report(name: "renderableItems.flat.10000", result: result, extra: "visibleItems: \(itemsCount)")
+  }
+
+  // MARK: - Refresh (view-level, content rebuild + layout incl. text measurement)
+
+  func test_refresh_nestedRows_200() {
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeNestedRow(i)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    report(name: "refresh.nested.200", result: result)
+  }
+
+  // MARK: - Helpers
+
+  private enum Constants {
+    static let viewSize = CGSize(width: 390, height: 844)
+    static let rowHeight: CGFloat = 50
+    static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
+  }
+
+  /// A realistic list row: icon + two labels + spacer, with padding.
+  private static func makeNestedRow(_ i: Int) -> some ComposeNode {
+    HStack(spacing: 8) {
+      ColorNode(.blue)
+        .frame(width: 32, height: 32)
+      VStack(alignment: .left, spacing: 2) {
+        LabelNode("Row \(i) title")
+        LabelNode("Subtitle for row \(i) with longer text")
+      }
+      Spacer()
+    }
+    .padding(8)
+  }
+
+  private func runScrollBenchmark(name: String, rowCount: Int, makeRow: @escaping (Int) -> any ComposeNode) {
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< rowCount {
+          makeRow(i)
+        }
+      }
+    }
+
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+
+    let setupStart = DispatchTime.now()
+    view.layoutIfNeeded() // initial render
+    let setupDuration = durationInMilliseconds(from: setupStart, to: DispatchTime.now())
+
+    var offset: CGFloat = 0
+    let result = measure(warmup: 20, iterations: 120) { _ in
+      offset += Constants.scrollStep
+      view.setContentOffset(CGPoint(x: 0, y: offset)) // on AppKit, this triggers the render synchronously
+      view.layoutIfNeeded() // on UIKit, this triggers the render
+    }
+
+    // sample the rendered item count with one extra scroll step, outside of the measured loop,
+    // since the debug event handler adds overhead to the render pass.
+    var renderedItemsCount = 0
+    #if DEBUG
+    view.debug { _, event in
+      if case .renderDidFinish(let ids, _, _) = event {
+        renderedItemsCount = ids.count
+      }
+    }
+    offset += Constants.scrollStep
+    view.setContentOffset(CGPoint(x: 0, y: offset))
+    view.layoutIfNeeded()
+    #endif
+
+    report(name: name, result: result, extra: "initialRender: \(format(setupDuration)) ms | renderedItems: \(renderedItemsCount)")
+  }
+
+  // MARK: - Measurement
+
+  private struct BenchmarkResult {
+    let durations: [Double] // milliseconds, sorted ascending
+
+    var median: Double { durations[durations.count / 2] }
+    var mean: Double { durations.reduce(0, +) / Double(durations.count) }
+    var p90: Double { durations[Int(Double(durations.count) * 0.9)] }
+    var min: Double { durations.first ?? 0 }
+    var max: Double { durations.last ?? 0 }
+  }
+
+  private func measure(warmup: Int, iterations: Int, _ block: (Int) -> Void) -> BenchmarkResult {
+    for i in 0 ..< warmup {
+      block(i)
+    }
+
+    var durations: [Double] = []
+    durations.reserveCapacity(iterations)
+
+    for i in 0 ..< iterations {
+      let start = DispatchTime.now()
+      block(warmup + i)
+      let end = DispatchTime.now()
+      durations.append(durationInMilliseconds(from: start, to: end))
+    }
+
+    return BenchmarkResult(durations: durations.sorted())
+  }
+
+  private func durationInMilliseconds(from start: DispatchTime, to end: DispatchTime) -> Double {
+    Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1000000
+  }
+
+  private func report(name: String, result: BenchmarkResult, extra: String? = nil) {
+    var line = "[BENCHMARK] \(name) | iterations: \(result.durations.count) | median: \(format(result.median)) ms | mean: \(format(result.mean)) ms | p90: \(format(result.p90)) ms | min: \(format(result.min)) ms | max: \(format(result.max)) ms"
+    if let extra {
+      line += " | \(extra)"
+    }
+    print(line)
+  }
+
+  private func format(_ value: Double) -> String {
+    String(format: "%.3f", value)
+  }
+}

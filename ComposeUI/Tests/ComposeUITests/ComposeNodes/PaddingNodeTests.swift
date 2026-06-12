@@ -1,8 +1,8 @@
 //
-//  UnderlayNodeTests.swift
+//  PaddingNodeTests.swift
 //  ComposéUI
 //
-//  Created by Honghao Zhang on 11/17/24.
+//  Created by Honghao Zhang on 6/11/26.
 //  Copyright © 2024 Honghao Zhang.
 //
 //  MIT License
@@ -28,56 +28,52 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
 import ChouTiTest
 
-@testable import ComposeUI
+import ComposeUI
 
-class UnderlayNodeTests: XCTestCase {
+class PaddingNodeTests: XCTestCase {
 
-  func test() {
-    var content = ColorNode(.red)
-      .underlay {
-        ColorNode(.blue)
-      }
-      .background(alignment: .center, content: { ColorNode(.green) })
-      .background(ColorNode(.green))
+  func test_padding() {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
-    content.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
-    let items = content.renderableItems(in: CGRect(x: 0, y: 0, width: 50, height: 50))
-    guard items.count == 4 else {
-      fail("Expected 4 items, got \(items.count)")
-      return
+    // padding(top:left:bottom:right:)
+    do {
+      var node = LayerNode().frame(width: 10, height: 10).padding(top: 1, left: 2, bottom: 3, right: 4)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.size) == CGSize(width: 16, height: 14)
+      expect(node.renderableItemsBoundingRect) == CGRect(x: 2, y: 1, width: 10, height: 10)
     }
 
-    expect(items[0].id.id) == "UL|U|C"
-    expect(items[1].id.id) == "UL|UL|U|C"
-    expect(items[2].id.id) == "UL|UL|UL|U|C"
-    expect(items[3].id.id) == "UL|UL|UL|C"
+    // padding(horizontal:vertical:)
+    do {
+      var node = LayerNode().frame(width: 10, height: 10).padding(horizontal: 2, vertical: 3)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      expect(node.size) == CGSize(width: 14, height: 16)
+      expect(node.renderableItemsBoundingRect) == CGRect(x: 2, y: 3, width: 10, height: 10)
+    }
   }
 
   func test_renderableItemsBoundingRect() {
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
-    // when the underlay node is bigger than the node, the bounding rect should include the underlay rect
+    // the bounding rect should be translated by the padding insets
     do {
-      var node = ColorNode(.red).underlay {
-        ColorNode(.blue).frame(width: 120, height: 120)
-      }
+      var node = LayerNode().frame(width: 10, height: 10).padding(5)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      expect(node.renderableItemsBoundingRect) == CGRect(x: -10, y: -10, width: 120, height: 120)
+      expect(node.size) == CGSize(width: 20, height: 20)
+      expect(node.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
     }
 
-    // when the underlay node has no renderable items, the bounding rect should be the child node's rect
+    // when the child node has no renderable items
     do {
-      var node = ColorNode(.red).underlay {
-        Spacer()
-      }
+      var node = Spacer().padding(5)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 100, height: 100)
+      expect(node.renderableItemsBoundingRect.isNull) == true
     }
   }
 }

@@ -62,6 +62,10 @@ public final class LayoutCacheNode: ComposeNode {
     node.size
   }
 
+  public var renderableItemsBoundingRect: CGRect {
+    node.renderableItemsBoundingRect
+  }
+
   public func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     if let cachedLayout, cachedLayout.containerSize == containerSize {
       // layout size is the same, reuse the cached layout result
