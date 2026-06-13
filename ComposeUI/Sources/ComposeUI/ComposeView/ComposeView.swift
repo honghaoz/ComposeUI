@@ -1058,7 +1058,10 @@ open class ComposeView: BaseScrollView {
 
         if let animationTiming {
           renderable.layer.animateFrame(to: newFrame, timing: animationTiming)
-        } else {
+        } else if newFrame != oldFrame {
+          // a reused renderable keeps the same content-space frame while scrolling (the common case),
+          // so re-applying an unchanged frame is wasteful: it dirties the renderable and on AppKit, posts a
+          // frame-change notification that forces a layout pass. Skip it unless the frame actually changed.
           renderable.setFrame(newFrame)
         }
 
@@ -1242,6 +1245,11 @@ private extension CALayer {
   ///
   /// To ensure the frame update is applied correctly, the transform is reset to identity.
   func reset() {
+    // a reused renderable almost always already has an identity transform, so skip the work in that case.
+    // only renderables left with a non-identity transform (e.g. an interrupted transition) need a reset.
+    guard !CATransform3DIsIdentity(transform) else {
+      return
+    }
     disableActions(for: "transform") {
       transform = CATransform3DIdentity // setting frame requires an identity transform
     }
