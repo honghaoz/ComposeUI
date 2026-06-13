@@ -47,23 +47,50 @@ struct ReuseKey: Hashable {
 /// A pool that recycles renderables that removed from the renderable hierarchy so they can be reused for new items of
 /// the same kind, avoiding the cost of creating (and tearing down) a renderable on every render pass.
 ///
-/// The pool is keyed by `ReuseKey` and bounded per key so it never retains an unbounded number of off-screen renderables.
-/// Renderables are reused in LIFO order so the most recently parked (and therefore warmest) renderable is handed back first.
+/// The pool is keyed by `ReuseKey` and bounded along two dimensions so it never retains an unbounded number of off-screen
+/// renderables, even when reuse identifiers are unbounded:
+/// - at most `maxCountPerKey` renderables per key, and
+/// - at most `maxKeyCount` keys, evicting the least-recently-used key first.
+///
+/// The pool also drops parked renderables on memory pressure. Renderables are reused in LIFO order so the most
+/// recently parked (and therefore warmest) renderable is handed back first.
 final class RenderablePool {
-
-  // TODO: handle memory pressure
-  // TODO: handle unbounded buckets (e.g. dynamic reuse keys?)
 
   /// The maximum number of renderables kept per key. Excess renderables are dropped (and deallocated).
   private let maxCountPerKey: Int
 
+  /// The maximum number of keys (buckets) kept. When a new key would exceed this, the least-recently-used key is evicted.
+  private let maxKeyCount: Int
+
   private var buckets: [ReuseKey: [Renderable]] = [:]
+
+  /// The keys ordered from least-recently-used (first) to most-recently-used (last).
+  ///
+  /// This mirrors the keys in `buckets` (every non-empty bucket has exactly one entry here) and drives least-recently-used
+  /// eviction so reuse identifiers cannot grow the pool without bound.
+  private var lruKeys: [ReuseKey] = []
+
+  /// The source that observes memory pressure.
+  private var memoryPressureSource: DispatchSourceMemoryPressure?
 
   /// Create a renderable pool.
   ///
-  /// - Parameter maxCountPerKey: The maximum number of renderables kept per key (reuse identifier + concrete type). Default is 32.
-  init(maxCountPerKey: Int = 32) {
-    self.maxCountPerKey = maxCountPerKey
+  /// - Parameters:
+  ///   - maxCountPerKey: The maximum number of renderables kept per key (reuse identifier + concrete type). Default is 32.
+  ///     Non-positive values are clamped to 1.
+  ///   - maxKeyCount: The maximum number of keys (buckets) kept. Default is 64.
+  ///     Non-positive values are clamped to 1.
+  init(maxCountPerKey: Int = 32, maxKeyCount: Int = 64) {
+    ComposeUI.assert(maxCountPerKey > 0, "maxCountPerKey must be positive")
+    ComposeUI.assert(maxKeyCount > 0, "maxKeyCount must be positive")
+    self.maxCountPerKey = max(1, maxCountPerKey)
+    self.maxKeyCount = max(1, maxKeyCount)
+
+    startObservingMemoryPressure()
+  }
+
+  deinit {
+    memoryPressureSource?.cancel()
   }
 
   /// Park a renderable in the pool for later reuse.
@@ -75,13 +102,39 @@ final class RenderablePool {
   ///   - renderable: The renderable to park.
   ///   - key: The reuse key.
   func enqueue(_ renderable: Renderable, key: ReuseKey) {
-    var bucket = buckets[key] ?? []
-    guard bucket.count < maxCountPerKey else {
-      // bucket is full, drop the renderable so the pool doesn't retain off-screen renderables without bound.
-      return
+    switch renderable {
+    case .view(let view):
+      ComposeUI.assert(view.superview == nil, "Renderable must be detached from its parent")
+    case .layer(let layer):
+      ComposeUI.assert(layer.superlayer == nil, "Renderable must be detached from its parent")
     }
-    bucket.append(renderable)
-    buckets[key] = bucket
+
+    if var bucket = buckets[key] {
+      // existing key
+
+      // touch the key to refresh recency, regardless of whether the bucket is full or not.
+      touch(key)
+
+      guard bucket.count < maxCountPerKey else {
+        // bucket is full, drop the renderable so the pool doesn't retain off-screen renderables without bound.
+        return
+      }
+      bucket.append(renderable)
+      buckets[key] = bucket
+      return
+    } else {
+      // new key
+
+      buckets[key] = [renderable]
+      touch(key)
+
+      // bound the number of keys
+      // the key just touched is now most-recently-used (last), so the evicted least-recently-used key (first) is never the one we added.
+      if buckets.count > maxKeyCount, let lruKey = lruKeys.first {
+        lruKeys.removeFirst()
+        buckets.removeValue(forKey: lruKey)
+      }
+    }
   }
 
   /// Take a recycled renderable for the key, if one is available.
@@ -92,18 +145,31 @@ final class RenderablePool {
     guard var bucket = buckets[key], let renderable = bucket.popLast() else {
       return nil
     }
-    buckets[key] = bucket
+    if bucket.isEmpty {
+      // drop the now-empty bucket entirely so empty buckets don't accumulate (especially with dynamic reuse identifiers).
+      buckets.removeValue(forKey: key)
+      removeFromLRU(key)
+    } else {
+      buckets[key] = bucket
+      touch(key)
+    }
     return renderable
   }
 
   /// Remove all parked renderables.
   func removeAll() {
     buckets.removeAll()
+    lruKeys.removeAll()
   }
 
   /// The total number of parked renderables across all keys.
   var count: Int {
     buckets.values.reduce(0) { $0 + $1.count }
+  }
+
+  /// The number of keys (buckets) currently retained.
+  var keyCount: Int {
+    buckets.count
   }
 
   /// The number of parked renderables for a key.
@@ -113,6 +179,84 @@ final class RenderablePool {
   func count(for key: ReuseKey) -> Int {
     buckets[key]?.count ?? 0
   }
+
+  // MARK: - LRU
+
+  /// Mark a key as most-recently-used.
+  private func touch(_ key: ReuseKey) {
+    lruKeys.removeAll { $0 == key }
+    lruKeys.append(key)
+  }
+
+  /// Remove a key from the least-recently-used order.
+  private func removeFromLRU(_ key: ReuseKey) {
+    lruKeys.removeAll { $0 == key }
+  }
+
+  // MARK: - Memory Pressure
+
+  private func startObservingMemoryPressure() {
+    // `DispatchSource` memory pressure is the cross-platform way to observe memory pressure on Apple platforms
+    // (`UIApplication.didReceiveMemoryWarningNotification` is UIKit-only).
+    // The handler runs on the main queue to match the pool's main-thread usage during rendering, so `buckets` is never mutated concurrently.
+    let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+    memoryPressureSource = source
+
+    source.setEventHandler { [weak self] in
+      guard let self, let event = self.memoryPressureSource?.data else {
+        return
+      }
+      self.handleMemoryPressure(event)
+    }
+    source.resume()
+  }
+
+  /// Trim parked renderables in response to a memory pressure event.
+  ///
+  /// - Parameter event: The memory pressure event that fired.
+  private func handleMemoryPressure(_ event: DispatchSource.MemoryPressureEvent) {
+    if event.contains(.critical) {
+      removeAll()
+    } else {
+      evictHalf()
+    }
+  }
+
+  /// Drop roughly half of the parked renderables, keeping the warmest (most recently parked) in each bucket.
+  private func evictHalf() {
+    for key in Array(buckets.keys) {
+      let bucket = buckets[key]! // swiftlint:disable:this force_unwrapping
+      let keepCount = bucket.count / 2
+      if keepCount == 0 {
+        // a single-renderable bucket can't be halved, drop it (and its key) entirely.
+        buckets.removeValue(forKey: key)
+        removeFromLRU(key)
+      } else {
+        // the warmest renderables are at the end of the bucket (LIFO reuse), so keep the suffix.
+        buckets[key] = Array(bucket.suffix(keepCount))
+      }
+    }
+  }
+
+  #if DEBUG
+
+  var test: Test { Test(host: self) }
+
+  class Test {
+
+    private let host: RenderablePool
+
+    fileprivate init(host: RenderablePool) {
+      ComposeUI.assert(Thread.isRunningXCTest, "test namespace should only be used in test target.")
+      self.host = host
+    }
+
+    func handleMemoryPressure(_ event: DispatchSource.MemoryPressureEvent) {
+      host.handleMemoryPressure(event)
+    }
+  }
+
+  #endif
 }
 
 // MARK: - RenderItem + ReuseKey
