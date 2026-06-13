@@ -88,6 +88,44 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(counter.madeCount) > initialMakeCount
   }
 
+  // MARK: - Pool configuration
+
+  func test_renderablePool_defaultsToSharedPool() {
+    let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    // by default a view uses the process-wide shared pool, so reuse is amortized across views.
+    expect(view.renderablePool === RenderablePool.shared) == true
+  }
+
+  func test_renderablePool_disabled_doesNotRecycle() {
+    let counter = MakeCounter()
+    let view = makeRowsView(reuseId: "row", counter: counter, update: nil)
+    view.renderablePool = nil // disable pooling despite the rows having a reuse identifier.
+    view.refresh(animated: false)
+
+    let initialMakeCount = counter.madeCount
+    expect(initialMakeCount) > 0
+
+    scrollDown(view)
+
+    // with pooling disabled, each revealed row creates its own renderable (nothing is parked or reused).
+    expect(counter.madeCount) == Constants.rowCount
+    expect(counter.madeCount) > initialMakeCount
+  }
+
+  func test_renderablePool_customPool_isUsedForReuse() {
+    let counter = MakeCounter()
+    let pool = MockRenderablePool()
+    let view = makeRowsView(reuseId: "row", counter: counter, update: nil)
+    view.renderablePool = pool
+    view.refresh(animated: false)
+
+    scrollDown(view)
+
+    // the custom pool received parked renderables and handed them back for reuse.
+    expect(pool.enqueueCount) > 0
+    expect(pool.dequeueCount) > 0
+  }
+
   // MARK: - Reconfiguration (dirty-state contract)
 
   func test_reuseId_recycledRenderable_isReconfiguredForNewRow() {
@@ -116,6 +154,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     let counterB = MakeCounter()
 
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = RenderablePool() // isolate from the shared pool so reuse counts are deterministic.
     view.setContent {
       VStack {
         for i in 0 ..< Constants.rowCount {
@@ -180,6 +219,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
   func test_reuseId_renderableIsPooledOnlyAfterRemoveTransitionCompletes() {
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let pool = RenderablePool()
+    contentView.renderablePool = pool
 
     var removalCompletion: (() -> Void)?
     let transition = RenderableTransition(
@@ -208,17 +249,19 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // while the remove transition is in flight, the renderable is parked in the removing map and must not be pooled
     // (it may still be re-inserted).
     expect(contentView.test.removingRenderableMap.count) == 1
-    expect(contentView.test.renderablePool.count) == 0
+    expect(pool.count) == 0
 
     removalCompletion?()
 
     // once the remove transition completes, the renderable is moved into the pool for reuse.
     expect(contentView.test.removingRenderableMap.count) == 0
-    expect(contentView.test.renderablePool.count) == 1
+    expect(pool.count) == 1
   }
 
   func test_reuseId_transitionResetForReuse_isCalledBeforePooling() {
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let pool = RenderablePool()
+    contentView.renderablePool = pool
 
     var removalCompletion: (() -> Void)?
     var removedLayer: CALayer?
@@ -256,14 +299,14 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     // while the remove transition is in flight, the residue is present and the renderable is not yet pooled.
     expect(removedLayer?.opacity) == 0
-    expect(contentView.test.renderablePool.count) == 0
+    expect(pool.count) == 0
 
     removalCompletion?()
 
     // once the transition completes, the engine asks the transition to reset its residue before pooling, so the parked
     // renderable is clean (visible) and a future reuse does not re-insert it invisible.
     expect(removedLayer?.opacity) == 1
-    expect(contentView.test.renderablePool.count) == 1
+    expect(pool.count) == 1
 
     // reuse the parked renderable for a new row; it stays visible (no leftover fade).
     contentView.setContent {
@@ -274,12 +317,14 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
-    expect(contentView.test.renderablePool.count) == 0
+    expect(pool.count) == 0
     expect(removedLayer?.opacity) == 1
   }
 
   func test_reuseId_renderableReinsertedDuringRemoveTransition_isNotPooled() {
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let pool = RenderablePool()
+    contentView.renderablePool = pool
 
     let transition = RenderableTransition(
       insert: RenderableTransition.InsertTransition { renderable, context, completion in
@@ -304,7 +349,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: true)
     expect(contentView.test.removingRenderableMap.count) == 1
-    expect(contentView.test.renderablePool.count) == 0
+    expect(pool.count) == 0
 
     // re-insert the same node: the in-flight removal is cancelled and the renderable is revived, so it must never be
     // pooled.
@@ -317,7 +362,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     contentView.refresh(animated: true)
 
     expect(contentView.test.removingRenderableMap.count) == 0
-    expect(contentView.test.renderablePool.count) == 0
+    expect(pool.count) == 0
   }
 
   // MARK: - Prepare for reuse
@@ -327,6 +372,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     var prepareForReuseCount = 0
 
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = RenderablePool() // isolate from the shared pool so reuse counts are deterministic.
     view.setContent {
       VStack {
         for _ in 0 ..< Constants.rowCount {
@@ -420,6 +466,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // a layer-backed node (ColorNode) also receives the hook on reuse, exercising the layer erasure path.
     var prepareForReuseCount = 0
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = RenderablePool() // isolate from the shared pool so reuse counts are deterministic.
     view.setContent {
       VStack {
         for i in 0 ..< Constants.rowCount {
@@ -446,6 +493,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
                             update: ((ReuseTrackingView, Int) -> Void)?) -> ComposeView
   {
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = RenderablePool() // isolate from the shared pool so reuse counts are deterministic.
     view.setContent {
       VStack {
         for i in 0 ..< Constants.rowCount {
@@ -513,6 +561,25 @@ private final class ReuseTrackingView: View {
 private final class RowViewA: View {}
 
 private final class RowViewB: View {}
+
+/// A custom `RenderablePool` that counts calls and delegates to a real pool, to verify `ComposeView` uses the configured pool.
+private final class MockRenderablePool: RenderablePoolType {
+
+  private(set) var enqueueCount = 0
+  private(set) var dequeueCount = 0
+
+  private let backing = RenderablePool()
+
+  func enqueue(_ renderable: Renderable, key: ReuseKey) {
+    enqueueCount += 1
+    backing.enqueue(renderable, key: key)
+  }
+
+  func dequeue(_ key: ReuseKey) -> Renderable? {
+    dequeueCount += 1
+    return backing.dequeue(key)
+  }
+}
 
 private extension View {
 

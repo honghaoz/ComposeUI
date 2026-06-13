@@ -137,8 +137,13 @@ open class ComposeView: BaseScrollView {
   /// The map of the removing renderable transition completion blocks.
   private var removingRenderableTransitionCompletionMap: [String: CancellableBlock] = [:]
 
-  /// The pool that recycles renderables.
-  private let renderablePool = RenderablePool() // TODO: make this configurable, so multiple ComposeView can share the same pool
+  /// The pool that recycles renderables across render passes.
+  ///
+  /// By default, all `ComposeView`s share a single process-wide pool (`RenderablePool.shared`) so reuse is amortized
+  /// across views.
+  ///
+  /// Assign a custom `RenderablePoolType` to plug in your own implementation or set it to `nil` to disable renderable reuse.
+  public var renderablePool: RenderablePoolType? = RenderablePool.shared
 
   // MARK: - Initialization
 
@@ -942,9 +947,9 @@ open class ComposeView: BaseScrollView {
             // if the item opts into reuse, park the now-detached renderable in the pool so a future insertion of the
             // same kind can reuse it instead of creating a new renderable.
             // the cancel path (re-insertion during a remove transition) does not run this block, so a revived renderable is never pooled.
-            if let reuseKey = oldRenderableItem.reuseKey {
+            if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = self.renderablePool {
               removeTransition?.resetForReuse(renderable: oldRenderable)
-              self.renderablePool.enqueue(oldRenderable, key: reuseKey)
+              renderablePool.enqueue(oldRenderable, key: reuseKey)
             }
           }
 
@@ -1099,7 +1104,7 @@ open class ComposeView: BaseScrollView {
           removingRenderableMap.removeValue(forKey: id)
           removingRenderableTransitionCompletionMap.removeValue(forKey: id)
           renderable = removingRenderable
-        } else if let reuseKey = renderableItem.reuseKey, let pooledRenderable = renderablePool.dequeue(reuseKey) {
+        } else if let reuseKey = renderableItem.reuseKey, let pooledRenderable = renderablePool?.dequeue(reuseKey) {
           // reuse a pooled renderable of the same kind instead of creating a new one
           renderable = pooledRenderable
           renderableItem.prepareForReuse?(renderable)
@@ -1253,10 +1258,6 @@ open class ComposeView: BaseScrollView {
 
     var removingRenderableTransitionCompletionMap: [String: CancellableBlock] {
       host.removingRenderableTransitionCompletionMap
-    }
-
-    var renderablePool: RenderablePool {
-      host.renderablePool
     }
   }
 

@@ -355,6 +355,7 @@ class RenderPerformanceTests: XCTestCase {
         }
       }
     }
+    view.renderablePool = RenderablePool() // isolate from the shared pool so each benchmark starts cold.
 
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
 
