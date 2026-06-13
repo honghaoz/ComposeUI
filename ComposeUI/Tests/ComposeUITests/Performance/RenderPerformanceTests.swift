@@ -40,10 +40,12 @@ import ChouTiTest
 /// These tests are skipped by default. To run them:
 ///
 /// ```bash
-/// cd ComposeUI && BENCHMARK=1 swift test -c release -Xswiftc -enable-testing --filter RenderPerformanceTests
+/// cd ComposeUI && BENCHMARK=1 swift test -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter RenderPerformanceTests
 /// ```
 ///
-/// Run in release configuration for meaningful numbers.
+/// Run in release configuration for meaningful numbers. `-DDEBUG` is required because the test
+/// target depends on debug-only test hooks; note this also compiles in the render path's debug
+/// assertions and event callbacks, so numbers include some debug instrumentation overhead.
 class RenderPerformanceTests: XCTestCase {
 
   override func setUpWithError() throws {
@@ -70,6 +72,29 @@ class RenderPerformanceTests: XCTestCase {
   func test_scroll_nestedRows_10000() {
     runScrollBenchmark(name: "scroll.nested.10000", rowCount: 10000) { i in
       Self.makeNestedRow(i)
+    }
+  }
+
+  func test_scroll_nestedRows_10000_up() {
+    // scrolling up makes new rows enter at the back of the z-order, which is the worst case
+    // for z-order maintenance: a back insertion invalidates the "already in order" fast path.
+    runScrollBenchmark(name: "scroll.nested.10000.up", rowCount: 10000, scrollUp: true) { i in
+      Self.makeNestedRow(i)
+    }
+  }
+
+  func test_scroll_flatSmallRows_5000() {
+    // small rows make many items visible (~105), amplifying the per-item z-order maintenance cost
+    runScrollBenchmark(name: "scroll.flatSmall.5000", rowCount: 5000, rowHeight: Constants.smallRowHeight) { _ in
+      ColorNode(.red)
+        .frame(width: .flexible, height: Constants.smallRowHeight)
+    }
+  }
+
+  func test_scroll_flatSmallRows_5000_up() {
+    runScrollBenchmark(name: "scroll.flatSmall.5000.up", rowCount: 5000, rowHeight: Constants.smallRowHeight, scrollUp: true) { _ in
+      ColorNode(.red)
+        .frame(width: .flexible, height: Constants.smallRowHeight)
     }
   }
 
@@ -100,6 +125,66 @@ class RenderPerformanceTests: XCTestCase {
     report(name: "renderableItems.flat.10000", result: result, extra: "visibleItems: \(itemsCount)")
   }
 
+  func test_renderableItems_nestedRows_10000() {
+    var node: any ComposeNode = VStack {
+      for i in 0 ..< 10000 {
+        Self.makeNestedRow(i)
+      }
+    }
+
+    let containerSize = Constants.viewSize
+    _ = node.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    let contentHeight = node.size.height
+    var itemsCount = 0
+
+    let result = measure(warmup: 20, iterations: 500) { i in
+      // vary the visible window position to simulate scrolling, using a step that is
+      // a non-multiple of row height for varied row churn
+      let y = (CGFloat(i) * 977.0).truncatingRemainder(dividingBy: contentHeight - containerSize.height)
+      let visibleBounds = CGRect(origin: CGPoint(x: 0, y: y), size: containerSize)
+      itemsCount = node.renderableItems(in: visibleBounds).count
+    }
+
+    report(name: "renderableItems.nested.10000", result: result, extra: "visibleItems: \(itemsCount)")
+  }
+
+  // MARK: - Profile
+
+  /// A long-running scroll loop for attaching a sampling profiler.
+  ///
+  /// ```bash
+  /// BENCHMARK=1 PROFILE=1 swift test -c debug -Xswiftc -O --filter RenderPerformanceTests/test_profile_scroll_nested &
+  /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_profile.txt
+  /// ```
+  func test_profile_scroll_nested() throws {
+    try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
+
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 10000 {
+          Self.makeNestedRow(i)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    print("[PROFILE] pid: \(ProcessInfo.processInfo.processIdentifier), scrolling for 30s...")
+
+    var offset: CGFloat = 0
+    let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
+    let deadline = Date().addingTimeInterval(30)
+    while Date() < deadline {
+      offset += Constants.scrollStep
+      if offset > maxOffset {
+        offset = 0
+      }
+      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.layoutIfNeeded()
+    }
+  }
+
   // MARK: - Refresh (view-level, content rebuild + layout incl. text measurement)
 
   func test_refresh_nestedRows_200() {
@@ -125,6 +210,7 @@ class RenderPerformanceTests: XCTestCase {
   private enum Constants {
     static let viewSize = CGSize(width: 390, height: 844)
     static let rowHeight: CGFloat = 50
+    static let smallRowHeight: CGFloat = 8
     static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
   }
 
@@ -142,7 +228,12 @@ class RenderPerformanceTests: XCTestCase {
     .padding(8)
   }
 
-  private func runScrollBenchmark(name: String, rowCount: Int, makeRow: @escaping (Int) -> any ComposeNode) {
+  private func runScrollBenchmark(name: String,
+                                  rowCount: Int,
+                                  rowHeight: CGFloat = Constants.rowHeight,
+                                  scrollUp: Bool = false,
+                                  makeRow: @escaping (Int) -> any ComposeNode)
+  {
     let view = ComposeView {
       VStack {
         for i in 0 ..< rowCount {
@@ -157,9 +248,10 @@ class RenderPerformanceTests: XCTestCase {
     view.layoutIfNeeded() // initial render
     let setupDuration = durationInMilliseconds(from: setupStart, to: DispatchTime.now())
 
-    var offset: CGFloat = 0
+    let maxOffset = CGFloat(rowCount) * rowHeight - Constants.viewSize.height
+    var offset: CGFloat = scrollUp ? maxOffset : 0
     let result = measure(warmup: 20, iterations: 120) { _ in
-      offset += Constants.scrollStep
+      offset += scrollUp ? -Constants.scrollStep : Constants.scrollStep
       view.setContentOffset(CGPoint(x: 0, y: offset)) // on AppKit, this triggers the render synchronously
       view.layoutIfNeeded() // on UIKit, this triggers the render
     }

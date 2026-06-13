@@ -66,6 +66,8 @@ class NSView_ExtensionsTests: XCTestCase {
     expect(view.didLayoutSubtreeIfNeeded) == true
   }
 
+  // MARK: - bringSubviewToFront(_:)
+
   func test_bringSubviewToFront() {
     let view = BaseView()
     let subview1 = BaseView()
@@ -75,15 +77,209 @@ class NSView_ExtensionsTests: XCTestCase {
     view.addSubview(subview2)
     view.addSubview(subview3)
 
-    expect(view.subviews[0]) == subview1
-    expect(view.subviews[1]) == subview2
-    expect(view.subviews[2]) == subview3
+    expect(view.subviews) == [subview1, subview2, subview3]
 
     view.bringSubviewToFront(subview2)
-    expect(view.subviews[0]) == subview1
-    expect(view.subviews[1]) == subview3
-    expect(view.subviews[2]) == subview2
+    expect(view.subviews) == [subview1, subview3, subview2]
+
+    // bringing the front subview to front keeps the order
+    view.bringSubviewToFront(subview2)
+    expect(view.subviews) == [subview1, subview3, subview2]
+
+    // bringing the back subview to front
+    view.bringSubviewToFront(subview1)
+    expect(view.subviews) == [subview3, subview2, subview1]
   }
+
+  func test_bringSubviewToFront_sublayersOrder() throws {
+    // host the view in a window so that the subviews' backing layers are attached to the view's layer
+    let window = TestWindow()
+    let view = BaseView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    window.contentView().addSubview(view)
+
+    let subview1 = BaseView()
+    let subview2 = BaseView()
+    let subview3 = BaseView()
+    view.addSubview(subview1)
+    view.addSubview(subview2)
+    view.addSubview(subview3)
+    window.displayIfNeeded() // makes AppKit attach the backing layers
+
+    let viewLayer = try unwrap(view.layer)
+    let layer1 = try unwrap(subview1.layer)
+    let layer2 = try unwrap(subview2.layer)
+    let layer3 = try unwrap(subview3.layer)
+
+    // a manually added sublayer on top
+    let manualLayer = CALayer()
+    viewLayer.addSublayer(manualLayer)
+
+    expect(viewLayer.sublayers) == [layer1, layer2, layer3, manualLayer]
+
+    // the backing layer is moved to the front immediately (above the manual sublayer), without a display pass
+    view.bringSubviewToFront(subview2)
+    expect(view.subviews) == [subview1, subview3, subview2]
+    expect(viewLayer.sublayers) == [layer1, layer3, manualLayer, layer2]
+
+    view.bringSubviewToFront(subview1)
+    expect(view.subviews) == [subview3, subview2, subview1]
+    expect(viewLayer.sublayers) == [layer3, manualLayer, layer2, layer1]
+  }
+
+  func test_bringSubviewToFront_notASubview_assertion() {
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      expect(message.hasSuffix("is not a subview")) == true
+      assertionCount += 1
+    }
+
+    let view = BaseView()
+    let subview = BaseView()
+    view.addSubview(subview)
+    let notASubview = BaseView()
+
+    view.bringSubviewToFront(notASubview)
+    expect(assertionCount) == 1
+    expect(view.subviews) == [subview] // unchanged
+
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+  }
+
+  // MARK: - sortSubviews(by:)
+
+  func test_sortSubviews_byOrder() {
+    let view = BaseView()
+    let subview1 = BaseView()
+    let subview2 = BaseView()
+    let subview3 = BaseView()
+    let subview4 = BaseView()
+    view.addSubview(subview1)
+    view.addSubview(subview2)
+    view.addSubview(subview3)
+    view.addSubview(subview4)
+
+    // reorder with a full order map
+    view.sortSubviews(by: [
+      ObjectIdentifier(subview4): 0,
+      ObjectIdentifier(subview2): 1,
+      ObjectIdentifier(subview1): 2,
+      ObjectIdentifier(subview3): 3,
+    ])
+    expect(view.subviews) == [subview4, subview2, subview1, subview3]
+
+    // sorting with the same order keeps the order
+    view.sortSubviews(by: [
+      ObjectIdentifier(subview4): 0,
+      ObjectIdentifier(subview2): 1,
+      ObjectIdentifier(subview1): 2,
+      ObjectIdentifier(subview3): 3,
+    ])
+    expect(view.subviews) == [subview4, subview2, subview1, subview3]
+  }
+
+  func test_sortSubviews_byOrder_partial() {
+    let view = BaseView()
+    let subview1 = BaseView()
+    let subview2 = BaseView()
+    let subview3 = BaseView()
+    let subview4 = BaseView()
+    view.addSubview(subview1)
+    view.addSubview(subview2)
+    view.addSubview(subview3)
+    view.addSubview(subview4)
+
+    // a partial order map that is consistent with the current order doesn't reorder anything,
+    // subviews not in the order map keep their relative order
+    view.sortSubviews(by: [
+      ObjectIdentifier(subview1): 0,
+      ObjectIdentifier(subview3): 1,
+    ])
+    expect(view.subviews) == [subview1, subview2, subview3, subview4]
+
+    // an empty order map keeps the order
+    view.sortSubviews(by: [:])
+    expect(view.subviews) == [subview1, subview2, subview3, subview4]
+
+    // a partial order map that is inconsistent with the current order reorders the subviews
+    view.sortSubviews(by: [
+      ObjectIdentifier(subview3): 1,
+      ObjectIdentifier(subview1): 2,
+    ])
+    expect(view.subviews) == [subview3, subview1, subview2, subview4]
+  }
+
+  func test_sortSubviews_byOrder_doesNotUpdateSublayers() throws {
+    // host the view in a window so that the subviews' backing layers are attached to the view's layer
+    let window = TestWindow()
+    let view = BaseView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    window.contentView().addSubview(view)
+
+    let subview1 = BaseView()
+    let subview2 = BaseView()
+    view.addSubview(subview1)
+    view.addSubview(subview2)
+    window.displayIfNeeded() // makes AppKit attach the backing layers
+
+    let viewLayer = try unwrap(view.layer)
+    let layer1 = try unwrap(subview1.layer)
+    let layer2 = try unwrap(subview2.layer)
+    expect(viewLayer.sublayers) == [layer1, layer2]
+
+    view.sortSubviews(by: [
+      ObjectIdentifier(subview2): 0,
+      ObjectIdentifier(subview1): 1,
+    ])
+
+    // the subview order is updated, but the backing layer order is not (AppKit syncs it at the next display pass)
+    expect(view.subviews) == [subview2, subview1]
+    expect(viewLayer.sublayers) == [layer1, layer2]
+  }
+
+  /// Pins the AppKit display-pass behavior that the `sortSubviews(by:)` doc note and `ComposeView.placeNewRenderables` rely on:
+  /// - When the backing layers are out of sync with the subview order, the next display pass re-syncs
+  ///   them, placing all backing layers above the non-backing sublayers.
+  /// - When the backing layers are already in sync, the display pass keeps the non-backing sublayers
+  ///   interleaved in place.
+  func test_sortSubviews_byOrder_displayPassSyncsSublayers() throws {
+    let window = TestWindow()
+    let view = BaseView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    window.contentView().addSubview(view)
+
+    let subview1 = BaseView()
+    let subview2 = BaseView()
+    view.addSubview(subview1)
+    view.addSubview(subview2)
+    window.displayIfNeeded() // makes AppKit attach the backing layers
+
+    let viewLayer = try unwrap(view.layer)
+    let layer1 = try unwrap(subview1.layer)
+    let layer2 = try unwrap(subview2.layer)
+
+    // a manually added sublayer interleaved between the backing layers, like a ComposeUI layer item
+    let manualLayer = CALayer()
+    viewLayer.insertSublayer(manualLayer, above: layer1)
+    expect(viewLayer.sublayers) == [layer1, manualLayer, layer2]
+
+    // when the backing layers match the subview order, the display pass keeps the sublayers in place
+    view.needsDisplay = true
+    window.displayIfNeeded()
+    expect(viewLayer.sublayers) == [layer1, manualLayer, layer2]
+
+    // when the backing layers are out of sync with the subview order, the display pass re-syncs them
+    // and places the backing layers above the manually added sublayer
+    view.sortSubviews(by: [
+      ObjectIdentifier(subview2): 0,
+      ObjectIdentifier(subview1): 1,
+    ])
+    expect(view.subviews) == [subview2, subview1]
+    expect(viewLayer.sublayers) == [layer1, manualLayer, layer2] // not synced yet
+
+    view.needsDisplay = true
+    window.displayIfNeeded()
+    expect(viewLayer.sublayers) == [manualLayer, layer2, layer1]
+  }
+
+  // MARK: - ignoreHitTest
 
   func test_ignoreHitTest() {
     let view = NSTextField(frame: CGRect(x: 0, y: 0, width: 100, height: 100))

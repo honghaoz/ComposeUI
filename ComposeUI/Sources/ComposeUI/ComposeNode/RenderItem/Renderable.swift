@@ -103,14 +103,15 @@ public enum Renderable {
       if view.superview !== parent {
         // view is not in the parent, add it.
         //
-        // this avoids calling addSubview which triggers `_didMoveFromWindow:toWindow:`
-        // that recursively traverses the entire subview hierarchy.
+        // the `view.superview !== parent` guard above skips this when the view is already in the parent.
+        // calling `addSubview` redundantly triggers `_didMoveFromWindow:toWindow:`, which recursively
+        // traverses the entire subview hierarchy.
         parent.addSubview(view)
       } else if parent.subviews.last !== view {
         // view is already in the parent, but not at the front, bring it to front.
         //
-        // this avoids bringSubviewToFront which triggers `CA::Layer::set_sublayers`
-        // → `update_sublayers` → `qsort`, which is O(N log N) per call. With N views that compounds to O(N² log N).
+        // the `subviews.last !== view` guard above skips this when the view is already at the front.
+        // `bringSubviewToFront` re-inserts the view (and its backing layer) at the front, O(N) per call.
         parent.bringSubviewToFront(view)
       }
     case .layer(let layer):
