@@ -47,6 +47,8 @@ private struct ModifierNode: ComposeNode {
   private let update: ((Renderable, RenderableUpdateContext) -> Void)?
   private let willRemove: ((Renderable, RenderableRemoveContext) -> Void)?
   private let didRemove: ((Renderable, RenderableRemoveContext) -> Void)?
+  private let reuseId: String?
+  private let prepareForReuse: ((Renderable) -> Void)?
   private let transition: RenderableTransition?
   private let animationTiming: AnimationTiming?
 
@@ -57,19 +59,21 @@ private struct ModifierNode: ComposeNode {
                    update: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
                    willRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    didRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
+                   reuseId: String? = nil,
+                   prepareForReuse: ((Renderable) -> Void)? = nil,
                    transition: RenderableTransition? = nil,
                    animationTiming: AnimationTiming? = nil)
   {
     if let modifierNode = node as? ModifierNode { // coalescing modifiers
       self.node = modifierNode.node
-
       self.willInsert = Self.combineBlocks(modifierNode.willInsert, willInsert)
       self.didInsert = Self.combineBlocks(modifierNode.didInsert, didInsert)
       self.willUpdate = Self.combineBlocks(modifierNode.willUpdate, willUpdate)
       self.update = Self.combineBlocks(modifierNode.update, update)
       self.willRemove = Self.combineBlocks(modifierNode.willRemove, willRemove)
       self.didRemove = Self.combineBlocks(modifierNode.didRemove, didRemove)
-
+      self.reuseId = modifierNode.reuseId ?? reuseId
+      self.prepareForReuse = Self.combineBlocks(modifierNode.prepareForReuse, prepareForReuse)
       self.transition = modifierNode.transition ?? transition
       self.animationTiming = modifierNode.animationTiming ?? animationTiming
     } else {
@@ -80,8 +84,26 @@ private struct ModifierNode: ComposeNode {
       self.update = update
       self.willRemove = willRemove
       self.didRemove = didRemove
+      self.reuseId = reuseId
+      self.prepareForReuse = prepareForReuse
       self.transition = transition
       self.animationTiming = animationTiming
+    }
+  }
+
+  private static func combineBlocks(_ first: ((Renderable) -> Void)?, _ second: ((Renderable) -> Void)?) -> ((Renderable) -> Void)? {
+    switch (first, second) {
+    case (nil, nil):
+      return nil
+    case (let first?, nil):
+      return first
+    case (nil, let second?):
+      return second
+    case (let first?, let second?):
+      return { renderable in
+        first(renderable)
+        second(renderable)
+      }
     }
   }
 
@@ -141,6 +163,12 @@ private struct ModifierNode: ComposeNode {
         }
         if let didRemove = didRemove {
           item = item.addDidRemove(didRemove)
+        }
+        if let reuseId = reuseId {
+          item = item.reuseId(reuseId)
+        }
+        if let prepareForReuse = prepareForReuse {
+          item = item.addPrepareForReuse(prepareForReuse)
         }
         if let transition = transition {
           item = item.transition(transition)
@@ -236,6 +264,38 @@ public extension ComposeNode {
   /// - Returns: A new node with the animation set.
   func animation(_ animationTiming: AnimationTiming) -> some ComposeNode {
     ModifierNode(node: self, animationTiming: animationTiming)
+  }
+
+  /// Set a reuse identifier for the renderables provided by the node, opting them into the recycle pool.
+  ///
+  /// When a renderable is removed from the renderable hierarchy, it is parked in a pool instead of being
+  /// deallocated, and is handed back when a new item with the same reuse identifier and concrete type is inserted.
+  ///
+  /// For renderables that are expensive to create, this can avoid the cost of creating and speed up the rendering.
+  ///
+  /// - Note: This is intended for leaf nodes that produce a single renderable. For nodes that produce multiple renderables,
+  ///   calling this method on the node will make every matching concrete type share a pool bucket, so only do that when
+  ///   those renderables are interchangeable and reset/configured by the same contract.
+  ///   Prefer calling this method on the innermost node that produces a single renderable to avoid accidentally sharing.
+  /// - Note: Reused renderables can carry states from their previous usage, either ensure the same set of properties
+  ///   are set on the reused renderable, or use ``onPrepareForReuse(_:)`` to reset the renderable's modified properties before it is reused.
+  /// - Note: The inner node's reuse identifier (closer to the leaf) has higher priority.
+  ///
+  /// - Parameter reuseId: The reuse identifier to set.
+  /// - Returns: A new node with the reuse identifier set.
+  func reuseId(_ reuseId: String) -> some ComposeNode {
+    ModifierNode(node: self, reuseId: reuseId)
+  }
+
+  /// Execute a block when a recycled renderable is taken from the reuse pool, before it is reconfigured for its new use.
+  ///
+  /// - Note: All renderables provided by the node will have the block executed, and only when they are reused from the
+  ///   pool (never for a freshly made renderable).
+  ///
+  /// - Parameter prepareForReuse: The block to execute.
+  /// - Returns: A new node with the block added.
+  func onPrepareForReuse(_ prepareForReuse: @escaping (_ renderable: Renderable) -> Void) -> some ComposeNode {
+    ModifierNode(node: self, prepareForReuse: prepareForReuse)
   }
 
   /// Set the background color of the node's renderables.

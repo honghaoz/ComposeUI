@@ -98,6 +98,21 @@ class RenderPerformanceTests: XCTestCase {
     }
   }
 
+  // MARK: - Scroll (view-level, recycle pool's payoff)
+
+  func test_scroll_viewRows_5000() {
+    // view-backed rows are expensive to create/tear down (unlike layer-backed `ColorNode`)
+    runScrollBenchmark(name: "scroll.viewRows.5000", rowCount: 5000) { _ in
+      Self.makeViewRow(pooled: false)
+    }
+  }
+
+  func test_scroll_viewRowsPooled_5000() {
+    runScrollBenchmark(name: "scroll.viewRows.pooled.5000", rowCount: 5000) { _ in
+      Self.makeViewRow(pooled: true)
+    }
+  }
+
   // MARK: - Renderable Items (node-level, isolates the tree walk + id mapping)
 
   func test_renderableItems_flatRows_10000() {
@@ -185,6 +200,87 @@ class RenderPerformanceTests: XCTestCase {
     }
   }
 
+  /// A long-running pure-layer scroll loop for attaching a sampling profiler.
+  ///
+  /// Unlike `test_profile_scroll_nested`, this uses flat `ColorNode` (layer-backed) rows with no
+  /// labels/text views, so the sample isolates the ComposeUI-controlled steady-state cost (the
+  /// per-item `RenderItem` build + `eraseToRenderableItem` closure allocation + per-pass dictionary
+  /// rebuild) without `NSTextView` layout noise. Small rows are used to maximize the visible item
+  /// count (~107), which amplifies the per-item allocation churn we want to size.
+  ///
+  /// ```bash
+  /// BENCHMARK=1 PROFILE=1 swift test -c debug -Xswiftc -O --filter RenderPerformanceTests/test_profile_scroll_flatLayers &
+  /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_flat_profile.txt
+  /// ```
+  func test_profile_scroll_flatLayers() throws {
+    try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
+
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 10000 {
+          ColorNode(.red)
+            .frame(width: .flexible, height: Constants.smallRowHeight)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    print("[PROFILE] pid: \(ProcessInfo.processInfo.processIdentifier), scrolling for 30s...")
+
+    var offset: CGFloat = 0
+    let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
+    let deadline = Date().addingTimeInterval(30)
+    while Date() < deadline {
+      offset += Constants.scrollStep
+      if offset > maxOffset {
+        offset = 0
+      }
+      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.layoutIfNeeded()
+    }
+  }
+
+  /// A long-running view-backed scroll loop for attaching a sampling profiler.
+  ///
+  /// Uses plain view rows (expensive to create, unlike layer-backed `ColorNode`) to size the recycle pool's effect.
+  /// Set `REUSE=1` to opt the rows into the pool; leave it unset to profile the baseline (a fresh view per scrolled-in
+  /// row).
+  ///
+  /// ```bash
+  /// BENCHMARK=1 PROFILE=1 REUSE=1 swift test -c debug -Xswiftc -O --filter RenderPerformanceTests/test_profile_scroll_viewRows &
+  /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_view_profile.txt
+  /// ```
+  func test_profile_scroll_viewRows() throws {
+    try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
+
+    let pooled = ProcessInfo.processInfo.environment["REUSE"] == "1"
+
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 10000 {
+          Self.makeViewRow(pooled: pooled)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    print("[PROFILE] pid: \(ProcessInfo.processInfo.processIdentifier), pooled: \(pooled), scrolling for 30s...")
+
+    var offset: CGFloat = 0
+    let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
+    let deadline = Date().addingTimeInterval(30)
+    while Date() < deadline {
+      offset += Constants.scrollStep
+      if offset > maxOffset {
+        offset = 0
+      }
+      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.layoutIfNeeded()
+    }
+  }
+
   // MARK: - Refresh (view-level, content rebuild + layout incl. text measurement)
 
   func test_refresh_nestedRows_200() {
@@ -212,6 +308,24 @@ class RenderPerformanceTests: XCTestCase {
     static let rowHeight: CGFloat = 50
     static let smallRowHeight: CGFloat = 8
     static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
+  }
+
+  /// A plain view-backed row, optionally opted into the recycle pool via `reuseId`.
+  private static func makeViewRow(pooled: Bool) -> any ComposeNode {
+    let node = ViewNode<View>(make: { context in
+      let view = View(frame: context.initialFrame ?? .zero)
+      #if canImport(AppKit)
+      view.wantsLayer = true
+      #endif
+      return view
+    })
+    .frame(width: .flexible, height: Constants.rowHeight)
+
+    if pooled {
+      return node.reuseId("viewRow")
+    } else {
+      return node
+    }
   }
 
   /// A realistic list row: icon + two labels + spacer, with padding.

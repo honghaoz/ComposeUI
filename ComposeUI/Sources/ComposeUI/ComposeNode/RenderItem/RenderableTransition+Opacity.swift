@@ -65,21 +65,28 @@ public extension RenderableTransition {
           }
         )
       } : nil,
-      remove: options.contains(.remove) ? RemoveTransition { renderable, context, completion in
-        renderable.layer.animate(
-          keyPath: "opacity",
-          timing: timing,
-          from: { $0.opacity - Float(from) },
-          to: { _ in 0 },
-          model: { _ in Float(from) },
-          updateAnimation: {
-            $0.isAdditive = true
-            $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
-              completion()
-            })
+      remove: options.contains(.remove) ? RemoveTransition(
+        animate: { renderable, _, completion in
+          renderable.layer.animate(
+            keyPath: "opacity",
+            timing: timing,
+            from: { $0.opacity - Float(from) },
+            to: { _ in 0 },
+            model: { _ in Float(from) },
+            updateAnimation: {
+              $0.isAdditive = true
+              $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
+                completion()
+              })
+            }
+          )
+        },
+        resetForReuse: { renderable in
+          renderable.layer.disableActions(for: "opacity") {
+            renderable.layer.opacity = 1
           }
-        )
-      } : nil
+        }
+      ) : nil
     )
   }
 }

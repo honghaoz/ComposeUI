@@ -52,8 +52,8 @@ public struct RenderableTransition {
     ///
     /// - Parameter animate: The closure to animate the insert transition.
     ///                      The closure provides the renderable to insert, the animation context, and the completion block.
-    ///                      You must make sure to call the completion block when the transition is completed.
-    ///                      You must make sure the renderable's frame is set to the target frame when the transition is completed.
+    ///                      You **MUST** make sure to call the completion block when the transition is completed.
+    ///                      You **MUST** make sure the renderable's frame is set to the target frame when the transition is completed.
     public init(animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void) {
       self.animate = animate
     }
@@ -80,14 +80,23 @@ public struct RenderableTransition {
     }
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
+    private let resetForReuse: ((Renderable) -> Void)?
 
     /// Creates a new remove transition with the given animation closure.
     ///
-    /// - Parameter animate: The closure to animate the remove transition.
-    ///                      The closure provides the renderable to remove, the animation context, and the completion block.
-    ///                      You must make sure to call the completion block when the transition is completed.
-    public init(animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void) {
+    /// - Parameters:
+    ///   - animate: The closure to animate the remove transition.
+    ///              The closure provides the renderable to remove, the animation context, and the completion block.
+    ///              You **MUST** make sure to call the completion block when the transition is completed.
+    ///   - resetForReuse: A closure that undoes any presentation residue this transition leaves on the renderable.
+    ///                    For example, an opacity transition fades the renderable out, may leave the model opacity at
+    ///                    the faded value. If the removed renderable opts into reuse, the closure is called before
+    ///                    recycling it, so the renderable could be reused in the same state a freshly made renderable would have.
+    public init(animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
+                resetForReuse: ((_ renderable: Renderable) -> Void)? = nil)
+    {
       self.animate = animate
+      self.resetForReuse = resetForReuse
     }
 
     /// Animates the remove transition.
@@ -98,6 +107,13 @@ public struct RenderableTransition {
     ///   - completion: The completion block to be called when the transition is completed.
     public func animate(renderable: Renderable, context: Context, completion: @escaping () -> Void) {
       animate(renderable, context, completion)
+    }
+
+    /// Resets the renderable before it is reused.
+    ///
+    /// - Parameter renderable: The renderable to reset.
+    public func resetForReuse(renderable: Renderable) {
+      resetForReuse?(renderable)
     }
   }
 

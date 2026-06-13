@@ -112,6 +112,24 @@ public struct RenderItem<T> {
   /// renderable hierarchy. In this case, the `didRemove` block won't be called.
   public let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
+  /// An optional reuse identifier that opts the renderable into the recycle pool.
+  ///
+  /// When set, a renderable that is removed from the renderable hierarchy is parked in a pool (keyed by this identifier
+  /// and the renderable's concrete type) instead of being deallocated, and is handed back when a new item with the same
+  /// reuse identifier and type is inserted, avoiding a `make` call.
+  ///
+  /// To ensure a reused renderable is reused in the same state a freshly made renderable would have, use the
+  /// `prepareForReuse` block to reset the renderable's modified properties.
+  public let reuseId: String?
+
+  /// The concrete renderable type captured at type-erasure time.
+  ///
+  /// This is set by `eraseToRenderableItem()` (where the concrete type `T` is known)
+  let renderableType: ObjectIdentifier?
+
+  /// The block to be called when a recycled renderable is taken from the reuse pool, before it is reused.
+  public let prepareForReuse: ((T) -> Void)?
+
   /// The transition of the renderable. The transition is used to animate the renderable's insertion and removal.
   public let transition: RenderableTransition?
 
@@ -127,6 +145,8 @@ public struct RenderItem<T> {
               update: @escaping (T, RenderableUpdateContext) -> Void,
               willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
               didRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
+              reuseId: String? = nil,
+              prepareForReuse: ((T) -> Void)? = nil,
               transition: RenderableTransition? = nil,
               animationTiming: AnimationTiming? = nil)
   {
@@ -139,6 +159,42 @@ public struct RenderItem<T> {
     self.update = update
     self.willRemove = willRemove
     self.didRemove = didRemove
+    self.reuseId = reuseId
+    self.renderableType = ObjectIdentifier(T.self)
+    self.prepareForReuse = prepareForReuse
+    self.transition = transition
+    self.animationTiming = animationTiming
+  }
+
+  /// Internal initializer for creating a renderable item with a specified renderable type.
+  /// External callers should never set the renderable type manually.
+  private init(id: ComposeNodeId,
+               frame: CGRect,
+               make: @escaping (RenderableMakeContext) -> T,
+               willInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+               didInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+               willUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
+               update: @escaping (T, RenderableUpdateContext) -> Void,
+               willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
+               didRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
+               reuseId: String? = nil,
+               renderableType: ObjectIdentifier? = nil,
+               prepareForReuse: ((T) -> Void)? = nil,
+               transition: RenderableTransition? = nil,
+               animationTiming: AnimationTiming? = nil)
+  {
+    self.id = id
+    self.frame = frame
+    self.make = make
+    self.willInsert = willInsert
+    self.didInsert = didInsert
+    self.willUpdate = willUpdate
+    self.update = update
+    self.willRemove = willRemove
+    self.didRemove = didRemove
+    self.reuseId = reuseId
+    self.renderableType = renderableType
+    self.prepareForReuse = prepareForReuse
     self.transition = transition
     self.animationTiming = animationTiming
   }
@@ -161,6 +217,9 @@ public struct RenderItem<T> {
       update: update,
       willRemove: willRemove,
       didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
       transition: transition,
       animationTiming: animationTiming
     )
@@ -184,6 +243,9 @@ public struct RenderItem<T> {
       update: update,
       willRemove: willRemove,
       didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
       transition: transition,
       animationTiming: animationTiming
     )
@@ -207,6 +269,9 @@ public struct RenderItem<T> {
       update: update,
       willRemove: willRemove,
       didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
       transition: transition,
       animationTiming: animationTiming
     )
@@ -230,6 +295,9 @@ public struct RenderItem<T> {
       },
       willRemove: willRemove,
       didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
       transition: transition,
       animationTiming: animationTiming
     )
@@ -253,6 +321,9 @@ public struct RenderItem<T> {
         additionalWillRemove(renderable, context)
       },
       didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
       transition: transition,
       animationTiming: animationTiming
     )
@@ -275,6 +346,64 @@ public struct RenderItem<T> {
       didRemove: { renderable, context in
         didRemove?(renderable, context)
         additionalDidRemove(renderable, context)
+      },
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
+      transition: transition,
+      animationTiming: animationTiming
+    )
+  }
+
+  /// Set a new reuse identifier for the renderable item if it is not set.
+  ///
+  /// If the renderable item already has a reuse identifier, this call has no effect.
+  ///
+  /// - Parameter reuseId: The new reuse identifier.
+  /// - Returns: The renderable item with the new reuse identifier.
+  public func reuseId(_ reuseId: String) -> Self {
+    guard self.reuseId == nil else {
+      return self
+    }
+
+    return Self(
+      id: id,
+      frame: frame,
+      make: make,
+      willInsert: willInsert,
+      didInsert: didInsert,
+      willUpdate: willUpdate,
+      update: update,
+      willRemove: willRemove,
+      didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
+      transition: transition,
+      animationTiming: animationTiming
+    )
+  }
+
+  /// Add an additional prepare for reuse block to the renderable item.
+  ///
+  /// - Parameter additionalPrepareForReuse: The additional prepare for reuse block.
+  /// - Returns: The renderable item with the additional prepare for reuse block.
+  public func addPrepareForReuse(_ additionalPrepareForReuse: @escaping (T) -> Void) -> Self {
+    Self(
+      id: id,
+      frame: frame,
+      make: make,
+      willInsert: willInsert,
+      didInsert: didInsert,
+      willUpdate: willUpdate,
+      update: update,
+      willRemove: willRemove,
+      didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: { renderable in
+        prepareForReuse?(renderable)
+        additionalPrepareForReuse(renderable)
       },
       transition: transition,
       animationTiming: animationTiming
@@ -302,6 +431,9 @@ public struct RenderItem<T> {
       update: update,
       willRemove: willRemove,
       didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
       transition: transition,
       animationTiming: animationTiming
     )
@@ -328,6 +460,9 @@ public struct RenderItem<T> {
       update: update,
       willRemove: willRemove,
       didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      prepareForReuse: prepareForReuse,
       transition: transition,
       animationTiming: animationTiming
     )
@@ -362,6 +497,11 @@ public extension ViewItem {
       didRemove: didRemove.map { didRemove in
         { didRemove($0.view as! T, $1) } // swiftlint:disable:this force_cast
       },
+      reuseId: reuseId,
+      renderableType: ObjectIdentifier(T.self),
+      prepareForReuse: prepareForReuse.map { prepareForReuse in
+        { prepareForReuse($0.view as! T) } // swiftlint:disable:this force_cast
+      },
       transition: transition,
       animationTiming: animationTiming
     )
@@ -395,6 +535,11 @@ public extension LayerItem {
       },
       didRemove: didRemove.map { didRemove in
         { didRemove($0.layer as! T, $1) } // swiftlint:disable:this force_cast
+      },
+      reuseId: reuseId,
+      renderableType: ObjectIdentifier(T.self),
+      prepareForReuse: prepareForReuse.map { prepareForReuse in
+        { prepareForReuse($0.layer as! T) } // swiftlint:disable:this force_cast
       },
       transition: transition,
       animationTiming: animationTiming
