@@ -48,7 +48,7 @@ private struct ModifierNode: ComposeNode {
   private let willRemove: ((Renderable, RenderableRemoveContext) -> Void)?
   private let didRemove: ((Renderable, RenderableRemoveContext) -> Void)?
   private let reuseId: String?
-  private let prepareForReuse: ((Renderable) -> Void)?
+  private let resetForReuse: ((Renderable) -> Void)?
   private let transition: RenderableTransition?
   private let animationTiming: AnimationTiming?
 
@@ -60,7 +60,7 @@ private struct ModifierNode: ComposeNode {
                    willRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    didRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    reuseId: String? = nil,
-                   prepareForReuse: ((Renderable) -> Void)? = nil,
+                   resetForReuse: ((Renderable) -> Void)? = nil,
                    transition: RenderableTransition? = nil,
                    animationTiming: AnimationTiming? = nil)
   {
@@ -73,7 +73,7 @@ private struct ModifierNode: ComposeNode {
       self.willRemove = Self.combineBlocks(modifierNode.willRemove, willRemove)
       self.didRemove = Self.combineBlocks(modifierNode.didRemove, didRemove)
       self.reuseId = modifierNode.reuseId ?? reuseId
-      self.prepareForReuse = Self.combineBlocks(modifierNode.prepareForReuse, prepareForReuse)
+      self.resetForReuse = Self.combineBlocks(modifierNode.resetForReuse, resetForReuse)
       self.transition = modifierNode.transition ?? transition
       self.animationTiming = modifierNode.animationTiming ?? animationTiming
     } else {
@@ -85,7 +85,7 @@ private struct ModifierNode: ComposeNode {
       self.willRemove = willRemove
       self.didRemove = didRemove
       self.reuseId = reuseId
-      self.prepareForReuse = prepareForReuse
+      self.resetForReuse = resetForReuse
       self.transition = transition
       self.animationTiming = animationTiming
     }
@@ -167,8 +167,8 @@ private struct ModifierNode: ComposeNode {
         if let reuseId = reuseId {
           item = item.reuseId(reuseId)
         }
-        if let prepareForReuse = prepareForReuse {
-          item = item.addPrepareForReuse(prepareForReuse)
+        if let resetForReuse = resetForReuse {
+          item = item.addResetForReuse(resetForReuse)
         }
         if let transition = transition {
           item = item.transition(transition)
@@ -268,7 +268,7 @@ public extension ComposeNode {
 
   /// Set a reuse identifier for the renderables provided by the node, opting them into the recycle pool.
   ///
-  /// When a renderable is removed from the renderable hierarchy, it is parked in a pool instead of being
+  /// When a renderable is removed from the renderable hierarchy, it is added to a pool instead of being
   /// deallocated, and is handed back when a new item with the same reuse identifier and concrete type is inserted.
   ///
   /// For renderables that are expensive to create, this can avoid the cost of creating and speed up the rendering.
@@ -278,7 +278,7 @@ public extension ComposeNode {
   ///   those renderables are interchangeable and reset/configured by the same contract.
   ///   Prefer calling this method on the innermost node that produces a single renderable to avoid accidentally sharing.
   /// - Note: Reused renderables can carry states from their previous usage, either ensure the same set of properties
-  ///   are set on the reused renderable, or use ``onPrepareForReuse(_:)`` to reset the renderable's modified properties before it is reused.
+  ///   are set on the reused renderable, or use ``onResetForReuse(_:)`` to reset the renderable's modified properties.
   /// - Note: The inner node's reuse identifier (closer to the leaf) has higher priority.
   ///
   /// - Parameter reuseId: The reuse identifier to set.
@@ -287,15 +287,15 @@ public extension ComposeNode {
     ModifierNode(node: self, reuseId: reuseId)
   }
 
-  /// Execute a block when a recycled renderable is taken from the reuse pool, before it is reconfigured for its new use.
+  /// Execute a block when the node's renderable is about to be added to the reuse pool, to reset any modified state so the
+  /// pooled renderable is clean for its next use.
   ///
-  /// - Note: All renderables provided by the node will have the block executed, and only when they are reused from the
-  ///   pool (never for a freshly made renderable).
+  /// - Note: All renderables provided by the node will have the block executed when they are added to the reuse pool.
   ///
-  /// - Parameter prepareForReuse: The block to execute.
+  /// - Parameter resetForReuse: The block to execute.
   /// - Returns: A new node with the block added.
-  func onPrepareForReuse(_ prepareForReuse: @escaping (_ renderable: Renderable) -> Void) -> some ComposeNode {
-    ModifierNode(node: self, prepareForReuse: prepareForReuse)
+  func onResetForReuse(_ resetForReuse: @escaping (_ renderable: Renderable) -> Void) -> some ComposeNode {
+    ModifierNode(node: self, resetForReuse: resetForReuse)
   }
 
   /// Set the background color of the node's renderables.
@@ -315,26 +315,37 @@ public extension ComposeNode {
   /// - Parameter color: The themed background color to set.
   /// - Returns: A new node with the background color set.
   func backgroundColor(_ color: ThemedColor) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
-        return
-      }
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
 
-      let layer = item.layer
-      let color = color.resolve(for: context.contentView.theme).cgColor
-      if let animationTiming = context.animationTiming {
-        layer.animate(
-          keyPath: "backgroundColor",
-          timing: animationTiming,
-          from: { $0.presentation()?.backgroundColor },
-          to: { _ in color }
-        )
-      } else {
-        layer.disableActions(for: "backgroundColor") {
-          layer.backgroundColor = color
+        let layer = item.layer
+        let color = color.resolve(for: context.contentView.theme).cgColor
+        if let animationTiming = context.animationTiming {
+          layer.animate(
+            keyPath: "backgroundColor",
+            timing: animationTiming,
+            from: { $0.presentation()?.backgroundColor },
+            to: { _ in color }
+          )
+        } else {
+          layer.disableActions(for: "backgroundColor") {
+            layer.backgroundColor = color
+          }
+        }
+      },
+      resetForReuse: { renderable in
+        let layer = renderable.layer
+        if layer.backgroundColor != nil {
+          layer.disableActions(for: "backgroundColor") {
+            layer.backgroundColor = nil
+          }
         }
       }
-    }
+    )
   }
 
   /// Set the opacity of the node's renderables.
@@ -354,20 +365,31 @@ public extension ComposeNode {
   /// - Parameter opacity: The themed opacity to set.
   /// - Returns: A new node with the opacity set.
   func opacity(_ opacity: Themed<CGFloat>) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
-        return
-      }
-      let layer = item.layer
-      let opacity = Float(opacity.resolve(for: context.contentView.theme))
-      if let animationTiming = context.animationTiming {
-        layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
-      } else {
-        layer.disableActions(for: "opacity") {
-          layer.opacity = opacity
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
+        let layer = item.layer
+        let opacity = Float(opacity.resolve(for: context.contentView.theme))
+        if let animationTiming = context.animationTiming {
+          layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
+        } else {
+          layer.disableActions(for: "opacity") {
+            layer.opacity = opacity
+          }
+        }
+      },
+      resetForReuse: { renderable in
+        let layer = renderable.layer
+        if layer.opacity != 1 {
+          layer.disableActions(for: "opacity") {
+            layer.opacity = 1
+          }
         }
       }
-    }
+    )
   }
 
   /// Set the border of the node's renderables.
@@ -391,29 +413,42 @@ public extension ComposeNode {
   ///   - width: The themed width of the border.
   /// - Returns: A new node with the border set.
   func border(color: ThemedColor, width: Themed<CGFloat>) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
-        return
-      }
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
 
-      let layer = item.layer
-      let color = color.resolve(for: context.contentView.theme).cgColor
-      let width: CGFloat = width.resolve(for: context.contentView.theme)
-      if let animationTiming = context.animationTiming {
-        layer.animate(
-          keyPath: "borderColor",
-          timing: animationTiming,
-          from: { $0.presentation()?.borderColor },
-          to: { _ in color }
-        )
-        layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
-      } else {
-        layer.disableActions(for: "borderColor", "borderWidth") {
-          layer.borderColor = color
-          layer.borderWidth = width
+        let layer = item.layer
+        let color = color.resolve(for: context.contentView.theme).cgColor
+        let width: CGFloat = width.resolve(for: context.contentView.theme)
+        if let animationTiming = context.animationTiming {
+          layer.animate(
+            keyPath: "borderColor",
+            timing: animationTiming,
+            from: { $0.presentation()?.borderColor },
+            to: { _ in color }
+          )
+          layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
+        } else {
+          layer.disableActions(for: "borderColor", "borderWidth") {
+            layer.borderColor = color
+            layer.borderWidth = width
+          }
+        }
+      },
+      resetForReuse: { renderable in
+        let layer = renderable.layer
+        let defaultBorderColor = layer.defaultBorderColor
+        if layer.borderColor != defaultBorderColor || layer.borderWidth != 0 {
+          layer.disableActions(for: "borderColor", "borderWidth") {
+            layer.borderColor = defaultBorderColor
+            layer.borderWidth = 0
+          }
         }
       }
-    }
+    )
   }
 
   /// Set the corner radius of the node's renderables.
@@ -425,22 +460,36 @@ public extension ComposeNode {
   ///   - cornerCurve: The corner curve to set. The default is `.continuous`.
   /// - Returns: A new node with the corner radius set.
   func cornerRadius(_ radius: CGFloat, cornerCurve: CALayerCornerCurve = .continuous) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
-        return
-      }
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
 
-      let layer = item.layer
-      layer.cornerCurve = cornerCurve
+        let layer = item.layer
+        layer.cornerCurve = cornerCurve
 
-      if let animationTiming = context.animationTiming {
-        layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
-      } else {
-        layer.disableActions(for: "cornerRadius") {
-          layer.cornerRadius = radius
+        if let animationTiming = context.animationTiming {
+          layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
+        } else {
+          layer.disableActions(for: "cornerRadius") {
+            layer.cornerRadius = radius
+          }
+        }
+      },
+      resetForReuse: { renderable in
+        let layer = renderable.layer
+        if layer.cornerCurve != .continuous {
+          layer.cornerCurve = .continuous
+        }
+        if layer.cornerRadius != 0 {
+          layer.disableActions(for: "cornerRadius") {
+            layer.cornerRadius = 0
+          }
         }
       }
-    }
+    )
   }
 
   /// Set whether the node's renderables are masked to bounds.
@@ -450,14 +499,22 @@ public extension ComposeNode {
   /// - Parameter masksToBounds: Whether the renderable is masked to bounds. The default is `true`.
   /// - Returns: A new node with the `masksToBounds` set.
   func masksToBounds(_ masksToBounds: Bool = true) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
-        return
-      }
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
 
-      let layer = item.layer
-      layer.masksToBounds = masksToBounds
-    }
+        let layer = item.layer
+        layer.masksToBounds = masksToBounds
+      },
+      resetForReuse: { renderable in
+        if renderable.layer.masksToBounds != false {
+          renderable.layer.masksToBounds = false
+        }
+      }
+    )
   }
 
   /// Set the shadow of the node's renderables.
@@ -493,53 +550,66 @@ public extension ComposeNode {
   ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
   /// - Returns: A new node with the shadow set.
   func shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
-    onUpdate { item, context in
-      switch context.updateType {
-      case .insert,
-           .refresh,
-           .boundsChange: // the shadow path is affected by the layer's size, should update
-        break
-      case .scroll:
-        return
-      }
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        switch context.updateType {
+        case .insert,
+             .refresh,
+             .boundsChange: // the shadow path is affected by the layer's size, should update
+          break
+        case .scroll:
+          return
+        }
 
-      let theme = context.contentView.theme
+        let theme = context.contentView.theme
 
-      let layer = item.layer
-      let color = color.resolve(for: theme).cgColor
-      let opacity = Float(opacity.resolve(for: theme))
-      let radius: CGFloat = radius.resolve(for: theme)
-      let offset: CGSize = offset.resolve(for: theme)
+        let layer = item.layer
+        let color = color.resolve(for: theme).cgColor
+        let opacity = Float(opacity.resolve(for: theme))
+        let radius: CGFloat = radius.resolve(for: theme)
+        let offset: CGSize = offset.resolve(for: theme)
 
-      layer.masksToBounds = false
+        layer.masksToBounds = false
 
-      if let animationTiming = context.animationTiming {
-        layer.animate(
-          keyPath: "shadowColor",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowColor },
-          to: { _ in color }
-        )
-        layer.animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
-        layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
-        layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
-        let path = path?(item)
-        layer.animate(
-          keyPath: "shadowPath",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowPath },
-          to: { _ in path }
-        )
-      } else {
+        if let animationTiming = context.animationTiming {
+          layer.animate(
+            keyPath: "shadowColor",
+            timing: animationTiming,
+            from: { $0.presentation()?.shadowColor },
+            to: { _ in color }
+          )
+          layer.animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
+          layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
+          layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
+          let path = path?(item)
+          layer.animate(
+            keyPath: "shadowPath",
+            timing: animationTiming,
+            from: { $0.presentation()?.shadowPath },
+            to: { _ in path }
+          )
+        } else {
+          layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
+            layer.shadowColor = color
+            layer.shadowOpacity = opacity
+            layer.shadowRadius = radius
+            layer.shadowOffset = offset
+            layer.shadowPath = path?(item)
+          }
+        }
+      },
+      resetForReuse: { renderable in
+        let layer = renderable.layer
         layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
-          layer.shadowColor = color
-          layer.shadowOpacity = opacity
-          layer.shadowRadius = radius
-          layer.shadowOffset = offset
-          layer.shadowPath = path?(item)
+          layer.shadowColor = layer.defaultShadowColor
+          layer.shadowOpacity = 0
+          layer.shadowRadius = 3
+          layer.shadowOffset = CGSize(width: 0, height: -3)
+          layer.shadowPath = nil
         }
       }
-    }
+    )
   }
 
   /// Set the z-index (zPosition) of the node's renderables.
@@ -549,12 +619,20 @@ public extension ComposeNode {
   /// - Parameter zIndex: The z-index to set.
   /// - Returns: A new node with the z-index set.
   func zIndex(_ zIndex: CGFloat) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
-        return
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
+        item.layer.zPosition = zIndex
+      },
+      resetForReuse: { renderable in
+        if renderable.layer.zPosition != 0 {
+          renderable.layer.zPosition = 0
+        }
       }
-      item.layer.zPosition = zIndex
-    }
+    )
   }
 
   /// Set whether the node's renderables are interactive.
@@ -564,19 +642,37 @@ public extension ComposeNode {
   /// - Parameter isEnabled: Whether the renderable is interactive.
   /// - Returns: A new node with the `isUserInteractionEnabled` set.
   func interactive(_ isEnabled: Bool = true) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate, let view = item.view else {
-        return
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        guard context.updateType.requiresFullUpdate, let view = item.view else {
+          return
+        }
+
+        #if canImport(AppKit)
+        view.ignoreHitTest = !isEnabled
+        #endif
+
+        #if canImport(UIKit)
+        view.isUserInteractionEnabled = isEnabled
+        #endif
+      },
+      resetForReuse: { renderable in
+        guard let view = renderable.view else {
+          return
+        }
+        #if canImport(AppKit)
+        if view.ignoreHitTest != false {
+          view.ignoreHitTest = false
+        }
+        #endif
+        #if canImport(UIKit)
+        if view.isUserInteractionEnabled != true {
+          view.isUserInteractionEnabled = true
+        }
+        #endif
       }
-
-      #if canImport(AppKit)
-      view.ignoreHitTest = !isEnabled
-      #endif
-
-      #if canImport(UIKit)
-      view.isUserInteractionEnabled = isEnabled
-      #endif
-    }
+    )
   }
 
   /// Set whether the node's renderables are rasterized.
@@ -586,19 +682,42 @@ public extension ComposeNode {
   /// - Parameter scale: The scale of the rasterized content. Specify `nil` to disable rasterization.
   /// - Returns: A new node with the rasterization set.
   func rasterize(_ scale: CGFloat?) -> some ComposeNode {
-    onUpdate { item, context in
-      guard context.updateType.requiresFullUpdate else {
-        return
-      }
+    ModifierNode(
+      node: self,
+      update: { item, context in
+        guard context.updateType.requiresFullUpdate else {
+          return
+        }
 
-      let layer = item.layer
-      if let scale = scale {
-        layer.shouldRasterize = true
-        layer.rasterizationScale = scale
-      } else {
-        layer.shouldRasterize = false
-        layer.rasterizationScale = 1
+        let layer = item.layer
+        if let scale = scale {
+          layer.shouldRasterize = true
+          layer.rasterizationScale = scale
+        } else {
+          layer.shouldRasterize = false
+          layer.rasterizationScale = 1
+        }
+      },
+      resetForReuse: { renderable in
+        let layer = renderable.layer
+        if layer.shouldRasterize != false {
+          layer.shouldRasterize = false
+        }
+        if layer.rasterizationScale != 1 {
+          layer.rasterizationScale = 1
+        }
       }
-    }
+    )
+  }
+}
+
+private extension CALayer {
+
+  var defaultBorderColor: CGColor {
+    CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
+  }
+
+  var defaultShadowColor: CGColor {
+    CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
   }
 }

@@ -102,7 +102,8 @@ public struct ColorNode: ComposeNode {
             layer.backgroundColor = color
           }
         }
-      }
+      },
+      reuseId: ReuseId(namespace: .framework, id: "CALayer")
     )
 
     return [layerItem.eraseToRenderableItem()]

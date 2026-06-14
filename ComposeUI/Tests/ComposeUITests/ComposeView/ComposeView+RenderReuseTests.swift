@@ -44,7 +44,7 @@ import ChouTiTest
 ///
 /// The list geometry is chosen so that exactly one row leaves and one row enters per scroll step (rows are 50pt tall in
 /// a 100pt viewport with no visible-bounds insets, scrolling by one row height). This makes the number of created
-/// renderables deterministic: with pooling, the leaving row is parked and immediately reused by the entering row, so no
+/// renderables deterministic: with pooling, the leaving row is enqueued and immediately reused by the entering row, so no
 /// new renderable is created after the initial fill.
 class ComposeView_RenderReuseTests: XCTestCase {
 
@@ -68,7 +68,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     scrollDown(view)
 
-    // every row revealed during the scroll reused a parked renderable, so no new renderable was created after the
+    // every row revealed during the scroll reused a renderable, so no new renderable was created after the
     // initial fill.
     expect(counter.madeCount) == initialMakeCount
   }
@@ -86,6 +86,61 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // without a reuse identifier, each distinct row creates its own renderable as it is revealed.
     expect(counter.madeCount) == Constants.rowCount
     expect(counter.madeCount) > initialMakeCount
+  }
+
+  // MARK: - Default pooling (common nodes)
+
+  func test_colorNode_poolsByDefault_acrossScroll() {
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = pool
+    view.setContent {
+      VStack {
+        for i in 0 ..< Constants.rowCount {
+          // no explicit reuse id: ColorNode pools by default.
+          ColorNode(i.isMultiple(of: 2) ? .red : .blue)
+            .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.refresh(animated: false)
+
+    scrollDown(view)
+
+    // ColorNode added leaving layers to the pool and reused them for entering rows, all under a bucket with a framework-internal reuse id.
+    expect(pool.enqueueCount) > 0
+    expect(pool.dequeueCount) > 0
+    expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "CALayer" }) == true
+  }
+
+  func test_colorNode_recycledLayer_resetsModifierStateFromPreviousUse() {
+    // a layer configured by a modifier in one use must not carry that state into a pool
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.renderablePool = pool
+
+    view.setContent {
+      ColorNode(.red).cornerRadius(10).frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    view.setContent {
+      Empty()
+    }
+    view.refresh(animated: false)
+
+    // the layer is enqueued with the modified corner radius reset for reuse.
+    let enqueued = pool.lastEnqueuedRenderable
+    expect(enqueued?.layer.cornerRadius) == 0
+
+    view.setContent {
+      ColorNode(.blue).frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    // the plain ColorNode reused the very same enqueued layer and it carries no stale corner radius.
+    expect(pool.lastDequeuedRenderable?.layer) === enqueued?.layer
+    expect(enqueued?.layer.cornerRadius) == 0
   }
 
   // MARK: - Pool configuration
@@ -107,7 +162,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     scrollDown(view)
 
-    // with pooling disabled, each revealed row creates its own renderable (nothing is parked or reused).
+    // with pooling disabled, each revealed row creates its own renderable (nothing is enqueued or reused).
     expect(counter.madeCount) == Constants.rowCount
     expect(counter.madeCount) > initialMakeCount
   }
@@ -121,7 +176,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     scrollDown(view)
 
-    // the custom pool received parked renderables and handed them back for reuse.
+    // the custom pool received enqueued renderables and handed them back for reuse.
     expect(pool.enqueueCount) > 0
     expect(pool.dequeueCount) > 0
   }
@@ -148,7 +203,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
   func test_reuseId_sharedAcrossDifferentTypes_doesNotCrash() {
     // even rows are backed by `RowViewA`, odd rows by `RowViewB`, all sharing the same reuse identifier. The pool key
-    // includes the concrete type, so a parked `RowViewA` is never handed to a `RowViewB` item (which would crash on the
+    // includes the concrete type, so a enqueued `RowViewA` is never handed to a `RowViewB` item (which would crash on the
     // `as!` cast in the update closure). Completing the scroll without crashing exercises that guard.
     let counterA = MakeCounter()
     let counterB = MakeCounter()
@@ -193,26 +248,69 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
   func test_reuseIdModifier_setsReuseIdAndResolvesKey() {
     let item = firstRenderableItem(of: ColorNode(.red).reuseId("x").frame(width: 100, height: 100))
-    expect(item?.reuseId) == "x"
+    expect(item?.reuseId) == ReuseId(namespace: .user, id: "x")
     expect(item?.reuseKey) != nil
   }
 
   func test_reuseIdModifier_innerWins_whenCoalesced() {
     // two adjacent reuse identifiers coalesce into one modifier node; the inner one wins.
     let item = firstRenderableItem(of: ColorNode(.red).reuseId("inner").reuseId("outer").frame(width: 100, height: 100))
-    expect(item?.reuseId) == "inner"
+    expect(item?.reuseId) == ReuseId(namespace: .user, id: "inner")
   }
 
   func test_reuseIdModifier_innerWins_acrossNodeBoundary() {
     // an outer reuse identifier applied across a frame boundary must not overwrite the inner one already on the item.
     let item = firstRenderableItem(of: ColorNode(.red).reuseId("inner").frame(width: 100, height: 100).reuseId("outer"))
-    expect(item?.reuseId) == "inner"
+    expect(item?.reuseId) == ReuseId(namespace: .user, id: "inner")
   }
 
-  func test_noReuseIdModifier_resolvesNilKey() {
-    let item = firstRenderableItem(of: ColorNode(.red).frame(width: 100, height: 100))
+  func test_nonPoolingNode_withoutReuseId_resolvesNilKey() {
+    // a node that does not pool by default (here a `LayerNode`) and is not given a reuse id has no reuse key.
+    let item = firstRenderableItem(of: LayerNode<CALayer>().frame(width: 100, height: 100))
     expect(item?.reuseId) == nil
     expect(item?.reuseKey) == nil
+  }
+
+  // MARK: - Default pooling (internal reuse id) and isolation
+
+  func test_colorNode_defaultReuseKey_usesFrameworkNamespace() {
+    // ColorNode opts into pooling by default with a framework-internal reuse id.
+    let item = firstRenderableItem(of: ColorNode(.red).frame(width: 100, height: 100))
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "CALayer")
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "CALayer")
+  }
+
+  func test_colorNode_userReuseId_overridesInternalReuseId_andUsesUserNamespace() {
+    // an explicit user reuse id replaces the framework-internal identity, so the caller stays in control of pooling.
+    let item = firstRenderableItem(of: ColorNode(.red).reuseId("custom").frame(width: 100, height: 100))
+    expect(item?.reuseId) == ReuseId(namespace: .user, id: "custom")
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .user, id: "custom")
+  }
+
+  func test_internalReuseId_doesNotOverrideExistingInternalReuseId() {
+    // the first internal reuse id wins; a second assignment is a no-op
+    let item = LayerItem<CALayer>(id: .custom("l"), frame: .zero, make: { _ in CALayer() }, update: { _, _ in })
+      .eraseToRenderableItem()
+      .reuseId(ReuseId(namespace: .framework, id: "first"))
+      .reuseId(ReuseId(namespace: .framework, id: "second"))
+    expect(item.reuseId) == ReuseId(namespace: .framework, id: "first")
+  }
+
+  func test_publicInit_withReuseId_setsUserIdentity() {
+    // a reuse id passed to the public initializer is treated as a user-provided identifier.
+    let item = LayerItem<CALayer>(id: .custom("l"), frame: .zero, make: { _ in CALayer() }, update: { _, _ in }, reuseId: "x")
+    expect(item.reuseId) == ReuseId(namespace: .user, id: "x")
+    expect(item.reuseKey?.reuseId) == ReuseId(namespace: .user, id: "x")
+  }
+
+  func test_userReuseId_matchingInternalReuseIdString_resolvesDistinctKey() {
+    // even when a user reuse id string equals ColorNode's framework-internal one, the namespaces keep the keys distinct
+    // so a user renderable can never share a pool bucket with a framework-internal one.
+    let frameworkItem = firstRenderableItem(of: ColorNode(.red).frame(width: 100, height: 100))
+    let userItem = firstRenderableItem(of: ColorNode(.red).reuseId("CALayer").frame(width: 100, height: 100))
+    expect(frameworkItem?.reuseKey?.reuseId.id) == "CALayer"
+    expect(userItem?.reuseKey?.reuseId.id) == "CALayer"
+    expect(frameworkItem?.reuseKey) != userItem?.reuseKey
   }
 
   // MARK: - Transition interaction
@@ -246,7 +344,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: true)
 
-    // while the remove transition is in flight, the renderable is parked in the removing map and must not be pooled
+    // while the remove transition is in flight, the renderable is enqueued in the removing map and must not be pooled
     // (it may still be re-inserted).
     expect(contentView.test.removingRenderableMap.count) == 1
     expect(pool.count) == 0
@@ -303,12 +401,12 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     removalCompletion?()
 
-    // once the transition completes, the engine asks the transition to reset its residue before pooling, so the parked
+    // once the transition completes, the engine asks the transition to reset its residue before pooling, so the enqueued
     // renderable is clean (visible) and a future reuse does not re-insert it invisible.
     expect(removedLayer?.opacity) == 1
     expect(pool.count) == 1
 
-    // reuse the parked renderable for a new row; it stays visible (no leftover fade).
+    // reuse the enqueued renderable for a new row; it stays visible (no leftover fade).
     contentView.setContent {
       ColorNode(.blue)
         .transition(transition)
@@ -365,11 +463,11 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(pool.count) == 0
   }
 
-  // MARK: - Prepare for reuse
+  // MARK: - Reset for reuse
 
-  func test_onPrepareForReuse_isCalledOnlyForPooledReuse() {
+  func test_onResetForReuse_isCalledOnlyForPooledReuse() {
     let counter = MakeCounter()
-    var prepareForReuseCount = 0
+    var resetForReuseCount = 0
 
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = RenderablePool() // isolate from the shared pool so reuse counts are deterministic.
@@ -385,69 +483,69 @@ class ComposeView_RenderReuseTests: XCTestCase {
           )
           .frame(width: .flexible, height: Constants.rowHeight)
           .reuseId("row")
-          .onPrepareForReuse { renderable in
-            (renderable.view as? ReuseTrackingView)?.wasPreparedForReuse = true
-            prepareForReuseCount += 1
+          .onResetForReuse { renderable in
+            (renderable.view as? ReuseTrackingView)?.wasResetForReuse = true
+            resetForReuseCount += 1
           }
         }
       }
     }
     view.refresh(animated: false)
 
-    // the initial fill creates renderables via `make`; none come from the pool yet, so the hook never fired.
-    expect(prepareForReuseCount) == 0
-    expect(visibleRowViews(in: view).contains { $0.wasPreparedForReuse }) == false
+    // the initial fill only makes and inserts renderables; nothing is enqueued yet, so the hook never fired.
+    expect(resetForReuseCount) == 0
+    expect(visibleRowViews(in: view).contains { $0.wasResetForReuse }) == false
 
     scrollDown(view)
 
-    // every row revealed during the scroll reused a parked renderable, so the hook fired for each reuse and the visible
-    // (recycled) rows are flagged as prepared.
-    expect(prepareForReuseCount) > 0
-    expect(visibleRowViews(in: view).allSatisfy(\.wasPreparedForReuse)) == true
+    // every row that left the viewport during the scroll was enqueued, so the hook fired for each enqueuing; the visible
+    // (recycled) rows were themselves enqueued earlier and are therefore flagged as reset.
+    expect(resetForReuseCount) > 0
+    expect(visibleRowViews(in: view).allSatisfy(\.wasResetForReuse)) == true
   }
 
-  func test_onPrepareForReuse_coalescedHooks_runInOrder() {
+  func test_onResetForReuse_coalescedHooks_runInOrder() {
     // two adjacent hooks coalesce into one combined block; both run, outer after inner.
     var calls: [String] = []
     let item = firstRenderableItem(
       of: ViewNode<ReuseTrackingView>(make: { _ in ReuseTrackingView() })
-        .onPrepareForReuse { _ in calls.append("a") }
-        .onPrepareForReuse { _ in calls.append("b") }
+        .onResetForReuse { _ in calls.append("a") }
+        .onResetForReuse { _ in calls.append("b") }
         .frame(width: 100, height: 100)
     )
 
-    item?.prepareForReuse?(.view(ReuseTrackingView()))
+    item?.resetForReuse?(.view(ReuseTrackingView()))
 
     expect(calls) == ["a", "b"]
   }
 
-  func test_onPrepareForReuse_hooksStackedAcrossNodeBoundary_runInOrder() {
+  func test_onResetForReuse_hooksStackedAcrossNodeBoundary_runInOrder() {
     // an inner hook (below a frame boundary) and an outer hook (coalesced with a reuse identifier) both run, inner first.
     var calls: [String] = []
     let item = firstRenderableItem(
       of: ViewNode<ReuseTrackingView>(make: { _ in ReuseTrackingView() })
-        .onPrepareForReuse { _ in calls.append("inner") }
+        .onResetForReuse { _ in calls.append("inner") }
         .frame(width: 100, height: 100)
-        .onPrepareForReuse { _ in calls.append("outer") }
+        .onResetForReuse { _ in calls.append("outer") }
         .reuseId("x")
     )
 
-    item?.prepareForReuse?(.view(ReuseTrackingView()))
+    item?.resetForReuse?(.view(ReuseTrackingView()))
 
     expect(calls) == ["inner", "outer"]
   }
 
-  func test_renderItem_erasurePreservesPrepareForReuse() {
-    // a typed item's prepareForReuse survives type erasure and runs against the concrete renderable.
+  func test_renderItem_erasurePreservesResetForReuse() {
+    // a typed item's resetForReuse survives type erasure and runs against the concrete renderable.
     var viewCalls = 0
     let viewItem = ViewItem<ReuseTrackingView>(
       id: .custom("v"),
       frame: .zero,
       make: { _ in ReuseTrackingView() },
       update: { _, _ in },
-      prepareForReuse: { _ in viewCalls += 1 }
+      resetForReuse: { _ in viewCalls += 1 }
     ).eraseToRenderableItem()
-    viewItem.prepareForReuse?(.view(ReuseTrackingView()))
+    viewItem.resetForReuse?(.view(ReuseTrackingView()))
     expect(viewCalls) == 1
 
     var layerCalls = 0
@@ -456,15 +554,15 @@ class ComposeView_RenderReuseTests: XCTestCase {
       frame: .zero,
       make: { _ in CALayer() },
       update: { _, _ in },
-      prepareForReuse: { _ in layerCalls += 1 }
+      resetForReuse: { _ in layerCalls += 1 }
     ).eraseToRenderableItem()
-    layerItem.prepareForReuse?(.layer(CALayer()))
+    layerItem.resetForReuse?(.layer(CALayer()))
     expect(layerCalls) == 1
   }
 
-  func test_onPrepareForReuse_firesForLayerBackedReuse() {
-    // a layer-backed node (ColorNode) also receives the hook on reuse, exercising the layer erasure path.
-    var prepareForReuseCount = 0
+  func test_onResetForReuse_firesForLayerBackedReuse() {
+    // a layer-backed node (ColorNode) also receives the hook when its layer is enqueued, exercising the layer erasure path.
+    var resetForReuseCount = 0
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = RenderablePool() // isolate from the shared pool so reuse counts are deterministic.
     view.setContent {
@@ -473,17 +571,17 @@ class ComposeView_RenderReuseTests: XCTestCase {
           ColorNode(i.isMultiple(of: 2) ? .red : .blue)
             .frame(width: .flexible, height: Constants.rowHeight)
             .reuseId("color")
-            .onPrepareForReuse { _ in prepareForReuseCount += 1 }
+            .onResetForReuse { _ in resetForReuseCount += 1 }
         }
       }
     }
     view.refresh(animated: false)
 
-    expect(prepareForReuseCount) == 0
+    expect(resetForReuseCount) == 0
 
     scrollDown(view)
 
-    expect(prepareForReuseCount) > 0
+    expect(resetForReuseCount) > 0
   }
 
   // MARK: - Helpers
@@ -555,7 +653,7 @@ private final class MakeCounter {
 private final class ReuseTrackingView: View {
 
   var configuredValue: Int = -1
-  var wasPreparedForReuse = false
+  var wasResetForReuse = false
 }
 
 private final class RowViewA: View {}
@@ -578,6 +676,34 @@ private final class MockRenderablePool: RenderablePoolType {
   func dequeue(_ key: ReuseKey) -> Renderable? {
     dequeueCount += 1
     return backing.dequeue(key)
+  }
+}
+
+/// A custom `RenderablePool` that records the keys and renderables it sees, delegating to a real pool, to verify how
+/// `ComposeView` parks and reuses renderables.
+private final class RecordingRenderablePool: RenderablePoolType {
+
+  private(set) var enqueueCount = 0
+  private(set) var dequeueCount = 0
+  private(set) var keys: [ReuseKey] = []
+  private(set) var lastEnqueuedRenderable: Renderable?
+  private(set) var lastDequeuedRenderable: Renderable?
+
+  private let backing = RenderablePool()
+
+  func enqueue(_ renderable: Renderable, key: ReuseKey) {
+    enqueueCount += 1
+    keys.append(key)
+    lastEnqueuedRenderable = renderable
+    backing.enqueue(renderable, key: key)
+  }
+
+  func dequeue(_ key: ReuseKey) -> Renderable? {
+    dequeueCount += 1
+    keys.append(key)
+    let renderable = backing.dequeue(key)
+    lastDequeuedRenderable = renderable
+    return renderable
   }
 }
 

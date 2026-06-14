@@ -36,12 +36,12 @@ import ChouTiTest
 
 class RenderablePoolTests: XCTestCase {
 
-  private func layerKey(_ id: String) -> ReuseKey {
-    ReuseKey(reuseId: id, type: ObjectIdentifier(CALayer.self))
+  private func layerKey(_ id: String, namespace: ReuseId.Namespace = .user) -> ReuseKey {
+    ReuseKey(reuseId: ReuseId(namespace: namespace, id: id), type: ObjectIdentifier(CALayer.self))
   }
 
-  private func viewKey(_ id: String) -> ReuseKey {
-    ReuseKey(reuseId: id, type: ObjectIdentifier(View.self))
+  private func viewKey(_ id: String, namespace: ReuseId.Namespace = .user) -> ReuseKey {
+    ReuseKey(reuseId: ReuseId(namespace: namespace, id: id), type: ObjectIdentifier(View.self))
   }
 
   /// Make a pool for the data-structure tests.
@@ -87,8 +87,8 @@ class RenderablePoolTests: XCTestCase {
 
   func test_sameReuseId_differentType_areIsolated() {
     let pool = makePool()
-    let layerKey = ReuseKey(reuseId: "row", type: ObjectIdentifier(CALayer.self))
-    let viewKey = ReuseKey(reuseId: "row", type: ObjectIdentifier(View.self))
+    let layerKey = ReuseKey(reuseId: ReuseId(namespace: .user, id: "row"), type: ObjectIdentifier(CALayer.self))
+    let viewKey = ReuseKey(reuseId: ReuseId(namespace: .user, id: "row"), type: ObjectIdentifier(View.self))
 
     let layer = CALayer()
     pool.enqueue(.layer(layer), key: layerKey)
@@ -96,6 +96,21 @@ class RenderablePoolTests: XCTestCase {
     // the view key, despite sharing the reuse id, must not dequeue the layer.
     expect(pool.dequeue(viewKey)) == nil
     expect(pool.dequeue(layerKey)?.layer) === layer
+  }
+
+  func test_sameReuseId_differentNamespace_areIsolated() {
+    let pool = makePool()
+    // same reuse id string and same concrete type, but different namespaces (framework vs user).
+    let frameworkKey = layerKey("ColorNode", namespace: .framework)
+    let userKey = layerKey("ColorNode", namespace: .user)
+
+    let frameworkLayer = CALayer()
+    pool.enqueue(.layer(frameworkLayer), key: frameworkKey)
+
+    // a user key must not dequeue a framework-enqueued renderable, so a caller can never accidentally pull (or share) a
+    // framework-internal renderable, even when the reuse id and type match.
+    expect(pool.dequeue(userKey)) == nil
+    expect(pool.dequeue(frameworkKey)?.layer) === frameworkLayer
   }
 
   func test_dequeue_isLIFO() {
@@ -107,7 +122,7 @@ class RenderablePoolTests: XCTestCase {
     pool.enqueue(.layer(first), key: key)
     pool.enqueue(.layer(second), key: key)
 
-    // most recently parked is handed back first.
+    // most recently enqueued is handed back first.
     expect(pool.dequeue(key)?.layer) === second
     expect(pool.dequeue(key)?.layer) === first
   }
@@ -273,7 +288,7 @@ class RenderablePoolTests: XCTestCase {
 
     pool.test.handleMemoryPressure(.warning)
 
-    // half are dropped; the warmest (most recently parked) are kept and handed back first (LIFO).
+    // half are dropped; the warmest (most recently enqueued) are kept and handed back first (LIFO).
     expect(pool.count(for: key)) == 2
     expect(pool.dequeue(key)?.layer) === layers[3]
     expect(pool.dequeue(key)?.layer) === layers[2]

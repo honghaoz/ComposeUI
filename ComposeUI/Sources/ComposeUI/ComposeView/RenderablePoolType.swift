@@ -30,6 +30,24 @@
 
 import Foundation
 
+/// A reuse identifier together with the namespace it belongs to.
+struct ReuseId: Hashable {
+
+  /// The origin of a reuse identifier, used to keep framework-internal and user-provided buckets isolated.
+  enum Namespace: Hashable {
+
+    /// A reuse identifier set internally by the framework (for example by ``ColorNode``).
+    case framework
+
+    /// A reuse identifier set by the caller.
+    case user
+  }
+
+  let namespace: ReuseId.Namespace
+
+  let id: String
+}
+
 /// A pool that recycles renderables removed from the renderable hierarchy so they can be reused for new items of the
 /// same kind, avoiding the cost of creating (and tearing down) a renderable on every render pass.
 ///

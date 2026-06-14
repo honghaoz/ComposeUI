@@ -949,6 +949,7 @@ open class ComposeView: BaseScrollView {
             // the cancel path (re-insertion during a remove transition) does not run this block, so a revived renderable is never pooled.
             if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = self.renderablePool {
               removeTransition?.resetForReuse(renderable: oldRenderable)
+              oldRenderableItem.resetForReuse?(oldRenderable)
               renderablePool.enqueue(oldRenderable, key: reuseKey)
             }
           }
@@ -1107,7 +1108,6 @@ open class ComposeView: BaseScrollView {
         } else if let reuseKey = renderableItem.reuseKey, let pooledRenderable = renderablePool?.dequeue(reuseKey) {
           // reuse a pooled renderable of the same kind instead of creating a new one
           renderable = pooledRenderable
-          renderableItem.prepareForReuse?(renderable)
         } else {
           renderable = renderableItem.make(RenderableMakeContext(initialFrame: newFrame, contentView: self))
         }

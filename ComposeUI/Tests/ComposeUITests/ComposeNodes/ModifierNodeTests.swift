@@ -1292,4 +1292,117 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.rasterizationScale) == 1
     }
   }
+
+  // MARK: - Reset for reuse
+
+  func test_layerModifiers_resetForReuse_resetsModifiedProperties() {
+    // each built-in layer modifier registers a `resetForReuse` block that resets the property it set back to the
+    // value a freshly made layer would have, so a recycled layer never leaks state into a differently-configured reuse.
+
+    // backgroundColor
+    do {
+      let layer = CALayer()
+      layer.backgroundColor = Color.red.cgColor
+      firstRenderableItem(of: LayerNode().backgroundColor(.red))?.resetForReuse?(.layer(layer))
+      expect(layer.backgroundColor) == nil
+    }
+
+    // opacity
+    do {
+      let layer = CALayer()
+      layer.opacity = 0.3
+      firstRenderableItem(of: LayerNode().opacity(0.3))?.resetForReuse?(.layer(layer))
+      expect(layer.opacity) == 1
+    }
+
+    // border
+    do {
+      let layer = CALayer()
+      layer.borderColor = Color.red.cgColor
+      layer.borderWidth = 4
+      firstRenderableItem(of: LayerNode().border(color: .red, width: 4))?.resetForReuse?(.layer(layer))
+      expect(layer.borderColor) == CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
+      expect(layer.borderWidth) == 0
+    }
+
+    // cornerRadius
+    do {
+      let layer = CALayer()
+      layer.cornerRadius = 10
+      layer.cornerCurve = .circular
+      firstRenderableItem(of: LayerNode().cornerRadius(10))?.resetForReuse?(.layer(layer))
+      expect(layer.cornerRadius) == 0
+      expect(layer.cornerCurve) == .continuous
+    }
+
+    // masksToBounds
+    do {
+      let layer = CALayer()
+      layer.masksToBounds = true
+      firstRenderableItem(of: LayerNode().masksToBounds(true))?.resetForReuse?(.layer(layer))
+      expect(layer.masksToBounds) == false
+    }
+
+    // shadow
+    do {
+      let layer = CALayer()
+      layer.shadowColor = Color.red.cgColor
+      layer.shadowOpacity = 0.8
+      layer.shadowRadius = 12
+      layer.shadowOffset = CGSize(width: 5, height: 5)
+      layer.shadowPath = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 10), transform: nil)
+      firstRenderableItem(of: LayerNode().shadow(color: .red, opacity: 0.8, radius: 12, offset: CGSize(width: 5, height: 5), path: nil))?
+        .resetForReuse?(.layer(layer))
+      expect(layer.shadowOpacity) == 0
+      expect(layer.shadowColor) == CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
+      expect(layer.shadowRadius) == 3
+      expect(layer.shadowOffset) == CGSize(width: 0, height: -3)
+      expect(layer.shadowPath) == nil
+    }
+
+    // zIndex
+    do {
+      let layer = CALayer()
+      layer.zPosition = 7
+      firstRenderableItem(of: LayerNode().zIndex(7))?.resetForReuse?(.layer(layer))
+      expect(layer.zPosition) == 0
+    }
+
+    // interactive
+    do {
+      let view = View()
+      #if canImport(AppKit)
+      view.ignoreHitTest = true
+      #endif
+      #if canImport(UIKit)
+      view.isUserInteractionEnabled = false
+      #endif
+      firstRenderableItem(of: ViewNode().interactive(true))?.resetForReuse?(.view(view))
+      #if canImport(AppKit)
+      expect(view.ignoreHitTest) == false
+      #endif
+      #if canImport(UIKit)
+      expect(view.isUserInteractionEnabled) == true
+      #endif
+    }
+
+    // rasterize
+    do {
+      let layer = CALayer()
+      layer.shouldRasterize = true
+      layer.rasterizationScale = 3
+      firstRenderableItem(of: LayerNode().rasterize(3))?.resetForReuse?(.layer(layer))
+      expect(layer.shouldRasterize) == false
+      expect(layer.rasterizationScale) == 1
+    }
+  }
+
+  // MARK: - Helpers
+
+  private func firstRenderableItem(of node: some ComposeNode) -> RenderableItem? {
+    var node = node
+    let size = CGSize(width: 100, height: 50)
+    _ = node.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    return node.renderableItems(in: CGRect(origin: .zero, size: size)).first
+  }
 }
