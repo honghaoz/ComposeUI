@@ -950,6 +950,9 @@ open class ComposeView: BaseScrollView {
             if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = self.renderablePool {
               removeTransition?.resetForReuse(renderable: oldRenderable)
               oldRenderableItem.resetForReuse?(oldRenderable)
+              // a renderable may have in-flight animations, must clear them here to avoid leaking into the next reuse.
+              // animations in sublayers should be cleared by the node's `resetForReuse` block.
+              oldRenderable.layer.removeAllAnimations()
               renderablePool.enqueue(oldRenderable, key: reuseKey)
             }
           }

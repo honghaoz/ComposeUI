@@ -170,7 +170,9 @@ public struct DropShadowNode: ComposeNode {
           cutoutPath: paths.cutoutPath.map { cutoutPath in { _ in cutoutPath } },
           animationTiming: context.animationTiming
         )
-      }
+      },
+      reuseId: ReuseId(namespace: .framework, id: "DropShadowLayer"),
+      resetForReuse: { $0.resetForReuse() }
     )
 
     return [layerItem.eraseToRenderableItem()]

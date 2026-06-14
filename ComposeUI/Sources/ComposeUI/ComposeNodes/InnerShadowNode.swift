@@ -184,7 +184,9 @@ public struct InnerShadowNode: ComposeNode {
           clipPath: paths.clipPath.map { clipPath in { _ in clipPath } },
           animationTiming: context.animationTiming
         )
-      }
+      },
+      reuseId: ReuseId(namespace: .framework, id: "InnerShadowLayer"),
+      resetForReuse: { $0.resetForReuse() }
     )
 
     return [layerItem.eraseToRenderableItem()]

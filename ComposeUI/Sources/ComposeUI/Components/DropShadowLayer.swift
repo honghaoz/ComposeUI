@@ -131,7 +131,19 @@ open class DropShadowLayer: CALayer {
 
     if let cutoutPath {
       updateMaskLayer(cutoutPath: cutoutPath, radius: radius, offset: offset, animationTiming: animationTiming)
+    } else {
+      // no cutout: clear any mask a previous update installed, so the rendered state always matches the inputs.
+      clearMaskLayer()
     }
+  }
+
+  /// Reset the layer so it can be reused as if freshly made.
+  func resetForReuse() {
+    removeAllAnimations()
+
+    // doesn't clear shadow properties since they are set by `update`
+
+    clearMaskLayer()
   }
 
   private func updateMaskLayer(cutoutPath: (DropShadowLayer) -> CGPath,
@@ -176,5 +188,17 @@ open class DropShadowLayer: CALayer {
     biggerPath.addPath(CGPath(rect: biggerBounds, transform: nil))
     biggerPath.addPath(cutoutPath)
     return biggerPath
+  }
+
+  private func clearMaskLayer() {
+    guard mask != nil else {
+      return
+    }
+
+    mask?.removeAllAnimations()
+    disableActions(for: "mask") {
+      self.mask = nil
+      self.maskLayer.path = nil
+    }
   }
 }

@@ -179,6 +179,14 @@ open class InnerShadowLayer: CALayer {
     }
   }
 
+  /// Reset the layer so it can be reused as if freshly made.
+  func resetForReuse() {
+    maskLayer.removeAllAnimations()
+    removeAllAnimations()
+
+    // doesn't clear shadow properties since they are set by `update`
+  }
+
   private func makeInnerShadowPath(holePath: CGPath, clipPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
     // make a bigger rect to contain the shadow.
     // `radius + abs(offset)` covers the shadow's nominal extent, add extra 20pt to ensure the shadow is fully contained.

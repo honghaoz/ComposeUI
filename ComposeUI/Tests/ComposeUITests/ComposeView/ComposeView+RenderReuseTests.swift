@@ -143,6 +143,195 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(enqueued?.layer.cornerRadius) == 0
   }
 
+  func test_innerShadowNode_poolsByDefault_acrossScroll() {
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = pool
+    view.setContent {
+      VStack {
+        for _ in 0 ..< Constants.rowCount {
+          // no explicit reuse id: InnerShadowNode pools by default.
+          InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+            CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+          })
+          .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.refresh(animated: false)
+
+    scrollDown(view)
+
+    // InnerShadowNode added leaving layers to the pool and reused them for entering rows, all under a framework-internal bucket.
+    expect(pool.enqueueCount) > 0
+    expect(pool.dequeueCount) > 0
+    expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "InnerShadowLayer" }) == true
+  }
+
+  func test_dropShadowNode_poolsByDefault_acrossScroll() {
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = pool
+    view.setContent {
+      VStack {
+        for _ in 0 ..< Constants.rowCount {
+          // no explicit reuse id: DropShadowNode pools by default.
+          DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+            CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+          })
+          .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.refresh(animated: false)
+
+    scrollDown(view)
+
+    // DropShadowNode added leaving layers to the pool and reused them for entering rows, all under a framework-internal bucket.
+    // these plain (no cutout) rows never install a mask, so the reset's guard takes its no-op branch on each enqueue.
+    expect(pool.enqueueCount) > 0
+    expect(pool.dequeueCount) > 0
+    expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "DropShadowLayer" }) == true
+  }
+
+  func test_dropShadowNode_recycledLayer_clearsCutoutMaskFromPreviousUse() {
+    // a cutout mask installed in one use must not carry into the pool (the layer's `update` only sets the mask when a
+    // cutout is provided, so a reuse without a cutout would otherwise leak the stale mask).
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.renderablePool = pool
+
+    view.setContent {
+      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { renderable in
+        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+        return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: CGPath(rect: rect.insetBy(dx: 10, dy: 10), transform: nil))
+      })
+      .frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    // the cutout installed a mask on the rendered layer.
+    expect(firstDropShadowLayer(in: view)?.mask) != nil
+
+    view.setContent {
+      Empty()
+    }
+    view.refresh(animated: false)
+
+    // the layer is enqueued with the cutout mask cleared for reuse.
+    let enqueued = pool.lastEnqueuedRenderable
+    expect(enqueued?.layer.mask) == nil
+
+    view.setContent {
+      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+        CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+      })
+      .frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    // the plain (no cutout) DropShadowNode reused the very same enqueued layer and it carries no stale mask.
+    expect(pool.lastDequeuedRenderable?.layer) === enqueued?.layer
+    expect(enqueued?.layer.mask) == nil
+  }
+
+  // MARK: - In-flight animation cleanup
+
+  func test_colorNode_recycledLayer_scrubsInFlightAnimationFromPreviousUse() throws {
+    // a layer added to the pool mid-animation (e.g. an animated color change interrupted by scrolling the row off-screen)
+    // must not keep that animation: the render pass only disables implicit actions, so the explicit animation would
+    // otherwise survive in the pool and leak into the next, possibly non-animated, reuse.
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.renderablePool = pool
+
+    view.setContent {
+      ColorNode(.red).frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    // simulate an in-flight animation left on the layer by a prior animated change.
+    let layer = try firstColorLayer(in: view).unwrap()
+    let animation = CABasicAnimation(keyPath: "backgroundColor")
+    animation.duration = 10
+    layer.add(animation, forKey: "backgroundColor")
+    expect(layer.animationKeys()?.isEmpty) == false
+
+    view.setContent {
+      Empty()
+    }
+    view.refresh(animated: false)
+
+    // the same layer is enqueued, scrubbed of its in-flight animation, so reuse starts from a clean state.
+    expect(pool.lastEnqueuedRenderable?.layer) === layer
+    expect(layer.animationKeys() ?? []) == []
+  }
+
+  func test_innerShadowNode_recycledLayer_scrubsMaskAnimationFromPreviousUse() throws {
+    // the inner shadow keeps its mask attached across reuses, so the centralized pooling scrub (which only reaches the
+    // layer itself) can't clear an in-flight mask animation; the node's reset must.
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.renderablePool = pool
+
+    view.setContent {
+      InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+        CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+      })
+      .frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    // simulate an in-flight animation left on the mask by a prior animated change.
+    let mask = try firstInnerShadowLayer(in: view).unwrap().mask.unwrap()
+    let animation = CABasicAnimation(keyPath: "path")
+    animation.duration = 10
+    mask.add(animation, forKey: "path")
+    expect(mask.animationKeys()?.isEmpty) == false
+
+    view.setContent {
+      Empty()
+    }
+    view.refresh(animated: false)
+
+    // the mask stays attached but is scrubbed of its in-flight animation.
+    expect(pool.lastEnqueuedRenderable?.layer.mask) === mask
+    expect(mask.animationKeys() ?? []) == []
+  }
+
+  func test_dropShadowNode_recycledLayer_scrubsCutoutMaskAnimationFromPreviousUse() throws {
+    // the drop shadow detaches its cutout mask on reset, but the mask layer instance is retained and re-attached on a
+    // later cutout update, so its in-flight animation must be cleared before it is detached.
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.renderablePool = pool
+
+    view.setContent {
+      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { renderable in
+        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+        return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: CGPath(rect: rect.insetBy(dx: 10, dy: 10), transform: nil))
+      })
+      .frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    // simulate an in-flight animation left on the cutout mask by a prior animated change.
+    let mask = try firstDropShadowLayer(in: view).unwrap().mask.unwrap()
+    let animation = CABasicAnimation(keyPath: "path")
+    animation.duration = 10
+    mask.add(animation, forKey: "path")
+    expect(mask.animationKeys()?.isEmpty) == false
+
+    view.setContent {
+      Empty()
+    }
+    view.refresh(animated: false)
+
+    // the mask is detached for reuse and its in-flight animation is cleared, so a later cutout reuse won't leak it.
+    expect(pool.lastEnqueuedRenderable?.layer.mask) == nil
+    expect(mask.animationKeys() ?? []) == []
+  }
+
   // MARK: - Pool configuration
 
   func test_renderablePool_defaultsToSharedPool() {
@@ -285,6 +474,24 @@ class ComposeView_RenderReuseTests: XCTestCase {
     let item = firstRenderableItem(of: ColorNode(.red).reuseId("custom").frame(width: 100, height: 100))
     expect(item?.reuseId) == ReuseId(namespace: .user, id: "custom")
     expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .user, id: "custom")
+  }
+
+  func test_innerShadowNode_defaultReuseKey_usesFrameworkNamespace() {
+    // InnerShadowNode opts into pooling by default with a framework-internal reuse id.
+    let item = firstRenderableItem(of: InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { _ in
+      CGPath(rect: .zero, transform: nil)
+    }).frame(width: 100, height: 100))
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "InnerShadowLayer")
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "InnerShadowLayer")
+  }
+
+  func test_dropShadowNode_defaultReuseKey_usesFrameworkNamespace() {
+    // DropShadowNode opts into pooling by default with a framework-internal reuse id.
+    let item = firstRenderableItem(of: DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { _ in
+      CGPath(rect: .zero, transform: nil)
+    }).frame(width: 100, height: 100))
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "DropShadowLayer")
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "DropShadowLayer")
   }
 
   func test_internalReuseId_doesNotOverrideExistingInternalReuseId() {
@@ -639,6 +846,28 @@ class ComposeView_RenderReuseTests: XCTestCase {
     let size = Constants.viewSize
     _ = node.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 2))
     return node.renderableItems(in: CGRect(origin: .zero, size: size)).first
+  }
+
+  private func firstDropShadowLayer(in view: ComposeView) -> DropShadowLayer? {
+    contentSublayers(in: view)?.compactMap { $0 as? DropShadowLayer }.first
+  }
+
+  private func firstInnerShadowLayer(in view: ComposeView) -> InnerShadowLayer? {
+    contentSublayers(in: view)?.compactMap { $0 as? InnerShadowLayer }.first
+  }
+
+  /// The plain `CALayer` rendered by a `ColorNode` (matched by exact type so shadow layer subclasses are excluded).
+  private func firstColorLayer(in view: ComposeView) -> CALayer? {
+    contentSublayers(in: view)?.first { type(of: $0) == CALayer.self }
+  }
+
+  private func contentSublayers(in view: ComposeView) -> [CALayer]? {
+    #if canImport(AppKit)
+    return view.contentView().layer?.sublayers
+    #endif
+    #if canImport(UIKit)
+    return view.contentView().layer.sublayers
+    #endif
   }
 }
 

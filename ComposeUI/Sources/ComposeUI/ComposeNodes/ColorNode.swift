@@ -104,6 +104,8 @@ public struct ColorNode: ComposeNode {
         }
       },
       reuseId: ReuseId(namespace: .framework, id: "CALayer")
+      // resetForReuse: no reset for reuse since the layer has only the background color set
+      // the in-flight animation is cleared by ComposeView automatically when the layer is added to the pool
     )
 
     return [layerItem.eraseToRenderableItem()]

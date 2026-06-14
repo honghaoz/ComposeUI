@@ -113,6 +113,48 @@ class RenderPerformanceTests: XCTestCase {
     }
   }
 
+  // MARK: - Scroll (shadow nodes, default-pooled — measure the pooling payoff vs disabled)
+
+  func test_scroll_dropShadowRows_2000_noPool() {
+    // baseline: pooling disabled, so each scrolled-in row creates a fresh `DropShadowLayer` (mask shape layer + setup).
+    runScrollBenchmark(name: "scroll.dropShadow.2000.noPool", rowCount: 2000, poolingEnabled: false) { _ in
+      Self.makeDropShadowRow()
+    }
+  }
+
+  func test_scroll_dropShadowRows_2000_pooled() {
+    // DropShadowNode pools by default; leaving rows are recycled instead of recreated.
+    runScrollBenchmark(name: "scroll.dropShadow.2000.pooled", rowCount: 2000, poolingEnabled: true) { _ in
+      Self.makeDropShadowRow()
+    }
+  }
+
+  func test_scroll_dropShadowCutoutRows_2000_noPool() {
+    // a cutout installs a `CAShapeLayer` mask, so a fresh layer pays that allocation per scrolled-in row.
+    runScrollBenchmark(name: "scroll.dropShadowCutout.2000.noPool", rowCount: 2000, poolingEnabled: false) { _ in
+      Self.makeDropShadowCutoutRow()
+    }
+  }
+
+  func test_scroll_dropShadowCutoutRows_2000_pooled() {
+    // pooling reuses a layer that already has its mask, and the reset detaches it so the recycled layer is clean.
+    runScrollBenchmark(name: "scroll.dropShadowCutout.2000.pooled", rowCount: 2000, poolingEnabled: true) { _ in
+      Self.makeDropShadowCutoutRow()
+    }
+  }
+
+  func test_scroll_innerShadowRows_2000_noPool() {
+    runScrollBenchmark(name: "scroll.innerShadow.2000.noPool", rowCount: 2000, poolingEnabled: false) { _ in
+      Self.makeInnerShadowRow()
+    }
+  }
+
+  func test_scroll_innerShadowRows_2000_pooled() {
+    runScrollBenchmark(name: "scroll.innerShadow.2000.pooled", rowCount: 2000, poolingEnabled: true) { _ in
+      Self.makeInnerShadowRow()
+    }
+  }
+
   // MARK: - Renderable Items (node-level, isolates the tree walk + id mapping)
 
   func test_renderableItems_flatRows_10000() {
@@ -328,6 +370,36 @@ class RenderPerformanceTests: XCTestCase {
     }
   }
 
+  /// A drop-shadow row. The `DropShadowLayer` is non-trivial to create (mask shape layer + content scaling setup),
+  /// so this sizes the recycle pool's payoff. DropShadowNode pools by default; pooling is toggled at the view level.
+  private static func makeDropShadowRow() -> some ComposeNode {
+    DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), path: { renderable in
+      CGPath(roundedRect: CGRect(origin: .zero, size: renderable.frame.size), cornerWidth: 8, cornerHeight: 8, transform: nil)
+    })
+    .frame(width: .flexible, height: Constants.rowHeight)
+  }
+
+  /// A drop-shadow row with a cutout path. The cutout installs a `CAShapeLayer` mask on the layer, so an unpooled row
+  /// pays the mask allocation per scrolled-in row (unlike the plain drop-shadow row). This sizes the pooling payoff for
+  /// the masked case and exercises the cutout-mask reset on the recycle path.
+  private static func makeDropShadowCutoutRow() -> some ComposeNode {
+    DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), paths: { renderable in
+      let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      let shadowPath = CGPath(roundedRect: rect, cornerWidth: 8, cornerHeight: 8, transform: nil)
+      let cutoutPath = CGPath(roundedRect: rect.insetBy(dx: 8, dy: 8), cornerWidth: 8, cornerHeight: 8, transform: nil)
+      return DropShadowPaths(shadowPath: shadowPath, cutoutPath: cutoutPath)
+    })
+    .frame(width: .flexible, height: Constants.rowHeight)
+  }
+
+  /// An inner-shadow row. Like the drop-shadow row, the `InnerShadowLayer` is non-trivial to create.
+  private static func makeInnerShadowRow() -> some ComposeNode {
+    InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), path: { renderable in
+      CGPath(roundedRect: CGRect(origin: .zero, size: renderable.frame.size), cornerWidth: 8, cornerHeight: 8, transform: nil)
+    })
+    .frame(width: .flexible, height: Constants.rowHeight)
+  }
+
   /// A realistic list row: icon + two labels + spacer, with padding.
   private static func makeNestedRow(_ i: Int) -> some ComposeNode {
     HStack(spacing: 8) {
@@ -346,6 +418,7 @@ class RenderPerformanceTests: XCTestCase {
                                   rowCount: Int,
                                   rowHeight: CGFloat = Constants.rowHeight,
                                   scrollUp: Bool = false,
+                                  poolingEnabled: Bool = true,
                                   makeRow: @escaping (Int) -> any ComposeNode)
   {
     let view = ComposeView {
@@ -355,7 +428,8 @@ class RenderPerformanceTests: XCTestCase {
         }
       }
     }
-    view.renderablePool = RenderablePool() // isolate from the shared pool so each benchmark starts cold.
+    // isolate from the shared pool so each benchmark starts cold; `nil` disables reuse to measure the no-pooling baseline.
+    view.renderablePool = poolingEnabled ? RenderablePool() : nil
 
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
 
