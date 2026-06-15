@@ -1033,13 +1033,13 @@ open class ComposeView: BaseScrollView {
     let zOrderPlan = Self.makeZOrderPlan(oldIds: oldRenderableItemIds, newIds: renderableItemIds, reusingIds: reusingIds)
     let zOrderNeedsFullUpdate = zOrderPlan.needsFullUpdate
 
-    for id in renderableItemIds {
-      let renderableItem = renderableItemMap[id]! // swiftlint:disable:this force_unwrapping
+    for renderableItem in renderableItems {
+      let id = renderableItem.id
 
       let renderable: Renderable
-      if reusingIds.contains(id) {
+      if let reusedRenderable = oldRenderableMap[id] {
         // [2/3] ♻️ reuse the renderable item that is still in the content
-        renderable = oldRenderableMap[id]! // swiftlint:disable:this force_unwrapping
+        renderable = reusedRenderable
 
         #if DEBUG
         debug?.onEvent(.renderWillReuseRenderable(item: renderableItem, renderable: renderable))
