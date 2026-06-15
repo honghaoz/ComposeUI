@@ -665,6 +665,66 @@ class LabelNodeTests: XCTestCase {
       expect(DynamicLookup(node).property("node")) == nil
     }
   }
+
+  // MARK: - View reuse
+
+  func test_viewReuse_defaultReuseKey_usesFrameworkNamespace() {
+    // LabelNode renders through TextNode, so its renderable opts into the same framework-internal BaseTextView pool bucket.
+    let item = firstRenderableItem(of: LabelNode("Hello"))
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
+  }
+
+  func test_viewReuse_recycledView_resetsStateAndReuses() throws {
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.renderablePool = RenderablePool() // isolate from the shared pool so the reused view is deterministic.
+
+    view.setContent {
+      LabelNode("First")
+        .numberOfLines(2)
+    }
+    view.refresh(animated: false)
+
+    let textView = try firstBaseTextView(in: view).unwrap()
+    expect(textView.attributedString.string) == "First"
+    expect(textView.numberOfLines) == 2
+
+    // removing the label enqueues its view into the pool, which resets it (via TextNode's resetForReuse) for reuse.
+    view.setContent {
+      Empty()
+    }
+    view.refresh(animated: false)
+
+    expect(firstBaseTextView(in: view)) == nil
+    expect(textView.attributedString.string) == ""
+    expect(textView.numberOfLines) == 0
+    expect(textView.lineBreakMode) == .byWordWrapping
+    expect(textView.isSelectable) == true
+
+    // a new label reuses the very same pooled view, reconfigured for the new content (no stale state).
+    view.setContent {
+      LabelNode("Second")
+    }
+    view.refresh(animated: false)
+
+    let reusedView = try firstBaseTextView(in: view).unwrap()
+    expect(reusedView) === textView
+    expect(reusedView.attributedString.string) == "Second"
+    expect(reusedView.numberOfLines) == 1
+  }
+
+  // MARK: - Helpers
+
+  private func firstRenderableItem(of node: LabelNode) -> RenderableItem? {
+    var node = node
+    let size = CGSize(width: 100, height: 100)
+    _ = node.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    return node.renderableItems(in: CGRect(origin: .zero, size: size)).first
+  }
+
+  private func firstBaseTextView(in view: ComposeView) -> BaseTextView? {
+    view.contentView().subviews.compactMap { $0 as? BaseTextView }.first
+  }
 }
 
 private extension NSAttributedString {

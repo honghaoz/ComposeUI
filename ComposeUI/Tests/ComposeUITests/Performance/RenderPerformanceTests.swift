@@ -155,6 +155,59 @@ class RenderPerformanceTests: XCTestCase {
     }
   }
 
+  // MARK: - Scroll (text views, default-pooled — measure the BaseTextView reuse payoff vs disabled)
+
+  func test_scroll_textRows_2000_noPool() {
+    // baseline (pre-reuse behavior): pooling disabled, so each scrolled-in row creates a fresh `BaseTextView`
+    // (an NSTextView/UITextView backed by a full TextKit stack), then tears it down when the row leaves.
+    runScrollBenchmark(name: "scroll.text.2000.noPool", rowCount: 2000, poolingEnabled: false) { i in
+      Self.makeTextRow(i)
+    }
+  }
+
+  func test_scroll_textRows_2000_pooled() {
+    // TextNode pools its `BaseTextView` by default; a leaving row is reset and recycled for an entering row instead of
+    // allocating a new text view + TextKit stack. This is the path added by the text-view reuse change.
+    runScrollBenchmark(name: "scroll.text.2000.pooled", rowCount: 2000, poolingEnabled: true) { i in
+      Self.makeTextRow(i)
+    }
+  }
+
+  /// Deterministic mechanism metric for the text-view reuse change: how many `BaseTextView` instances are allocated
+  /// while scrolling, with vs without pooling.
+  ///
+  /// The same scroll reveals the same rows in both modes, so the total number of entering inserts is identical; pooling
+  /// only changes whether an entering row is served from the pool (a hit) or freshly made (a miss). Instrumenting a
+  /// single pooled run therefore yields both figures: total inserts = creations without pooling, misses = creations with
+  /// pooling, hits = allocations the pool avoided.
+  func test_scroll_textRows_2000_allocationCounts() {
+    let pool = CountingRenderablePool()
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 2000 {
+          Self.makeTextRow(i)
+        }
+      }
+    }
+    view.renderablePool = pool
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded() // initial fill (all misses: pool starts empty)
+
+    var offset: CGFloat = 0
+    for _ in 0 ..< Constants.scrollSteps {
+      offset += Constants.scrollStep
+      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.layoutIfNeeded()
+    }
+
+    let creationsNoPool = pool.hitCount + pool.missCount
+    let creationsPooled = pool.missCount
+    // hits / (hits + misses): the share of entering rows served from the pool, which equals the reduction in
+    // text-view allocations that pooling buys.
+    let reuseRate = creationsNoPool > 0 ? Double(pool.hitCount) / Double(creationsNoPool) * 100 : 0
+    print("[BENCHMARK] scroll.text.2000.alloc | textViewCreations.noPool: \(creationsNoPool) | textViewCreations.pooled: \(creationsPooled) | reuses(allocationsAvoided): \(pool.hitCount) | reuseRate(=allocationReduction): \(format(reuseRate))%")
+  }
+
   // MARK: - Renderable Items (node-level, isolates the tree walk + id mapping)
 
   func test_renderableItems_flatRows_10000() {
@@ -350,6 +403,7 @@ class RenderPerformanceTests: XCTestCase {
     static let rowHeight: CGFloat = 50
     static let smallRowHeight: CGFloat = 8
     static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
+    static let scrollSteps = 140 // mirrors the timed scroll benchmark's warmup (20) + iterations (120)
   }
 
   /// A plain view-backed row, optionally opted into the recycle pool via `reuseId`.
@@ -390,6 +444,14 @@ class RenderPerformanceTests: XCTestCase {
       return DropShadowPaths(shadowPath: shadowPath, cutoutPath: cutoutPath)
     })
     .frame(width: .flexible, height: Constants.rowHeight)
+  }
+
+  /// A text-backed row. The `BaseTextView` (NSTextView/UITextView with a TextKit stack) is one of the most expensive
+  /// renderables to create and tear down, so this sizes the text-view reuse payoff. TextNode pools by default; pooling
+  /// is toggled at the view level. The per-row text varies so each recycled view is genuinely reconfigured (not a no-op).
+  private static func makeTextRow(_ i: Int) -> some ComposeNode {
+    TextNode("Row \(i)")
+      .frame(width: .flexible, height: Constants.rowHeight)
   }
 
   /// An inner-shadow row. Like the drop-shadow row, the `InnerShadowLayer` is non-trivial to create.
@@ -506,5 +568,33 @@ class RenderPerformanceTests: XCTestCase {
 
   private func format(_ value: Double) -> String {
     String(format: "%.3f", value)
+  }
+}
+
+// MARK: - Instrumentation
+
+/// A `RenderablePoolType` that delegates to a real pool while counting reuse hits and misses, used to derive a
+/// deterministic allocation count for the text-view reuse benchmark.
+private final class CountingRenderablePool: RenderablePoolType {
+
+  private(set) var hitCount = 0
+  private(set) var missCount = 0
+  private(set) var enqueueCount = 0
+
+  private let backing = RenderablePool()
+
+  func enqueue(_ renderable: Renderable, key: ReuseKey) {
+    enqueueCount += 1
+    backing.enqueue(renderable, key: key)
+  }
+
+  func dequeue(_ key: ReuseKey) -> Renderable? {
+    if let renderable = backing.dequeue(key) {
+      hitCount += 1
+      return renderable
+    } else {
+      missCount += 1
+      return nil
+    }
   }
 }
