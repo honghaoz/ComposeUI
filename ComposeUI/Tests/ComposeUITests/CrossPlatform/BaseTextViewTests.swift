@@ -197,6 +197,7 @@ class BaseTextViewTests: XCTestCase {
   }
   #endif
 
+  #if canImport(AppKit) || canImport(UIKit) && !os(tvOS)
   func test_resetForReuse_clearsIsEditable() {
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     textView.isEditable = true
@@ -205,6 +206,7 @@ class BaseTextViewTests: XCTestCase {
     textView.resetForReuse()
     expect(textView.isEditable) == false
   }
+  #endif
 
   func test_resetForReuse_clearsIsSelectable() {
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
