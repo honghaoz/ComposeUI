@@ -79,6 +79,15 @@ public extension CALayer {
   ///   - keys: The keys to disable actions for.
   ///   - work: The block to execute.
   func disableActions(for keys: [String], _ work: () throws -> Void) rethrows {
+    if CATransaction.disableActions() {
+      // The current transaction already suppresses implicit actions for every key, so installing a per-layer `NSNull`
+      // actions dictionary would change nothing.
+      // skip it and run the work directly to avoid snapshotting/assigning/restoring `actions`, which triggers a
+      // `-[CALayer setActions:]` KVO + dictionary teardown per call.
+      try work()
+      return
+    }
+
     let originalActions = actions
 
     var disabledActions = [String: CAAction]()

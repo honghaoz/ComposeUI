@@ -68,6 +68,45 @@ class CALayer_DisableActionsTests: XCTestCase {
     }
   }
 
+  func test_disableActions_insideDisablingTransaction_skipsActionsInstall() throws {
+    let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    let layer = CALayer()
+    layer.frame = frame
+
+    let window = TestWindow()
+    window.layer.addSublayer(layer)
+
+    // wait for the layer to have a presentation layer
+    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    // install a single-entry sentinel actions dictionary so we can tell whether the call swaps `actions` (slow path,
+    // which would install a 2-key disabling dictionary) or leaves them untouched (fast path).
+    let sentinel: [String: CAAction] = ["sentinel": NSNull()]
+    layer.actions = sentinel
+
+    var workRan = false
+    var actionsCountDuringWork: Int?
+
+    // mimic the render pass: run inside a transaction that already disables actions for all keys.
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    layer.disableActions(for: "position", "bounds") {
+      workRan = true
+      actionsCountDuringWork = layer.actions?.count
+      layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    }
+    CATransaction.commit()
+
+    // the work runs
+    expect(workRan) == true
+    // fast path: `actions` stays as the sentinel (count 1), not swapped to the 2-key disabling dictionary.
+    expect(actionsCountDuringWork) == 1
+    // `actions` is left intact after the call.
+    expect(layer.actions?.count) == 1
+    // no implicit animation is added because the transaction already suppressed it.
+    expect(layer.animationKeys()) == nil
+  }
+
   func test_disableAllActions_mainThread() throws {
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
