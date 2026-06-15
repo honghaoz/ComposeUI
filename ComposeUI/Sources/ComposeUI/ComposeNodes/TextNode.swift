@@ -315,7 +315,9 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
           return
         }
         updateTextView(view, theme: context.contentView.theme)
-      }
+      },
+      reuseId: ReuseId(namespace: .framework, id: "BaseTextView"),
+      resetForReuse: { $0.resetForReuse() }
     )
 
     return [viewItem.eraseToRenderableItem()]

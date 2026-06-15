@@ -146,41 +146,7 @@ open class BaseTextView: TextView {
     textContainerInset = .zero
     self.textContainer?.lineFragmentPadding = 0
 
-    // clips the text within the bounds of the text view
-    // for attributed text with `.byTruncatingTail` break mode, the text can overflow the bounds of the text view
-    clipsToBounds = true
-    if #available(macOS 26.0, *) {
-      // macOS 26 (Tahoe) 26.4.1 (25E253)
-      // (lldb) po subviews
-      // ▿ 3 elements
-      //   - 0 : <_NSTextSelectionView: 0x70ee1e080>
-      //   - 1 : <_NSTextRenderingSurfacesGroupView: 0x70ee1e580>
-      //   - 2 : <_NSTextContentView: 0x70ee1de00>
-      if let textContentView = subviews.first(where: { $0.className == "_NSTextContentView" }).assertNotNil(),
-         textContentView.clipsToBounds == false
-      {
-        textContentView.clipsToBounds = true
-      }
-    } else if #available(macOS 16.0, *) {
-      // macOS 26 (Tahoe) beta 2
-      // subviews:
-      //   - 0 : <_NSTextSelectionView: 0xbc2a2e800>
-      //   - 1 : <_NSTextRenderingSurfacesGroupView: 0xbc2a2e580>
-      //   - 2 : <_NSTextRenderingSurfacesGroupView: 0xbc2a2e300>
-      for subview in subviews where subview.className == "_NSTextRenderingSurfacesGroupView" {
-        ComposeUI.assert(subview.clipsToBounds == true)
-      }
-    } else if #available(macOS 12.0, *) {
-      // macOS 15 (Sequoia)
-      // subviews:
-      //   - 0 : <_NSTextSelectionView: 0x128808a80>
-      //   - 1 : <_NSTextContentView: 0x128808650>
-      if let textContentView = subviews.first(where: { $0.className == "_NSTextContentView" }).assertNotNil(),
-         textContentView.clipsToBounds == false
-      {
-        textContentView.clipsToBounds = true
-      }
-    }
+    ensureClipsToBounds()
   }
 
   @available(*, unavailable)
@@ -219,6 +185,83 @@ open class BaseTextView: TextView {
     setSelectedRange(NSRange(location: 0, length: 0))
 
     return super.resignFirstResponder()
+  }
+
+  private func ensureClipsToBounds() {
+    // clips the text within the bounds of the text view
+    // for attributed text with `.byTruncatingTail` break mode, the text can overflow the bounds of the text view
+    clipsToBounds = true
+    if #available(macOS 26.0, *) {
+      // macOS 26 (Tahoe) 26.4.1 (25E253)
+      // (lldb) po subviews
+      // ▿ 3 elements
+      //   - 0 : <_NSTextSelectionView: 0x70ee1e080>
+      //   - 1 : <_NSTextRenderingSurfacesGroupView: 0x70ee1e580>
+      //   - 2 : <_NSTextContentView: 0x70ee1de00>
+      if let textContentView = subviews.first(where: { $0.className == "_NSTextContentView" }).assertNotNil(),
+         textContentView.clipsToBounds == false
+      {
+        textContentView.clipsToBounds = true
+      }
+    } else if #available(macOS 16.0, *) {
+      // macOS 26 (Tahoe) beta 2
+      // subviews:
+      //   - 0 : <_NSTextSelectionView: 0xbc2a2e800>
+      //   - 1 : <_NSTextRenderingSurfacesGroupView: 0xbc2a2e580>
+      //   - 2 : <_NSTextRenderingSurfacesGroupView: 0xbc2a2e300>
+      for subview in subviews where subview.className == "_NSTextRenderingSurfacesGroupView" {
+        ComposeUI.assert(subview.clipsToBounds == true)
+      }
+    } else if #available(macOS 12.0, *) {
+      // macOS 15 (Sequoia)
+      // subviews:
+      //   - 0 : <_NSTextSelectionView: 0x128808a80>
+      //   - 1 : <_NSTextContentView: 0x128808650>
+      if let textContentView = subviews.first(where: { $0.className == "_NSTextContentView" }).assertNotNil(),
+         textContentView.clipsToBounds == false
+      {
+        textContentView.clipsToBounds = true
+      }
+    }
+  }
+
+  /// Reset the text view so it can be reused as if freshly made.
+  open func resetForReuse() {
+    let selectedRange = selectedRange
+    if selectedRange.location != 0 || selectedRange.length != 0 {
+      setSelectedRange(NSRange(location: 0, length: 0))
+    }
+
+    if window?.firstResponder === self {
+      window?.makeFirstResponder(nil)
+    }
+
+    delegate = nil
+
+    attributedString = NSAttributedString()
+
+    if numberOfLines != 0 {
+      numberOfLines = 0
+    }
+    if lineBreakMode != .byWordWrapping {
+      lineBreakMode = .byWordWrapping
+    }
+
+    isEditable = false
+    isSelectable = true
+    isRichText = false
+
+    drawsBackground = false
+
+    if textContainerInset != .zero {
+      textContainerInset = .zero
+    }
+    textContainer?.lineFragmentPadding = 0
+
+    ensureClipsToBounds()
+
+    ignoreHitTest = false
+    typingAttributes = [:]
   }
 }
 
@@ -272,15 +315,67 @@ open class BaseTextView: UITextView {
     textContainerInset = .zero
     self.textContainer.lineFragmentPadding = 0
 
+    ensureClipsToBounds()
+  }
+
+  @available(*, unavailable)
+  public required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+
+  private func ensureClipsToBounds() {
     clipsToBounds = true
     if #available(iOS 16.0, *) {
       subviews.first(where: { String(cString: object_getClassName($0)) == "_UITextContainerView" }).assertNotNil()?.clipsToBounds = true
     }
   }
 
-  @available(*, unavailable)
-  public required init?(coder: NSCoder) {
-    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  /// Reset the text view so it can be reused as if freshly made.
+  open func resetForReuse() {
+    let selectedRange = selectedRange
+    if selectedRange.location != 0 || selectedRange.length != 0 {
+      self.selectedRange = NSRange(location: 0, length: 0)
+    }
+
+    if isFirstResponder {
+      resignFirstResponder()
+    }
+
+    delegate = nil
+
+    attributedString = NSAttributedString()
+    if numberOfLines != 0 {
+      numberOfLines = 0
+    }
+    if lineBreakMode != .byWordWrapping {
+      lineBreakMode = .byWordWrapping
+    }
+
+    contentInsetAdjustmentBehavior = .never
+
+    #if !os(tvOS)
+    isEditable = false
+    #endif
+    isSelectable = true
+    isUserInteractionEnabled = true
+
+    backgroundColor = nil
+
+    if textContainerInset != .zero {
+      textContainerInset = .zero
+    }
+    if textContainer.lineFragmentPadding != 0 {
+      textContainer.lineFragmentPadding = 0
+    }
+
+    ensureClipsToBounds()
+
+    contentInset = .zero
+    horizontalScrollIndicatorInsets = .zero
+    verticalScrollIndicatorInsets = .zero
+    setContentOffset(.zero, animated: false)
+
+    typingAttributes = [:]
   }
 }
 #endif

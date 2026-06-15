@@ -113,6 +113,119 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "CALayer" }) == true
   }
 
+  func test_textNode_poolsByDefault_acrossScroll() {
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = pool
+    view.setContent {
+      VStack {
+        for i in 0 ..< Constants.rowCount {
+          // no explicit reuse id: TextNode pools its BaseTextView by default.
+          TextNode("Row \(i)")
+            .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.refresh(animated: false)
+
+    scrollDown(view)
+
+    // TextNode added leaving views to the pool and reused them for entering rows, all under a framework-internal bucket.
+    expect(pool.enqueueCount) > 0
+    expect(pool.dequeueCount) > 0
+    expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "BaseTextView" }) == true
+  }
+
+  func test_textNode_recycledView_resetsTextViewStateFromPreviousUse() throws {
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.renderablePool = pool
+
+    view.setContent {
+      TextNode("First")
+        .numberOfLines(2)
+        .lineBreakMode(.byTruncatingTail)
+        .editable()
+        .selectable(false)
+        .textContainerInset(horizontal: 10, vertical: 20)
+        .frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    let textView = try firstBaseTextView(in: view).unwrap()
+    #if canImport(AppKit)
+    textView.string = "User edited text"
+    textView.textContainerInset = CGSize(width: 3, height: 4)
+    textView.ignoreHitTest = true
+    textView.isRichText = true
+    textView.drawsBackground = true
+    textView.isSelectable = true
+    textView.setSelectedRange(NSRange(location: 0, length: 4))
+    #endif
+    #if canImport(UIKit)
+    textView.text = "User edited text"
+    textView.textContainerInset = UIEdgeInsets(top: 4, left: 3, bottom: 4, right: 3)
+    textView.isUserInteractionEnabled = false
+    textView.backgroundColor = .red
+    textView.contentInset = UIEdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
+    textView.scrollIndicatorInsets = UIEdgeInsets(top: 5, left: 6, bottom: 7, right: 8)
+    textView.setContentOffset(CGPoint(x: 9, y: 10), animated: false)
+    textView.isSelectable = true
+    textView.selectedRange = NSRange(location: 0, length: 4)
+    #endif
+    textView.numberOfLines = 3
+    textView.lineBreakMode = .byTruncatingMiddle
+    #if !os(tvOS)
+    textView.isEditable = true
+    #endif
+    textView.isSelectable = false
+
+    view.setContent {
+      Empty()
+    }
+    view.refresh(animated: false)
+
+    let enqueued = try (pool.lastEnqueuedRenderable?.view as? BaseTextView).unwrap()
+    expect(enqueued) === textView
+    expect(textView.attributedString.string) == ""
+    expect(textView.numberOfLines) == 0
+    expect(textView.lineBreakMode) == .byWordWrapping
+    #if !os(tvOS)
+    expect(textView.isEditable) == false
+    #endif
+    expect(textView.isSelectable) == true
+
+    #if canImport(AppKit)
+    expect(textView.string) == ""
+    expect(textView.textContainerInset) == .zero
+    expect(textView.ignoreHitTest) == false
+    expect(textView.isRichText) == false
+    expect(textView.drawsBackground) == false
+    expect(textView.selectedRange()) == NSRange(location: 0, length: 0)
+    #endif
+    #if canImport(UIKit)
+    expect(textView.text) == ""
+    expect(textView.textContainerInset) == .zero
+    expect(textView.isUserInteractionEnabled) == true
+    expect(textView.backgroundColor == nil) == true
+    expect(textView.contentInset) == .zero
+    expect(textView.scrollIndicatorInsets) == .zero
+    expect(textView.contentOffset) == .zero
+    expect(textView.selectedRange) == NSRange(location: 0, length: 0)
+    #endif
+
+    view.setContent {
+      TextNode("Second")
+        .frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    expect(pool.lastDequeuedRenderable?.view) === textView
+    expect(textView.attributedString.string) == "Second"
+    expect(textView.numberOfLines) == 0
+    expect(textView.lineBreakMode) == .byWordWrapping
+  }
+
   func test_colorNode_recycledLayer_resetsModifierStateFromPreviousUse() {
     // a layer configured by a modifier in one use must not carry that state into a pool
     let pool = RecordingRenderablePool()
@@ -467,6 +580,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     let item = firstRenderableItem(of: ColorNode(.red).frame(width: 100, height: 100))
     expect(item?.reuseId) == ReuseId(namespace: .framework, id: "CALayer")
     expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "CALayer")
+  }
+
+  func test_textNode_defaultReuseKey_usesFrameworkNamespace() {
+    // TextNode opts into pooling by default with a framework-internal reuse id.
+    let item = firstRenderableItem(of: TextNode("Hello").frame(width: 100, height: 100))
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
   }
 
   func test_colorNode_userReuseId_overridesInternalReuseId_andUsesUserNamespace() {
@@ -859,6 +979,10 @@ class ComposeView_RenderReuseTests: XCTestCase {
   /// The plain `CALayer` rendered by a `ColorNode` (matched by exact type so shadow layer subclasses are excluded).
   private func firstColorLayer(in view: ComposeView) -> CALayer? {
     contentSublayers(in: view)?.first { type(of: $0) == CALayer.self }
+  }
+
+  private func firstBaseTextView(in view: ComposeView) -> BaseTextView? {
+    view.contentView().subviews.compactMap { $0 as? BaseTextView }.first
   }
 
   private func contentSublayers(in view: ComposeView) -> [CALayer]? {

@@ -83,3 +83,4 @@ Add short, actionable rules here when a pattern repeats.
 - Comments must explain the decision, not just state a fact: prefer "X can happen, so we do Y (instead of Z)" over "X can happen".
 - In hot paths (layout/render), order computations so work is only done when needed: check early-exit conditions (for example `.isNull`) before computing values used after the check.
 - Newly added code requires full test coverage, including guard/assertion paths and both branches of conditionals. Verify with `swift test --enable-code-coverage` + `xcrun llvm-cov report` on the touched files before claiming done.
+- When making platform behavior claims for AppKit/UIKit, verify both platforms with real tests or explicitly state which platform is unverified.
