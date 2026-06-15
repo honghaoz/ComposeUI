@@ -226,4 +226,21 @@ class SwiftUIViewNodeTests: XCTestCase {
 
     expect(view) == nil
   }
+
+  func test_renderableItems_doesNotRetainNodeThroughItemCache() {
+    // The cached item's make/update closures must not capture `self` (the node holds the item cache), else
+    // itemCache -> cachedItem -> closure -> self -> itemCache leaks the node when the tree is replaced.
+    weak var weakProbe: AnyObject?
+    do {
+      let probe = NSObject()
+      weakProbe = probe
+      var node: any ComposeNode = SwiftUIViewNode { () -> SwiftUI.Text in
+        _ = probe // captured by the content closure; reachable from the cached closures only if they capture `self`
+        return SwiftUI.Text("hi")
+      }
+      _ = node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
+      _ = node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10))
+    }
+    expect(weakProbe).to(beNil())
+  }
 }

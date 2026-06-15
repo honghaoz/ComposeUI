@@ -51,6 +51,9 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   private var content: () -> Content
   private var isStaticContent: Bool
 
+  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
+  private let itemCache = RenderableItemCache()
+
   /// Create a static SwiftUI view node.
   ///
   /// This is a static SwiftUI view node. The SwiftUI view will be rendered once and not updated.
@@ -104,41 +107,49 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
       return []
     }
 
-    let viewItem = ViewItem<View>(
-      id: id,
-      frame: frame,
-      make: { context in
-        let view: SwiftUIHostingView<AnyView>
-        if isStaticContent {
-          view = SwiftUIHostingView(rootView: AnyView(content()))
-        } else {
-          view = MutableSwiftUIHostingView()
-        }
-        if let initialFrame = context.initialFrame {
-          view.frame = initialFrame
-        }
-        return view
-      },
-      update: { view, context in
-        guard !isStaticContent else {
-          return
-        }
+    // bind config locally so the cached make/update closures capture values, not `self` (which holds `itemCache`),
+    // which would form the retain cycle: itemCache -> cachedItem -> closure -> self copy -> itemCache.
+    let content = content
+    let isStaticContent = isStaticContent
 
-        switch context.updateType {
-        case .insert,
-             .refresh,
-             .boundsChange:
-          break
-        case .scroll:
-          return
+    let item = itemCache.item(id: id, frame: frame) {
+      ViewItem<View>(
+        id: id,
+        frame: frame,
+        make: { context in
+          let view: SwiftUIHostingView<AnyView>
+          if isStaticContent {
+            view = SwiftUIHostingView(rootView: AnyView(content()))
+          } else {
+            view = MutableSwiftUIHostingView()
+          }
+          if let initialFrame = context.initialFrame {
+            view.frame = initialFrame
+          }
+          return view
+        },
+        update: { view, context in
+          guard !isStaticContent else {
+            return
+          }
+
+          switch context.updateType {
+          case .insert,
+               .refresh,
+               .boundsChange:
+            break
+          case .scroll:
+            return
+          }
+
+          (view as? MutableSwiftUIHostingView)
+            .assertNotNil("view should be a MutableSwiftUIHostingView")?
+            .content = AnyView(content())
         }
+      )
+      .eraseToRenderableItem()
+    }
 
-        (view as? MutableSwiftUIHostingView)
-          .assertNotNil("view should be a MutableSwiftUIHostingView")?
-          .content = AnyView(content())
-      }
-    )
-
-    return [viewItem.eraseToRenderableItem()]
+    return [item]
   }
 }

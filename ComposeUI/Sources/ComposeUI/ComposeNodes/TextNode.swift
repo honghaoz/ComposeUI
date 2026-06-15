@@ -63,6 +63,12 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
 
+  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
+  ///
+  /// This is a `var` (not a shared `let`) because `TextNode` has fluent config setters: each setter assigns a fresh
+  /// cache to its returned copy so a configuration change is never served a stale cached item.
+  private var itemCache = RenderableItemCache()
+
   /// Initialize a text node with attributed text.
   ///
   /// By default, the text is multi-line with flexible size. Use `fixedSize(width:height:)` to set the width and height to be fixed or flexible.
@@ -306,26 +312,55 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       return []
     }
 
-    let viewItem = ViewItem<BaseTextView>(
-      id: id,
-      frame: frame,
-      make: { BaseTextView(frame: $0.initialFrame ?? .zero) },
-      update: { view, context in
-        guard context.updateType.requiresFullUpdate else {
-          return
-        }
-        updateTextView(view, theme: context.contentView.theme)
-      },
-      reuseId: ReuseId(namespace: .framework, id: "BaseTextView"),
-      resetForReuse: { $0.resetForReuse() }
-    )
+    // bind config locally so the cached `update` closure captures values, not `self` (which holds `itemCache`), which
+    // would form the retain cycle: itemCache -> cachedItem -> update -> self copy -> itemCache.
+    let attributedString = attributedString
+    let numberOfLines = numberOfLines
+    let lineBreakMode = lineBreakMode
+    let textContainerInset = textContainerInset
+    let isEditable = isEditable
+    let isSelectable = isSelectable
 
-    return [viewItem.eraseToRenderableItem()]
+    let item = itemCache.item(id: id, frame: frame) {
+      ViewItem<BaseTextView>(
+        id: id,
+        frame: frame,
+        make: { BaseTextView(frame: $0.initialFrame ?? .zero) },
+        update: { view, context in
+          guard context.updateType.requiresFullUpdate else {
+            return
+          }
+          TextNode.updateTextView(
+            view,
+            theme: context.contentView.theme,
+            attributedString: attributedString,
+            numberOfLines: numberOfLines,
+            lineBreakMode: lineBreakMode,
+            textContainerInset: textContainerInset,
+            isEditable: isEditable,
+            isSelectable: isSelectable
+          )
+        },
+        reuseId: ReuseId(namespace: .framework, id: "BaseTextView"),
+        resetForReuse: { $0.resetForReuse() }
+      )
+      .eraseToRenderableItem()
+    }
+
+    return [item]
   }
 
   // MARK: - Private
 
-  private func updateTextView(_ textView: BaseTextView, theme: Theme) {
+  private static func updateTextView(_ textView: BaseTextView,
+                                     theme: Theme,
+                                     attributedString: NSAttributedString,
+                                     numberOfLines: Int,
+                                     lineBreakMode: NSLineBreakMode,
+                                     textContainerInset: CGSize,
+                                     isEditable: Bool,
+                                     isSelectable: Bool)
+  {
     let mutableAttributedString = NSMutableAttributedString(attributedString: attributedString)
     textView.attributedString = mutableAttributedString.apply(theme: theme)
 
@@ -375,6 +410,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.numberOfLines = value
+    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
     return copy
   }
 
@@ -389,6 +425,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.lineBreakMode = value
+    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
     return copy
   }
 
@@ -403,6 +440,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.isEditable = value
+    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
     return copy
   }
 
@@ -417,6 +455,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.isSelectable = value
+    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
     return copy
   }
 
@@ -434,6 +473,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.textContainerInset = CGSize(width: horizontal, height: vertical)
+    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
     return copy
   }
 
@@ -448,6 +488,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   public func intrinsicTextSizeAdjustment(_ adjustment: ((_ original: CGSize) -> CGSize)?) -> Self {
     var copy = self
     copy.adjustIntrinsicTextSize = adjustment
+    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
     return copy
   }
 }

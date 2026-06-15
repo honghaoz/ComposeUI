@@ -713,6 +713,27 @@ class LabelNodeTests: XCTestCase {
     expect(reusedView.numberOfLines) == 1
   }
 
+  // MARK: -
+
+  func test_renderableItems_sharedBase_selectableChange_notStale() {
+    // LabelNode delegates to an inner TextNode that it recreates when a setter runs (copy.node = nil), so two copies of
+    // a shared base get their own TextNode (and item cache) and a config change is never served a stale cached item.
+    let base = LabelNode("hi")
+    var defaultView: BaseTextView?
+    var selectableView: BaseTextView?
+    let view = ComposeView {
+      VStack {
+        base.onUpdate { item, _ in defaultView = item.view as? BaseTextView }
+        base.selectable(true).onUpdate { item, _ in selectableView = item.view as? BaseTextView }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+
+    expect(defaultView?.isSelectable) == false // LabelNode is not selectable by default
+    expect(selectableView?.isSelectable) == true
+  }
+
   // MARK: - Helpers
 
   private func firstRenderableItem(of node: LabelNode) -> RenderableItem? {

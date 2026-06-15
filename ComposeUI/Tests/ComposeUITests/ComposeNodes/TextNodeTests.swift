@@ -198,4 +198,43 @@ class TextNodeTests: XCTestCase {
 
     expect(textView?.bounds.size) == CGSize(width: 83, height: 36)
   }
+
+  func test_renderableItems_doesNotRetainNodeThroughItemCache() {
+    // The cached item's `update` closure must not capture `self` (the node holds the item cache), else
+    // itemCache -> cachedItem -> update -> self -> itemCache leaks the node when the tree is replaced.
+    weak var weakProbe: AnyObject?
+    do {
+      let probe = NSObject()
+      weakProbe = probe
+      // capture the probe via the node's intrinsic-size-adjustment closure; the cached update reaches it only if it
+      // captures `self`.
+      var node: any ComposeNode = TextNode("hi").intrinsicTextSizeAdjustment { original in
+        _ = probe
+        return original
+      }
+      _ = node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
+      _ = node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10))
+    }
+    expect(weakProbe).to(beNil())
+  }
+
+  func test_renderableItems_sharedCache_selectableChange_notStale() {
+    // Two copies of a base text node share its item cache (a reference in a value type). Changing `selectable` does not
+    // change the frame, so the cache's frame key cannot detect it; the setter must reset the cache so the copy rebuilds
+    // instead of returning the base's cached (selectable) item.
+    let base = TextNode("hi").fixedSize(width: true, height: true)
+    var defaultView: BaseTextView?
+    var nonSelectableView: BaseTextView?
+    let view = ComposeView {
+      VStack {
+        base.onUpdate { item, _ in defaultView = item.view as? BaseTextView }
+        base.selectable(false).onUpdate { item, _ in nonSelectableView = item.view as? BaseTextView }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+
+    expect(defaultView?.isSelectable) == true // TextNode is selectable by default
+    expect(nonSelectableView?.isSelectable) == false // would be true (stale) if the setter did not reset the shared cache
+  }
 }
