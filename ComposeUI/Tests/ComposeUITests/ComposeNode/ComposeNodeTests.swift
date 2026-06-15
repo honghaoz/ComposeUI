@@ -45,12 +45,19 @@ class ComposeNodeTests: XCTestCase {
     do {
       let node = MockComposeNode().id("test")
       expect(node.id) == .custom("test", isFixed: false)
+      expect(node.id.isSameConfiguration(as: .custom("test", isFixed: false))) == true
     }
 
     do {
       let node = MockComposeNode().fixedId("test")
       expect(node.id) == .custom("test", isFixed: true)
+      expect(node.id.isSameConfiguration(as: .custom("test", isFixed: true))) == true
     }
+  }
+
+  func test_fixedId_appliesWhenIdStringUnchanged() {
+    let node = MockComposeNode().id("test").fixedId("test")
+    expect(ComposeNodeId.custom("parent").join(with: node.id).id) == "test"
   }
 }
 

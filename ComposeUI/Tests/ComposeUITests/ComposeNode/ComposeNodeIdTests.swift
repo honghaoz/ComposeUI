@@ -39,6 +39,23 @@ class ComposeNodeIdTests: XCTestCase {
     expect(id.id) == "C"
   }
 
+  func test_identity_ignoresIsFixed() {
+    let nonFixed = ComposeNodeId.custom("x", isFixed: false)
+    let fixed = ComposeNodeId.custom("x", isFixed: true)
+
+    expect(nonFixed) == fixed
+    expect(nonFixed.hashValue) == fixed.hashValue
+
+    var map: [ComposeNodeId: Int] = [:]
+    map[nonFixed] = 1
+    map[fixed] = 2
+    expect(map.count) == 1
+    expect(map[nonFixed]) == 2
+
+    // different id strings remain distinct.
+    expect(ComposeNodeId.custom("x")) != ComposeNodeId.custom("y")
+  }
+
   func test_custom() {
     let id = ComposeNodeId.custom("test")
     expect(id.id) == "test"
@@ -52,6 +69,46 @@ class ComposeNodeIdTests: XCTestCase {
       let childId = parentId.join(with: id, suffix: "suffix")
       expect(childId.id) == "parent|suffix|test"
     }
+  }
+
+  func test_join_hashMatchesDirectId() {
+    let parentId = ComposeNodeId.custom("parent")
+    let childId = ComposeNodeId.custom("test")
+
+    do {
+      let joinedId = parentId.join(with: childId)
+      let directId = ComposeNodeId.custom("parent|test")
+      expect(joinedId) == directId
+      expect(joinedId.hashValue) == directId.hashValue
+
+      var map: [ComposeNodeId: Int] = [:]
+      map[joinedId] = 1
+      map[directId] = 2
+      expect(map.count) == 1
+      expect(map[joinedId]) == 2
+    }
+
+    do {
+      let joinedId = parentId.join(with: childId, suffix: "suffix")
+      let directId = ComposeNodeId.custom("parent|suffix|test")
+      expect(joinedId) == directId
+      expect(joinedId.hashValue) == directId.hashValue
+    }
+  }
+
+  func test_join_deepHashMatchesDirectId() {
+    var id = ComposeNodeId.custom("root")
+    var expectedId = "root"
+
+    for index in 0 ..< 20 {
+      let childId = ComposeNodeId.custom("child-\(index)")
+      id = id.join(with: childId, suffix: "suffix-\(index)")
+      expectedId += "|suffix-\(index)|child-\(index)"
+    }
+
+    let directId = ComposeNodeId.custom(expectedId)
+    expect(id) == directId
+    expect(id.hashValue) == directId.hashValue
   }
 
   func test_custom_fixed() {

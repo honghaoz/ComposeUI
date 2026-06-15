@@ -59,7 +59,7 @@ enum StandardComposeNodeId: String {
   case composeView = "CV"
 }
 
-public struct ComposeNodeId: Equatable {
+public struct ComposeNodeId: Hashable {
 
   /// Create a custom id for a node.
   ///
@@ -81,12 +81,74 @@ public struct ComposeNodeId: Equatable {
   }
 
   /// The id of the node.
-  let id: String
+  public let id: String
 
   /// If the id is fixed.
   ///
   /// If the id is fixed, `join` will not add the parent node's id to the child node's id.
   private let isFixed: Bool
+
+  /// A precomputed 64-bit hash of `id`.
+  ///
+  /// `ComposeView` uses node ids as render-pass dictionary/set keys. Caching this value keeps dictionary probes from
+  /// repeatedly hashing long composed id strings, while equality still checks the exact string so collisions remain safe.
+  private let cachedHash: UInt64
+
+  private init(id: String, isFixed: Bool) {
+    self.id = id
+    self.isFixed = isFixed
+    self.cachedHash = Self.fnv1a(id)
+  }
+
+  private init(id: String, isFixed: Bool, cachedHash: UInt64) {
+    self.id = id
+    self.isFixed = isFixed
+    self.cachedHash = cachedHash
+  }
+
+  // MARK: - Hashable
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(cachedHash)
+  }
+
+  public static func == (lhs: ComposeNodeId, rhs: ComposeNodeId) -> Bool {
+    // A node id's identity is its composed `id` string. `isFixed` only controls how the id is composed (whether a parent
+    // prefix is added in `join`), not which item the id denotes, so it is intentionally excluded from equality. This
+    // matches the render diff's long-standing behavior of keying its maps by the id string only: a `fixedId("x")` item
+    // and a composed item that resolves to "x" are the same (conflicting) render item, not two distinct ones.
+    //
+    // The cheap precomputed hash is compared first to reject mismatches without touching the strings; the exact `id`
+    // compare then makes equality collision-free (two distinct ids that happen to share a hash are never treated equal).
+    lhs.cachedHash == rhs.cachedHash && lhs.id == rhs.id
+  }
+
+  func isSameConfiguration(as other: ComposeNodeId) -> Bool {
+    id == other.id && isFixed == other.isFixed
+  }
+
+  /// FNV-1a hash of the string's UTF-8 bytes.
+  ///
+  /// Used to derive `cachedHash` from `id`, so the same `id` always yields the same hash regardless of how it was
+  /// composed (keeping `Hashable` consistent with the exact `==`).
+  @inline(__always)
+  private static func fnv1a(_ string: String) -> UInt64 {
+    fnv1a(string, hash: HashConstants.fnvOffsetBasis)
+  }
+
+  @inline(__always)
+  private static func fnv1a(_ string: String, hash initialHash: UInt64) -> UInt64 {
+    var hash = initialHash
+    for byte in string.utf8 {
+      hash = fnv1a(byte, hash: hash)
+    }
+    return hash
+  }
+
+  @inline(__always)
+  private static func fnv1a(_ byte: UInt8, hash: UInt64) -> UInt64 {
+    (hash ^ UInt64(byte)) &* HashConstants.fnvPrime
+  }
 
   /// Make a `ComposeNodeId` by joining the current node's id with a child node's id.
   ///
@@ -101,10 +163,25 @@ public struct ComposeNodeId: Equatable {
       return childNodeId
     } else {
       if let suffix {
-        return ComposeNodeId(id: "\(id)|\(suffix)|\(childNodeId.id)", isFixed: isFixed)
+        var hash = Self.fnv1a(HashConstants.separator, hash: cachedHash)
+        hash = Self.fnv1a(suffix, hash: hash)
+        hash = Self.fnv1a(HashConstants.separator, hash: hash)
+        hash = Self.fnv1a(childNodeId.id, hash: hash)
+        return ComposeNodeId(id: "\(id)|\(suffix)|\(childNodeId.id)", isFixed: isFixed, cachedHash: hash)
       } else {
-        return ComposeNodeId(id: "\(id)|\(childNodeId.id)", isFixed: isFixed)
+        var hash = Self.fnv1a(HashConstants.separator, hash: cachedHash)
+        hash = Self.fnv1a(childNodeId.id, hash: hash)
+        return ComposeNodeId(id: "\(id)|\(childNodeId.id)", isFixed: isFixed, cachedHash: hash)
       }
     }
   }
+}
+
+// MARK: - Constants
+
+private enum HashConstants {
+
+  static let separator: UInt8 = 0x7C // "|"
+  static let fnvOffsetBasis: UInt64 = 0xCBF29CE484222325
+  static let fnvPrime: UInt64 = 0x00000100000001B3
 }

@@ -121,21 +121,21 @@ open class ComposeView: BaseScrollView {
   private var lastRenderBounds: CGRect = .zero
 
   /// The ids of the renderable items that are being rendered.
-  private var renderableItemIds: [String] = []
+  private var renderableItemIds: [ComposeNodeId] = []
 
   /// The map of the renderable items that are being rendered.
-  private var renderableItemMap: [String: RenderableItem] = [:]
+  private var renderableItemMap: [ComposeNodeId: RenderableItem] = [:]
 
   /// The map of the renderables that are being rendered.
-  private var renderableMap: [String: Renderable] = [:]
+  private var renderableMap: [ComposeNodeId: Renderable] = [:]
 
   /// The map of the renderables that are being removed.
   ///
   /// The removing renderables are the ones that are not in the renderable hierarchy but still rendered due to the transition.
-  private var removingRenderableMap: [String: Renderable] = [:]
+  private var removingRenderableMap: [ComposeNodeId: Renderable] = [:]
 
   /// The map of the removing renderable transition completion blocks.
-  private var removingRenderableTransitionCompletionMap: [String: CancellableBlock] = [:]
+  private var removingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] = [:]
 
   /// The pool that recycles renderables across render passes.
   ///
@@ -903,8 +903,8 @@ open class ComposeView: BaseScrollView {
     ComposeUI.assert(oldRenderableItemIds.count == oldRenderableItemMap.count, "mismatched old renderable item count")
     ComposeUI.assert(oldRenderableItemIds.count == oldRenderableMap.count, "mismatched old renderable count")
     for id in oldRenderableItemIds {
-      ComposeUI.assert(oldRenderableItemMap[id] != nil, "missing old renderable item: \(id)")
-      ComposeUI.assert(oldRenderableMap[id] != nil, "missing old renderable: \(id)")
+      ComposeUI.assert(oldRenderableItemMap[id] != nil, "missing old renderable item: \(id.id)")
+      ComposeUI.assert(oldRenderableMap[id] != nil, "missing old renderable: \(id.id)")
     }
     #endif
 
@@ -917,14 +917,14 @@ open class ComposeView: BaseScrollView {
     renderableMap.reserveCapacity(renderableItemsCount)
 
     for item in renderableItems {
-      let id = item.id.id
-      ComposeUI.assert(renderableItemMap[id] == nil, "conflicting renderable item id: \(id)")
+      let id = item.id
+      ComposeUI.assert(renderableItemMap[id] == nil, "conflicting renderable item id: \(id.id)")
       renderableItemIds.append(id)
       renderableItemMap[id] = item
     }
 
     // update the renderables
-    var reusingIds: Set<String> = []
+    var reusingIds: Set<ComposeNodeId> = []
 
     for oldId in oldRenderableItemIds {
       if renderableItemMap[oldId] == nil {
@@ -1012,7 +1012,7 @@ open class ComposeView: BaseScrollView {
             #endif
           }
         } else {
-          ComposeUI.assertFailure("old renderable item or old renderable not found: \(oldId)")
+          ComposeUI.assertFailure("old renderable item or old renderable not found: \(oldId.id)")
         }
       } else {
         // this renderable item is still in the content, plan to reuse it
@@ -1191,8 +1191,8 @@ open class ComposeView: BaseScrollView {
     ComposeUI.assert(renderableItemIds.count == renderableItemMap.count, "mismatched renderable item count")
     ComposeUI.assert(renderableItemIds.count == renderableMap.count, "mismatched renderable count")
     for id in renderableItemIds {
-      ComposeUI.assert(renderableItemMap[id] != nil, "missing renderable item: \(id)")
-      ComposeUI.assert(renderableMap[id] != nil, "missing renderable: \(id)")
+      ComposeUI.assert(renderableItemMap[id] != nil, "missing renderable item: \(id.id)")
+      ComposeUI.assert(renderableMap[id] != nil, "missing renderable: \(id.id)")
     }
     #endif
 
@@ -1255,11 +1255,11 @@ open class ComposeView: BaseScrollView {
       host.contentUpdateContext
     }
 
-    var removingRenderableMap: [String: Renderable] {
+    var removingRenderableMap: [ComposeNodeId: Renderable] {
       host.removingRenderableMap
     }
 
-    var removingRenderableTransitionCompletionMap: [String: CancellableBlock] {
+    var removingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] {
       host.removingRenderableTransitionCompletionMap
     }
   }

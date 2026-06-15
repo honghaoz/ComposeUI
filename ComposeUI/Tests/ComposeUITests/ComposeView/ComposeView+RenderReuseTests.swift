@@ -88,6 +88,41 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(counter.madeCount) > initialMakeCount
   }
 
+  // MARK: - Render identity
+
+  func test_renderIdentity_ignoresIsFixed_reusesAcrossIsFixedChange() {
+    // A node id'd "x" (non-fixed) and the same node `fixedId`'d "x" are the SAME render item, because render identity is
+    // the id string only. Changing only the "isFixed" must therefore reuse the existing renderable in place rather than
+    // remove the old one and create a new one (which is what would happen if `isFixed` were part of the render map keys).
+    var madeCount = 0
+    let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = nil // isolate map-based reuse from the recycle pool
+
+    view.setContent {
+      LayerNode(make: { _ in
+        madeCount += 1
+        return CALayer()
+      })
+      .id("x")
+    }
+    view.refresh(animated: false)
+    expect(madeCount) == 1
+
+    // same string id, now fixed: the render maps (renderableItemMap/renderableMap) must treat it as the same key.
+    view.setContent {
+      LayerNode(make: { _ in
+        madeCount += 1
+        return CALayer()
+      })
+      .fixedId("x")
+    }
+    view.refresh(animated: false)
+
+    // reused in place: no new renderable was created, and nothing was stranded in the removing map.
+    expect(madeCount) == 1
+    expect(view.test.removingRenderableMap.count) == 0
+  }
+
   // MARK: - Default pooling (common nodes)
 
   func test_colorNode_poolsByDefault_acrossScroll() {

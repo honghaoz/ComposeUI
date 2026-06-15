@@ -85,7 +85,7 @@ public extension ComposeView {
       case renderDidInsertRenderable(item: RenderableItem, renderable: Renderable)
 
       /// The render pass is finished, all the renderable items are rendered, transition animations or animations may still be running.
-      case renderDidFinish(renderableItemIds: [String], renderableItemMap: [String: RenderableItem], renderableMap: [String: Renderable])
+      case renderDidFinish(renderableItemIds: [ComposeNodeId], renderableItemMap: [ComposeNodeId: RenderableItem], renderableMap: [ComposeNodeId: Renderable])
     }
 
     private weak var composeView: ComposeView?

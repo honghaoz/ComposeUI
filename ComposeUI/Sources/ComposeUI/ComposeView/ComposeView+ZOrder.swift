@@ -69,7 +69,7 @@ extension ComposeView {
   ///   - newIds: The renderable item ids of the current render pass, in z-order (back to front).
   ///   - reusingIds: The ids that are in both `oldIds` and `newIds`.
   /// - Returns: The z-order plan.
-  static func makeZOrderPlan(oldIds: [String], newIds: [String], reusingIds: Set<String>) -> ZOrderPlan {
+  static func makeZOrderPlan(oldIds: [ComposeNodeId], newIds: [ComposeNodeId], reusingIds: Set<ComposeNodeId>) -> ZOrderPlan {
     // when the content is unchanged, no z-order maintenance is needed.
     if newIds == oldIds {
       return .minimal(needsNewItemPlacement: false)
@@ -139,7 +139,7 @@ extension ComposeView {
   ///   - reusingIds: The ids of the retained renderables.
   ///   - renderableItemIds: The ids of the renderables being rendered, in z-order (back to front).
   ///   - renderableMap: The map of the renderables being rendered, keyed by id.
-  func placeNewRenderables(reusingIds: Set<String>, renderableItemIds: [String], renderableMap: [String: Renderable]) {
+  func placeNewRenderables(reusingIds: Set<ComposeNodeId>, renderableItemIds: [ComposeNodeId], renderableMap: [ComposeNodeId: Renderable]) {
     let parent: View = contentView()
 
     // the next sibling of the same kind (already placed correctly), while walking from front to back

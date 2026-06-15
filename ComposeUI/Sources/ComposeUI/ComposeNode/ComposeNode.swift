@@ -43,8 +43,7 @@ public protocol ComposeNode: ComposeContent {
   ///
   /// The id must be unique for a node type.
   ///
-  /// For your own node type, don't use `.standard` id. Instead, use `.custom`
-  /// with a prefix to avoid conflicts.
+  /// For your own node type, use `.custom` with a prefix to avoid conflicts.
   ///
   /// For example, if you have a `MyCustomNode`, you can use id like
   /// `.custom("com.myapp.mycustomnode", isFixed: false)`.
@@ -122,7 +121,7 @@ public extension ComposeNode {
   }
 
   private func id(_ id: ComposeNodeId) -> Self {
-    guard self.id != id else {
+    guard !self.id.isSameConfiguration(as: id) else {
       return self
     }
 

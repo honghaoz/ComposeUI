@@ -125,4 +125,49 @@ class ComposeView_TransitionTests: XCTestCase {
     removalCompletion?()
     insertionCompletion?()
   }
+
+  func test_reinsertRemovingRenderable_ignoresIsFixed() {
+    // Like `test_reinsertRemovingRenderable`, but the renderable is re-inserted with a *fixed* id of the same string.
+    // Render identity is the id string only (ignoring isFixed), so the re-inserted item must match the renderable
+    // parked in `removingRenderableMap` (keyed by that same string) and cancel its removal — not leave it stranded and
+    // create a new one.
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var removalCompletion: (() -> Void)?
+    let transition = RenderableTransition(
+      insert: RenderableTransition.InsertTransition { renderable, context, completion in
+        renderable.setFrame(context.targetFrame)
+        completion()
+      },
+      remove: RenderableTransition.RemoveTransition { _, _, completion in
+        removalCompletion = completion
+      }
+    )
+
+    // render a node id'd "x" (non-fixed)
+    contentView.setContent {
+      ColorNode(.red).id("x").transition(transition)
+    }
+    contentView.refresh(animated: false)
+
+    // remove it -> with a remove transition, it parks in the removing map under id "x" (non-fixed)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    expect(contentView.test.removingRenderableMap.count) == 1
+    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 1
+
+    // re-insert the same string id, but FIXED
+    contentView.setContent {
+      ColorNode(.red).fixedId("x").transition(transition)
+    }
+    contentView.refresh(animated: true)
+
+    // the parked renderable was matched by its string id and revived, despite the isFixed difference
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 0
+
+    removalCompletion?()
+  }
 }

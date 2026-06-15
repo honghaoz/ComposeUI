@@ -57,11 +57,13 @@ class ComposeView_ZOrderTests: XCTestCase {
           return
         }
         if case .renderDidFinish(let ids, _, let renderableMap) = event {
-          if !self.renderableItemIds.isEmpty, ids != self.renderableItemIds {
+          // map the `ComposeNodeId` keys to their string ids so the tests can keep asserting on readable ids.
+          let stringIds = ids.map(\.id)
+          if !self.renderableItemIds.isEmpty, stringIds != self.renderableItemIds {
             self.sawItemIdsChange = true
           }
-          self.renderableItemIds = ids
-          self.renderableMap = renderableMap
+          self.renderableItemIds = stringIds
+          self.renderableMap = Dictionary(uniqueKeysWithValues: renderableMap.map { ($0.key.id, $0.value) })
         }
       }
     }
