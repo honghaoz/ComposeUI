@@ -123,6 +123,35 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(view.test.removingRenderableMap.count) == 0
   }
 
+  func test_renderIdentity_sharedLeafCache_fixedAndNonFixedSameString_notConfused() {
+    // Two copies of the same base leaf node share its itemCache (a reference stored in a value-type node). Giving them
+    // the same id string but different "isFixed" must not let the fixed copy receive the non-fixed copy's cached item,
+    // which would make the parent prefix it ("VS|1|x") instead of treating it as fixed ("x").
+    let base = ColorNode(.red)
+    let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
+    view.renderablePool = nil
+
+    view.setContent {
+      VStack {
+        base.id("x") // non-fixed: prefixed by the VStack -> "VS|0|x"
+        base.fixedId("x") // fixed: not prefixed -> "x"
+      }
+    }
+
+    var renderedIds: [String] = []
+    view.debug { _, event in
+      if case .renderDidFinish(let ids, _, _) = event {
+        renderedIds = ids.map(\.id)
+      }
+    }
+    view.refresh(animated: false)
+
+    // the fixed copy keeps its unprefixed id; with an `==`-based (isFixed-ignoring) cache key it would have rendered
+    // as "VS|1|x" by reusing the non-fixed copy's cached item.
+    expect(renderedIds.contains("x")) == true
+    expect(renderedIds.contains("VS|1|x")) == false
+  }
+
   // MARK: - Default pooling (common nodes)
 
   func test_colorNode_poolsByDefault_acrossScroll() {

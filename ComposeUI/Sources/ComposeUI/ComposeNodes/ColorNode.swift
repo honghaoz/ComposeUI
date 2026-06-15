@@ -43,6 +43,9 @@ public struct ColorNode: ComposeNode {
 
   private let color: ThemedColor
 
+  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
+  private let itemCache = RenderableItemCache()
+
   /// Initialize a color node with a color.
   ///
   /// - Parameter color: The color to render.
@@ -74,40 +77,48 @@ public struct ColorNode: ComposeNode {
       return []
     }
 
-    let layerItem = LayerItem<CALayer>(
-      id: id,
-      frame: frame,
-      make: { context in
-        let layer = CALayer()
-        if let initialFrame = context.initialFrame {
-          layer.frame = initialFrame
-        }
-        return layer
-      },
-      update: { layer, context in
-        guard context.updateType.requiresFullUpdate else {
-          return
-        }
+    // bind the color value locally so the cached `update` closure captures it instead of `self`.
+    // capturing `self` (a struct, captured by value) would copy in `itemCache`, forming the retain cycle:
+    // itemCache -> cachedItem -> update -> self copy -> itemCache.
+    let themedColor = color
 
-        let color = self.color.resolve(for: context.contentView.theme).cgColor
-        if let animationTiming = context.animationTiming {
-          layer.animate(
-            keyPath: "backgroundColor",
-            timing: animationTiming,
-            from: { $0.presentation()?.backgroundColor },
-            to: { _ in color }
-          )
-        } else {
-          layer.disableActions(for: "backgroundColor") {
-            layer.backgroundColor = color
+    let item = itemCache.item(id: id, frame: frame) {
+      LayerItem<CALayer>(
+        id: id,
+        frame: frame,
+        make: { context in
+          let layer = CALayer()
+          if let initialFrame = context.initialFrame {
+            layer.frame = initialFrame
           }
-        }
-      },
-      reuseId: ReuseId(namespace: .framework, id: "CALayer")
-      // resetForReuse: no reset for reuse since the layer has only the background color set
-      // the in-flight animation is cleared by ComposeView automatically when the layer is added to the pool
-    )
+          return layer
+        },
+        update: { layer, context in
+          guard context.updateType.requiresFullUpdate else {
+            return
+          }
 
-    return [layerItem.eraseToRenderableItem()]
+          let color = themedColor.resolve(for: context.contentView.theme).cgColor
+          if let animationTiming = context.animationTiming {
+            layer.animate(
+              keyPath: "backgroundColor",
+              timing: animationTiming,
+              from: { $0.presentation()?.backgroundColor },
+              to: { _ in color }
+            )
+          } else {
+            layer.disableActions(for: "backgroundColor") {
+              layer.backgroundColor = color
+            }
+          }
+        },
+        reuseId: ReuseId(namespace: .framework, id: "CALayer")
+        // resetForReuse: no reset for reuse since the layer has only the background color set
+        // the in-flight animation is cleared by ComposeView automatically when the layer is added to the pool
+      )
+      .eraseToRenderableItem()
+    }
+
+    return [item]
   }
 }

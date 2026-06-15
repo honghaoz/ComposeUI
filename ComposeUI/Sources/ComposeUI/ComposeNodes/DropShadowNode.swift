@@ -66,6 +66,9 @@ public struct DropShadowNode: ComposeNode {
   private let offset: Themed<CGSize>
   private let paths: (Renderable) -> DropShadowPaths
 
+  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
+  private let itemCache = RenderableItemCache()
+
   /// Initialize a themed drop shadow node.
   ///
   /// - Parameters:
@@ -138,44 +141,56 @@ public struct DropShadowNode: ComposeNode {
       return []
     }
 
-    let layerItem = LayerItem<DropShadowLayer>(
-      id: id,
-      frame: frame,
-      make: { context in
-        let layer = DropShadowLayer()
-        if let initialFrame = context.initialFrame {
-          layer.frame = initialFrame
-        }
-        return layer
-      },
-      update: { layer, context in
-        switch context.updateType {
-        case .insert,
-             .refresh,
-             .boundsChange: // the shadow path is affected by the layer's size, should update
-          break
-        case .scroll:
-          return
-        }
+    // bind the configuration values locally so the cached `update` closure captures them instead of `self`.
+    // capturing `self` (a struct, captured by value) would copy in `itemCache`, forming the retain cycle:
+    // itemCache -> cachedItem -> update -> self copy -> itemCache.
+    let color = color
+    let opacity = opacity
+    let radius = radius
+    let offset = offset
+    let paths = paths
 
-        let theme = context.contentView.theme
-        let paths = paths(.layer(layer))
+    let item = itemCache.item(id: id, frame: frame) {
+      LayerItem<DropShadowLayer>(
+        id: id,
+        frame: frame,
+        make: { context in
+          let layer = DropShadowLayer()
+          if let initialFrame = context.initialFrame {
+            layer.frame = initialFrame
+          }
+          return layer
+        },
+        update: { layer, context in
+          switch context.updateType {
+          case .insert,
+               .refresh,
+               .boundsChange: // the shadow path is affected by the layer's size, should update
+            break
+          case .scroll:
+            return
+          }
 
-        layer.update(
-          color: color.resolve(for: theme),
-          opacity: opacity.resolve(for: theme),
-          radius: radius.resolve(for: theme),
-          offset: offset.resolve(for: theme),
-          path: { _ in paths.shadowPath },
-          cutoutPath: paths.cutoutPath.map { cutoutPath in { _ in cutoutPath } },
-          animationTiming: context.animationTiming
-        )
-      },
-      reuseId: ReuseId(namespace: .framework, id: "DropShadowLayer"),
-      resetForReuse: { $0.resetForReuse() }
-    )
+          let theme = context.contentView.theme
+          let paths = paths(.layer(layer))
 
-    return [layerItem.eraseToRenderableItem()]
+          layer.update(
+            color: color.resolve(for: theme),
+            opacity: opacity.resolve(for: theme),
+            radius: radius.resolve(for: theme),
+            offset: offset.resolve(for: theme),
+            path: { _ in paths.shadowPath },
+            cutoutPath: paths.cutoutPath.map { cutoutPath in { _ in cutoutPath } },
+            animationTiming: context.animationTiming
+          )
+        },
+        reuseId: ReuseId(namespace: .framework, id: "DropShadowLayer"),
+        resetForReuse: { $0.resetForReuse() }
+      )
+      .eraseToRenderableItem()
+    }
+
+    return [item]
   }
 }
 

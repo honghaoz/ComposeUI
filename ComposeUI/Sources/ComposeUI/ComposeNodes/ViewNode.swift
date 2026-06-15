@@ -54,6 +54,9 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   private let willRemove: ((T, RenderableRemoveContext) -> Void)?
   private let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
+  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
+  private let itemCache = RenderableItemCache()
+
   /// Make a view node with an external view.
   ///
   /// The node has a fixed size (with `isFixedWidth` and `isFixedHeight` set to `true`).
@@ -220,19 +223,22 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
       return []
     }
 
-    let viewItem = ViewItem<T>(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: update,
-      willRemove: willRemove,
-      didRemove: didRemove
-    )
+    let item = itemCache.item(id: id, frame: frame) {
+      ViewItem<T>(
+        id: id,
+        frame: frame,
+        make: make,
+        willInsert: willInsert,
+        didInsert: didInsert,
+        willUpdate: willUpdate,
+        update: update,
+        willRemove: willRemove,
+        didRemove: didRemove
+      )
+      .eraseToRenderableItem()
+    }
 
-    return [viewItem.eraseToRenderableItem()]
+    return [item]
   }
 }
 

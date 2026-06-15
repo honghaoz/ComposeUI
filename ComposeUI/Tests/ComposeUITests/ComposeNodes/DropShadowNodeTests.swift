@@ -471,4 +471,22 @@ class DropShadowNodeTests: XCTestCase {
     biggerPath.addPath(cutoutPath)
     expect(maskLayer.path) == biggerPath
   }
+
+  func test_renderableItems_doesNotRetainNodeThroughItemCache() {
+    // The cached item's `update` closure must not capture `self` (the node): the node holds the item cache, so capturing
+    // `self` would form `itemCache -> cachedItem -> update -> self -> itemCache`, a retain cycle that leaks the node and
+    // everything it captures when the node tree is replaced (refresh / size change).
+    weak var weakProbe: AnyObject?
+    do {
+      let probe = NSObject()
+      weakProbe = probe
+      var node: any ComposeNode = DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+        _ = probe // captured by the node's path closure; only reachable from the cached update closure if it captures `self`
+        return CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+      })
+      _ = node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
+      _ = node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10)) // populates the item cache
+    }
+    expect(weakProbe).to(beNil())
+  }
 }

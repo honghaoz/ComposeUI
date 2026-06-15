@@ -79,6 +79,9 @@ public struct InnerShadowNode: ComposeNode {
   private let offset: Themed<CGSize>
   private let paths: (Renderable) -> InnerShadowPaths
 
+  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
+  private let itemCache = RenderableItemCache()
+
   /// Initialize a themed inner shadow node.
   ///
   /// - Parameters:
@@ -152,44 +155,56 @@ public struct InnerShadowNode: ComposeNode {
       return []
     }
 
-    let layerItem = LayerItem<InnerShadowLayer>(
-      id: id,
-      frame: frame,
-      make: { context in
-        let layer = InnerShadowLayer()
-        if let initialFrame = context.initialFrame {
-          layer.frame = initialFrame
-        }
-        return layer
-      },
-      update: { layer, context in
-        switch context.updateType {
-        case .insert,
-             .refresh,
-             .boundsChange: // the shadow path is affected by the layer's size, should update
-          break
-        case .scroll:
-          return
-        }
+    // bind the configuration values locally so the cached `update` closure captures them instead of `self`.
+    // capturing `self` (a struct, captured by value) would copy in `itemCache`, forming the retain cycle:
+    // itemCache -> cachedItem -> update -> self copy -> itemCache.
+    let color = color
+    let opacity = opacity
+    let radius = radius
+    let offset = offset
+    let paths = paths
 
-        let theme = context.contentView.theme
-        let paths = paths(.layer(layer))
+    let item = itemCache.item(id: id, frame: frame) {
+      LayerItem<InnerShadowLayer>(
+        id: id,
+        frame: frame,
+        make: { context in
+          let layer = InnerShadowLayer()
+          if let initialFrame = context.initialFrame {
+            layer.frame = initialFrame
+          }
+          return layer
+        },
+        update: { layer, context in
+          switch context.updateType {
+          case .insert,
+               .refresh,
+               .boundsChange: // the shadow path is affected by the layer's size, should update
+            break
+          case .scroll:
+            return
+          }
 
-        layer.update(
-          color: color.resolve(for: theme),
-          opacity: opacity.resolve(for: theme),
-          radius: radius.resolve(for: theme),
-          offset: offset.resolve(for: theme),
-          holePath: { _ in paths.shadowPath },
-          clipPath: paths.clipPath.map { clipPath in { _ in clipPath } },
-          animationTiming: context.animationTiming
-        )
-      },
-      reuseId: ReuseId(namespace: .framework, id: "InnerShadowLayer"),
-      resetForReuse: { $0.resetForReuse() }
-    )
+          let theme = context.contentView.theme
+          let paths = paths(.layer(layer))
 
-    return [layerItem.eraseToRenderableItem()]
+          layer.update(
+            color: color.resolve(for: theme),
+            opacity: opacity.resolve(for: theme),
+            radius: radius.resolve(for: theme),
+            offset: offset.resolve(for: theme),
+            holePath: { _ in paths.shadowPath },
+            clipPath: paths.clipPath.map { clipPath in { _ in clipPath } },
+            animationTiming: context.animationTiming
+          )
+        },
+        reuseId: ReuseId(namespace: .framework, id: "InnerShadowLayer"),
+        resetForReuse: { $0.resetForReuse() }
+      )
+      .eraseToRenderableItem()
+    }
+
+    return [item]
   }
 }
 
