@@ -122,7 +122,7 @@ class BaseTextViewTests: XCTestCase {
     expect(window.firstResponder) !== textView
     #endif
 
-    #if canImport(UIKit)
+    #if canImport(UIKit) && !os(tvOS)
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     let window = TestWindow()
     window.rootViewController = UIViewController()

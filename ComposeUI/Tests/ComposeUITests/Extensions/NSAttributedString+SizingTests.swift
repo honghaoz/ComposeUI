@@ -866,6 +866,106 @@ class NSAttributedString_SizingTests: XCTestCase {
     #endif
   }
 
+  // MARK: - Cache
+
+  func test_cache_cachedMatchesUncached_singleLine() throws {
+    NSAttributedString.clearTextSizeCache()
+
+    let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+
+    let uncached = attributedString.computeBoundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    let cachedMiss = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 100) // computes + caches
+    let cachedHit = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 100) // served from cache
+
+    expect(cachedMiss) == uncached
+    expect(cachedHit) == uncached
+  }
+
+  func test_cache_cachedMatchesUncached_multiLine() throws {
+    NSAttributedString.clearTextSizeCache()
+
+    let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+
+    let uncached = attributedString.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 100)
+    let cachedMiss = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 100)
+    let cachedHit = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 100)
+
+    expect(cachedMiss) == uncached
+    expect(cachedHit) == uncached
+  }
+
+  func test_cache_distinctFonts_notConfused() throws {
+    NSAttributedString.clearTextSizeCache()
+
+    // same text, different font: the key includes the attributed string (which carries the font), so the two sizes
+    // must not collapse to one cached entry.
+    let small = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+    let large = try makeAttributedString(font: Font.systemFont(ofSize: 32), lineBreakMode: .byWordWrapping)
+
+    let smallSize = small.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    let largeSize = large.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+
+    expect(smallSize) != largeSize
+    expect(largeSize.height) > smallSize.height
+  }
+
+  func test_cache_distinctWidths_notConfused() throws {
+    NSAttributedString.clearTextSizeCache()
+
+    // same multi-line text at different widths wraps differently, so the cache (keyed by width) must keep them distinct.
+    let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+
+    let narrow = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 80)
+    let wide = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 300)
+
+    expect(narrow) != wide
+    expect(narrow.height) > wide.height // narrower wraps to more lines -> taller
+  }
+
+  func test_cache_clear_recomputesSameValue() throws {
+    let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+
+    let before = attributedString.boundingRectSize(numberOfLines: 2, layoutWidth: 120)
+    NSAttributedString.clearTextSizeCache()
+    let after = attributedString.boundingRectSize(numberOfLines: 2, layoutWidth: 120)
+
+    expect(after) == before
+  }
+
+  func test_cache_mutableAttributedString_afterMutation_returnsNewSize() throws {
+    NSAttributedString.clearTextSizeCache()
+
+    let attributes: [NSAttributedString.Key: Any] = [.font: Font.systemFont(ofSize: 16)]
+    let mutableString = NSMutableAttributedString(string: "Hi", attributes: attributes)
+
+    let sizeBeforeMutation = mutableString.boundingRectSize(numberOfLines: 1, layoutWidth: 1000)
+
+    // mutate the same instance that was just used as a cache key, then ask again with that same instance.
+    mutableString.append(NSAttributedString(string: " there, this is a much longer piece of text", attributes: attributes))
+    let sizeAfterMutation = mutableString.boundingRectSize(numberOfLines: 1, layoutWidth: 1000)
+
+    // the size must reflect the mutated (longer) content, not a stale value keyed by the pre-mutation string.
+    expect(sizeAfterMutation) != sizeBeforeMutation
+    expect(sizeAfterMutation.width) > sizeBeforeMutation.width
+    expect(sizeAfterMutation) == mutableString.computeBoundingRectSize(numberOfLines: 1, layoutWidth: 1000)
+  }
+
+  func test_cache_singleLine_sizeIndependentOfWidthAndLineBreakMode() throws {
+    NSAttributedString.clearTextSizeCache()
+
+    // single-line sizing ignores layoutWidth and lineBreakMode (it measures the natural, unwrapped line)
+    let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+
+    let narrow = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 50)
+    let wide = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 5000)
+    let charWrap = attributedString.boundingRectSize(numberOfLines: 1, layoutWidth: 123, lineBreakMode: .byCharWrapping)
+
+    expect(narrow) == wide
+    expect(narrow) == charWrap
+  }
+
+  // MARK: - Helpers
+
   private func makeAttributedString(font: Font, lineBreakMode: NSLineBreakMode) throws -> NSAttributedString {
     NSAttributedString(
       string: Constants.string,

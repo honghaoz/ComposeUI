@@ -43,6 +43,8 @@ extension NSAttributedString {
 
   /// Calculate the bounding size of the attributed string.
   ///
+  /// The text size is cached based on the attributed string and the layout parameters. Use `computeBoundingRectSize` to bypass the cache.
+  ///
   /// Related: https://github.com/honghaoz/ChouTiUI/blob/c2cc7b8452d269d6ee55993a977ed4b5fabf15d4/ChouTiUI/Sources/ChouTiUI/Universal/Text/TextSizeProvider.swift#L258
   ///
   /// - Parameters:
@@ -51,6 +53,35 @@ extension NSAttributedString {
   ///   - lineBreakMode: The line break mode to use for the layout. Default is `byWordWrapping`.
   /// - Returns: The bounding size of the attributed string.
   func boundingRectSize(numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode = .byWordWrapping) -> CGSize {
+    guard self.length > 0 else {
+      return .zero
+    }
+
+    // single-line sizing measures the natural, unwrapped line, so its size is independent of `layoutWidth` and `lineBreakMode`
+    // see `computeBoundingRectSize` for more details.
+    //
+    // normalize `layoutWidth` and `lineBreakMode` so the same single-line text resolves to one cache entry regardless of width / mode.
+    let keyLayoutWidth = numberOfLines == 1 ? 0 : layoutWidth
+    let keyLineBreakMode: NSLineBreakMode = numberOfLines == 1 ? .byWordWrapping : lineBreakMode
+
+    let key = TextSizeCache.Key(attributedString: self, numberOfLines: numberOfLines, layoutWidth: keyLayoutWidth, lineBreakMode: keyLineBreakMode)
+    if let cached = TextSizeCache.shared.object(forKey: key) {
+      return cached.size
+    }
+
+    let size = computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: layoutWidth, lineBreakMode: lineBreakMode)
+    TextSizeCache.shared.setObject(TextSizeCache.Value(size), forKey: key)
+    return size
+  }
+
+  /// Calculate the bounding size of the attributed string. No cache is used.
+  ///
+  /// - Parameters:
+  ///   - numberOfLines: The number of lines to calculate the bounding size for. Use 0 for unlimited lines.
+  ///   - layoutWidth: The width of the layout.
+  ///   - lineBreakMode: The line break mode to use for the layout. Default is `byWordWrapping`.
+  /// - Returns: The bounding size of the attributed string.
+  func computeBoundingRectSize(numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode = .byWordWrapping) -> CGSize {
     guard self.length > 0 else {
       return .zero
     }
@@ -261,6 +292,87 @@ extension NSAttributedString {
   //
   //    return mutableCopy
   //  }
+}
+
+// MARK: - Text Size Cache
+
+extension NSAttributedString {
+
+  /// Removes all cached text sizes.
+  static func clearTextSizeCache() {
+    TextSizeCache.shared.removeAllObjects()
+  }
+}
+
+/// A process-wide cache for `NSAttributedString.boundingRectSize`.
+private enum TextSizeCache {
+
+  /// The shared cache. `NSCache` is thread-safe and evicts entries under memory pressure.
+  static let shared: NSCache<Key, Value> = {
+    let cache = NSCache<Key, Value>()
+    cache.countLimit = Constants.countLimit
+    return cache
+  }()
+
+  /// A cache key capturing every input that affects the text size.
+  final class Key: NSObject {
+
+    let attributedString: NSAttributedString
+    let numberOfLines: Int
+    let layoutWidth: CGFloat
+    let lineBreakMode: NSLineBreakMode
+
+    private let hashCode: Int
+
+    init(attributedString: NSAttributedString, numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode) {
+      // callers may pass an `NSMutableAttributedString`, and a cache key's hash and equality must stay stable while it
+      // lives in the cache, otherwise a later mutation of the same instance would leave the key in the wrong hash bucket
+      // (a stale/leaked entry, and a wrong hit under a hash collision).
+      let snapshot = (attributedString.copy() as? NSAttributedString) ?? attributedString
+      self.attributedString = snapshot
+      self.numberOfLines = numberOfLines
+      self.layoutWidth = layoutWidth
+      self.lineBreakMode = lineBreakMode
+
+      var hasher = Hasher()
+      hasher.combine(snapshot)
+      hasher.combine(numberOfLines)
+      hasher.combine(layoutWidth)
+      hasher.combine(lineBreakMode.rawValue)
+      hashCode = hasher.finalize()
+    }
+
+    override var hash: Int {
+      hashCode
+    }
+
+    override func isEqual(_ object: Any?) -> Bool {
+      guard let other = object as? Key else {
+        return false
+      }
+      // compare the cheap scalars before the (more expensive) attributed string contents.
+      return numberOfLines == other.numberOfLines
+        && layoutWidth == other.layoutWidth
+        && lineBreakMode == other.lineBreakMode
+        && attributedString.isEqual(other.attributedString)
+    }
+  }
+
+  /// A boxed `CGSize` so it can be stored in `NSCache` (which requires class values).
+  final class Value {
+
+    let size: CGSize
+
+    init(_ size: CGSize) {
+      self.size = size
+    }
+  }
+
+  private enum Constants {
+
+    /// Upper bound on cached entries; `NSCache` evicts beyond this (and under memory pressure).
+    static let countLimit = 4096
+  }
 }
 
 // Notes on CoreText API:
