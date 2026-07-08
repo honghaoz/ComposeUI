@@ -993,6 +993,17 @@ open class ComposeView: BaseScrollView {
               self.removingRenderableMap.removeValue(forKey: oldId)
               self.removingRenderableTransitionCompletionMap.removeValue(forKey: oldId)
 
+              // the renderable is being revived (re-inserted while the remove transition is in flight). the
+              // re-insertion may not have an insert transition to overwrite the remove transition's model residue
+              // (e.g. a faded-out model opacity), so undo the residue here via `resetForReuse`.
+              //
+              // the in-flight animations are deliberately kept (instead of calling `removeAllAnimations()`):
+              // the built-in transitions animate additively, so a leftover remove animation composes with the
+              // restored model value (and with a new insert transition's animation, if any), letting the
+              // renderable reverse naturally from its current visual state instead of snapping.
+              // a transition whose animations don't compose additively should remove them in its `resetForReuse`.
+              removeTransition.resetForReuse(renderable: oldRenderable)
+
               #if DEBUG
               debug?.onEvent(.renderDidCancelRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
               #endif

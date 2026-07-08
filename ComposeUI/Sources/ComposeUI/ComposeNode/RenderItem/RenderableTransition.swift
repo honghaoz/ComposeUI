@@ -92,6 +92,10 @@ public struct RenderableTransition {
     ///                    For example, an opacity transition fades the renderable out, may leave the model opacity at
     ///                    the faded value. If the removed renderable opts into reuse, the closure is called before
     ///                    recycling it, so the renderable could be reused in the same state a freshly made renderable would have.
+    ///                    The closure is also called when a removing renderable is revived (re-inserted while the remove
+    ///                    transition is in flight). On revival, in-flight animations are kept so that additive animations
+    ///                    can compose and reverse naturally. If this transition's animations don't compose additively,
+    ///                    remove them in this closure.
     public init(animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
                 resetForReuse: ((_ renderable: Renderable) -> Void)? = nil)
     {
