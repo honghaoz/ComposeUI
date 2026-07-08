@@ -60,9 +60,15 @@ class ComposeView_TransitionTests: XCTestCase {
     }
     contentView.refresh(animated: true)
 
+    // before the insertion completion, the pending completion is tracked
     expect(didInsert) == false
+    expect(contentView.test.insertingRenderableTransitionCompletionMap.count) == 1
+
     insertionCompletion?()
-    expect(didInsert) == true // expect the didInsert is called after the transition completion
+
+    // after the insertion completion, the didInsert is called and the pending completion is untracked
+    expect(didInsert) == true
+    expect(contentView.test.insertingRenderableTransitionCompletionMap.count) == 0
 
     contentView.setContent {
       Empty()
@@ -124,6 +130,93 @@ class ComposeView_TransitionTests: XCTestCase {
 
     removalCompletion?()
     insertionCompletion?()
+  }
+
+  func test_removeDuringInsertTransition_doesNotCallDidInsert() {
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var insertionCompletion: (() -> Void)?
+    let transition = RenderableTransition(
+      insert: RenderableTransition.InsertTransition { renderable, context, completion in
+        renderable.setFrame(context.targetFrame)
+        insertionCompletion = completion
+      },
+      remove: nil
+    )
+
+    var didInsert = false
+    contentView.setContent {
+      ColorNode(.red)
+        .onInsert { _, _ in
+          didInsert = true
+        }
+        .transition(transition)
+        .frame(width: 100, height: 100)
+    }
+    contentView.refresh(animated: true)
+    expect(didInsert) == false
+    expect(contentView.test.insertingRenderableTransitionCompletionMap.count) == 1
+
+    // remove the renderable while its insert transition is still in flight,
+    // the transition has no remove transition, so the renderable is removed (and pooled) immediately.
+    // the pending insert completion should be cancelled.
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    expect(contentView.test.insertingRenderableTransitionCompletionMap.count) == 0
+
+    // the insert transition completes late, the renderable is no longer inserted (it may even be pooled
+    // or serving a different item by now), so `didInsert` must not be called.
+    insertionCompletion?()
+    expect(didInsert) == false
+  }
+
+  func test_reinsertDuringInsertTransition_staleInsertCompletionIsIgnored() {
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var insertionCompletions: [() -> Void] = []
+    let transition = RenderableTransition(
+      insert: RenderableTransition.InsertTransition { renderable, context, completion in
+        renderable.setFrame(context.targetFrame)
+        insertionCompletions.append(completion)
+      },
+      remove: nil
+    )
+
+    var didInsertCount = 0
+    let makeContent: () -> ComposeContent = {
+      ColorNode(.red)
+        .onInsert { _, _ in
+          didInsertCount += 1
+        }
+        .transition(transition)
+        .frame(width: 100, height: 100)
+    }
+
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+    expect(insertionCompletions.count) == 1
+
+    // remove the renderable while its insert transition is still in flight, then re-insert it,
+    // which starts a second insert transition.
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+    expect(insertionCompletions.count) == 2
+
+    // the first insert transition's completion is stale (its insertion was cancelled by the removal),
+    // so it must not call `didInsert`.
+    insertionCompletions[0]()
+    expect(didInsertCount) == 0
+
+    // the second insert transition's completion is current, so it calls `didInsert`.
+    insertionCompletions[1]()
+    expect(didInsertCount) == 1
   }
 
   func test_reinsertRemovingRenderable_ignoresIsFixed() {

@@ -137,6 +137,9 @@ open class ComposeView: BaseScrollView {
   /// The map of the removing renderable transition completion blocks.
   private var removingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] = [:]
 
+  /// The map of the inserting renderable transition completion blocks.
+  private var insertingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] = [:]
+
   /// The pool that recycles renderables across render passes.
   ///
   /// By default, all `ComposeView`s share a single process-wide pool (`RenderablePool.shared`) so reuse is amortized
@@ -929,6 +932,12 @@ open class ComposeView: BaseScrollView {
     for oldId in oldRenderableItemIds {
       if renderableItemMap[oldId] == nil {
         // [1/3] 🗑️ remove the renderable item that are no longer in the content
+
+        // the renderable may still have an in-flight insert transition. cancel its pending completion so a late
+        // `didInsert` is not called for a renderable that is being removed (it may even be pooled and serving a
+        // different item by the time the insert transition completes).
+        insertingRenderableTransitionCompletionMap[oldId]?.cancel()
+
         if let oldRenderableItem = oldRenderableItemMap[oldId], let oldRenderable = oldRenderableMap[oldId] {
           let oldFrame = oldRenderable.frame
           oldRenderableItem.willRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
@@ -1143,22 +1152,34 @@ open class ComposeView: BaseScrollView {
         let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame, contentView: self)
         if context.shouldAnimate(contentView: self, animationBehavior: animationBehavior), let transition = renderableItem.transition?.insert {
           // has insert transition, animate the renderable insertion
+
+          // the completion is tracked as a cancellable block so that removing the renderable while the transition is
+          // still in flight can cancel the pending `didInsert`.
+          // a previous completion for the same id, if any, was already cancelled by the removal that preceded this re-insertion.
+          let completion = CancellableBlock { [weak self] in
+            ComposeUI.assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
+            self?.insertingRenderableTransitionCompletionMap.removeValue(forKey: id)
+
+            // at the moment, the renderable's frame may not be the target frame, this is because during the insert transition,
+            // the renderable can be refreshed, and the renderable's frame may be updated to a different frame.
+            //
+            // insert: [-------------------] setting frame to frame1
+            // reuse:        [-----]         during the insert transition, the renderable's frame is updated to frame2
+            renderableItem.didInsert?(renderable, renderableInsertContext)
+
+            #if DEBUG
+            self?.debug?.onEvent(.renderDidInsertRenderable(item: renderableItem, renderable: renderable))
+            #endif
+          } cancel: { [weak self] in
+            self?.insertingRenderableTransitionCompletionMap.removeValue(forKey: id)
+          }
+
+          insertingRenderableTransitionCompletionMap[id] = completion
+
           transition.animate(
             renderable: renderable,
             context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, contentView: self),
-            completion: { [weak self] in
-              ComposeUI.assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
-              // at the moment, the renderable's frame may not be the target frame, this is because during the insert transition,
-              // the renderable can be refreshed, and the renderable's frame may be updated to a different frame.
-              //
-              // insert: [-------------------] setting frame to frame1
-              // reuse:        [-----]         during the insert transition, the renderable's frame is updated to frame2
-              renderableItem.didInsert?(renderable, renderableInsertContext)
-
-              #if DEBUG
-              self?.debug?.onEvent(.renderDidInsertRenderable(item: renderableItem, renderable: renderable))
-              #endif
-            }
+            completion: completion.execute
           )
         } else {
           // no insert transition, just call did insert
@@ -1261,6 +1282,10 @@ open class ComposeView: BaseScrollView {
 
     var removingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] {
       host.removingRenderableTransitionCompletionMap
+    }
+
+    var insertingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] {
+      host.insertingRenderableTransitionCompletionMap
     }
   }
 
