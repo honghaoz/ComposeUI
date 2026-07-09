@@ -151,11 +151,6 @@ extension ComposeView {
     var hasRetainedViewAbove = false
     var hasRetainedLayerAbove = false
 
-    #if canImport(AppKit)
-    // on AppKit, collect the view moves and fix the subview order with a single `sortSubviews` pass
-    var viewMoves: [(view: View, sibling: View)] = []
-    #endif
-
     for id in renderableItemIds.reversed() {
       let isRetained = reusingIds.contains(id)
       switch renderableMap[id]! { // swiftlint:disable:this force_unwrapping
@@ -163,11 +158,11 @@ extension ComposeView {
         if isRetained {
           hasRetainedViewAbove = true
         } else if hasRetainedViewAbove, let sibling = nextViewSibling {
-          #if canImport(AppKit)
-          viewMoves.append((view: view, sibling: sibling))
-          #else
+          // a positioned insertion for each move, instead of a single sort pass over the subviews, because the subview
+          // list can contain views that are not part of this render pass (e.g. views with an in-flight remove transition).
+          // a sort pass with a partial order can move those unmanaged views or miss moves when they interleave with the
+          // managed views, while a positioned insertion only touches the moved view.
           parent.insertSubview(view, belowSubview: sibling)
-          #endif
         }
         nextViewSibling = view
       case .layer(let layer):
@@ -179,34 +174,5 @@ extension ComposeView {
         nextLayerSibling = layer
       }
     }
-
-    #if canImport(AppKit)
-    if !viewMoves.isEmpty {
-      // fix the subview order with a single sort pass
-      var viewOrder: [ObjectIdentifier: Int] = [:]
-      viewOrder.reserveCapacity(renderableItemIds.count)
-      var index = 0
-      for id in renderableItemIds {
-        if let view = renderableMap[id]?.view {
-          viewOrder[ObjectIdentifier(view)] = index
-          index += 1
-        }
-      }
-      parent.sortSubviews(by: viewOrder)
-
-      // fix the moved views' backing layers, which `sortSubviews` does not update.
-      // keeping the backing layers in sync with the subview order also keeps AppKit's display-time
-      // layer re-sync a no-op, which would otherwise place all backing layers above the layer items.
-      let parentLayer = parent.layer()
-      for (view, sibling) in viewMoves {
-        let viewLayer = view.layer()
-        let siblingLayer = sibling.layer()
-        guard viewLayer.superlayer === parentLayer, siblingLayer.superlayer === parentLayer else {
-          continue // the backing layers are not attached yet, AppKit attaches them at display time
-        }
-        parentLayer.insertSublayer(viewLayer, below: siblingLayer)
-      }
-    }
-    #endif
   }
 }

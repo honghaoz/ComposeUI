@@ -105,36 +105,35 @@ public extension NSView {
     }
   }
 
-  /// Sorts the subviews by the given target order in a single sort pass.
+  /// Moves the specified subview so that it appears just below the given sibling subview.
   ///
-  /// - Note: This method does not update the subviews' backing layers order immediately. AppKit re-syncs the backing
-  ///   layers to the subview order at the next display pass, and that re-sync places all backing layers above the
-  ///   non-backing sublayers (e.g. manually added sublayers). If the parent layer interleaves manually managed
-  ///   sublayers with the subviews' backing layers, fix the backing layers order right after sorting so that the
-  ///   display pass re-sync is a no-op.
+  /// If the view is not a subview yet, it is inserted below the sibling subview.
   ///
-  /// - Parameter order: The target order of the subviews, keyed by the subview's object identifier, with smaller values
-  ///   ordered lower (behind). Subviews not in the order keep their relative order. Provide a complete order for the
-  ///   subviews to reorder: subviews in the order map may not be reordered relative to each other if they are separated
-  ///   by subviews not in the map.
-  internal func sortSubviews(by order: [ObjectIdentifier: Int]) {
-    var order = order
-    withUnsafeMutablePointer(to: &order) { orderPointer in
-      sortSubviews({ viewA, viewB, rawPointer in
-        guard let order = rawPointer?.load(as: [ObjectIdentifier: Int].self) else {
-          return ComparisonResult.orderedSame
-        }
-        guard let indexA = order[ObjectIdentifier(viewA)], let indexB = order[ObjectIdentifier(viewB)] else {
-          return ComparisonResult.orderedSame // their ordering isn’t important
-        }
-        if indexA < indexB {
-          return ComparisonResult.orderedAscending
-        } else if indexA > indexB {
-          return ComparisonResult.orderedDescending
-        } else {
-          return ComparisonResult.orderedSame
-        }
-      }, context: orderPointer)
+  /// This method also moves the view's backing layer to below the sibling subview's backing layer, if both backing
+  /// layers are attached to the receiver's layer.
+  ///
+  /// - Parameters:
+  ///   - view: The view to place below the sibling subview.
+  ///   - siblingSubview: The sibling subview that will be just above the placed view.
+  func insertSubview(_ view: NSView, belowSubview siblingSubview: NSView) {
+    guard siblingSubview.superview === self else {
+      ComposeUI.assertFailure("sibling view: \(siblingSubview) is not a subview")
+      return
+    }
+
+    addSubview(view, positioned: .below, relativeTo: siblingSubview)
+
+    // move the backing layer immediately to match UIKit's `insertSubview(_:belowSubview:)`, which updates the layer
+    // order synchronously, so the layer order is correct before the next display pass.
+    //
+    // note: `addSubview(_:positioned:relativeTo:)` marks the view's layer order as dirty, so the next display pass
+    // re-syncs the backing layers to the subview order and re-stacks them above the non-backing sublayers.
+    // the re-sync preserves the relative order within each kind (backing layers follow the subview order and the
+    // non-backing sublayers keep their relative order).
+    if let parentLayer = layer, let viewLayer = view.layer, let siblingLayer = siblingSubview.layer,
+       viewLayer.superlayer === parentLayer, siblingLayer.superlayer === parentLayer
+    {
+      parentLayer.insertSublayer(viewLayer, below: siblingLayer)
     }
   }
 

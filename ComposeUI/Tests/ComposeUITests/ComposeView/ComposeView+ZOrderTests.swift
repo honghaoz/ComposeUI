@@ -302,6 +302,71 @@ class ComposeView_ZOrderTests: XCTestCase {
     expectHierarchyMatchesItemOrder(view, recorder)
   }
 
+  func test_refresh_placementWithInFlightRemovingViews() {
+    // views being removed with an in-flight remove transition stay in the hierarchy but are not part of the
+    // new render pass. placing new views below retained siblings must stay correct even with these
+    // in-transition views interleaved in the subview list.
+    let neverCompletingRemove = RenderableTransition(
+      insert: nil,
+      remove: RenderableTransition.RemoveTransition { _, _, _ in
+        // intentionally never completes; keeps the removing views in the hierarchy
+      }
+    )
+
+    var order: [String] = ["r1", "a", "b", "r2", "c"]
+    let (view, _) = makeHostedView {
+      ZStack {
+        for key in order {
+          if key.hasPrefix("r") {
+            ViewNode().transition(neverCompletingRemove).fixedId(key)
+          } else {
+            ViewNode().fixedId(key)
+          }
+        }
+      }
+    }
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    expect(recorder.renderableItemIds) == ["r1", "a", "b", "r2", "c"]
+    expectHierarchyMatchesItemOrder(view, recorder)
+
+    // keep the removing views to check their positions after the next render pass
+    guard let removingView1 = recorder.renderableMap["r1"]?.view,
+          let removingView2 = recorder.renderableMap["r2"]?.view,
+          let viewB = recorder.renderableMap["b"]?.view,
+          let viewC = recorder.renderableMap["c"]?.view
+    else {
+      fail("missing renderable views")
+      return
+    }
+
+    // remove the "r" views (their remove transitions keep them in the hierarchy) and insert new views
+    // that belong below retained views
+    order = ["a", "n1", "b", "n2", "c"]
+    view.refresh(animated: true)
+    expect(recorder.renderableItemIds) == ["a", "n1", "b", "n2", "c"]
+    expect(view.test.removingRenderableMap.count) == 2
+    expectHierarchyMatchesItemOrder(view, recorder)
+
+    // the in-transition removing views keep their z-positions relative to the retained views:
+    // "r1" stays at the back, "r2" stays above "b" and below "c"
+    let subviews = view.contentView().subviews
+    guard let removingIndex1 = subviews.firstIndex(of: removingView1),
+          let removingIndex2 = subviews.firstIndex(of: removingView2),
+          let indexB = subviews.firstIndex(of: viewB),
+          let indexC = subviews.firstIndex(of: viewC)
+    else {
+      fail("missing subviews")
+      return
+    }
+    expect(removingIndex1) == 0
+    expect(removingIndex2) > indexB
+    expect(removingIndex2) < indexC
+  }
+
   func test_refresh_readdDuringRemoveTransition() {
     // removing a renderable with a transition keeps it in the hierarchy until the transition completes.
     // re-adding the item during the transition should recover the renderable and restore the correct z-order.
