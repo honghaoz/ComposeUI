@@ -175,4 +175,21 @@ class ColorNodeTests: XCTestCase {
       expect(items.count) == 0
     }
   }
+
+  func test_resetForReuse() throws {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    var node = ColorNode(.red)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+    let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
+
+    let contentView = ComposeView()
+    contentView.overrideTheme = .light
+    let renderable = item.make(RenderableMakeContext(initialFrame: .zero, contentView: contentView))
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
+    expect(renderable.layer.backgroundColor) == Color.red.cgColor
+
+    // reset for reuse clears the background color so the pooled layer is freshly-made-equivalent
+    item.resetForReuse?(renderable)
+    expect(renderable.layer.backgroundColor) == nil
+  }
 }

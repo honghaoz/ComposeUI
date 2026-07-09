@@ -951,6 +951,35 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(layerCalls) == 1
   }
 
+  func test_colorNode_pooledLayerHasNoColorResidue() {
+    // ColorNode pools its layer with a framework-internal reuse id, the enqueued layer must be
+    // freshly-made-equivalent, with no stale background color from its previous use.
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let pool = RenderablePool()
+    contentView.renderablePool = pool
+
+    var pooledLayer: CALayer?
+    contentView.debug { _, event in
+      if case .renderDidRemoveRenderable(_, let renderable) = event {
+        pooledLayer = renderable.layer
+      }
+    }
+
+    contentView.setContent {
+      ColorNode(.red).frame(width: 100, height: 100)
+    }
+    contentView.refresh(animated: false)
+
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: false)
+
+    expect(pool.count) == 1
+    expect(pooledLayer) != nil
+    expect(pooledLayer?.backgroundColor) == nil
+  }
+
   func test_onResetForReuse_firesForLayerBackedReuse() {
     // a layer-backed node (ColorNode) also receives the hook when its layer is enqueued, exercising the layer erasure path.
     var resetForReuseCount = 0
