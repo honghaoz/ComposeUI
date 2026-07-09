@@ -58,8 +58,8 @@ public struct RenderItem<T> {
 
   /// The renderable's behavior: the lifecycle callbacks plus the reuse / transition / animation configuration.
   ///
-  /// This is boxed in a reference type so that copying a `RenderItem` — which the render walk does at every container
-  /// level — is a single retain instead of copying ~10 escaping closures, and so the value type stays small (cheaper to
+  /// This is boxed in a reference type so that copying a `RenderItem`, which the render walk does at every container
+  /// level, is a single retain instead of copying ~10 escaping closures, and so the value type stays small (cheaper to
   /// store in, and tear down, the per-pass render dictionaries). `id` and `frame` stay inline because they are mutated
   /// per render pass.
   private let storage: Storage
@@ -143,6 +143,12 @@ public struct RenderItem<T> {
   /// The animation timing of the renderable. The animation timing is used to animate the renderable's changes.
   public var animationTiming: AnimationTiming? { storage.animationTiming }
 
+  /// The z-index of the renderable, controlling its stacking band. See `ComposeNode.zIndex(_:)`.
+  ///
+  /// The render pass computes the renderable layer's actual `zPosition` from this value (defaulting to 0) plus a
+  /// small items-order fraction, so that items stack in the items order within the same z-index band.
+  public var zIndex: CGFloat? { storage.zIndex }
+
   /// The boxed behavior backing a `RenderItem`. See `storage`.
   ///
   /// Holds everything except `id` and `frame`. Because all fields are immutable, the box can be shared freely across
@@ -161,6 +167,7 @@ public struct RenderItem<T> {
     let resetForReuse: ((T) -> Void)?
     let transition: RenderableTransition?
     let animationTiming: AnimationTiming?
+    let zIndex: CGFloat?
 
     init(make: @escaping (RenderableMakeContext) -> T,
          willInsert: ((T, RenderableInsertContext) -> Void)?,
@@ -173,7 +180,8 @@ public struct RenderItem<T> {
          renderableType: ObjectIdentifier?,
          resetForReuse: ((T) -> Void)?,
          transition: RenderableTransition?,
-         animationTiming: AnimationTiming?)
+         animationTiming: AnimationTiming?,
+         zIndex: CGFloat?)
     {
       self.make = make
       self.willInsert = willInsert
@@ -187,6 +195,7 @@ public struct RenderItem<T> {
       self.resetForReuse = resetForReuse
       self.transition = transition
       self.animationTiming = animationTiming
+      self.zIndex = zIndex
     }
   }
 
@@ -202,7 +211,8 @@ public struct RenderItem<T> {
               reuseId: String? = nil,
               resetForReuse: ((T) -> Void)? = nil,
               transition: RenderableTransition? = nil,
-              animationTiming: AnimationTiming? = nil)
+              animationTiming: AnimationTiming? = nil,
+              zIndex: CGFloat? = nil)
   {
     self.id = id
     self.frame = frame
@@ -218,7 +228,8 @@ public struct RenderItem<T> {
       renderableType: ObjectIdentifier(T.self),
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -237,7 +248,8 @@ public struct RenderItem<T> {
        renderableType: ObjectIdentifier? = nil,
        resetForReuse: ((T) -> Void)? = nil,
        transition: RenderableTransition? = nil,
-       animationTiming: AnimationTiming? = nil)
+       animationTiming: AnimationTiming? = nil,
+       zIndex: CGFloat? = nil)
   {
     self.id = id
     self.frame = frame
@@ -253,7 +265,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -279,7 +292,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -305,7 +319,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -331,7 +346,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -357,7 +373,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -383,7 +400,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -409,7 +427,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -440,7 +459,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -469,7 +489,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -495,7 +516,8 @@ public struct RenderItem<T> {
         additionalResetForReuse(renderable)
       },
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -524,7 +546,8 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 
@@ -553,7 +576,35 @@ public struct RenderItem<T> {
       renderableType: renderableType,
       resetForReuse: resetForReuse,
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
+    )
+  }
+
+  /// Set a new z-index for the renderable item.
+  ///
+  /// Unlike `transition(_:)` and `animation(_:)`, this overrides any existing z-index, so that the outermost
+  /// `ComposeNode.zIndex(_:)` modifier wins.
+  ///
+  /// - Parameter zIndex: The new z-index.
+  /// - Returns: The renderable item with the new z-index.
+  public func zIndex(_ zIndex: CGFloat) -> Self {
+    Self(
+      id: id,
+      frame: frame,
+      make: make,
+      willInsert: willInsert,
+      didInsert: didInsert,
+      willUpdate: willUpdate,
+      update: update,
+      willRemove: willRemove,
+      didRemove: didRemove,
+      reuseId: reuseId,
+      renderableType: renderableType,
+      resetForReuse: resetForReuse,
+      transition: transition,
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 }
@@ -592,7 +643,8 @@ public extension ViewItem {
         { resetForReuse($0.view as! T) } // swiftlint:disable:this force_cast
       },
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 }
@@ -631,7 +683,8 @@ public extension LayerItem {
         { resetForReuse($0.layer as! T) } // swiftlint:disable:this force_cast
       },
       transition: transition,
-      animationTiming: animationTiming
+      animationTiming: animationTiming,
+      zIndex: zIndex
     )
   }
 }

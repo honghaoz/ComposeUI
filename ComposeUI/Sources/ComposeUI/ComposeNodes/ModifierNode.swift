@@ -51,6 +51,7 @@ private struct ModifierNode: ComposeNode {
   private let resetForReuse: ((Renderable) -> Void)?
   private let transition: RenderableTransition?
   private let animationTiming: AnimationTiming?
+  private let zIndex: CGFloat?
 
   fileprivate init(node: ComposeNode,
                    willInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
@@ -62,7 +63,8 @@ private struct ModifierNode: ComposeNode {
                    reuseId: String? = nil,
                    resetForReuse: ((Renderable) -> Void)? = nil,
                    transition: RenderableTransition? = nil,
-                   animationTiming: AnimationTiming? = nil)
+                   animationTiming: AnimationTiming? = nil,
+                   zIndex: CGFloat? = nil)
   {
     if let modifierNode = node as? ModifierNode { // coalescing modifiers
       self.node = modifierNode.node
@@ -76,6 +78,7 @@ private struct ModifierNode: ComposeNode {
       self.resetForReuse = Self.combineBlocks(modifierNode.resetForReuse, resetForReuse)
       self.transition = modifierNode.transition ?? transition
       self.animationTiming = modifierNode.animationTiming ?? animationTiming
+      self.zIndex = zIndex ?? modifierNode.zIndex // the outer z-index wins, see `ComposeNode.zIndex(_:)`
     } else {
       self.node = node
       self.willInsert = willInsert
@@ -88,6 +91,7 @@ private struct ModifierNode: ComposeNode {
       self.resetForReuse = resetForReuse
       self.transition = transition
       self.animationTiming = animationTiming
+      self.zIndex = zIndex
     }
   }
 
@@ -175,6 +179,9 @@ private struct ModifierNode: ComposeNode {
         }
         if let animationTiming = animationTiming {
           item = item.animation(animationTiming)
+        }
+        if let zIndex = zIndex {
+          item = item.zIndex(zIndex)
         }
         return item
       }
@@ -612,27 +619,21 @@ public extension ComposeNode {
     )
   }
 
-  /// Set the z-index (zPosition) of the node's renderables.
+  /// Set the z-index of the node's renderables, controlling their stacking band.
+  ///
+  /// Renderables stack in bands by z-index: a renderable with a higher z-index renders above any renderable with a
+  /// lower z-index, regardless of the items order. Within the same band, renderables stack in the items order.
+  /// Renderables without a z-index are in band 0.
+  ///
+  /// The render pass computes each renderable layer's actual `zPosition` from the z-index.
   ///
   /// - Note: All renderables provided by the node will have the z-index set.
+  /// - Note: The outermost z-index wins: `node.zIndex(2).zIndex(8)` uses 8.
   ///
   /// - Parameter zIndex: The z-index to set.
   /// - Returns: A new node with the z-index set.
   func zIndex(_ zIndex: CGFloat) -> some ComposeNode {
-    ModifierNode(
-      node: self,
-      update: { item, context in
-        guard context.updateType.requiresFullUpdate else {
-          return
-        }
-        item.layer.zPosition = zIndex
-      },
-      resetForReuse: { renderable in
-        if renderable.layer.zPosition != 0 {
-          renderable.layer.zPosition = 0
-        }
-      }
-    )
+    ModifierNode(node: self, zIndex: zIndex)
   }
 
   /// Set whether the node's renderables are interactive.

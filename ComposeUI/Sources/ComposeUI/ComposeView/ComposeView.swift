@@ -39,6 +39,22 @@ import UIKit
 import Combine
 
 /// A view that renders `ComposeContent`.
+///
+/// ## Z-Order
+///
+/// The content's renderables (views and layers) render in the items order: a later item renders above an earlier item,
+/// regardless of the renderable's kind (view or layer).
+///
+/// The cross-kind render order is maintained with the renderable layers' `zPosition`: the render pass assigns each
+/// renderable layer a `zPosition` composed of the item's z-index band (see `ComposeNode.zIndex(_:)`, defaulting to 0)
+/// plus a small items-order fraction. A higher band always renders above a lower band. Within the same band, items
+/// stack in the items order.
+///
+/// Notes:
+/// - The render pass owns the managed renderable layers' `zPosition`. Use `ComposeNode.zIndex(_:)` to control the
+///   stacking explicitly instead of setting `zPosition` directly.
+/// - Hit-testing follows the subview order, which is kept in the items order among view items. Layer items never
+///   hit-test, so a layer item rendering above a view item does not block the view item's interaction.
 open class ComposeView: BaseScrollView {
 
   /// The default content when the view is initialized with `init(frame:)`.
@@ -959,9 +975,19 @@ open class ComposeView: BaseScrollView {
             if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = self.renderablePool {
               removeTransition?.resetForReuse(renderable: oldRenderable)
               oldRenderableItem.resetForReuse?(oldRenderable)
+
               // a renderable may have in-flight animations, must clear them here to avoid leaking into the next reuse.
               // animations in sublayers should be cleared by the node's `resetForReuse` block.
               oldRenderable.layer.removeAllAnimations()
+
+              // the render pass owns the renderable layer's `zPosition` (see `updateZPosition(of:zIndex:index:)`),
+              // reset it so the pooled renderable is freshly-made-equivalent.
+              if oldRenderable.layer.zPosition != 0 {
+                oldRenderable.layer.disableActions(for: "zPosition") {
+                  oldRenderable.layer.zPosition = 0
+                }
+              }
+
               renderablePool.enqueue(oldRenderable, key: reuseKey)
             }
           }
@@ -1042,6 +1068,12 @@ open class ComposeView: BaseScrollView {
 
     // Determine the z-order maintenance plan.
     //
+    // The visual z-order across all renderables (views and layers) is driven by the renderable layers' `zPosition` (see
+    // `updateZPosition(of:zIndex:index:)`), which is assigned per item in the update pass below.
+    //
+    // The plan here maintains the *view hierarchy* order for view items, which drives the hit-testing order, so the
+    // hit-testing order matches the visual order among view items.
+    //
     // Each `moveToFront()` call costs O(N) work in the sibling list. With N retained items that compounds to O(N²) per
     // render pass. The plan avoids the per-item `moveToFront()` calls when the hierarchy order can be maintained with cheaper moves:
     // - When the content is unchanged, no z-order maintenance is needed.
@@ -1049,11 +1081,11 @@ open class ComposeView: BaseScrollView {
     //   need no moves at all:
     //   - New items at the front of the z-order (e.g. revealed by scrolling down) are appended at the front naturally.
     //   - Other new items (e.g. revealed by scrolling up) are placed below their next sibling after the update pass.
-    // - Otherwise (e.g. a refresh that reordered items), every renderable is moved to the front in the items order.
+    // - Otherwise (e.g. a refresh that reordered items), every view item is moved to the front in the items order.
     let zOrderPlan = Self.makeZOrderPlan(oldIds: oldRenderableItemIds, newIds: renderableItemIds, reusingIds: reusingIds)
     let zOrderNeedsFullUpdate = zOrderPlan.needsFullUpdate
 
-    for renderableItem in renderableItems {
+    for (itemIndex, renderableItem) in renderableItems.enumerated() {
       let id = renderableItem.id
 
       let renderable: Renderable
@@ -1099,9 +1131,13 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
 
-        if zOrderNeedsFullUpdate {
+        if zOrderNeedsFullUpdate, renderable.view != nil {
+          // only view items need re-stacking: the subview order drives the hit-testing order.
+          // the visual z-order is driven by the layers' `zPosition`, so layer items need no re-stacking.
           renderable.moveToFront()
         }
+
+        updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
         if let animationTiming {
           renderable.layer.animateFrame(to: newFrame, timing: animationTiming)
@@ -1158,6 +1194,8 @@ open class ComposeView: BaseScrollView {
         renderable.addToParent(contentView())
         renderable.setFrame(newFrame)
 
+        updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
+
         renderableItem.update(renderable, renderableUpdateContext)
 
         let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame, contentView: self)
@@ -1205,8 +1243,9 @@ open class ComposeView: BaseScrollView {
       renderableMap[id] = renderable
     }
 
-    // the insertion pass above places new items at the front. for new items that should be below
-    // reused/retained items (e.g. items revealed by scrolling up), move them below their next sibling.
+    // the insertion pass above places new items at the front. for new view items that should be below reused/retained
+    // view items (e.g. items revealed by scrolling up), move them below their next view sibling, so the subview order
+    // (which drives the hit-testing order) matches the items order.
     switch zOrderPlan {
     case .minimal(let needsNewItemPlacement):
       if needsNewItemPlacement {
@@ -1214,7 +1253,7 @@ open class ComposeView: BaseScrollView {
       }
     case .full:
       // aka zOrderNeedsFullUpdate == true
-      // every renderable was already moved to the front in items order, so no extra placement is needed.
+      // every view item was already moved to the front in items order, so no extra placement is needed.
       break
     }
 
@@ -1237,6 +1276,41 @@ open class ComposeView: BaseScrollView {
     #endif
 
     lastRenderBounds = bounds
+  }
+
+  /// Updates the renderable layer's `zPosition` so that renderables render in the items order, regardless of the
+  /// renderable's kind (view or layer).
+  ///
+  /// View items are rendered as subviews while layer items are rendered as standalone sublayers. Both kinds share the
+  /// content view layer's sublayer list, but keeping that list interleaved in the items order is not possible on
+  /// AppKit: AppKit re-stacks the subviews' backing layers above the standalone sublayers at display time. `zPosition`
+  /// drives the render order among sibling layers regardless of the sublayer list order (and survives AppKit's
+  /// re-stacking), so the render pass maintains the cross-kind z-order with `zPosition`.
+  ///
+  /// The effective z-position is the item's z-index band (see `ComposeNode.zIndex(_:)`, defaulting to 0) plus a small
+  /// items-order fraction, so that renderables stack in the items order within the same z-index band.
+  ///
+  /// The render pass owns the managed renderable layers' `zPosition`: it is assigned on every render pass and is reset
+  /// when a renderable is added to the reuse pool. Use `ComposeNode.zIndex(_:)` to control the stacking explicitly
+  /// instead of setting `zPosition` directly.
+  ///
+  /// - Parameters:
+  ///   - renderable: The renderable to update.
+  ///   - zIndex: The item's explicit z-index, if any.
+  ///   - index: The item's index in the render pass's items order.
+  private func updateZPosition(of renderable: Renderable, zIndex: CGFloat?, index: Int) {
+    let fraction = CGFloat(index + 1) * Constants.zPositionStep
+    ComposeUI.assert(fraction < 1, "too many renderable items to maintain the items order within a z-index band")
+
+    let zPosition = (zIndex ?? 0) + fraction
+    let layer = renderable.layer
+    guard layer.zPosition != zPosition else {
+      return
+    }
+
+    layer.disableActions(for: "zPosition") {
+      layer.zPosition = zPosition
+    }
   }
 
   /// Returns the bounds used for layout/rendering.
@@ -1262,6 +1336,14 @@ open class ComposeView: BaseScrollView {
     #endif
 
     return bounds
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The z-position step between two adjacent renderable items within the same z-index band.
+    static let zPositionStep: CGFloat = 1e-6
   }
 
   // MARK: - Testing
@@ -1297,6 +1379,10 @@ open class ComposeView: BaseScrollView {
 
     var insertingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] {
       host.insertingRenderableTransitionCompletionMap
+    }
+
+    var zPositionStep: CGFloat {
+      Constants.zPositionStep
     }
   }
 

@@ -37,10 +37,21 @@ import ChouTiTest
 
 /// Tests that pin the z-order contract of `ComposeView`'s render pass:
 ///
-/// After a render pass, the renderable hierarchy must match the renderable items order (back to front):
-/// - The content view's sublayers, filtered to renderable layers, are in the items order.
-/// - The content view's subviews, filtered to renderable views, are in the items order restricted to view items.
+/// After a render pass, the renderables must render in the renderable items order (back to front), regardless of the
+/// renderable's kind (view or layer):
+/// - The effective render order of the renderable layers (sibling layers sorted by `zPosition`, with the sublayer list
+///   order breaking ties) matches the items order across both kinds.
+/// - The content view's subviews, filtered to renderable views, are in the items order restricted to view items, so the
+///   hit-testing order matches the visual order among view items.
 class ComposeView_ZOrderTests: XCTestCase {
+
+  /// The window hosting the view under test, kept alive so the (AppKit) display pass can attach and re-stack the subviews' backing layers.
+  private var hostWindow: TestWindow?
+
+  override func tearDown() {
+    hostWindow = nil
+    super.tearDown()
+  }
 
   /// Records the latest render pass result via the debug event handler.
   private class RenderRecorder {
@@ -69,20 +80,26 @@ class ComposeView_ZOrderTests: XCTestCase {
     }
   }
 
-  /// Verifies the renderable hierarchy (sublayers and subviews) matches the latest render pass's item order.
+  /// Verifies the renderables render in the latest render pass's item order.
   ///
   /// The pinned contract is:
-  /// - View items: the content view's subviews, restricted to view items, are in the items order.
-  ///   This drives both the visual z-order and the hit-testing order of views.
-  /// - Layer items: the content view's sublayers, restricted to layer items, are in the items order.
-  ///
-  /// The interleaving of view backing layers with layer item layers is not guaranteed on either platform:
-  /// view items and layer items are z-ordered independently, each within its own kind.
+  /// - All items: the effective render order of the renderable layers, sibling layers sorted by `zPosition`, with the
+  ///   sublayer list order breaking ties, which is how Core Animation composites siblings, matches the items order,
+  ///   regardless of the renderable's kind (view or layer).
+  /// - View items: the content view's subviews, restricted to view items, are in the items order. This keeps the
+  ///   hit-testing order in sync with the visual order among view items.
   private func expectHierarchyMatchesItemOrder(_ view: ComposeView,
                                                _ recorder: RenderRecorder,
                                                file: StaticString = #filePath,
                                                line: UInt = #line)
   {
+    #if canImport(AppKit)
+    // force a display pass so AppKit attaches the subviews' backing layers to the content view's layer and re-stacks
+    // them (AppKit re-stacks all backing layers above the standalone sublayers at display time).
+    // the effective render order below must survive the re-stack, since it is driven by `zPosition`.
+    hostWindow?.displayIfNeeded()
+    #endif
+
     let contentView: View = view.contentView()
     let ids = recorder.renderableItemIds
 
@@ -106,16 +123,26 @@ class ComposeView_ZOrderTests: XCTestCase {
     let actualViews = contentView.subviews.filter { expectedViewIds.contains(ObjectIdentifier($0)) }
     expect(actualViews.map { ObjectIdentifier($0) }, "subviews order should match items order", file: file, line: line) == expectedViews.map { ObjectIdentifier($0) }
 
-    // the content view's sublayers, filtered to layer items, must be in the items order restricted to layer items
-    var expectedLayers: [CALayer] = []
-    for id in ids {
-      if let renderable = recorder.renderableMap[id], case .layer(let layer) = renderable {
-        expectedLayers.append(layer)
-      }
-    }
+    // the effective render order of the renderable layers (view backing layers and layer items together) must
+    // match the items order across both kinds
+    let expectedLayers = ids.compactMap { recorder.renderableMap[$0]?.layer }
     let expectedLayerIds = Set(expectedLayers.map { ObjectIdentifier($0) })
-    let actualLayers = (contentView.layer().sublayers ?? []).filter { expectedLayerIds.contains(ObjectIdentifier($0)) }
-    expect(actualLayers.map { ObjectIdentifier($0) }, "sublayers order should match items order", file: file, line: line) == expectedLayers.map { ObjectIdentifier($0) }
+    let actualLayers = Self.effectiveRenderOrder(of: contentView.layer()).filter { expectedLayerIds.contains(ObjectIdentifier($0)) }
+    expect(actualLayers.map { ObjectIdentifier($0) }, "effective layer render order should match items order", file: file, line: line) == expectedLayers.map { ObjectIdentifier($0) }
+  }
+
+  /// The effective render order of the layer's sublayers (back to front): Core Animation composites sibling
+  /// layers sorted by `zPosition`, with the sublayer list order breaking ties.
+  static func effectiveRenderOrder(of layer: CALayer) -> [CALayer] {
+    (layer.sublayers ?? [])
+      .enumerated()
+      .sorted { lhs, rhs in
+        if lhs.element.zPosition != rhs.element.zPosition {
+          return lhs.element.zPosition < rhs.element.zPosition
+        }
+        return lhs.offset < rhs.offset
+      }
+      .map(\.element)
   }
 
   /// Makes a `ComposeView` hosted in a test window so that view items' backing layers are attached
@@ -124,6 +151,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     let window = TestWindow()
     let view = ComposeView(content: content)
     window.contentView().addSubview(view)
+    hostWindow = window
     return (view, window)
   }
 
@@ -309,7 +337,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     let neverCompletingRemove = RenderableTransition(
       insert: nil,
       remove: RenderableTransition.RemoveTransition { _, _, _ in
-        // intentionally never completes; keeps the removing views in the hierarchy
+        // intentionally never completes, keeps the removing views in the hierarchy
       }
     )
 
@@ -365,6 +393,79 @@ class ComposeView_ZOrderTests: XCTestCase {
     expect(removingIndex1) == 0
     expect(removingIndex2) > indexB
     expect(removingIndex2) < indexC
+  }
+
+  // MARK: - Z-Index
+
+  func test_zIndex_bandsAcrossKinds() {
+    // items with an explicit z-index render in bands: a higher band renders above a lower band regardless of the items
+    // order. Within a band, items render in the items order. bands apply across kinds (views and layers).
+    let (view, _) = makeHostedView {
+      ZStack {
+        ViewNode().zIndex(1).fixedId("v-top") // band 1: renders above everything
+        ColorNode(.red).fixedId("l-mid1") // band 0
+        ViewNode().fixedId("v-mid") // band 0
+        ColorNode(.blue).zIndex(-1).fixedId("l-back") // band -1: renders below everything
+        ColorNode(.green).fixedId("l-mid2") // band 0
+      }
+    }
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+
+    #if canImport(AppKit)
+    hostWindow?.displayIfNeeded()
+    #endif
+
+    // the effective render order (back to front): band -1, then band 0 in the items order, then band 1
+    let expectedIds = ["l-back", "l-mid1", "v-mid", "l-mid2", "v-top"]
+    let expectedLayers = expectedIds.compactMap { recorder.renderableMap[$0]?.layer }
+    expect(expectedLayers.count) == 5
+    let renderableLayerIds = Set(expectedLayers.map { ObjectIdentifier($0) })
+    let actualLayers = Self.effectiveRenderOrder(of: view.contentView().layer()).filter { renderableLayerIds.contains(ObjectIdentifier($0)) }
+    expect(actualLayers.map { ObjectIdentifier($0) }) == expectedLayers.map { ObjectIdentifier($0) }
+  }
+
+  func test_removingRenderable_keepsZPosition() {
+    // a renderable with an in-flight remove transition is not part of the new render pass, so its `zPosition` is not
+    // reassigned: it holds its last assigned value and stays visually in place during the removal.
+    let neverCompletingRemove = RenderableTransition(
+      insert: nil,
+      remove: RenderableTransition.RemoveTransition { _, _, _ in
+        // intentionally never completes, keeps the removing renderable in the hierarchy
+      }
+    )
+
+    var showsRemoving = true
+    let (view, _) = makeHostedView {
+      ZStack {
+        ColorNode(.red).fixedId("a")
+        if showsRemoving {
+          ColorNode(.blue).transition(neverCompletingRemove).fixedId("removing")
+        }
+        ColorNode(.green).fixedId("b")
+      }
+    }
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+
+    guard let removingLayer = recorder.renderableMap["removing"]?.layer else {
+      fail("missing removing renderable")
+      return
+    }
+    let zPositionBeforeRemoval = removingLayer.zPosition
+    expect(zPositionBeforeRemoval) == 2 * view.test.zPositionStep // band 0, item index 1
+
+    showsRemoving = false
+    view.refresh(animated: true)
+
+    expect(view.test.removingRenderableMap.count) == 1
+    expect(removingLayer.zPosition) == zPositionBeforeRemoval
   }
 
   func test_refresh_readdDuringRemoveTransition() {

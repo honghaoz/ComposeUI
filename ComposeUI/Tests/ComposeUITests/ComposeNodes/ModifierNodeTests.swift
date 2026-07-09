@@ -1060,6 +1060,9 @@ class ModifierNodeTests: XCTestCase {
   // MARK: - Z-Index
 
   func test_zIndex() {
+    // the render pass computes the layer's `zPosition` as the z-index band plus a small items-order fraction,
+    // so the tests assert the band via `floor`.
+
     // positive z index
     do {
       var layer: CALayer?
@@ -1074,10 +1077,10 @@ class ModifierNodeTests: XCTestCase {
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
-      expect(layer?.zPosition) == 5
+      expect(layer.map { floor($0.zPosition) }) == 5
     }
 
-    // multiple modifiers (last one wins)
+    // multiple modifiers (the outermost one wins)
     do {
       var layer: CALayer?
       let contentView = ComposeView {
@@ -1092,10 +1095,29 @@ class ModifierNodeTests: XCTestCase {
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
-      expect(layer?.zPosition) == 8
+      expect(layer.map { floor($0.zPosition) }) == 8
     }
 
-    // early return when requiresFullUpdate is false
+    // the outermost z-index wins across other modifiers in between
+    do {
+      var layer: CALayer?
+      let contentView = ComposeView {
+        LayerNode()
+          .zIndex(2)
+          .frame(width: 50, height: 50)
+          .zIndex(8) // this should win
+          .onInsert { renderable, _ in
+            layer = renderable.layer
+          }
+      }
+
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+
+      expect(layer.map { floor($0.zPosition) }) == 8
+    }
+
+    // the z-index is re-applied on every render pass
     do {
       var layer: CALayer?
       var zIndex: CGFloat = 5
@@ -1111,21 +1133,21 @@ class ModifierNodeTests: XCTestCase {
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
-      expect(layer?.zPosition) == 5
+      expect(layer.map { floor($0.zPosition) }) == 5
 
-      // bounds change should not set new z index
+      // bounds change re-evaluates the content, which picks up the new z-index
       zIndex = 10
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      expect(layer?.zPosition) == 5
+      expect(layer.map { floor($0.zPosition) }) == 10
 
-      // refresh should set new z index
+      // refresh picks up the new z-index
       zIndex = 3
       contentView.refresh()
 
-      expect(layer?.zPosition) == 3
+      expect(layer.map { floor($0.zPosition) }) == 3
     }
   }
 
@@ -1360,12 +1382,13 @@ class ModifierNodeTests: XCTestCase {
       expect(layer.shadowPath) == nil
     }
 
-    // zIndex
+    // zIndex: the modifier sets the item's z-index attribute instead of modifying the layer, so it adds no
+    // `resetForReuse`. the render pass owns the layer's `zPosition` and resets it when the renderable is pooled
+    // (see `ComposeView_RenderReuseTests.test_pooledRenderable_zPositionIsReset`).
     do {
-      let layer = CALayer()
-      layer.zPosition = 7
-      firstRenderableItem(of: LayerNode().zIndex(7))?.resetForReuse?(.layer(layer))
-      expect(layer.zPosition) == 0
+      let item = firstRenderableItem(of: LayerNode().zIndex(7))
+      expect(item?.zIndex) == 7
+      expect(item?.resetForReuse) == nil
     }
 
     // interactive

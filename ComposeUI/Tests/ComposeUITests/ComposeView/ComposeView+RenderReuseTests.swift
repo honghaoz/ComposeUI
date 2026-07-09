@@ -980,6 +980,38 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(pooledLayer?.backgroundColor) == nil
   }
 
+  func test_pooledRenderable_zPositionIsReset() {
+    // the render pass owns the renderable layer's `zPosition` (assigned per render pass for the cross-kind
+    // z-order); a pooled renderable must have it reset so the reused renderable is freshly-made-equivalent.
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let pool = RenderablePool()
+    contentView.renderablePool = pool
+
+    var pooledLayer: CALayer?
+    contentView.debug { _, event in
+      if case .renderDidRemoveRenderable(_, let renderable) = event {
+        pooledLayer = renderable.layer
+      }
+    }
+
+    contentView.setContent {
+      ZStack {
+        ColorNode(.blue).frame(width: 100, height: 100)
+        ColorNode(.red).zIndex(3).frame(width: 100, height: 100)
+      }
+    }
+    contentView.refresh(animated: false)
+
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: false)
+
+    expect(pool.count) == 2
+    expect(pooledLayer) != nil
+    expect(pooledLayer?.zPosition) == 0
+  }
+
   func test_onResetForReuse_firesForLayerBackedReuse() {
     // a layer-backed node (ColorNode) also receives the hook when its layer is enqueued, exercising the layer erasure path.
     var resetForReuseCount = 0

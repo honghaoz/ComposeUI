@@ -41,17 +41,21 @@ import UIKit
 extension ComposeView {
 
   /// The z-order maintenance strategy for a render pass.
+  ///
+  /// The plan maintains the view hierarchy (subview) order for view items, which drives the hit-testing order.
+  /// The visual z-order across all renderables (views and layers) is driven by the renderable layers' `zPosition`,
+  /// which is assigned per item in the render pass and needs no plan.
   enum ZOrderPlan {
 
-    /// The retained items keep their relative order and need no moves. New items at the front of the
-    /// z-order are placed correctly by the natural insertion order, e.g. new items revealed by scrolling down.
+    /// The retained items keep their relative order and need no moves.
+    /// New items at the front of the z-order are placed correctly by the natural insertion order, e.g. new items revealed by scrolling down.
     /// If `needsNewItemPlacement` is true, some new items are below retained items in the z-order and need to be placed after the update pass.
     case minimal(needsNewItemPlacement: Bool)
 
-    /// Move every renderable to the front in the items order.
+    /// Move every view item to the front in the items order.
     case full
 
-    /// Whether every renderable needs to be moved to the front in the items order.
+    /// Whether every view item needs to be moved to the front in the items order.
     var needsFullUpdate: Bool {
       switch self {
       case .minimal:
@@ -128,12 +132,15 @@ extension ComposeView {
     return .minimal(needsNewItemPlacement: needsNewItemPlacement)
   }
 
-  /// Places the new renderables that are not at the front of the z-order to their correct positions.
+  /// Places the new view renderables that are not at the front of the subview order to their correct positions.
   ///
-  /// The render update pass inserts new renderables at the front of the z-order. For new renderables that
-  /// should be below retained renderables, this method moves them below their next sibling of the same kind
-  /// (view or layer), walking the items from the front to the back so that each move's anchor is already
-  /// placed correctly.
+  /// The render update pass inserts new renderables at the front. For new view renderables that should be below retained
+  /// view renderables, this method moves them below their next view sibling, walking the items from the front to the
+  /// back so that each move's anchor is already placed correctly.
+  ///
+  /// Only view items are placed: the subview order drives the hit-testing order, so it is kept in sync with the items
+  /// order. The visual z-order across all renderables (views and layers) is driven by the renderable layers' `zPosition`,
+  /// so layer items need no placement.
   ///
   /// - Parameters:
   ///   - reusingIds: The ids of the retained renderables.
@@ -142,37 +149,28 @@ extension ComposeView {
   func placeNewRenderables(reusingIds: Set<ComposeNodeId>, renderableItemIds: [ComposeNodeId], renderableMap: [ComposeNodeId: Renderable]) {
     let parent: View = contentView()
 
-    // the next sibling of the same kind (already placed correctly), while walking from front to back
+    // the next view sibling (already placed correctly), while walking from front to back
     var nextViewSibling: View?
-    var nextLayerSibling: CALayer?
 
-    // whether a retained item of the same kind exists above the current position;
+    // whether a retained view item exists above the current position;
     // new items with no retained item above are already placed correctly by the natural insertion order
     var hasRetainedViewAbove = false
-    var hasRetainedLayerAbove = false
 
     for id in renderableItemIds.reversed() {
-      let isRetained = reusingIds.contains(id)
-      switch renderableMap[id]! { // swiftlint:disable:this force_unwrapping
-      case .view(let view):
-        if isRetained {
-          hasRetainedViewAbove = true
-        } else if hasRetainedViewAbove, let sibling = nextViewSibling {
-          // a positioned insertion for each move, instead of a single sort pass over the subviews, because the subview
-          // list can contain views that are not part of this render pass (e.g. views with an in-flight remove transition).
-          // a sort pass with a partial order can move those unmanaged views or miss moves when they interleave with the
-          // managed views, while a positioned insertion only touches the moved view.
-          parent.insertSubview(view, belowSubview: sibling)
-        }
-        nextViewSibling = view
-      case .layer(let layer):
-        if isRetained {
-          hasRetainedLayerAbove = true
-        } else if hasRetainedLayerAbove, let sibling = nextLayerSibling {
-          parent.layer().insertSublayer(layer, below: sibling)
-        }
-        nextLayerSibling = layer
+      guard let view = renderableMap[id]?.view else {
+        continue
       }
+
+      if reusingIds.contains(id) {
+        hasRetainedViewAbove = true
+      } else if hasRetainedViewAbove, let sibling = nextViewSibling {
+        // a positioned insertion for each move, instead of a single sort pass over the subviews, because the subview
+        // list can contain views that are not part of this render pass (e.g. views with an in-flight remove transition).
+        // a sort pass with a partial order can move those unmanaged views or miss moves when they interleave with the
+        // managed views, while a positioned insertion only touches the moved view.
+        parent.insertSubview(view, belowSubview: sibling)
+      }
+      nextViewSibling = view
     }
   }
 }
