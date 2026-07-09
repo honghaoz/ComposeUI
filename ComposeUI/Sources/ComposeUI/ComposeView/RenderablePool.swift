@@ -112,18 +112,19 @@ public final class RenderablePool: RenderablePoolType {
       ComposeUI.assert(layer.superlayer == nil, "Renderable must be detached from its parent")
     }
 
-    if var bucket = buckets[key] {
+    if let bucketIndex = buckets.index(forKey: key) {
       // existing key
 
       // touch the key to refresh recency, regardless of whether the bucket is full or not.
       touch(key)
 
-      guard bucket.count < maxCountPerKey else {
+      guard buckets.values[bucketIndex].count < maxCountPerKey else {
         // bucket is full, drop the renderable so the pool doesn't retain off-screen renderables without bound.
         return
       }
-      bucket.append(renderable)
-      buckets[key] = bucket
+      // mutate the bucket in place through the dictionary, copying the bucket out (`var bucket = buckets[key]`)
+      // and writing it back would copy the array on append (copy-on-write, since the dictionary still holds a reference).
+      buckets.values[bucketIndex].append(renderable)
       return
     } else {
       // new key
@@ -145,15 +146,16 @@ public final class RenderablePool: RenderablePoolType {
   /// - Parameter key: The reuse key.
   /// - Returns: A recycled renderable, or `nil` if the pool has none for the key.
   public func dequeue(_ key: ReuseKey) -> Renderable? {
-    guard var bucket = buckets[key], let renderable = bucket.popLast() else {
+    // mutate the bucket in place through the dictionary, copying the bucket out (`var bucket = buckets[key]`)
+    // and writing it back would copy the array on popLast (copy-on-write, since the dictionary still holds a reference).
+    guard let bucketIndex = buckets.index(forKey: key), let renderable = buckets.values[bucketIndex].popLast() else {
       return nil
     }
-    if bucket.isEmpty {
+    if buckets.values[bucketIndex].isEmpty {
       // drop the now-empty bucket entirely so empty buckets don't accumulate (especially with dynamic reuse identifiers).
-      buckets.removeValue(forKey: key)
+      buckets.remove(at: bucketIndex)
       removeFromLRU(key)
     } else {
-      buckets[key] = bucket
       touch(key)
     }
     return renderable
