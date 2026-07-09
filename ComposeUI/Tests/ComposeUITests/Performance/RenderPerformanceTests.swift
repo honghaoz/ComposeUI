@@ -113,7 +113,7 @@ class RenderPerformanceTests: XCTestCase {
     }
   }
 
-  // MARK: - Scroll (shadow nodes, default-pooled — measure the pooling payoff vs disabled)
+  // MARK: - Scroll (shadow nodes, default-pooled, - measure the pooling payoff vs disabled)
 
   func test_scroll_dropShadowRows_2000_noPool() {
     // baseline: pooling disabled, so each scrolled-in row creates a fresh `DropShadowLayer` (mask shape layer + setup).
@@ -155,7 +155,7 @@ class RenderPerformanceTests: XCTestCase {
     }
   }
 
-  // MARK: - Scroll (text views, default-pooled — measure the BaseTextView reuse payoff vs disabled)
+  // MARK: - Scroll (text views, default-pooled - measure the BaseTextView reuse payoff vs disabled)
 
   func test_scroll_textRows_2000_noPool() {
     // baseline (pre-reuse behavior): pooling disabled, so each scrolled-in row creates a fresh `BaseTextView`

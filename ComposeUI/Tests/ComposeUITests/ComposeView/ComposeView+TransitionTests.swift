@@ -279,7 +279,7 @@ class ComposeView_TransitionTests: XCTestCase {
   func test_reinsertRemovingRenderable_ignoresIsFixed() {
     // Like `test_reinsertRemovingRenderable`, but the renderable is re-inserted with a *fixed* id of the same string.
     // Render identity is the id string only (ignoring isFixed), so the re-inserted item must match the renderable
-    // parked in `removingRenderableMap` (keyed by that same string) and cancel its removal — not leave it stranded and
+    // parked in `removingRenderableMap` (keyed by that same string) and cancel its removal, not leave it stranded and
     // create a new one.
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 

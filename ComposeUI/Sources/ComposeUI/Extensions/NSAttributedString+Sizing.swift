@@ -391,7 +391,7 @@ private enum TextSizeCache {
 // 1. CTTypesetter:
 //    CTTypesetter is the lowest-level line-breaking engine.
 //    Given an attributed string, it can break text into lines that fit a given width.
-//    CTTypesetter is like a “word wrapping” helper — it just tells you where the line breaks should be, not how to position the lines.
+//    CTTypesetter is like a “word wrapping” helper, it just tells you where the line breaks should be, not how to position the lines.
 //
 //    CTTypesetterSuggestLineBreak vs CTTypesetterSuggestClusterBreak:
 //    a. CTTypesetterSuggestLineBreak:
@@ -402,7 +402,7 @@ private enum TextSizeCache {
 // 2. CTFramesetter:
 //    CTFramesetter is a higher-level layout object that sits on top of CTTypesetter.
 //    Given an attributed string and a path (CGPath), it lays out the text automatically to fill the shape.
-//    CTFramesetter is like a “full layout manager” — you give it the box, it fills it with text according to Core Text’s rules.
+//    CTFramesetter is like a “full layout manager”, you give it the box, it fills it with text according to Core Text’s rules.
 //
 // References:
 // - https://stackoverflow.com/a/3956161/3164091
