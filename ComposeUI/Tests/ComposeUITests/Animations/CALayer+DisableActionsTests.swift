@@ -107,6 +107,30 @@ class CALayer_DisableActionsTests: XCTestCase {
     expect(layer.animationKeys()) == nil
   }
 
+  func test_disableActions_throwingWork_restoresActions() throws {
+    struct TestError: Error {}
+
+    let layer = CALayer()
+    let sentinel: [String: CAAction] = ["sentinel": NSNull()]
+    layer.actions = sentinel
+
+    // a throwing work block must not leave the layer with the disabling actions installed
+    do {
+      try layer.disableActions(for: "position") {
+        expect(layer.actions?.count) == 1 // the disabling actions dictionary is installed
+        expect(layer.actions?["position"] is NSNull) == true
+        throw TestError()
+      }
+      fail("expected to throw")
+    } catch {
+      expect(error is TestError) == true
+    }
+
+    // the original actions are restored
+    expect(layer.actions?.count) == 1
+    expect(layer.actions?["sentinel"] is NSNull) == true
+  }
+
   func test_disableAllActions_mainThread() throws {
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
@@ -135,6 +159,45 @@ class CALayer_DisableActionsTests: XCTestCase {
         layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
       }
       expect(layer.animationKeys()) == nil
+    }
+  }
+
+  func test_disableAllActions_throwingWork_restoresDelegateAndClass() throws {
+    struct TestError: Error {}
+
+    // without delegate: a throwing work block must not leave the layer with the actions-disabling delegate
+    do {
+      let layer = CALayer()
+      do {
+        try layer.disableActions {
+          expect(layer.delegate) != nil // the actions-disabling delegate is installed
+          throw TestError()
+        }
+        fail("expected to throw")
+      } catch {
+        expect(error is TestError) == true
+      }
+      expect(layer.delegate) == nil // the delegate is restored
+    }
+
+    // with delegate: a throwing work block must not leave the layer with the actions-disabling subclass
+    do {
+      class LayerDelegate: NSObject, CALayerDelegate {}
+      let delegate = LayerDelegate()
+      let layer = CALayer()
+      layer.delegate = delegate
+
+      do {
+        try layer.disableActions {
+          expect(NSStringFromClass(object_getClass(layer)!)) == "CALayer_DisabledActions" // swiftlint:disable:this force_unwrapping
+          throw TestError()
+        }
+        fail("expected to throw")
+      } catch {
+        expect(error is TestError) == true
+      }
+      expect(object_getClass(layer) === CALayer.self) == true // the class is restored
+      expect(layer.delegate) === delegate // the delegate is untouched
     }
   }
 

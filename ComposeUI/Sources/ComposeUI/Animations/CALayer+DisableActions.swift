@@ -99,9 +99,12 @@ public extension CALayer {
 
     actions = disabledActions
 
-    try work()
+    // restore in a defer so a throwing work block can't leave the layer with the disabling actions installed.
+    defer {
+      actions = originalActions
+    }
 
-    actions = originalActions
+    try work()
   }
 }
 
@@ -137,8 +140,13 @@ public extension CALayer {
     if self.delegate == nil {
       // if no delegate exists, use the simple delegate to disable actions
       self.delegate = NoActionsDelegate.shared
+
+      // restore in a defer so a throwing work block can't leave the layer with the actions-disabling delegate.
+      defer {
+        self.delegate = nil
+      }
+
       try work()
-      self.delegate = nil
     } else {
       // if delegate exists, use the subclass approach to disable actions
       ComposeUI.assert(Thread.isMainThread, "CALayer.disableActions() must be called on the main thread")
@@ -183,10 +191,12 @@ public extension CALayer {
       // temporarily swap the layer's class to the subclass.
       object_setClass(self, subclass)
 
-      try work()
+      // restore the original class in a defer so a throwing work block can't leave the layer with the actions-disabling subclass.
+      defer {
+        object_setClass(self, originalClass)
+      }
 
-      // restore the original class after the work block.
-      object_setClass(self, originalClass)
+      try work()
     }
   }
 }
