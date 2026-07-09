@@ -53,4 +53,56 @@ class StackLayoutCacheTests: XCTestCase {
 
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
+
+  func test_update_withoutMainAxis_collectsBoundingRectOnly() {
+    var cache = StackLayoutCache()
+    cache.update(
+      childOrigins: [CGPoint(x: 0, y: 0), CGPoint(x: 0, y: 10), CGPoint(x: 0, y: 20)],
+      childItemsBoundingRects: [
+        CGRect(x: 0, y: 0, width: 10, height: 10),
+        .null, // a child with no renderable items
+        CGRect(x: 0, y: 20, width: 10, height: 10),
+      ],
+      mainAxis: nil
+    )
+
+    expect(cache.childCount) == 3
+    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 30)
+  }
+
+  func test_update_withoutMainAxis_allNullRects_boundingRectIsNull() {
+    var cache = StackLayoutCache()
+    cache.update(
+      childOrigins: [CGPoint(x: 0, y: 0)],
+      childItemsBoundingRects: [.null],
+      mainAxis: nil
+    )
+
+    expect(cache.childCount) == 1
+    expect(cache.itemsBoundingRect.isNull) == true
+  }
+
+  func test_visibleChildRange_withoutMainAxis_assertsAndReturnsAllChildren() {
+    var cache = StackLayoutCache()
+    cache.update(
+      childOrigins: [CGPoint(x: 0, y: 0), CGPoint(x: 0, y: 10)],
+      childItemsBoundingRects: [
+        CGRect(x: 0, y: 0, width: 10, height: 10),
+        CGRect(x: 0, y: 10, width: 10, height: 10),
+      ],
+      mainAxis: nil
+    )
+
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      expect(message) == "visibleChildRange(minPosition:maxPosition:) requires the cache built with a main axis"
+      assertionCount += 1
+    }
+
+    // without the search structures, all children are treated as potentially visible
+    expect(cache.visibleChildRange(minPosition: 0, maxPosition: 5)) == 0 ..< 2
+    expect(assertionCount) == 1
+
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+  }
 }

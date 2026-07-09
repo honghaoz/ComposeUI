@@ -74,10 +74,11 @@ struct StackLayoutCache {
   /// - Parameters:
   ///   - childOrigins: Each child's origin, in the stack node's coordinate space.
   ///   - childItemsBoundingRects: Each child's renderable items bounding rect, translated to the stack node's coordinate space.
-  ///   - mainAxis: The main axis of the stack.
+  ///   - mainAxis: The main axis of the stack. Pass `nil` for stacks whose children are not ordered along an axis (e.g. a layered stack),
+  ///     which skips building the binary-search structures that only `visibleChildRange(minPosition:maxPosition:)` uses.
   mutating func update(childOrigins: ContiguousArray<CGPoint>,
                        childItemsBoundingRects: ContiguousArray<CGRect>,
-                       mainAxis: MainAxis)
+                       mainAxis: MainAxis?)
   {
     ComposeUI.assert(childOrigins.count == childItemsBoundingRects.count, "mismatched child origins and bounding rects count")
 
@@ -88,8 +89,18 @@ struct StackLayoutCache {
     var itemsBoundingRect: CGRect = .null
 
     runningMaxPositions.removeAll(keepingCapacity: true)
-    runningMaxPositions.reserveCapacity(childCount)
     runningMinPositions.removeAll(keepingCapacity: true)
+
+    guard let mainAxis else {
+      // no main axis: the caller doesn't use `visibleChildRange(minPosition:maxPosition:)`, so only collect the union of the bounding rects.
+      for rect in childItemsBoundingRects where !rect.isNull {
+        itemsBoundingRect = itemsBoundingRect.union(rect)
+      }
+      self.itemsBoundingRect = itemsBoundingRect
+      return
+    }
+
+    runningMaxPositions.reserveCapacity(childCount)
     runningMinPositions.reserveCapacity(childCount)
 
     // build the running max positions (from the first child) and collect the union of the bounding rects
@@ -122,11 +133,20 @@ struct StackLayoutCache {
   /// Children within the returned range may still provide no visible renderable items, the caller should
   /// still query each child with `renderableItems(in:)`.
   ///
+  /// The cache must be built with a main axis (`update(childOrigins:childItemsBoundingRects:mainAxis:)` with a non-nil `mainAxis`).
+  ///
   /// - Parameters:
   ///   - minPosition: The min position of the visible bounds on the main axis.
   ///   - maxPosition: The max position of the visible bounds on the main axis.
   /// - Returns: The range of children that can provide visible renderable items.
   func visibleChildRange(minPosition: CGFloat, maxPosition: CGFloat) -> Range<Int> {
+    guard runningMaxPositions.count == childCount, runningMinPositions.count == childCount else {
+      // the cache was built without a main axis, so there are no search structures. treat all children as potentially
+      // visible, which is safe because the caller still queries each child.
+      ComposeUI.assertFailure("visibleChildRange(minPosition:maxPosition:) requires the cache built with a main axis")
+      return 0 ..< childCount
+    }
+
     // the first child whose items can extend beyond the visible min position.
     // children before this index have all of their items at or before the visible min position (no intersection).
     let start = Self.firstIndex(in: runningMaxPositions) { $0 > minPosition }

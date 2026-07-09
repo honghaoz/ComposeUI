@@ -104,7 +104,9 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
       childItemsBoundingRects.append(itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
     }
 
-    layoutCache.update(childOrigins: childOrigins, childItemsBoundingRects: childItemsBoundingRects, mainAxis: .vertical)
+    // no main axis: children in a layered stack overlap each other, so `renderableItems(in:)` checks each child's
+    // bounding rect directly instead of binary searching a visible range.
+    layoutCache.update(childOrigins: childOrigins, childItemsBoundingRects: childItemsBoundingRects, mainAxis: nil)
 
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
