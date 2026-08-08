@@ -21,7 +21,6 @@ on:
 
 concurrency:
   # Push-to-master style: newer commits cancel older in-flight CI on the same ref.
-  # Warm-cache measurement: a follow-up push should restore DerivedData via restore-keys.
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
@@ -57,8 +56,12 @@ jobs:
           name: ComposeUI
           fail_ci_if_error: true
 
-  test:
+  # iOS/tvOS simulator jobs dominate wall time on public runners (~5-7m), mostly
+  # boot + cold xcodebuild. For direct pushes to master, keep them off the hot
+  # path and run on schedule / manual dispatch instead.
+  test-simulators:
     name: Test
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:

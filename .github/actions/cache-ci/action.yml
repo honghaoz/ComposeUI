@@ -1,5 +1,5 @@
 name: cache-ci
-description: "Cache bins, SPM, SwiftPM build products, and Xcode DerivedData across GitHub-hosted runs."
+description: "Cache bins, SPM, and SwiftPM build products across GitHub-hosted runs."
 
 inputs:
   kind:
@@ -15,9 +15,9 @@ runs:
     - name: Cache CI artifacts
       uses: actions/cache@v4
       with:
-        # Use github.sha so each push can save a fresh warm cache after compile.
-        # restore-keys fall back to the latest cache for the same Xcode/package pins.
-        # vars.* is unavailable inside composite actions, so xcode-version is passed in.
+        # DerivedData caching was measured and did not improve iOS wall time on
+        # public runners (simulator boot dominates; stale DerivedData can hurt),
+        # so only cache reusable tool/SPM/.build artifacts here.
         path: |
           bin/jq
           bin/swiftformat
@@ -25,7 +25,6 @@ runs:
           bin/xcbeautify
           ~/Library/Caches/org.swift.swiftpm
           ComposeUI/.build
-          ComposeUI/.ci-derived-data
         key: ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ inputs.xcode-version }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions-ci-test', 'bin/.versions-ci-lint') }}-${{ github.sha }}
         restore-keys: |
           ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ inputs.xcode-version }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions-ci-test', 'bin/.versions-ci-lint') }}-
