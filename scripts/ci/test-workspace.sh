@@ -5,12 +5,15 @@ set -euo pipefail
 # OVERVIEW:
 # Fast CI test runner for ComposeUI workspace platforms.
 # Compared to the shared ChouTi test-workspace.sh, this script:
-# - uses `swift package resolve` instead of `swift package update`
+# - skips `swift package update`/`resolve`; xcodebuild resolves the pinned
+#   Package.resolved into DerivedData/SourcePackages itself, so a standalone
+#   resolve only duplicates work
 # - skips the expensive `xcodebuild -showdestinations` dump
 # - picks simulators via `simctl` only
 # - uses a fixed `-derivedDataPath` so GitHub Actions can cache compiles
-# - boots the simulator asynchronously so boot time is hidden behind
-#   package resolution and the test build
+# - separates build-for-testing from test-without-building so the CPU-heavy
+#   build and the CPU-heavy simulator boot never compete (CI runners have few
+#   cores; overlapping boot with compile was measured slower than serial)
 #
 # PHASES:
 # Simulator platforms (iOS/tvOS) split the work into phases so CI can run
@@ -18,10 +21,11 @@ set -euo pipefail
 # GitHub UI and API:
 #   pick    - pick a simulator and record it for later phases
 #   boot    - kick off simulator boot in the background (returns immediately)
-#   resolve - resolve packages
-#   build   - xcodebuild build-for-testing (runs while the simulator boots)
-#   test    - wait for boot, then xcodebuild test-without-building
-#   all     - run all phases in order (default; for local use)
+#   build   - xcodebuild build-for-testing
+#   test    - boot (if needed) and wait for the simulator, then run
+#             xcodebuild test-without-building
+#   all     - run all phases in order (default; for local use, where machines
+#             have enough cores for boot to overlap the build)
 
 safe_tput() { [ -n "${TERM:-}" ] && [ "$TERM" != "dumb" ] && tput "$@" || echo ""; }
 BOLD=$(safe_tput bold)
@@ -31,7 +35,7 @@ RESET=$(safe_tput sgr0)
 print_help() {
   echo "${BOLD}OVERVIEW:${RESET} Fast CI tests for a workspace scheme."
   echo ""
-  echo "${BOLD}Usage:${RESET} $0 --workspace-path <path> --scheme <name> --os <iOS|tvOS|macOS> [--phase <pick|boot|resolve|build|test|all>]"
+  echo "${BOLD}Usage:${RESET} $0 --workspace-path <path> --scheme <name> --os <iOS|tvOS|macOS> [--phase <pick|boot|build|test|all>]"
 }
 
 WORKSPACE_PATH=""
@@ -80,9 +84,9 @@ if [ -z "$WORKSPACE_PATH" ] || [ -z "$SCHEME" ] || [ -z "$OS" ]; then
 fi
 
 case "$PHASE" in
-pick | boot | resolve | build | test | all) ;;
+pick | boot | build | test | all) ;;
 *)
-  echo "🛑 Invalid --phase: $PHASE (expected pick|boot|resolve|build|test|all)"
+  echo "🛑 Invalid --phase: $PHASE (expected pick|boot|build|test|all)"
   exit 1
   ;;
 esac
@@ -125,25 +129,6 @@ dir_size_kb() {
   else
     echo 0
   fi
-}
-
-resolve_packages() {
-  cd "$PACKAGE_DIR"
-  echo "Package: $PACKAGE_DIR/Package.swift"
-  echo "Resolve packages (no update)..."
-  local spm_cache_before
-  spm_cache_before=$(dir_size_kb "$HOME/Library/Caches/org.swift.swiftpm")
-  local start=$SECONDS
-  # Resolve uses Package.resolved pins. Update would hit the network every CI run.
-  swift package resolve
-  notice "resolve os=$OS duration_s=$((SECONDS - start)) spm_cache_kb_before=$spm_cache_before spm_cache_kb_after=$(dir_size_kb "$HOME/Library/Caches/org.swift.swiftpm") package_build_kb=$(dir_size_kb "$PACKAGE_DIR/.build")"
-
-  local workspace_package_resolved="$WORKSPACE_PATH/xcshareddata/swiftpm/Package.resolved"
-  if [ -f "$PACKAGE_DIR/Package.resolved" ]; then
-    mkdir -p "$(dirname "$workspace_package_resolved")"
-    cp "$PACKAGE_DIR/Package.resolved" "$workspace_package_resolved"
-  fi
-  cd "$REPO_ROOT"
 }
 
 run_xcodebuild() {
@@ -235,8 +220,9 @@ phase_boot() {
   load_state
   # simctl boot blocks until the device reaches the Booted state, which takes
   # minutes for iPhone simulators on CI runners. Detach it so the boot runs
-  # concurrently with the resolve and build phases; the test phase waits for
-  # readiness (and re-boots if this detached boot failed).
+  # concurrently with the build phase; the test phase waits for readiness
+  # (and re-boots if this detached boot failed). Only useful on many-core
+  # machines (local); CI runners are faster booting after the build instead.
   echo "🚀 Booting simulator in the background: $NAME ($OS_VERSION)..."
   nohup xcrun simctl boot "$UDID" >/dev/null 2>&1 &
   echo "✅ Boot kicked off (not waiting)"
@@ -259,11 +245,14 @@ phase_build() {
 
 phase_test() {
   load_state
-  echo "⏳ Waiting for simulator to finish booting..."
+  echo "⏳ Booting simulator (or waiting for an in-flight boot)..."
   local start=$SECONDS
-  # bootstatus -b also boots the device in case the boot-phase boot failed.
+  # bootstatus -b boots the device if the boot phase was skipped or failed,
+  # otherwise it waits for the in-flight boot to finish.
   xcrun simctl bootstatus "$UDID" -b
-  local boot_wait=$((SECONDS - start))
+  # Emit the boot wait before running tests: test output can produce enough
+  # annotations to hit GitHub's 10-per-step cap, which would drop this one.
+  notice "test os=$OS boot_wait_s=$((SECONDS - start))"
   echo "✅ Simulator ready"
 
   if [ "${CI:-false}" != "false" ] || [ "${GITHUB_ACTIONS:-false}" != "false" ]; then
@@ -274,7 +263,6 @@ phase_test() {
   fi
 
   echo "➡️  Running $OS tests on ${CYAN}$NAME ($OS_VERSION)${RESET}..."
-  start=$SECONDS
   run_xcodebuild xcodebuild test-without-building \
     -workspace "$WORKSPACE_PATH" \
     -scheme "$SCHEME" \
@@ -282,7 +270,6 @@ phase_test() {
     -derivedDataPath "$DERIVED_DATA_PATH" \
     -retry-tests-on-failure \
     -test-iterations 3
-  notice "test os=$OS boot_wait_s=$boot_wait test_s=$((SECONDS - start))"
 
   echo "🧹 Cleaning up CI environment variables..."
   xcrun simctl spawn "$UDID" launchctl unsetenv CI 2>/dev/null || true
@@ -298,7 +285,6 @@ macOS)
     echo "🛑 --phase is only supported for simulator platforms (iOS/tvOS)"
     exit 1
   fi
-  resolve_packages
   echo "➡️  Running macOS package tests via swift test..."
   cd "$PACKAGE_DIR"
   set -o pipefail
@@ -317,9 +303,6 @@ iOS | tvOS)
   boot)
     phase_boot
     ;;
-  resolve)
-    resolve_packages
-    ;;
   build)
     phase_build
     ;;
@@ -329,7 +312,6 @@ iOS | tvOS)
   all)
     phase_pick
     phase_boot
-    resolve_packages
     phase_build
     phase_test
     ;;
