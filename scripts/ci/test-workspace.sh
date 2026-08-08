@@ -113,12 +113,30 @@ echo "🎯 CI test workspace: ${CYAN}$(basename "$WORKSPACE_PATH")${RESET}, sche
 echo "DerivedData: $DERIVED_DATA_PATH"
 echo "${BOLD}Xcode:${RESET} $(xcodebuild -version | tr '\n' ' ')"
 
+# Emits a GitHub check-run annotation. Annotations are publicly readable via
+# the Checks API, which makes CI phase timing measurable without log access.
+notice() {
+  echo "::notice title=ci-timing::$*"
+}
+
+dir_size_kb() {
+  if [ -d "$1" ]; then
+    du -sk "$1" 2>/dev/null | cut -f1
+  else
+    echo 0
+  fi
+}
+
 resolve_packages() {
   cd "$PACKAGE_DIR"
   echo "Package: $PACKAGE_DIR/Package.swift"
   echo "Resolve packages (no update)..."
+  local spm_cache_before
+  spm_cache_before=$(dir_size_kb "$HOME/Library/Caches/org.swift.swiftpm")
+  local start=$SECONDS
   # Resolve uses Package.resolved pins. Update would hit the network every CI run.
   swift package resolve
+  notice "resolve os=$OS duration_s=$((SECONDS - start)) spm_cache_kb_before=$spm_cache_before spm_cache_kb_after=$(dir_size_kb "$HOME/Library/Caches/org.swift.swiftpm") package_build_kb=$(dir_size_kb "$PACKAGE_DIR/.build")"
 
   local workspace_package_resolved="$WORKSPACE_PATH/xcshareddata/swiftpm/Package.resolved"
   if [ -f "$PACKAGE_DIR/Package.resolved" ]; then
@@ -210,6 +228,7 @@ phase_pick() {
   pick_device
   echo "📱 Simulator: ${CYAN}$NAME ($OS_VERSION)${RESET}, UDID: $UDID"
   save_state
+  notice "pick os=$OS device=$NAME booted_devices=$(xcrun simctl list devices booted | grep -c '(Booted)' || true) spm_cache_kb=$(dir_size_kb "$HOME/Library/Caches/org.swift.swiftpm") package_build_kb=$(dir_size_kb "$PACKAGE_DIR/.build") derived_data_kb=$(dir_size_kb "$DERIVED_DATA_PATH")"
 }
 
 phase_boot() {
@@ -226,21 +245,25 @@ phase_boot() {
 phase_build() {
   load_state
   echo "🔨 Building for testing on ${CYAN}$NAME ($OS_VERSION)${RESET}..."
+  local start=$SECONDS
   # Building for a simulator destination does not require the device to be
-  # booted, so this overlaps with the boot started in the prepare phase.
+  # booted, so this overlaps with the boot started in the boot phase.
   run_xcodebuild xcodebuild build-for-testing \
     -workspace "$WORKSPACE_PATH" \
     -scheme "$SCHEME" \
     -destination "$DESTINATION" \
     -derivedDataPath "$DERIVED_DATA_PATH" \
     COMPILER_INDEX_STORE_ENABLE=NO
+  notice "build os=$OS duration_s=$((SECONDS - start)) derived_data_kb=$(dir_size_kb "$DERIVED_DATA_PATH")"
 }
 
 phase_test() {
   load_state
   echo "⏳ Waiting for simulator to finish booting..."
-  # bootstatus -b also boots the device in case the prepare-phase boot failed.
+  local start=$SECONDS
+  # bootstatus -b also boots the device in case the boot-phase boot failed.
   xcrun simctl bootstatus "$UDID" -b
+  local boot_wait=$((SECONDS - start))
   echo "✅ Simulator ready"
 
   if [ "${CI:-false}" != "false" ] || [ "${GITHUB_ACTIONS:-false}" != "false" ]; then
@@ -251,6 +274,7 @@ phase_test() {
   fi
 
   echo "➡️  Running $OS tests on ${CYAN}$NAME ($OS_VERSION)${RESET}..."
+  start=$SECONDS
   run_xcodebuild xcodebuild test-without-building \
     -workspace "$WORKSPACE_PATH" \
     -scheme "$SCHEME" \
@@ -258,6 +282,7 @@ phase_test() {
     -derivedDataPath "$DERIVED_DATA_PATH" \
     -retry-tests-on-failure \
     -test-iterations 3
+  notice "test os=$OS boot_wait_s=$boot_wait test_s=$((SECONDS - start))"
 
   echo "🧹 Cleaning up CI environment variables..."
   xcrun simctl spawn "$UDID" launchctl unsetenv CI 2>/dev/null || true
