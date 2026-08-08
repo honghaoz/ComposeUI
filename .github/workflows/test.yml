@@ -17,12 +17,14 @@ on:
     # │ │ │ │ ┌───────────── day of the week (0 - 6 or SUN-SAT)
     # │ │ │ │ │
     # * * * * *
-    - cron: "30 14 * * *" # every day at 14:30 UTC (6:30 PST, 7:30 PDT)
+    # Build and format run at 14:30 UTC, so tests use a later window to avoid competing for macOS runners.
+    - cron: "17 15 * * *" # every day at 15:17 UTC (7:17 PST, 8:17 PDT)
 
 concurrency:
-  # Push-to-master style: newer commits cancel older in-flight CI on the same ref.
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
+  # Newer commits cancel older in-flight CI on the same ref. Scoping the group
+  # by event keeps push runs from cancelling scheduled runs (and vice versa).
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 env:
   TERM: xterm-256color
@@ -79,5 +81,30 @@ jobs:
       # - name: Download visionOS simulator
       #   if: matrix.platform == 'visionOS'
       #   run: xcodebuild -downloadPlatform visionOS
+      # Phases are separate steps for per-phase timing. The simulator boots in
+      # the background during "Prepare", overlapping the build.
+      - name: Prepare (boot simulator, resolve packages)
+        run: make test-${{ matrix.platform }}-ci PHASE=prepare -C ComposeUI
+      - name: Build for testing
+        run: make test-${{ matrix.platform }}-ci PHASE=build -C ComposeUI
       - name: Test
-        run: make test-${{ matrix.platform }}-ci -C ComposeUI
+        run: make test-${{ matrix.platform }}-ci PHASE=test -C ComposeUI
+
+  build-visionOS:
+    name: Build (visionOS)
+    # visionOS tests hang on GitHub Actions, so a Release build is the
+    # per-commit visionOS signal. It starts after the fast macOS test job so
+    # it never competes with the slower iOS/tvOS jobs for the 5-concurrent
+    # macOS runner limit.
+    needs: test-codecov
+    timeout-minutes: 30
+    runs-on: ${{ vars.MACOS }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Bootstrap
+        uses: ./.github/actions/bootstrap
+        with:
+          profile: build
+      - name: Build
+        run: make build-release-visionOS -C ComposeUI

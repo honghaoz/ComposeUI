@@ -40,16 +40,16 @@ test-iOS: # Run tests on iOS.
 	@$(REPO_ROOT)/scripts/swift-package/test-workspace.sh --workspace-path "Project.xcworkspace" --scheme "ComposeUI" --os "iOS"
 
 .PHONY: test-iOS-ci
-test-iOS-ci: # Run iOS tests with CI-optimized caching path.
-	@$(REPO_ROOT)/scripts/ci/test-workspace.sh --workspace-path "Project.xcworkspace" --scheme "ComposeUI" --os "iOS" --derived-data-path "$(CURDIR)/.ci-derived-data"
+test-iOS-ci: # Run iOS tests with CI-optimized caching path. Optional PHASE=prepare|build|test.
+	@$(REPO_ROOT)/scripts/ci/test-workspace.sh --workspace-path "Project.xcworkspace" --scheme "ComposeUI" --os "iOS" --derived-data-path "$(CURDIR)/.ci-derived-data" $(if $(PHASE),--phase $(PHASE),)
 
 .PHONY: test-tvOS
 test-tvOS: # Run tests on tvOS.
 	@$(REPO_ROOT)/scripts/swift-package/test-workspace.sh --workspace-path "Project.xcworkspace" --scheme "ComposeUI" --os "tvOS"
 
 .PHONY: test-tvOS-ci
-test-tvOS-ci: # Run tvOS tests with CI-optimized caching path.
-	@$(REPO_ROOT)/scripts/ci/test-workspace.sh --workspace-path "Project.xcworkspace" --scheme "ComposeUI" --os "tvOS" --derived-data-path "$(CURDIR)/.ci-derived-data"
+test-tvOS-ci: # Run tvOS tests with CI-optimized caching path. Optional PHASE=prepare|build|test.
+	@$(REPO_ROOT)/scripts/ci/test-workspace.sh --workspace-path "Project.xcworkspace" --scheme "ComposeUI" --os "tvOS" --derived-data-path "$(CURDIR)/.ci-derived-data" $(if $(PHASE),--phase $(PHASE),)
 
 .PHONY: test-visionOS
 test-visionOS: # Run tests on visionOS.

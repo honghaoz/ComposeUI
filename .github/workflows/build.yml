@@ -14,8 +14,10 @@ on:
     - cron: "30 14 * * *" # every day at 14:30 UTC (6:30 PST, 7:30 PDT)
 
 concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # Newer commits cancel older in-flight CI on the same ref. Scoping the group
+  # by event keeps push runs from cancelling scheduled runs (and vice versa).
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 env:
   TERM: xterm-256color

@@ -86,3 +86,4 @@ Add short, actionable rules here when a pattern repeats.
 - When making platform behavior claims for AppKit/UIKit, verify both platforms with real tests or explicitly state which platform is unverified.
 - Don't use em-dashes (—) in code comments; use a comma or a hyphen instead.
 - Do not remove iOS/tvOS tests from push CI to chase wall-clock speed. Push-to-master workflow still needs those platform signals; optimize with caching/bootstrap/concurrency instead of dropping coverage.
+- When profiling CI history, identify and exclude runs affected by known provider outages before drawing conclusions from queue-time outliers.

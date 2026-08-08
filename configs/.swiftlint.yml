@@ -10,6 +10,7 @@ excluded:
   - "${PWD}/**/*/*.playground"
   - "${PWD}/**/*/.swiftpm"
   - "${PWD}/**/*/.build"
+  - "${PWD}/**/*/.ci-derived-data" # local runs of the CI test targets keep DerivedData here
   - "**/_Deprecated"
 
 # rules
