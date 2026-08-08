@@ -21,6 +21,7 @@ on:
 
 concurrency:
   # Push-to-master style: newer commits cancel older in-flight CI on the same ref.
+  # Warm-cache measurement: a follow-up push should restore DerivedData via restore-keys.
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
