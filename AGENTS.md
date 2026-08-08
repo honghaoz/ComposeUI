@@ -85,3 +85,4 @@ Add short, actionable rules here when a pattern repeats.
 - Newly added code requires full test coverage, including guard/assertion paths and both branches of conditionals. Verify with `swift test --enable-code-coverage` + `xcrun llvm-cov report` on the touched files before claiming done.
 - When making platform behavior claims for AppKit/UIKit, verify both platforms with real tests or explicitly state which platform is unverified.
 - Don't use em-dashes (—) in code comments; use a comma or a hyphen instead.
+- Do not remove iOS/tvOS tests from push CI to chase wall-clock speed. Push-to-master workflow still needs those platform signals; optimize with caching/bootstrap/concurrency instead of dropping coverage.

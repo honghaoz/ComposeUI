@@ -56,12 +56,8 @@ jobs:
           name: ComposeUI
           fail_ci_if_error: true
 
-  # iOS/tvOS simulator jobs dominate wall time on public runners (~5-7m), mostly
-  # boot + cold xcodebuild. For direct pushes to master, keep them off the hot
-  # path and run on schedule / manual dispatch instead.
-  test-simulators:
+  test:
     name: Test
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
