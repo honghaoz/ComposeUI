@@ -1,0 +1,28 @@
+name: cache-ci
+description: "Cache bins, SPM, SwiftPM build products, and Xcode DerivedData across GitHub-hosted runs."
+
+inputs:
+  kind:
+    description: "test, lint, or build"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Cache CI artifacts
+      uses: actions/cache@v4
+      with:
+        # Use github.sha so each push can save a fresh warm cache after compile.
+        # restore-keys fall back to the latest cache for the same Xcode/package pins.
+        path: |
+          bin/jq
+          bin/swiftformat
+          bin/swiftlint
+          bin/xcbeautify
+          ~/Library/Caches/org.swift.swiftpm
+          ComposeUI/.build
+          ComposeUI/.ci-derived-data
+        key: ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ vars.XCODE_VERSION }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions-ci-test', 'bin/.versions-ci-lint') }}-${{ github.sha }}
+        restore-keys: |
+          ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ vars.XCODE_VERSION }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions-ci-test', 'bin/.versions-ci-lint') }}-
+          ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ vars.XCODE_VERSION }}-

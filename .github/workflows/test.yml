@@ -6,6 +6,7 @@ on:
       - master
       - develop
       - ci
+      - cursor/** # experiment branches can gather push timing without opening a PR
   pull_request: # any pull request against any branch
   workflow_dispatch: # manual trigger
   schedule:
@@ -18,6 +19,11 @@ on:
     # * * * * *
     - cron: "30 14 * * *" # every day at 14:30 UTC (6:30 PST, 7:30 PDT)
 
+concurrency:
+  # Push-to-master style: newer commits cancel older in-flight CI on the same ref.
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   TERM: xterm-256color
   DEVELOPER_DIR: /Applications/Xcode_${{ vars.XCODE_VERSION }}.app/Contents/Developer
@@ -29,8 +35,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+      - name: Cache CI artifacts
+        uses: ./.github/actions/cache-ci
+        with:
+          kind: test-macos
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
+        with:
+          profile: test
       - name: Test with Codecov
         run: make test-codecov -C ComposeUI
       - name: Upload code coverage
@@ -54,10 +66,16 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+      - name: Cache CI artifacts
+        uses: ./.github/actions/cache-ci
+        with:
+          kind: test-${{ matrix.platform }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
+        with:
+          profile: test
       # - name: Download visionOS simulator
       #   if: matrix.platform == 'visionOS'
       #   run: xcodebuild -downloadPlatform visionOS
       - name: Test
-        run: make test-${{ matrix.platform }} -C ComposeUI
+        run: make test-${{ matrix.platform }}-ci -C ComposeUI

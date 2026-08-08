@@ -1,5 +1,12 @@
 name: bootstrap
 description: "Bootstrap the project."
+
+inputs:
+  profile:
+    description: "Bootstrap profile: full, test, lint, or build"
+    required: false
+    default: "full"
+
 runs:
   using: "composite"
   steps:
@@ -9,6 +16,8 @@ runs:
     #     xcode-version: latest-stable
     - name: Bootstrap
       shell: bash
+      env:
+        BOOTSTRAP_PROFILE: ${{ inputs.profile }}
       run: make bootstrap
 
 # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#example-using-an-action-in-the-same-repository-as-the-workflow

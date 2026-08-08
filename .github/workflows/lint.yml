@@ -8,8 +8,13 @@ on:
       - master
       - develop
       - ci
+      - cursor/**
   pull_request: # any pull request against any branch
   workflow_dispatch: # manual trigger
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   TERM: xterm-256color
@@ -25,7 +30,13 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+      - name: Cache CI artifacts
+        uses: ./.github/actions/cache-ci
+        with:
+          kind: lint
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
+        with:
+          profile: lint
       - name: Lint
         run: make lint

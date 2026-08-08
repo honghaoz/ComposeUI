@@ -105,12 +105,17 @@ vendor
 scripts/*
 !scripts/bootstrap.sh
 !scripts/download-scripts.sh
+!scripts/ci/
+!scripts/ci/**
 
 # ===== Binaries =====
 bin/jq
 bin/swiftformat
 bin/swiftlint
 bin/xcbeautify
+
+# ===== CI caches =====
+**/.ci-derived-data/
 
 # ===== Temp =====
 .temp

@@ -1,12 +1,7 @@
 name: build
 on:
-  push:
-    branches:
-      - main
-      - master
-      - develop
-      - ci
-  pull_request: # any pull request against any branch
+  # Direct-push workflow: keep release builds off the hot path.
+  # Push CI focuses on lint + test; full Release builds run on schedule / manual.
   workflow_dispatch: # manual trigger
   schedule:
     # ┌───────────── minute (0 - 59)
@@ -17,6 +12,10 @@ on:
     # │ │ │ │ │
     # * * * * *
     - cron: "30 14 * * *" # every day at 14:30 UTC (6:30 PST, 7:30 PDT)
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   TERM: xterm-256color
@@ -29,8 +28,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+      - name: Cache CI artifacts
+        uses: ./.github/actions/cache-ci
+        with:
+          kind: build-root
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
+        with:
+          profile: build
       - name: Build root package
         run: make build
 
@@ -45,8 +50,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+      - name: Cache CI artifacts
+        uses: ./.github/actions/cache-ci
+        with:
+          kind: build-${{ matrix.platform }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
+        with:
+          profile: build
       # - name: Download visionOS simulator
       #   if: matrix.platform == 'visionOS'
       #   run: xcodebuild -downloadPlatform visionOS
