@@ -16,7 +16,9 @@ set -euo pipefail
 # Simulator platforms (iOS/tvOS) split the work into phases so CI can run
 # them as separate workflow steps, which gives per-phase timing in the
 # GitHub UI and API:
-#   prepare - pick a simulator, kick off boot (async), resolve packages
+#   pick    - pick a simulator and record it for later phases
+#   boot    - kick off simulator boot in the background (returns immediately)
+#   resolve - resolve packages
 #   build   - xcodebuild build-for-testing (runs while the simulator boots)
 #   test    - wait for boot, then xcodebuild test-without-building
 #   all     - run all phases in order (default; for local use)
@@ -29,7 +31,7 @@ RESET=$(safe_tput sgr0)
 print_help() {
   echo "${BOLD}OVERVIEW:${RESET} Fast CI tests for a workspace scheme."
   echo ""
-  echo "${BOLD}Usage:${RESET} $0 --workspace-path <path> --scheme <name> --os <iOS|tvOS|macOS> [--phase <prepare|build|test|all>]"
+  echo "${BOLD}Usage:${RESET} $0 --workspace-path <path> --scheme <name> --os <iOS|tvOS|macOS> [--phase <pick|boot|resolve|build|test|all>]"
 }
 
 WORKSPACE_PATH=""
@@ -78,9 +80,9 @@ if [ -z "$WORKSPACE_PATH" ] || [ -z "$SCHEME" ] || [ -z "$OS" ]; then
 fi
 
 case "$PHASE" in
-prepare | build | test | all) ;;
+pick | boot | resolve | build | test | all) ;;
 *)
-  echo "🛑 Invalid --phase: $PHASE (expected prepare|build|test|all)"
+  echo "🛑 Invalid --phase: $PHASE (expected pick|boot|resolve|build|test|all)"
   exit 1
   ;;
 esac
@@ -204,17 +206,21 @@ load_state() {
   DESTINATION="$CI_TEST_DESTINATION"
 }
 
-phase_prepare() {
+phase_pick() {
   pick_device
   echo "📱 Simulator: ${CYAN}$NAME ($OS_VERSION)${RESET}, UDID: $UDID"
-
-  # Kick off boot without waiting. The boot finishes while packages resolve
-  # and the build phase compiles; the test phase waits for readiness.
-  echo "🚀 Booting simulator in the background..."
-  xcrun simctl boot "$UDID" 2>/dev/null || true
-
-  resolve_packages
   save_state
+}
+
+phase_boot() {
+  load_state
+  # simctl boot blocks until the device reaches the Booted state, which takes
+  # minutes for iPhone simulators on CI runners. Detach it so the boot runs
+  # concurrently with the resolve and build phases; the test phase waits for
+  # readiness (and re-boots if this detached boot failed).
+  echo "🚀 Booting simulator in the background: $NAME ($OS_VERSION)..."
+  nohup xcrun simctl boot "$UDID" >/dev/null 2>&1 &
+  echo "✅ Boot kicked off (not waiting)"
 }
 
 phase_build() {
@@ -280,8 +286,14 @@ macOS)
   ;;
 iOS | tvOS)
   case "$PHASE" in
-  prepare)
-    phase_prepare
+  pick)
+    phase_pick
+    ;;
+  boot)
+    phase_boot
+    ;;
+  resolve)
+    resolve_packages
     ;;
   build)
     phase_build
@@ -290,7 +302,9 @@ iOS | tvOS)
     phase_test
     ;;
   all)
-    phase_prepare
+    phase_pick
+    phase_boot
+    resolve_packages
     phase_build
     phase_test
     ;;

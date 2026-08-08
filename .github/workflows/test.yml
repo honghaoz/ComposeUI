@@ -81,10 +81,15 @@ jobs:
       # - name: Download visionOS simulator
       #   if: matrix.platform == 'visionOS'
       #   run: xcodebuild -downloadPlatform visionOS
-      # Phases are separate steps for per-phase timing. The simulator boots in
-      # the background during "Prepare", overlapping the build.
-      - name: Prepare (boot simulator, resolve packages)
-        run: make test-${{ matrix.platform }}-ci PHASE=prepare -C ComposeUI
+      # Phases are separate steps for per-phase timing. The simulator boot is
+      # detached, so it overlaps the resolve and build steps; the test step
+      # waits for boot readiness.
+      - name: Pick simulator
+        run: make test-${{ matrix.platform }}-ci PHASE=pick -C ComposeUI
+      - name: Boot simulator (async)
+        run: make test-${{ matrix.platform }}-ci PHASE=boot -C ComposeUI
+      - name: Resolve packages
+        run: make test-${{ matrix.platform }}-ci PHASE=resolve -C ComposeUI
       - name: Build for testing
         run: make test-${{ matrix.platform }}-ci PHASE=build -C ComposeUI
       - name: Test
