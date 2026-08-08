@@ -39,6 +39,7 @@ jobs:
         uses: ./.github/actions/cache-ci
         with:
           kind: test-macos
+          xcode-version: ${{ vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
         with:
@@ -70,6 +71,7 @@ jobs:
         uses: ./.github/actions/cache-ci
         with:
           kind: test-${{ matrix.platform }}
+          xcode-version: ${{ vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
         with:

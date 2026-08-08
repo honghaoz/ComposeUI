@@ -5,6 +5,9 @@ inputs:
   kind:
     description: "test, lint, or build"
     required: true
+  xcode-version:
+    description: "Xcode version used in the cache key"
+    required: true
 
 runs:
   using: "composite"
@@ -14,6 +17,7 @@ runs:
       with:
         # Use github.sha so each push can save a fresh warm cache after compile.
         # restore-keys fall back to the latest cache for the same Xcode/package pins.
+        # vars.* is unavailable inside composite actions, so xcode-version is passed in.
         path: |
           bin/jq
           bin/swiftformat
@@ -22,7 +26,7 @@ runs:
           ~/Library/Caches/org.swift.swiftpm
           ComposeUI/.build
           ComposeUI/.ci-derived-data
-        key: ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ vars.XCODE_VERSION }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions-ci-test', 'bin/.versions-ci-lint') }}-${{ github.sha }}
+        key: ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ inputs.xcode-version }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions-ci-test', 'bin/.versions-ci-lint') }}-${{ github.sha }}
         restore-keys: |
-          ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ vars.XCODE_VERSION }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions-ci-test', 'bin/.versions-ci-lint') }}-
-          ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ vars.XCODE_VERSION }}-
+          ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ inputs.xcode-version }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions-ci-test', 'bin/.versions-ci-lint') }}-
+          ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ inputs.xcode-version }}-

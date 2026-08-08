@@ -34,6 +34,7 @@ jobs:
         uses: ./.github/actions/cache-ci
         with:
           kind: lint
+          xcode-version: ${{ vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
         with:
