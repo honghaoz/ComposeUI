@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
+
+### Breaking Changes
+
+- `ViewNode` and `LayerNode` intrinsic size closures now receive only the proposed `CGSize`. Capture an external view or layer when its instance is needed for measurement.
+- `ScrollViewType` now requires `clipsToBounds`; custom conformers must implement it.
+- `ComposeView` behavior enums gained new cases, and render debug events now use `ComposeNodeId` and updated event names. Update exhaustive switches and debug handlers as needed.
+- `RenderableTransition` contexts now expose `ComposeView`, and `CALayer.animate` value closures now receive the concrete layer type through `Self`.
+
+### Changes
+
+- Added `map(_:)` transforms to `ComposeNode`.
+- Added layout and render lifecycle callbacks to `ComposeView`.
+- Added renderable reuse APIs and a shared renderable pool.
+- Added `zIndex(_:)` support and fixed view/layer ordering on AppKit.
+- Added manual scroll, scroll indicator, and clipping behaviors.
+- Improved rendering performance with stack culling, render item caching, pooled renderables, and text sizing caches.
+- Improved SwiftUI sizing and safe area handling.
+- Fixed transition cancellation and state restoration when renderables are removed or revived.
+- Fixed text interaction, shadow clipping, and inner shadow fallback rendering.
+- Other various improvements and bug fixes.
+
 ## [0.0.4](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.4) (2026-01-04)
 
 - Optimized text support.
