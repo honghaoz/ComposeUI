@@ -87,3 +87,6 @@ Add short, actionable rules here when a pattern repeats.
 - Don't use em-dashes (—) in code comments; use a comma or a hyphen instead.
 - Do not remove iOS/tvOS tests from push CI to chase wall-clock speed. Push-to-master workflow still needs those platform signals; optimize with caching/bootstrap/concurrency instead of dropping coverage.
 - When profiling CI history, identify and exclude runs affected by known provider outages before drawing conclusions from queue-time outliers.
+- Do not run a standalone `swift package resolve` before xcodebuild workspace tests; xcodebuild resolves pinned packages into DerivedData/SourcePackages itself, so the standalone resolve only duplicates work.
+- On few-core CI runners, do not overlap simulator boot with compilation; both are CPU-heavy and contention makes the total slower than running them serially (build first, then boot).
+- To get CI telemetry without log access, emit `::notice::` workflow commands; they become check-run annotations readable via the public Checks API (capped at 10 annotations per step, so emit before noisy output).
