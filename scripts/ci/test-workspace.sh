@@ -262,12 +262,6 @@ phase_test() {
     xcrun simctl spawn "$UDID" launchctl setenv GITHUB_ACTIONS "${GITHUB_ACTIONS:-true}"
   fi
 
-  # One-off probe: measure how long xcodebuild spends just loading the
-  # workspace and package graph on this runner (the work -xctestrun skips).
-  local probe_start=$SECONDS
-  xcodebuild -workspace "$WORKSPACE_PATH" -scheme "$SCHEME" -destination "$DESTINATION" -showBuildSettings >/dev/null 2>&1 || true
-  notice "probe os=$OS workspace_load_s=$((SECONDS - probe_start))"
-
   echo "➡️  Running $OS tests on ${CYAN}$NAME ($OS_VERSION)${RESET}..."
   run_xcodebuild xcodebuild test-without-building \
     -workspace "$WORKSPACE_PATH" \
