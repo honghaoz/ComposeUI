@@ -90,3 +90,4 @@ Add short, actionable rules here when a pattern repeats.
 - Do not run a standalone `swift package resolve` before xcodebuild workspace tests; xcodebuild resolves pinned packages into DerivedData/SourcePackages itself, so the standalone resolve only duplicates work.
 - On few-core CI runners, do not overlap simulator boot with compilation; both are CPU-heavy and contention makes the total slower than running them serially (build first, then boot).
 - To get CI telemetry without log access, emit `::notice::` workflow commands; they become check-run annotations readable via the public Checks API (capped at 10 annotations per step, so emit before noisy output).
+- Do not recommend a performance optimization from first principles alone; measure the delta first (a local A/B is often enough), because plausible-sounding savings can be ~0 (for example `-xctestrun` vs `-workspace`/`-scheme` for `test-without-building` in this repo).
