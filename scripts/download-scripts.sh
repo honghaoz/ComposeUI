@@ -23,6 +23,7 @@ declare -a scripts=(
   "scripts/git/git-hooks/post-checkout"
   "scripts/git/git-hooks/post-merge"
   "scripts/git/git-hooks/pre-commit"
+  "scripts/git/git-hooks/prepare-commit-msg"
   "scripts/swift-package/build-package-xcodebuild.sh"
   "scripts/swift-package/test-package.sh"
   "scripts/swift-package/test-package-xcodebuild.sh"
