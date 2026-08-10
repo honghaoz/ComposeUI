@@ -232,7 +232,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     textView.isUserInteractionEnabled = false
     textView.backgroundColor = .red
     textView.contentInset = UIEdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
-    textView.scrollIndicatorInsets = UIEdgeInsets(top: 5, left: 6, bottom: 7, right: 8)
+    textView.horizontalScrollIndicatorInsets = UIEdgeInsets(top: 5, left: 6, bottom: 7, right: 8)
+    textView.verticalScrollIndicatorInsets = UIEdgeInsets(top: 5, left: 6, bottom: 7, right: 8)
     textView.setContentOffset(CGPoint(x: 9, y: 10), animated: false)
     textView.isSelectable = true
     textView.selectedRange = NSRange(location: 0, length: 4)
@@ -273,7 +274,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(textView.isUserInteractionEnabled) == true
     expect(textView.backgroundColor == nil) == true
     expect(textView.contentInset) == .zero
-    expect(textView.scrollIndicatorInsets) == .zero
+    expect(textView.horizontalScrollIndicatorInsets) == .zero
+    expect(textView.verticalScrollIndicatorInsets) == .zero
     expect(textView.contentOffset) == .zero
     expect(textView.selectedRange) == NSRange(location: 0, length: 0)
     #endif
