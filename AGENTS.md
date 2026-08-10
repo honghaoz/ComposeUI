@@ -17,7 +17,7 @@ You are an expert iOS/macOS UI developer focused on clean, maintainable declarat
 - `make format` — run SwiftFormat + SwiftLint autocorrect across the repo.
 - `make lint` — run SwiftFormat lint + SwiftLint checks.
 - `make build-playground-macOS` / `make build-playground-iOS` — build playground projects.
-- `make -C ComposeUI build` — build framework workspace in Debug for macOS/iOS/tvOS/visionOS.
+- `make -C ComposeUI build` — build framework package in Debug for macOS/iOS/tvOS/visionOS.
 - `make -C ComposeUI build-release-<platform>` — release build per platform.
 - `make -C ComposeUI test-macOS` / `test-iOS` / `test-tvOS` / `test-visionOS` — run platform tests.
 - `make -C ComposeUI test-codecov` — run SwiftPM tests with coverage output.
@@ -85,3 +85,11 @@ Add short, actionable rules here when a pattern repeats.
 - Newly added code requires full test coverage, including guard/assertion paths and both branches of conditionals. Verify with `swift test --enable-code-coverage` + `xcrun llvm-cov report` on the touched files before claiming done.
 - When making platform behavior claims for AppKit/UIKit, verify both platforms with real tests or explicitly state which platform is unverified.
 - Don't use em-dashes (—) in code comments; use a comma or a hyphen instead.
+- Don't use semicolons in code comments or help text. Use separate sentences or commas instead.
+- Do not remove iOS/tvOS tests from push CI to chase wall-clock speed. Push-to-master workflow still needs those platform signals; optimize with caching/bootstrap/concurrency instead of dropping coverage.
+- When profiling CI history, identify and exclude runs affected by known provider outages before drawing conclusions from queue-time outliers.
+- Do not run a standalone `swift package resolve` before xcodebuild tests; xcodebuild resolves pinned packages into DerivedData/SourcePackages itself, so the standalone resolve only duplicates work.
+- On few-core CI runners, do not overlap simulator boot with compilation; both are CPU-heavy and contention makes the total slower than running them serially (build first, then boot).
+- To get CI telemetry without log access, emit `::notice::` workflow commands; they become check-run annotations readable via the public Checks API (capped at 10 annotations per step, so emit before noisy output).
+- Do not recommend a performance optimization from first principles alone; measure the delta first (a local A/B is often enough), because plausible-sounding savings can be ~0 (for example `-xctestrun` vs `-workspace`/`-scheme` for `test-without-building` in this repo).
+- When rewriting or porting a script, audit the new version against the original behavior by behavior (selection logic, guard conditions, exit codes, environment propagation, output ordering), and disclose every intentional deviation. Do not assume a rewrite is equivalent because the happy path passes.
