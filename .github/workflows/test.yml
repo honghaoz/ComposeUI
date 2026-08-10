@@ -1,3 +1,5 @@
+# This workflow is used to test the packages on all platforms.
+
 name: test
 on:
   push:
@@ -73,9 +75,6 @@ jobs:
           xcode-version: ${{ vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
-      # - name: Download visionOS simulator
-      #   if: matrix.platform == 'visionOS'
-      #   run: xcodebuild -downloadPlatform visionOS
 
       # Phases are separate steps for per-phase timing. The simulator boots at
       # the start of the Test step, after the build: boot and compile are both

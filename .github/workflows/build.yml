@@ -1,3 +1,5 @@
+# This workflow is used to build the root package and the packages in release configuration on all platforms.
+
 name: build
 on:
   workflow_dispatch: # manual trigger
@@ -56,8 +58,5 @@ jobs:
           xcode-version: ${{ vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
-      # - name: Download visionOS simulator
-      #   if: matrix.platform == 'visionOS'
-      #   run: xcodebuild -downloadPlatform visionOS
       - name: Build
         run: make build-release-${{ matrix.platform }} -C ComposeUI
