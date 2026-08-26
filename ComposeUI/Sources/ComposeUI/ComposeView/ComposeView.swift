@@ -1023,10 +1023,9 @@ open class ComposeView: BaseScrollView {
               // re-insertion may not have an insert transition to overwrite the remove transition's model residue
               // (e.g. a faded-out model opacity), so undo the residue here via `resetForReuse`.
               //
-              // the in-flight animations are deliberately kept (instead of calling `removeAllAnimations()`):
-              // the built-in transitions animate additively, so a leftover remove animation composes with the
-              // restored model value (and with a new insert transition's animation, if any), letting the
-              // renderable reverse naturally from its current visual state instead of snapping.
+              // the in-flight animations are left alone here. the revival site decides their fate: they are kept when
+              // an insert transition runs, so additive animations compose and reverse naturally from the current visual
+              // state, and removed otherwise, so the renderable snaps cleanly to its resting state.
               // a transition whose animations don't compose additively should remove them in its `resetForReuse`.
               removeTransition.resetForReuse(renderable: oldRenderable)
 
@@ -1158,11 +1157,24 @@ open class ComposeView: BaseScrollView {
         // [3/3] 🆕 insert the renderable item that is new
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
+        // the insert transition that will animate this insertion, if any.
+        let insertTransition = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior) ? renderableItem.transition?.insert : nil
+
         if let removingRenderable = removingRenderableMap[id] {
           // found a matching removing renderable, should add it back to the renderable hierarchy
           removingRenderableTransitionCompletionMap[id]?.cancel() // cancel the remove transition's completion
           removingRenderableMap.removeValue(forKey: id)
           removingRenderableTransitionCompletionMap.removeValue(forKey: id)
+
+          if insertTransition == nil {
+            // no insert transition will animate this revival, so nothing composes with the remove transition's in-flight
+            // animations. if they were kept, an additive leftover would glide the renderable around its restored resting
+            // state (a visible overshoot for unclamped properties like position), so drop the root-layer animations for
+            // a clean snap to the resting state instead.
+            // sublayer animations belong to the renderable's own content and are left alone.
+            removingRenderable.layer.removeAllAnimations()
+          }
+
           renderable = removingRenderable
         } else if let reuseKey = renderableItem.reuseKey, let pooledRenderable = renderablePool?.dequeue(reuseKey) {
           // reuse a pooled renderable of the same kind instead of creating a new one
@@ -1199,7 +1211,7 @@ open class ComposeView: BaseScrollView {
         renderableItem.update(renderable, renderableUpdateContext)
 
         let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame, contentView: self)
-        if context.shouldAnimate(contentView: self, animationBehavior: animationBehavior), let transition = renderableItem.transition?.insert {
+        if let insertTransition {
           // has insert transition, animate the renderable insertion
 
           // the completion is tracked as a cancellable block so that removing the renderable while the transition is
@@ -1225,7 +1237,7 @@ open class ComposeView: BaseScrollView {
 
           insertingRenderableTransitionCompletionMap[id] = completion
 
-          transition.animate(
+          insertTransition.animate(
             renderable: renderable,
             context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, contentView: self),
             completion: completion.execute
