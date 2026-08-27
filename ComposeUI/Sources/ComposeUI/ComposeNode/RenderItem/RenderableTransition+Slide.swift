@@ -43,8 +43,10 @@ public extension RenderableTransition {
 
   /// Creates a slide transition.
   ///
-  /// For insertion, the renderable starts outside the content view on the `from` side (with `overshoot` applied) and slides into `targetFrame`.
-  /// For removal, the renderable slides from its current frame to outside the content view on the `to` side (or `from` when `to` is nil).
+  /// For insertion, the renderable starts outside the content view on the `from` side (with `overshoot` applied) and
+  /// slides into `targetFrame`.
+  /// For removal, the renderable slides from its current frame to outside the content view on the `to` side (or `from`
+  /// when `to` is nil).
   ///
   /// - Parameters:
   ///   - from: The side of the slide transition to slide from.
