@@ -393,6 +393,36 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
+  func test_removeTransition_resetForReuse() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let layer = TestLayer()
+    layer.frame = Constants.targetFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .top,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try transition.remove.unwrap()
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+    expect(layer.animationKeys()) == ["position"]
+
+    // an animation the transition didn't add, e.g. a persistent content animation owned by the renderable
+    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
+    spinAnimation.duration = 60
+    layer.add(spinAnimation, forKey: "spin")
+
+    // the reset removes the slide's in-flight position animations and leaves other animations alone.
+    // the model position isn't restored: it is layout-owned and the next layout pass sets it.
+    removeTransition.resetForReuse(renderable: renderable)
+
+    expect(layer.animation(forKey: "position")) == nil
+    expect(layer.animation(forKey: "spin")) != nil
+  }
+
   // MARK: - ComposeView Integration
 
   func test_composeViewIntegration() throws {

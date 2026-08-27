@@ -150,6 +150,9 @@ open class ComposeView: BaseScrollView {
   /// The removing renderables are the ones that are not in the renderable hierarchy but still rendered due to the transition.
   private var removingRenderableMap: [ComposeNodeId: Renderable] = [:]
 
+  /// The map of the removing renderables' remove transitions, for undoing a cancelled removal's residue.
+  private var removingRenderableRemoveTransitionMap: [ComposeNodeId: RenderableTransition.RemoveTransition] = [:]
+
   /// The map of the removing renderable transition completion blocks.
   private var removingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] = [:]
 
@@ -996,6 +999,7 @@ open class ComposeView: BaseScrollView {
             // if there's a remove transition, it can take time to complete, we need to track the old renderable until the
             // transition is completed because the renderable may be re-inserted into the renderable hierarchy later
             removingRenderableMap[oldId] = oldRenderable
+            removingRenderableRemoveTransitionMap[oldId] = removeTransition
 
             let completion = CancellableBlock { [weak self] in
               ComposeUI.assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
@@ -1004,6 +1008,7 @@ open class ComposeView: BaseScrollView {
               }
 
               self.removingRenderableMap.removeValue(forKey: oldId)
+              self.removingRenderableRemoveTransitionMap.removeValue(forKey: oldId)
               self.removingRenderableTransitionCompletionMap.removeValue(forKey: oldId)
 
               removeBlock()
@@ -1017,17 +1022,8 @@ open class ComposeView: BaseScrollView {
                 return
               }
               self.removingRenderableMap.removeValue(forKey: oldId)
+              self.removingRenderableRemoveTransitionMap.removeValue(forKey: oldId)
               self.removingRenderableTransitionCompletionMap.removeValue(forKey: oldId)
-
-              // the renderable is being revived (re-inserted while the remove transition is in flight). the
-              // re-insertion may not have an insert transition to overwrite the remove transition's model residue
-              // (e.g. a faded-out model opacity), so undo the residue here via `resetForReuse`.
-              //
-              // the in-flight animations are left alone here. the revival site decides their fate: they are kept when
-              // an insert transition runs, so additive animations compose and reverse naturally from the current visual
-              // state, and removed otherwise, so the renderable snaps cleanly to its resting state.
-              // a transition whose animations don't compose additively should remove them in its `resetForReuse`.
-              removeTransition.resetForReuse(renderable: oldRenderable)
 
               #if DEBUG
               debug?.onEvent(.renderDidCancelRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
@@ -1162,18 +1158,23 @@ open class ComposeView: BaseScrollView {
 
         if let removingRenderable = removingRenderableMap[id] {
           // found a matching removing renderable, should add it back to the renderable hierarchy
+          let removeTransition = removingRenderableRemoveTransitionMap[id]
           removingRenderableTransitionCompletionMap[id]?.cancel() // cancel the remove transition's completion
           removingRenderableMap.removeValue(forKey: id)
+          removingRenderableRemoveTransitionMap.removeValue(forKey: id)
           removingRenderableTransitionCompletionMap.removeValue(forKey: id)
 
+          // the cancelled removal's residue (in-flight animations and a model value written towards the removed state,
+          // e.g. a faded-out model opacity) is undone by whoever takes over the renderable.
           if insertTransition == nil {
-            // no insert transition will animate this revival, so nothing composes with the remove transition's in-flight
-            // animations. if they were kept, an additive leftover would glide the renderable around its restored resting
-            // state (a visible overshoot for unclamped properties like position), so drop the root-layer animations for
-            // a clean snap to the resting state instead.
-            // sublayer animations belong to the renderable's own content and are left alone.
-            removingRenderable.layer.removeAllAnimations()
+            // no insert transition will run, so the remove transition's `resetForReuse` undoes the residue, both the
+            // model values and the in-flight animations it added, so the renderable snaps cleanly to its resting state.
+            // unrelated animations (e.g. the renderable's own content animations) survive the revival, consistent with
+            // how a non-animated render pass treats every other renderable.
+            removeTransition?.resetForReuse(renderable: removingRenderable)
           }
+          // otherwise the insert transition takes over: it observes the live in-flight state (kept animations and the
+          // untouched model value) and establishes its own animation and model value from it.
 
           renderable = removingRenderable
         } else if let reuseKey = renderableItem.reuseKey, let pooledRenderable = renderablePool?.dequeue(reuseKey) {
@@ -1383,6 +1384,10 @@ open class ComposeView: BaseScrollView {
 
     var removingRenderableMap: [ComposeNodeId: Renderable] {
       host.removingRenderableMap
+    }
+
+    var removingRenderableRemoveTransitionMap: [ComposeNodeId: RenderableTransition.RemoveTransition] {
+      host.removingRenderableRemoveTransitionMap
     }
 
     var removingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] {

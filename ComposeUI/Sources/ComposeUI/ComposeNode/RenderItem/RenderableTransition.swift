@@ -88,16 +88,19 @@ public struct RenderableTransition {
     ///   - animate: The closure to animate the remove transition.
     ///              The closure provides the renderable to remove, the animation context, and the completion block.
     ///              You **MUST** make sure to call the completion block when the transition is completed.
-    ///   - resetForReuse: A closure that undoes any presentation residue this transition leaves on the renderable.
-    ///                    For example, an opacity transition fades the renderable out, may leave the model opacity at
-    ///                    the faded value. If the removed renderable opts into reuse, the closure is called before
-    ///                    recycling it, so the renderable could be reused in the same state a freshly made renderable would have.
+    ///   - resetForReuse: A closure that undoes any residue this transition leaves on the renderable, both the model
+    ///                    values it wrote (e.g. a faded-out model opacity) and the in-flight animations it added.
+    ///                    Only undo this transition's own residue: animations the transition didn't add (e.g. the
+    ///                    renderable's own content animations) must be left alone.
+    ///                    If the removed renderable opts into reuse, the closure is called before recycling it, so the
+    ///                    renderable could be reused in the same state a freshly made renderable would have.
     ///                    The closure is also called when a removing renderable is revived (re-inserted while the remove
-    ///                    transition is in flight). On a revival with an insert transition, in-flight animations are kept
-    ///                    so that additive animations can compose and reverse naturally. On a revival without an insert
-    ///                    transition, the framework removes the renderable's root-layer animations to snap it to its
-    ///                    resting state. If this transition's animations don't compose additively, or the paired insert
-    ///                    transition doesn't animate the same properties, remove the animations in this closure.
+    ///                    transition is in flight) without an insert transition, so the renderable snaps to its resting
+    ///                    state. On a revival with an insert transition, the insert transition takes over instead: it
+    ///                    observes the live in-flight state and establishes its own animation and model value from it,
+    ///                    so this closure is not called. If the paired insert transition doesn't take over this
+    ///                    transition's properties, remove the leftover animations and model residue in the insert
+    ///                    transition.
     public init(animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
                 resetForReuse: ((_ renderable: Renderable) -> Void)? = nil)
     {
@@ -150,12 +153,12 @@ public struct RenderableTransition {
 
   /// Creates a new renderable transition with the given insert and remove transitions.
   ///
-  /// The insert transition should animate every property the remove transition animates. When a removing
-  /// renderable is revived (re-inserted while the remove transition is in flight), the in-flight remove
-  /// animations are kept so the insert transition can compose with them. A leftover animation on a property
-  /// the insert transition doesn't animate is never compensated, so it glides the renderable around its
-  /// resting state (a visible overshoot for unclamped properties like position). For such a pairing, the
-  /// remove transition's `resetForReuse` should also remove the animations it added.
+  /// The insert transition should take over every property the remove transition animates. When a removing renderable
+  /// is revived (re-inserted while the remove transition is in flight) with an insert transition, the in-flight remove
+  /// animations and the model residue are left for the insert transition to take over, either by composing with them or
+  /// by replacing them. A leftover on a property the insert transition doesn't take over is never compensated, so it
+  /// strands the renderable away from its resting state. For such a pairing, the insert transition should also undo the
+  /// remove transition's leftovers.
   ///
   /// - Parameters:
   ///   - insert: The insert transition.

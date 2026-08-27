@@ -18,11 +18,13 @@
 		E5C5BB302D94706700F79668 /* Playground+TextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C5BB2F2D94706700F79668 /* Playground+TextView.swift */; };
 		E5D034792D7E1B9C004AB25D /* RotationNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D034782D7E1B9C004AB25D /* RotationNode.swift */; };
 		E5D0347B2D7E2CFE004AB25D /* RotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D0347A2D7E2CFE004AB25D /* RotationView.swift */; };
+		639549D6DDD6494D9517996F /* AdditiveOpacityDemoWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8118B1CCA194E5984DC78DE /* AdditiveOpacityDemoWindow.swift */; };
 		E5D636D72D7D01560080A152 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D62D7D01560080A152 /* Colors.swift */; };
 		E5D636DB2D7D016D0080A152 /* Playground+FrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */; };
 		E5D636DC2D7D016D0080A152 /* Playground.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D636D82D7D016D0080A152 /* Playground.swift */; };
 		E5EA9B302D06CD2900570DF1 /* ComposeUI in Frameworks */ = {isa = PBXBuildFile; productRef = E5EA9B2F2D06CD2900570DF1 /* ComposeUI */; };
 		E5ED82002D8785AD00B3FE3A /* Playground+TransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */; };
+		D16BF3001FE4495099A8F9B3 /* Playground+TransitionRevivalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CCF14AA829B44068B356550 /* Playground+TransitionRevivalView.swift */; };
 		E5ED82022D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ED82012D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift */; };
 		E5F25D7D2D9A503000183721 /* Playground+ShadowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F25D7C2D9A503000183721 /* Playground+ShadowView.swift */; };
 		E5F901F82D8DF4CC00BFE2EE /* Playground+LabelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F901F72D8DF4CC00BFE2EE /* Playground+LabelView.swift */; };
@@ -42,10 +44,12 @@
 		E5C5BB2F2D94706700F79668 /* Playground+TextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TextView.swift"; sourceTree = "<group>"; };
 		E5D034782D7E1B9C004AB25D /* RotationNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotationNode.swift; sourceTree = "<group>"; };
 		E5D0347A2D7E2CFE004AB25D /* RotationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotationView.swift; sourceTree = "<group>"; };
+		C8118B1CCA194E5984DC78DE /* AdditiveOpacityDemoWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdditiveOpacityDemoWindow.swift; sourceTree = "<group>"; };
 		E5D636D62D7D01560080A152 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Colors.swift; path = "../ComposeUIPlayground-iOS/ComposeUIPlayground-iOS/Colors.swift"; sourceTree = SOURCE_ROOT; };
 		E5D636D82D7D016D0080A152 /* Playground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Playground.swift; sourceTree = "<group>"; };
 		E5D636D92D7D016D0080A152 /* Playground+FrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+FrameView.swift"; sourceTree = "<group>"; };
 		E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionView.swift"; sourceTree = "<group>"; };
+		9CCF14AA829B44068B356550 /* Playground+TransitionRevivalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionRevivalView.swift"; sourceTree = "<group>"; };
 		E5ED82012D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+AnimatingComposeView.swift"; sourceTree = "<group>"; };
 		E5F25D7C2D9A503000183721 /* Playground+ShadowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+ShadowView.swift"; sourceTree = "<group>"; };
 		E5F901F72D8DF4CC00BFE2EE /* Playground+LabelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+LabelView.swift"; sourceTree = "<group>"; };
@@ -87,6 +91,7 @@
 				E59D80902CA8DFD3006A6467 /* ViewController.swift */,
 				E5D034782D7E1B9C004AB25D /* RotationNode.swift */,
 				E5D0347A2D7E2CFE004AB25D /* RotationView.swift */,
+				C8118B1CCA194E5984DC78DE /* AdditiveOpacityDemoWindow.swift */,
 				E5D636D62D7D01560080A152 /* Colors.swift */,
 				E5D636DA2D7D016D0080A152 /* PlaygroundViews */,
 				E59D80922CA8DFD4006A6467 /* Assets.xcassets */,
@@ -112,6 +117,7 @@
 				021EAA012E2F5A680094431C /* Playground+LayersView.swift */,
 				E58BA09B2DCC82FC00333061 /* Playground+Button.swift */,
 				E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */,
+				9CCF14AA829B44068B356550 /* Playground+TransitionRevivalView.swift */,
 				E504D9682D8B2BFF00FC20F8 /* Playground+SwiftUIView.swift */,
 				E5F901F72D8DF4CC00BFE2EE /* Playground+LabelView.swift */,
 				E5C5BB2F2D94706700F79668 /* Playground+TextView.swift */,
@@ -205,7 +211,9 @@
 				E5C5BB302D94706700F79668 /* Playground+TextView.swift in Sources */,
 				E5F25D7D2D9A503000183721 /* Playground+ShadowView.swift in Sources */,
 				E5ED82002D8785AD00B3FE3A /* Playground+TransitionView.swift in Sources */,
+				D16BF3001FE4495099A8F9B3 /* Playground+TransitionRevivalView.swift in Sources */,
 				E5D0347B2D7E2CFE004AB25D /* RotationView.swift in Sources */,
+				639549D6DDD6494D9517996F /* AdditiveOpacityDemoWindow.swift in Sources */,
 				E59D80912CA8DFD3006A6467 /* ViewController.swift in Sources */,
 				E5D636D72D7D01560080A152 /* Colors.swift in Sources */,
 				E5ED82022D87B02D00B3FE3A /* Playground+AnimatingComposeView.swift in Sources */,

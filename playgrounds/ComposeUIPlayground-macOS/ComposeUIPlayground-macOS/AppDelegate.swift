@@ -34,6 +34,7 @@ import Cocoa
 class AppDelegate: NSObject, NSApplicationDelegate {
 
   private var window: NSWindow?
+  private var additiveOpacityDemoWindow: AdditiveOpacityDemoWindow?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
 
@@ -56,6 +57,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     window.makeKeyAndOrderFront(nil)
 
     self.window = window
+
+    let demoWindow = AdditiveOpacityDemoWindow()
+    demoWindow.window?.orderFront(nil)
+    additiveOpacityDemoWindow = demoWindow
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {
