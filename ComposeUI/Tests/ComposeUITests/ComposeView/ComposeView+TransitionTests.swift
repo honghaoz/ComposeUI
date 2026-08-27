@@ -77,13 +77,11 @@ class ComposeView_TransitionTests: XCTestCase {
 
     // before the removal completion, the renderable is still in the removingRenderableMap
     expect(contentView.test.removingRenderableMap.count) == 1
-    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 1
 
     removalCompletion?()
 
     // after the removal completion, the renderable is removed from the removingRenderableMap
     expect(contentView.test.removingRenderableMap.count) == 0
-    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 0
   }
 
   func test_reinsertRemovingRenderable() {
@@ -115,7 +113,6 @@ class ComposeView_TransitionTests: XCTestCase {
 
     // before the removal completion, the renderable is still in the removingRenderableMap
     expect(contentView.test.removingRenderableMap.count) == 1
-    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 1
 
     // reinsert the renderable
     contentView.setContent {
@@ -126,7 +123,6 @@ class ComposeView_TransitionTests: XCTestCase {
 
     // the renderable is not in the removingRenderableMap
     expect(contentView.test.removingRenderableMap.count) == 0
-    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 0
 
     removalCompletion?()
     insertionCompletion?()
@@ -416,7 +412,7 @@ class ComposeView_TransitionTests: XCTestCase {
 
     // the remove transition is in flight: a single additive animation fading the rendered opacity from 1 towards the
     // model value 0.
-    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.layer)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
     expect(layer.opacity) == 0
     let removeAnimationKey = try unwrap(
       layer.animationKeys()?.first { (layer.animation(forKey: $0) as? CABasicAnimation)?.keyPath == "opacity" }
@@ -453,8 +449,6 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(insertAnimation.toValue as? Float) == 0
 
     expect(contentView.test.removingRenderableMap.count) == 0
-    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 0
-    expect(contentView.test.removingRenderableRemoveTransitionMap.count) == 0
   }
 
   func test_reinsertRemovingRenderable_ignoresIsFixed() {
@@ -487,7 +481,6 @@ class ComposeView_TransitionTests: XCTestCase {
     }
     contentView.refresh(animated: true)
     expect(contentView.test.removingRenderableMap.count) == 1
-    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 1
 
     // re-insert the same string id, but FIXED
     contentView.setContent {
@@ -497,7 +490,6 @@ class ComposeView_TransitionTests: XCTestCase {
 
     // the parked renderable was matched by its string id and revived, despite the isFixed difference
     expect(contentView.test.removingRenderableMap.count) == 0
-    expect(contentView.test.removingRenderableTransitionCompletionMap.count) == 0
 
     removalCompletion?()
   }
