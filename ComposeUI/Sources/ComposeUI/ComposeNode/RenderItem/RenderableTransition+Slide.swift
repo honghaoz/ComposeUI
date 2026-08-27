@@ -123,11 +123,6 @@ public extension RenderableTransition {
               })
             }
           )
-        },
-        resetForReuse: { renderable in
-          // the model position is layout-owned and is restored by the next layout pass, so only the in-flight slide
-          // animations need to be removed.
-          renderable.layer.removeBasicAnimations(forKeyPath: "position")
         }
       ) : nil
     )

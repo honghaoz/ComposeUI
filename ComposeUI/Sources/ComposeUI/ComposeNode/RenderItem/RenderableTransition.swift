@@ -104,6 +104,9 @@ public struct RenderableTransition {
     /// the reviving insert transition's `takesOverKeyPaths`: when every animated key path is taken over, the removal's
     /// residue is left for the insert transition to continue from, otherwise `resetForReuse` undoes it. An empty set
     /// means the animated properties are unknown, so a revival always resets.
+    ///
+    /// `resetForReuse(renderable:)` removes the root-layer animations of these key paths, so a reset transition leaves
+    /// no in-flight animations behind.
     public let animatedKeyPaths: Set<String>
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
@@ -117,15 +120,13 @@ public struct RenderableTransition {
     ///   - animate: The closure to animate the remove transition.
     ///     The closure provides the renderable to remove, the animation context, and the completion block.
     ///     You **MUST** make sure to call the completion block when the transition is completed.
-    ///   - resetForReuse: A closure that undoes any residue this transition leaves on the renderable, both the model
-    ///     values it wrote (e.g. a faded-out model opacity) and the in-flight animations of the properties it animates.
-    ///     A transition owns its animated properties on the renderable's root layer, so remove all animations of those
-    ///     key paths, and leave animations of other properties alone (e.g. the renderable's own content animations).
-    ///     If the removed renderable opts into reuse, the closure is called before recycling it, so the renderable
-    ///     could be reused in the same state a freshly made renderable would have.
-    ///     The closure is also called when a removing renderable is revived (re-inserted while the remove transition is
-    ///     in flight), so the renderable snaps to its resting state, unless the reviving insert transition takes over
-    ///     every animated key path and continues from the live in-flight state instead.
+    ///   - resetForReuse: A closure that undoes the model values this transition wrote (e.g. a faded-out model opacity).
+    ///     The framework removes the root-layer animations of `animatedKeyPaths` before the closure runs, so the closure
+    ///     only restores model values. If the removed renderable opts into reuse, the reset is performed before
+    ///     recycling it, so the renderable could be reused in the same state a freshly made renderable would have.
+    ///     The reset is also performed when a removing renderable is revived (re-inserted while the remove transition
+    ///     is in flight), so the renderable snaps to its resting state, unless the reviving insert transition takes
+    ///     over every animated key path and continues from the live in-flight state instead.
     public init(animatedKeyPaths: Set<String> = [],
                 animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
                 resetForReuse: ((_ renderable: Renderable) -> Void)? = nil)
@@ -145,10 +146,17 @@ public struct RenderableTransition {
       animate(renderable, context, completion)
     }
 
-    /// Resets the renderable before it is reused.
+    /// Resets the renderable to the state a freshly made renderable would have.
+    ///
+    /// Removes the renderable's root-layer animations of `animatedKeyPaths`, leaving other properties' animations alone
+    /// (e.g. the renderable's own content animations), then undoes the model values this transition wrote via the
+    /// `resetForReuse` closure.
     ///
     /// - Parameter renderable: The renderable to reset.
     public func resetForReuse(renderable: Renderable) {
+      for keyPath in animatedKeyPaths {
+        renderable.layer.removeAnimations(forKeyPath: keyPath)
+      }
       resetForReuse?(renderable)
     }
   }

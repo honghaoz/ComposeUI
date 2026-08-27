@@ -508,4 +508,52 @@ class CALayer_AnimationsTests: XCTestCase {
     // then should still use next sequential number
     expect(layer.uniqueAnimationKey(key: "position")) == "position-1"
   }
+
+  // MARK: - Key Path Animations
+
+  func test_basicAnimations_forKeyPath() {
+    let layer = CALayer()
+
+    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
+    fadeAnimation.duration = 60
+    layer.add(fadeAnimation, forKey: "fade")
+
+    // a keyframe animation on the same key path is not a basic animation
+    let keyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
+    keyframeAnimation.duration = 60
+    layer.add(keyframeAnimation, forKey: "keyframe-fade")
+
+    // a basic animation on a different key path doesn't match
+    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
+    spinAnimation.duration = 60
+    layer.add(spinAnimation, forKey: "spin")
+
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(animations.first?.keyPath) == "opacity"
+  }
+
+  func test_removeAnimations_forKeyPath() {
+    let layer = CALayer()
+
+    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
+    fadeAnimation.duration = 60
+    layer.add(fadeAnimation, forKey: "fade")
+
+    // a keyframe animation on the same key path is also removed
+    let keyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
+    keyframeAnimation.duration = 60
+    layer.add(keyframeAnimation, forKey: "keyframe-fade")
+
+    // an animation on a different key path survives
+    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
+    spinAnimation.duration = 60
+    layer.add(spinAnimation, forKey: "spin")
+
+    layer.removeAnimations(forKeyPath: "opacity")
+
+    expect(layer.animation(forKey: "fade")) == nil
+    expect(layer.animation(forKey: "keyframe-fade")) == nil
+    expect(layer.animation(forKey: "spin")) != nil
+  }
 }

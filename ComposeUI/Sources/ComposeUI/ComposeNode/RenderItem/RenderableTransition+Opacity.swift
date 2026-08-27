@@ -80,7 +80,6 @@ public extension RenderableTransition {
         },
         resetForReuse: { renderable in
           renderable.layer.cancelPendingOpacityRetarget()
-          renderable.layer.removeBasicAnimations(forKeyPath: "opacity")
           renderable.layer.setKeyPathValue("opacity", Float(1))
         }
       ) : nil
@@ -171,7 +170,7 @@ private extension CALayer {
       self.pendingOpacityRetarget = nil
 
       let interrupted = self.interruptedOpacityState()
-      self.removeBasicAnimations(forKeyPath: "opacity")
+      self.removeAnimations(forKeyPath: "opacity")
 
       let start = interrupted?.value ?? freshStartValue(self)
       let delta = start - targetValue
