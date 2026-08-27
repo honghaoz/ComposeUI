@@ -40,7 +40,16 @@ extension CABasicAnimation {
   /// the value interpolates `fromValue` to `toValue` by that progress.
   /// The elapsed time is scaled by the animation's `speed` and clamped to the animation's duration.
   ///
-  /// - Parameter time: The time in the animation's time space, compared against `beginTime`.
+  /// The value is computed analytically instead of reading `presentation()`: a presentation snapshot reflects the last
+  /// committed frame rather than the evaluation time, is unreliable for layers outside a committed layer tree, and
+  /// cannot provide a rate of change.
+  ///
+  /// The supported animation shapes are the ones ComposeUI transitions produce: `timeOffset`, `repeatCount`, and
+  /// `autoreverses` are not evaluated.
+  ///
+  /// - Parameter time: The time in the animation's time space, compared against `beginTime`. An animation with an
+  ///   unset (zero) `beginTime` hasn't been scheduled by Core Animation yet (it is resolved when the transaction
+  ///   commits), so it evaluates at zero elapsed time.
   /// - Returns: The scalar value at `time`. `nil` when `fromValue` or `toValue` is not a scalar number.
   func scalarValue(at time: TimeInterval) -> Double? {
     guard let from = (fromValue as? NSNumber)?.doubleValue,
@@ -49,7 +58,7 @@ extension CABasicAnimation {
       return nil
     }
 
-    let elapsed = max(0, min((time - beginTime) * TimeInterval(speed), duration))
+    let elapsed = beginTime == 0 ? 0 : max(0, min((time - beginTime) * TimeInterval(speed), duration))
 
     let progress: Double
     if duration > 0 {
