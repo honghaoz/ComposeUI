@@ -50,38 +50,47 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
   }
 
   func test_scalarValue_nilTimingFunction_isLinear() throws {
-    let animation = makeAnimation(from: 0, to: 1, duration: 2, beginTime: 0)
+    let animation = makeAnimation(from: 0, to: 1, duration: 2, beginTime: 100)
 
-    expect(try unwrap(animation.scalarValue(at: 1))).to(beApproximatelyEqual(to: 0.5, within: 1e-9))
+    expect(try unwrap(animation.scalarValue(at: 101))).to(beApproximatelyEqual(to: 0.5, within: 1e-9))
   }
 
   func test_scalarValue_easeInEaseOut() throws {
-    let animation = makeAnimation(from: 0, to: 1, duration: 2, beginTime: 0, timingFunction: CAMediaTimingFunction(name: .easeInEaseOut))
+    let animation = makeAnimation(from: 0, to: 1, duration: 2, beginTime: 100, timingFunction: CAMediaTimingFunction(name: .easeInEaseOut))
 
-    expect(animation.scalarValue(at: 0)) == 0
-    expect(animation.scalarValue(at: 2)) == 1
+    expect(animation.scalarValue(at: 100)) == 0
+    expect(animation.scalarValue(at: 102)) == 1
 
     // the curve is symmetric, so the midpoint maps to 0.5
-    expect(try unwrap(animation.scalarValue(at: 1))).to(beApproximatelyEqual(to: 0.5, within: 1e-6))
+    expect(try unwrap(animation.scalarValue(at: 101))).to(beApproximatelyEqual(to: 0.5, within: 1e-6))
 
     // ease in: slower than linear at the start, faster than linear near the end
-    expect(try unwrap(animation.scalarValue(at: 0.5))) < 0.25
-    expect(try unwrap(animation.scalarValue(at: 1.5))) > 0.75
+    expect(try unwrap(animation.scalarValue(at: 100.5))) < 0.25
+    expect(try unwrap(animation.scalarValue(at: 101.5))) > 0.75
   }
 
   func test_scalarValue_speed() throws {
-    let animation = makeAnimation(from: 0, to: 1, duration: 4, beginTime: 0, timingFunction: CAMediaTimingFunction(name: .linear))
+    let animation = makeAnimation(from: 0, to: 1, duration: 4, beginTime: 100, timingFunction: CAMediaTimingFunction(name: .linear))
     animation.speed = 2
 
-    expect(try unwrap(animation.scalarValue(at: 1))).to(beApproximatelyEqual(to: 0.5, within: 1e-9))
-    expect(animation.scalarValue(at: 2)) == 1
+    expect(try unwrap(animation.scalarValue(at: 101))).to(beApproximatelyEqual(to: 0.5, within: 1e-9))
+    expect(animation.scalarValue(at: 102)) == 1
   }
 
   func test_scalarValue_zeroDuration() {
-    let animation = makeAnimation(from: 0, to: 1, duration: 0, beginTime: 0)
+    let animation = makeAnimation(from: 0, to: 1, duration: 0, beginTime: 100)
+
+    expect(animation.scalarValue(at: 100)) == 1
+    expect(animation.scalarValue(at: 110)) == 1
+  }
+
+  func test_scalarValue_unresolvedBeginTime_evaluatesAtZeroElapsedTime() throws {
+    // an animation with an unset begin time hasn't been scheduled by Core Animation yet (the begin time is resolved
+    // when the transaction commits), so it evaluates at zero elapsed time regardless of the query time.
+    let animation = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 0, timingFunction: CAMediaTimingFunction(name: .linear))
 
     expect(animation.scalarValue(at: 0)) == 1
-    expect(animation.scalarValue(at: 10)) == 1
+    expect(animation.scalarValue(at: CACurrentMediaTime())) == 1
   }
 
   func test_scalarValue_nonScalarValues() {
@@ -98,14 +107,14 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     let animation = try unwrap(CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(descriptor))) as? CASpringAnimation)
     animation.fromValue = 1.0
     animation.toValue = 0.0
-    animation.beginTime = 0
+    animation.beginTime = 100
 
-    expect(animation.scalarValue(at: 0)) == 1
+    expect(animation.scalarValue(at: 100)) == 1
 
     // monotonically decays from 1 to 0 without overshoot
     var previous = 1.0
     for sample in stride(from: 0.05, through: animation.duration, by: 0.05) {
-      let value = try unwrap(animation.scalarValue(at: sample))
+      let value = try unwrap(animation.scalarValue(at: 100 + sample))
       expect(value) <= previous
       expect(value) >= 0
       previous = value
@@ -118,14 +127,14 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     let animation = try unwrap(CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(descriptor))) as? CASpringAnimation)
     animation.fromValue = 1.0
     animation.toValue = 0.0
-    animation.beginTime = 0
+    animation.beginTime = 100
 
-    expect(animation.scalarValue(at: 0)) == 1
+    expect(animation.scalarValue(at: 100)) == 1
 
     // a lightly damped spring passes the target
     var minimum = 1.0
     for sample in stride(from: 0.01, through: animation.duration, by: 0.01) {
-      let value = try unwrap(animation.scalarValue(at: sample))
+      let value = try unwrap(animation.scalarValue(at: 100 + sample))
       minimum = min(minimum, value)
     }
     expect(minimum) < 0
@@ -138,12 +147,12 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     let animation = try unwrap(CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(descriptor, duration: 2))) as? CASpringAnimation)
     animation.fromValue = 1.0
     animation.toValue = 0.0
-    animation.beginTime = 0
+    animation.beginTime = 100
 
     // monotonically decays from 1 towards 0 without overshoot
     var previous = 1.0
     for sample in stride(from: 0.05, through: 2, by: 0.05) {
-      let value = try unwrap(animation.scalarValue(at: sample))
+      let value = try unwrap(animation.scalarValue(at: 100 + sample))
       expect(value) <= previous
       expect(value) >= 0
       previous = value
@@ -155,15 +164,15 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     let still = try unwrap(CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(SpringDescriptor(dampingRatio: 1, response: 0.4)))) as? CASpringAnimation)
     still.fromValue = 1.0
     still.toValue = 0.0
-    still.beginTime = 0
+    still.beginTime = 100
 
     let moving = try unwrap(CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(SpringDescriptor(dampingRatio: 1, response: 0.4, initialVelocity: 5)))) as? CASpringAnimation)
     moving.fromValue = 1.0
     moving.toValue = 0.0
-    moving.beginTime = 0
+    moving.beginTime = 100
 
     // a positive initial velocity moves towards the target faster
-    expect(try unwrap(moving.scalarValue(at: 0.1))) < (try unwrap(still.scalarValue(at: 0.1)))
+    expect(try unwrap(moving.scalarValue(at: 100.1))) < (try unwrap(still.scalarValue(at: 100.1)))
   }
 
   // MARK: - Parity with Core Animation's private _solveForInput:
@@ -182,10 +191,9 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
 
     for timingFunction in timingFunctions {
       for fraction in stride(from: 0.0, through: 1.0, by: 0.01) {
-        let expected = try unwrap(
-          timingFunction.privateSolveForInput(fraction),
-          "Core Animation's private _solveForInput: is unavailable, the parity is unverified"
-        )
+        guard let expected = timingFunction.privateSolveForInput(fraction) else {
+          throw XCTSkip("Core Animation's private _solveForInput: is unavailable, see test_solveForInput_privateImplementationIsAvailable")
+        }
         expect(timingFunction.solveForInput(fraction)).to(beApproximatelyEqual(to: expected, within: 1e-4))
       }
     }
@@ -215,13 +223,19 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
       animation.duration = animation.settlingDuration
 
       for fraction in stride(from: 0.0, through: 1.0, by: 0.01) {
-        let expected = try unwrap(
-          animation.privateSolveForInput(fraction),
-          "Core Animation's private _solveForInput: is unavailable, the parity is unverified"
-        )
+        guard let expected = animation.privateSolveForInput(fraction) else {
+          throw XCTSkip("Core Animation's private _solveForInput: is unavailable, see test_solveForInput_privateImplementationIsAvailable")
+        }
         expect(animation.solveForInput(fraction)).to(beApproximatelyEqual(to: expected, within: 1e-3))
       }
     }
+  }
+
+  func test_solveForInput_privateImplementationIsAvailable() {
+    // the parity tests skip when the private implementation is unavailable, so this canary fails loudly to flag that
+    // the parity is no longer being verified and the assumptions need to be re-established.
+    expect(CAMediaTimingFunction(name: .linear).privateSolveForInput(0.5)) != nil
+    expect(CASpringAnimation(keyPath: "opacity").privateSolveForInput(0.5)) != nil
   }
 
   private func makeAnimation(from: Double, to: Double, duration: TimeInterval, beginTime: TimeInterval, timingFunction: CAMediaTimingFunction? = nil) -> CABasicAnimation {
@@ -241,18 +255,24 @@ private extension NSObject {
 
   /// Calls Core Animation's private `_solveForInput:` on the receiver.
   ///
-  /// Both `CAMediaTimingFunction`'s and `CASpringAnimation`'s implementations take and return `float` (type encoding `f20@0:8f16`).
+  /// Both `CAMediaTimingFunction`'s and `CASpringAnimation`'s implementations take and return `float`. The method's
+  /// type encoding is validated before the call, so an implementation with a changed signature is treated as
+  /// unavailable instead of being called through a mismatched convention.
   ///
   /// - Parameter value: The input value to solve for.
-  /// - Returns: The solved value, or `nil` when the receiver doesn't implement `_solveForInput:`.
+  /// - Returns: The solved value, or `nil` when the receiver doesn't implement `_solveForInput:` with the expected
+  ///   signature.
   func privateSolveForInput(_ value: Double) -> Double? {
     let selector = Selector(("_solveForInput:"))
-    guard responds(to: selector) else {
+    guard let method = class_getInstanceMethod(type(of: self), selector),
+          let encoding = method_getTypeEncoding(method).map(String.init(cString:)),
+          encoding.filter({ !$0.isNumber }) == "f@:f"
+    else {
       return nil
     }
 
     typealias Method = @convention(c) (AnyObject, Selector, Float) -> Float
-    let method = unsafeBitCast(self.method(for: selector), to: Method.self)
-    return Double(method(self, selector, Float(value)))
+    let implementation = unsafeBitCast(method_getImplementation(method), to: Method.self)
+    return Double(implementation(self, selector, Float(value)))
   }
 }
