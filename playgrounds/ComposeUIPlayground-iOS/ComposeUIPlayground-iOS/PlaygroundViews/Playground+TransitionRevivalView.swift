@@ -42,20 +42,87 @@ extension Playground {
 
   /// An interactive insert/remove page for verifying transition revivals.
   ///
-  /// The transitions run slowly so a removal can be interrupted mid-flight: an animated re-insert
-  /// reverses from the current visual state, a non-animated re-insert snaps to the resting state.
+  /// The transitions run slowly so a removal can be interrupted mid-flight, and the transition button cycles
+  /// through the kinds that revive differently: a fade retargets from the interrupted opacity, a same-side slide
+  /// continues the interrupted motion, and a cross-side slide snaps to the resting position before sliding in.
+  /// A non-animated re-insert always snaps to the resting state.
   ///
   /// The page logs button taps, the box renderable's lifecycle events, and a continuous sample of
   /// the box layer's model and presentation values, so a manual test session can be diagnosed from
   /// the console output.
   final class TransitionRevivalView: ComposeView {
 
+    /// The transition to verify, cycled through by the page's transition button.
+    private enum TransitionKind: CaseIterable {
+
+      /// A fade, which retargets from the interrupted opacity on a revival.
+      case opacity
+
+      /// A slide that enters from the side it exits to, which continues the interrupted motion on a revival.
+      case slide
+
+      /// A slide that enters from a different side than it exits to. Its entry offset doesn't cancel the leftover
+      /// exit offset, so it doesn't take over an in-flight removal: a revival snaps to the resting position before
+      /// sliding in.
+      case crossSideSlide
+
+      var title: String {
+        switch self {
+        case .opacity:
+          return "opacity"
+        case .slide:
+          return "slide (left ⇄ left)"
+        case .crossSideSlide:
+          return "slide (left → right)"
+        }
+      }
+
+      /// The animated property, for logging the relevant layer values.
+      var animatesPosition: Bool {
+        switch self {
+        case .opacity:
+          return false
+        case .slide,
+             .crossSideSlide:
+          return true
+        }
+      }
+
+      var transition: RenderableTransition {
+        switch self {
+        case .opacity:
+          return .opacity(timing: .spring(dampingRatio: 0.8, response: 3))
+        case .slide:
+          return .slide(from: .left, timing: .easeInEaseOut(duration: 3))
+        case .crossSideSlide:
+          return .slide(from: .left, to: .right, timing: .easeInEaseOut(duration: 3))
+        }
+      }
+
+      /// The next kind in the cycle.
+      var next: TransitionKind {
+        let kinds = Self.allCases
+        // swiftlint:disable:next force_unwrapping
+        let index = kinds.firstIndex(of: self)!
+        return kinds[(index + 1) % kinds.count]
+      }
+    }
+
     private var isShowing = true
-    private var usesSlide = false
+    private var transitionKind: TransitionKind = .opacity
 
     private weak var boxLayer: CALayer?
     private var samplingTimer: Timer?
     private var lastSampleLine: String?
+
+    /// Whether the box layer can be tracked, which requires the content view's DEBUG-only debug events.
+    private var isSamplingSupported: Bool {
+      #if DEBUG
+      return true
+      #else
+      return false
+      #endif
+    }
 
     @ComposeContentBuilder
     override var content: ComposeContent {
@@ -63,11 +130,7 @@ extension Playground {
         VStack {
           if isShowing {
             ColorNode(Colors.blueGray)
-              .transition(
-                usesSlide
-                  ? .slide(from: .left, timing: .easeInEaseOut(duration: 3))
-                  : .opacity(timing: .spring(dampingRatio: 0.8, response: 3))
-              )
+              .transition(transitionKind.transition)
               .frame(width: 160, height: 64)
               .id("box")
               .frame(.flexible, alignment: .center)
@@ -100,12 +163,12 @@ extension Playground {
         }
         .frame(width: .flexible, height: 36)
 
-        button(title: usesSlide ? "Transition: slide" : "Transition: opacity") { [weak self] in
+        button(title: "Transition: \(transitionKind.title)") { [weak self] in
           guard let self else {
             return
           }
-          self.usesSlide.toggle()
-          self.log("TAP transition kind -> \(self.usesSlide ? "slide" : "opacity")")
+          self.transitionKind = self.transitionKind.next
+          self.log("TAP transition kind -> \(self.transitionKind.title)")
           self.refresh(animated: false)
         }
         .frame(width: .flexible, height: 36)
@@ -175,8 +238,11 @@ extension Playground {
     }
 
     /// Runs the sampling timer while the view is in a window.
+    ///
+    /// The box layer is tracked through the content view's debug events, which are DEBUG-only, so sampling only has
+    /// something to report in a DEBUG build.
     private func updateSampling() {
-      guard window != nil else {
+      guard isSamplingSupported, window != nil else {
         samplingTimer?.invalidate()
         samplingTimer = nil
         return
@@ -212,7 +278,7 @@ extension Playground {
       let pointer = String(describing: Unmanaged.passUnretained(layer).toOpaque())
       let model: String
       let presentation: String
-      if usesSlide {
+      if transitionKind.animatesPosition {
         model = "position = \(format(layer.position))"
         presentation = "presentationPosition = \(layer.presentation().map { format($0.position) } ?? "nil")"
       } else {

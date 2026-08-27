@@ -48,6 +48,12 @@ public extension RenderableTransition {
   /// For removal, the renderable slides from its current frame to outside the content view on the `to` side (or `from`
   /// when `to` is nil).
   ///
+  /// Reviving a renderable while its slide-out is in flight continues the motion: the insertion's entry offset cancels
+  /// the leftover exit offset, so the rendered position doesn't jump, and both additive animations decay into the
+  /// resting position. The two offsets only cancel when the renderable enters from the side it exits to, so a
+  /// transition that slides out to a different side than it slides in from doesn't take over an in-flight removal, and
+  /// a revival snaps to the resting position before sliding in.
+  ///
   /// - Parameters:
   ///   - from: The side of the slide transition to slide from.
   ///   - to: The side of the slide transition to slide to for removal. Defaults to `from` when nil.
@@ -60,8 +66,9 @@ public extension RenderableTransition {
                     timing: AnimationTiming = .spring(),
                     options: RenderableTransition.Options = .both) -> Self
   {
-    RenderableTransition(
-      insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: ["position"]) { renderable, context, completion in
+    let entersFromExitSide = (toSide ?? fromSide) == fromSide
+    return RenderableTransition(
+      insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: entersFromExitSide ? ["position"] : []) { renderable, context, completion in
         let layer = renderable.layer
         let targetFrame = context.targetFrame
 
