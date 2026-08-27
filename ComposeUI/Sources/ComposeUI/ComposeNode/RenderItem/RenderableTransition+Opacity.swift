@@ -55,13 +55,7 @@ public extension RenderableTransition {
       insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: ["opacity"]) { renderable, context, completion in
         renderable.setFrame(context.targetFrame)
 
-        let layer = renderable.layer
-        if timing.delay > 0, layer.basicAnimations(forKeyPath: "opacity").isEmpty {
-          // a delayed fresh insertion shows the renderable before its animation starts, so hide it at the start value
-          // for the delay window.
-          layer.setKeyPathValue("opacity", Float(from))
-        }
-        layer.retargetOpacity(
+        renderable.layer.retargetOpacity(
           freshStartValue: { _ in Float(from) },
           targetValue: Float(to),
           timing: timing,
@@ -96,8 +90,7 @@ private extension AnimationTiming {
   /// convention (positive moves towards the target, in full from-to distances per second), so the spring's derived
   /// duration accounts for the carried velocity.
   ///
-  /// The velocity is dropped for a tiny from-to distance: the normalized velocity diverges as the distance approaches
-  /// zero, and continuing a sub-1% opacity distance with momentum is imperceptible anyway.
+  /// The velocity is dropped for a from-to distance below `RetargetConstants.velocityCarryMinimumDelta`.
   ///
   /// - Parameters:
   ///   - velocity: The interrupted rate of change, in value units per second. `nil` when nothing was interrupted.
@@ -107,7 +100,7 @@ private extension AnimationTiming {
     let retargetTiming: Timing
     switch timing {
     case .spring(let descriptor, let duration):
-      if let velocity, abs(delta) > 0.01, speed > 0 {
+      if let velocity, abs(delta) > RetargetConstants.velocityCarryMinimumDelta, speed > 0 {
         let initialVelocity = CGFloat(-velocity) / (CGFloat(delta) * speed)
         let descriptor = SpringDescriptor(
           initialVelocity: initialVelocity,
@@ -142,13 +135,14 @@ private extension CALayer {
 
   /// Replaces any in-flight opacity animations with a single additive animation towards `targetValue`.
   ///
-  /// When in-flight opacity animations exist, the new animation continues from the opacity they currently show.
-  /// For a spring timing, it also continues with their current velocity, through the spring's initial velocity.
-  /// Without in-flight animations, the new animation starts from `freshStartValue`.
+  /// When an opacity transition is in flight (running animations, or a delayed retargeting still waiting to start),
+  /// the new animation continues from the opacity the layer currently shows. For a spring timing, it also continues
+  /// with the current velocity, through the spring's initial velocity. Without an in-flight transition, the new
+  /// animation starts from `freshStartValue`, and a delayed one holds the model opacity at that start value for the
+  /// delay window.
   ///
   /// - Parameters:
-  ///   - freshStartValue: The opacity to start from when no opacity animation is in flight. Evaluated when the
-  ///     animation actually starts, after the timing's delay.
+  ///   - freshStartValue: The opacity to start from when no opacity transition is in flight.
   ///   - targetValue: The opacity to animate to. Also set as the model value.
   ///   - timing: The timing for the animation. The delay defers the retargeting itself, so the interrupted state is
   ///     evaluated when the animation actually starts. A retargeting that starts while an earlier one is still waiting
@@ -159,9 +153,19 @@ private extension CALayer {
                        timing: AnimationTiming,
                        completion: @escaping () -> Void)
   {
+    // an opacity transition is in flight when animations are running, or when a delayed retarget is still waiting to
+    // start (it hasn't animated anything yet, so the model opacity is the visual state to continue from)
+    let isInFlight = pendingOpacityRetarget != nil || !basicAnimations(forKeyPath: "opacity").isEmpty
+
     // a pending delayed retarget is superseded: if it fired later, it would tear down this retarget's animation and
     // complete this transition with stale values.
     cancelPendingOpacityRetarget()
+
+    if timing.delay > 0, !isInFlight {
+      // a delayed fresh transition shows the renderable at its model value before the animation starts, so hold it at
+      // the start value for the delay window.
+      setKeyPathValue("opacity", freshStartValue(self))
+    }
 
     pendingOpacityRetarget = delay(timing.delay) { [weak self] in
       guard let self else {
@@ -172,7 +176,7 @@ private extension CALayer {
       let interrupted = self.interruptedOpacityState()
       self.removeAnimations(forKeyPath: "opacity")
 
-      let start = interrupted?.value ?? freshStartValue(self)
+      let start = interrupted?.value ?? (isInFlight ? self.opacity : freshStartValue(self))
       let delta = start - targetValue
 
       self.animate(
@@ -194,10 +198,12 @@ private extension CALayer {
   /// Evaluates the in-flight opacity animations.
   ///
   /// The transition owns the renderable layer's opacity, so every opacity animation on the layer is treated as an
-  /// in-flight transition: additive animations contribute their evaluated value on top of the model value.
+  /// in-flight transition. The animations compose in their key order, the same way Core Animation applies them: a
+  /// non-additive animation replaces the composed value, and an additive animation contributes on top of it.
   ///
   /// - Returns: The composed opacity and its rate of change in opacity per second, or `nil` when no opacity animation
-  ///   is in flight.
+  ///   is in flight. The value is clamped to opacity's rendered [0, 1] range, and the rate is zero when it would push
+  ///   past a saturated bound, because motion past a bound isn't visible and carries no momentum.
   func interruptedOpacityState() -> (value: Float, velocity: Double)? {
     let opacityAnimations = basicAnimations(forKeyPath: "opacity")
     guard !opacityAnimations.isEmpty else {
@@ -205,17 +211,32 @@ private extension CALayer {
     }
 
     let now = convertTime(CACurrentMediaTime(), from: nil)
-    let velocitySamplingInterval: TimeInterval = 1 / 240
 
-    var value = Double(opacity)
-    var earlierValue = Double(opacity)
-    for animation in opacityAnimations where animation.isAdditive {
-      value += animation.scalarValue(at: now) ?? 0
-      earlierValue += animation.scalarValue(at: now - velocitySamplingInterval) ?? 0
+    func composedValue(at time: TimeInterval) -> Double {
+      var value = Double(opacity)
+      for animation in opacityAnimations {
+        guard let animationValue = animation.scalarValue(at: time) else {
+          ComposeUI.assertFailure("unsupported in-flight opacity animation: \(animation)")
+          continue
+        }
+        if animation.isAdditive {
+          value += animationValue
+        } else {
+          value = animationValue
+        }
+      }
+      return value
     }
 
+    let value = composedValue(at: now)
+    let earlierValue = composedValue(at: now - RetargetConstants.velocitySamplingInterval)
+
     let clampedValue = max(0, min(value, 1))
-    return (Float(clampedValue), (value - earlierValue) / velocitySamplingInterval)
+    var velocity = (value - earlierValue) / RetargetConstants.velocitySamplingInterval
+    if (clampedValue == 0 && velocity < 0) || (clampedValue == 1 && velocity > 0) {
+      velocity = 0
+    }
+    return (Float(clampedValue), velocity)
   }
 
   /// Cancels the pending delayed opacity retarget, if any.
@@ -223,4 +244,16 @@ private extension CALayer {
     pendingOpacityRetarget?.cancel()
     pendingOpacityRetarget = nil
   }
+}
+
+private enum RetargetConstants {
+
+  /// The minimum from-to distance for carrying the interrupted velocity into a spring retarget.
+  ///
+  /// The normalized velocity diverges as the distance approaches zero, and continuing a sub-1% opacity distance with
+  /// momentum is imperceptible anyway.
+  static let velocityCarryMinimumDelta: Float = 0.01
+
+  /// The finite-difference interval for sampling the interrupted rate of change.
+  static let velocitySamplingInterval: TimeInterval = 1 / 240
 }

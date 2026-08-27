@@ -188,7 +188,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 1, within: 0.01))
   }
 
-  func test_retarget_ignoresNonAdditiveAndNonScalarContributions() throws {
+  func test_retarget_nonAdditiveAnimationReplacesBase() throws {
     let layer = CALayer()
     layer.opacity = 0.6
 
@@ -199,20 +199,14 @@ class RenderableTransition_OpacityTests: XCTestCase {
     positionAnimation.duration = 10
     layer.add(positionAnimation, forKey: "position.x")
 
-    // a non-additive opacity animation is replaced without contributing
-    let nonAdditive = CABasicAnimation(keyPath: "opacity")
-    nonAdditive.fromValue = 0.0
-    nonAdditive.toValue = 1.0
-    nonAdditive.duration = 10
-    layer.add(nonAdditive, forKey: "opacity")
-
-    // a non-scalar additive opacity animation is replaced without contributing
-    let nonScalar = CABasicAnimation(keyPath: "opacity")
-    nonScalar.fromValue = "not a number"
-    nonScalar.toValue = "not a number"
-    nonScalar.duration = 10
-    nonScalar.isAdditive = true
-    layer.add(nonScalar, forKey: "opacity-nonscalar")
+    // a non-additive opacity animation halfway through, showing 0.5: it replaces the model value (0.6) as the base
+    let nonAdditiveAnimation = CABasicAnimation(keyPath: "opacity")
+    nonAdditiveAnimation.fromValue = 0.0
+    nonAdditiveAnimation.toValue = 1.0
+    nonAdditiveAnimation.duration = 10
+    nonAdditiveAnimation.timingFunction = CAMediaTimingFunction(name: .linear)
+    nonAdditiveAnimation.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - 5
+    layer.add(nonAdditiveAnimation, forKey: "opacity")
 
     let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5))
     try unwrap(transition.remove).animate(
@@ -221,13 +215,73 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    // the retarget starts from the model value since no animation contributes
+    // the retarget starts from the opacity the non-additive animation was showing, not the model value
     let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1
-    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.6, within: 1e-6))
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.5, within: 0.01))
 
     // the position animation is untouched
     expect(layer.animation(forKey: "position.x")) != nil
+  }
+
+  func test_retarget_unsupportedAnimationAsserts() throws {
+    let layer = CALayer()
+    layer.opacity = 0.6
+
+    // an opacity animation with non-scalar values can't be evaluated
+    let nonScalarAnimation = CABasicAnimation(keyPath: "opacity")
+    nonScalarAnimation.fromValue = "not a number"
+    nonScalarAnimation.toValue = "not a number"
+    nonScalarAnimation.duration = 10
+    nonScalarAnimation.isAdditive = true
+    layer.add(nonScalarAnimation, forKey: "opacity-nonscalar")
+
+    var assertionMessage: String?
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessage = message
+    }
+
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5))
+    try unwrap(transition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+
+    Assert.resetTestAssertionFailureHandler()
+
+    // the unsupported animation is flagged and skipped: the retarget starts from the model value
+    expect(assertionMessage?.hasPrefix("unsupported in-flight opacity animation")) == true
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.6, within: 1e-6))
+  }
+
+  func test_retarget_velocityAtSaturatedBound_isDropped() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    // an additive animation rising halfway through: the composite (1.25) is clamped to 1, and its rising motion
+    // pushes past the saturated bound, so it isn't visible and carries no momentum
+    let risingAnimation = CABasicAnimation(keyPath: "opacity")
+    risingAnimation.fromValue = 0.0
+    risingAnimation.toValue = 0.5
+    risingAnimation.duration = 10
+    risingAnimation.timingFunction = CAMediaTimingFunction(name: .linear)
+    risingAnimation.isAdditive = true
+    risingAnimation.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - 5
+    layer.add(risingAnimation, forKey: "opacity")
+
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .spring())
+    try unwrap(transition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+
+    let spring = try unwrap(layer.basicAnimations(forKeyPath: "opacity").first as? CASpringAnimation)
+    expect(try unwrap(spring.fromValue as? Float)).to(beApproximatelyEqual(to: 1, within: 0.01))
+    expect(spring.initialVelocity) == 0
   }
 
   func test_delayedTransition_releasedLayer() {
@@ -429,6 +483,63 @@ class RenderableTransition_OpacityTests: XCTestCase {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
     expect(layer.opacity) == 0
     expect(insertCompletionCallCount) == 0
+  }
+
+  func test_delayedRetarget_supersededPendingRetarget_continuesFromCurrentOpacity() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    // a delayed remove schedules its retarget: nothing is animating yet, the layer still shows its model opacity
+    let removeTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5, delay: 0.5))
+    try unwrap(removeTransition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+    expect(layer.opacity) == 1
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
+
+    // an insert supersedes the pending remove before it fires: the layer is still fully visible, so the insert
+    // continues from the current opacity (a no-op fade from 1 to 1) instead of restarting from its fresh start
+    // value (a snap to 0 followed by a fade-in)
+    let insertTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5))
+    try unwrap(insertTransition.insert).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
+      completion: {}
+    )
+
+    expect(layer.opacity) == 1
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(animations.first?.fromValue as? Float)) == 0
+  }
+
+  func test_delayedInsert_withPendingRetarget_keepsCurrentModelDuringDelay() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    // a delayed remove schedules its retarget: nothing is animating yet
+    let removeTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5, delay: 0.5))
+    try unwrap(removeTransition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+
+    // a delayed insert supersedes the pending remove: the transition is in flight (pending), so the insert must not
+    // hold the layer at its fresh start value (0), the layer keeps showing its current opacity for the delay window
+    let insertTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5, delay: 0.1))
+    try unwrap(insertTransition.insert).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
+      completion: {}
+    )
+    expect(layer.opacity) == 1
+
+    // past both delay windows, the cancelled remove never fired and the insert continued from the current opacity
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.7))
+    expect(layer.opacity) == 1
   }
 
   func test_delayedRetarget_cancelledByResetForReuse_doesNotFire() throws {
