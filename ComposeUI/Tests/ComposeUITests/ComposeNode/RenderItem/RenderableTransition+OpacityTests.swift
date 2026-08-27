@@ -293,6 +293,66 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(layer.opacity).toEventually(beEqual(to: 1))
   }
 
+  func test_delayedRetarget_supersededByNewRetarget_doesNotFire() throws {
+    let layer = CALayer()
+    layer.opacity = 0
+
+    // an in-flight removal, halfway through
+    addInFlightAdditiveAnimation(to: layer, from: 1, progress: 0.5)
+
+    // a delayed insert schedules its retarget for after the delay window
+    var insertCompletionCallCount = 0
+    let insertTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.1))
+    insertTransition.insert?.animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
+      completion: { insertCompletionCallCount += 1 }
+    )
+
+    // a remove interrupts during the delay window, superseding the pending insert retarget
+    let removeTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5))
+    try unwrap(removeTransition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+    expect(layer.opacity) == 0
+    expect(opacityAnimations(on: layer).count) == 1
+
+    // past the delay window, the superseded insert retarget must not fire: it would tear down the remove's
+    // animation, complete the removal with stale values, and set the model to its own target (1).
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+    expect(layer.opacity) == 0
+    expect(insertCompletionCallCount) == 0
+  }
+
+  func test_delayedRetarget_cancelledByResetForReuse_doesNotFire() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    // a delayed remove schedules its retarget for after the delay window
+    var removeCompletionCallCount = 0
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.1))
+    let removeTransition = try unwrap(transition.remove)
+    removeTransition.animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: { removeCompletionCallCount += 1 }
+    )
+
+    // the renderable is reset during the delay window (e.g. recycled to the pool, or revived without an insert
+    // transition), cancelling the pending retarget
+    removeTransition.resetForReuse(renderable: .layer(layer))
+    expect(layer.opacity) == 1
+
+    // past the delay window, the cancelled remove retarget must not fire: it would fade the reset renderable
+    // towards its own target (0).
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+    expect(layer.opacity) == 1
+    expect(opacityAnimations(on: layer).count) == 0
+    expect(removeCompletionCallCount) == 0
+  }
+
   /// Adds an in-flight additive opacity animation with a known progress to `layer`.
   ///
   /// The animation is linear from `from` to 0, with its begin time set in the past so its current contribution is

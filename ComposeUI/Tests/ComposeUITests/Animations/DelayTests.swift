@@ -41,12 +41,13 @@ class DelayTests: XCTestCase {
     var isExecuted = false
     let startTime = CACurrentMediaTime()
     var delayTime: CFTimeInterval = 0
-    delay(0.01) {
+    let timer = delay(0.01) {
       let endTime = CACurrentMediaTime()
       delayTime = endTime - startTime
       expect(Thread.isMainThread) == true
       isExecuted = true
     }
+    expect(timer) != nil
     expect(isExecuted) == false
     expect(isExecuted).toEventually(beTrue(), timeout: 0.05)
     expect(delayTime).to(beApproximatelyEqual(to: 0.01, within: 1e-2))
@@ -54,19 +55,48 @@ class DelayTests: XCTestCase {
 
   func test_negativeDelay() {
     var isExecuted = false
-    delay(-0.01) {
+    let timer = delay(-0.01) {
       expect(Thread.isMainThread) == true
       isExecuted = true
     }
+    expect(timer) == nil
     expect(isExecuted) == true
   }
 
   func test_zeroDelay() {
     var isExecuted = false
-    delay(0) {
+    let timer = delay(0) {
       expect(Thread.isMainThread) == true
       isExecuted = true
     }
+    expect(timer) == nil
     expect(isExecuted) == true
+  }
+
+  func test_cancel_beforeDeadline() {
+    var isExecuted = false
+    let timer = delay(0.02) {
+      isExecuted = true
+    }
+    timer?.cancel()
+
+    // past the deadline, the cancelled task must not execute
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.06))
+    expect(isExecuted) == false
+  }
+
+  func test_cancel_afterDeadline_beforeExecution() {
+    var isExecuted = false
+    let timer = delay(0.02) {
+      isExecuted = true
+    }
+
+    // let the deadline pass without servicing the main queue, so the timer has fired but the task hasn't
+    // executed yet: cancelling still aborts the task
+    Thread.sleep(forTimeInterval: 0.06)
+    timer?.cancel()
+
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.06))
+    expect(isExecuted) == false
   }
 }

@@ -78,6 +78,7 @@ public extension RenderableTransition {
           )
         },
         resetForReuse: { renderable in
+          renderable.layer.cancelPendingOpacityRetarget()
           renderable.layer.removeInFlightOpacityAnimations()
           renderable.layer.disableActions(for: "opacity") {
             renderable.layer.opacity = 1
@@ -101,17 +102,23 @@ private extension CALayer {
   ///     animation actually starts, after the timing's delay.
   ///   - targetValue: The opacity to animate to. Also set as the model value.
   ///   - timing: The timing for the animation. The delay defers the retargeting itself, so the interrupted state is
-  ///     evaluated when the animation actually starts.
+  ///     evaluated when the animation actually starts. A retargeting that starts while an earlier one is still
+  ///     waiting out its delay supersedes the earlier one.
   ///   - completion: The block called when the animation completes.
   func retargetOpacity(freshStartValue: @escaping (CALayer) -> Float,
                        targetValue: Float,
                        timing: AnimationTiming,
                        completion: @escaping () -> Void)
   {
-    delay(timing.delay) { [weak self] in
+    // a pending delayed retarget is superseded: if it fired later, it would tear down this retarget's animation
+    // and complete this transition with stale values.
+    cancelPendingOpacityRetarget()
+
+    pendingOpacityRetarget = delay(timing.delay) { [weak self] in
       guard let self else {
         return
       }
+      self.pendingOpacityRetarget = nil
 
       let interrupted = self.interruptedOpacityState()
 
@@ -194,4 +201,22 @@ private extension CALayer {
       removeAnimation(forKey: key)
     }
   }
+
+  /// The timer of a delayed opacity retarget that hasn't started yet.
+  var pendingOpacityRetarget: DispatchSourceTimer? {
+    get {
+      objc_getAssociatedObject(self, &pendingOpacityRetargetKey) as? DispatchSourceTimer
+    }
+    set {
+      objc_setAssociatedObject(self, &pendingOpacityRetargetKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
+  }
+
+  /// Cancels the pending delayed opacity retarget, if any.
+  func cancelPendingOpacityRetarget() {
+    pendingOpacityRetarget?.cancel()
+    pendingOpacityRetarget = nil
+  }
 }
+
+private var pendingOpacityRetargetKey: UInt8 = 0

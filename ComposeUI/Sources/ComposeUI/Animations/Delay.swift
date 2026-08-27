@@ -34,11 +34,14 @@ import Foundation
 ///
 /// - Parameters:
 ///   - delay: The delay of the animation.
-///   - task: The task to be executed after the delay, on the main thread.
-func delay(_ delay: TimeInterval, task: @escaping () -> Void) {
+///   - task: The task to be executed after the delay, on the main thread. Executed inline when `delay` is not positive.
+/// - Returns: The timer driving the delayed execution, which can be cancelled to abort the task, including when the
+///   deadline has already passed but the task hasn't executed yet. `nil` when the task was executed inline.
+@discardableResult
+func delay(_ delay: TimeInterval, task: @escaping () -> Void) -> DispatchSourceTimer? {
   guard delay > 0 else {
     task()
-    return
+    return nil
   }
 
   let timer = DispatchSource.makeTimerSource(flags: .strict, queue: .main)
@@ -48,4 +51,5 @@ func delay(_ delay: TimeInterval, task: @escaping () -> Void) {
     timer.cancel()
   }
   timer.resume()
+  return timer
 }
