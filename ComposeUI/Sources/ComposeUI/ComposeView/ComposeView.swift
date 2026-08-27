@@ -145,16 +145,23 @@ open class ComposeView: BaseScrollView {
   /// The map of the renderables that are being rendered.
   private var renderableMap: [ComposeNodeId: Renderable] = [:]
 
+  /// A renderable with an in-flight removal.
+  struct RemovingRenderable {
+
+    /// The renderable being removed.
+    let renderable: Renderable
+
+    /// The transition animating the removal.
+    let removeTransition: RenderableTransition.RemoveTransition
+
+    /// The removal completion. Executing it finalizes the removal, cancelling it revives the renderable.
+    let completion: CancellableBlock
+  }
+
   /// The map of the renderables that are being removed.
   ///
   /// The removing renderables are the ones that are not in the renderable hierarchy but still rendered due to the transition.
-  private var removingRenderableMap: [ComposeNodeId: Renderable] = [:]
-
-  /// The map of the removing renderables' remove transitions, for undoing a cancelled removal's residue.
-  private var removingRenderableRemoveTransitionMap: [ComposeNodeId: RenderableTransition.RemoveTransition] = [:]
-
-  /// The map of the removing renderable transition completion blocks.
-  private var removingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] = [:]
+  private var removingRenderableMap: [ComposeNodeId: RemovingRenderable] = [:]
 
   /// The map of the inserting renderable transition completion blocks.
   private var insertingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] = [:]
@@ -996,11 +1003,6 @@ open class ComposeView: BaseScrollView {
           }
 
           if let removeTransition {
-            // if there's a remove transition, it can take time to complete, we need to track the old renderable until the
-            // transition is completed because the renderable may be re-inserted into the renderable hierarchy later
-            removingRenderableMap[oldId] = oldRenderable
-            removingRenderableRemoveTransitionMap[oldId] = removeTransition
-
             let completion = CancellableBlock { [weak self] in
               ComposeUI.assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
               guard let self else {
@@ -1008,8 +1010,6 @@ open class ComposeView: BaseScrollView {
               }
 
               self.removingRenderableMap.removeValue(forKey: oldId)
-              self.removingRenderableRemoveTransitionMap.removeValue(forKey: oldId)
-              self.removingRenderableTransitionCompletionMap.removeValue(forKey: oldId)
 
               removeBlock()
 
@@ -1021,16 +1021,21 @@ open class ComposeView: BaseScrollView {
               guard let self else {
                 return
               }
+
               self.removingRenderableMap.removeValue(forKey: oldId)
-              self.removingRenderableRemoveTransitionMap.removeValue(forKey: oldId)
-              self.removingRenderableTransitionCompletionMap.removeValue(forKey: oldId)
 
               #if DEBUG
               debug?.onEvent(.renderDidCancelRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
               #endif
             }
 
-            removingRenderableTransitionCompletionMap[oldId] = completion
+            // if there's a remove transition, it can take time to complete, we need to track the old renderable until
+            // the transition is completed because the renderable may be re-inserted into the renderable hierarchy later
+            removingRenderableMap[oldId] = RemovingRenderable(
+              renderable: oldRenderable,
+              removeTransition: removeTransition,
+              completion: completion
+            )
 
             #if DEBUG
             debug?.onEvent(.renderWillRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
@@ -1157,12 +1162,9 @@ open class ComposeView: BaseScrollView {
         let insertTransition = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior) ? renderableItem.transition?.insert : nil
 
         if let removingRenderable = removingRenderableMap[id] {
-          // found a matching removing renderable, should add it back to the renderable hierarchy
-          let removeTransition = removingRenderableRemoveTransitionMap[id]
-          removingRenderableTransitionCompletionMap[id]?.cancel() // cancel the remove transition's completion
-          removingRenderableMap.removeValue(forKey: id)
-          removingRenderableRemoveTransitionMap.removeValue(forKey: id)
-          removingRenderableTransitionCompletionMap.removeValue(forKey: id)
+          // found a matching removing renderable, should add it back to the renderable hierarchy.
+          // cancelling the completion cancels the removal and clears it from `removingRenderableMap`.
+          removingRenderable.completion.cancel()
 
           // the cancelled removal's residue (in-flight animations and a model value written towards the removed state,
           // e.g. a faded-out model opacity) is undone by whoever takes over the renderable: an insert transition that
@@ -1172,10 +1174,10 @@ open class ComposeView: BaseScrollView {
           // animate (e.g. the renderable's own content animations) survive the revival either way, consistent with
           // how a non-animated render pass treats every other renderable.
           if insertTransition?.takesOverInFlightRemoval != true {
-            removeTransition?.resetForReuse(renderable: removingRenderable)
+            removingRenderable.removeTransition.resetForReuse(renderable: removingRenderable.renderable)
           }
 
-          renderable = removingRenderable
+          renderable = removingRenderable.renderable
         } else if let reuseKey = renderableItem.reuseKey, let pooledRenderable = renderablePool?.dequeue(reuseKey) {
           // reuse a pooled renderable of the same kind instead of creating a new one
           renderable = pooledRenderable
@@ -1381,16 +1383,8 @@ open class ComposeView: BaseScrollView {
       host.contentUpdateContext
     }
 
-    var removingRenderableMap: [ComposeNodeId: Renderable] {
+    var removingRenderableMap: [ComposeNodeId: RemovingRenderable] {
       host.removingRenderableMap
-    }
-
-    var removingRenderableRemoveTransitionMap: [ComposeNodeId: RenderableTransition.RemoveTransition] {
-      host.removingRenderableRemoveTransitionMap
-    }
-
-    var removingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] {
-      host.removingRenderableTransitionCompletionMap
     }
 
     var insertingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] {
