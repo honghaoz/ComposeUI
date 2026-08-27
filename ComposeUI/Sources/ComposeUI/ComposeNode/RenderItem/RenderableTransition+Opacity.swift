@@ -89,6 +89,45 @@ public extension RenderableTransition {
   }
 }
 
+private extension AnimationTiming {
+
+  /// The timing for a retargeting animation.
+  ///
+  /// The retargeting animation uses the same curve without the delay, because the retargeting itself absorbs the
+  /// delay. For a spring timing, the interrupted velocity is carried into the spring's initial velocity, in Core
+  /// Animation's convention (positive moves towards the target, in full from-to distances per second), so the
+  /// spring's derived duration accounts for the carried velocity.
+  ///
+  /// The velocity is dropped for a tiny from-to distance: the normalized velocity diverges as the distance
+  /// approaches zero, and continuing a sub-1% opacity distance with momentum is imperceptible anyway.
+  ///
+  /// - Parameters:
+  ///   - velocity: The interrupted rate of change, in value units per second. `nil` when nothing was interrupted.
+  ///   - delta: The retargeting animation's from-to distance, in value units.
+  /// - Returns: The retarget timing.
+  func retargeted(carryingVelocity velocity: Double?, over delta: Float) -> AnimationTiming {
+    let retargetTiming: Timing
+    switch timing {
+    case .spring(let descriptor, let duration):
+      if let velocity, abs(delta) > 0.01, speed > 0 {
+        let initialVelocity = CGFloat(-velocity) / (CGFloat(delta) * speed)
+        let descriptor = SpringDescriptor(
+          initialVelocity: initialVelocity,
+          mass: descriptor.mass,
+          stiffness: descriptor.stiffness,
+          damping: descriptor.damping
+        )
+        retargetTiming = .spring(descriptor, duration: duration)
+      } else {
+        retargetTiming = timing
+      }
+    case .timingFunction:
+      retargetTiming = timing
+    }
+    return AnimationTiming(timing: retargetTiming, delay: 0, speed: speed)
+  }
+}
+
 private extension CALayer {
 
   /// Replaces any in-flight opacity animations with a single additive animation towards `targetValue`.
@@ -125,26 +164,14 @@ private extension CALayer {
       let start = interrupted?.value ?? freshStartValue(self)
       let delta = start - targetValue
 
-      // the interrupted velocity carries over only through a spring's initial velocity.
-      // Core Animation's convention: positive moves towards the target, in full distances per second.
-      let initialVelocity: CGFloat?
-      if let interrupted, case .spring = timing.timing, abs(delta) > 1e-3 {
-        initialVelocity = CGFloat(-interrupted.velocity / Double(delta))
-      } else {
-        initialVelocity = nil
-      }
-
       self.animate(
         keyPath: "opacity",
-        timing: AnimationTiming(timing: timing.timing, delay: 0, speed: timing.speed),
+        timing: timing.retargeted(carryingVelocity: interrupted?.velocity, over: delta),
         from: { _ in delta },
         to: { _ in 0 },
         model: { _ in targetValue },
         updateAnimation: {
           $0.isAdditive = true
-          if let initialVelocity, let spring = $0 as? CASpringAnimation {
-            spring.initialVelocity = initialVelocity
-          }
           $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
             completion()
           })

@@ -214,6 +214,55 @@ class RenderableTransition_OpacityTests: XCTestCase {
 
     // opacity velocity +0.1/s over a delta of 0.5 towards 0 is -0.2 in Core Animation's convention
     expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.2, within: 0.02))
+
+    // the spring's duration is derived from the spring that actually runs, including the carried velocity,
+    // so the animation isn't cut off before the spring settles
+    let springWithCarriedVelocity = SpringDescriptor(
+      initialVelocity: spring.initialVelocity,
+      mass: spring.mass,
+      stiffness: spring.stiffness,
+      damping: spring.damping
+    )
+    expect(spring.duration).to(beApproximatelyEqual(to: springWithCarriedVelocity.perceptualDuration(), within: 1e-6))
+  }
+
+  func test_retarget_springTiming_speedScalesVelocity() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    // an insertion halfway through a 10s linear fade: value 0.5, rising at +0.1 per second
+    addInFlightAdditiveAnimation(to: layer, from: -1, progress: 0.5)
+
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .spring(speed: 2))
+    try unwrap(transition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+
+    // the spring plays in a time space running at 2x, so the initial velocity halves to produce
+    // the same wall-clock rate: -0.1/s over a delta of 0.5, divided by the speed of 2
+    let spring = try unwrap(opacityAnimations(on: layer).first as? CASpringAnimation)
+    expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.1, within: 0.01))
+  }
+
+  func test_retarget_springTiming_tinyDelta_dropsVelocity() throws {
+    let layer = CALayer()
+    layer.opacity = 0
+
+    // an in-flight animation whose composed value is within 1% of the target: the normalized velocity
+    // would diverge over the tiny distance, so the velocity carry is dropped
+    addInFlightAdditiveAnimation(to: layer, from: 0.01, progress: 0.5)
+
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .spring())
+    try unwrap(transition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+
+    let spring = try unwrap(opacityAnimations(on: layer).first as? CASpringAnimation)
+    expect(spring.initialVelocity) == 0
   }
 
   func test_retarget_springTiming_freshStart_keepsConfiguredVelocity() throws {
