@@ -428,6 +428,36 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(layer.position) == layer.position(from: CGRect(x: 0, y: 0, width: 100, height: 100))
   }
 
+  func test_reinsertRemovingRenderable_crossSideSlideTransition_insertResets() throws {
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    let makeContent: () -> ComposeContent = {
+      ColorNode(.red)
+        .transition(.slide(from: .left, to: .right, timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 1
+
+    // revive the renderable with an animated insert: the transition enters from a different side than it exits to, so
+    // the entry offset doesn't cancel the leftover exit offset. it doesn't take over the removal, and the revival
+    // resets the leftover instead, so the renderable slides in cleanly from the entry side.
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 1
+    expect(layer.position) == layer.position(from: CGRect(x: 0, y: 0, width: 100, height: 100))
+  }
+
   func test_reinsertRemovingRenderable_opacityTransition_insertRetargetsFromInFlightState() throws {
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
@@ -457,6 +487,8 @@ class ComposeView_TransitionTests: XCTestCase {
     // re-date the in-flight animation to halfway through, so the rendered opacity is 0.5.
     // the copy shares the original's animation delegate, whose deferred callbacks would fire once per animation
     // instance and trip the delegate's double-callback assertion, so detach it from the copy.
+    // removing the original relies on Core Animation deferring `animationDidStop`: a synchronous callback would
+    // complete the removal here and detach the renderable before the revival.
     let halfwayAnimation = try unwrap(removeAnimation.copy() as? CABasicAnimation)
     halfwayAnimation.delegate = nil
     halfwayAnimation.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - 5
