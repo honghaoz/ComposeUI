@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class ComposeView_TransitionTests: XCTestCase {
 
@@ -278,19 +278,21 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(removedLayer?.animation(forKey: "spin")) != nil
   }
 
-  /// Makes a transition whose removal leaves residue (a faded-out model opacity and an in-flight "fade" animation)
-  /// that its `resetForReuse` undoes, paired with an insert transition that doesn't animate opacity.
-  private func makeResidueTransition(takesOverInFlightRemoval: Bool,
+  /// Makes a transition whose removal animates opacity and leaves residue (a faded-out model opacity and an
+  /// in-flight "fade" animation) that its `resetForReuse` undoes, paired with an insert transition that doesn't
+  /// animate opacity but declares the given taken-over key paths.
+  private func makeResidueTransition(takesOverKeyPaths: Set<String>,
                                      removedLayer: @escaping (CALayer) -> Void,
                                      insertTransitionDidRun: @escaping () -> Void) -> RenderableTransition
   {
     RenderableTransition(
-      insert: RenderableTransition.InsertTransition(takesOverInFlightRemoval: takesOverInFlightRemoval) { renderable, context, completion in
+      insert: RenderableTransition.InsertTransition(takesOverKeyPaths: takesOverKeyPaths) { renderable, context, completion in
         renderable.setFrame(context.targetFrame)
         insertTransitionDidRun()
         completion()
       },
       remove: RenderableTransition.RemoveTransition(
+        animatedKeyPaths: ["opacity"],
         animate: { renderable, _, _ in
           renderable.layer.opacity = 0
           // an explicit duration so that the animation isn't completed (and removed) immediately by the render pass's
@@ -314,7 +316,7 @@ class ComposeView_TransitionTests: XCTestCase {
     var removedLayer: CALayer?
     var insertTransitionRunCount = 0
     let transition = makeResidueTransition(
-      takesOverInFlightRemoval: true,
+      takesOverKeyPaths: ["opacity"],
       removedLayer: { removedLayer = $0 },
       insertTransitionDidRun: { insertTransitionRunCount += 1 }
     )
@@ -339,9 +341,9 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(removedLayer?.animation(forKey: "fade")) != nil
 
     // re-insert the renderable with animation: the removal is cancelled, the renderable is revived, and the insert
-    // transition runs. the insert transition declares the takeover, so the remove transition's residue (the in-flight
-    // animation and the faded-out model opacity) is left untouched for it to continue from. this insert transition
-    // doesn't touch opacity, so the residue stays.
+    // transition runs. the insert transition takes over every key path the remove transition animates, so the remove
+    // transition's residue (the in-flight animation and the faded-out model opacity) is left untouched for it to
+    // continue from. this insert transition doesn't touch opacity, so the residue stays.
     contentView.setContent(content: makeContent)
     contentView.refresh(animated: true)
 
@@ -356,8 +358,10 @@ class ComposeView_TransitionTests: XCTestCase {
 
     var removedLayer: CALayer?
     var insertTransitionRunCount = 0
+    // the insert transition takes over a different key path than the one the remove transition animates,
+    // e.g. a slide insert reviving an opacity removal
     let transition = makeResidueTransition(
-      takesOverInFlightRemoval: false,
+      takesOverKeyPaths: ["position"],
       removedLayer: { removedLayer = $0 },
       insertTransitionDidRun: { insertTransitionRunCount += 1 }
     )
@@ -382,8 +386,8 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(removedLayer?.animation(forKey: "fade")) != nil
 
     // re-insert the renderable with animation: the removal is cancelled, the renderable is revived, and the insert
-    // transition runs. the insert transition doesn't take over the in-flight removal (it doesn't animate opacity),
-    // so the remove transition's `resetForReuse` undoes the residue first and the renderable is fully visible.
+    // transition runs. the insert transition doesn't take over the removal's animated key path ("opacity"), so the
+    // remove transition's `resetForReuse` undoes the residue first and the renderable is fully visible.
     contentView.setContent(content: makeContent)
     contentView.refresh(animated: true)
 
@@ -391,6 +395,38 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(removedLayer?.opacity) == 1
     expect(removedLayer?.animation(forKey: "fade")) == nil
     expect(insertTransitionRunCount) == 1
+  }
+
+  func test_reinsertRemovingRenderable_slideTransition_insertComposesWithInFlightRemoval() throws {
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    let makeContent: () -> ComposeContent = {
+      ColorNode(.red)
+        .transition(.slide(from: .left, timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    // the remove transition is in flight: a single additive animation sliding the renderable out
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 1
+
+    // revive the renderable with an animated insert: the slide insert takes over the in-flight removal by composing
+    // additively with it. the leftover remove animation is kept, the insert stacks its own animation on top, and the
+    // insert's starting delta exactly compensates the model position change, so the rendered position is continuous
+    // at the revival instant.
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 2
+    expect(layer.position) == layer.position(from: CGRect(x: 0, y: 0, width: 100, height: 100))
   }
 
   func test_reinsertRemovingRenderable_opacityTransition_insertRetargetsFromInFlightState() throws {

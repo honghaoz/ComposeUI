@@ -46,33 +46,34 @@ public struct RenderableTransition {
       public private(set) weak var contentView: ComposeView!
     }
 
-    /// Whether this transition takes over a revived renderable's in-flight removal state.
+    /// The key paths of a revived renderable's in-flight removal state that this transition takes over.
     ///
-    /// When a removing renderable is revived (re-inserted while its remove transition is in flight) with a transition
-    /// that takes over, the framework leaves the removal's residue untouched, the in-flight animations and the model
-    /// values the remove transition wrote, and this transition is expected to establish its own animation and model
-    /// value from that live state. Without the takeover, the framework first restores the renderable to its resting
-    /// state via the remove transition's `resetForReuse`.
+    /// When a removing renderable is revived (re-inserted while its remove transition is in flight) and this
+    /// transition takes over every key path the remove transition animates, the framework leaves the removal's
+    /// residue untouched, the in-flight animations and the model values the remove transition wrote, and this
+    /// transition is expected to continue from that live state: either by evaluating and replacing the in-flight
+    /// animations, or by adding additive animations that compose with them. Otherwise the framework first restores
+    /// the renderable to its resting state via the remove transition's `resetForReuse`.
     ///
     /// The renderable's content update runs before this transition, so content-written model values of the taken-over
     /// properties land before this transition observes the state.
-    public let takesOverInFlightRemoval: Bool
+    public let takesOverKeyPaths: Set<String>
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
 
     /// Creates a new insert transition with the given animation closure.
     ///
     /// - Parameters:
-    ///   - takesOverInFlightRemoval: Whether this transition takes over a revived renderable's in-flight removal state.
-    ///     Defaults to `false`. See `takesOverInFlightRemoval`.
+    ///   - takesOverKeyPaths: The key paths of a revived renderable's in-flight removal state that this transition
+    ///     takes over. Defaults to none. See `takesOverKeyPaths`.
     ///   - animate: The closure to animate the insert transition.
     ///     The closure provides the renderable to insert, the animation context, and the completion block.
     ///     You **MUST** make sure to call the completion block when the transition is completed.
     ///     You **MUST** make sure the renderable's frame is set to the target frame when the transition is completed.
-    public init(takesOverInFlightRemoval: Bool = false,
+    public init(takesOverKeyPaths: Set<String> = [],
                 animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void)
     {
-      self.takesOverInFlightRemoval = takesOverInFlightRemoval
+      self.takesOverKeyPaths = takesOverKeyPaths
       self.animate = animate
     }
 
@@ -97,12 +98,22 @@ public struct RenderableTransition {
       public private(set) weak var contentView: ComposeView!
     }
 
+    /// The key paths this transition animates on the renderable's root layer.
+    ///
+    /// On a revival (a re-insertion while this transition is in flight), the framework compares these key paths with
+    /// the reviving insert transition's `takesOverKeyPaths`: when every animated key path is taken over, the removal's
+    /// residue is left for the insert transition to continue from, otherwise `resetForReuse` undoes it. An empty set
+    /// means the animated properties are unknown, so a revival always resets.
+    public let animatedKeyPaths: Set<String>
+
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
     private let resetForReuse: ((Renderable) -> Void)?
 
     /// Creates a new remove transition with the given animation closure.
     ///
     /// - Parameters:
+    ///   - animatedKeyPaths: The key paths this transition animates on the renderable's root layer. Defaults to none,
+    ///     which means unknown. See `animatedKeyPaths`.
     ///   - animate: The closure to animate the remove transition.
     ///     The closure provides the renderable to remove, the animation context, and the completion block.
     ///     You **MUST** make sure to call the completion block when the transition is completed.
@@ -113,11 +124,13 @@ public struct RenderableTransition {
     ///     If the removed renderable opts into reuse, the closure is called before recycling it, so the renderable
     ///     could be reused in the same state a freshly made renderable would have.
     ///     The closure is also called when a removing renderable is revived (re-inserted while the remove transition is
-    ///     in flight), so the renderable snaps to its resting state, unless the reviving insert transition declares
-    ///     `takesOverInFlightRemoval` and continues from the live in-flight state instead.
-    public init(animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
+    ///     in flight), so the renderable snaps to its resting state, unless the reviving insert transition takes over
+    ///     every animated key path and continues from the live in-flight state instead.
+    public init(animatedKeyPaths: Set<String> = [],
+                animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
                 resetForReuse: ((_ renderable: Renderable) -> Void)? = nil)
     {
+      self.animatedKeyPaths = animatedKeyPaths
       self.animate = animate
       self.resetForReuse = resetForReuse
     }
@@ -169,7 +182,8 @@ public struct RenderableTransition {
   ///
   /// When a removing renderable is revived (re-inserted while the remove transition is in flight), the remove
   /// transition's residue is undone via its `resetForReuse` before the insert transition runs, unless the insert
-  /// transition declares `takesOverInFlightRemoval` and continues from the live in-flight state instead.
+  /// transition's `takesOverKeyPaths` covers every key path the remove transition animates, in which case the insert
+  /// transition continues from the live in-flight state instead.
   ///
   /// - Parameters:
   ///   - insert: The insert transition.

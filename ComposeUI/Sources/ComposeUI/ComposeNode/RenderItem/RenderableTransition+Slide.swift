@@ -59,7 +59,7 @@ public extension RenderableTransition {
                     options: RenderableTransition.Options = .both) -> Self
   {
     RenderableTransition(
-      insert: options.contains(.insert) ? InsertTransition { renderable, context, completion in
+      insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: ["position"]) { renderable, context, completion in
         let layer = renderable.layer
         let targetFrame = context.targetFrame
 
@@ -91,6 +91,7 @@ public extension RenderableTransition {
         )
       } : nil,
       remove: options.contains(.remove) ? RemoveTransition(
+        animatedKeyPaths: ["position"],
         animate: { renderable, context, completion in
           let layer = renderable.layer
           let currentFrame = layer.frame
