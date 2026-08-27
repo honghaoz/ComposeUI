@@ -1167,14 +1167,18 @@ open class ComposeView: BaseScrollView {
           removingRenderable.completion.cancel()
 
           // the cancelled removal's residue (in-flight animations and a model value written towards the removed state,
-          // e.g. a faded-out model opacity) is undone by whoever takes over the renderable: an insert transition that
-          // declares `takesOverInFlightRemoval` observes the live in-flight state and establishes its own animation
-          // and model value from it. otherwise the remove transition's `resetForReuse` undoes the residue here, so
-          // the renderable snaps cleanly to its resting state. animations of properties the remove transition doesn't
-          // animate (e.g. the renderable's own content animations) survive the revival either way, consistent with
-          // how a non-animated render pass treats every other renderable.
-          if insertTransition?.takesOverInFlightRemoval != true {
-            removingRenderable.removeTransition.resetForReuse(renderable: removingRenderable.renderable)
+          // e.g. a faded-out model opacity) is undone by whoever takes over the renderable: an insert transition whose
+          // `takesOverKeyPaths` covers every key path the remove transition animates continues from the live in-flight
+          // state, by retargeting the in-flight animations or by composing additively with them. otherwise the remove
+          // transition's `resetForReuse` undoes the residue here, so the renderable snaps cleanly to its resting
+          // state. animations of properties the remove transition doesn't animate (e.g. the renderable's own content
+          // animations) survive the revival either way, consistent with how a non-animated render pass treats every
+          // other renderable.
+          let removeTransition = removingRenderable.removeTransition
+          let removalIsTakenOver = !removeTransition.animatedKeyPaths.isEmpty
+            && removeTransition.animatedKeyPaths.isSubset(of: insertTransition?.takesOverKeyPaths ?? [])
+          if !removalIsTakenOver {
+            removeTransition.resetForReuse(renderable: removingRenderable.renderable)
           }
 
           renderable = removingRenderable.renderable

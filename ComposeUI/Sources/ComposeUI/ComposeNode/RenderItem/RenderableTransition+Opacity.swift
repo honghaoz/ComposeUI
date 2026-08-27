@@ -52,7 +52,7 @@ public extension RenderableTransition {
                       options: RenderableTransition.Options = .both) -> RenderableTransition
   {
     RenderableTransition(
-      insert: options.contains(.insert) ? InsertTransition(takesOverInFlightRemoval: true) { renderable, context, completion in
+      insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: ["opacity"]) { renderable, context, completion in
         renderable.setFrame(context.targetFrame)
 
         let layer = renderable.layer
@@ -69,6 +69,7 @@ public extension RenderableTransition {
         )
       } : nil,
       remove: options.contains(.remove) ? RemoveTransition(
+        animatedKeyPaths: ["opacity"],
         animate: { renderable, _, completion in
           renderable.layer.retargetOpacity(
             freshStartValue: { $0.opacity },

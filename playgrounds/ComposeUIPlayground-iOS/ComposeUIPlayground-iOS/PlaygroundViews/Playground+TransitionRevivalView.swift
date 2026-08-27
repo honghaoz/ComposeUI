@@ -65,8 +65,8 @@ extension Playground {
             ColorNode(Colors.blueGray)
               .transition(
                 usesSlide
-                  ? .slide(from: .left, timing: .easeInEaseOut(duration: 5))
-                  : .opacity(timing: .linear(duration: 5))
+                  ? .slide(from: .left, timing: .easeInEaseOut(duration: 3))
+                  : .opacity(timing: .spring(dampingRatio: 0.8, response: 3))
               )
               .frame(width: 160, height: 64)
               .id("box")
