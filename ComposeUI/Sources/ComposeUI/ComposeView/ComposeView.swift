@@ -1166,19 +1166,11 @@ open class ComposeView: BaseScrollView {
           // cancelling the completion cancels the removal and clears it from `removingRenderableMap`.
           removingRenderable.completion.cancel()
 
-          // the cancelled removal's residue (in-flight animations and a model value written towards the removed state,
-          // e.g. a faded-out model opacity) is undone by whoever takes over the renderable: an insert transition whose
-          // `takesOverKeyPaths` covers every key path the remove transition animates continues from the live in-flight
-          // state, by retargeting the in-flight animations or by composing additively with them. otherwise the remove
-          // transition's `resetForReuse` undoes the residue here, so the renderable snaps cleanly to its resting
-          // state. animations of properties the remove transition doesn't animate (e.g. the renderable's own content
-          // animations) survive the revival either way, consistent with how a non-animated render pass treats every
-          // other renderable.
-          let removeTransition = removingRenderable.removeTransition
-          let removalIsTakenOver = !removeTransition.animatedKeyPaths.isEmpty
-            && removeTransition.animatedKeyPaths.isSubset(of: insertTransition?.takesOverKeyPaths ?? [])
-          if !removalIsTakenOver {
-            removeTransition.resetForReuse(renderable: removingRenderable.renderable)
+          // the cancelled removal's residue is undone by whoever takes over the renderable: a taking-over insert
+          // transition continues from the live in-flight state, otherwise the remove transition's `resetForReuse`
+          // snaps the renderable to its resting state.
+          if !removingRenderable.removeTransition.isTakenOver(by: insertTransition) {
+            removingRenderable.removeTransition.resetForReuse(renderable: removingRenderable.renderable)
           }
 
           renderable = removingRenderable.renderable

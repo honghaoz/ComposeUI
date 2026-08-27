@@ -98,16 +98,16 @@ public struct RenderableTransition {
       public private(set) weak var contentView: ComposeView!
     }
 
-    /// The key paths this transition animates on the renderable's root layer.
+    /// The key paths this transition animates on the renderable's root layer, or `nil` when unknown.
     ///
     /// On a revival (a re-insertion while this transition is in flight), the framework compares these key paths with
-    /// the reviving insert transition's `takesOverKeyPaths`: when every animated key path is taken over, the removal's
-    /// residue is left for the insert transition to continue from, otherwise `resetForReuse` undoes it. An empty set
-    /// means the animated properties are unknown, so a revival always resets.
+    /// the reviving insert transition's `takesOverKeyPaths` (see `isTakenOver(by:)`): when every animated key path is
+    /// taken over, the removal's residue is left for the insert transition to continue from, otherwise `resetForReuse`
+    /// undoes it. An unknown footprint always resets.
     ///
     /// `resetForReuse(renderable:)` removes the root-layer animations of these key paths, so a reset transition leaves
     /// no in-flight animations behind.
-    public let animatedKeyPaths: Set<String>
+    public let animatedKeyPaths: Set<String>?
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
     private let resetForReuse: ((Renderable) -> Void)?
@@ -115,7 +115,7 @@ public struct RenderableTransition {
     /// Creates a new remove transition with the given animation closure.
     ///
     /// - Parameters:
-    ///   - animatedKeyPaths: The key paths this transition animates on the renderable's root layer. Defaults to none,
+    ///   - animatedKeyPaths: The key paths this transition animates on the renderable's root layer. Defaults to `nil`,
     ///     which means unknown. See `animatedKeyPaths`.
     ///   - animate: The closure to animate the remove transition.
     ///     The closure provides the renderable to remove, the animation context, and the completion block.
@@ -127,7 +127,7 @@ public struct RenderableTransition {
     ///     The reset is also performed when a removing renderable is revived (re-inserted while the remove transition
     ///     is in flight), so the renderable snaps to its resting state, unless the reviving insert transition takes
     ///     over every animated key path and continues from the live in-flight state instead.
-    public init(animatedKeyPaths: Set<String> = [],
+    public init(animatedKeyPaths: Set<String>? = nil,
                 animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
                 resetForReuse: ((_ renderable: Renderable) -> Void)? = nil)
     {
@@ -154,10 +154,27 @@ public struct RenderableTransition {
     ///
     /// - Parameter renderable: The renderable to reset.
     public func resetForReuse(renderable: Renderable) {
-      for keyPath in animatedKeyPaths {
+      for keyPath in animatedKeyPaths ?? [] {
         renderable.layer.removeAnimations(forKeyPath: keyPath)
       }
       resetForReuse?(renderable)
+    }
+
+    /// Whether a reviving insert transition takes over this transition's in-flight removal state.
+    ///
+    /// The takeover requires a known, non-empty animated footprint that the insert transition's `takesOverKeyPaths`
+    /// fully covers. An unknown footprint is never taken over, because the framework cannot tell whether the insert
+    /// transition continues every property the removal touched. An empty footprint is never taken over either: it has
+    /// nothing for an insert transition to continue, and resetting it is harmless.
+    ///
+    /// - Parameter insertTransition: The reviving insert transition, if any.
+    /// - Returns: `true` when the insert transition continues from the live in-flight state, `false` when the framework
+    ///   should reset the renderable to its resting state.
+    func isTakenOver(by insertTransition: InsertTransition?) -> Bool {
+      guard let animatedKeyPaths, !animatedKeyPaths.isEmpty, let insertTransition else {
+        return false
+      }
+      return animatedKeyPaths.isSubset(of: insertTransition.takesOverKeyPaths)
     }
   }
 
