@@ -224,6 +224,7 @@ class ComposeView_TransitionTests: XCTestCase {
     let transition = RenderableTransition(
       insert: nil,
       remove: RenderableTransition.RemoveTransition(
+        animatedKeyPaths: ["opacity"],
         animate: { renderable, _, _ in
           renderable.layer.opacity = 0
           // an explicit duration so that the animation isn't completed (and removed) immediately by the render
@@ -234,7 +235,6 @@ class ComposeView_TransitionTests: XCTestCase {
           removedLayer = renderable.layer
         },
         resetForReuse: { renderable in
-          renderable.layer.removeAnimation(forKey: "fade")
           renderable.layer.opacity = 1
         }
       )
@@ -303,7 +303,6 @@ class ComposeView_TransitionTests: XCTestCase {
           removedLayer(renderable.layer)
         },
         resetForReuse: { renderable in
-          renderable.layer.removeAnimation(forKey: "fade")
           renderable.layer.opacity = 1
         }
       )

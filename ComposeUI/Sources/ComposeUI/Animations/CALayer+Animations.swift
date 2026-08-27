@@ -354,11 +354,11 @@ public extension CALayer {
     }
   }
 
-  /// Removes the layer's basic animations animating the given key path, leaving other animations alone.
+  /// Removes the layer's animations animating the given key path, leaving other animations alone.
   ///
   /// - Parameter keyPath: The animated key path.
-  internal func removeBasicAnimations(forKeyPath keyPath: String) {
-    for key in animationKeys() ?? [] where (animation(forKey: key) as? CABasicAnimation)?.keyPath == keyPath {
+  internal func removeAnimations(forKeyPath keyPath: String) {
+    for key in animationKeys() ?? [] where (animation(forKey: key) as? CAPropertyAnimation)?.keyPath == keyPath {
       removeAnimation(forKey: key)
     }
   }
