@@ -159,19 +159,29 @@ extension Playground {
     #if canImport(UIKit)
     override func didMoveToWindow() {
       super.didMoveToWindow()
-      startSamplingIfNeeded()
+      updateSampling()
     }
     #endif
 
     #if canImport(AppKit)
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
-      startSamplingIfNeeded()
+      updateSampling()
     }
     #endif
 
-    private func startSamplingIfNeeded() {
-      guard window != nil, samplingTimer == nil else {
+    deinit {
+      samplingTimer?.invalidate()
+    }
+
+    /// Runs the sampling timer while the view is in a window.
+    private func updateSampling() {
+      guard window != nil else {
+        samplingTimer?.invalidate()
+        samplingTimer = nil
+        return
+      }
+      guard samplingTimer == nil else {
         return
       }
       let timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
@@ -218,7 +228,7 @@ extension Playground {
       guard !keys.isEmpty else {
         return "[]"
       }
-      let now = CACurrentMediaTime()
+      let now = layer.convertTime(CACurrentMediaTime(), from: nil)
       let descriptions = keys.map { key -> String in
         guard let animation = layer.animation(forKey: key) as? CABasicAnimation else {
           return "\(key): \(type(of: layer.animation(forKey: key) as Any))"

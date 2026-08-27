@@ -47,7 +47,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    let animations = opacityAnimations(on: layer)
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1
     expect(try unwrap(animations.first).fromValue as? Float) == -1
     expect(try unwrap(animations.first).isAdditive) == true
@@ -65,7 +65,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    let animations = opacityAnimations(on: layer)
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1
     expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.8, within: 1e-6))
     expect(layer.opacity) == 0
@@ -86,7 +86,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     )
 
     // the in-flight animation is replaced with a single animation from the current visual opacity
-    let animations = opacityAnimations(on: layer)
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1
     expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.5, within: 0.01))
     expect(try unwrap(animations.first).isAdditive) == true
@@ -107,10 +107,66 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    let animations = opacityAnimations(on: layer)
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1
     expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: -0.75, within: 0.01))
     expect(layer.opacity) == 1
+  }
+
+  func test_retarget_immediateInterrupt_evaluatesProductionAnimation() throws {
+    // pins the begin time resolution of production-added animations: the insert's animation is added with an unset
+    // begin time (resolved by Core Animation on add), and an immediate interrupt must evaluate it at ~zero elapsed
+    // time, sampling the insert's start value rather than the model value.
+    let layer = CALayer()
+    layer.opacity = 0.3
+
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 10))
+    try unwrap(transition.insert).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
+      completion: {}
+    )
+    expect(layer.opacity) == 1 // the model is at the target, the animation contributes -1 for a rendered ≈ 0
+
+    try unwrap(transition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+
+    // the remove continues from the insert's current rendered opacity (≈ 0), not the model value (1)
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0, within: 0.05))
+    expect(layer.opacity) == 0
+  }
+
+  func test_resetForReuse_undoesOwnResidue() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5))
+    let removeTransition = try unwrap(transition.remove)
+    removeTransition.animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+    expect(layer.opacity) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+
+    // an animation of a property the transition doesn't animate
+    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
+    spinAnimation.duration = 60
+    layer.add(spinAnimation, forKey: "spin")
+
+    // the reset restores the model opacity and removes the opacity animations, leaving other properties'
+    // animations alone
+    removeTransition.resetForReuse(renderable: .layer(layer))
+
+    expect(layer.opacity) == 1
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
+    expect(layer.animation(forKey: "spin")) != nil
   }
 
   func test_retarget_clampsCompositeValue() throws {
@@ -127,7 +183,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    let animations = opacityAnimations(on: layer)
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1
     expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 1, within: 0.01))
   }
@@ -166,7 +222,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     )
 
     // the retarget starts from the model value since no animation contributes
-    let animations = opacityAnimations(on: layer)
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1
     expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.6, within: 1e-6))
 
@@ -207,7 +263,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    let animations = opacityAnimations(on: layer)
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1
     let spring = try unwrap(animations.first as? CASpringAnimation)
     expect(try unwrap(spring.fromValue as? Float)).to(beApproximatelyEqual(to: 0.5, within: 0.01))
@@ -242,7 +298,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
 
     // the spring plays in a time space running at 2x, so the initial velocity halves to produce
     // the same wall-clock rate: -0.1/s over a delta of 0.5, divided by the speed of 2
-    let spring = try unwrap(opacityAnimations(on: layer).first as? CASpringAnimation)
+    let spring = try unwrap(layer.basicAnimations(forKeyPath: "opacity").first as? CASpringAnimation)
     expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.1, within: 0.01))
   }
 
@@ -261,7 +317,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    let spring = try unwrap(opacityAnimations(on: layer).first as? CASpringAnimation)
+    let spring = try unwrap(layer.basicAnimations(forKeyPath: "opacity").first as? CASpringAnimation)
     expect(spring.initialVelocity) == 0
   }
 
@@ -276,7 +332,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    let spring = try unwrap(opacityAnimations(on: layer).first as? CASpringAnimation)
+    let spring = try unwrap(layer.basicAnimations(forKeyPath: "opacity").first as? CASpringAnimation)
     expect(spring.initialVelocity) == 3
   }
 
@@ -294,7 +350,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    let spring = try unwrap(opacityAnimations(on: layer).first as? CASpringAnimation)
+    let spring = try unwrap(layer.basicAnimations(forKeyPath: "opacity").first as? CASpringAnimation)
     expect(spring.initialVelocity) == 0
   }
 
@@ -311,7 +367,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
 
     // during the delay window, the layer is hidden at the start value with no animation yet
     expect(layer.opacity) == 0
-    expect(opacityAnimations(on: layer).count) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
 
     // after the delay, the model is at the target. The animation itself is not asserted because Core Animation drops
     // animations on layers outside of a layer tree when a transaction commits, and waiting for the delay pumps the run
@@ -334,7 +390,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     )
 
     expect(layer.opacity) == 0
-    expect(opacityAnimations(on: layer).count) == 1
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
 
     // after the delay, the model is at the target. The animation itself is not asserted because Core Animation drops
     // animations on layers outside of a layer tree when a transaction commits, and waiting for the delay pumps the run
@@ -366,7 +422,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
     expect(layer.opacity) == 0
-    expect(opacityAnimations(on: layer).count) == 1
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
 
     // past the delay window, the superseded insert retarget must not fire: it would tear down the remove's
     // animation, complete the removal with stale values, and set the model to its own target (1).
@@ -389,8 +445,8 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: { removeCompletionCallCount += 1 }
     )
 
-    // the renderable is reset during the delay window (e.g. recycled to the pool, or revived without an insert
-    // transition), cancelling the pending retarget
+    // the renderable is reset during the delay window (e.g. recycled to the pool, or revived without a
+    // taking-over insert transition), cancelling the pending retarget
     removeTransition.resetForReuse(renderable: .layer(layer))
     expect(layer.opacity) == 1
 
@@ -398,7 +454,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     // towards its own target (0).
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
     expect(layer.opacity) == 1
-    expect(opacityAnimations(on: layer).count) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
     expect(removeCompletionCallCount) == 0
   }
 
@@ -415,14 +471,5 @@ class RenderableTransition_OpacityTests: XCTestCase {
     animation.isAdditive = true
     animation.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - duration * progress
     layer.add(animation, forKey: "opacity")
-  }
-
-  private func opacityAnimations(on layer: CALayer) -> [CABasicAnimation] {
-    (layer.animationKeys() ?? []).compactMap { key in
-      guard let animation = layer.animation(forKey: key) as? CABasicAnimation, animation.keyPath == "opacity" else {
-        return nil
-      }
-      return animation
-    }
   }
 }

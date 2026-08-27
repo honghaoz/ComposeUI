@@ -438,9 +438,7 @@ class ComposeView_TransitionTests: XCTestCase {
 
     expect(layer.opacity) == 1
 
-    let opacityAnimations = (layer.animationKeys() ?? [])
-      .compactMap { layer.animation(forKey: $0) as? CABasicAnimation }
-      .filter { $0.keyPath == "opacity" }
+    let opacityAnimations = layer.basicAnimations(forKeyPath: "opacity")
     expect(opacityAnimations.count) == 1
 
     let insertAnimation = try unwrap(opacityAnimations.first)
