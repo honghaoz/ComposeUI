@@ -340,4 +340,26 @@ public extension CALayer {
 
     return currentKey
   }
+
+  /// The layer's basic animations animating the given key path.
+  ///
+  /// - Parameter keyPath: The animated key path.
+  /// - Returns: The basic animations animating `keyPath`, in the layer's animation key order.
+  internal func basicAnimations(forKeyPath keyPath: String) -> [CABasicAnimation] {
+    (animationKeys() ?? []).compactMap { key in
+      guard let animation = animation(forKey: key) as? CABasicAnimation, animation.keyPath == keyPath else {
+        return nil
+      }
+      return animation
+    }
+  }
+
+  /// Removes the layer's basic animations animating the given key path, leaving other animations alone.
+  ///
+  /// - Parameter keyPath: The animated key path.
+  internal func removeBasicAnimations(forKeyPath keyPath: String) {
+    for key in animationKeys() ?? [] where (animation(forKey: key) as? CABasicAnimation)?.keyPath == keyPath {
+      removeAnimation(forKey: key)
+    }
+  }
 }

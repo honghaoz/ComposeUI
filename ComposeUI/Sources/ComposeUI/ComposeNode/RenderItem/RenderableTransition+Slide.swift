@@ -124,10 +124,7 @@ public extension RenderableTransition {
         resetForReuse: { renderable in
           // the model position is layout-owned and is restored by the next layout pass, so only the in-flight slide
           // animations need to be removed.
-          let layer = renderable.layer
-          for key in layer.animationKeys() ?? [] where (layer.animation(forKey: key) as? CABasicAnimation)?.keyPath == "position" {
-            layer.removeAnimation(forKey: key)
-          }
+          renderable.layer.removeBasicAnimations(forKeyPath: "position")
         }
       ) : nil
     )

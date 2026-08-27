@@ -56,10 +56,10 @@ public extension RenderableTransition {
         renderable.setFrame(context.targetFrame)
 
         let layer = renderable.layer
-        if timing.delay > 0, !layer.hasInFlightOpacityAnimation {
+        if timing.delay > 0, layer.basicAnimations(forKeyPath: "opacity").isEmpty {
           // a delayed fresh insertion shows the renderable before its animation starts, so hide it at the start value
           // for the delay window.
-          layer.opacity = Float(from)
+          layer.setKeyPathValue("opacity", Float(from))
         }
         layer.retargetOpacity(
           freshStartValue: { _ in Float(from) },
@@ -79,10 +79,8 @@ public extension RenderableTransition {
         },
         resetForReuse: { renderable in
           renderable.layer.cancelPendingOpacityRetarget()
-          renderable.layer.removeInFlightOpacityAnimations()
-          renderable.layer.disableActions(for: "opacity") {
-            renderable.layer.opacity = 1
-          }
+          renderable.layer.removeBasicAnimations(forKeyPath: "opacity")
+          renderable.layer.setKeyPathValue("opacity", Float(1))
         }
       ) : nil
     )
@@ -160,6 +158,7 @@ private extension CALayer {
       self.pendingOpacityRetarget = nil
 
       let interrupted = self.interruptedOpacityState()
+      self.removeBasicAnimations(forKeyPath: "opacity")
 
       let start = interrupted?.value ?? freshStartValue(self)
       let delta = start - targetValue
@@ -180,28 +179,15 @@ private extension CALayer {
     }
   }
 
-  /// Whether the layer has an in-flight opacity animation.
-  var hasInFlightOpacityAnimation: Bool {
-    (animationKeys() ?? []).contains { key in
-      (animation(forKey: key) as? CABasicAnimation)?.keyPath == "opacity"
-    }
-  }
-
-  /// Evaluates and removes the in-flight opacity animations.
+  /// Evaluates the in-flight opacity animations.
   ///
-  /// The render pass owns a renderable layer's opacity through transitions, so every opacity animation on the layer is
-  /// treated as an in-flight transition: additive animations contribute their evaluated value on top of the model value,
-  /// and all of them are removed.
+  /// The transition owns the renderable layer's opacity, so every opacity animation on the layer is treated as an
+  /// in-flight transition: additive animations contribute their evaluated value on top of the model value.
   ///
   /// - Returns: The composed opacity and its rate of change in opacity per second, or `nil` when no opacity animation
   ///   is in flight.
   func interruptedOpacityState() -> (value: Float, velocity: Double)? {
-    let opacityAnimations = (animationKeys() ?? []).compactMap { key -> CABasicAnimation? in
-      guard let animation = animation(forKey: key) as? CABasicAnimation, animation.keyPath == "opacity" else {
-        return nil
-      }
-      return animation
-    }
+    let opacityAnimations = basicAnimations(forKeyPath: "opacity")
     guard !opacityAnimations.isEmpty else {
       return nil
     }
@@ -216,17 +202,8 @@ private extension CALayer {
       earlierValue += animation.scalarValue(at: now - velocitySamplingInterval) ?? 0
     }
 
-    removeInFlightOpacityAnimations()
-
     let clampedValue = max(0, min(value, 1))
     return (Float(clampedValue), (value - earlierValue) / velocitySamplingInterval)
-  }
-
-  /// Removes the in-flight opacity animations, leaving animations of other properties alone.
-  func removeInFlightOpacityAnimations() {
-    for key in animationKeys() ?? [] where (animation(forKey: key) as? CABasicAnimation)?.keyPath == "opacity" {
-      removeAnimation(forKey: key)
-    }
   }
 
   /// The timer of a delayed opacity retarget that hasn't started yet.

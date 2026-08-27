@@ -58,9 +58,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     self.window = window
 
-    let demoWindow = AdditiveOpacityDemoWindow()
-    demoWindow.window?.orderFront(nil)
-    additiveOpacityDemoWindow = demoWindow
+    addDemosMenu()
+  }
+
+  /// Adds a "Demos" menu for opening the standalone demo windows.
+  private func addDemosMenu() {
+    let demosMenu = NSMenu(title: "Demos")
+    let demoItem = NSMenuItem(title: "Additive Opacity Demo", action: #selector(showAdditiveOpacityDemo), keyEquivalent: "")
+    demoItem.target = self
+    demosMenu.addItem(demoItem)
+
+    let demosMenuItem = NSMenuItem()
+    demosMenuItem.submenu = demosMenu
+    NSApp.mainMenu?.addItem(demosMenuItem)
+  }
+
+  @objc private func showAdditiveOpacityDemo() {
+    if additiveOpacityDemoWindow == nil {
+      additiveOpacityDemoWindow = AdditiveOpacityDemoWindow()
+    }
+    additiveOpacityDemoWindow?.window?.makeKeyAndOrderFront(nil)
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {
