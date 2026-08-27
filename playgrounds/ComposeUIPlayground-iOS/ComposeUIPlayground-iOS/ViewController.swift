@@ -83,6 +83,14 @@ class ViewController: UIViewController {
         .padding(horizontal: Constants.padding)
         .frame(width: .flexible, height: 120)
 
+      ViewNode<Playground.TransitionRevivalView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: Constants.padding)
+        .frame(width: .flexible, height: 260)
+
       ViewNode<Playground.FrameView>()
         .underlay {
           LayerNode()
