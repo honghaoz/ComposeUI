@@ -46,15 +46,33 @@ public struct RenderableTransition {
       public private(set) weak var contentView: ComposeView!
     }
 
+    /// Whether this transition takes over a revived renderable's in-flight removal state.
+    ///
+    /// When a removing renderable is revived (re-inserted while its remove transition is in flight) with a transition
+    /// that takes over, the framework leaves the removal's residue untouched, the in-flight animations and the model
+    /// values the remove transition wrote, and this transition is expected to establish its own animation and model
+    /// value from that live state. Without the takeover, the framework first restores the renderable to its resting
+    /// state via the remove transition's `resetForReuse`.
+    ///
+    /// The renderable's content update runs before this transition, so content-written model values of the taken-over
+    /// properties land before this transition observes the state.
+    public let takesOverInFlightRemoval: Bool
+
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
 
     /// Creates a new insert transition with the given animation closure.
     ///
-    /// - Parameter animate: The closure to animate the insert transition.
-    ///                      The closure provides the renderable to insert, the animation context, and the completion block.
-    ///                      You **MUST** make sure to call the completion block when the transition is completed.
-    ///                      You **MUST** make sure the renderable's frame is set to the target frame when the transition is completed.
-    public init(animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void) {
+    /// - Parameters:
+    ///   - takesOverInFlightRemoval: Whether this transition takes over a revived renderable's in-flight removal state.
+    ///     Defaults to `false`. See `takesOverInFlightRemoval`.
+    ///   - animate: The closure to animate the insert transition.
+    ///     The closure provides the renderable to insert, the animation context, and the completion block.
+    ///     You **MUST** make sure to call the completion block when the transition is completed.
+    ///     You **MUST** make sure the renderable's frame is set to the target frame when the transition is completed.
+    public init(takesOverInFlightRemoval: Bool = false,
+                animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void)
+    {
+      self.takesOverInFlightRemoval = takesOverInFlightRemoval
       self.animate = animate
     }
 
@@ -86,21 +104,17 @@ public struct RenderableTransition {
     ///
     /// - Parameters:
     ///   - animate: The closure to animate the remove transition.
-    ///              The closure provides the renderable to remove, the animation context, and the completion block.
-    ///              You **MUST** make sure to call the completion block when the transition is completed.
+    ///     The closure provides the renderable to remove, the animation context, and the completion block.
+    ///     You **MUST** make sure to call the completion block when the transition is completed.
     ///   - resetForReuse: A closure that undoes any residue this transition leaves on the renderable, both the model
-    ///                    values it wrote (e.g. a faded-out model opacity) and the in-flight animations it added.
-    ///                    Only undo this transition's own residue: animations the transition didn't add (e.g. the
-    ///                    renderable's own content animations) must be left alone.
-    ///                    If the removed renderable opts into reuse, the closure is called before recycling it, so the
-    ///                    renderable could be reused in the same state a freshly made renderable would have.
-    ///                    The closure is also called when a removing renderable is revived (re-inserted while the remove
-    ///                    transition is in flight) without an insert transition, so the renderable snaps to its resting
-    ///                    state. On a revival with an insert transition, the insert transition takes over instead: it
-    ///                    observes the live in-flight state and establishes its own animation and model value from it,
-    ///                    so this closure is not called. If the paired insert transition doesn't take over this
-    ///                    transition's properties, remove the leftover animations and model residue in the insert
-    ///                    transition.
+    ///     values it wrote (e.g. a faded-out model opacity) and the in-flight animations of the properties it animates.
+    ///     A transition owns its animated properties on the renderable's root layer, so remove all animations of those
+    ///     key paths, and leave animations of other properties alone (e.g. the renderable's own content animations).
+    ///     If the removed renderable opts into reuse, the closure is called before recycling it, so the renderable
+    ///     could be reused in the same state a freshly made renderable would have.
+    ///     The closure is also called when a removing renderable is revived (re-inserted while the remove transition is
+    ///     in flight), so the renderable snaps to its resting state, unless the reviving insert transition declares
+    ///     `takesOverInFlightRemoval` and continues from the live in-flight state instead.
     public init(animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
                 resetForReuse: ((_ renderable: Renderable) -> Void)? = nil)
     {
@@ -153,12 +167,9 @@ public struct RenderableTransition {
 
   /// Creates a new renderable transition with the given insert and remove transitions.
   ///
-  /// The insert transition should take over every property the remove transition animates. When a removing renderable
-  /// is revived (re-inserted while the remove transition is in flight) with an insert transition, the in-flight remove
-  /// animations and the model residue are left for the insert transition to take over, either by composing with them or
-  /// by replacing them. A leftover on a property the insert transition doesn't take over is never compensated, so it
-  /// strands the renderable away from its resting state. For such a pairing, the insert transition should also undo the
-  /// remove transition's leftovers.
+  /// When a removing renderable is revived (re-inserted while the remove transition is in flight), the remove
+  /// transition's residue is undone via its `resetForReuse` before the insert transition runs, unless the insert
+  /// transition declares `takesOverInFlightRemoval` and continues from the live in-flight state instead.
   ///
   /// - Parameters:
   ///   - insert: The insert transition.
