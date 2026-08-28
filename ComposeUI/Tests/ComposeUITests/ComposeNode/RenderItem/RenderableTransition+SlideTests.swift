@@ -352,6 +352,102 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
+  func test_insertTransition_zeroDuration_appliesTargetAndCompletes() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let layer = TestLayer()
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .top,
+      overshoot: Constants.overshoot,
+      timing: .linear(duration: 0),
+      options: .insert
+    )
+
+    var completionCallCount = 0
+    try transition.insert.unwrap().animate(
+      renderable: renderable,
+      context: RenderableTransition.InsertTransition.Context(targetFrame: Constants.targetFrame, contentView: contentView),
+      completion: { completionCallCount += 1 }
+    )
+
+    // the target frame applies and the transition completes immediately, with no animation added
+    expect(layer.frame) == Constants.targetFrame
+    expect(layer.animationKeys()) == nil
+    expect(completionCallCount) == 1
+  }
+
+  func test_removeTransition_zeroDuration_appliesTargetAndCompletes() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .top,
+      overshoot: Constants.overshoot,
+      timing: .linear(duration: 0),
+      options: .remove
+    )
+
+    var completionCallCount = 0
+    try transition.remove.unwrap().animate(
+      renderable: renderable,
+      context: RenderableTransition.RemoveTransition.Context(contentView: contentView),
+      completion: { completionCallCount += 1 }
+    )
+
+    // the off-screen end frame applies and the transition completes immediately, with no animation added
+    let expectedTargetFrame = CGRect(
+      x: currentFrame.origin.x,
+      y: -currentFrame.height - Constants.overshoot,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    expect(layer.frame) == expectedTargetFrame
+    expect(layer.animationKeys()) == nil
+    expect(completionCallCount) == 1
+  }
+
+  func test_removeTransition_delayedZeroDuration_schedulesSnap() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .top,
+      overshoot: Constants.overshoot,
+      timing: .linear(duration: 0, delay: 0.5),
+      options: .remove
+    )
+
+    var completionCallCount = 0
+    try transition.remove.unwrap().animate(
+      renderable: renderable,
+      context: RenderableTransition.RemoveTransition.Context(contentView: contentView),
+      completion: { completionCallCount += 1 }
+    )
+
+    // a zero-duration timing with a delay is a scheduled snap: the renderable holds its current frame for the delay
+    // window, then snaps off-screen, completing through the animation
+    let expectedTargetFrame = CGRect(
+      x: currentFrame.origin.x,
+      y: -currentFrame.height - Constants.overshoot,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    expect(layer.frame) == expectedTargetFrame
+
+    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+    expect(animation.keyPath) == "position"
+    expect(animation.fromValue as? CGPoint) == layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame)
+    expect(animation.duration).to(beApproximatelyEqual(to: 0.001, within: 1e-6))
+    expect(completionCallCount) == 0
+
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
+  }
+
   func test_removeTransition_with_toSide() throws {
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame

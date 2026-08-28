@@ -130,6 +130,9 @@ private extension CALayer {
   /// retargeting is dispatched, and the animation holds its start value until the delay elapses, so an interrupted
   /// in-flight animation freezes at its sampled value for the delay window.
   ///
+  /// A zero-duration timing applies `targetValue` and completes immediately when there is no delay. With a delay,
+  /// the change is scheduled as a snap that applies right after the delay window.
+  ///
   /// - Parameters:
   ///   - freshStartValue: The opacity to start from when no opacity transition is in flight.
   ///   - targetValue: The opacity to animate to. Also set as the model value.
@@ -142,6 +145,12 @@ private extension CALayer {
   {
     let interrupted = interruptedOpacityState()
     removeAnimations(forKeyPath: "opacity")
+
+    guard timing.timing.duration > 0 || timing.delay > 0 else {
+      setKeyPathValue("opacity", targetValue)
+      completion()
+      return
+    }
 
     let start = interrupted?.value ?? freshStartValue(self)
     let delta = start - targetValue
