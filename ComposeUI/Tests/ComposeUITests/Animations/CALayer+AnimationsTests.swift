@@ -217,6 +217,21 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
+  func test_animate_delayed_beginTime_usesLayerTimeSpace() throws {
+    let layer = CALayer()
+    layer.speed = 2
+    layer.opacity = 0.2
+
+    layer.animate(keyPath: "opacity", to: Float(1), timing: .linear(duration: 1, delay: 0.5))
+
+    // the delay is expressed in the layer's time space, which runs at twice the media time for this layer, so the begin
+    // time is the layer's current time plus the delay (far from the media time plus the delay)
+    let animation = try unwrap(layer.animation(forKey: "opacity") as? CABasicAnimation)
+    let layerNow = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - layerNow).to(beApproximatelyEqual(to: 0.5, within: 0.1))
+    expect(abs(animation.beginTime - (CACurrentMediaTime() + 0.5))).toNot(beApproximatelyEqual(to: 0, within: 1))
+  }
+
   func test_animate_delayed_nilFromValue_resolvesAtDispatch() throws {
     let red = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
     let green = CGColor(red: 0, green: 1, blue: 0, alpha: 1)

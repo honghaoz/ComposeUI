@@ -1,11 +1,25 @@
 # CHANGELOG
 
+## Unreleased
+
+### Breaking Changes
+
+- Delayed animations are now scheduled with Core Animation's `beginTime` instead of a GCD timer. The animation is added 
+  and the model value is set at dispatch, the layer's rendered output holds the pre-animation state for the delay window, 
+  and the delay elapses in the animated layer's time space (a paused or speed-scaled layer scales pending delays with it). 
+  An interrupted in-flight opacity transition freezes at its sampled value for a delayed retargeting's delay window 
+  instead of continuing to play, and a delayed spring retargeting launches from rest.
+- Zero-duration transitions now call their completion. Without a delay, the end state applies and the completion runs 
+  immediately. With a delay, the change is scheduled as a snap that applies right after the delay window. A transition 
+  completion is also called when its animation is torn down before finishing (superseded, reset, or the layer leaving 
+  the layer tree).
+
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
 ### Breaking Changes
 
 - `ViewNode` and `LayerNode` intrinsic size closures now receive only the proposed `CGSize`. Capture an external view or layer when its instance is needed for measurement.
-- `ScrollViewType` now requires `clipsToBounds`; custom conformers must implement it.
+- `ScrollViewType` now requires `clipsToBounds`, custom conformers must implement it.
 - `ComposeView` behavior enums gained new cases, and render debug events now use `ComposeNodeId` and updated event names. Update exhaustive switches and debug handlers as needed.
 - `RenderableTransition` contexts now expose `ComposeView`, and `CALayer.animate` value closures now receive the concrete layer type through `Self`.
 

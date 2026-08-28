@@ -35,6 +35,9 @@ public extension CABasicAnimation {
 
   /// Make an animation based on the timing.
   ///
+  /// The timing's delay is not applied here: scheduling the begin time requires the target layer's time space, so
+  /// `CALayer.animate` sets it when adding the animation.
+  ///
   /// - Parameters:
   ///   - timing: The timing of the animation.
   /// - Returns: The animation.
