@@ -91,7 +91,7 @@ class ComposeView_TransitionTests: XCTestCase {
 
     contentView.setContent {
       ColorNode(.red)
-        .transition(.opacity(timing: .linear(duration: 0.1, delay: 0.1)))
+        .transition(.opacity(timing: .linear(duration: 0.1, delay: 0.3)))
         .frame(width: 100, height: 100)
     }
     contentView.refresh(animated: true)
@@ -101,10 +101,13 @@ class ComposeView_TransitionTests: XCTestCase {
     }
     contentView.refresh(animated: true)
 
-    // the removal is in flight while the scheduled animation waits out its delay and plays
+    // the removal is in flight while the scheduled animation waits out its delay: it must not complete during the
+    // delay window
+    expect(contentView.test.removingRenderableMap.count) == 1
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
     expect(contentView.test.removingRenderableMap.count) == 1
 
-    // the scheduled animation's completion finishes the removal
+    // the scheduled animation's completion finishes the removal after the delay and the duration
     expect(contentView.test.removingRenderableMap.count).toEventually(beEqual(to: 0), timeout: 2)
   }
 
