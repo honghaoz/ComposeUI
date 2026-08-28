@@ -88,7 +88,9 @@ private extension AnimationTiming {
   /// convention (positive moves towards the target, in full from-to distances per second), so the spring's derived
   /// duration accounts for the carried velocity.
   ///
-  /// The velocity is dropped for a from-to distance below `RetargetConstants.velocityCarryMinimumDelta`.
+  /// The velocity is only carried by an immediate retargeting: a delayed one freezes the interrupted motion at rest
+  /// for the delay window, so its spring launches from rest. The velocity is also dropped for a from-to distance
+  /// below `RetargetConstants.velocityCarryMinimumDelta`.
   ///
   /// - Parameters:
   ///   - velocity: The interrupted rate of change, in value units per second. `nil` when nothing was interrupted.
@@ -98,7 +100,7 @@ private extension AnimationTiming {
     let retargetTiming: Timing
     switch timing {
     case .spring(let descriptor, let duration):
-      if let velocity, abs(delta) > RetargetConstants.velocityCarryMinimumDelta, speed > 0 {
+      if let velocity, delay == 0, abs(delta) > RetargetConstants.velocityCarryMinimumDelta, speed > 0 {
         let initialVelocity = CGFloat(-velocity) / (CGFloat(delta) * speed)
         let descriptor = SpringDescriptor(
           initialVelocity: initialVelocity,
