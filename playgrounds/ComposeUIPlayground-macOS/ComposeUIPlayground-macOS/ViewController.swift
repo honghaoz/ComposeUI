@@ -88,6 +88,16 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
+      ViewNode<Playground.AnimateLabView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: 300)
+
+      Spacer(height: 16)
+
       ViewNode<Playground.FrameView>()
         .underlay {
           LayerNode()
