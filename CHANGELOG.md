@@ -19,7 +19,7 @@
 ### Breaking Changes
 
 - `ViewNode` and `LayerNode` intrinsic size closures now receive only the proposed `CGSize`. Capture an external view or layer when its instance is needed for measurement.
-- `ScrollViewType` now requires `clipsToBounds`, custom conformers must implement it.
+- `ScrollViewType` now requires custom conformers to implement `clipsToBounds`.
 - `ComposeView` behavior enums gained new cases, and render debug events now use `ComposeNodeId` and updated event names. Update exhaustive switches and debug handlers as needed.
 - `RenderableTransition` contexts now expose `ComposeView`, and `CALayer.animate` value closures now receive the concrete layer type through `Self`.
 
