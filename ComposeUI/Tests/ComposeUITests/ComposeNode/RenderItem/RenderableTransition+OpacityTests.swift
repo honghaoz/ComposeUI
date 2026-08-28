@@ -296,9 +296,8 @@ class RenderableTransition_OpacityTests: XCTestCase {
 
     // releasing the layer during the delay window releases it with its scheduled animation once the pending
     // transaction commits, without the animation ever playing
-    weak var weakLayer = layer
+    weak let weakLayer = layer
     layer = nil
-    weakLayer = nil // to avoid "Weak variable 'weakLayer' was never mutated; consider changing to 'let' constant" warning
     expect(weakLayer).toEventually(beNil())
   }
 
@@ -445,7 +444,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     )
 
     // the model is at the target immediately, and the scheduled animation holds the start value's delta for the delay
-    // window, so the layer renders at the start value (0) until the delay elapses
+    // window (the fill-mode hold itself is pinned by the hosted animate tests)
     expect(layer.opacity) == 1
     let animations = layer.basicAnimations(forKeyPath: "opacity")
     expect(animations.count) == 1

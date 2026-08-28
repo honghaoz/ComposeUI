@@ -261,6 +261,7 @@ class CALayer_AnimationsTests: XCTestCase {
     )
 
     // during the delay window, the model is at the target while the presentation holds the old value
+    expect(layer.presentation()).toEventuallyNot(beNil())
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
     expect(layer.opacity) == 1
     expect(try unwrap(layer.presentation()).opacity).to(beApproximatelyEqual(to: 0.2, within: 0.05))
@@ -268,7 +269,7 @@ class CALayer_AnimationsTests: XCTestCase {
 
     // the animation completes after the delay and the duration, landing at the target
     expect(isCompleted).toEventually(beTrue(), timeout: 2)
-    expect(layer.presentation()?.opacity ?? layer.opacity).to(beApproximatelyEqual(to: 1, within: 0.05))
+    expect(try unwrap(layer.presentation()).opacity).to(beApproximatelyEqual(to: 1, within: 0.05))
   }
 
   func test_animationKey() {
