@@ -56,7 +56,7 @@ public extension RenderableTransition {
         renderable.setFrame(context.targetFrame)
 
         renderable.layer.retargetOpacity(
-          freshStartValue: { _ in Float(from) },
+          freshStartValue: Float(from),
           targetValue: Float(to),
           timing: timing,
           completion: completion
@@ -66,7 +66,7 @@ public extension RenderableTransition {
         animatedKeyPaths: ["opacity"],
         animate: { renderable, _, completion in
           renderable.layer.retargetOpacity(
-            freshStartValue: { $0.opacity },
+            freshStartValue: renderable.layer.opacity,
             targetValue: Float(from),
             timing: timing,
             completion: completion
@@ -141,7 +141,7 @@ private extension CALayer {
   ///   - timing: The timing for the animation.
   ///   - completion: The block called when the animation completes or is torn down before completing (removed by a
   ///     superseding retargeting, a reset, or the layer leaving the layer tree).
-  func retargetOpacity(freshStartValue: @escaping (CALayer) -> Float,
+  func retargetOpacity(freshStartValue: Float,
                        targetValue: Float,
                        timing: AnimationTiming,
                        completion: @escaping () -> Void)
@@ -155,7 +155,7 @@ private extension CALayer {
       return
     }
 
-    let start = interrupted?.value ?? freshStartValue(self)
+    let start = interrupted?.value ?? freshStartValue
     let delta = start - targetValue
 
     animate(
@@ -189,7 +189,7 @@ private extension CALayer {
       return nil
     }
 
-    let now = convertTime(CACurrentMediaTime(), from: nil)
+    let now = currentTime
 
     func composedValue(at time: TimeInterval) -> Double {
       var value = Double(opacity)
