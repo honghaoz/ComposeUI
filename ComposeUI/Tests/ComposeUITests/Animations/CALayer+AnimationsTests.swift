@@ -200,6 +200,28 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(layer.animationKeys()) == nil
   }
 
+  func test_animate_delayed_nilFromValue_resolvesAtDispatch() throws {
+    let red = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+    let green = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
+
+    let layer = CALayer()
+    layer.backgroundColor = green
+
+    // an unhosted layer has no presentation, so the from closure resolves to nil
+    layer.animate(
+      keyPath: "backgroundColor",
+      timing: .linear(duration: 1, delay: 0.5),
+      from: { $0.presentation()?.backgroundColor },
+      to: { _ in red }
+    )
+
+    // the nil from value is resolved at dispatch from the model value, so the scheduled animation's fill can hold
+    // the old value during the delay window instead of showing the target
+    let animation = try unwrap(layer.animation(forKey: "backgroundColor") as? CABasicAnimation)
+    expect(try unwrap(animation.fromValue) as! CGColor) == green // swiftlint:disable:this force_cast
+    expect(layer.backgroundColor) == red
+  }
+
   func test_animate_delayed_holdsFromValueDuringDelayWindow() throws {
     let testWindow = TestWindow()
 

@@ -335,7 +335,7 @@ public extension ComposeNode {
           layer.animate(
             keyPath: "backgroundColor",
             timing: animationTiming,
-            from: { $0.presentation()?.backgroundColor },
+            from: { $0.presentation()?.backgroundColor ?? $0.backgroundColor ?? Color.clear.cgColor },
             to: { _ in color }
           )
         } else {
@@ -434,7 +434,7 @@ public extension ComposeNode {
           layer.animate(
             keyPath: "borderColor",
             timing: animationTiming,
-            from: { $0.presentation()?.borderColor },
+            from: { $0.presentation()?.borderColor ?? $0.borderColor ?? Color.clear.cgColor },
             to: { _ in color }
           )
           layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
@@ -583,7 +583,7 @@ public extension ComposeNode {
           layer.animate(
             keyPath: "shadowColor",
             timing: animationTiming,
-            from: { $0.presentation()?.shadowColor },
+            from: { $0.presentation()?.shadowColor ?? $0.shadowColor ?? Color.clear.cgColor },
             to: { _ in color }
           )
           layer.animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
@@ -593,7 +593,7 @@ public extension ComposeNode {
           layer.animate(
             keyPath: "shadowPath",
             timing: animationTiming,
-            from: { $0.presentation()?.shadowPath },
+            from: { $0.presentation()?.shadowPath ?? $0.shadowPath },
             to: { _ in path }
           )
         } else {
