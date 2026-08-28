@@ -61,7 +61,9 @@ public extension CABasicAnimation {
     }
 
     animation.speed = Float(timing.speed)
-    animation.fillMode = .both // avoid the final frame appears before the animation
+    // backwards fill holds the from value while a scheduled animation waits out its delay, and avoids the final frame
+    // appearing before the animation starts
+    animation.fillMode = .both
 
     return animation
   }

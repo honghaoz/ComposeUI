@@ -294,13 +294,12 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    // releasing the layer during the delay window is a no-op when the delay fires
+    // releasing the layer during the delay window releases it with its scheduled animation once the pending
+    // transaction commits, without the animation ever playing
     weak var weakLayer = layer
     layer = nil
-    expect(weakLayer) == nil
-
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
-    weakLayer = nil
+    weakLayer = nil // to avoid "Weak variable 'weakLayer' was never mutated; consider changing to 'let' constant" warning
+    expect(weakLayer).toEventually(beNil())
   }
 
   func test_retarget_springTiming_matchesVelocity() throws {
@@ -408,68 +407,102 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(spring.initialVelocity) == 0
   }
 
-  func test_delayedFreshInsert_hidesLayerDuringDelay() {
+  func test_delayedFreshInsert_schedulesHeldAnimation() throws {
     let layer = CALayer()
-    layer.opacity = 1
+    layer.opacity = 0.3 // junk model value, a fresh insertion starts from `from`
 
-    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.1))
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.5))
     transition.insert?.animate(
       renderable: .layer(layer),
       context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
       completion: {}
     )
 
-    // during the delay window, the layer is hidden at the start value with no animation yet
-    expect(layer.opacity) == 0
-    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
+    // the model is at the target immediately, and the scheduled animation holds the start value's delta for the delay
+    // window, so the layer renders at the start value (0) until the delay elapses
+    expect(layer.opacity) == 1
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let animation = try unwrap(animations.first)
+    expect(try unwrap(animation.fromValue as? Float)) == -1
+    expect(animation.toValue as? Float) == 0
+    expect(animation.fillMode) == .both
 
-    // after the delay, the model is at the target. The animation itself is not asserted because Core Animation drops
-    // animations on layers outside of a layer tree when a transaction commits, and waiting for the delay pumps the run
-    // loop. The non-delayed tests cover the added animation.
-    expect(layer.opacity).toEventually(beEqual(to: 1))
+    // the animation is scheduled in the future by the delay, and evaluates to its held start delta until then
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
+    expect(try unwrap(animation.scalarValue(at: now))).to(beApproximatelyEqual(to: -1, within: 1e-6))
   }
 
-  func test_delayedInsert_withInFlightAnimation_keepsCurrentModelDuringDelay() {
+  func test_delayedInsert_withInFlightAnimation_freezesAtSampledValue() throws {
     let layer = CALayer()
     layer.opacity = 0
 
-    // an in-flight removal keeps playing during the delay window, so the model is not touched
+    // an in-flight removal, halfway through: rendered opacity is 0.5
     addInFlightAdditiveAnimation(to: layer, from: 1, progress: 0.5)
 
-    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.1))
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.5))
     transition.insert?.animate(
       renderable: .layer(layer),
       context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
       completion: {}
     )
 
-    expect(layer.opacity) == 0
-    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+    // the in-flight removal is sampled at dispatch and replaced: the scheduled animation holds the sampled value (0.5)
+    // for the delay window, then fades to the target
+    expect(layer.opacity) == 1
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let animation = try unwrap(animations.first)
+    expect(try unwrap(animation.fromValue as? Float)).to(beApproximatelyEqual(to: -0.5, within: 0.01))
 
-    // after the delay, the model is at the target. The animation itself is not asserted because Core Animation drops
-    // animations on layers outside of a layer tree when a transaction commits, and waiting for the delay pumps the run
-    // loop. The non-delayed tests cover the added animation.
-    expect(layer.opacity).toEventually(beEqual(to: 1))
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
-  func test_delayedRetarget_supersededByNewRetarget_doesNotFire() throws {
+  func test_delayedRetarget_scheduledAnimationIsSuperseded() throws {
     let layer = CALayer()
     layer.opacity = 0
 
-    // an in-flight removal, halfway through
+    // an in-flight removal, halfway through: rendered opacity is 0.5
     addInFlightAdditiveAnimation(to: layer, from: 1, progress: 0.5)
 
-    // a delayed insert schedules its retarget for after the delay window
+    // a delayed insert replaces it with a scheduled animation holding the sampled value (0.5), model at 1
     var insertCompletionCallCount = 0
-    let insertTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.1))
+    let insertTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.5))
     insertTransition.insert?.animate(
       renderable: .layer(layer),
       context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
       completion: { insertCompletionCallCount += 1 }
     )
 
-    // a remove interrupts during the delay window, superseding the pending insert retarget
+    // a remove interrupts during the insert's delay window: it samples the scheduled animation's held value
+    // (model 1 + held delta -0.5 = 0.5) and replaces it with its own animation towards 0
     let removeTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5))
+    try unwrap(removeTransition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+
+    expect(layer.opacity) == 0
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(animations.first?.fromValue as? Float)).to(beApproximatelyEqual(to: 0.5, within: 0.01))
+
+    // the superseded insert's animation was removed without finishing, so its completion reports as stopped (Core
+    // Animation delivers the callback on a later run loop turn)
+    expect(insertCompletionCallCount) == 0
+    expect(insertCompletionCallCount).toEventually(beEqual(to: 1))
+  }
+
+  func test_delayedRetarget_scheduledRemove_supersededByInsert_continuesFromHeldValue() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    // a delayed remove: the model moves to 0 at dispatch, and the scheduled animation holds the old value (1) for the
+    // delay window
+    let removeTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5, delay: 0.5))
     try unwrap(removeTransition.remove).animate(
       renderable: .layer(layer),
       context: RenderableTransition.RemoveTransition.Context(contentView: nil),
@@ -478,30 +511,9 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(layer.opacity) == 0
     expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
 
-    // past the delay window, the superseded insert retarget must not fire: it would tear down the remove's
-    // animation, complete the removal with stale values, and set the model to its own target (1).
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
-    expect(layer.opacity) == 0
-    expect(insertCompletionCallCount) == 0
-  }
-
-  func test_delayedRetarget_supersededPendingRetarget_continuesFromCurrentOpacity() throws {
-    let layer = CALayer()
-    layer.opacity = 1
-
-    // a delayed remove schedules its retarget: nothing is animating yet, the layer still shows its model opacity
-    let removeTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5, delay: 0.5))
-    try unwrap(removeTransition.remove).animate(
-      renderable: .layer(layer),
-      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
-      completion: {}
-    )
-    expect(layer.opacity) == 1
-    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
-
-    // an insert supersedes the pending remove before it fires: the layer is still fully visible, so the insert
-    // continues from the current opacity (a no-op fade from 1 to 1) instead of restarting from its fresh start
-    // value (a snap to 0 followed by a fade-in)
+    // an insert supersedes the scheduled remove before its delay elapses: the layer still shows the held value (1), so
+    // the insert continues from it (a no-op fade from 1 to 1) instead of restarting from its fresh start value (a snap
+    // to 0 followed by a fade-in)
     let insertTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5))
     try unwrap(insertTransition.insert).animate(
       renderable: .layer(layer),
@@ -515,11 +527,11 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(try unwrap(animations.first?.fromValue as? Float)) == 0
   }
 
-  func test_delayedInsert_withPendingRetarget_keepsCurrentModelDuringDelay() throws {
+  func test_delayedInsert_overScheduledRemove_continuesFromHeldValue() throws {
     let layer = CALayer()
     layer.opacity = 1
 
-    // a delayed remove schedules its retarget: nothing is animating yet
+    // a delayed remove: the scheduled animation holds the old value (1) for the delay window
     let removeTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5, delay: 0.5))
     try unwrap(removeTransition.remove).animate(
       renderable: .layer(layer),
@@ -527,46 +539,46 @@ class RenderableTransition_OpacityTests: XCTestCase {
       completion: {}
     )
 
-    // a delayed insert supersedes the pending remove: the transition is in flight (pending), so the insert must not
-    // hold the layer at its fresh start value (0), the layer keeps showing its current opacity for the delay window
-    let insertTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5, delay: 0.1))
+    // a delayed insert supersedes the scheduled remove: it samples the held value (1) at dispatch and schedules its own
+    // animation from it, so the layer keeps rendering 1 through both delay windows
+    let insertTransition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5, delay: 0.5))
     try unwrap(insertTransition.insert).animate(
       renderable: .layer(layer),
       context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
       completion: {}
     )
-    expect(layer.opacity) == 1
 
-    // past both delay windows, the cancelled remove never fired and the insert continued from the current opacity
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.7))
     expect(layer.opacity) == 1
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let animation = try unwrap(animations.first)
+    expect(try unwrap(animation.fromValue as? Float)) == 0
+
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
-  func test_delayedRetarget_cancelledByResetForReuse_doesNotFire() throws {
+  func test_delayedRetarget_scheduledAnimationIsRemovedByReset() throws {
     let layer = CALayer()
     layer.opacity = 1
 
-    // a delayed remove schedules its retarget for after the delay window
-    var removeCompletionCallCount = 0
-    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.1))
+    // a delayed remove: the model moves to 0 at dispatch, and the scheduled animation holds the old value
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.5))
     let removeTransition = try unwrap(transition.remove)
     removeTransition.animate(
       renderable: .layer(layer),
       context: RenderableTransition.RemoveTransition.Context(contentView: nil),
-      completion: { removeCompletionCallCount += 1 }
+      completion: {}
     )
+    expect(layer.opacity) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
 
-    // the renderable is reset during the delay window (e.g. recycled to the pool, or revived without a
-    // taking-over insert transition), cancelling the pending retarget
+    // the renderable is reset during the delay window (e.g. recycled to the pool, or revived without a taking-over
+    // insert transition): the scheduled animation is removed with the rest of the residue
     removeTransition.resetForReuse(renderable: .layer(layer))
-    expect(layer.opacity) == 1
 
-    // past the delay window, the cancelled remove retarget must not fire: it would fade the reset renderable
-    // towards its own target (0).
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
     expect(layer.opacity) == 1
     expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
-    expect(removeCompletionCallCount) == 0
   }
 
   /// Adds an in-flight additive opacity animation with a known progress to `layer`.

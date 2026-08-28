@@ -84,6 +84,30 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(contentView.test.removingRenderableMap.count) == 0
   }
 
+  func test_delayedTransition_removalCompletesThroughScheduledAnimation() {
+    let window = TestWindow()
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    window.contentView().addSubview(contentView)
+
+    contentView.setContent {
+      ColorNode(.red)
+        .transition(.opacity(timing: .linear(duration: 0.1, delay: 0.1)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.refresh(animated: true)
+
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    // the removal is in flight while the scheduled animation waits out its delay and plays
+    expect(contentView.test.removingRenderableMap.count) == 1
+
+    // the scheduled animation's completion finishes the removal
+    expect(contentView.test.removingRenderableMap.count).toEventually(beEqual(to: 0), timeout: 2)
+  }
+
   func test_reinsertRemovingRenderable() {
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
