@@ -174,7 +174,9 @@ public extension CALayer {
   ///   - key: The key to use for the animation. If `nil`, the key path will be used.
   ///   - keyPath: The key path to animate.
   ///   - timing: The animation timing.
-  ///   - from: The value to animate from. Evaluated before the model value is set.
+  ///   - from: The value to animate from. Evaluated before the model value is set. A `nil` value on a scheduled
+  ///     non-additive animation is resolved at dispatch, from the presentation value falling back to the model
+  ///     value, because the fill mode can't hold an unresolved value during the delay window.
   ///   - to: The value to animate to. Evaluated before the model value is set.
   ///   - model: The model value to set. If `nil`, the `to` value will be used.
   ///   - updateAnimation: An optional closure to update the animation.
@@ -206,6 +208,14 @@ public extension CALayer {
     }
 
     updateAnimation?(animation)
+
+    // a nil `T` boxes as `NSNull` when `T` is an optional type, which Core Animation also treats as unresolved
+    let isFromValueUnresolved = animation.fromValue == nil || animation.fromValue is NSNull
+    if timing.delay > 0, isFromValueUnresolved, !animation.isAdditive {
+      // a scheduled to-only animation can't backwards-fill an unresolved from value (the fill would show the
+      // target), so resolve it at dispatch the way Core Animation would at activation
+      animation.fromValue = presentation()?.value(forKeyPath: keyPath) ?? value(forKeyPath: keyPath)
+    }
 
     let rawKey = key ?? keyPath
     let key: String
