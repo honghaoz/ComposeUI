@@ -28,6 +28,7 @@
 		E5ED82062D87B2AF00B3FE3A /* Playground+TransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ED82042D87B2AF00B3FE3A /* Playground+TransitionView.swift */; };
 		FAD29AA7E71C49C681B130B7 /* Playground+TransitionRevivalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFAF329A87694966B1616473 /* Playground+TransitionRevivalView.swift */; };
 		A7C41E92B35D4F8A9C02D611 /* Playground+AnimateLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F52A81C46E5D9B8D13E722 /* Playground+AnimateLabView.swift */; };
+		A7C41E92B35D4F8A9C02D622 /* Playground+Debug.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F52A81C46E5D9B8D13E733 /* Playground+Debug.swift */; };
 		E5F25D7F2D9A5BEF00183721 /* Playground+ShadowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F25D7E2D9A5BEF00183721 /* Playground+ShadowView.swift */; };
 /* End PBXBuildFile section */
 
@@ -53,6 +54,7 @@
 		E5ED82042D87B2AF00B3FE3A /* Playground+TransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionView.swift"; sourceTree = "<group>"; };
 		EFAF329A87694966B1616473 /* Playground+TransitionRevivalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionRevivalView.swift"; sourceTree = "<group>"; };
 		B3F52A81C46E5D9B8D13E722 /* Playground+AnimateLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+AnimateLabView.swift"; sourceTree = "<group>"; };
+		B3F52A81C46E5D9B8D13E733 /* Playground+Debug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+Debug.swift"; sourceTree = "<group>"; };
 		E5F25D7E2D9A5BEF00183721 /* Playground+ShadowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+ShadowView.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -109,6 +111,7 @@
 				E5ED82042D87B2AF00B3FE3A /* Playground+TransitionView.swift */,
 				EFAF329A87694966B1616473 /* Playground+TransitionRevivalView.swift */,
 				B3F52A81C46E5D9B8D13E722 /* Playground+AnimateLabView.swift */,
+				B3F52A81C46E5D9B8D13E733 /* Playground+Debug.swift */,
 				E5D636CD2D7CEA270080A152 /* Playground+FrameView.swift */,
 				021EAA032E2F6C190094431C /* Playground+LayersView.swift */,
 				021EAA062E8000010094431C /* Playground+ZOrderView.swift */,
@@ -211,6 +214,7 @@
 				E5ED82062D87B2AF00B3FE3A /* Playground+TransitionView.swift in Sources */,
 				FAD29AA7E71C49C681B130B7 /* Playground+TransitionRevivalView.swift in Sources */,
 				A7C41E92B35D4F8A9C02D611 /* Playground+AnimateLabView.swift in Sources */,
+				A7C41E92B35D4F8A9C02D622 /* Playground+Debug.swift in Sources */,
 				E5D636D42D7CECAB0080A152 /* Colors.swift in Sources */,
 				E58E92452CCF40FD0076FEFB /* AppDelegate.swift in Sources */,
 				E58E92472CCF40FD0076FEFB /* SceneDelegate.swift in Sources */,

@@ -77,6 +77,8 @@ extension Playground {
     private var samplingTimer: Timer?
     private var lastSampleLine: String?
 
+    private typealias Debug = Playground.Debug
+
     /// The time base for the logs: reset on every tap, so sample timestamps are relative to the last action and sessions
     /// from different builds can be compared line by line.
     private var referenceTime: CFTimeInterval = CACurrentMediaTime()
@@ -100,38 +102,38 @@ extension Playground {
         .frame(width: .flexible, height: 100)
 
         HStack(spacing: 10) {
-          button(title: "Move ⇄") { [weak self] in
+          Playground.button(title: "Move ⇄", fontSize: 11) { [weak self] in
             self?.tap("Move") { self?.move(delayed: false) }
           }
-          button(title: "Fade ⇄") { [weak self] in
+          Playground.button(title: "Fade ⇄", fontSize: 11) { [weak self] in
             self?.tap("Fade") { self?.fade(delayed: false) }
           }
-          button(title: "Corner ⇄") { [weak self] in
+          Playground.button(title: "Corner ⇄", fontSize: 11) { [weak self] in
             self?.tap("Corner") { self?.corner(delayed: false) }
           }
         }
         .frame(width: .flexible, height: 32)
 
         HStack(spacing: 10) {
-          button(title: "Move ⇄ +1s") { [weak self] in
+          Playground.button(title: "Move ⇄ +1s", fontSize: 11) { [weak self] in
             self?.tap("Move delayed") { self?.move(delayed: true) }
           }
-          button(title: "Fade ⇄ +1s") { [weak self] in
+          Playground.button(title: "Fade ⇄ +1s", fontSize: 11) { [weak self] in
             self?.tap("Fade delayed") { self?.fade(delayed: true) }
           }
-          button(title: "Corner ⇄ +1s") { [weak self] in
+          Playground.button(title: "Corner ⇄ +1s", fontSize: 11) { [weak self] in
             self?.tap("Corner delayed") { self?.corner(delayed: true) }
           }
         }
         .frame(width: .flexible, height: 32)
 
         HStack(spacing: 10) {
-          button(title: "S1: fresh delayed move") { [weak self] in
+          Playground.button(title: "S1: fresh delayed move", fontSize: 11) { [weak self] in
             self?.runScenario("S1 fresh delayed move", steps: [
               (0, "move delayed", { self?.move(delayed: true) }),
             ])
           }
-          button(title: "S2: interrupt in-flight") { [weak self] in
+          Playground.button(title: "S2: interrupt in-flight", fontSize: 11) { [weak self] in
             self?.runScenario("S2 delayed move during in-flight move", steps: [
               (0, "move", { self?.move(delayed: false) }),
               (0.6, "move back delayed", { self?.move(delayed: true) }),
@@ -141,19 +143,19 @@ extension Playground {
         .frame(width: .flexible, height: 32)
 
         HStack(spacing: 10) {
-          button(title: "S3: two delayed moves") { [weak self] in
+          Playground.button(title: "S3: two delayed moves", fontSize: 11) { [weak self] in
             self?.runScenario("S3 two overlapping delayed moves", steps: [
               (0, "move delayed", { self?.move(delayed: true) }),
               (0.4, "move back delayed", { self?.move(delayed: true) }),
             ])
           }
-          button(title: "S4: stacked delayed fades") { [weak self] in
+          Playground.button(title: "S4: stacked delayed fades", fontSize: 11) { [weak self] in
             self?.runScenario("S4 delayed fade during in-flight fade", steps: [
               (0, "fade", { self?.fade(delayed: false) }),
               (0.6, "fade back delayed", { self?.fade(delayed: true) }),
             ])
           }
-          button(title: "Reset") { [weak self] in
+          Playground.button(title: "Reset", fontSize: 11) { [weak self] in
             self?.tap("Reset") { self?.reset() }
           }
         }
@@ -206,21 +208,21 @@ extension Playground {
       if isMovedRight {
         targetFrame.origin.x = stageLayer.bounds.width - Constants.boxSize - Constants.boxMargin
       }
-      log("DISPATCH animateFrame(to: \(format(targetFrame.origin)), delay: \(delayed ? Constants.delay : 0))")
+      log("DISPATCH animateFrame(to: \(Debug.format(targetFrame.origin)), delay: \(delayed ? Constants.delay : 0))")
       boxLayer.animateFrame(to: targetFrame, timing: timing(delayed: delayed))
     }
 
     private func fade(delayed: Bool) {
       isFaded.toggle()
       let targetOpacity: Float = isFaded ? Constants.fadedOpacity : 1
-      log("DISPATCH animate(opacity, to: \(format(targetOpacity)), delay: \(delayed ? Constants.delay : 0))")
+      log("DISPATCH animate(opacity, to: \(Debug.format(targetOpacity)), delay: \(delayed ? Constants.delay : 0))")
       boxLayer.animate(keyPath: "opacity", to: targetOpacity, timing: timing(delayed: delayed))
     }
 
     private func corner(delayed: Bool) {
       isRounded.toggle()
       let targetRadius = isRounded ? Constants.cornerRadiusRounded : Constants.cornerRadiusNormal
-      log("DISPATCH animate(cornerRadius, to: \(format(targetRadius)), delay: \(delayed ? Constants.delay : 0))")
+      log("DISPATCH animate(cornerRadius, to: \(Debug.format(targetRadius)), delay: \(delayed ? Constants.delay : 0))")
       boxLayer.animate(keyPath: "cornerRadius", to: targetRadius, timing: timing(delayed: delayed))
     }
 
@@ -320,93 +322,15 @@ extension Playground {
 
     private func describeBox() -> String {
       let layer = boxLayer
-      let model = "position = \(format(layer.position)), opacity = \(format(layer.opacity)), corner = \(format(layer.cornerRadius))"
+      let model = "position = \(Debug.format(layer.position)), opacity = \(Debug.format(layer.opacity)), corner = \(Debug.format(layer.cornerRadius))"
       let presentation = layer.presentation().map {
-        "presentation: position = \(format($0.position)), opacity = \(format($0.opacity)), corner = \(format($0.cornerRadius))"
+        "presentation: position = \(Debug.format($0.position)), opacity = \(Debug.format($0.opacity)), corner = \(Debug.format($0.cornerRadius))"
       } ?? "presentation: nil"
-      return "\(model), \(presentation), animations = \(describeAnimations(of: layer))"
-    }
-
-    private func describeAnimations(of layer: CALayer) -> String {
-      let keys = layer.animationKeys() ?? []
-      guard !keys.isEmpty else {
-        return "[]"
-      }
-      let now = layer.convertTime(CACurrentMediaTime(), from: nil)
-      let descriptions = keys.map { key -> String in
-        guard let animation = layer.animation(forKey: key) as? CABasicAnimation else {
-          return "\(key): \(type(of: layer.animation(forKey: key) as Any))"
-        }
-        let from = describeValue(animation.fromValue)
-        let to = describeValue(animation.toValue)
-        let elapsed = now - animation.beginTime
-        return "\(key)(\(animation.keyPath ?? "?")): \(from) -> \(to)\(animation.isAdditive ? " additive" : ""), elapsed = \(format(elapsed))/\(format(animation.duration))s"
-      }
-      return "[\(descriptions.joined(separator: " | "))]"
-    }
-
-    private func describeValue(_ value: Any?) -> String {
-      switch value {
-      case let number as NSNumber:
-        return format(number.doubleValue)
-      case let point as NSValue:
-        #if canImport(UIKit)
-        return format(point.cgPointValue)
-        #else
-        return format(point.pointValue)
-        #endif
-      case .none:
-        return "nil"
-      case .some(let other):
-        return String(describing: other)
-      }
-    }
-
-    private func format(_ value: Double) -> String {
-      String(format: "%.3f", value)
-    }
-
-    private func format(_ value: Float) -> String {
-      String(format: "%.3f", value)
-    }
-
-    private func format(_ value: CGFloat) -> String {
-      String(format: "%.3f", value)
-    }
-
-    private func format(_ point: CGPoint) -> String {
-      String(format: "(%.1f, %.1f)", point.x, point.y)
+      return "\(model), \(presentation), animations = \(Debug.describeAnimations(of: layer))"
     }
 
     private func log(_ message: String) {
       print("[AnimateLab] \(String(format: "+%.3f", CACurrentMediaTime() - referenceTime)) | \(message)")
-    }
-
-    private func button(title: String, onTap: @escaping () -> Void) -> ComposeNode {
-      ButtonNode(
-        content: { state in
-          let backgroundColor: Color
-          switch state {
-          case .normal,
-               .hovered:
-            backgroundColor = Colors.blueGray
-          case .pressed,
-               .selected:
-            backgroundColor = Colors.darkBlueGray
-          case .disabled:
-            backgroundColor = Colors.lightBlueGray
-          }
-          ColorNode(backgroundColor)
-            .cornerRadius(6)
-            .overlay {
-              Label(title)
-                .textColor(.white)
-                .font(.systemFont(ofSize: 11))
-                .selectable(false)
-            }
-        },
-        onTap: onTap
-      )
     }
   }
 }

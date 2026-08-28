@@ -115,6 +115,8 @@ extension Playground {
     private var samplingTimer: Timer?
     private var lastSampleLine: String?
 
+    private typealias Debug = Playground.Debug
+
     /// Whether the box layer can be tracked, which requires the content view's DEBUG-only debug events.
     private var isSamplingSupported: Bool {
       #if DEBUG
@@ -141,7 +143,7 @@ extension Playground {
         .frame(width: .flexible, height: .flexible)
 
         HStack(spacing: 12) {
-          button(title: isShowing ? "Remove (animated)" : "Insert (animated)") { [weak self] in
+          Playground.button(title: isShowing ? "Remove (animated)" : "Insert (animated)") { [weak self] in
             guard let self else {
               return
             }
@@ -151,7 +153,7 @@ extension Playground {
             self.logBoxState("after refresh(animated: true)")
           }
 
-          button(title: isShowing ? "Remove (instant)" : "Insert (instant)") { [weak self] in
+          Playground.button(title: isShowing ? "Remove (instant)" : "Insert (instant)") { [weak self] in
             guard let self else {
               return
             }
@@ -163,7 +165,7 @@ extension Playground {
         }
         .frame(width: .flexible, height: 36)
 
-        button(title: "Transition: \(transitionKind.title)") { [weak self] in
+        Playground.button(title: "Transition: \(transitionKind.title)") { [weak self] in
           guard let self else {
             return
           }
@@ -279,95 +281,18 @@ extension Playground {
       let model: String
       let presentation: String
       if transitionKind.animatesPosition {
-        model = "position = \(format(layer.position))"
-        presentation = "presentationPosition = \(layer.presentation().map { format($0.position) } ?? "nil")"
+        model = "position = \(Debug.format(layer.position))"
+        presentation = "presentationPosition = \(layer.presentation().map { Debug.format($0.position) } ?? "nil")"
       } else {
-        model = "opacity = \(format(layer.opacity))"
-        presentation = "presentationOpacity = \(layer.presentation().map { format($0.opacity) } ?? "nil")"
+        model = "opacity = \(Debug.format(layer.opacity))"
+        presentation = "presentationOpacity = \(layer.presentation().map { Debug.format($0.opacity) } ?? "nil")"
       }
       let inTree = layer.superlayer != nil ? "attached" : "DETACHED"
-      return "layer = \(pointer) (\(inTree)), \(model), \(presentation), animations = \(describeAnimations(of: layer))"
-    }
-
-    private func describeAnimations(of layer: CALayer) -> String {
-      let keys = layer.animationKeys() ?? []
-      guard !keys.isEmpty else {
-        return "[]"
-      }
-      let now = layer.convertTime(CACurrentMediaTime(), from: nil)
-      let descriptions = keys.map { key -> String in
-        guard let animation = layer.animation(forKey: key) as? CABasicAnimation else {
-          return "\(key): \(type(of: layer.animation(forKey: key) as Any))"
-        }
-        let from = describeValue(animation.fromValue)
-        let to = describeValue(animation.toValue)
-        let elapsed = now - animation.beginTime
-        return "\(key)(\(animation.keyPath ?? "?")): \(from) -> \(to)\(animation.isAdditive ? " additive" : ""), elapsed = \(format(elapsed))/\(format(animation.duration))s"
-      }
-      return "[\(descriptions.joined(separator: " | "))]"
-    }
-
-    private func describeValue(_ value: Any?) -> String {
-      switch value {
-      case let number as NSNumber:
-        return format(number.doubleValue)
-      case let point as NSValue:
-        #if canImport(UIKit)
-        return format(point.cgPointValue)
-        #else
-        return format(point.pointValue)
-        #endif
-      case .none:
-        return "nil"
-      case .some(let other):
-        return String(describing: other)
-      }
-    }
-
-    private func format(_ value: Double) -> String {
-      String(format: "%.3f", value)
-    }
-
-    private func format(_ value: Float) -> String {
-      String(format: "%.3f", value)
-    }
-
-    private func format(_ value: CGFloat) -> String {
-      String(format: "%.3f", value)
-    }
-
-    private func format(_ point: CGPoint) -> String {
-      String(format: "(%.1f, %.1f)", point.x, point.y)
+      return "layer = \(pointer) (\(inTree)), \(model), \(presentation), animations = \(Debug.describeAnimations(of: layer))"
     }
 
     private func log(_ message: String) {
       print("[Revival] \(String(format: "%.3f", CACurrentMediaTime())) | \(message)")
-    }
-
-    private func button(title: String, onTap: @escaping () -> Void) -> ComposeNode {
-      ButtonNode(
-        content: { state in
-          let backgroundColor: Color
-          switch state {
-          case .normal,
-               .hovered:
-            backgroundColor = Colors.blueGray
-          case .pressed,
-               .selected:
-            backgroundColor = Colors.darkBlueGray
-          case .disabled:
-            backgroundColor = Colors.lightBlueGray
-          }
-          ColorNode(backgroundColor)
-            .cornerRadius(6)
-            .overlay {
-              Label(title)
-                .textColor(.white)
-                .selectable(false)
-            }
-        },
-        onTap: onTap
-      )
     }
   }
 }
