@@ -189,15 +189,32 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
-  func test_animate_delayed_zeroDuration_appliesModelImmediately() {
+  func test_animate_zeroDuration_appliesModelImmediately() {
+    let layer = CALayer()
+    layer.opacity = 0.2
+
+    layer.animate(keyPath: "opacity", to: Float(1), timing: .linear(duration: 0))
+
+    // a zero-duration timing without a delay applies the model value immediately
+    expect(layer.opacity) == 1
+    expect(layer.animationKeys()) == nil
+  }
+
+  func test_animate_delayed_zeroDuration_schedulesSnap() throws {
     let layer = CALayer()
     layer.opacity = 0.2
 
     layer.animate(keyPath: "opacity", to: Float(1), timing: .linear(duration: 0, delay: 0.5))
 
-    // a zero-duration timing applies the model value immediately, ignoring the delay
+    // a zero-duration timing with a delay is a scheduled snap: the animation holds the old value for the delay window,
+    // then applies the model value as an instant change
     expect(layer.opacity) == 1
-    expect(layer.animationKeys()) == nil
+    let animation = try unwrap(layer.animation(forKey: "opacity") as? CABasicAnimation)
+    expect(try unwrap(animation.fromValue as? Float)).to(beApproximatelyEqual(to: -0.8, within: 1e-6))
+    expect(animation.duration).to(beApproximatelyEqual(to: 0.001, within: 1e-6))
+
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
   func test_animate_delayed_nilFromValue_resolvesAtDispatch() throws {

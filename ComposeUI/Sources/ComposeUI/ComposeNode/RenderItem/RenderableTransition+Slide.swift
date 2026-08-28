@@ -54,6 +54,9 @@ public extension RenderableTransition {
   /// transition that slides out to a different side than it slides in from doesn't take over an in-flight removal, and
   /// a revival snaps to the resting position before sliding in.
   ///
+  /// A zero-duration timing applies the end frame and completes immediately when there is no delay. With a delay,
+  /// the end frame is scheduled as a snap that applies right after the delay window.
+  ///
   /// - Parameters:
   ///   - from: The side of the slide transition to slide from.
   ///   - to: The side of the slide transition to slide to for removal. Defaults to `from` when nil.
@@ -71,6 +74,12 @@ public extension RenderableTransition {
       insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: entersFromExitSide ? ["position"] : []) { renderable, context, completion in
         let layer = renderable.layer
         let targetFrame = context.targetFrame
+
+        guard timing.timing.duration > 0 || timing.delay > 0 else {
+          renderable.setFrame(targetFrame)
+          completion()
+          return
+        }
 
         let initialFrame: CGRect
         switch fromSide {
@@ -115,6 +124,12 @@ public extension RenderableTransition {
             targetFrame = currentFrame.translate(dx: -currentFrame.maxX - overshoot)
           case .right:
             targetFrame = currentFrame.translate(dx: context.contentView.bounds().width - currentFrame.minX + overshoot)
+          }
+
+          guard timing.timing.duration > 0 || timing.delay > 0 else {
+            renderable.setFrame(targetFrame)
+            completion()
+            return
           }
 
           layer.animate(

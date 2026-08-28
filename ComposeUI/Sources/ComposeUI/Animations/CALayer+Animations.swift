@@ -30,6 +30,11 @@
 
 import QuartzCore
 
+/// The duration of a scheduled snap: a zero-duration timing with a delay renders as an instant change after the delay
+/// window. Core Animation substitutes its default duration for a zero duration, so the snap uses a sub-frame duration
+/// instead.
+private let scheduledSnapDuration: TimeInterval = 0.001
+
 public extension CALayer {
 
   /// Animate the layer's frame additively.
@@ -166,7 +171,8 @@ public extension CALayer {
   /// The animation is added and the model value is set synchronously. The timing's delay schedules the animation's
   /// begin time in the layer's time space, and the animation's fill mode holds the `from` value until the delay
   /// elapses, so the layer keeps showing its pre-animation state during the delay window while the model value is
-  /// already set. A zero-duration timing applies the model value immediately, ignoring the delay.
+  /// already set. A zero-duration timing applies the model value immediately when there is no delay. With a delay,
+  /// the change is scheduled as a snap that applies right after the delay window.
   ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
@@ -194,12 +200,15 @@ public extension CALayer {
 
     let model = model ?? to
 
-    guard timing.timing.duration > 0 else {
+    guard timing.timing.duration > 0 || timing.delay > 0 else {
       setKeyPathValue(keyPath, model(layer))
       return
     }
 
     let animation = CABasicAnimation.makeAnimation(timing)
+    if timing.timing.duration <= 0 {
+      animation.duration = scheduledSnapDuration
+    }
     animation.keyPath = keyPath
     animation.fromValue = from(layer)
     animation.toValue = to(layer)

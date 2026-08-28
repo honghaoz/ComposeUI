@@ -581,6 +581,56 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
   }
 
+  func test_zeroDurationTransition_appliesTargetAndCompletes() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    // an in-flight animation is torn down by the zero-duration retarget
+    addInFlightAdditiveAnimation(to: layer, from: 1, progress: 0.5)
+
+    var removeCompletionCallCount = 0
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 0))
+    try unwrap(transition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: { removeCompletionCallCount += 1 }
+    )
+
+    // the target value applies and the transition completes immediately, with no animation left behind
+    expect(layer.opacity) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
+    expect(removeCompletionCallCount) == 1
+  }
+
+  func test_zeroDurationTransition_delayed_schedulesSnap() throws {
+    let layer = CALayer()
+    layer.opacity = 0
+
+    // an in-flight removal, halfway through: rendered opacity is 0.5
+    addInFlightAdditiveAnimation(to: layer, from: 1, progress: 0.5)
+
+    var insertCompletionCallCount = 0
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 0, delay: 0.5))
+    transition.insert?.animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil),
+      completion: { insertCompletionCallCount += 1 }
+    )
+
+    // a zero-duration timing with a delay is a scheduled snap: the sampled value (0.5) holds for the delay window,
+    // then snaps to the target, completing through the animation
+    expect(layer.opacity) == 1
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let animation = try unwrap(animations.first)
+    expect(try unwrap(animation.fromValue as? Float)).to(beApproximatelyEqual(to: -0.5, within: 0.01))
+    expect(animation.duration).to(beApproximatelyEqual(to: 0.001, within: 1e-6))
+    expect(insertCompletionCallCount) == 0
+
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
+  }
+
   /// Adds an in-flight additive opacity animation with a known progress to `layer`.
   ///
   /// The animation is linear from `from` to 0, with its begin time set in the past so its current contribution is
