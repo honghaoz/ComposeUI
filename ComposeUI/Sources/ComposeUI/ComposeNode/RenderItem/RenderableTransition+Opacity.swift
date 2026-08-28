@@ -139,7 +139,8 @@ private extension CALayer {
   ///   - freshStartValue: The opacity to start from when no opacity transition is in flight.
   ///   - targetValue: The opacity to animate to. Also set as the model value.
   ///   - timing: The timing for the animation.
-  ///   - completion: The block called when the animation completes.
+  ///   - completion: The block called when the animation completes or is torn down before completing (removed by a
+  ///     superseding retargeting, a reset, or the layer leaving the layer tree).
   func retargetOpacity(freshStartValue: @escaping (CALayer) -> Float,
                        targetValue: Float,
                        timing: AnimationTiming,

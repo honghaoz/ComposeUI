@@ -589,12 +589,13 @@ class RenderableTransition_OpacityTests: XCTestCase {
     layer.opacity = 1
 
     // a delayed remove: the model moves to 0 at dispatch, and the scheduled animation holds the old value
+    var removeCompletionCallCount = 0
     let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 1, delay: 0.5))
     let removeTransition = try unwrap(transition.remove)
     removeTransition.animate(
       renderable: .layer(layer),
       context: RenderableTransition.RemoveTransition.Context(contentView: nil),
-      completion: {}
+      completion: { removeCompletionCallCount += 1 }
     )
     expect(layer.opacity) == 0
     expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
@@ -605,6 +606,11 @@ class RenderableTransition_OpacityTests: XCTestCase {
 
     expect(layer.opacity) == 1
     expect(layer.basicAnimations(forKeyPath: "opacity").count) == 0
+
+    // the torn-down animation reports as stopped, so the completion fires on a later run loop turn. the framework
+    // cancels the transition's completion before resetting, so the late call is inert there
+    expect(removeCompletionCallCount) == 0
+    expect(removeCompletionCallCount).toEventually(beEqual(to: 1))
   }
 
   func test_zeroDurationTransition_appliesTargetAndCompletes() throws {
