@@ -335,6 +335,32 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(spring.duration).to(beApproximatelyEqual(to: springWithCarriedVelocity.perceptualDuration(), within: 1e-6))
   }
 
+  func test_retarget_springTiming_delayed_startsFromRest() throws {
+    let layer = CALayer()
+    layer.opacity = 1
+
+    // an insertion halfway through a 10s linear fade: value 0.5, rising at +0.1 per second
+    addInFlightAdditiveAnimation(to: layer, from: -1, progress: 0.5)
+
+    let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .spring(delay: 0.5))
+    try unwrap(transition.remove).animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.RemoveTransition.Context(contentView: nil),
+      completion: {}
+    )
+
+    // a delayed retarget freezes the interrupted motion at its sampled value for the delay window, so the scheduled
+    // spring launches from rest instead of with the stale sampled velocity
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let spring = try unwrap(animations.first as? CASpringAnimation)
+    expect(try unwrap(spring.fromValue as? Float)).to(beApproximatelyEqual(to: 0.5, within: 0.01))
+    expect(spring.initialVelocity) == 0
+
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(spring.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
+  }
+
   func test_retarget_springTiming_speedScalesVelocity() throws {
     let layer = CALayer()
     layer.opacity = 1
