@@ -163,14 +163,19 @@ public extension CALayer {
 
   /// Add an animation to the layer.
   ///
+  /// The animation is added and the model value is set synchronously. The timing's delay schedules the animation's
+  /// begin time in the layer's time space, and the animation's fill mode holds the `from` value until the delay
+  /// elapses, so the layer keeps showing its pre-animation state during the delay window while the model value is
+  /// already set. A zero-duration timing applies the model value immediately, ignoring the delay.
+  ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
   /// - Parameters:
   ///   - key: The key to use for the animation. If `nil`, the key path will be used.
   ///   - keyPath: The key path to animate.
   ///   - timing: The animation timing.
-  ///   - from: The value to animate from.
-  ///   - to: The value to animate to.
+  ///   - from: The value to animate from. Evaluated before the model value is set.
+  ///   - to: The value to animate to. Evaluated before the model value is set.
   ///   - model: The model value to set. If `nil`, the `to` value will be used.
   ///   - updateAnimation: An optional closure to update the animation.
   @_spi(Private)
@@ -182,36 +187,36 @@ public extension CALayer {
                   model: ((Self) -> T)?,
                   updateAnimation: ((CABasicAnimation) -> Void)? = nil)
   {
-    delay(timing.delay) { [weak self] in
-      guard let self = self as? Self else {
-        return // impossible
-      }
+    // cast `self` to `Self` so the closures typed over the extension's `Self` accept it.
+    let layer = self as! Self // swiftlint:disable:this force_cast
 
-      let model = model ?? to
+    let model = model ?? to
 
-      guard timing.timing.duration > 0 else {
-        self.setKeyPathValue(keyPath, model(self))
-        return
-      }
-
-      let animation = CABasicAnimation.makeAnimation(timing)
-      animation.keyPath = keyPath
-      animation.fromValue = from(self)
-      animation.toValue = to(self)
-
-      updateAnimation?(animation)
-
-      let rawKey = key ?? keyPath
-      let key: String
-      if animation.isAdditive {
-        key = self.uniqueAnimationKey(key: rawKey)
-      } else {
-        key = rawKey
-      }
-      self.add(animation, forKey: key)
-
-      self.setKeyPathValue(keyPath, model(self))
+    guard timing.timing.duration > 0 else {
+      setKeyPathValue(keyPath, model(layer))
+      return
     }
+
+    let animation = CABasicAnimation.makeAnimation(timing)
+    animation.keyPath = keyPath
+    animation.fromValue = from(layer)
+    animation.toValue = to(layer)
+    if timing.delay > 0 {
+      animation.beginTime = convertTime(CACurrentMediaTime(), from: nil) + timing.delay
+    }
+
+    updateAnimation?(animation)
+
+    let rawKey = key ?? keyPath
+    let key: String
+    if animation.isAdditive {
+      key = uniqueAnimationKey(key: rawKey)
+    } else {
+      key = rawKey
+    }
+    add(animation, forKey: key)
+
+    setKeyPathValue(keyPath, model(layer))
   }
 
   internal func setKeyPathValue(_ keyPath: String, _ value: Any) {

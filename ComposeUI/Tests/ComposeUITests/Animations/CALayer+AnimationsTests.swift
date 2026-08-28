@@ -171,6 +171,67 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(layer.position) == CGPoint(x: 200, y: 200)
   }
 
+  func test_animate_delayed_schedulesAnimation() throws {
+    let layer = CALayer()
+    layer.opacity = 0.2
+
+    layer.animate(keyPath: "opacity", to: Float(1), timing: .linear(duration: 1, delay: 0.5))
+
+    // the model value is set at dispatch, and the animation is scheduled in the future by the delay, holding the from
+    // delta so the layer keeps rendering the old value during the delay window
+    expect(layer.opacity) == 1
+    let animation = try unwrap(layer.animation(forKey: "opacity") as? CABasicAnimation)
+    expect(try unwrap(animation.fromValue as? Float)).to(beApproximatelyEqual(to: -0.8, within: 1e-6))
+    expect(animation.toValue as? Float) == 0
+    expect(animation.fillMode) == .both
+
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
+  }
+
+  func test_animate_delayed_zeroDuration_appliesModelImmediately() {
+    let layer = CALayer()
+    layer.opacity = 0.2
+
+    layer.animate(keyPath: "opacity", to: Float(1), timing: .linear(duration: 0, delay: 0.5))
+
+    // a zero-duration timing applies the model value immediately, ignoring the delay
+    expect(layer.opacity) == 1
+    expect(layer.animationKeys()) == nil
+  }
+
+  func test_animate_delayed_holdsFromValueDuringDelayWindow() throws {
+    let testWindow = TestWindow()
+
+    let layer = CALayer()
+    testWindow.layer.addSublayer(layer)
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    layer.opacity = 0.2
+    CATransaction.flush()
+
+    var isCompleted = false
+    layer.animate(
+      keyPath: "opacity",
+      to: Float(1),
+      timing: .linear(duration: 0.2, delay: 0.5),
+      updateAnimation: {
+        $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
+          isCompleted = true
+        })
+      }
+    )
+
+    // during the delay window, the model is at the target while the presentation holds the old value
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+    expect(layer.opacity) == 1
+    expect(try unwrap(layer.presentation()).opacity).to(beApproximatelyEqual(to: 0.2, within: 0.05))
+    expect(isCompleted) == false
+
+    // the animation completes after the delay and the duration, landing at the target
+    expect(isCompleted).toEventually(beTrue(), timeout: 2)
+    expect(layer.presentation()?.opacity ?? layer.opacity).to(beApproximatelyEqual(to: 1, within: 0.05))
+  }
+
   func test_animationKey() {
     // with implicit key
     do {
