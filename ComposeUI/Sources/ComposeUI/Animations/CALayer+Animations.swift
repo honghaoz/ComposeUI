@@ -154,13 +154,14 @@ public extension CALayer {
   func animate<T>(key: String? = nil,
                   keyPath: String,
                   timing: AnimationTiming,
-                  from: @escaping (Self) -> T,
-                  to: @escaping (Self) -> T,
+                  from: (Self) -> T,
+                  to: (Self) -> T,
                   updateAnimation: ((CABasicAnimation) -> Void)? = nil)
   {
-    // Cast `self` to `Self` so the compiler resolves the called overload's `Self` to the dynamic type rather than `CALayer`
+    // cast `self` to `Self` so the compiler resolves the called overload's `Self` to the dynamic type rather than `CALayer`
     // otherwise, `(Self) -> T` closures fail to convert to `(CALayer) -> T`.
-    (self as! Self).animate( // swiftlint:disable:this force_cast
+    let layer = self as! Self // swiftlint:disable:this force_cast
+    layer.animate( // swiftlint:disable:this force_cast
       key: key,
       keyPath: keyPath,
       timing: timing,
@@ -198,18 +199,16 @@ public extension CALayer {
   func animate<T>(key: String? = nil,
                   keyPath: String,
                   timing: AnimationTiming,
-                  from: @escaping (Self) -> T,
-                  to: @escaping (Self) -> T,
+                  from: (Self) -> T,
+                  to: (Self) -> T,
                   model: ((Self) -> T)?,
                   updateAnimation: ((CABasicAnimation) -> Void)? = nil)
   {
     // cast `self` to `Self` so the closures typed over the extension's `Self` accept it.
     let layer = self as! Self // swiftlint:disable:this force_cast
 
-    let model = model ?? to
-
     guard timing.timing.duration > 0 || timing.delay > 0 else {
-      setKeyPathValue(keyPath, model(layer))
+      setKeyPathValue(keyPath, model?(layer) ?? to(layer))
       return
     }
 
@@ -219,9 +218,10 @@ public extension CALayer {
     }
     animation.keyPath = keyPath
     animation.fromValue = from(layer)
-    animation.toValue = to(layer)
+    let toValue = to(layer)
+    animation.toValue = toValue
     if timing.delay > 0 {
-      animation.beginTime = convertTime(CACurrentMediaTime(), from: nil) + timing.delay
+      animation.beginTime = currentTime + timing.delay
     }
 
     updateAnimation?(animation)
@@ -229,21 +229,16 @@ public extension CALayer {
     // a nil `T` boxes as `NSNull` when `T` is an optional type, which Core Animation also treats as unresolved
     let isFromValueUnresolved = animation.fromValue == nil || animation.fromValue is NSNull
     if timing.delay > 0, isFromValueUnresolved, !animation.isAdditive {
-      // a scheduled to-only animation can't backwards-fill an unresolved from value (the fill would show the
-      // target), so resolve it at dispatch the way Core Animation would at activation
+      // a scheduled to-only animation can't backwards-fill an unresolved from value (the fill would show the target),
+      // so resolve it at dispatch the way Core Animation would at activation
       animation.fromValue = presentation()?.value(forKeyPath: keyPath) ?? value(forKeyPath: keyPath)
     }
 
     let rawKey = key ?? keyPath
-    let key: String
-    if animation.isAdditive {
-      key = uniqueAnimationKey(key: rawKey)
-    } else {
-      key = rawKey
-    }
-    add(animation, forKey: key)
+    let animationKey = animation.isAdditive ? uniqueAnimationKey(key: rawKey) : rawKey
+    add(animation, forKey: animationKey)
 
-    setKeyPathValue(keyPath, model(layer))
+    setKeyPathValue(keyPath, model?(layer) ?? toValue)
   }
 
   internal func setKeyPathValue(_ keyPath: String, _ value: Any) {
@@ -371,6 +366,13 @@ public extension CALayer {
     }
 
     return currentKey
+  }
+
+  /// The current time in the layer's time space.
+  ///
+  /// This is the time that the layer's animation begin times are expressed in.
+  internal var currentTime: TimeInterval {
+    convertTime(CACurrentMediaTime(), from: nil)
   }
 
   /// The layer's basic animations animating the given key path.
