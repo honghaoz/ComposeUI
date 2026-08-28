@@ -47,9 +47,9 @@ extension CABasicAnimation {
   /// The supported animation shapes are the ones ComposeUI transitions produce: `timeOffset`, `repeatCount`, and
   /// `autoreverses` are not evaluated.
   ///
-  /// - Parameter time: The time in the animation's time space, compared against `beginTime`. An animation with an
-  ///   unset (zero) `beginTime` hasn't been scheduled by Core Animation yet (it is resolved when the transaction
-  ///   commits), so it evaluates at zero elapsed time.
+  /// - Parameter time: The time in the layer's time space, compared against `beginTime`. An animation with an unset
+  ///   (zero) `beginTime` hasn't been scheduled by Core Animation yet (it is resolved when the transaction commits),
+  ///   and an animation scheduled in the future hasn't started: both evaluate at zero elapsed time, yielding `fromValue`.
   /// - Returns: The scalar value at `time`. `nil` when `fromValue` or `toValue` is not a scalar number.
   func scalarValue(at time: TimeInterval) -> Double? {
     guard let from = (fromValue as? NSNumber)?.doubleValue,

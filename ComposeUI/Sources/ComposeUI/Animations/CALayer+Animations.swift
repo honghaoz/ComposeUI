@@ -39,6 +39,9 @@ public extension CALayer {
 
   /// Animate the layer's frame additively.
   ///
+  /// The timing's delay schedules the animations' begin time while the model frame updates immediately, see
+  /// `animate(key:keyPath:timing:from:to:model:updateAnimation:)`.
+  ///
   /// - Parameters:
   ///   - to: The frame to animate to.
   ///   - timing: The animation timing.
@@ -136,6 +139,8 @@ public extension CALayer {
 
   /// Add an animation to the layer.
   ///
+  /// See `animate(key:keyPath:timing:from:to:model:updateAnimation:)` for the scheduling behavior of a delayed timing.
+  ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
   /// - Parameters:
@@ -173,6 +178,9 @@ public extension CALayer {
   /// elapses, so the layer keeps showing its pre-animation state during the delay window while the model value is
   /// already set. A zero-duration timing applies the model value immediately when there is no delay. With a delay,
   /// the change is scheduled as a snap that applies right after the delay window.
+  ///
+  /// A scheduled animation only survives on a layer that is in a committed layer tree: Core Animation drops animations
+  /// on detached layers when the enclosing transaction commits.
   ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
