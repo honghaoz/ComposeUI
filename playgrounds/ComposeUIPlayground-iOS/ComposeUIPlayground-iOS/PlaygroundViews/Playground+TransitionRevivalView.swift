@@ -43,9 +43,9 @@ extension Playground {
   /// An interactive insert/remove page for verifying transition revivals.
   ///
   /// The transitions run slowly so a removal can be interrupted mid-flight, and the transition button cycles
-  /// through the kinds that revive differently: a fade retargets from the interrupted opacity, a same-side slide
-  /// continues the interrupted motion, and a cross-side slide snaps to the resting position before sliding in.
-  /// A non-animated re-insert always snaps to the resting state.
+  /// through the kinds that revive differently: a fade retargets from the interrupted opacity, and a slide continues
+  /// the interrupted motion from wherever the removal left it, whether it enters from the side it exits to or from a
+  /// different side. A non-animated re-insert always snaps to the resting state.
   ///
   /// The page logs button taps, the box renderable's lifecycle events, and a continuous sample of
   /// the box layer's model and presentation values, so a manual test session can be diagnosed from
@@ -61,9 +61,9 @@ extension Playground {
       /// A slide that enters from the side it exits to, which continues the interrupted motion on a revival.
       case slide
 
-      /// A slide that enters from a different side than it exits to. Its entry offset doesn't cancel the leftover
-      /// exit offset, so it doesn't take over an in-flight removal: a revival snaps to the resting position before
-      /// sliding in.
+      /// A slide that enters from a different side than it exits to. A revival continues the interrupted motion
+      /// from the removal's model frame, so the box returns from wherever it is instead of restarting from the
+      /// entry side.
       case crossSideSlide
 
       var title: String {

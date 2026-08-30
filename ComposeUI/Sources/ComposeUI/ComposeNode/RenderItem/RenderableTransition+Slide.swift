@@ -48,11 +48,11 @@ public extension RenderableTransition {
   /// For removal, the renderable slides from its current frame to outside the content view on the `to` side (or `from`
   /// when `to` is nil).
   ///
-  /// Reviving a renderable while its slide-out is in flight continues the motion: the insertion's entry offset cancels
-  /// the leftover exit offset, so the rendered position doesn't jump, and both additive animations decay into the
-  /// resting position. The two offsets only cancel when the renderable enters from the side it exits to, so a
-  /// transition that slides out to a different side than it slides in from doesn't take over an in-flight removal, and
-  /// a revival snaps to the resting position before sliding in.
+  /// Reviving a renderable while its slide-out is in flight continues the motion: the insertion's offset from the
+  /// removal's model frame cancels the model change, so the rendered position doesn't jump, and the leftover exit
+  /// offset keeps decaying on top while both animations settle into the resting position. This holds for any side
+  /// configuration, so a revival re-enters from wherever the removal left it: a renderable that fully slid out
+  /// re-enters from its exit side, and the `from` side only applies to fresh insertions.
   ///
   /// A zero-duration timing applies the end frame and completes immediately when there is no delay. With a delay,
   /// the end frame is scheduled as a snap that applies right after the delay window.
@@ -69,9 +69,8 @@ public extension RenderableTransition {
                     timing: AnimationTiming = .spring(),
                     options: RenderableTransition.Options = .both) -> Self
   {
-    let entersFromExitSide = (toSide ?? fromSide) == fromSide
-    return RenderableTransition(
-      insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: entersFromExitSide ? ["position"] : []) { renderable, context, completion in
+    RenderableTransition(
+      insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: ["position"]) { renderable, context, completion in
         let layer = renderable.layer
         let targetFrame = context.targetFrame
 
@@ -81,23 +80,30 @@ public extension RenderableTransition {
           return
         }
 
-        let initialFrame: CGRect
-        switch fromSide {
-        case .top:
-          initialFrame = targetFrame.translate(dy: -targetFrame.maxY - overshoot)
-        case .bottom:
-          initialFrame = targetFrame.translate(dy: context.contentView.bounds().height - targetFrame.minY + overshoot)
-        case .left:
-          initialFrame = targetFrame.translate(dx: -targetFrame.maxX - overshoot)
-        case .right:
-          initialFrame = targetFrame.translate(dx: context.contentView.bounds().width - targetFrame.minX + overshoot)
+        let startFrame: CGRect
+        if let revivalFrame = context.revivalFrame {
+          // a revival continues from the removal's model frame: the offset from that frame cancels the model change
+          // exactly, so the rendered position doesn't move at the revival instant, and the removal's leftover offset
+          // keeps decaying on top
+          startFrame = revivalFrame
+        } else {
+          switch fromSide {
+          case .top:
+            startFrame = targetFrame.translate(dy: -targetFrame.maxY - overshoot)
+          case .bottom:
+            startFrame = targetFrame.translate(dy: context.contentView.bounds().height - targetFrame.minY + overshoot)
+          case .left:
+            startFrame = targetFrame.translate(dx: -targetFrame.maxX - overshoot)
+          case .right:
+            startFrame = targetFrame.translate(dx: context.contentView.bounds().width - targetFrame.minX + overshoot)
+          }
+          renderable.setFrame(startFrame)
         }
-        renderable.setFrame(initialFrame)
 
         layer.animate(
           keyPath: "position",
           timing: timing,
-          from: { $0.position(from: $0.frame) - $0.position(from: targetFrame) },
+          from: { $0.position(from: startFrame) - $0.position(from: targetFrame) },
           to: { _ in .zero },
           model: { $0.position(from: targetFrame) },
           updateAnimation: {

@@ -42,8 +42,21 @@ public struct RenderableTransition {
       /// The target frame of the renderable.
       public let targetFrame: CGRect
 
+      /// The model frame the in-flight removal left behind, when this insertion revives a removing renderable and
+      /// takes over its residue (see `takesOverKeyPaths`). `nil` for a fresh insertion, or a revival that was reset.
+      ///
+      /// The framework applies `targetFrame` as the model frame before the transition runs, so a taking-over transition
+      /// anchors its animation to this frame to continue the rendered motion from the removal's live state.
+      public let revivalFrame: CGRect?
+
       /// The content view that the renderable is being inserted into.
       public private(set) weak var contentView: ComposeView!
+
+      init(targetFrame: CGRect, revivalFrame: CGRect? = nil, contentView: ComposeView!) {
+        self.targetFrame = targetFrame
+        self.revivalFrame = revivalFrame
+        self.contentView = contentView
+      }
     }
 
     /// The key paths of a revived renderable's in-flight removal state that this transition takes over.
