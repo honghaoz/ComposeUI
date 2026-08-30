@@ -352,6 +352,47 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
+  func test_insertTransition_revival_continuesFromRevivalFrame() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+
+    // an in-flight removal: the model frame is off-screen right, with a leftover additive animation attached
+    let removalFrame = targetFrame.translate(dx: Constants.contentSize.width - targetFrame.minX + Constants.overshoot)
+    let leftoverAnimation = CABasicAnimation(keyPath: "position")
+    leftoverAnimation.fromValue = layer.position(from: targetFrame) - layer.position(from: removalFrame)
+    leftoverAnimation.toValue = CGPoint.zero
+    leftoverAnimation.duration = 10
+    leftoverAnimation.isAdditive = true
+    layer.add(leftoverAnimation, forKey: "position")
+
+    // the framework applies the target frame as the model value before the transition runs
+    layer.frame = targetFrame
+
+    let transition = RenderableTransition.slide(
+      from: .left,
+      to: .right,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .insert
+    )
+    try transition.insert.unwrap().animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalFrame: removalFrame, contentView: contentView),
+      completion: {}
+    )
+
+    // the revival keeps the leftover animation and anchors its own offset to the removal's model frame, cancelling the
+    // model change, so the rendered position is continuous and the renderable re-enters from the exit side
+    expect(layer.frame) == targetFrame
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 2
+
+    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGPoint) == layer.position(from: removalFrame) - layer.position(from: targetFrame)
+    expect(animation.toValue as? CGPoint) == .zero
+    expect(animation.isAdditive) == true
+  }
+
   func test_insertTransition_zeroDuration_appliesTargetAndCompletes() throws {
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let layer = TestLayer()

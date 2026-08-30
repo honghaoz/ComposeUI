@@ -1161,6 +1161,10 @@ open class ComposeView: BaseScrollView {
         // the insert transition that will animate this insertion, if any.
         let insertTransition = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior) ? renderableItem.transition?.insert : nil
 
+        // the model frame the removal left behind, captured before this pass applies the target frame, so a taking-over
+        // insert transition can anchor its animation to the removal's live state.
+        var revivalFrame: CGRect?
+
         if let removingRenderable = removingRenderableMap[id] {
           // found a matching removing renderable, should add it back to the renderable hierarchy.
           // cancelling the completion cancels the removal and clears it from `removingRenderableMap`.
@@ -1169,7 +1173,9 @@ open class ComposeView: BaseScrollView {
           // the cancelled removal's residue is undone by whoever takes over the renderable: a taking-over insert
           // transition continues from the live in-flight state, otherwise the remove transition's `resetForReuse`
           // snaps the renderable to its resting state.
-          if !removingRenderable.removeTransition.isTakenOver(by: insertTransition) {
+          if removingRenderable.removeTransition.isTakenOver(by: insertTransition) {
+            revivalFrame = removingRenderable.renderable.frame
+          } else {
             removingRenderable.removeTransition.resetForReuse(renderable: removingRenderable.renderable)
           }
 
@@ -1237,7 +1243,7 @@ open class ComposeView: BaseScrollView {
 
           insertTransition.animate(
             renderable: renderable,
-            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, contentView: self),
+            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, revivalFrame: revivalFrame, contentView: self),
             completion: completion.execute
           )
         } else {
