@@ -639,6 +639,28 @@ open class ComposeView: BaseScrollView {
   }
   #endif
 
+  #if canImport(UIKit) && !os(visionOS)
+  override open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+
+    // UIKit delivers display scale changes as trait changes (for example, when the window moves to a screen with a
+    // different scale) and has no counterpart of AppKit's backing properties notification, so mirror
+    // `windowBackingPropertiesDidChange()`: adopt the new scale and re-render non-animated, so rasterized contents
+    // and pixel rounding use the new scale instead of a stale one.
+    //
+    // visionOS is excluded because the content scale is pinned to the default scale factor there (see `windowScaleFactor`).
+
+    let oldContentScaleFactor = contentScaleFactor
+    // an unspecified trait collection reports a display scale of 0, clamp so the scale stays usable
+    let newContentScaleFactor = max(traitCollection.displayScale, 1)
+
+    if oldContentScaleFactor != newContentScaleFactor {
+      contentScaleFactor = newContentScaleFactor
+      setNeedsRefresh(animated: false)
+    }
+  }
+  #endif
+
   // MARK: - Render
 
   /// Refreshes and re-renders the content.
