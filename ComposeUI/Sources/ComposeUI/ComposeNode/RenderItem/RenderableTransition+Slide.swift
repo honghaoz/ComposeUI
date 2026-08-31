@@ -49,14 +49,14 @@ public extension RenderableTransition {
   /// when `to` is nil).
   ///
   /// Reviving a renderable while its slide-out is in flight continues the motion: the insertion's offset from the
-  /// removal's model frame cancels the model change, so the rendered position doesn't jump, and the leftover exit
+  /// removal's model position cancels the model change, so the rendered position doesn't jump, and the leftover exit
   /// offset keeps decaying on top while both animations settle into the resting position. This holds for any side
   /// configuration, so a revival re-enters from wherever the removal left it: a renderable that fully slid out
   /// re-enters from its exit side, and the `from` side only applies to fresh insertions.
   ///
-  /// A zero-duration timing applies the end frame and completes immediately when there is no delay, and a
-  /// zero-duration revival also clears the leftover exit animations so the snap lands at rest. With a delay, the end
-  /// frame is scheduled as a snap that applies right after the delay window.
+  /// A zero-duration timing applies the end frame and completes immediately when there is no delay, and a zero-duration
+  /// revival also clears the leftover exit animations so the snap lands at rest. With a delay, the end frame is
+  /// scheduled as a snap that applies right after the delay window.
   ///
   /// - Parameters:
   ///   - from: The side of the slide transition to slide from.
@@ -76,9 +76,9 @@ public extension RenderableTransition {
         let targetFrame = context.targetFrame
 
         guard timing.timing.duration > 0 || timing.delay > 0 else {
-          if context.revivalFrame != nil {
-            // the taken-over leftover exit animations would render the snapped model off the target until they
-            // decay, so a snap clears them
+          if context.revivalPosition != nil {
+            // the taken-over leftover exit animations would render the snapped model off the target until they decay,
+            // so a snap clears them
             layer.removeAnimations(forKeyPath: "position")
           }
           renderable.setFrame(targetFrame)
@@ -86,13 +86,14 @@ public extension RenderableTransition {
           return
         }
 
-        let startFrame: CGRect
-        if let revivalFrame = context.revivalFrame {
-          // a revival continues from the removal's model frame: the offset from that frame cancels the model change
-          // exactly, so the rendered position doesn't move at the revival instant, and the removal's leftover offset
-          // keeps decaying on top
-          startFrame = revivalFrame
+        let startPosition: CGPoint
+        if let revivalPosition = context.revivalPosition {
+          // a revival continues from the removal's model position: the offset from that position cancels the model
+          // change exactly, so the rendered position doesn't move at the revival instant, and the removal's leftover
+          // offset keeps decaying on top
+          startPosition = revivalPosition
         } else {
+          let startFrame: CGRect
           switch fromSide {
           case .top:
             startFrame = targetFrame.translate(dy: -targetFrame.maxY - overshoot)
@@ -104,12 +105,13 @@ public extension RenderableTransition {
             startFrame = targetFrame.translate(dx: context.contentView.bounds().width - targetFrame.minX + overshoot)
           }
           renderable.setFrame(startFrame)
+          startPosition = layer.position(from: startFrame)
         }
 
         layer.animate(
           keyPath: "position",
           timing: timing,
-          from: { $0.position(from: startFrame) - $0.position(from: targetFrame) },
+          from: { startPosition - $0.position(from: targetFrame) },
           to: { _ in .zero },
           model: { $0.position(from: targetFrame) },
           updateAnimation: {

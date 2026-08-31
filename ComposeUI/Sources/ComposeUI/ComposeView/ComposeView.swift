@@ -1161,9 +1161,9 @@ open class ComposeView: BaseScrollView {
         // the insert transition that will animate this insertion, if any.
         let insertTransition = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior) ? renderableItem.transition?.insert : nil
 
-        // the model frame the removal left behind, captured before this pass applies the target frame, so a taking-over
-        // insert transition can anchor its animation to the removal's live state.
-        var revivalFrame: CGRect?
+        // the root-layer model position the removal left behind, captured before this pass applies the target frame,
+        // so a taking-over insert transition can anchor its animation to the removal's live state.
+        var revivalPosition: CGPoint?
 
         if let removingRenderable = removingRenderableMap[id] {
           // found a matching removing renderable, should add it back to the renderable hierarchy.
@@ -1174,7 +1174,7 @@ open class ComposeView: BaseScrollView {
           // transition continues from the live in-flight state, otherwise the remove transition's `resetForReuse`
           // snaps the renderable to its resting state.
           if removingRenderable.removeTransition.isTakenOver(by: insertTransition) {
-            revivalFrame = removingRenderable.renderable.frame
+            revivalPosition = removingRenderable.renderable.layer.position
           } else {
             removingRenderable.removeTransition.resetForReuse(renderable: removingRenderable.renderable)
           }
@@ -1243,7 +1243,7 @@ open class ComposeView: BaseScrollView {
 
           insertTransition.animate(
             renderable: renderable,
-            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, revivalFrame: revivalFrame, contentView: self),
+            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, revivalPosition: revivalPosition, contentView: self),
             completion: completion.execute
           )
         } else {
