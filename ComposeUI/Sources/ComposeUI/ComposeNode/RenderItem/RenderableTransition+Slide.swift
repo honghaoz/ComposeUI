@@ -104,9 +104,10 @@ public extension RenderableTransition {
           case .right:
             startFrame = targetFrame.translate(dx: context.contentView.bounds().width - targetFrame.minX + overshoot)
           }
-          renderable.setFrame(startFrame)
           startPosition = layer.position(from: startFrame)
         }
+
+        renderable.setFrame(targetFrame)
 
         layer.animate(
           keyPath: "position",
