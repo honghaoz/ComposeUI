@@ -417,6 +417,45 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(completionCallCount) == 1
   }
 
+  func test_insertTransition_zeroDurationRevival_clearsLeftoverAndSnapsToTarget() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+
+    // an in-flight removal: the model frame is off-screen right, with a leftover additive animation attached
+    let removalFrame = targetFrame.translate(dx: Constants.contentSize.width - targetFrame.minX + Constants.overshoot)
+    let leftoverAnimation = CABasicAnimation(keyPath: "position")
+    leftoverAnimation.fromValue = layer.position(from: targetFrame) - layer.position(from: removalFrame)
+    leftoverAnimation.toValue = CGPoint.zero
+    leftoverAnimation.duration = 10
+    leftoverAnimation.isAdditive = true
+    layer.add(leftoverAnimation, forKey: "position")
+
+    // the framework applies the target frame as the model value before the transition runs
+    layer.frame = targetFrame
+
+    let transition = RenderableTransition.slide(
+      from: .left,
+      to: .right,
+      overshoot: Constants.overshoot,
+      timing: .linear(duration: 0),
+      options: .insert
+    )
+
+    var completionCallCount = 0
+    try transition.insert.unwrap().animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalFrame: removalFrame, contentView: contentView),
+      completion: { completionCallCount += 1 }
+    )
+
+    // the snap clears the taken-over leftover animations, so the renderable lands at rest at the target instead of
+    // rendering off it until the leftover decays
+    expect(layer.frame) == targetFrame
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 0
+    expect(completionCallCount) == 1
+  }
+
   func test_removeTransition_zeroDuration_appliesTargetAndCompletes() throws {
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame

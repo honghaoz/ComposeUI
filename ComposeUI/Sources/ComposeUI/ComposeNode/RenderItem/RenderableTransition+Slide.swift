@@ -54,8 +54,9 @@ public extension RenderableTransition {
   /// configuration, so a revival re-enters from wherever the removal left it: a renderable that fully slid out
   /// re-enters from its exit side, and the `from` side only applies to fresh insertions.
   ///
-  /// A zero-duration timing applies the end frame and completes immediately when there is no delay. With a delay,
-  /// the end frame is scheduled as a snap that applies right after the delay window.
+  /// A zero-duration timing applies the end frame and completes immediately when there is no delay, and a
+  /// zero-duration revival also clears the leftover exit animations so the snap lands at rest. With a delay, the end
+  /// frame is scheduled as a snap that applies right after the delay window.
   ///
   /// - Parameters:
   ///   - from: The side of the slide transition to slide from.
@@ -75,6 +76,11 @@ public extension RenderableTransition {
         let targetFrame = context.targetFrame
 
         guard timing.timing.duration > 0 || timing.delay > 0 else {
+          if context.revivalFrame != nil {
+            // the taken-over leftover exit animations would render the snapped model off the target until they
+            // decay, so a snap clears them
+            layer.removeAnimations(forKeyPath: "position")
+          }
           renderable.setFrame(targetFrame)
           completion()
           return
