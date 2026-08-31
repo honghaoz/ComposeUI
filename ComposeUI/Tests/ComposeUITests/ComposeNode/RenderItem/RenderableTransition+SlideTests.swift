@@ -190,6 +190,130 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(animation.fillMode) == .both
   }
 
+  func test_insertTransition_revival_continuesFromRevivalPosition() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+
+    // an in-flight removal: the model frame is off-screen right, with a leftover additive animation attached
+    let removalFrame = targetFrame.translate(dx: Constants.contentSize.width - targetFrame.minX + Constants.overshoot)
+    let leftoverAnimation = CABasicAnimation(keyPath: "position")
+    leftoverAnimation.fromValue = layer.position(from: targetFrame) - layer.position(from: removalFrame)
+    leftoverAnimation.toValue = CGPoint.zero
+    leftoverAnimation.duration = 10
+    leftoverAnimation.isAdditive = true
+    layer.add(leftoverAnimation, forKey: "position")
+
+    // the framework applies the target frame as the model value before the transition runs
+    layer.frame = targetFrame
+
+    let transition = RenderableTransition.slide(
+      from: .left,
+      to: .right,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .insert
+    )
+    try transition.insert.unwrap().animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalPosition: layer.position(from: removalFrame), contentView: contentView),
+      completion: {}
+    )
+
+    // the revival keeps the leftover animation and anchors its own offset to the removal's model position, cancelling
+    // the model change, so the renderable re-enters from the exit side
+    expect(layer.frame) == targetFrame
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 2
+
+    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGPoint) == layer.position(from: removalFrame) - layer.position(from: targetFrame)
+    expect(animation.toValue as? CGPoint) == .zero
+    expect(animation.isAdditive) == true
+  }
+
+  func test_insertTransition_zeroDurationRevival_clearsLeftoverAndSnapsToTarget() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+
+    // an in-flight removal: the model frame is off-screen right, with a leftover additive animation attached
+    let removalFrame = targetFrame.translate(dx: Constants.contentSize.width - targetFrame.minX + Constants.overshoot)
+    let leftoverAnimation = CABasicAnimation(keyPath: "position")
+    leftoverAnimation.fromValue = layer.position(from: targetFrame) - layer.position(from: removalFrame)
+    leftoverAnimation.toValue = CGPoint.zero
+    leftoverAnimation.duration = 10
+    leftoverAnimation.isAdditive = true
+    layer.add(leftoverAnimation, forKey: "position")
+
+    // the framework applies the target frame as the model value before the transition runs
+    layer.frame = targetFrame
+
+    let transition = RenderableTransition.slide(
+      from: .left,
+      to: .right,
+      overshoot: Constants.overshoot,
+      timing: .linear(duration: 0),
+      options: .insert
+    )
+
+    var completionCallCount = 0
+    try transition.insert.unwrap().animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalPosition: layer.position(from: removalFrame), contentView: contentView),
+      completion: { completionCallCount += 1 }
+    )
+
+    // the snap clears the taken-over leftover animations, so the renderable lands at rest at the target instead of
+    // rendering off it until the leftover decays
+    expect(layer.frame) == targetFrame
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 0
+    expect(completionCallCount) == 1
+  }
+
+  func test_insertTransition_delayedRevival_holdsAndKeepsLeftover() throws {
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let layer = TestLayer()
+
+    // an in-flight removal: the model frame is off-screen right, with a leftover additive animation attached
+    let removalFrame = targetFrame.translate(dx: Constants.contentSize.width - targetFrame.minX + Constants.overshoot)
+    let leftoverAnimation = CABasicAnimation(keyPath: "position")
+    leftoverAnimation.fromValue = layer.position(from: targetFrame) - layer.position(from: removalFrame)
+    leftoverAnimation.toValue = CGPoint.zero
+    leftoverAnimation.duration = 10
+    leftoverAnimation.isAdditive = true
+    layer.add(leftoverAnimation, forKey: "position")
+
+    // the framework applies the target frame as the model value before the transition runs
+    layer.frame = targetFrame
+
+    let transition = RenderableTransition.slide(
+      from: .left,
+      to: .right,
+      overshoot: Constants.overshoot,
+      timing: .linear(duration: Constants.duration, delay: 0.5),
+      options: .insert
+    )
+    try transition.insert.unwrap().animate(
+      renderable: .layer(layer),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalPosition: layer.position(from: removalFrame), contentView: contentView),
+      completion: {}
+    )
+
+    // the leftover keeps playing during the delay window while the scheduled insert offset holds the revival
+    // position through its fill mode, so the composed motion stays continuous until the insert begins
+    expect(layer.basicAnimations(forKeyPath: "position").count) == 2
+
+    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGPoint) == layer.position(from: removalFrame) - layer.position(from: targetFrame)
+    expect(animation.toValue as? CGPoint) == .zero
+    expect(animation.isAdditive) == true
+    expect(animation.fillMode) == .both
+
+    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
+  }
+
   // MARK: - Remove Transition
 
   func test_removeTransition_top() throws {
@@ -352,47 +476,6 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
-  func test_insertTransition_revival_continuesFromRevivalPosition() throws {
-    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-    let targetFrame = Constants.targetFrame
-    let layer = TestLayer()
-
-    // an in-flight removal: the model frame is off-screen right, with a leftover additive animation attached
-    let removalFrame = targetFrame.translate(dx: Constants.contentSize.width - targetFrame.minX + Constants.overshoot)
-    let leftoverAnimation = CABasicAnimation(keyPath: "position")
-    leftoverAnimation.fromValue = layer.position(from: targetFrame) - layer.position(from: removalFrame)
-    leftoverAnimation.toValue = CGPoint.zero
-    leftoverAnimation.duration = 10
-    leftoverAnimation.isAdditive = true
-    layer.add(leftoverAnimation, forKey: "position")
-
-    // the framework applies the target frame as the model value before the transition runs
-    layer.frame = targetFrame
-
-    let transition = RenderableTransition.slide(
-      from: .left,
-      to: .right,
-      overshoot: Constants.overshoot,
-      timing: Constants.timing,
-      options: .insert
-    )
-    try transition.insert.unwrap().animate(
-      renderable: .layer(layer),
-      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalPosition: layer.position(from: removalFrame), contentView: contentView),
-      completion: {}
-    )
-
-    // the revival keeps the leftover animation and anchors its own offset to the removal's model position, cancelling
-    // the model change, so the renderable re-enters from the exit side
-    expect(layer.frame) == targetFrame
-    expect(layer.basicAnimations(forKeyPath: "position").count) == 2
-
-    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
-    expect(animation.fromValue as? CGPoint) == layer.position(from: removalFrame) - layer.position(from: targetFrame)
-    expect(animation.toValue as? CGPoint) == .zero
-    expect(animation.isAdditive) == true
-  }
-
   func test_insertTransition_zeroDuration_appliesTargetAndCompletes() throws {
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let layer = TestLayer()
@@ -414,45 +497,6 @@ class RenderableTransition_SlideTests: XCTestCase {
     // the target frame applies and the transition completes immediately, with no animation added
     expect(layer.frame) == Constants.targetFrame
     expect(layer.animationKeys()) == nil
-    expect(completionCallCount) == 1
-  }
-
-  func test_insertTransition_zeroDurationRevival_clearsLeftoverAndSnapsToTarget() throws {
-    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-    let targetFrame = Constants.targetFrame
-    let layer = TestLayer()
-
-    // an in-flight removal: the model frame is off-screen right, with a leftover additive animation attached
-    let removalFrame = targetFrame.translate(dx: Constants.contentSize.width - targetFrame.minX + Constants.overshoot)
-    let leftoverAnimation = CABasicAnimation(keyPath: "position")
-    leftoverAnimation.fromValue = layer.position(from: targetFrame) - layer.position(from: removalFrame)
-    leftoverAnimation.toValue = CGPoint.zero
-    leftoverAnimation.duration = 10
-    leftoverAnimation.isAdditive = true
-    layer.add(leftoverAnimation, forKey: "position")
-
-    // the framework applies the target frame as the model value before the transition runs
-    layer.frame = targetFrame
-
-    let transition = RenderableTransition.slide(
-      from: .left,
-      to: .right,
-      overshoot: Constants.overshoot,
-      timing: .linear(duration: 0),
-      options: .insert
-    )
-
-    var completionCallCount = 0
-    try transition.insert.unwrap().animate(
-      renderable: .layer(layer),
-      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalPosition: layer.position(from: removalFrame), contentView: contentView),
-      completion: { completionCallCount += 1 }
-    )
-
-    // the snap clears the taken-over leftover animations, so the renderable lands at rest at the target instead of
-    // rendering off it until the leftover decays
-    expect(layer.frame) == targetFrame
-    expect(layer.basicAnimations(forKeyPath: "position").count) == 0
     expect(completionCallCount) == 1
   }
 

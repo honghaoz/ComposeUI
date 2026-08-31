@@ -310,12 +310,12 @@ class ComposeView_TransitionTests: XCTestCase {
   /// animate opacity but declares the given taken-over key paths.
   private func makeResidueTransition(takesOverKeyPaths: Set<String>,
                                      removedLayer: @escaping (CALayer) -> Void,
-                                     insertTransitionDidRun: @escaping () -> Void) -> RenderableTransition
+                                     insertTransitionDidRun: @escaping (RenderableTransition.InsertTransition.Context) -> Void) -> RenderableTransition
   {
     RenderableTransition(
       insert: RenderableTransition.InsertTransition(takesOverKeyPaths: takesOverKeyPaths) { renderable, context, completion in
         renderable.setFrame(context.targetFrame)
-        insertTransitionDidRun()
+        insertTransitionDidRun(context)
         completion()
       },
       remove: RenderableTransition.RemoveTransition(
@@ -341,10 +341,14 @@ class ComposeView_TransitionTests: XCTestCase {
 
     var removedLayer: CALayer?
     var insertTransitionRunCount = 0
+    var insertContext: RenderableTransition.InsertTransition.Context?
     let transition = makeResidueTransition(
       takesOverKeyPaths: ["opacity"],
       removedLayer: { removedLayer = $0 },
-      insertTransitionDidRun: { insertTransitionRunCount += 1 }
+      insertTransitionDidRun: {
+        insertTransitionRunCount += 1
+        insertContext = $0
+      }
     )
 
     let makeContent: () -> ComposeContent = {
@@ -377,6 +381,9 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(removedLayer?.opacity) == 0
     expect(removedLayer?.animation(forKey: "fade")) != nil
     expect(insertTransitionRunCount) == 1
+
+    // a taking-over insert receives the revival position, even when the taken-over residue doesn't animate position
+    expect(insertContext?.revivalPosition) == CGPoint(x: 50, y: 50)
   }
 
   func test_reinsertRemovingRenderable_insertTransitionDoesNotTakeOver_residueIsReset() {
@@ -384,12 +391,16 @@ class ComposeView_TransitionTests: XCTestCase {
 
     var removedLayer: CALayer?
     var insertTransitionRunCount = 0
+    var insertContext: RenderableTransition.InsertTransition.Context?
     // the insert transition takes over a different key path than the one the remove transition animates,
     // e.g. a slide insert reviving an opacity removal
     let transition = makeResidueTransition(
       takesOverKeyPaths: ["position"],
       removedLayer: { removedLayer = $0 },
-      insertTransitionDidRun: { insertTransitionRunCount += 1 }
+      insertTransitionDidRun: {
+        insertTransitionRunCount += 1
+        insertContext = $0
+      }
     )
 
     let makeContent: () -> ComposeContent = {
@@ -421,6 +432,9 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(removedLayer?.opacity) == 1
     expect(removedLayer?.animation(forKey: "fade")) == nil
     expect(insertTransitionRunCount) == 1
+
+    // a reset revival provides no revival position: the insert starts fresh
+    expect(insertContext?.revivalPosition) == nil
   }
 
   func test_reinsertRemovingRenderable_slideTransition_insertComposesWithInFlightRemoval() throws {
@@ -495,6 +509,44 @@ class ComposeView_TransitionTests: XCTestCase {
     let insertAnimation = try unwrap(animations.last)
     expect(insertAnimation.fromValue as? CGPoint) == removalPosition - layer.position(from: targetFrame)
     expect(insertAnimation.toValue as? CGPoint) == .zero
+  }
+
+  func test_reinsertRemovingRenderable_crossSideSlideTransition_renderedPositionIsContinuous() throws {
+    let window = TestWindow()
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    window.contentView().addSubview(contentView)
+
+    let makeContent: () -> ComposeContent = {
+      ColorNode(.red)
+        .transition(.slide(from: .left, to: .right, timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+
+    // let the removal render, so the presentation is mid-flight
+    expect(layer.presentation()).toEventuallyNot(beNil())
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    let positionBefore = try unwrap(layer.presentation()).position
+
+    // revive mid-flight and let the revival commit
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+    let positionAfter = try unwrap(layer.presentation()).position
+
+    // the rendered position is continuous at the revival: the 10s linear motion drifts a few points between the
+    // samples, far from the content-width jump a restart from the entry side would show
+    expect(abs(positionAfter.x - positionBefore.x) < 25) == true
+    expect(abs(positionAfter.y - positionBefore.y) < 5) == true
   }
 
   func test_reinsertRemovingRenderable_opacityTransition_insertRetargetsFromInFlightState() throws {
