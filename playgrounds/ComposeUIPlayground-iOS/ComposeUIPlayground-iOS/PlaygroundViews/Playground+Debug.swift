@@ -103,10 +103,6 @@ extension Playground {
 
   /// Adds a small centered name label to a box layer, so the box's renderable kind is identifiable on screen.
   ///
-  /// The label is a sublayer of the box's layer (instead of a separate node), so it rides along with the box during
-  /// animations and transitions, and the box stays a single renderable for lifecycle logging. Safe to call from a
-  /// render pass update: the label is created once and its frame is only written when the box's bounds changed.
-  ///
   /// - Parameters:
   ///   - name: The name to show on the box.
   ///   - layer: The box's layer.
@@ -126,7 +122,6 @@ extension Playground {
       textLayer.fontSize = BoxNameStyle.fontSize
       textLayer.foregroundColor = Color.white.cgColor
       textLayer.alignmentMode = .center
-      textLayer.contentsScale = scale
       layer.addSublayer(textLayer)
     }
 
@@ -136,10 +131,17 @@ extension Playground {
       width: layer.bounds.width,
       height: BoxNameStyle.height
     )
-    if textLayer.frame != frame {
+    let needsScaleUpdate = textLayer.contentsScale != scale
+    let needsFrameUpdate = textLayer.frame != frame
+    if needsScaleUpdate || needsFrameUpdate {
       CATransaction.begin()
       CATransaction.setDisableActions(true)
-      textLayer.frame = frame
+      if needsScaleUpdate {
+        textLayer.contentsScale = scale
+      }
+      if needsFrameUpdate {
+        textLayer.frame = frame
+      }
       CATransaction.commit()
     }
   }

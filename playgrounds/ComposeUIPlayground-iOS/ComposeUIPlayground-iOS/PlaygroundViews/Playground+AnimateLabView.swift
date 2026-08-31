@@ -98,6 +98,7 @@ extension Playground {
           make: { [weak self] _ in self?.stageView ?? BaseView() },
           update: { [weak self] _, context in
             self?.positionBoxesIfNeeded(stageSize: context.newFrame.size)
+            self?.updateBoxNameLabels()
           }
         )
         .underlay {
@@ -235,10 +236,17 @@ extension Playground {
       boxView.frame = Self.homeFrame(lane: 1, in: stageBounds)
       boxViewLayer.backgroundColor = Colors.RetroApple.green.cgColor
       boxViewLayer.cornerRadius = Constants.cornerRadiusNormal
-
-      Playground.addBoxNameLabel("layer", to: boxLayer, scale: Playground.displayScale(of: self))
-      Playground.addBoxNameLabel("view", to: boxViewLayer, scale: Playground.displayScale(of: self))
       CATransaction.commit()
+    }
+
+    /// Applies the boxes' name labels, keeping their contents scale in sync with the current display.
+    private func updateBoxNameLabels() {
+      guard areBoxesPositioned else {
+        return
+      }
+      let scale = Playground.displayScale(of: self)
+      Playground.addBoxNameLabel("layer", to: boxLayer, scale: scale)
+      Playground.addBoxNameLabel("view", to: boxViewLayer, scale: scale)
     }
 
     private func timing(delayed: Bool) -> AnimationTiming {
