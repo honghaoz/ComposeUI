@@ -14,6 +14,12 @@
   completion is also called when its animation is torn down before finishing (superseded, reset, or the layer leaving 
   the layer tree).
 
+### Changes
+
+- Slide transitions now continue a revival from wherever the removal left the renderable, for any side configuration: 
+  the `from` side applies only to fresh insertions, and a renderable that fully slid out re-enters from its exit side. 
+  The insert transition context gains `revivalPosition`, the model position captured for taking-over transitions.
+
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
 ### Breaking Changes
