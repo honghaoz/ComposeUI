@@ -94,7 +94,7 @@ class ViewController: NSViewController {
             .border(color: Color.gray, width: 1)
         }
         .padding(horizontal: 16)
-        .frame(width: .flexible, height: 300)
+        .frame(width: .flexible, height: 340)
 
       Spacer(height: 16)
 

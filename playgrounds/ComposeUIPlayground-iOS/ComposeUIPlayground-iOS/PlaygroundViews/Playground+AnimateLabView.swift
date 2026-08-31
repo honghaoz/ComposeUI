@@ -155,11 +155,13 @@ extension Playground {
               (0.6, "fade back delayed", { self?.fade(delayed: true) }),
             ])
           }
-          Playground.button(title: "Reset", fontSize: 11) { [weak self] in
-            self?.tap("Reset") { self?.reset() }
-          }
         }
         .frame(width: .flexible, height: 32)
+
+        Playground.button(title: "Reset", fontSize: 11) { [weak self] in
+          self?.tap("Reset") { self?.reset() }
+        }
+        .frame(width: 120, height: 32)
       }
       .padding(12)
     }
