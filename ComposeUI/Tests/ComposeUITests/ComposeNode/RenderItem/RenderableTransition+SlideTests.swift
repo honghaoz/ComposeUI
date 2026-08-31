@@ -61,7 +61,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       width: targetFrame.width,
       height: targetFrame.height
     )
-    expect(layer.capturedFrame) == expectedInitialFrame
+    expect(layer.capturedFrame) == targetFrame
 
     let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
     expect(layer.addedAnimationKey) == "position"
@@ -99,7 +99,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       width: targetFrame.width,
       height: targetFrame.height
     )
-    expect(layer.capturedFrame) == expectedInitialFrame
+    expect(layer.capturedFrame) == targetFrame
 
     let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
     expect(layer.addedAnimationKey) == "position"
@@ -137,7 +137,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       width: targetFrame.width,
       height: targetFrame.height
     )
-    expect(layer.capturedFrame) == expectedInitialFrame
+    expect(layer.capturedFrame) == targetFrame
 
     let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
     expect(layer.addedAnimationKey) == "position"
@@ -175,7 +175,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       width: targetFrame.width,
       height: targetFrame.height
     )
-    expect(layer.capturedFrame) == expectedInitialFrame
+    expect(layer.capturedFrame) == targetFrame
 
     let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
     expect(layer.addedAnimationKey) == "position"
@@ -618,7 +618,7 @@ class RenderableTransition_SlideTests: XCTestCase {
     let expectedTargetFrame = CGRect(origin: .zero, size: targetSize)
     let expectedInitialFrame = expectedTargetFrame.translate(dx: Constants.contentSize.width + Constants.overshoot)
 
-    expect(layer.capturedFrame) == expectedInitialFrame
+    expect(layer.capturedFrame) == expectedTargetFrame
 
     let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
     expect(layer.addedAnimationKey) == "position"
