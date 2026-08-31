@@ -66,8 +66,12 @@ public struct RenderableTransition {
     /// animations, or by adding additive animations that compose with them. Otherwise the framework first restores
     /// the renderable to its resting state via the remove transition's `resetForReuse`.
     ///
+    /// A takeover matches key paths, not animation shapes: continuing by composition assumes the removal's residue
+    /// is additive, which the built-in transitions' animations satisfy.
+    ///
     /// The renderable's content update runs before this transition, so content-written model values of the taken-over
-    /// properties land before this transition observes the state.
+    /// properties land before this transition observes the state. The insertion context's `revivalPosition` is
+    /// captured earlier, before the render pass applies the target frame.
     public let takesOverKeyPaths: Set<String>
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
