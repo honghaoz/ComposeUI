@@ -352,7 +352,7 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
-  func test_insertTransition_revival_continuesFromRevivalFrame() throws {
+  func test_insertTransition_revival_continuesFromRevivalPosition() throws {
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -378,12 +378,12 @@ class RenderableTransition_SlideTests: XCTestCase {
     )
     try transition.insert.unwrap().animate(
       renderable: .layer(layer),
-      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalFrame: removalFrame, contentView: contentView),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalPosition: layer.position(from: removalFrame), contentView: contentView),
       completion: {}
     )
 
-    // the revival keeps the leftover animation and anchors its own offset to the removal's model frame, cancelling the
-    // model change, so the rendered position is continuous and the renderable re-enters from the exit side
+    // the revival keeps the leftover animation and anchors its own offset to the removal's model position, cancelling
+    // the model change, so the renderable re-enters from the exit side
     expect(layer.frame) == targetFrame
     expect(layer.basicAnimations(forKeyPath: "position").count) == 2
 
@@ -445,7 +445,7 @@ class RenderableTransition_SlideTests: XCTestCase {
     var completionCallCount = 0
     try transition.insert.unwrap().animate(
       renderable: .layer(layer),
-      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalFrame: removalFrame, contentView: contentView),
+      context: RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, revivalPosition: layer.position(from: removalFrame), contentView: contentView),
       completion: { completionCallCount += 1 }
     )
 

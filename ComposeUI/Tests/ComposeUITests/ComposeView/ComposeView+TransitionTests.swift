@@ -455,7 +455,7 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(layer.position) == layer.position(from: CGRect(x: 0, y: 0, width: 100, height: 100))
   }
 
-  func test_reinsertRemovingRenderable_crossSideSlideTransition_insertContinuesFromRemovalFrame() throws {
+  func test_reinsertRemovingRenderable_crossSideSlideTransition_insertContinuesFromRemovalPosition() throws {
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     let makeContent: () -> ComposeContent = {
@@ -472,16 +472,16 @@ class ComposeView_TransitionTests: XCTestCase {
     }
     contentView.refresh(animated: true)
 
-    // the remove transition is in flight, sliding the renderable out to the right: the model frame is off-screen right,
-    // with a single additive animation holding the rendered position
+    // the remove transition is in flight, sliding the renderable out to the right: the model position is off-screen
+    // right, with a single additive animation holding the rendered position
     let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
     expect(layer.basicAnimations(forKeyPath: "position").count) == 1
-    let removalFrame = layer.frame
-    expect(removalFrame.minX) > 100
+    let removalPosition = layer.position
+    expect(removalPosition.x) > 100
 
-    // revive the renderable with an animated insert: the insert anchors its offset to the removal's model frame, so
-    // the offset cancels the model change and the rendered position is continuous at the revival instant, even though
-    // the transition's entry side differs from its exit side. the leftover exit offset keeps decaying on top.
+    // revive the renderable with an animated insert: the insert anchors its offset to the removal's model position,
+    // so the offset cancels the model change and the rendered position is continuous at the revival instant, even
+    // though the transition's entry side differs from its exit side. the leftover exit offset keeps decaying on top.
     contentView.setContent(content: makeContent)
     contentView.refresh(animated: true)
 
@@ -490,10 +490,10 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(animations.count) == 2
     expect(layer.position) == layer.position(from: targetFrame)
 
-    // the insert's offset starts from the removal's model frame, towards the target: the revival re-enters from where
-    // the removal left it (the exit side), not from the configured entry side
+    // the insert's offset starts from the removal's model position, towards the target: the revival re-enters from
+    // where the removal left it (the exit side), not from the configured entry side
     let insertAnimation = try unwrap(animations.last)
-    expect(insertAnimation.fromValue as? CGPoint) == layer.position(from: removalFrame) - layer.position(from: targetFrame)
+    expect(insertAnimation.fromValue as? CGPoint) == removalPosition - layer.position(from: targetFrame)
     expect(insertAnimation.toValue as? CGPoint) == .zero
   }
 
