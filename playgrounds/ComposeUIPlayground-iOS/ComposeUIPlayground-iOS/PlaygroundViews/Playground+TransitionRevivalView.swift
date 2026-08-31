@@ -143,7 +143,8 @@ extension Playground {
         .frame(width: .flexible, height: .flexible)
 
         HStack(spacing: 12) {
-          Playground.button(title: isShowing ? "Remove (animated)" : "Insert (animated)") { [weak self] in
+          // 14pt so the longest title, "Remove (animated)", fits the half-width button on compact screens
+          Playground.button(title: isShowing ? "Remove (animated)" : "Insert (animated)", fontSize: 14) { [weak self] in
             guard let self else {
               return
             }
@@ -153,7 +154,7 @@ extension Playground {
             self.logBoxState("after refresh(animated: true)")
           }
 
-          Playground.button(title: isShowing ? "Remove (instant)" : "Insert (instant)") { [weak self] in
+          Playground.button(title: isShowing ? "Remove (instant)" : "Insert (instant)", fontSize: 14) { [weak self] in
             guard let self else {
               return
             }
@@ -165,7 +166,7 @@ extension Playground {
         }
         .frame(width: .flexible, height: 36)
 
-        Playground.button(title: "Transition: \(transitionKind.title)") { [weak self] in
+        Playground.button(title: "Transition: \(transitionKind.title)", fontSize: 14) { [weak self] in
           guard let self else {
             return
           }

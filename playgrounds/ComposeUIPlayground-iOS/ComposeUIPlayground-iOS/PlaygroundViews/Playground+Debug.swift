@@ -99,6 +99,10 @@ extension Playground {
 
   /// Makes a standard playground action button.
   ///
+  /// The button renders as a raised, bordered rounded rect that flattens while pressed, so it reads as a control next
+  /// to the pages' plain color boxes. The title is bounded by the button's width and truncates instead of overflowing
+  /// into neighboring buttons.
+  ///
   /// - Parameters:
   ///   - title: The button title.
   ///   - fontSize: The title's font size. `nil` uses the label's default font.
@@ -117,19 +121,90 @@ extension Playground {
         case .disabled:
           backgroundColor = Colors.lightBlueGray
         }
+
+        // a pressed button sits flat: the lift shadow and the bevel highlight are hidden (via opacity, so the node
+        // structure is stable across state changes), leaving the darker background as the pressed look
+        let isPressed = state == .pressed || state == .selected
+
         var label = Label(title)
           .textColor(.white)
           .selectable(false)
+          // bound the title to the button's width, so a long title truncates instead of painting over neighbors
+          .fixedSize(width: false, height: true)
         if let fontSize {
           label = label.font(.systemFont(ofSize: fontSize))
         }
+
         ColorNode(backgroundColor)
-          .cornerRadius(6)
+          .cornerRadius(ButtonStyle.cornerRadius)
+          .border(color: ButtonStyle.borderColor, width: 1)
           .overlay {
-            label
+            // a top inner highlight, inset to sit within the border, gives the button a raised, bevelled face
+            InnerShadowNode(
+              color: .white,
+              opacity: isPressed ? 0 : ButtonStyle.bevelOpacity,
+              radius: 0,
+              offset: CGSize(width: 0, height: 1),
+              path: { renderable in
+                let size = renderable.frame.size
+                let cornerRadius = ButtonStyle.cornerRadius - 1
+                return CGPath(
+                  roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
+                  cornerWidth: cornerRadius,
+                  cornerHeight: cornerRadius,
+                  transform: nil
+                )
+              }
+            )
+            .padding(1)
+          }
+          .dropShadow(
+            color: .black,
+            opacity: isPressed ? 0 : ButtonStyle.shadowOpacity,
+            radius: ButtonStyle.shadowRadius,
+            offset: ButtonStyle.shadowOffset,
+            path: { renderable in
+              let size = renderable.frame.size
+              return CGPath(
+                roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
+                cornerWidth: ButtonStyle.cornerRadius,
+                cornerHeight: ButtonStyle.cornerRadius,
+                transform: nil
+              )
+            }
+          )
+          .overlay {
+            label.padding(horizontal: ButtonStyle.titlePadding)
           }
       },
       onTap: onTap
     )
   }
+}
+
+// MARK: - Constants
+
+/// The shared style values for `Playground.button`.
+private enum ButtonStyle {
+
+  /// The button's corner radius.
+  static let cornerRadius: CGFloat = 6
+
+  /// The border color, translucent black so it works with all state background colors.
+  static let borderColor = Color(white: 0, alpha: 0.2)
+
+  /// The opacity of the top bevel highlight.
+  static let bevelOpacity: CGFloat = 0.3
+
+  /// The opacity of the lift shadow under the button.
+  static let shadowOpacity: CGFloat = 0.25
+
+  /// The blur radius of the lift shadow.
+  static let shadowRadius: CGFloat = 1.5
+
+  /// The offset of the lift shadow.
+  static let shadowOffset = CGSize(width: 0, height: 1)
+
+  /// The horizontal padding between the title and the button's edges.
+  static let titlePadding: CGFloat = 6
 }
