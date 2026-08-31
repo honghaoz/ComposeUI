@@ -19,6 +19,8 @@
 - Slide transitions now continue a revival from wherever the removal left the renderable, for any side configuration: 
   the `from` side applies only to fresh insertions, and a renderable that fully slid out re-enters from its exit side. 
   The insert transition context gains `revivalPosition`, the model position captured for taking-over transitions.
+- `ComposeView` now adopts display scale changes on iOS/tvOS (for example, when the window moves to a screen with a 
+  different scale) and re-renders, matching the existing macOS backing scale handling.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

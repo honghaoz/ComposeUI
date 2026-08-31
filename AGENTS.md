@@ -96,7 +96,7 @@ Before reporting a change complete, verify in order:
   - Adding a dependency (the package is zero-dependency by design).
   - Editing CI workflows (`.github/workflows/`).
 - Never:
-  - Commit, push, or tag unless explicitly asked.
+  - Commit, push, or tag without an explicit ask covering the current changes. Stop when code is done and wait for the user to review it.
   - Edit build artifacts (`.build/`, `DerivedData/`).
   - Delete, skip, or weaken a failing test to make it pass. Fix the code or ask.
   - Remove platform test jobs (iOS/tvOS/visionOS) from CI workflows to make CI faster. Every platform signal matters. Speed up CI with caching, bootstrap improvements, or concurrency instead.
