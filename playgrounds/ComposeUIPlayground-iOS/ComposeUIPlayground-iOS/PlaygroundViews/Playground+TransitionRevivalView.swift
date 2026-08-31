@@ -43,9 +43,9 @@ extension Playground {
   /// An interactive insert/remove page for verifying transition revivals.
   ///
   /// The transitions run slowly so a removal can be interrupted mid-flight, and the transition button cycles
-  /// through the kinds that revive differently: a fade retargets from the interrupted opacity, and a slide continues
-  /// the interrupted motion from wherever the removal left it, whether it enters from the side it exits to or from a
-  /// different side. A non-animated re-insert always snaps to the resting state.
+  /// through a fade, which retargets from the interrupted opacity, and two slide configurations, which continue the
+  /// interrupted motion from wherever the removal left it and differ only in their entry and exit sides.
+  /// A non-animated re-insert always snaps to the resting state.
   ///
   /// The page logs button taps, the box renderable's lifecycle events, and a continuous sample of
   /// the box layer's model and presentation values, so a manual test session can be diagnosed from

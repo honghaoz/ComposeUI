@@ -54,6 +54,10 @@ public extension RenderableTransition {
   /// configuration, so a revival re-enters from wherever the removal left it: a renderable that fully slid out
   /// re-enters from its exit side, and the `from` side only applies to fresh insertions.
   ///
+  /// The composed revival motion's quality depends on the timings: curves that start at rest (springs, ease-in-out)
+  /// keep the velocity continuous, an equal-duration linear pair cancels to a standstill until the leftover decays,
+  /// and strongly mismatched durations can overshoot the resting position before settling.
+  ///
   /// A zero-duration timing applies the end frame and completes immediately when there is no delay, and a zero-duration
   /// revival also clears the leftover exit animations so the snap lands at rest. With a delay, the end frame is
   /// scheduled as a snap that applies right after the delay window.
