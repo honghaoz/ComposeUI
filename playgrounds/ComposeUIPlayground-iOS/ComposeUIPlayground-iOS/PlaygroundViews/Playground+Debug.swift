@@ -95,6 +95,67 @@ extension Playground {
     static func format(_ point: CGPoint) -> String {
       String(format: "(%.1f, %.1f)", point.x, point.y)
     }
+
+    static func format(_ rect: CGRect) -> String {
+      String(format: "(%.1f, %.1f, %.1f, %.1f)", rect.origin.x, rect.origin.y, rect.width, rect.height)
+    }
+  }
+
+  /// Adds a small centered name label to a box layer, so the box's renderable kind is identifiable on screen.
+  ///
+  /// The label is a sublayer of the box's layer (instead of a separate node), so it rides along with the box during
+  /// animations and transitions, and the box stays a single renderable for lifecycle logging. Safe to call from a
+  /// render pass update: the label is created once and its frame is only written when the box's bounds changed.
+  ///
+  /// - Parameters:
+  ///   - name: The name to show on the box.
+  ///   - layer: The box's layer.
+  ///   - scale: The label's contents scale, see `displayScale(of:)`.
+  static func addBoxNameLabel(_ name: String, to layer: CALayer, scale: CGFloat) {
+    let labelLayerName = "box-name-label"
+
+    let textLayer: CATextLayer
+    if let existing = layer.sublayers?.first(where: { $0.name == labelLayerName }) as? CATextLayer {
+      textLayer = existing
+    } else {
+      textLayer = CATextLayer()
+      textLayer.name = labelLayerName
+      textLayer.string = name
+      // UIFont/NSFont is toll-free bridged to the CTFont that CATextLayer expects
+      textLayer.font = Font.systemFont(ofSize: BoxNameStyle.fontSize, weight: .medium)
+      textLayer.fontSize = BoxNameStyle.fontSize
+      textLayer.foregroundColor = Color.white.cgColor
+      textLayer.alignmentMode = .center
+      textLayer.contentsScale = scale
+      layer.addSublayer(textLayer)
+    }
+
+    let frame = CGRect(
+      x: 0,
+      y: (layer.bounds.height - BoxNameStyle.height) / 2,
+      width: layer.bounds.width,
+      height: BoxNameStyle.height
+    )
+    if textLayer.frame != frame {
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      textLayer.frame = frame
+      CATransaction.commit()
+    }
+  }
+
+  /// The display scale of the view's environment, for crisp layer text.
+  ///
+  /// - Parameter view: The view whose window or screen provides the scale.
+  /// - Returns: The display scale.
+  static func displayScale(of view: View) -> CGFloat {
+    #if canImport(AppKit)
+    return view.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? BoxNameStyle.fallbackDisplayScale
+    #else
+    let scale = view.traitCollection.displayScale
+    // an unattached view can report an unspecified (0) display scale, fall back to a retina scale
+    return scale > 0 ? scale : BoxNameStyle.fallbackDisplayScale
+    #endif
   }
 
   /// Makes a standard playground action button.
@@ -183,6 +244,19 @@ extension Playground {
 }
 
 // MARK: - Constants
+
+/// The shared style values for the box name labels.
+private enum BoxNameStyle {
+
+  /// The font size of the name label.
+  static let fontSize: CGFloat = 11
+
+  /// The height of the name label.
+  static let height: CGFloat = 14
+
+  /// The display scale to use when the view's environment doesn't provide one.
+  static let fallbackDisplayScale: CGFloat = 2
+}
 
 /// The shared style values for `Playground.button`.
 private enum ButtonStyle {

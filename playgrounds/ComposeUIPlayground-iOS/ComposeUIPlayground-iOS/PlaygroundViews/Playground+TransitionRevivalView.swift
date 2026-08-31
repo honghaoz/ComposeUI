@@ -42,14 +42,20 @@ extension Playground {
 
   /// An interactive insert/remove page for verifying transition revivals.
   ///
-  /// The transitions run slowly so a removal can be interrupted mid-flight, and the transition button cycles
-  /// through a fade, which retargets from the interrupted opacity, and two slide configurations, which continue the
-  /// interrupted motion from wherever the removal left it and differ only in their entry and exit sides.
+  /// The page inserts and removes two boxes together, so a revival is verified on both renderable kinds:
+  /// - The top, blue-gray box is a layer renderable.
+  /// - The bottom, green box is a view renderable, whose transitions additionally exercise the `backedView` model sync
+  ///   (the view's `frame` on macOS and `alpha` on both platforms).
+  ///
+  /// The transitions run slowly so a removal can be interrupted mid-flight, and the transition button cycles through a
+  /// fade, which retargets from the interrupted opacity, and two slide configurations, which continue the interrupted
+  /// motion from wherever the removal left it and differ only in their entry and exit sides.
   /// A non-animated re-insert always snaps to the resting state.
   ///
-  /// The page logs button taps, the box renderable's lifecycle events, and a continuous sample of
-  /// the box layer's model and presentation values, so a manual test session can be diagnosed from
-  /// the console output.
+  /// The page logs button taps, each box renderable's lifecycle events, and a continuous sample of each box layer's
+  /// model and presentation values, so a manual test session can be diagnosed from the console output. The boxes are
+  /// sampled independently, so a divergence between the layer box and the view box shows up as one box logging without
+  /// the other.
   final class TransitionRevivalView: ComposeView {
 
     /// The transition to verify, cycled through by the page's transition button.
@@ -111,13 +117,16 @@ extension Playground {
     private var isShowing = true
     private var transitionKind: TransitionKind = .opacity
 
-    private weak var boxLayer: CALayer?
+    private weak var layerBoxLayer: CALayer?
+    private weak var viewBoxView: View?
+    private weak var viewBoxLayer: CALayer?
     private var samplingTimer: Timer?
-    private var lastSampleLine: String?
+    private var lastLayerSampleLine: String?
+    private var lastViewSampleLine: String?
 
     private typealias Debug = Playground.Debug
 
-    /// Whether the box layer can be tracked, which requires the content view's DEBUG-only debug events.
+    /// Whether the box layers can be tracked, which requires the content view's DEBUG-only debug events.
     private var isSamplingSupported: Bool {
       #if DEBUG
       return true
@@ -129,13 +138,43 @@ extension Playground {
     @ComposeContentBuilder
     override var content: ComposeContent {
       VStack(spacing: 12) {
-        VStack {
+        VStack(spacing: Constants.laneSpacing) {
           if isShowing {
-            ColorNode(Colors.blueGray)
-              .transition(transitionKind.transition)
-              .frame(width: 160, height: 64)
-              .id("box")
-              .frame(.flexible, alignment: .center)
+            // the layer lane: the transition drives a plain layer renderable.
+            // the box's name is a sublayer (instead of an overlay node) so the box stays a single renderable for the
+            // lifecycle logging, and the name rides along during transitions.
+            LayerNode(
+              update: { [weak self] layer, _ in
+                guard let self else {
+                  return
+                }
+                layer.backgroundColor = Colors.blueGray.cgColor
+                Playground.addBoxNameLabel("layer", to: layer, scale: Playground.displayScale(of: self))
+              }
+            )
+            .transition(transitionKind.transition)
+            .frame(Constants.boxSize)
+            .id("layer-box")
+
+            // the view lane: the transition drives a view renderable, which additionally exercises the view model sync
+            // (frame/alpha)
+            ViewNode<BaseView>(
+              update: { [weak self] view, _ in
+                guard let self else {
+                  return
+                }
+                #if canImport(AppKit)
+                let boxLayer = view.layer! // swiftlint:disable:this force_unwrapping
+                #else
+                let boxLayer = view.layer
+                #endif
+                boxLayer.backgroundColor = Colors.RetroApple.green.cgColor
+                Playground.addBoxNameLabel("view", to: boxLayer, scale: Playground.displayScale(of: self))
+              }
+            )
+            .transition(transitionKind.transition)
+            .frame(Constants.boxSize)
+            .id("view-box")
           } else {
             Empty()
           }
@@ -214,11 +253,15 @@ extension Playground {
     }
 
     private func logBoxEvent(_ name: String, item: RenderableItem, renderable: Renderable) {
-      guard item.id.id.contains("box") else {
-        return
+      let id = item.id.id
+      if id.contains("layer-box") {
+        layerBoxLayer = renderable.layer
+        log("EVENT(layer) \(name), \(describeLayerBox())")
+      } else if id.contains("view-box") {
+        viewBoxView = renderable.view
+        viewBoxLayer = renderable.layer
+        log("EVENT(view) \(name), \(describeViewBox())")
       }
-      boxLayer = renderable.layer
-      log("EVENT \(name), \(describeBox())")
     }
     #endif
 
@@ -240,9 +283,22 @@ extension Playground {
       samplingTimer?.invalidate()
     }
 
+    // MARK: - Constants
+
+    private enum Constants {
+
+      /// The size of each box lane.
+      static let boxSize = CGSize(width: 160, height: 64)
+
+      /// The spacing between the two box lanes.
+      static let laneSpacing: CGFloat = 8
+    }
+
+    // MARK: - Sampling
+
     /// Runs the sampling timer while the view is in a window.
     ///
-    /// The box layer is tracked through the content view's debug events, which are DEBUG-only, so sampling only has
+    /// The box layers are tracked through the content view's debug events, which are DEBUG-only, so sampling only has
     /// something to report in a DEBUG build.
     private func updateSampling() {
       guard isSamplingSupported, window != nil else {
@@ -260,22 +316,46 @@ extension Playground {
       samplingTimer = timer
     }
 
-    /// Logs the box layer's state when it changed since the last sample.
+    /// Logs each box's state when it changed since the last sample.
     private func sampleBoxState() {
-      let line = describeBox()
-      guard line != lastSampleLine else {
-        return
+      let layerLine = describeLayerBox()
+      if layerLine != lastLayerSampleLine {
+        lastLayerSampleLine = layerLine
+        log("SAMPLE(layer) \(layerLine)")
       }
-      lastSampleLine = line
-      log("SAMPLE \(line)")
+
+      let viewLine = describeViewBox()
+      if viewLine != lastViewSampleLine {
+        lastViewSampleLine = viewLine
+        log("SAMPLE(view) \(viewLine)")
+      }
     }
 
     private func logBoxState(_ label: String) {
-      log("STATE (\(label)) \(describeBox())")
+      log("STATE(layer) (\(label)) \(describeLayerBox())")
+      log("STATE(view) (\(label)) \(describeViewBox())")
     }
 
-    private func describeBox() -> String {
-      guard let layer = boxLayer else {
+    private func describeLayerBox() -> String {
+      describeBox(layer: layerBoxLayer)
+    }
+
+    /// Describes the view box: the view's model values (which should track its layer's model values), then the layer.
+    private func describeViewBox() -> String {
+      guard let view = viewBoxView else {
+        return "box view = nil"
+      }
+      let viewModel: String
+      if transitionKind.animatesPosition {
+        viewModel = "viewFrame = \(Debug.format(view.frame))"
+      } else {
+        viewModel = "viewAlpha = \(Debug.format(view.alpha))"
+      }
+      return "\(viewModel), \(describeBox(layer: viewBoxLayer))"
+    }
+
+    private func describeBox(layer: CALayer?) -> String {
+      guard let layer else {
         return "box layer = nil"
       }
       let pointer = String(describing: Unmanaged.passUnretained(layer).toOpaque())

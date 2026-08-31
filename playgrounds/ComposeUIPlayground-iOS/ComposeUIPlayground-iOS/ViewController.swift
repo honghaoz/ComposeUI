@@ -97,7 +97,7 @@ class ViewController: UIViewController {
             .border(color: Color.gray, width: 1)
         }
         .padding(horizontal: Constants.padding)
-        .frame(width: .flexible, height: 340)
+        .frame(width: .flexible, height: 360)
 
       ViewNode<Playground.FrameView>()
         .underlay {
