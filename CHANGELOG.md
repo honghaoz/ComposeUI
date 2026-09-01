@@ -21,7 +21,7 @@
 - `ComposeView` now adopts display scale changes on iOS/tvOS (for example, when the window moves to a screen with a 
   different scale) and re-renders, matching the existing macOS backing scale handling.
 - `ComposeView.setNeedsRefresh(animated:)` now merges coalesced requests to non-animated when any request was 
-  non-animated (previously the last request's flag won), so a scale or window driven snap is never animated by a 
+  non-animated (previously the last request's flag won), so a scale-driven or window-driven snap is never animated by a 
   concurrent theme change.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
