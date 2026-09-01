@@ -54,7 +54,7 @@ class BaseTextViewTests: XCTestCase {
 
   #if canImport(AppKit)
   func test_removeFromSuperview_whenFirstResponder_resignsFirstResponder() {
-    // given: a text view in a window that is the first responder
+    // given: a text view that is the first responder in a window
     let window = TestWindow()
     let container = NSView(frame: window.contentView?.bounds ?? .zero)
     let textView = BaseTextView(frame: container.bounds)
@@ -76,7 +76,7 @@ class BaseTextViewTests: XCTestCase {
 
   #if canImport(UIKit) && !os(tvOS)
   func test_removeFromSuperview_whenFirstResponder_resignsFirstResponder() {
-    // given: an editable text view in a key window that is the first responder
+    // given: an editable text view that is the first responder in a key window
     let window = TestWindow()
     let viewController = UIViewController()
     let textView = BaseTextView(frame: window.bounds)
@@ -123,7 +123,7 @@ class BaseTextViewTests: XCTestCase {
 
   func test_resetForReuse_clearsFirstResponder() {
     #if canImport(AppKit)
-    // given: a text view in a window that is the first responder
+    // given: a text view that is the first responder in a window
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     let window = TestWindow()
     window.contentView = NSView(frame: window.frame)
@@ -139,7 +139,7 @@ class BaseTextViewTests: XCTestCase {
     #endif
 
     #if canImport(UIKit) && !os(tvOS)
-    // given: a text view in a key window that is the first responder
+    // given: a text view that is the first responder in a key window
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     let window = TestWindow()
     window.rootViewController = UIViewController()

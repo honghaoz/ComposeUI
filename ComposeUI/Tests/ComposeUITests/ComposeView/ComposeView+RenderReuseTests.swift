@@ -661,7 +661,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // then: both types were created and recycled within their own type bucket
+    // then: both types were created, and the visible rows have the correct concrete types
     expect(counterA.madeCount) > 0
     expect(counterB.madeCount) > 0
     // the visible views at the bottom must be the correct concrete types for their rows (58 -> A, 59 -> B).

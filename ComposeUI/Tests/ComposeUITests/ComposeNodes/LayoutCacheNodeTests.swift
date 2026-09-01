@@ -34,7 +34,7 @@ import ChouTiTest
 
 class LayoutCacheNodeTests: XCTestCase {
 
-  func test() {
+  func test_forwardsAndCachesWrappedNode() {
     // given: a layout cache node wrapping a test node
     let state = TestNode.State()
     let node = TestNode(state: state)

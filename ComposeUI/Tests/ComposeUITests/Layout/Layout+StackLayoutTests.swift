@@ -64,7 +64,7 @@ class Layout_StackLayout: XCTestCase {
     // given: fixed size items
     let items: [ComposeNodeSizing.Sizing] = [.fixed(30), .fixed(40), .fixed(50)]
 
-    // when: proposed space is larger enough
+    // when: proposed space is large enough
     do {
       let result = Layout.stackLayout(space: 200, items: items)
 

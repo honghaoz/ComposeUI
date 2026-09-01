@@ -156,7 +156,7 @@ class RenderablePoolTests: XCTestCase {
 
     // then: the third enqueue is dropped, the pool keeps at most the cap
     expect(pool.count(for: key)) == 2
-    expect(pool.dequeue(key)?.layer) === layers[1] // the dropped one is the last enqueued
+    expect(pool.dequeue(key)?.layer) === layers[1] // the most recently retained is handed back first
     expect(pool.dequeue(key)?.layer) === layers[0]
     expect(pool.dequeue(key)) == nil
   }

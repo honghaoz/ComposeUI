@@ -39,6 +39,7 @@ class GestureRecognizer_ExtensionsTests: XCTestCase {
     let recognizer = TapGestureRecognizer()
 
     // when: cancel is called
+    // then: it does not crash
     recognizer.cancel()
   }
 }

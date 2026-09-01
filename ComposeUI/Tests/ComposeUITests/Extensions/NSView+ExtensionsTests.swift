@@ -255,9 +255,9 @@ class NSView_ExtensionsTests: XCTestCase {
     expect(viewLayer.sublayers) == [layer1, manualLayer, layer3, layer2]
 
     // when: the next display pass runs
-    // after the subview list is mutated, the next display pass re-syncs the backing layers: they are
-    // re-stacked above the non-backing sublayers, but each kind keeps its own relative order (the backing
-    // layers stay in the subview order and the manual sublayer stays in the hierarchy).
+    // after the subview list is mutated, the next display pass re-syncs the backing layers: each kind keeps
+    // its own relative order (the backing layers stay in the subview order and the manual sublayer stays in
+    // the hierarchy). the exact placement between kinds is not asserted here.
     view.needsDisplay = true
     window.displayIfNeeded()
 

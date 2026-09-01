@@ -47,7 +47,7 @@ class ComposeView_LayoutTests: XCTestCase {
     view.hasVerticalScroller = true
     #endif
 
-    // use a specified size
+    // given: a specified size
     view.frame.size = view.sizeThatFits(
       CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
     )

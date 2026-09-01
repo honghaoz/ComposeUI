@@ -171,6 +171,7 @@ class SpacerNodeTests: XCTestCase {
     expect(spacer.size) == CGSize(width: 100, height: 200)
 
     // when: setting the width again on the laid out spacer
+    // then: it does not crash
     spacer = spacer.width(100)
   }
 
@@ -190,6 +191,7 @@ class SpacerNodeTests: XCTestCase {
     expect(spacer.size) == CGSize(width: 200, height: 100)
 
     // when: setting the height again on the laid out spacer
+    // then: it does not crash
     spacer = spacer.height(100)
   }
 }

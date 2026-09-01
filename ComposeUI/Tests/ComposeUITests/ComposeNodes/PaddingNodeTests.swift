@@ -40,8 +40,10 @@ class PaddingNodeTests: XCTestCase {
 
     // padding(top:left:bottom:right:)
     do {
-      // given: a laid out fixed size node with per-edge padding
+      // given: a fixed size node with per-edge padding
       var node = LayerNode().frame(width: 10, height: 10).padding(top: 1, left: 2, bottom: 3, right: 4)
+
+      // when: laying out the node
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
       // then: the size includes the padding and the child rect is inset
@@ -51,8 +53,10 @@ class PaddingNodeTests: XCTestCase {
 
     // padding(horizontal:vertical:)
     do {
-      // given: a laid out fixed size node with horizontal and vertical padding
+      // given: a fixed size node with horizontal and vertical padding
       var node = LayerNode().frame(width: 10, height: 10).padding(horizontal: 2, vertical: 3)
+
+      // when: laying out the node
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
       // then: the size includes the padding and the child rect is inset
@@ -66,8 +70,10 @@ class PaddingNodeTests: XCTestCase {
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
     do {
-      // given: a laid out fixed size node with padding
+      // given: a fixed size node with padding
       var node = LayerNode().frame(width: 10, height: 10).padding(5)
+
+      // when: laying out the node
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
       // then: the bounding rect should be translated by the padding insets
@@ -76,8 +82,10 @@ class PaddingNodeTests: XCTestCase {
     }
 
     do {
-      // given: a laid out padding node whose child has no renderable items
+      // given: a padding node whose child has no renderable items
       var node = Spacer().padding(5)
+
+      // when: laying out the node
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
       // then: the bounding rect is null

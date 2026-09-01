@@ -135,7 +135,7 @@ class ComposeViewNodeTests: XCTestCase {
       expect(node.size) == CGSize(width: 100, height: 100)
     }
 
-    // given: flexible size content + fixed size
+    // given: flexible size content + flexible size
     do {
       var node = ComposeViewNode {
         ColorNode(.red)

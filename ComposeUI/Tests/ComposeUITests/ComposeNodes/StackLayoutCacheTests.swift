@@ -59,8 +59,10 @@ class StackLayoutCacheTests: XCTestCase {
   }
 
   func test_update_withoutMainAxis_collectsBoundingRectOnly() {
-    // when: updating a cache without a main axis
+    // given: an empty cache
     var cache = StackLayoutCache()
+
+    // when: updating the cache without a main axis
     cache.update(
       childOrigins: [CGPoint(x: 0, y: 0), CGPoint(x: 0, y: 10), CGPoint(x: 0, y: 20)],
       childItemsBoundingRects: [
@@ -77,8 +79,10 @@ class StackLayoutCacheTests: XCTestCase {
   }
 
   func test_update_withoutMainAxis_allNullRects_boundingRectIsNull() {
-    // when: updating a cache without a main axis, with all null bounding rects
+    // given: an empty cache
     var cache = StackLayoutCache()
+
+    // when: updating the cache without a main axis, with all null bounding rects
     cache.update(
       childOrigins: [CGPoint(x: 0, y: 0)],
       childItemsBoundingRects: [.null],
