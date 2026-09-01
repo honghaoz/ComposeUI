@@ -35,18 +35,22 @@ import ComposeUI
 class AnimationTimingTests: XCTestCase {
 
   func test_linear() {
-    // test default values
+    // when: creating a linear timing with default values
     do {
       let timing = AnimationTiming.linear()
+
+      // then: the timing uses the linear timing function with default duration, delay, and speed
       expect(timing.timing) == .timingFunction(Animations.defaultAnimationDuration, CAMediaTimingFunction(name: .linear))
       expect(timing.timing.duration) == Animations.defaultAnimationDuration
       expect(timing.delay) == 0
       expect(timing.speed) == 1
     }
 
-    // test custom values
+    // when: creating a linear timing with custom values
     do {
       let timing = AnimationTiming.linear(duration: 2, delay: 2, speed: 2)
+
+      // then: the timing uses the custom duration, delay, and speed
       expect(timing.timing) == .timingFunction(2, CAMediaTimingFunction(name: .linear))
       expect(timing.timing.duration) == 2
       expect(timing.delay) == 2
@@ -55,18 +59,22 @@ class AnimationTimingTests: XCTestCase {
   }
 
   func test_easeIn() {
-    // test default values
+    // when: creating an ease in timing with default values
     do {
       let timing = AnimationTiming.easeIn()
+
+      // then: the timing uses the ease in timing function with default duration, delay, and speed
       expect(timing.timing) == .timingFunction(Animations.defaultAnimationDuration, CAMediaTimingFunction(name: .easeIn))
       expect(timing.timing.duration) == Animations.defaultAnimationDuration
       expect(timing.delay) == 0
       expect(timing.speed) == 1
     }
 
-    // test custom values
+    // when: creating an ease in timing with custom values
     do {
       let timing = AnimationTiming.easeIn(duration: 2, delay: 2, speed: 2)
+
+      // then: the timing uses the custom duration, delay, and speed
       expect(timing.timing) == .timingFunction(2, CAMediaTimingFunction(name: .easeIn))
       expect(timing.timing.duration) == 2
       expect(timing.delay) == 2
@@ -75,18 +83,22 @@ class AnimationTimingTests: XCTestCase {
   }
 
   func test_easeOut() {
-    // test default values
+    // when: creating an ease out timing with default values
     do {
       let timing = AnimationTiming.easeOut()
+
+      // then: the timing uses the ease out timing function with default duration, delay, and speed
       expect(timing.timing) == .timingFunction(Animations.defaultAnimationDuration, CAMediaTimingFunction(name: .easeOut))
       expect(timing.timing.duration) == Animations.defaultAnimationDuration
       expect(timing.delay) == 0
       expect(timing.speed) == 1
     }
 
-    // test custom values
+    // when: creating an ease out timing with custom values
     do {
       let timing = AnimationTiming.easeOut(duration: 2, delay: 2, speed: 2)
+
+      // then: the timing uses the custom duration, delay, and speed
       expect(timing.timing) == .timingFunction(2, CAMediaTimingFunction(name: .easeOut))
       expect(timing.timing.duration) == 2
       expect(timing.delay) == 2
@@ -95,18 +107,22 @@ class AnimationTimingTests: XCTestCase {
   }
 
   func test_easeInEaseOut() {
-    // test default values
+    // when: creating an ease in ease out timing with default values
     do {
       let timing = AnimationTiming.easeInEaseOut()
+
+      // then: the timing uses the ease in ease out timing function with default duration, delay, and speed
       expect(timing.timing) == .timingFunction(Animations.defaultAnimationDuration, CAMediaTimingFunction(name: .easeInEaseOut))
       expect(timing.timing.duration) == Animations.defaultAnimationDuration
       expect(timing.delay) == 0
       expect(timing.speed) == 1
     }
 
-    // test custom values
+    // when: creating an ease in ease out timing with custom values
     do {
       let timing = AnimationTiming.easeInEaseOut(duration: 2, delay: 2, speed: 2)
+
+      // then: the timing uses the custom duration, delay, and speed
       expect(timing.timing) == .timingFunction(2, CAMediaTimingFunction(name: .easeInEaseOut))
       expect(timing.timing.duration) == 2
       expect(timing.delay) == 2
@@ -115,19 +131,23 @@ class AnimationTimingTests: XCTestCase {
   }
 
   func test_spring() {
-    // test default values
+    // when: creating a spring timing with default values
     do {
       let timing = AnimationTiming.spring()
       let springDescriptor = SpringDescriptor(dampingRatio: Animations.defaultSpringDampingRatio, response: Animations.defaultSpringResponse, initialVelocity: 0)
+
+      // then: the timing uses the default spring descriptor with the settling duration, default delay, and speed
       expect(timing.timing) == .spring(springDescriptor, duration: nil)
       expect(timing.timing.duration) == springDescriptor.settlingDuration()
       expect(timing.delay) == 0
       expect(timing.speed) == 1
     }
 
-    // test custom values
+    // when: creating a spring timing with custom values
     do {
       let timing = AnimationTiming.spring(dampingRatio: 0.5, response: 0.5, initialVelocity: 0.5, duration: 2, delay: 2, speed: 2)
+
+      // then: the timing uses the custom spring descriptor, duration, delay, and speed
       expect(timing.timing) == .spring(SpringDescriptor(dampingRatio: 0.5, response: 0.5, initialVelocity: 0.5), duration: 2)
       expect(timing.timing.duration) == 2
       expect(timing.delay) == 2

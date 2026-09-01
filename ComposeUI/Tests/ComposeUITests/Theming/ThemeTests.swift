@@ -36,24 +36,36 @@ class ThemeTests: XCTestCase {
 
   func test_isLight() {
     do {
+      // given: a light theme
       let theme = Theme.light
+
+      // then: isLight is true
       expect(theme.isLight) == true
     }
 
     do {
+      // given: a dark theme
       let theme = Theme.dark
+
+      // then: isLight is false
       expect(theme.isLight) == false
     }
   }
 
   func test_isDark() {
     do {
+      // given: a light theme
       let theme = Theme.light
+
+      // then: isDark is false
       expect(theme.isDark) == false
     }
 
     do {
+      // given: a dark theme
       let theme = Theme.dark
+
+      // then: isDark is true
       expect(theme.isDark) == true
     }
   }

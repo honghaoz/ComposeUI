@@ -35,6 +35,7 @@ import ComposeUI
 class ContainerNodeTests: XCTestCase {
 
   func test() throws {
+    // given: a compose view with a vstack of three 10x10 layers
     let contentView = ComposeView {
       VStack {
         LayerNode()
@@ -47,8 +48,11 @@ class ContainerNodeTests: XCTestCase {
     }
 
     contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+    // when: the view is refreshed
     contentView.refresh()
 
+    // then: each rendered layer has the mapped 10x10 size
     #if canImport(AppKit)
     let sublayers: [CALayer] = try contentView.documentView.unwrap().layer.unwrap().sublayers.unwrap()
     #endif

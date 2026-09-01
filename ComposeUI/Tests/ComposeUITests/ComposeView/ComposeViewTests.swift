@@ -42,58 +42,71 @@ class ComposeViewTests: XCTestCase {
   }
 
   func test_defaultContent() {
+    // given: a compose view made without content
     let contentView = ComposeView()
     let nodes = contentView.content.asNodes()
+
+    // then: the default content is a single empty node
     expect(nodes.count) == 1
     expect(nodes[0].id.id) == "E"
     expect(nodes[0].size) == .zero
   }
 
   func test_centerContent() {
-    // when content size is smaller than the bounds size
     do {
+      // given: content size is smaller than the bounds size
       let view = BaseView()
       contentView.setContent {
         ViewNode(view)
           .flexibleSize()
           .frame(width: 50, height: 80)
       }
+
+      // when: the view is refreshed
       contentView.refresh(animated: false)
 
+      // then: the content is centered in both directions
       expect(contentView.contentSize) == CGSize(width: 100, height: 100)
       expect(view.frame) == CGRect(x: 25, y: 10, width: 50, height: 80)
     }
 
-    // when content width is smaller than the bounds width
     do {
+      // given: content width is smaller than the bounds width
       let view = BaseView()
       contentView.setContent {
         ViewNode(view)
           .flexibleSize()
           .frame(width: 50, height: 120)
       }
+
+      // when: the view is refreshed
       contentView.refresh(animated: false)
 
+      // then: the content is centered horizontally
       expect(contentView.contentSize) == CGSize(width: 100, height: 120)
       expect(view.frame) == CGRect(x: 25, y: 0, width: 50, height: 120)
     }
 
-    // when content height is smaller than the bounds height
     do {
+      // given: content height is smaller than the bounds height
       let view = BaseView()
       contentView.setContent {
         ViewNode(view)
           .flexibleSize()
           .frame(width: 120, height: 80)
       }
+
+      // when: the view is refreshed
       contentView.refresh(animated: false)
 
+      // then: the content is centered vertically
       expect(contentView.contentSize) == CGSize(width: 120, height: 100)
       expect(view.frame) == CGRect(x: 0, y: 10, width: 120, height: 80)
     }
   }
 
   func test_visibleBoundsInsets() {
+    // given: a compose view with extended visible bounds and render tracking for offscreen top and bottom views
     var isTopRendered = false
     var isBottomRendered = false
 
@@ -126,23 +139,29 @@ class ComposeViewTests: XCTestCase {
       }
     }
 
+    // when: the view is refreshed
     contentView.refresh(animated: false)
 
+    // then: both offscreen views are rendered thanks to the extended visible bounds
     expect(contentView.contentSize) == CGSize(width: 100, height: 100)
     expect(isTopRendered) == true
     expect(isBottomRendered) == true
   }
 
   func test_sizeThatFits() {
+    // given: a compose view with a flexible-width, fixed-height node
     let contentView = ComposeView {
       LayerNode()
         .frame(width: .flexible, height: 30)
     }
+
+    // then: the fitting size adopts the proposed width and keeps the fixed height
     expect(contentView.sizeThatFits(CGSize(width: 10, height: 10))) == CGSize(width: 10, height: 30)
     expect(contentView.sizeThatFits(CGSize(width: 50, height: 50))) == CGSize(width: 50, height: 30)
   }
 
   func test_contentInsetAdjustmentBehavior() {
+    // then: automatic content inset adjustment is disabled
     #if canImport(AppKit)
     expect(contentView.automaticallyAdjustsContentInsets) == false
     #endif

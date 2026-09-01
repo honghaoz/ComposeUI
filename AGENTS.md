@@ -73,7 +73,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 - Test framework is **ChouTiTest** with `XCTestCase` (`expect`, `fail`, etc.). Avoid `XCTFail()`, prefer `fail()`. If no ChouTiTest helper fits, recommend adding one.
 - Test files end with `Tests.swift` and mirror source organization (for example `ComposeNode+Transform.swift` → `ComposeNode+TransformTests.swift`).
 - Name test methods `test_<behavior>`, adding underscore-separated scenario qualifiers as needed (for example `test_userInteraction`, `test_resetForReuse_clearsAttributedString`).
-- Structure test bodies with `// given:` / `// when:` / `// then:` comments (see `test_setNeedsRefresh` for the style).
+- Test bodies must use the given/when/then structure, marked with `// given:` / `// when:` / `// then:` comments with short lowercase descriptions. Repeat `// when:` / `// then:` pairs for multi-stage tests. A test with no distinct action (pure assertions) uses `// then:` plus `// given:` when there is setup. Treat a `measure { }` block as the when stage. See `ComposeView_RefreshTests.test_setNeedsRefresh` for the style.
 - Add or update tests for behavior changes, especially layout, rendering, and animation transitions.
 - Verify observable render output or applied attributes (for example layer color, text font), not closure execution or indirect proxies like item count.
 - Platform behavior claims for AppKit/UIKit require real tests on both platforms, or an explicit statement of which platform is unverified.

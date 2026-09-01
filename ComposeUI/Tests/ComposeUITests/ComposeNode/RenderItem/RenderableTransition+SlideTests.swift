@@ -39,6 +39,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   // MARK: - Insert Transition
 
   func test_insertTransition_top() throws {
+    // given: a layer renderable and a slide-in transition from the top
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -53,8 +54,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let insertTransition = try transition.insert.unwrap()
     let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
 
+    // when: the insert transition animates the renderable
     insertTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer lands at the target frame with an additive position animation sliding in from above
     let expectedInitialFrame = CGRect(
       x: targetFrame.origin.x,
       y: -targetFrame.height - Constants.overshoot,
@@ -77,6 +80,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_insertTransition_bottom() throws {
+    // given: a layer renderable and a slide-in transition from the bottom
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -91,8 +95,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let insertTransition = try transition.insert.unwrap()
     let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
 
+    // when: the insert transition animates the renderable
     insertTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer lands at the target frame with an additive position animation sliding in from below
     let expectedInitialFrame = CGRect(
       x: targetFrame.origin.x,
       y: Constants.contentSize.height + Constants.overshoot,
@@ -115,6 +121,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_insertTransition_left() throws {
+    // given: a layer renderable and a slide-in transition from the left
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -129,8 +136,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let insertTransition = try transition.insert.unwrap()
     let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
 
+    // when: the insert transition animates the renderable
     insertTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer lands at the target frame with an additive position animation sliding in from the left
     let expectedInitialFrame = CGRect(
       x: -targetFrame.width - Constants.overshoot,
       y: targetFrame.origin.y,
@@ -153,6 +162,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_insertTransition_right() throws {
+    // given: a layer renderable and a slide-in transition from the right
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -167,8 +177,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let insertTransition = try transition.insert.unwrap()
     let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
 
+    // when: the insert transition animates the renderable
     insertTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer lands at the target frame with an additive position animation sliding in from the right
     let expectedInitialFrame = CGRect(
       x: Constants.contentSize.width + Constants.overshoot,
       y: targetFrame.origin.y,
@@ -191,6 +203,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_insertTransition_revival_continuesFromRevivalPosition() throws {
+    // given: a layer mid-removal with a leftover animation and the target frame applied as the model value
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -207,6 +220,7 @@ class RenderableTransition_SlideTests: XCTestCase {
     // the framework applies the target frame as the model value before the transition runs
     layer.frame = targetFrame
 
+    // when: an insert transition animates with a revival position
     let transition = RenderableTransition.slide(
       from: .left,
       to: .right,
@@ -220,6 +234,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       completion: {}
     )
 
+    // then: the renderable re-enters from the exit side
     // the revival keeps the leftover animation and anchors its own offset to the removal's model position, cancelling
     // the model change, so the renderable re-enters from the exit side
     expect(layer.frame) == targetFrame
@@ -232,6 +247,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_insertTransition_zeroDurationRevival_clearsLeftoverAndSnapsToTarget() throws {
+    // given: a layer mid-removal with a leftover animation and the target frame applied as the model value
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -248,6 +264,7 @@ class RenderableTransition_SlideTests: XCTestCase {
     // the framework applies the target frame as the model value before the transition runs
     layer.frame = targetFrame
 
+    // when: a zero-duration insert transition animates with a revival position
     let transition = RenderableTransition.slide(
       from: .left,
       to: .right,
@@ -263,6 +280,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       completion: { completionCallCount += 1 }
     )
 
+    // then: the leftover animations are cleared and the renderable snaps to the target
     // the snap clears the taken-over leftover animations, so the renderable lands at rest at the target instead of
     // rendering off it until the leftover decays
     expect(layer.frame) == targetFrame
@@ -271,6 +289,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_insertTransition_delayedRevival_holdsAndKeepsLeftover() throws {
+    // given: a layer mid-removal with a leftover animation and the target frame applied as the model value
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -287,6 +306,7 @@ class RenderableTransition_SlideTests: XCTestCase {
     // the framework applies the target frame as the model value before the transition runs
     layer.frame = targetFrame
 
+    // when: a delayed insert transition animates with a revival position
     let transition = RenderableTransition.slide(
       from: .left,
       to: .right,
@@ -300,6 +320,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       completion: {}
     )
 
+    // then: the leftover animation is kept and the scheduled insert offset holds the revival position
     // the leftover keeps playing during the delay window while the scheduled insert offset holds the revival
     // position through its fill mode, so the composed motion stays continuous until the insert begins
     expect(layer.basicAnimations(forKeyPath: "position").count) == 2
@@ -317,6 +338,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   // MARK: - Remove Transition
 
   func test_removeTransition_top() throws {
+    // given: a layer at its current frame and a slide-out transition towards the top
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -332,8 +354,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let removeTransition = try transition.remove.unwrap()
     let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
 
+    // when: the remove transition animates the renderable
     removeTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer moves off-screen above with an additive position animation from the current position
     let expectedTargetFrame = CGRect(
       x: currentFrame.origin.x,
       y: -currentFrame.height - Constants.overshoot,
@@ -357,6 +381,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_removeTransition_bottom() throws {
+    // given: a layer at its current frame and a slide-out transition towards the bottom
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -372,8 +397,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let removeTransition = try transition.remove.unwrap()
     let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
 
+    // when: the remove transition animates the renderable
     removeTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer moves off-screen below with an additive position animation from the current position
     let expectedTargetFrame = CGRect(
       x: currentFrame.origin.x,
       y: Constants.contentSize.height + Constants.overshoot,
@@ -397,6 +424,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_removeTransition_left() throws {
+    // given: a layer at its current frame and a slide-out transition towards the left
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -412,8 +440,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let removeTransition = try transition.remove.unwrap()
     let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
 
+    // when: the remove transition animates the renderable
     removeTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer moves off-screen left with an additive position animation from the current position
     let expectedTargetFrame = CGRect(
       x: -currentFrame.width - Constants.overshoot,
       y: currentFrame.origin.y,
@@ -437,6 +467,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_removeTransition_right() throws {
+    // given: a layer at its current frame and a slide-out transition towards the right
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -452,8 +483,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let removeTransition = try transition.remove.unwrap()
     let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
 
+    // when: the remove transition animates the renderable
     removeTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer moves off-screen right with an additive position animation from the current position
     let expectedTargetFrame = CGRect(
       x: Constants.contentSize.width + Constants.overshoot,
       y: currentFrame.origin.y,
@@ -477,6 +510,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_insertTransition_zeroDuration_appliesTargetAndCompletes() throws {
+    // given: a layer renderable and a zero-duration slide-in transition
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let layer = TestLayer()
     let renderable = Renderable.layer(layer)
@@ -487,6 +521,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       options: .insert
     )
 
+    // when: the insert transition animates the renderable
     var completionCallCount = 0
     try transition.insert.unwrap().animate(
       renderable: renderable,
@@ -494,13 +529,14 @@ class RenderableTransition_SlideTests: XCTestCase {
       completion: { completionCallCount += 1 }
     )
 
-    // the target frame applies and the transition completes immediately, with no animation added
+    // then: the target frame applies and the transition completes immediately, with no animation added
     expect(layer.frame) == Constants.targetFrame
     expect(layer.animationKeys()) == nil
     expect(completionCallCount) == 1
   }
 
   func test_removeTransition_zeroDuration_appliesTargetAndCompletes() throws {
+    // given: a layer at its current frame and a zero-duration slide-out transition
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -513,6 +549,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       options: .remove
     )
 
+    // when: the remove transition animates the renderable
     var completionCallCount = 0
     try transition.remove.unwrap().animate(
       renderable: renderable,
@@ -520,7 +557,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       completion: { completionCallCount += 1 }
     )
 
-    // the off-screen end frame applies and the transition completes immediately, with no animation added
+    // then: the off-screen end frame applies and the transition completes immediately, with no animation added
     let expectedTargetFrame = CGRect(
       x: currentFrame.origin.x,
       y: -currentFrame.height - Constants.overshoot,
@@ -533,6 +570,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_removeTransition_delayedZeroDuration_schedulesSnap() throws {
+    // given: a layer at its current frame and a delayed zero-duration slide-out transition
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -545,6 +583,7 @@ class RenderableTransition_SlideTests: XCTestCase {
       options: .remove
     )
 
+    // when: the remove transition animates the renderable
     var completionCallCount = 0
     try transition.remove.unwrap().animate(
       renderable: renderable,
@@ -552,8 +591,9 @@ class RenderableTransition_SlideTests: XCTestCase {
       completion: { completionCallCount += 1 }
     )
 
-    // a zero-duration timing with a delay is a scheduled snap: the renderable holds its current frame for the delay
-    // window, then snaps off-screen, completing through the animation
+    // then: a zero-duration timing with a delay is a scheduled snap
+    // the renderable holds its current frame for the delay window, then snaps off-screen, completing through
+    // the animation
     let expectedTargetFrame = CGRect(
       x: currentFrame.origin.x,
       y: -currentFrame.height - Constants.overshoot,
@@ -573,6 +613,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_removeTransition_with_toSide() throws {
+    // given: a layer at its current frame and a slide transition entering from the left and leaving towards the bottom
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -589,8 +630,10 @@ class RenderableTransition_SlideTests: XCTestCase {
     let removeTransition = try transition.remove.unwrap()
     let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
 
+    // when: the remove transition animates the renderable
     removeTransition.animate(renderable: renderable, context: context, completion: {})
 
+    // then: the layer slides out towards the to side, off-screen below
     let expectedTargetFrame = CGRect(
       x: currentFrame.origin.x,
       y: Constants.contentSize.height + Constants.overshoot,
@@ -614,6 +657,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   }
 
   func test_removeTransition_resetForReuse() throws {
+    // given: a layer with a slide remove transition in flight and an unrelated spin animation
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let layer = TestLayer()
     layer.frame = Constants.targetFrame
@@ -635,10 +679,11 @@ class RenderableTransition_SlideTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
-    // the reset removes the slide's in-flight position animations and leaves other animations alone.
-    // the model position isn't restored: it is layout-owned and the next layout pass sets it.
+    // when: the transition resets the renderable for reuse
     removeTransition.resetForReuse(renderable: renderable)
 
+    // then: the reset removes the slide's in-flight position animations and leaves other animations alone.
+    // the model position isn't restored: it is layout-owned and the next layout pass sets it.
     expect(layer.animation(forKey: "position")) == nil
     expect(layer.animation(forKey: "spin")) != nil
   }
@@ -646,6 +691,7 @@ class RenderableTransition_SlideTests: XCTestCase {
   // MARK: - ComposeView Integration
 
   func test_composeViewIntegration() throws {
+    // given: a compose view with a layer node using a slide-in transition from the right
     let layer = TestLayer()
     let targetSize = Constants.targetFrame.size
     layer.bounds = CGRect(origin: .zero, size: targetSize)
@@ -656,9 +702,11 @@ class RenderableTransition_SlideTests: XCTestCase {
         .transition(.slide(from: .right, overshoot: Constants.overshoot, timing: Constants.timing, options: .insert))
     }
 
+    // when: the view is sized and refreshed with animation
     composeView.frame = CGRect(origin: .zero, size: Constants.contentSize)
     composeView.refresh(animated: true)
 
+    // then: the layer lands at the target frame with an additive slide-in position animation
     let expectedTargetFrame = CGRect(origin: .zero, size: targetSize)
     let expectedInitialFrame = expectedTargetFrame.translate(dx: Constants.contentSize.width + Constants.overshoot)
 

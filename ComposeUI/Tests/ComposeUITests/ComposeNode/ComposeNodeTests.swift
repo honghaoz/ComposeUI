@@ -35,28 +35,42 @@ import ChouTiTest
 class ComposeNodeTests: XCTestCase {
 
   func test_ComposeContent() {
+    // given: a mock compose node
     let node = MockComposeNode()
+
+    // when: converting the node to nodes
     let nodes = node.asNodes()
+
+    // then: the node itself is returned as a single node
     expect(nodes.count) == 1
     expect((nodes[0] as? MockComposeNode)) === node
   }
 
   func test_id() {
+    // when: setting a custom id
     do {
       let node = MockComposeNode().id("test")
+
+      // then: the node has a non-fixed custom id
       expect(node.id) == .custom("test", isFixed: false)
       expect(node.id.isSameConfiguration(as: .custom("test", isFixed: false))) == true
     }
 
+    // when: setting a fixed id
     do {
       let node = MockComposeNode().fixedId("test")
+
+      // then: the node has a fixed custom id
       expect(node.id) == .custom("test", isFixed: true)
       expect(node.id.isSameConfiguration(as: .custom("test", isFixed: true))) == true
     }
   }
 
   func test_fixedId_appliesWhenIdStringUnchanged() {
+    // given: a node with a fixed id set over the same id string
     let node = MockComposeNode().id("test").fixedId("test")
+
+    // then: the fixed id survives joining with a parent id
     expect(ComposeNodeId.custom("parent").join(with: node.id).id) == "test"
   }
 }

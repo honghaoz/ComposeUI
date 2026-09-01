@@ -35,6 +35,7 @@ import ComposeUI
 class ComposeView_AnimationBehaviorTests: XCTestCase {
 
   func test_animationBehavior_default() throws {
+    // given: a compose view with two animated layer nodes and update context tracking
     var layer1Context: RenderableUpdateContext?
     var layer2Context: RenderableUpdateContext?
     let view = ComposeView {
@@ -50,30 +51,40 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
         }
     }
 
-    // initial refresh
+    // when: initial refresh
     view.frame.size = CGSize(width: 100, height: 5)
     view.refresh()
+
+    // then: no animation for insertion
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for insertion
     expect(layer2Context) == nil
 
-    // resizing
+    // when: resizing
     view.frame.size = CGSize(width: 100, height: 7)
     view.layoutIfNeeded()
+
+    // then: no animation for resizing
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for resizing
     expect(layer2Context) == nil
 
-    // scrolling
+    // when: scrolling
     view.setContentOffset(CGPoint(x: 0, y: 4))
     view.layoutIfNeeded()
+
+    // then: animation for scrolling, no animation for the newly inserted layer
     try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for scrolling
     try expect(layer2Context.unwrap().animationTiming) == nil // no animation for insertion
 
+    // when: animated refresh
     view.refresh(animated: true)
+
+    // then: animation for refreshing
     try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for refreshing
     try expect(layer2Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for refreshing
   }
 
   func test_animationBehavior_disabled() throws {
+    // given: a compose view with two animated layer nodes and the animation behavior disabled
     var layer1Context: RenderableUpdateContext?
     var layer2Context: RenderableUpdateContext?
     let view = ComposeView {
@@ -91,30 +102,40 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
 
     view.animationBehavior = .disabled
 
-    // initial refresh
+    // when: initial refresh
     view.frame.size = CGSize(width: 100, height: 5)
     view.refresh()
+
+    // then: no animation for insertion
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for insertion
     expect(layer2Context) == nil
 
-    // resizing
+    // when: resizing
     view.frame.size = CGSize(width: 100, height: 7)
     view.layoutIfNeeded()
+
+    // then: no animation for resizing
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for resizing
     expect(layer2Context) == nil
 
-    // scrolling
+    // when: scrolling
     view.setContentOffset(CGPoint(x: 0, y: 4))
     view.layoutIfNeeded()
+
+    // then: no animation for scrolling or insertion
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for scrolling
     try expect(layer2Context.unwrap().animationTiming) == nil // no animation for insertion
 
+    // when: animated refresh
     view.refresh(animated: true)
+
+    // then: no animation for refreshing
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for refreshing
     try expect(layer2Context.unwrap().animationTiming) == nil // no animation for refreshing
   }
 
   func test_animationBehavior_dynamic() throws {
+    // given: a compose view with two animated layer nodes and a dynamic animation behavior that records its calls
     var layer1Context: RenderableUpdateContext?
     var layer2Context: RenderableUpdateContext?
     let view = ComposeView {
@@ -152,9 +173,11 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       }
     }
 
-    // initial refresh
+    // when: initial refresh
     view.frame.size = CGSize(width: 100, height: 5)
     view.refresh()
+
+    // then: no animation for insertion, the behavior is asked for the refresh
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for insertion
     expect(layer2Context) == nil
 
@@ -163,9 +186,11 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     calledIsAnimated = nil
     calledPreviousBounds = nil
 
-    // resizing
+    // when: resizing
     view.frame.size = CGSize(width: 100, height: 7)
     view.layoutIfNeeded()
+
+    // then: has animation for resizing (the behavior returns true), the behavior receives the previous bounds
     try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // has animation for resizing
     expect(layer2Context) == nil
 
@@ -174,9 +199,11 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     calledIsAnimated = nil
     calledPreviousBounds = nil
 
-    // scrolling
+    // when: scrolling to the offset the behavior rejects
     view.setContentOffset(CGPoint(x: 0, y: 4))
     view.layoutIfNeeded()
+
+    // then: no animation for scrolling or insertion, the behavior receives the previous bounds
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for scrolling
     try expect(layer2Context.unwrap().animationTiming) == nil // no animation for insertion
 
@@ -185,8 +212,11 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     calledIsAnimated = nil
     calledPreviousBounds = nil
 
+    // when: scrolling to an offset the behavior accepts
     view.setContentOffset(CGPoint(x: 0, y: 5))
     view.layoutIfNeeded()
+
+    // then: has animation for scrolling, the behavior receives the previous bounds
     try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // has animation for scrolling
     try expect(layer2Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // has animation for scrolling
 
@@ -195,8 +225,11 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     calledIsAnimated = nil
     calledPreviousBounds = nil
 
+    // when: scrolling again
     view.setContentOffset(CGPoint(x: 0, y: 6))
     view.layoutIfNeeded()
+
+    // then: has animation for scrolling, the behavior receives the previous bounds
     try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // has animation for scrolling
     try expect(layer2Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // has animation for scrolling
 
@@ -205,7 +238,10 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     calledIsAnimated = nil
     calledPreviousBounds = nil
 
+    // when: animated refresh
     view.refresh(animated: true)
+
+    // then: no animation for refreshing (the behavior returns false for refreshes)
     try expect(layer1Context.unwrap().animationTiming) == nil // no animation for refreshing
     try expect(layer2Context.unwrap().animationTiming) == nil // no animation for refreshing
 
@@ -256,6 +292,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
+    // then: the bounds reflect the scroll and the update is animated
     #if canImport(AppKit)
     // verify the scrollers does affect the bounds
     if #available(macOS 26.0, *) {
@@ -268,28 +305,27 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(view.bounds()) == CGRect(x: 0, y: 10, width: 120, height: 80)
     #endif
 
-    // expect the update should be animated, this verifies the underlying render bounds is correct
+    // the animated update verifies the underlying render bounds is correct
     try expect(calledContext.unwrap().animationTiming) != nil
 
-    // then set the animation behavior to dynamic so we can verify the render type
+    // when: scroll the view again, with the animation behavior set to dynamic so we can verify the render type
     var calledRenderType: ComposeView.RenderType?
     view.animationBehavior = .dynamic { _, renderType in
       calledRenderType = renderType
       return false
     }
 
-    // when: scroll the view again
     view.setContentOffset(CGPoint(x: 0, y: 20))
     view.layoutIfNeeded()
 
-    // expect the render type should have correct previous bounds
+    // then: the render type should have correct previous bounds
     expect(calledRenderType) == .scroll(previousBounds: CGRect(x: 0, y: 10, width: 120, height: 80))
 
     // when: resize the view
     view.frame.size = CGSize(width: 140, height: 90)
     view.layoutIfNeeded()
 
-    // expect the render type should have correct previous bounds
+    // then: the render type should have correct previous bounds
     expect(calledRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 120, height: 80))
   }
 }

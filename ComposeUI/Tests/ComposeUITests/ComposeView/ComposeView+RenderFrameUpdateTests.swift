@@ -52,6 +52,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
   // MARK: - setFrame skipping
 
   func test_reusedRenderable_keepsCorrectFrame_afterScroll() {
+    // given: a content view with a frame-tracking row, rendered
     var trackingView: FrameTrackingView?
     let view = makeContentView(captureView: { trackingView = $0 })
     view.refresh(animated: false)
@@ -62,15 +63,16 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     }
     expect(tracked.frame) == CGRect(x: 0, y: 0, width: 100, height: 50)
 
-    // scroll a little, the tracking row stays visible and its content-space frame is unchanged.
+    // when: scroll a little, the tracking row stays visible and its content-space frame is unchanged
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
-    // the reused renderable still has the correct frame.
+    // then: the reused renderable still has the correct frame
     expect(tracked.frame) == CGRect(x: 0, y: 0, width: 100, height: 50)
   }
 
   func test_reusedRenderable_skipsRedundantFrameUpdate_afterScroll() {
+    // given: a content view with a frame-tracking row, rendered, with the counter reset after the initial insert
     var trackingView: FrameTrackingView?
     let view = makeContentView(captureView: { trackingView = $0 })
     view.refresh(animated: false)
@@ -83,15 +85,16 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     // reset the counter after the initial insert so we only measure the scroll render pass.
     tracked.resetFrameSetCount()
 
-    // scroll a little, the tracking row stays visible and its content-space frame is unchanged.
+    // when: scroll a little, the tracking row stays visible and its content-space frame is unchanged
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
-    // the frame did not change, so the render pass should not have re-applied it.
+    // then: the frame did not change, so the render pass should not have re-applied it
     expect(tracked.frameSetCount) == 0
   }
 
   func test_reusedRenderable_updatesFrame_afterResize() {
+    // given: a content view with a frame-tracking row, rendered, with the counter reset after the initial insert
     var trackingView: FrameTrackingView?
     let view = makeContentView(captureView: { trackingView = $0 })
     view.refresh(animated: false)
@@ -105,10 +108,11 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     // reset the counter after the initial insert so we only measure the resize render pass.
     tracked.resetFrameSetCount()
 
-    // resize the view width, the flexible-width row's frame changes, so it must be re-framed.
+    // when: resize the view width, the flexible-width row's frame changes
     view.frame.size = CGSize(width: 200, height: 100)
     view.layoutIfNeeded()
 
+    // then: the row is re-framed to the new width
     expect(tracked.frame) == CGRect(x: 0, y: 0, width: 200, height: 50)
     expect(tracked.frameSetCount > 0) == true
   }
@@ -116,6 +120,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
   // MARK: - transform reset
 
   func test_reusedRenderable_resetsNonIdentityTransform_onReuse() {
+    // given: a content view with a captured layer row, rendered, with a leftover transform on the layer
     var capturedLayer: CALayer?
     let view = makeLayerContentView(captureLayer: { capturedLayer = $0 })
     view.refresh(animated: false)
@@ -129,14 +134,16 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     layer.transform = CATransform3DMakeScale(2, 2, 1)
     expect(CATransform3DIsIdentity(layer.transform)) == false
 
-    // reuse via scroll: the render pass resets the transform to identity before applying the frame.
+    // when: the layer is reused via scroll
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
+    // then: the render pass resets the transform to identity before applying the frame
     expect(CATransform3DIsIdentity(layer.transform)) == true
   }
 
   func test_reusedRenderable_keepsIdentityTransform_afterScroll() {
+    // given: a content view with a captured layer row, rendered, with an identity transform on the layer
     var capturedLayer: CALayer?
     let view = makeLayerContentView(captureLayer: { capturedLayer = $0 })
     view.refresh(animated: false)
@@ -147,10 +154,11 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     }
     expect(CATransform3DIsIdentity(layer.transform)) == true
 
-    // reuse via scroll: an already-identity transform stays identity.
+    // when: the layer is reused via scroll
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
+    // then: an already-identity transform stays identity
     expect(CATransform3DIsIdentity(layer.transform)) == true
   }
 

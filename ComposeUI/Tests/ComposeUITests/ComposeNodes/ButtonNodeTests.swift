@@ -36,22 +36,26 @@ import ChouTi
 class ButtonNodeTests: XCTestCase {
 
   func test_init() throws {
+    // then: button nodes can be created with both content closure variants
     _ = ButtonNode(content: { state in ColorNode(.red) }, onTap: {})
     _ = ButtonNode(content: { state, contentView in ColorNode(.red) }, onTap: {})
   }
 
   func test_id() throws {
+    // then: the id is "B"
     expect(ButtonNode(content: { state in ColorNode(.red) }, onTap: {}).id.id) == "B"
   }
 
   func test_size() throws {
+    // then: the default size is zero
     expect(ButtonNode(content: { state in ColorNode(.red) }, onTap: {}).size) == .zero
   }
 
   func test_layout() throws {
+    // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
-    // flexible size
+    // given: a button node with flexible size content
     do {
       var node = ButtonNode(
         content: { state in
@@ -71,12 +75,15 @@ class ButtonNodeTests: XCTestCase {
         onTap: {}
       )
 
+      // when: laying out in a 100x100 container
       let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // then: the sizing and size are flexible
       expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
       expect(node.size) == CGSize(width: 100, height: 100)
     }
 
-    // fixed size
+    // given: a button node with fixed size content
     do {
       var node = ButtonNode(
         content: { state in
@@ -96,13 +103,17 @@ class ButtonNodeTests: XCTestCase {
         onTap: {}
       )
 
+      // when: laying out in a 100x100 container
       let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // then: the sizing and size are fixed to the content size
       expect(sizing) == ComposeNodeSizing(width: .fixed(50), height: .fixed(20))
       expect(node.size) == CGSize(width: 50, height: 20)
     }
   }
 
   func test_renderableItems() throws {
+    // given: a laid out button node with platform-specific configurations
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = ButtonNode(content: { state in ColorNode(.red) }, onTap: {})
     #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
@@ -113,10 +124,12 @@ class ButtonNodeTests: XCTestCase {
     #endif
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-    // when visible bounds intersects with the node's frame
+    // when: visible bounds intersects with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: a single button item is provided with the expected id, frame, and behaviors
       expect(items.count) == 1
 
       let item = items[0]
@@ -185,15 +198,18 @@ class ButtonNodeTests: XCTestCase {
       expect(item.animationTiming) == nil
     }
 
-    // when visible bounds does not intersect with the node's frame
+    // when: visible bounds does not intersect with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 100, width: 100, height: 100)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0
     }
   }
 
   func test_doubleTap() {
+    // given: a compose view with a button node that has a double tap handler
     var view: ButtonView?
     let contentView = ComposeView {
       ButtonNode(
@@ -220,8 +236,11 @@ class ButtonNodeTests: XCTestCase {
     }
 
     contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+    // when: the view is refreshed
     contentView.refresh()
 
+    // then: the button view has the double tap handler set
     expect(try view.unwrap().onDoubleTap) != nil
   }
 }

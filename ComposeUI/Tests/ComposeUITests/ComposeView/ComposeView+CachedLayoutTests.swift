@@ -35,6 +35,7 @@ import ComposeUI
 class ComposeView_CachedLayoutTests: XCTestCase {
 
   func test_noLayoutOnScroll() {
+    // given: a compose view with a content make counter and a node tracking layout and render counts
     var contentMakeCount = 0
     let state = TestNode.State()
 
@@ -44,50 +45,62 @@ class ComposeView_CachedLayoutTests: XCTestCase {
         .frame(width: 100, height: 300)
     }
 
+    // when: the view lays out initially
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
+    // then: the initial content make, layout and render are performed
     expect(contentMakeCount) == 1 // initial content make
     expect(state.layoutCount) == 1 // initial layout
     expect(state.renderCount) == 1 // initial render
 
+    // when: the view scrolls
     view.setContentOffset(CGPoint(x: 0, y: 100))
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
+    // then: scroll triggers a render but no content make or layout
     expect(contentMakeCount) == 1 // scroll should not trigger content make
     expect(state.layoutCount) == 1 // scroll should not trigger layout
     expect(state.renderCount) == 2 // scroll should trigger render
 
+    // when: the view scrolls again
     view.setContentOffset(CGPoint(x: 0, y: 200))
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
+    // then: scroll triggers a render but no content make or layout
     expect(contentMakeCount) == 1 // scroll should not trigger content make
     expect(state.layoutCount) == 1 // scroll should not trigger layout
     expect(state.renderCount) == 3 // scroll should trigger render
 
+    // when: the view size changes
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
+    // then: size change triggers a content make, layout and render
     expect(contentMakeCount) == 2 // size change should trigger content make
     expect(state.layoutCount) == 2 // size change should trigger layout
     expect(state.renderCount) == 4 // size change should trigger render
 
+    // when: the view size changes to zero
     view.frame = .zero
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
+    // then: size change triggers a content make, layout and render
     expect(contentMakeCount) == 3 // size change should trigger content make
     expect(state.layoutCount) == 3 // size change should trigger layout
     expect(state.renderCount) == 5 // size change should trigger render
 
+    // when: the view scrolls after the size change
     view.setContentOffset(CGPoint(x: 0, y: 110))
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
+    // then: scroll triggers a render but no content make or layout
     expect(contentMakeCount) == 3 // scroll should not trigger content make
     expect(state.layoutCount) == 3 // scroll should not trigger layout
     expect(state.renderCount) == 6 // scroll should trigger render

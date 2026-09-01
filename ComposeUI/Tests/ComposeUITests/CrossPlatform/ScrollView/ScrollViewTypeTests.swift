@@ -43,10 +43,15 @@ import ComposeUI
 class ScrollViewTypeTests: XCTestCase {
 
   func test_contentInsets() {
+    // given: a scroll view with a frame and content size
     let scrollView = ScrollView()
     scrollView.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
     scrollView.contentSize = CGSize(width: 300, height: 500)
+
+    // when: setting the content insets
     scrollView.setContentInsets(EdgeInsets(top: 10, left: 20, bottom: 30, right: 40))
+
+    // then: with automatic inset adjustment disabled, the content insets read back the set values
     #if canImport(AppKit)
     scrollView.automaticallyAdjustsContentInsets = false
     expect(scrollView.contentInsets().top) == 10
@@ -61,6 +66,7 @@ class ScrollViewTypeTests: XCTestCase {
   }
 
   func test_offsets() {
+    // given: a scroll view with content size and insets, automatic inset adjustment disabled
     let scrollView = ScrollView()
     scrollView.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
     scrollView.contentSize = CGSize(width: 300, height: 500)
@@ -72,6 +78,7 @@ class ScrollViewTypeTests: XCTestCase {
     scrollView.contentInsetAdjustmentBehavior = .never
     #endif
 
+    // then: the min and max offsets account for the content size and insets
     expect(scrollView.minOffsetX) == -20
     expect(scrollView.maxOffsetX) == 240
     expect(scrollView.minOffsetY) == -10
@@ -79,6 +86,7 @@ class ScrollViewTypeTests: XCTestCase {
   }
 
   func test_canScroll() {
+    // given: a scroll view with content size and insets, automatic inset adjustment disabled
     let scrollView = ScrollView()
     scrollView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     scrollView.contentSize = CGSize(width: 180, height: 220)
@@ -90,13 +98,19 @@ class ScrollViewTypeTests: XCTestCase {
     scrollView.contentInsetAdjustmentBehavior = .never
     #endif
 
+    // when: scrolling to the minimum offset
     scrollView.setContentOffset(CGPoint(x: scrollView.minOffsetX, y: scrollView.minOffsetY))
+
+    // then: it can only scroll to the right and to the bottom
     expect(scrollView.canScrollToLeft) == false
     expect(scrollView.canScrollToRight) == true
     expect(scrollView.canScrollToTop) == false
     expect(scrollView.canScrollToBottom) == true
 
+    // when: scrolling to the maximum offset
     scrollView.setContentOffset(CGPoint(x: scrollView.maxOffsetX, y: scrollView.maxOffsetY))
+
+    // then: it can only scroll to the left and to the top
     expect(scrollView.canScrollToLeft) == true
     expect(scrollView.canScrollToRight) == false
     expect(scrollView.canScrollToTop) == true

@@ -158,6 +158,7 @@ class ComposeView_ZOrderTests: XCTestCase {
   // MARK: - Initial Render
 
   func test_initialRender_mixedViewAndLayerItems() {
+    // given: a hosted view with mixed view and layer items and a render recorder
     let (view, _) = makeHostedView {
       ZStack {
         ColorNode(.red)
@@ -169,9 +170,11 @@ class ComposeView_ZOrderTests: XCTestCase {
     let recorder = RenderRecorder()
     recorder.attach(to: view)
 
+    // when: the view renders initially
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     view.refresh(animated: false)
 
+    // then: the hierarchy matches the items order
     expect(recorder.renderableItemIds.count) == 4
     expectHierarchyMatchesItemOrder(view, recorder)
   }
@@ -203,6 +206,7 @@ class ComposeView_ZOrderTests: XCTestCase {
   }
 
   func test_scrollDown_zOrderMaintained() {
+    // given: a scrollable view with mixed rows and a render recorder, rendered initially
     let (view, _) = makeScrollableView()
     let recorder = RenderRecorder()
     recorder.attach(to: view)
@@ -211,7 +215,8 @@ class ComposeView_ZOrderTests: XCTestCase {
     view.refresh(animated: false)
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // scroll down with a step that is a non-multiple of row height for varied row churn
+    // when: scroll down with a step that is a non-multiple of row height for varied row churn
+    // then: the hierarchy matches the items order after each step
     var offset: CGFloat = 0
     for _ in 0 ..< 30 {
       offset += 35
@@ -220,10 +225,12 @@ class ComposeView_ZOrderTests: XCTestCase {
       expectHierarchyMatchesItemOrder(view, recorder)
     }
 
+    // then: the scroll churned rows
     expect(recorder.sawItemIdsChange) == true // ensure rows actually churned
   }
 
   func test_scrollUp_zOrderMaintained() {
+    // given: a scrollable view with mixed rows and a render recorder, rendered and scrolled to the bottom
     let (view, _) = makeScrollableView()
     let recorder = RenderRecorder()
     recorder.attach(to: view)
@@ -237,6 +244,8 @@ class ComposeView_ZOrderTests: XCTestCase {
     view.layoutIfNeeded()
     expectHierarchyMatchesItemOrder(view, recorder)
 
+    // when: scroll up step by step
+    // then: the hierarchy matches the items order after each step
     for _ in 0 ..< 30 {
       offset -= 35
       view.setContentOffset(CGPoint(x: 0, y: offset))
@@ -244,13 +253,15 @@ class ComposeView_ZOrderTests: XCTestCase {
       expectHierarchyMatchesItemOrder(view, recorder)
     }
 
+    // then: the scroll churned rows
     expect(recorder.sawItemIdsChange) == true // ensure rows actually churned
   }
 
   // MARK: - Refresh
 
   func test_refresh_reorderedContent() {
-    // use fixed ids so that reordering the content keeps the same item ids
+    // given: a hosted view with a render recorder, rendered, using fixed ids so that reordering the content keeps the
+    // same item ids
     var order: [String] = ["a", "b", "c"]
     let (view, _) = makeHostedView {
       ZStack {
@@ -271,20 +282,25 @@ class ComposeView_ZOrderTests: XCTestCase {
     expect(recorder.renderableItemIds) == ["a", "b", "c"]
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // reverse the order, same ids
+    // when: reverse the order, same ids
     order = ["c", "b", "a"]
     view.refresh(animated: false)
+
+    // then: the hierarchy matches the reversed order
     expect(recorder.renderableItemIds) == ["c", "b", "a"]
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // move the back item to the front, same ids
+    // when: move the back item to the front, same ids
     order = ["b", "a", "c"]
     view.refresh(animated: false)
+
+    // then: the hierarchy matches the new order
     expect(recorder.renderableItemIds) == ["b", "a", "c"]
     expectHierarchyMatchesItemOrder(view, recorder)
   }
 
   func test_refresh_insertionsAndRemovals() {
+    // given: a hosted view with a render recorder, rendered with two fixed-id items
     var order: [String] = ["a", "c"]
     let (view, _) = makeHostedView {
       ZStack {
@@ -305,27 +321,35 @@ class ComposeView_ZOrderTests: XCTestCase {
     expect(recorder.renderableItemIds) == ["a", "c"]
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // insert in the middle
+    // when: insert in the middle
     order = ["a", "b", "c"]
     view.refresh(animated: false)
+
+    // then: the hierarchy matches the items order
     expect(recorder.renderableItemIds) == ["a", "b", "c"]
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // insert at the back (z-order bottom) and the front (z-order top)
+    // when: insert at the back (z-order bottom) and the front (z-order top)
     order = ["z", "a", "b", "c", "d"]
     view.refresh(animated: false)
+
+    // then: the hierarchy matches the items order
     expect(recorder.renderableItemIds) == ["z", "a", "b", "c", "d"]
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // remove from the middle
+    // when: remove from the middle
     order = ["z", "b", "d"]
     view.refresh(animated: false)
+
+    // then: the hierarchy matches the items order
     expect(recorder.renderableItemIds) == ["z", "b", "d"]
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // remove only, no inserts
+    // when: remove only, no inserts
     order = ["b"]
     view.refresh(animated: false)
+
+    // then: the hierarchy matches the items order
     expect(recorder.renderableItemIds) == ["b"]
     expectHierarchyMatchesItemOrder(view, recorder)
   }
@@ -334,6 +358,8 @@ class ComposeView_ZOrderTests: XCTestCase {
     // views being removed with an in-flight remove transition stay in the hierarchy but are not part of the
     // new render pass. placing new views below retained siblings must stay correct even with these
     // in-transition views interleaved in the subview list.
+
+    // given: a hosted view with a render recorder, rendered with two never-completing removing views interleaved
     let neverCompletingRemove = RenderableTransition(
       insert: nil,
       remove: RenderableTransition.RemoveTransition { _, _, _ in
@@ -371,15 +397,17 @@ class ComposeView_ZOrderTests: XCTestCase {
       return
     }
 
-    // remove the "r" views (their remove transitions keep them in the hierarchy) and insert new views
+    // when: remove the "r" views (their remove transitions keep them in the hierarchy) and insert new views
     // that belong below retained views
     order = ["a", "n1", "b", "n2", "c"]
     view.refresh(animated: true)
+
+    // then: the hierarchy matches the new items order
     expect(recorder.renderableItemIds) == ["a", "n1", "b", "n2", "c"]
     expect(view.test.removingRenderableMap.count) == 2
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // the in-transition removing views keep their z-positions relative to the retained views:
+    // then: the in-transition removing views keep their z-positions relative to the retained views:
     // "r1" stays at the back, "r2" stays above "b" and below "c"
     let subviews = view.contentView().subviews
     guard let removingIndex1 = subviews.firstIndex(of: removingView1),
@@ -400,6 +428,8 @@ class ComposeView_ZOrderTests: XCTestCase {
   func test_zIndex_bandsAcrossKinds() {
     // items with an explicit z-index render in bands: a higher band renders above a lower band regardless of the items
     // order. Within a band, items render in the items order. bands apply across kinds (views and layers).
+
+    // given: a hosted view with items in bands -1, 0 and 1 across kinds, and a render recorder
     let (view, _) = makeHostedView {
       ZStack {
         ViewNode().zIndex(1).fixedId("v-top") // band 1: renders above everything
@@ -412,6 +442,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     let recorder = RenderRecorder()
     recorder.attach(to: view)
 
+    // when: the view renders
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     view.refresh(animated: false)
 
@@ -419,7 +450,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     hostWindow?.displayIfNeeded()
     #endif
 
-    // the effective render order (back to front): band -1, then band 0 in the items order, then band 1
+    // then: the effective render order (back to front) is band -1, then band 0 in the items order, then band 1
     let expectedIds = ["l-back", "l-mid1", "v-mid", "l-mid2", "v-top"]
     let expectedLayers = expectedIds.compactMap { recorder.renderableMap[$0]?.layer }
     expect(expectedLayers.count) == 5
@@ -431,6 +462,8 @@ class ComposeView_ZOrderTests: XCTestCase {
   func test_removingRenderable_keepsZPosition() {
     // a renderable with an in-flight remove transition is not part of the new render pass, so its `zPosition` is not
     // reassigned: it holds its last assigned value and stays visually in place during the removal.
+
+    // given: a hosted view with a render recorder, rendered with a removing-capable item between two others
     let neverCompletingRemove = RenderableTransition(
       insert: nil,
       remove: RenderableTransition.RemoveTransition { _, _, _ in
@@ -461,9 +494,11 @@ class ComposeView_ZOrderTests: XCTestCase {
     let zPositionBeforeRemoval = removingLayer.zPosition
     expect(zPositionBeforeRemoval) == 2 * view.test.zPositionStep // band 0, item index 1
 
+    // when: the item is removed with an in-flight remove transition
     showsRemoving = false
     view.refresh(animated: true)
 
+    // then: the removing renderable holds its last assigned zPosition
     expect(view.test.removingRenderableMap.count) == 1
     expect(removingLayer.zPosition) == zPositionBeforeRemoval
   }
@@ -471,6 +506,8 @@ class ComposeView_ZOrderTests: XCTestCase {
   func test_refresh_readdDuringRemoveTransition() {
     // removing a renderable with a transition keeps it in the hierarchy until the transition completes.
     // re-adding the item during the transition should recover the renderable and restore the correct z-order.
+
+    // given: a hosted view with a render recorder, rendered with three items with opacity transitions
     var order: [String] = ["a", "b", "c"]
     let (view, _) = makeHostedView {
       ZStack {
@@ -489,16 +526,19 @@ class ComposeView_ZOrderTests: XCTestCase {
     expect(recorder.renderableItemIds) == ["a", "b", "c"]
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // remove "b" with an in-flight remove transition (animated so that the remove transition runs)
+    // when: remove "b" with an in-flight remove transition (animated so that the remove transition runs)
     order = ["a", "c"]
     view.refresh(animated: true)
+
+    // then: the hierarchy matches the items order
     expect(recorder.renderableItemIds) == ["a", "c"]
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // re-add "b" while its remove transition is still running, the renderable should be recovered
-    // and placed back between "a" and "c"
+    // when: re-add "b" while its remove transition is still running
     order = ["a", "b", "c"]
     view.refresh(animated: true)
+
+    // then: the renderable is recovered and placed back between "a" and "c"
     expect(recorder.renderableItemIds) == ["a", "b", "c"]
     expectHierarchyMatchesItemOrder(view, recorder)
   }

@@ -35,6 +35,7 @@ import ChouTiTest
 class CancellableBlockTests: XCTestCase {
 
   func test_notCancelled() {
+    // given: a cancellable block
     var isExecuted: Bool?
     var isCancelled: Bool?
 
@@ -44,13 +45,16 @@ class CancellableBlockTests: XCTestCase {
       isCancelled = true
     }
 
+    // when: executing the block
     block.execute()
 
+    // then: the execute block is called and the cancel block is not
     expect(isExecuted) == true
     expect(isCancelled) == nil
   }
 
   func test_cancelled() {
+    // given: a cancellable block
     var isExecuted: Bool?
     var isCancelled: Bool?
 
@@ -60,13 +64,17 @@ class CancellableBlockTests: XCTestCase {
       isCancelled = true
     }
 
+    // when: cancelling the block
     block.cancel()
 
+    // then: the cancel block is called and the execute block is not
     expect(isExecuted) == nil
     expect(isCancelled) == true
 
+    // when: executing the block after cancellation
     block.execute()
 
+    // then: the execute block is still not called
     expect(isExecuted) == nil
     expect(isCancelled) == true
   }

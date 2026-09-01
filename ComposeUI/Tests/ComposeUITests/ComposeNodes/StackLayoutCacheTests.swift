@@ -37,24 +37,29 @@ import ChouTiTest
 class StackLayoutCacheTests: XCTestCase {
 
   func test_update_mismatchedCounts_assertion() {
+    // given: a test assertion failure handler capturing the assertion
     var assertionCount = 0
     ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
       expect(message) == "mismatched child origins and bounding rects count"
       assertionCount += 1
     }
 
+    // when: updating a cache with mismatched child origins and bounding rects counts
     var cache = StackLayoutCache()
     cache.update(
       childOrigins: [],
       childItemsBoundingRects: [CGRect(x: 0, y: 0, width: 10, height: 10)],
       mainAxis: .vertical
     )
+
+    // then: the assertion is triggered
     expect(assertionCount) == 1
 
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
   func test_update_withoutMainAxis_collectsBoundingRectOnly() {
+    // when: updating a cache without a main axis
     var cache = StackLayoutCache()
     cache.update(
       childOrigins: [CGPoint(x: 0, y: 0), CGPoint(x: 0, y: 10), CGPoint(x: 0, y: 20)],
@@ -66,11 +71,13 @@ class StackLayoutCacheTests: XCTestCase {
       mainAxis: nil
     )
 
+    // then: the child count and items bounding rect are collected
     expect(cache.childCount) == 3
     expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 30)
   }
 
   func test_update_withoutMainAxis_allNullRects_boundingRectIsNull() {
+    // when: updating a cache without a main axis, with all null bounding rects
     var cache = StackLayoutCache()
     cache.update(
       childOrigins: [CGPoint(x: 0, y: 0)],
@@ -78,11 +85,13 @@ class StackLayoutCacheTests: XCTestCase {
       mainAxis: nil
     )
 
+    // then: the child count is collected and the items bounding rect is null
     expect(cache.childCount) == 1
     expect(cache.itemsBoundingRect.isNull) == true
   }
 
   func test_visibleChildRange_withoutMainAxis_assertsAndReturnsAllChildren() {
+    // given: a cache updated without a main axis, with a test assertion failure handler
     var cache = StackLayoutCache()
     cache.update(
       childOrigins: [CGPoint(x: 0, y: 0), CGPoint(x: 0, y: 10)],
@@ -99,6 +108,7 @@ class StackLayoutCacheTests: XCTestCase {
       assertionCount += 1
     }
 
+    // then: the assertion is triggered and all children are returned
     // without the search structures, all children are treated as potentially visible
     expect(cache.visibleChildRange(minPosition: 0, maxPosition: 5)) == 0 ..< 2
     expect(assertionCount) == 1

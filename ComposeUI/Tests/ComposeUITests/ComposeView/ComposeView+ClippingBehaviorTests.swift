@@ -35,8 +35,8 @@ import ComposeUI
 class ComposeView_ClippingTests: XCTestCase {
 
   func test_clippingBehavior() {
-    // when view is not scrollable
     do {
+      // given: a rendered view that is not scrollable
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
@@ -44,42 +44,47 @@ class ComposeView_ClippingTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // should not clip by default (auto mode)
+      // then: should not clip by default (auto mode)
       expect(contentView.clipsToBounds) == false
 
-      // when set to always clipping
+      // when: set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
-      // then it should clip
+
+      // then: it should clip
       expect(contentView.clipsToBounds) == true
 
-      // when set to never clipping
+      // when: set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
-      // then it should not clip
+
+      // then: it should not clip
       expect(contentView.clipsToBounds) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.clippingBehavior = .manual
       contentView.refresh(animated: false)
-      // then it should not change
+
+      // then: it should not change
       expect(contentView.clipsToBounds) == false
 
-      // when manually flip the clipsToBounds value
+      // when: manually flip the clipsToBounds value
       contentView.clipsToBounds = true
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.clipsToBounds) == true
 
-      // when manually set the clipsToBounds again
+      // when: manually set the clipsToBounds again
       contentView.clipsToBounds = false
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.clipsToBounds) == false
     }
 
-    // when content size is equal to bounds size
     do {
+      // given: a rendered view whose content size is equal to bounds size
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
@@ -87,42 +92,47 @@ class ComposeView_ClippingTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // should not clip by default (auto mode)
+      // then: should not clip by default (auto mode)
       expect(contentView.clipsToBounds) == false
 
-      // when set to always clipping
+      // when: set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
-      // then it should clip
+
+      // then: it should clip
       expect(contentView.clipsToBounds) == true
 
-      // when set to never clipping
+      // when: set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
-      // then it should not clip
+
+      // then: it should not clip
       expect(contentView.clipsToBounds) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.clippingBehavior = .manual
       contentView.refresh(animated: false)
-      // then it should not change
+
+      // then: it should not change
       expect(contentView.clipsToBounds) == false
 
-      // when manually flip the clipsToBounds value
+      // when: manually flip the clipsToBounds value
       contentView.clipsToBounds = true
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.clipsToBounds) == true
 
-      // when manually set the clipsToBounds again
+      // when: manually set the clipsToBounds again
       contentView.clipsToBounds = false
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.clipsToBounds) == false
     }
 
-    // when view is scrollable
     do {
+      // given: a rendered view that is scrollable
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
@@ -130,37 +140,42 @@ class ComposeView_ClippingTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // should clip by default (auto mode)
+      // then: should clip by default (auto mode)
       expect(contentView.clipsToBounds) == true
 
-      // when set to always clipping
+      // when: set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
-      // then it should clip
+
+      // then: it should clip
       expect(contentView.clipsToBounds) == true
 
-      // when set to never clipping
+      // when: set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
-      // then it should not clip
+
+      // then: it should not clip
       expect(contentView.clipsToBounds) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.clippingBehavior = .manual
       contentView.refresh(animated: false)
-      // then it should not change
+
+      // then: it should not change
       expect(contentView.clipsToBounds) == false
 
-      // when manually flip the clipsToBounds value
+      // when: manually flip the clipsToBounds value
       contentView.clipsToBounds = true
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.clipsToBounds) == true
 
-      // when manually set the clipsToBounds again
+      // when: manually set the clipsToBounds again
       contentView.clipsToBounds = false
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.clipsToBounds) == false
     }
   }

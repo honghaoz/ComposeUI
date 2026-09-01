@@ -35,6 +35,7 @@ import ComposeUI
 class RenderItem_ContextTests: XCTestCase {
 
   func test_renderableInsertContext() {
+    // then: insert and refresh require a full update, scroll and bounds change do not
     expect(RenderableUpdateType.insert.requiresFullUpdate) == true
     expect(RenderableUpdateType.refresh.requiresFullUpdate) == true
     expect(RenderableUpdateType.scroll.requiresFullUpdate) == false

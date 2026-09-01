@@ -35,54 +35,72 @@ import ChouTiTest
 class EmptyNodeTests: XCTestCase {
 
   func test_init() throws {
+    // then: empty nodes can be created
     _ = Empty()
     _ = EmptyNode()
   }
 
   func test_id() throws {
+    // given: an empty node
     let node = EmptyNode()
+
+    // then: the id is "E"
     expect(node.id.id) == "E"
   }
 
   func test_size() throws {
+    // given: an empty node
     let node = EmptyNode()
+
+    // then: the default size is zero
     expect(node.size) == .zero
   }
 
   func test_layout() throws {
+    // given: an empty node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = EmptyNode()
+
+    // when: laying out in a 100x100 container
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    // then: the node is flexible and fills the container
     expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
     expect(node.size) == CGSize(width: 100, height: 100)
   }
 
   func test_renderableItems() throws {
+    // given: a laid out empty node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = EmptyNode()
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-    // when visible bounds intersects with the node's frame
+    // when: visible bounds intersects with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0
     }
 
-    // when visible bounds does not intersect with the node's frame
+    // when: visible bounds does not intersect with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 100, width: 100, height: 100)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0
     }
   }
 
   func test_renderableItemsBoundingRect() throws {
+    // given: a laid out empty node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = EmptyNode()
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-    // the empty node provides no renderable items
+    // then: the bounding rect is null, the empty node provides no renderable items
     expect(node.renderableItemsBoundingRect.isNull) == true
   }
 }

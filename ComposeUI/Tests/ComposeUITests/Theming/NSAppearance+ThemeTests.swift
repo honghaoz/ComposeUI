@@ -38,6 +38,7 @@ import ComposeUI
 class NSAppearance_ThemeTests: XCTestCase {
 
   func test_theme() {
+    // then: each appearance maps to the expected theme
     expect(NSAppearance(named: .aqua)?.theme) == .light
     expect(NSAppearance(named: .darkAqua)?.theme) == .dark
     expect(NSAppearance(named: .vibrantDark)?.theme) == .dark

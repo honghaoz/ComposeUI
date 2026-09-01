@@ -35,17 +35,26 @@ import ChouTiTest
 class EdgeInsets_ExtensionsTests: XCTestCase {
 
   func test_horizontal() {
+    // given: insets with different edge values
     let insets = EdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
+
+    // then: horizontal is the sum of left and right
     expect(insets.horizontal) == 6
   }
 
   func test_vertical() {
+    // given: insets with different edge values
     let insets = EdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
+
+    // then: vertical is the sum of top and bottom
     expect(insets.vertical) == 4
   }
 
   func test_initInset() {
+    // given: insets created with a uniform inset value
     let insets = EdgeInsets(inset: 8)
+
+    // then: all edges have the inset value
     expect(insets.top) == 8
     expect(insets.left) == 8
     expect(insets.bottom) == 8

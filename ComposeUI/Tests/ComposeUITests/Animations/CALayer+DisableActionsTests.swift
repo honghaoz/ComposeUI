@@ -35,6 +35,7 @@ import ChouTiTest
 class CALayer_DisableActionsTests: XCTestCase {
 
   func test_disableActions() throws {
+    // given: a layer hosted in a window
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
     layer.frame = frame
@@ -45,30 +46,37 @@ class CALayer_DisableActionsTests: XCTestCase {
     // wait for the layer to have a presentation layer
     expect(layer.presentation()).toEventuallyNot(beNil())
 
-    // with disableAction
+    // when: changing the frame with actions disabled for position and bounds
     do {
       layer.disableActions(for: "position", "bounds") {
         layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
       }
+
+      // then: no implicit animations are added
       expect(layer.animationKeys()) == nil
     }
 
-    // with partial disableAction
+    // when: changing the frame with actions disabled for position only
     do {
       layer.disableActions(for: "position") {
         layer.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
       }
+
+      // then: only the bounds animation is added
       expect(layer.animationKeys()) == ["bounds"]
     }
 
-    // without disableAction
+    // when: changing the frame without disabling actions
     do {
       layer.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+
+      // then: implicit position and bounds animations are added
       expect(layer.animationKeys()) == ["position", "bounds"]
     }
   }
 
   func test_disableActions_insideDisablingTransaction_skipsActionsInstall() throws {
+    // given: a layer hosted in a window, with a sentinel actions dictionary installed
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
     layer.frame = frame
@@ -87,7 +95,7 @@ class CALayer_DisableActionsTests: XCTestCase {
     var workRan = false
     var actionsCountDuringWork: Int?
 
-    // mimic the render pass: run inside a transaction that already disables actions for all keys.
+    // when: disabling actions inside a transaction that already disables actions for all keys, mimicking the render pass
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     layer.disableActions(for: "position", "bounds") {
@@ -97,7 +105,7 @@ class CALayer_DisableActionsTests: XCTestCase {
     }
     CATransaction.commit()
 
-    // the work runs
+    // then: the work runs and the fast path leaves the actions untouched
     expect(workRan) == true
     // fast path: `actions` stays as the sentinel (count 1), not swapped to the 2-key disabling dictionary.
     expect(actionsCountDuringWork) == 1
@@ -108,12 +116,14 @@ class CALayer_DisableActionsTests: XCTestCase {
   }
 
   func test_disableActions_throwingWork_restoresActions() throws {
+    // given: a layer with a sentinel actions dictionary installed
     struct TestError: Error {}
 
     let layer = CALayer()
     let sentinel: [String: CAAction] = ["sentinel": NSNull()]
     layer.actions = sentinel
 
+    // when: the work block throws
     // a throwing work block must not leave the layer with the disabling actions installed
     do {
       try layer.disableActions(for: "position") {
@@ -126,12 +136,13 @@ class CALayer_DisableActionsTests: XCTestCase {
       expect(error is TestError) == true
     }
 
-    // the original actions are restored
+    // then: the original actions are restored
     expect(layer.actions?.count) == 1
     expect(layer.actions?["sentinel"] is NSNull) == true
   }
 
   func test_disableAllActions_mainThread() throws {
+    // given: a layer hosted in a window
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
     layer.frame = frame
@@ -142,15 +153,17 @@ class CALayer_DisableActionsTests: XCTestCase {
     // wait for the layer to have a presentation layer
     expect(layer.presentation()).toEventuallyNot(beNil())
 
-    // without delegate
+    // when: changing the frame with all actions disabled, without a delegate
     do {
       layer.disableActions {
         layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
       }
+
+      // then: no implicit animations are added
       expect(layer.animationKeys()) == nil
     }
 
-    // with delegate
+    // when: changing the frame with all actions disabled, with a delegate
     do {
       class LayerDelegate: NSObject, CALayerDelegate {}
       let delegate = LayerDelegate()
@@ -158,6 +171,8 @@ class CALayer_DisableActionsTests: XCTestCase {
       layer.disableActions {
         layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
       }
+
+      // then: no implicit animations are added
       expect(layer.animationKeys()) == nil
     }
   }
@@ -165,9 +180,12 @@ class CALayer_DisableActionsTests: XCTestCase {
   func test_disableAllActions_throwingWork_restoresDelegateAndClass() throws {
     struct TestError: Error {}
 
-    // without delegate: a throwing work block must not leave the layer with the actions-disabling delegate
+    // given: a layer without a delegate
     do {
       let layer = CALayer()
+
+      // when: the work block throws
+      // a throwing work block must not leave the layer with the actions-disabling delegate
       do {
         try layer.disableActions {
           expect(layer.delegate) != nil // the actions-disabling delegate is installed
@@ -177,16 +195,20 @@ class CALayer_DisableActionsTests: XCTestCase {
       } catch {
         expect(error is TestError) == true
       }
-      expect(layer.delegate) == nil // the delegate is restored
+
+      // then: the delegate is restored
+      expect(layer.delegate) == nil
     }
 
-    // with delegate: a throwing work block must not leave the layer with the actions-disabling subclass
+    // given: a layer with a delegate
     do {
       class LayerDelegate: NSObject, CALayerDelegate {}
       let delegate = LayerDelegate()
       let layer = CALayer()
       layer.delegate = delegate
 
+      // when: the work block throws
+      // a throwing work block must not leave the layer with the actions-disabling subclass
       do {
         try layer.disableActions {
           expect(NSStringFromClass(object_getClass(layer)!)) == "CALayer_DisabledActions" // swiftlint:disable:this force_unwrapping
@@ -196,12 +218,15 @@ class CALayer_DisableActionsTests: XCTestCase {
       } catch {
         expect(error is TestError) == true
       }
-      expect(object_getClass(layer) === CALayer.self) == true // the class is restored
-      expect(layer.delegate) === delegate // the delegate is untouched
+
+      // then: the class is restored and the delegate is untouched
+      expect(object_getClass(layer) === CALayer.self) == true
+      expect(layer.delegate) === delegate
     }
   }
 
   func test_disableAllActions_backgroundThread() throws {
+    // given: a layer hosted in a window
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
     layer.frame = frame
@@ -212,7 +237,7 @@ class CALayer_DisableActionsTests: XCTestCase {
     // wait for the layer to have a presentation layer
     expect(layer.presentation()).toEventuallyNot(beNil())
 
-    // with delegate - should trigger assertion when called from background thread
+    // given: a delegate on the layer and a test assertion failure handler
     do {
       class LayerDelegate: NSObject, CALayerDelegate {}
       let delegate = LayerDelegate()
@@ -224,6 +249,7 @@ class CALayer_DisableActionsTests: XCTestCase {
         assertionCount += 1
       }
 
+      // when: disabling actions from a background thread
       let queue = DispatchQueue(label: "test_disableAllActions_backgroundThread")
       let expectation = expectation(description: "assertion triggered")
       queue.async { [layer] in
@@ -233,6 +259,7 @@ class CALayer_DisableActionsTests: XCTestCase {
         expectation.fulfill()
       }
 
+      // then: the main thread assertion is triggered and no implicit animations are added
       waitForExpectations(timeout: 1)
       expect(assertionCount) == 1
       expect(layer.animationKeys()) == nil

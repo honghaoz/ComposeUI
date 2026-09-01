@@ -35,6 +35,7 @@ import ChouTiTest
 class ComposeNode_TransformTests: XCTestCase {
 
   func test_map_anyComposeNode() throws {
+    // given: a type-erased node mapped to add a red background
     var node: any ComposeNode = ViewNode()
       .map { node in
         node.background {
@@ -42,6 +43,7 @@ class ComposeNode_TransformTests: XCTestCase {
         }
       }
 
+    // when: laying out the node and rendering the background item
     node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
     let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
     let backgroundItem = try renderableItems.first.unwrap()
@@ -52,15 +54,18 @@ class ComposeNode_TransformTests: XCTestCase {
     let updateContext = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
     backgroundItem.update(renderable, updateContext)
 
+    // then: the rendered layer has the red background color
     expect(renderable.layer.backgroundColor) == Color.red.cgColor
   }
 
   func test_map_sameType() throws {
+    // given: a base label node laid out for a baseline size
     let baseNode = LabelNode("Hello")
     var base = baseNode
     _ = base.layout(containerSize: CGSize(width: 200, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 2))
     let baseSize = base.size
 
+    // when: mapping the node to use a larger font and rendering it
     var updated = baseNode
       .map { node in
         node.font(.systemFont(ofSize: 28))
@@ -75,6 +80,7 @@ class ComposeNode_TransformTests: XCTestCase {
     let updateContext = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
     item.update(renderable, updateContext)
 
+    // then: the rendered text uses the mapped font and the node grows taller
     let textView = try (renderable.view as? BaseTextView).unwrap()
     let font = textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font
     try expect(font) == unwrap(Font.systemFont(ofSize: 28))

@@ -36,6 +36,7 @@ import ChouTi
 class LabelNodeTests: XCTestCase {
 
   func test_size_assertion() throws {
+    // given: a label node and a test assertion failure handler
     var assertionCount = 0
     ComposeUI.Assert.setTestAssertionFailureHandler { message, file, line, column in
       expect(message) == "layout(containerSize:context:) should be called before calling size"
@@ -44,15 +45,17 @@ class LabelNodeTests: XCTestCase {
 
     let labelNode = LabelNode("Test")
 
-    // when accessing size without calling layout first
-    // then it should trigger the assertion
+    // when: accessing size without calling layout first
     _ = labelNode.size
+
+    // then: it should trigger the assertion
     expect(assertionCount) == 1
 
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
   func test_renderableItems_assertion() throws {
+    // given: a label node and a test assertion failure handler
     var assertionCount = 0
     ComposeUI.Assert.setTestAssertionFailureHandler { message, file, line, column in
       expect(message) == "layout(containerSize:context:) should be called before calling renderableItems(in:)"
@@ -61,9 +64,10 @@ class LabelNodeTests: XCTestCase {
 
     let labelNode = LabelNode("Test")
 
-    // when accessing renderableItems without calling layout first
-    // then it should trigger the assertion
+    // when: accessing renderableItems without calling layout first
     _ = labelNode.renderableItems(in: CGRect(0, 0, 100, 100))
+
+    // then: it should trigger the assertion
     expect(assertionCount) == 1
 
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
@@ -72,7 +76,7 @@ class LabelNodeTests: XCTestCase {
   // MARK: - Single-line
 
   func test_singleLine_enoughWidth() throws {
-    // when fixed size
+    // given: a fixed size label
     do {
       var textView: BaseTextView?
       let view = ComposeView {
@@ -85,8 +89,10 @@ class LabelNodeTests: XCTestCase {
 
       view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
+      // when: the view is refreshed
       view.refresh()
 
+      // then: the label is a single line sized to the text
       expect(textView?.attributedString.string) == "Hello World"
       expect(textView?.bounds.size) == CGSize(width: 67, height: 16.0)
       expect(textView?.numberOfLines) == 1
@@ -95,7 +101,7 @@ class LabelNodeTests: XCTestCase {
       expect(textView?.lineBreakMode) == .byTruncatingTail
     }
 
-    // when flexible width
+    // given: a flexible width label
     do {
       var textView: BaseTextView?
       let view = ComposeView {
@@ -109,8 +115,10 @@ class LabelNodeTests: XCTestCase {
 
       view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
+      // when: the view is refreshed
       view.refresh()
 
+      // then: the label width fills the container
       expect(textView?.attributedString.string) == "Hello World"
       expect(textView?.bounds.size) == CGSize(width: 100, height: 16.0)
       expect(textView?.numberOfLines) == 1
@@ -121,7 +129,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_singleLine_notEnoughWidth() throws {
-    // when fixed size
+    // given: a fixed size label in a small container
     do {
       var textView: BaseTextView?
       let view = ComposeView {
@@ -134,8 +142,10 @@ class LabelNodeTests: XCTestCase {
 
       view.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
 
+      // when: the view is refreshed
       view.refresh()
 
+      // then: the label keeps its intrinsic single line size
       expect(textView?.attributedString.string) == "Hello World"
       expect(textView?.bounds.size) == CGSize(width: 67, height: 16)
       expect(textView?.numberOfLines) == 1
@@ -144,7 +154,7 @@ class LabelNodeTests: XCTestCase {
       expect(textView?.lineBreakMode) == .byTruncatingTail
     }
 
-    // when flexible width
+    // given: a flexible width label in a small container
     do {
       var textView: BaseTextView?
       let view = ComposeView {
@@ -158,8 +168,10 @@ class LabelNodeTests: XCTestCase {
 
       view.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
 
+      // when: the view is refreshed
       view.refresh()
 
+      // then: the label width is capped to the container
       expect(textView?.attributedString.string) == "Hello World"
       expect(textView?.bounds.size) == CGSize(width: 50, height: 16)
       expect(textView?.numberOfLines) == 1
@@ -170,6 +182,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_singleLineWithNewline_enoughWidth() throws {
+    // given: a label with a newline in the text
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Hello\nWorld")
@@ -181,8 +194,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the label renders as a single line
     expect(textView?.attributedString.string) == "Hello\nWorld"
     expect(textView?.bounds.size) == CGSize(width: 30, height: 16.0)
     expect(textView?.numberOfLines) == 1
@@ -192,6 +207,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_singleLineWithNewline_notEnoughWidth() throws {
+    // given: a label with a newline in the text and a small container
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Hello\nWorld")
@@ -203,8 +219,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the label renders as a single line
     expect(textView?.attributedString.string) == "Hello\nWorld"
     expect(textView?.bounds.size) == CGSize(width: 30, height: 16.0)
     expect(textView?.numberOfLines) == 1
@@ -214,6 +232,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_singleLine_lineBreakMode() throws {
+    // given: a label with a custom line break mode
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Hello World")
@@ -226,8 +245,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the custom line break mode is applied to the text view
     expect(textView?.attributedString.string) == "Hello World"
     expect(textView?.bounds.size) == CGSize(width: 67, height: 16.0)
     expect(textView?.numberOfLines) == 1
@@ -239,6 +260,7 @@ class LabelNodeTests: XCTestCase {
   // MARK: - Multi-line
 
   func test_multiLine_flexible() throws {
+    // given: a multi-line label with flexible size
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
@@ -252,8 +274,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 98, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the label fills the container
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
     expect(textView?.bounds.size) == CGSize(width: 98, height: 100)
     expect(textView?.numberOfLines) == 0
@@ -263,6 +287,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_multiLine_fixedWidth_flexibleHeight() throws {
+    // given: a multi-line label with fixed width and flexible height
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
@@ -276,8 +301,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 98, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the width is the text width and the height fills the container
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
     expect(textView?.bounds.size) == CGSize(width: 97, height: 100)
     expect(textView?.numberOfLines) == 0
@@ -287,6 +314,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_multiLine_flexibleWidth_fixedHeight() throws {
+    // given: a multi-line label with flexible width and fixed height
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
@@ -300,8 +328,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 98, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the width fills the container and the height fits the text
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
     #if canImport(AppKit)
     expect(textView?.bounds.size) == CGSize(width: 98, height: 139)
@@ -316,6 +346,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_multiLine_flexibleWidth_fixedHeight2() throws {
+    // given: a multi-line label with flexible width and fixed height via numberOfLines
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
@@ -328,8 +359,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 98, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the width fills the container and the height fits the text
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
     #if canImport(AppKit)
     expect(textView?.bounds.size) == CGSize(width: 98, height: 139)
@@ -344,6 +377,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_multiLine_fixedSize() throws {
+    // given: a multi-line label with fixed size
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
@@ -357,8 +391,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 98, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the label is sized to fit the text
     expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
     #if canImport(AppKit)
     expect(textView?.bounds.size) == CGSize(width: 97, height: 139)
@@ -375,6 +411,7 @@ class LabelNodeTests: XCTestCase {
   // MARK: - User Interaction
 
   func test_userInteraction() {
+    // given: a compose view with a default label
     var textView: BaseTextView?
     let view = ComposeView {
       LabelNode("Hello World")
@@ -384,9 +421,11 @@ class LabelNodeTests: XCTestCase {
     }
 
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the view is refreshed
     view.refresh()
 
-    // by default, the label is not interactive
+    // then: by default, the label is not interactive
     expect(textView?.isSelectable) == false
     #if canImport(AppKit)
     expect(textView?.ignoreHitTest) == true
@@ -395,7 +434,7 @@ class LabelNodeTests: XCTestCase {
     expect(textView?.isUserInteractionEnabled) == false
     #endif
 
-    // when set to selectable
+    // when: set to selectable
     view.setContent {
       LabelNode("Hello World")
         .selectable()
@@ -405,7 +444,7 @@ class LabelNodeTests: XCTestCase {
     }
     view.refresh()
 
-    // the label is now interactive
+    // then: the label is now interactive
     expect(textView?.isSelectable) == true
     #if canImport(AppKit)
     expect(textView?.ignoreHitTest) == false
@@ -418,6 +457,7 @@ class LabelNodeTests: XCTestCase {
   // MARK: - Modifiers
 
   func test_modifiers() throws {
+    // given: a label with various modifiers
     var textView: BaseTextView?
     let view = ComposeView {
       try LabelNode("Hello World")
@@ -441,8 +481,10 @@ class LabelNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the modifiers are applied to the rendered text
     try expect(textView?.attributedString.font()) == unwrap(Font(name: "HelveticaNeue", size: 20))
     expect(textView?.attributedString.foregroundColor()) == .blue
     expect(textView?.attributedString.backgroundColor()) == .green
@@ -470,198 +512,202 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_modifiers_resetNode() throws {
-    // given a node
+    // given: a node
     var node = LabelNode("Hello World")
 
     // font
     do {
+      // given: the font modifier is applied
       try node = node.font(unwrap(Font(name: "HelveticaNeue", size: 20)))
 
-      // when layout is triggered
+      // when: layout is triggered
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // the underlying node should have been set
+      // then: the underlying node should have been set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // when a duplicate modifier is triggered
+      // when: a duplicate modifier is triggered
       try node = node.font(unwrap(Font(name: "HelveticaNeue", size: 20)))
 
-      // the underlying node should still be set
+      // then: the underlying node should still be set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // then a new modifier is triggered
+      // when: a new modifier is triggered
       try node = node.font(unwrap(Font(name: "HelveticaNeue", size: 13)))
 
-      // the underlying node should be cleared
+      // then: the underlying node should be cleared
       expect(DynamicLookup(node).property("node")) == nil
     }
 
     // textColor
     do {
+      // given: the textColor modifier is applied
       node = node.textColor(.red)
 
-      // when layout is triggered
+      // when: layout is triggered
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // the underlying node should have been set
+      // then: the underlying node should have been set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // when a duplicate modifier is triggered
+      // when: a duplicate modifier is triggered
       node = node.textColor(.red)
 
-      // the underlying node should still be set
+      // then: the underlying node should still be set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // then a new modifier is triggered
+      // when: a new modifier is triggered
       node = node.textColor(ThemedColor(.blue))
 
-      // the underlying node should be cleared
+      // then: the underlying node should be cleared
       expect(DynamicLookup(node).property("node")) == nil
     }
 
     // textBackgroundColor
     do {
+      // given: the textBackgroundColor modifier is applied
       node = node.textBackgroundColor(ThemedColor(.green))
 
-      // when layout is triggered
+      // when: layout is triggered
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // the underlying node should have been set
+      // then: the underlying node should have been set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // when a duplicate modifier is triggered
+      // when: a duplicate modifier is triggered
       node = node.textBackgroundColor(ThemedColor(.green))
 
-      // the underlying node should still be set
+      // then: the underlying node should still be set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // then a new modifier is triggered
+      // when: a new modifier is triggered
       node = node.textBackgroundColor(nil)
 
-      // the underlying node should be cleared
+      // then: the underlying node should be cleared
       expect(DynamicLookup(node).property("node")) == nil
     }
 
     // textShadow
     do {
+      // given: the textShadow modifier is applied
       node = node.textShadow(Themed<NSShadow>({
         let shadow = NSShadow()
         shadow.shadowOffset = CGSize(width: 0, height: 1)
         return shadow
       }()))
 
-      // when layout is triggered
+      // when: layout is triggered
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // the underlying node should have been set
+      // then: the underlying node should have been set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // when a duplicate modifier is triggered
+      // when: a duplicate modifier is triggered
       node = node.textShadow(Themed<NSShadow>({
         let shadow = NSShadow()
         shadow.shadowOffset = CGSize(width: 0, height: 1)
         return shadow
       }()))
 
-      // the underlying node should still be set
+      // then: the underlying node should still be set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // then a new modifier is triggered
+      // when: a new modifier is triggered
       node = node.textShadow(nil)
 
-      // the underlying node should be cleared
+      // then: the underlying node should be cleared
       expect(DynamicLookup(node).property("node")) == nil
     }
 
     // textAlignment
     do {
-      // when layout is triggered
+      // when: layout is triggered
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // the underlying node should have been set
+      // then: the underlying node should have been set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // when a duplicate modifier is triggered
+      // when: a duplicate modifier is triggered
       node = node.textAlignment(.center)
 
-      // the underlying node should still be set
+      // then: the underlying node should still be set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // then a new modifier is triggered
+      // when: a new modifier is triggered
       node = node.textAlignment(.left)
 
-      // the underlying node should be cleared
+      // then: the underlying node should be cleared
       expect(DynamicLookup(node).property("node")) == nil
     }
 
     // numberOfLines
     do {
-      // when layout is triggered
+      // when: layout is triggered
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // the underlying node should have been set
+      // then: the underlying node should have been set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // when a duplicate modifier is triggered
+      // when: a duplicate modifier is triggered
       node = node.numberOfLines(1)
 
-      // the underlying node should still be set
+      // then: the underlying node should still be set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // then a new modifier is triggered
+      // when: a new modifier is triggered
       node = node.numberOfLines(0)
 
-      // the underlying node should be cleared
+      // then: the underlying node should be cleared
       expect(DynamicLookup(node).property("node")) == nil
     }
 
     // lineBreakMode
     do {
-      // when layout is triggered
+      // when: layout is triggered
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // the underlying node should have been set
+      // then: the underlying node should have been set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // when a duplicate modifier is triggered
+      // when: a duplicate modifier is triggered
       node = node.lineBreakMode(.byTruncatingTail)
 
-      // the underlying node should still be set
+      // then: the underlying node should still be set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // then a new modifier is triggered
+      // when: a new modifier is triggered
       node = node.lineBreakMode(.byTruncatingMiddle)
 
-      // the underlying node should be cleared
+      // then: the underlying node should be cleared
       expect(DynamicLookup(node).property("node")) == nil
     }
 
     // selectable
     do {
-      // when layout is triggered
+      // when: layout is triggered
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // the underlying node should have been set
+      // then: the underlying node should have been set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // when a duplicate modifier is triggered
+      // when: a duplicate modifier is triggered
       node = node.selectable(false)
 
-      // the underlying node should still be set
+      // then: the underlying node should still be set
       expect(DynamicLookup(node).property("node")) != nil
 
-      // then a new modifier is triggered
+      // when: a new modifier is triggered
       node = node.selectable(true)
 
-      // the underlying node should be cleared
+      // then: the underlying node should be cleared
       expect(DynamicLookup(node).property("node")) == nil
     }
   }
@@ -670,12 +716,17 @@ class LabelNodeTests: XCTestCase {
 
   func test_viewReuse_defaultReuseKey_usesFrameworkNamespace() {
     // LabelNode renders through TextNode, so its renderable opts into the same framework-internal BaseTextView pool bucket.
+
+    // given: a renderable item of a label node
     let item = firstRenderableItem(of: LabelNode("Hello"))
+
+    // then: the reuse ids use the framework BaseTextView pool bucket
     expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
     expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
   }
 
   func test_viewReuse_recycledView_resetsStateAndReuses() throws {
+    // given: a compose view with an isolated pool rendering a label
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.renderablePool = RenderablePool() // isolate from the shared pool so the reused view is deterministic.
 
@@ -689,24 +740,26 @@ class LabelNodeTests: XCTestCase {
     expect(textView.attributedString.string) == "First"
     expect(textView.numberOfLines) == 2
 
-    // removing the label enqueues its view into the pool, which resets it (via TextNode's resetForReuse) for reuse.
+    // when: removing the label
     view.setContent {
       Empty()
     }
     view.refresh(animated: false)
 
+    // then: the view is enqueued into the pool, which resets it (via TextNode's resetForReuse) for reuse
     expect(firstBaseTextView(in: view)) == nil
     expect(textView.attributedString.string) == ""
     expect(textView.numberOfLines) == 0
     expect(textView.lineBreakMode) == .byWordWrapping
     expect(textView.isSelectable) == true
 
-    // a new label reuses the very same pooled view, reconfigured for the new content (no stale state).
+    // when: rendering a new label
     view.setContent {
       LabelNode("Second")
     }
     view.refresh(animated: false)
 
+    // then: the very same pooled view is reused, reconfigured for the new content (no stale state)
     let reusedView = try firstBaseTextView(in: view).unwrap()
     expect(reusedView) === textView
     expect(reusedView.attributedString.string) == "Second"
@@ -718,6 +771,8 @@ class LabelNodeTests: XCTestCase {
   func test_renderableItems_sharedBase_selectableChange_notStale() {
     // LabelNode delegates to an inner TextNode that it recreates when a setter runs (copy.node = nil), so two copies of
     // a shared base get their own TextNode (and item cache) and a config change is never served a stale cached item.
+
+    // given: two copies of a shared label base, one made selectable
     let base = LabelNode("hi")
     var defaultView: BaseTextView?
     var selectableView: BaseTextView?
@@ -728,8 +783,11 @@ class LabelNodeTests: XCTestCase {
       }
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the view is refreshed
     view.refresh(animated: false)
 
+    // then: each copy renders its own configuration
     expect(defaultView?.isSelectable) == false // LabelNode is not selectable by default
     expect(selectableView?.isSelectable) == true
   }

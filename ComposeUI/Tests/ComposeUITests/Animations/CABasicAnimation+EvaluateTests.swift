@@ -37,27 +37,33 @@ import ChouTiTest
 class CABasicAnimation_EvaluateTests: XCTestCase {
 
   func test_scalarValue_linear() throws {
+    // given: a linear animation from 1 to 0
     let animation = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 100, timingFunction: CAMediaTimingFunction(name: .linear))
 
+    // then: values interpolate linearly over the active duration
     expect(animation.scalarValue(at: 100)) == 1
     expect(try unwrap(animation.scalarValue(at: 101))).to(beApproximatelyEqual(to: 0.75, within: 1e-9))
     expect(try unwrap(animation.scalarValue(at: 102))).to(beApproximatelyEqual(to: 0.5, within: 1e-9))
     expect(animation.scalarValue(at: 104)) == 0
 
-    // clamped outside of the active duration
+    // then: values are clamped outside of the active duration
     expect(animation.scalarValue(at: 99)) == 1
     expect(animation.scalarValue(at: 106)) == 0
   }
 
   func test_scalarValue_nilTimingFunction_isLinear() throws {
+    // given: an animation without a timing function
     let animation = makeAnimation(from: 0, to: 1, duration: 2, beginTime: 100)
 
+    // then: values interpolate linearly
     expect(try unwrap(animation.scalarValue(at: 101))).to(beApproximatelyEqual(to: 0.5, within: 1e-9))
   }
 
   func test_scalarValue_easeInEaseOut() throws {
+    // given: an ease in ease out animation from 0 to 1
     let animation = makeAnimation(from: 0, to: 1, duration: 2, beginTime: 100, timingFunction: CAMediaTimingFunction(name: .easeInEaseOut))
 
+    // then: values follow the ease in ease out curve
     expect(animation.scalarValue(at: 100)) == 0
     expect(animation.scalarValue(at: 102)) == 1
 
@@ -70,48 +76,56 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
   }
 
   func test_scalarValue_speed() throws {
+    // given: a linear animation with a doubled speed
     let animation = makeAnimation(from: 0, to: 1, duration: 4, beginTime: 100, timingFunction: CAMediaTimingFunction(name: .linear))
     animation.speed = 2
 
+    // then: values progress at twice the pace
     expect(try unwrap(animation.scalarValue(at: 101))).to(beApproximatelyEqual(to: 0.5, within: 1e-9))
     expect(animation.scalarValue(at: 102)) == 1
   }
 
   func test_scalarValue_zeroDuration() {
+    // given: an animation with a zero duration
     let animation = makeAnimation(from: 0, to: 1, duration: 0, beginTime: 100)
 
+    // then: the value is the to value at any time
     expect(animation.scalarValue(at: 100)) == 1
     expect(animation.scalarValue(at: 110)) == 1
   }
 
   func test_scalarValue_unresolvedBeginTime_evaluatesAtZeroElapsedTime() throws {
-    // an animation with an unset begin time hasn't been scheduled by Core Animation yet (the begin time is resolved
-    // when the transaction commits), so it evaluates at zero elapsed time regardless of the query time.
+    // given: an animation with an unset begin time, which hasn't been scheduled by Core Animation yet (the begin
+    // time is resolved when the transaction commits)
     let animation = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 0, timingFunction: CAMediaTimingFunction(name: .linear))
 
+    // then: it evaluates at zero elapsed time regardless of the query time
     expect(animation.scalarValue(at: 0)) == 1
     expect(animation.scalarValue(at: CACurrentMediaTime())) == 1
   }
 
   func test_scalarValue_nonScalarValues() {
+    // given: an animation with non-scalar from and to values
     let animation = CABasicAnimation(keyPath: "position")
     animation.fromValue = "not a number"
     animation.toValue = "not a number"
     animation.duration = 1
 
+    // then: the scalar value is nil
     expect(animation.scalarValue(at: 0)) == nil
   }
 
   func test_scalarValue_spring_criticallyDamped() throws {
+    // given: a critically damped spring animation from 1 to 0
     let descriptor = SpringDescriptor(dampingRatio: 1, response: 0.4)
     let animation = try unwrap(CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(descriptor))) as? CASpringAnimation)
     animation.fromValue = 1.0
     animation.toValue = 0.0
     animation.beginTime = 100
 
+    // then: the value starts at 1 and monotonically decays from 1 to 0 without overshoot
     expect(animation.scalarValue(at: 100)) == 1
 
-    // monotonically decays from 1 to 0 without overshoot
     var previous = 1.0
     for sample in stride(from: 0.05, through: animation.duration, by: 0.05) {
       let value = try unwrap(animation.scalarValue(at: 100 + sample))
@@ -123,15 +137,16 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
   }
 
   func test_scalarValue_spring_underdamped_overshoots() throws {
+    // given: an underdamped spring animation from 1 to 0
     let descriptor = SpringDescriptor(dampingRatio: 0.2, response: 0.3)
     let animation = try unwrap(CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(descriptor))) as? CASpringAnimation)
     animation.fromValue = 1.0
     animation.toValue = 0.0
     animation.beginTime = 100
 
+    // then: the value starts at 1 and a lightly damped spring passes the target
     expect(animation.scalarValue(at: 100)) == 1
 
-    // a lightly damped spring passes the target
     var minimum = 1.0
     for sample in stride(from: 0.01, through: animation.duration, by: 0.01) {
       let value = try unwrap(animation.scalarValue(at: 100 + sample))
@@ -141,6 +156,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
   }
 
   func test_scalarValue_spring_overdamped() throws {
+    // given: an overdamped spring animation from 1 to 0
     // damping greater than 2 * sqrt(stiffness * mass) is an overdamped configuration, which Core Animation clamps to
     // critically damped
     let descriptor = SpringDescriptor(initialVelocity: 0, mass: 1, stiffness: 100, damping: 30)
@@ -149,7 +165,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     animation.toValue = 0.0
     animation.beginTime = 100
 
-    // monotonically decays from 1 towards 0 without overshoot
+    // then: the value monotonically decays from 1 towards 0 without overshoot
     var previous = 1.0
     for sample in stride(from: 0.05, through: 2, by: 0.05) {
       let value = try unwrap(animation.scalarValue(at: 100 + sample))
@@ -161,6 +177,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
   }
 
   func test_scalarValue_spring_initialVelocity() throws {
+    // given: two spring animations from 1 to 0, one still and one with an initial velocity
     let still = try unwrap(CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(SpringDescriptor(dampingRatio: 1, response: 0.4)))) as? CASpringAnimation)
     still.fromValue = 1.0
     still.toValue = 0.0
@@ -171,13 +188,14 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     moving.toValue = 0.0
     moving.beginTime = 100
 
-    // a positive initial velocity moves towards the target faster
+    // then: a positive initial velocity moves towards the target faster
     expect(try unwrap(moving.scalarValue(at: 100.1))) < (try unwrap(still.scalarValue(at: 100.1)))
   }
 
   // MARK: - Parity with Core Animation's private _solveForInput:
 
   func test_solveForInput_timingFunction_matchesPrivateImplementation() throws {
+    // given: timing functions covering the standard names and custom control points
     let timingFunctions: [CAMediaTimingFunction] = [
       CAMediaTimingFunction(name: .linear),
       CAMediaTimingFunction(name: .easeIn),
@@ -189,6 +207,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
       CAMediaTimingFunction(controlPoints: 0.3, 1.5, 0.6, -0.5),
     ]
 
+    // then: the solved values match the private implementation for all inputs
     for timingFunction in timingFunctions {
       for fraction in stride(from: 0.0, through: 1.0, by: 0.01) {
         guard let expected = timingFunction.privateSolveForInput(fraction) else {
@@ -200,7 +219,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
   }
 
   func test_solveForInput_spring_matchesPrivateImplementation() throws {
-    // (mass, stiffness, damping, initialVelocity) covering underdamped, critically damped (damping = 2√(stiffness·mass)),
+    // given: (mass, stiffness, damping, initialVelocity) covering underdamped, critically damped (damping = 2√(stiffness·mass)),
     // and overdamped springs, still and moving in both directions
     let parameters: [(mass: CGFloat, stiffness: CGFloat, damping: CGFloat, initialVelocity: CGFloat)] = [
       (1, 100, 10, 0), // underdamped
@@ -211,6 +230,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
       (3, 150, 25, 2), // heavier mass
     ]
 
+    // then: the solved values match the private implementation for each spring and input
     for parameter in parameters {
       let animation = CASpringAnimation(keyPath: "opacity")
       animation.mass = parameter.mass
@@ -232,6 +252,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
   }
 
   func test_solveForInput_privateImplementationIsAvailable() {
+    // then: Core Animation's private _solveForInput: is available
     // the parity tests skip when the private implementation is unavailable, so this canary fails loudly to flag that
     // the parity is no longer being verified and the assumptions need to be re-established.
     expect(CAMediaTimingFunction(name: .linear).privateSolveForInput(0.5)) != nil

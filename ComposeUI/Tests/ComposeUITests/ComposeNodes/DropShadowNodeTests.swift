@@ -35,6 +35,7 @@ import ChouTiTest
 class DropShadowNodeTests: XCTestCase {
 
   func test_init() throws {
+    // then: drop shadow nodes can be created with all initializer variants
     // themed + simple path
     _ = DropShadowNode(
       color: ThemedColor(light: Color.red, dark: Color.blue),
@@ -85,6 +86,7 @@ class DropShadowNodeTests: XCTestCase {
   }
 
   func test_id() throws {
+    // given: a drop shadow node
     let node = DropShadowNode(
       color: .black,
       opacity: 0.5,
@@ -95,10 +97,13 @@ class DropShadowNodeTests: XCTestCase {
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
+
+    // then: the id is "DS"
     expect(node.id.id) == "DS"
   }
 
   func test_size() throws {
+    // given: a drop shadow node
     let node = DropShadowNode(
       color: .black,
       opacity: 0.5,
@@ -109,10 +114,13 @@ class DropShadowNodeTests: XCTestCase {
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
+
+    // then: the default size is zero
     expect(node.size) == .zero
   }
 
   func test_layout() throws {
+    // given: a drop shadow node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = DropShadowNode(
       color: .black,
@@ -124,12 +132,17 @@ class DropShadowNodeTests: XCTestCase {
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
+
+    // when: laying out in a 100x100 container
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    // then: the node is flexible and fills the container
     expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
     expect(node.size) == CGSize(width: 100, height: 100)
   }
 
   func test_renderableItems() throws {
+    // given: a laid out themed drop shadow node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = DropShadowNode(
       color: ThemedColor(light: Color.red, dark: Color.blue),
@@ -143,10 +156,12 @@ class DropShadowNodeTests: XCTestCase {
     )
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-    // when visible bounds intersects with the node's frame
+    // when: visible bounds intersects with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: a single shadow item is provided with the expected id, frame, and behaviors
       expect(items.count) == 1
 
       let item = items[0]
@@ -284,16 +299,18 @@ class DropShadowNodeTests: XCTestCase {
       expect(item.animationTiming) == nil
     }
 
-    // when visible bounds does not intersect with the node's frame
+    // when: visible bounds does not intersect with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 100, width: 100, height: 100)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0
     }
   }
 
   func test_underlay() throws {
-    // themed + simple path
+    // given: a laid out color node with a drop shadow (themed + simple path)
     do {
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       var node = ColorNode(.red)
@@ -309,7 +326,10 @@ class DropShadowNodeTests: XCTestCase {
         )
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // when: requesting renderable items
       let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+      // then: shadow and host items are provided in order
       expect(items.count) == 2
 
       let shadowItem = items[0]
@@ -321,7 +341,7 @@ class DropShadowNodeTests: XCTestCase {
       expect(hostItem.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
     }
 
-    // themed + shadow paths
+    // given: a laid out color node with a drop shadow (themed + shadow paths)
     do {
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       var node = ColorNode(.red)
@@ -337,7 +357,10 @@ class DropShadowNodeTests: XCTestCase {
         )
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // when: requesting renderable items
       let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+      // then: shadow and host items are provided in order
       expect(items.count) == 2
 
       let shadowItem = items[0]
@@ -349,7 +372,7 @@ class DropShadowNodeTests: XCTestCase {
       expect(hostItem.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
     }
 
-    // color + simple path
+    // given: a laid out color node with a drop shadow (color + simple path)
     do {
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       var node = ColorNode(.red)
@@ -365,7 +388,10 @@ class DropShadowNodeTests: XCTestCase {
         )
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // when: requesting renderable items
       let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+      // then: shadow and host items are provided in order
       expect(items.count) == 2
 
       let shadowItem = items[0]
@@ -377,7 +403,7 @@ class DropShadowNodeTests: XCTestCase {
       expect(hostItem.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
     }
 
-    // color + shadow paths
+    // given: a laid out color node with a drop shadow (color + shadow paths)
     do {
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       var node = ColorNode(.red)
@@ -393,7 +419,10 @@ class DropShadowNodeTests: XCTestCase {
         )
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // when: requesting renderable items
       let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+      // then: shadow and host items are provided in order
       expect(items.count) == 2
 
       let shadowItem = items[0]
@@ -407,6 +436,7 @@ class DropShadowNodeTests: XCTestCase {
   }
 
   func test() throws {
+    // given: a compose view with two drop shadow nodes in a vstack
     let view = ComposeView {
       VStack {
         DropShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), path: { renderItem in
@@ -427,8 +457,10 @@ class DropShadowNodeTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
+    // when: the view is refreshed
     view.refresh()
 
+    // then: the first shadow layer is configured with the shadow path
     #if canImport(AppKit)
     let shadowLayer1 = try unwrap(view.contentView().layer?.sublayers?.first)
     #endif
@@ -442,6 +474,7 @@ class DropShadowNodeTests: XCTestCase {
     expect(shadowLayer1.shadowOffset) == CGSize(width: 2, height: 5)
     expect(shadowLayer1.shadowPath) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 0, cornerHeight: 0, transform: nil)
 
+    // then: the second shadow layer is configured with a cutout mask
     #if canImport(AppKit)
     let shadowLayer2 = try unwrap(view.contentView().layer?.sublayers?[1])
     #endif
@@ -476,6 +509,8 @@ class DropShadowNodeTests: XCTestCase {
     // The cached item's `update` closure must not capture `self` (the node): the node holds the item cache, so capturing
     // `self` would form `itemCache -> cachedItem -> update -> self -> itemCache`, a retain cycle that leaks the node and
     // everything it captures when the node tree is replaced (refresh / size change).
+
+    // given: a node whose path closure captures a probe object
     weak var weakProbe: AnyObject?
     do {
       let probe = NSObject()
@@ -484,9 +519,13 @@ class DropShadowNodeTests: XCTestCase {
         _ = probe // captured by the node's path closure; only reachable from the cached update closure if it captures `self`
         return CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
       })
+
+      // when: laying out and populating the item cache, and the node goes out of scope
       _ = node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       _ = node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10)) // populates the item cache
     }
+
+    // then: the probe is released, the cached item does not retain the node
     expect(weakProbe).to(beNil())
   }
 }

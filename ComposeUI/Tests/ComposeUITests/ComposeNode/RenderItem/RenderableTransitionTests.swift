@@ -39,6 +39,7 @@ class RenderableTransitionTests: XCTestCase {
   // MARK: - RemoveTransition.resetForReuse
 
   func test_resetForReuse_removesAnimatedKeyPathAnimations() {
+    // given: a remove transition declaring the opacity key path, and a layer with fade and spin animations
     let transition = RenderableTransition.RemoveTransition(
       animatedKeyPaths: ["opacity"],
       animate: { _, _, _ in }
@@ -52,15 +53,17 @@ class RenderableTransitionTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
-    // the framework removes the animations of the declared key paths, even without a reset closure,
-    // leaving other properties' animations alone
+    // when: the transition resets the renderable for reuse
     transition.resetForReuse(renderable: .layer(layer))
 
+    // then: the framework removes the animations of the declared key paths, even without a reset closure,
+    // leaving other properties' animations alone
     expect(layer.animation(forKey: "fade")) == nil
     expect(layer.animation(forKey: "spin")) != nil
   }
 
   func test_resetForReuse_runsClosureAfterRemovingAnimations() {
+    // given: a remove transition with a reset closure that records the remaining animation count
     var animationCountAtClosureTime: Int?
     let transition = RenderableTransition.RemoveTransition(
       animatedKeyPaths: ["opacity"],
@@ -75,9 +78,10 @@ class RenderableTransitionTests: XCTestCase {
     fadeAnimation.duration = 60
     layer.add(fadeAnimation, forKey: "fade")
 
+    // when: the transition resets the renderable for reuse
     transition.resetForReuse(renderable: .layer(layer))
 
-    // the closure runs after the animations are removed, so it observes the cleaned state
+    // then: the closure runs after the animations are removed, so it observes the cleaned state
     expect(animationCountAtClosureTime) == 0
   }
 
@@ -92,36 +96,46 @@ class RenderableTransitionTests: XCTestCase {
   }
 
   func test_isTakenOver_coveredFootprint() {
+    // given: a remove transition animating the opacity key path
     let removeTransition = makeRemoveTransition(animatedKeyPaths: ["opacity"])
 
-    // a fully covered footprint is taken over, including by an insert transition that takes over more
+    // then: a fully covered footprint is taken over, including by an insert transition that takes over more
     expect(removeTransition.isTakenOver(by: makeInsertTransition(takesOverKeyPaths: ["opacity"]))) == true
     expect(removeTransition.isTakenOver(by: makeInsertTransition(takesOverKeyPaths: ["opacity", "position"]))) == true
   }
 
   func test_isTakenOver_uncoveredFootprint() {
-    // a partially covered footprint is not taken over
+    // given: a remove transition animating two key paths
     let removeTransition = makeRemoveTransition(animatedKeyPaths: ["opacity", "position"])
+
+    // then: a partially covered footprint is not taken over
     expect(removeTransition.isTakenOver(by: makeInsertTransition(takesOverKeyPaths: ["position"]))) == false
 
-    // a mismatched footprint is not taken over
+    // then: a mismatched footprint is not taken over
     expect(makeRemoveTransition(animatedKeyPaths: ["opacity"]).isTakenOver(by: makeInsertTransition(takesOverKeyPaths: ["position"]))) == false
   }
 
   func test_isTakenOver_unknownFootprint() {
-    // an unknown footprint is never taken over
+    // given: a remove transition with an unknown footprint
     let removeTransition = makeRemoveTransition(animatedKeyPaths: nil)
+
+    // then: an unknown footprint is never taken over
     expect(removeTransition.isTakenOver(by: makeInsertTransition(takesOverKeyPaths: ["opacity"]))) == false
   }
 
   func test_isTakenOver_emptyFootprint() {
-    // an empty footprint has nothing to continue, so it is not taken over (the reset is harmless for it)
+    // given: a remove transition with an empty footprint
     let removeTransition = makeRemoveTransition(animatedKeyPaths: [])
+
+    // then: an empty footprint has nothing to continue, so it is not taken over (the reset is harmless for it)
     expect(removeTransition.isTakenOver(by: makeInsertTransition(takesOverKeyPaths: ["opacity"]))) == false
   }
 
   func test_isTakenOver_noInsertTransition() {
+    // given: a remove transition animating the opacity key path
     let removeTransition = makeRemoveTransition(animatedKeyPaths: ["opacity"])
+
+    // then: a nil insert transition never takes over
     expect(removeTransition.isTakenOver(by: nil)) == false
   }
 }

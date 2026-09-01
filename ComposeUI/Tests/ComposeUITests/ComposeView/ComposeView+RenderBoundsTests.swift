@@ -71,8 +71,10 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // before layout, the lastRenderBounds is not set
     expect(view.test.lastRenderBounds) == .zero
 
+    // when: the view lays out initially
     view.layoutIfNeeded()
 
+    // then: the view is rendered with the expected bounds
     #if canImport(AppKit)
     // after layout, the bounds() should consider the scrollers
     if #available(macOS 26.0, *) {
@@ -87,7 +89,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     expect(updateCount) == 1
 
-    // expect the contentUpdateContext is set with correct render bounds
+    // then: expect the contentUpdateContext is set with correct render bounds
     var expectedContext = ComposeView.ContentUpdateContext(
       updateType: .boundsChange(previousRenderBounds: .zero),
       renderBounds: CGRect(x: 0, y: 0, width: 120, height: 80)
@@ -95,29 +97,29 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expectedContext.isRendering = true
     expect(invokedContentUpdateContext) == expectedContext
 
-    // expect the lastRenderBounds should NOT consider the scrollers
+    // then: expect the lastRenderBounds should NOT consider the scrollers
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
 
     // reset
     invokedContentUpdateContext = nil
 
-    // layout again without changing the bounds
+    // when: layout again without changing the bounds
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // should not update as no bounds change
+    // then: should not update as no bounds change
     expect(updateCount) == 1
     expect(invokedContentUpdateContext) == nil
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
 
-    // adjust scroll position and layout again
+    // when: adjust scroll position and layout again
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
-    // should update
+    // then: should update
     expect(updateCount) == 2
 
-    // expect the contentUpdateContext is set with correct render bounds
+    // then: expect the contentUpdateContext is set with correct render bounds
     expectedContext = ComposeView.ContentUpdateContext(
       updateType: .boundsChange(previousRenderBounds: CGRect(x: 0, y: 0, width: 120, height: 80)),
       renderBounds: CGRect(x: 0, y: 10, width: 120, height: 80)

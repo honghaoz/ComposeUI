@@ -35,6 +35,7 @@ import ChouTiTest
 class AnimationDelegateTests: XCTestCase {
 
   func test() throws {
+    // given: an animation with a delegate fulfilling start and stop expectations, and a layer hosted in a window
     let didStartExpectation = expectation(description: "didStart")
     didStartExpectation.assertForOverFulfill = true
     let didStopExpectation = expectation(description: "didStop")
@@ -62,12 +63,15 @@ class AnimationDelegateTests: XCTestCase {
 
     window.layer.addSublayer(layer)
 
+    // when: adding the animation to the layer
     layer.add(animation, forKey: "backgroundColor")
 
+    // then: the delegate receives the did start and did stop callbacks
     wait(for: [didStartExpectation, didStopExpectation], timeout: 0.5)
   }
 
   func test_redundantCalls() {
+    // given: an animation delegate tracking start and stop counts
     let animation = CABasicAnimation(keyPath: "backgroundColor")
 
     var didStartCount = 0
@@ -82,14 +86,15 @@ class AnimationDelegateTests: XCTestCase {
       }
     )
 
+    // when: the delegate receives start and stop callbacks
     delegate.animationDidStart(animation)
     delegate.animationDidStop(animation, finished: true)
 
+    // then: the callbacks are invoked once
     expect(didStartCount) == 1
     expect(didStopCount) == 1
 
-    // redundant calls
-
+    // when: the delegate receives redundant calls, with a test assertion failure handler installed
     var assertionCount = 0
     Assert.setTestAssertionFailureHandler { message, file, line, column in
       switch assertionCount {
@@ -107,6 +112,7 @@ class AnimationDelegateTests: XCTestCase {
     delegate.animationDidStart(animation)
     delegate.animationDidStop(animation, finished: true)
 
+    // then: assertion failures are triggered and the callbacks are not invoked again
     expect(didStartCount) == 1
     expect(didStopCount) == 1
 

@@ -35,351 +35,424 @@ import ChouTiTest
 class Layout_StackLayout: XCTestCase {
 
   func test_emptyNodes() {
-    // when proposed space is positive
+    // when: proposed space is positive
     do {
       let result = Layout.stackLayout(space: 100, items: [])
+
+      // then: the result is empty
       expect(result) == []
     }
 
-    // when proposed space is zero
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: [])
+
+      // then: the result is empty
       expect(result) == []
     }
 
-    // when proposed space is negative
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: [])
+
+      // then: the result is empty
       expect(result) == []
     }
   }
 
   func test_fixedNodes() {
+    // given: fixed size items
     let items: [ComposeNodeSizing.Sizing] = [.fixed(30), .fixed(40), .fixed(50)]
 
-    // when proposed space is larger enough
+    // when: proposed space is larger enough
     do {
       let result = Layout.stackLayout(space: 200, items: items)
+
+      // then: items get their fixed sizes
       expect(result) == [30, 40, 50]
     }
 
-    // when proposed space is just enough
+    // when: proposed space is just enough
     do {
       let result = Layout.stackLayout(space: 100, items: items)
+
+      // then: items get their fixed sizes
       expect(result) == [30, 40, 50]
     }
 
-    // when proposed space is not enough
+    // when: proposed space is not enough
     do {
       let result = Layout.stackLayout(space: 90, items: items)
+
+      // then: items get their fixed sizes
       expect(result) == [30, 40, 50]
     }
 
-    // when proposed space is zero
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
+
+      // then: items get their fixed sizes
       expect(result) == [30, 40, 50]
     }
 
-    // when proposed space is negative
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
+
+      // then: items get their fixed sizes
       expect(result) == [30, 40, 50]
     }
   }
 
   func test_flexibleNodes() {
+    // given: flexible items
     let items: [ComposeNodeSizing.Sizing] = [.flexible, .flexible, .flexible]
 
-    // when proposed space is positive
+    // when: proposed space is positive
     do {
       let result = Layout.stackLayout(space: 90, items: items)
+
+      // then: the space is divided evenly
       expect(result) == [30, 30, 30]
     }
 
-    // when proposed space is zero
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
+
+      // then: items get zero size
       expect(result) == [0, 0, 0]
     }
 
-    // when proposed space is negative
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
+
+      // then: items get zero size
       expect(result) == [0, 0, 0]
     }
   }
 
   func test_rangeNodes() {
+    // given: range items
     let items: [ComposeNodeSizing.Sizing] = [
       .range(min: 10, max: 40),
       .range(min: 20, max: 50),
       .range(min: 30, max: 60),
     ]
 
-    // when proposed space is larger than the sum of all max sizes
+    // when: proposed space is larger than the sum of all max sizes
     do {
       let result = Layout.stackLayout(space: 200, items: items)
-      // should allocate to the max size
+
+      // then: should allocate to the max size
       expect(result) == [40, 50, 60]
     }
 
-    // when proposed space is equal to the sum of all max sizes
+    // when: proposed space is equal to the sum of all max sizes
     do {
       let result = Layout.stackLayout(space: 150, items: items)
-      // should allocate to the max size
+
+      // then: should allocate to the max size
       expect(result) == [40, 50, 60]
     }
 
-    // when proposed space is between the sum of all min sizes and the sum of all max sizes
+    // when: proposed space is between the sum of all min sizes and the sum of all max sizes
     do {
       let result = Layout.stackLayout(space: 90, items: items)
-      // should allocate the extra space evenly
+
+      // then: should allocate the extra space evenly
       expect(result) == [20, 30, 40]
     }
 
-    // when proposed space is equal to the sum of all min sizes
+    // when: proposed space is equal to the sum of all min sizes
     do {
       let result = Layout.stackLayout(space: 60, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [10, 20, 30]
     }
 
-    // when proposed space is less than the sum of all min sizes
+    // when: proposed space is less than the sum of all min sizes
     do {
       let result = Layout.stackLayout(space: 40, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [10, 20, 30]
     }
 
-    // when proposed space is zero
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [10, 20, 30]
     }
 
-    // when proposed space is negative
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [10, 20, 30]
     }
   }
 
   func test_fixedNodes_with_flexibleNodes1() {
+    // given: a fixed size item and a flexible item
     let items: [ComposeNodeSizing.Sizing] = [
       .fixed(20),
       .flexible,
     ]
 
-    // when proposed space is larger than the fixed size
+    // when: proposed space is larger than the fixed size
     do {
       let result = Layout.stackLayout(space: 100, items: items)
+
+      // then: the flexible item takes the remaining space
       expect(result) == [20, 80]
     }
 
-    // when proposed space is equal to the fixed size
+    // when: proposed space is equal to the fixed size
     do {
       let result = Layout.stackLayout(space: 20, items: items)
+
+      // then: the flexible item gets zero size
       expect(result) == [20, 0]
     }
 
-    // when proposed space is less than the fixed size
+    // when: proposed space is less than the fixed size
     do {
       let result = Layout.stackLayout(space: 10, items: items)
+
+      // then: the flexible item gets zero size
       expect(result) == [20, 0]
     }
 
-    // when proposed space is zero
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
+
+      // then: the flexible item gets zero size
       expect(result) == [20, 0]
     }
 
-    // when proposed space is negative
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
+
+      // then: the flexible item gets zero size
       expect(result) == [20, 0]
     }
   }
 
   func test_fixedNodes_with_flexibleNodes2() {
+    // given: a fixed size item between two flexible items
     let items: [ComposeNodeSizing.Sizing] = [
       .flexible,
       .fixed(20),
       .flexible,
     ]
 
-    // when proposed space is larger than the fixed size
+    // when: proposed space is larger than the fixed size
     do {
       let result = Layout.stackLayout(space: 100, items: items)
+
+      // then: the flexible items split the remaining space
       expect(result) == [40, 20, 40]
     }
 
-    // when proposed space is equal to the fixed size
+    // when: proposed space is equal to the fixed size
     do {
       let result = Layout.stackLayout(space: 20, items: items)
+
+      // then: the flexible items get zero size
       expect(result) == [0, 20, 0]
     }
 
-    // when proposed space is less than the fixed size
+    // when: proposed space is less than the fixed size
     do {
       let result = Layout.stackLayout(space: 10, items: items)
+
+      // then: the flexible items get zero size
       expect(result) == [0, 20, 0]
     }
 
-    // when proposed space is zero
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
+
+      // then: the flexible items get zero size
       expect(result) == [0, 20, 0]
     }
 
-    // when proposed space is negative
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
+
+      // then: the flexible items get zero size
       expect(result) == [0, 20, 0]
     }
   }
 
   func test_fixedNodes_with_rangeNodes1() {
+    // given: a fixed size item and a range item
     let items: [ComposeNodeSizing.Sizing] = [
       .fixed(20),
       .range(min: 10, max: 30),
     ]
 
-    // when proposed space is larger than the fixed size + max size
+    // when: proposed space is larger than the fixed size + max size
     do {
       let result = Layout.stackLayout(space: 100, items: items)
-      // should allocate to the max size
+
+      // then: should allocate to the max size
       expect(result) == [20, 30]
     }
 
-    // when proposed space is equal to the fixed size + max size
+    // when: proposed space is equal to the fixed size + max size
     do {
       let result = Layout.stackLayout(space: 50, items: items)
-      // should allocate to the max size
+
+      // then: should allocate to the max size
       expect(result) == [20, 30]
     }
 
-    // when proposed space is between the fixed size + min size and the fixed size + max size
+    // when: proposed space is between the fixed size + min size and the fixed size + max size
     do {
       let result = Layout.stackLayout(space: 40, items: items)
+
+      // then: the range item takes the extra space
       expect(result) == [20, 20]
     }
 
-    // when proposed space is equal to the fixed size + min size
+    // when: proposed space is equal to the fixed size + min size
     do {
       let result = Layout.stackLayout(space: 30, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [20, 10]
     }
 
-    // when proposed space is less than the fixed size + min size
+    // when: proposed space is less than the fixed size + min size
     do {
       let result = Layout.stackLayout(space: 20, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [20, 10]
     }
 
-    // when proposed space is zero
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [20, 10]
     }
 
-    // when proposed space is negative
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [20, 10]
     }
   }
 
   func test_fixedNodes_with_rangeNodes2() {
+    // given: a fixed size item and two range items
     let items: [ComposeNodeSizing.Sizing] = [
       .fixed(20),
       .range(min: 10, max: 25),
       .range(min: 20, max: 40),
     ]
 
-    // when proposed space is larger than the max size needed
+    // when: proposed space is larger than the max size needed
     do {
       let result = Layout.stackLayout(space: 120, items: items)
-      // should allocate to the max size
+
+      // then: should allocate to the max size
       expect(result) == [20, 25, 40]
     }
 
-    // when proposed space is equal to the max size needed
+    // when: proposed space is equal to the max size needed
     do {
       let result = Layout.stackLayout(space: 85, items: items)
-      // should allocate to the max size
+
+      // then: should allocate to the max size
       expect(result) == [20, 25, 40]
     }
 
-    // when proposed space is between the min size needed and the max size needed
+    // when: proposed space is between the min size needed and the max size needed
     do {
       let result = Layout.stackLayout(space: 83, items: items)
+
+      // then: node 2 doesn't need the extra space, should allocate more to node 3
       // extra space: 33
       // 33 / 2 = 16.5
-      // node 2 doesn't need the extra space, should allocate more to node 3
       expect(result) == [20, 25, 38]
     }
     do {
       let result = Layout.stackLayout(space: 80, items: items)
+
+      // then: node 2 doesn't need the extra space, should allocate more to node 3
       // extra space: 30
       // 30 / 2 = 15
-      // node 2 doesn't need the extra space, should allocate more to node 3
       expect(result) == [20, 25, 35]
     }
     do {
       let result = Layout.stackLayout(space: 70, items: items)
+
+      // then: should allocate the extra space evenly
       // extra space: 20
       // 20 / 2 = 10
-
-      // should allocate the extra space evenly
       expect(result) == [20, 20, 30]
     }
     do {
       let result = Layout.stackLayout(space: 60, items: items)
+
+      // then: should allocate the extra space evenly
       // extra space: 10
       // 10 / 2 = 5
-
-      // should allocate the extra space evenly
       expect(result) == [20, 15, 25]
     }
 
-    // when proposed space is equal to the min size needed
+    // when: proposed space is equal to the min size needed
     do {
       let result = Layout.stackLayout(space: 50, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [20, 10, 20]
     }
 
-    // when proposed space is less than the min size needed
+    // when: proposed space is less than the min size needed
     do {
       let result = Layout.stackLayout(space: 40, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [20, 10, 20]
     }
 
-    // when proposed space is zero
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [20, 10, 20]
     }
 
-    // when proposed space is negative
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
-      // should allocate to the min size
+
+      // then: should allocate to the min size
       expect(result) == [20, 10, 20]
     }
   }
 
   func test_flexibleNodes_with_rangeNodes() {
+    // given: flexible items mixed with range items
     let items: [ComposeNodeSizing.Sizing] = [
       .flexible,
       .range(min: 10, max: 20),
@@ -387,72 +460,102 @@ class Layout_StackLayout: XCTestCase {
       .range(min: 20, max: 40),
     ]
 
+    // when: proposed space is 120
     do {
       let result = Layout.stackLayout(space: 120, items: items)
+
+      // then: range items get max sizes and flexible items split the remaining space
       // extra space: 90
       // 90 / 4 = 22.5
       expect(result) == [30.0, 20.0, 30.0, 40.0]
     }
 
+    // when: proposed space is 105
     do {
       let result = Layout.stackLayout(space: 105, items: items)
+
+      // then: range items get max sizes and flexible items split the remaining space
       // extra space: 75
       // 75 / 4 = 18.75
       expect(result) == [22.5, 20.0, 22.5, 40.0]
     }
 
+    // when: proposed space is 100
     do {
       let result = Layout.stackLayout(space: 100, items: items)
+
+      // then: range items get max sizes and flexible items split the remaining space
       // extra space: 70
       // 70 / 4 = 17.5
       expect(result) == [20.0, 20.0, 20.0, 40.0]
     }
 
+    // when: proposed space is 90
     do {
       let result = Layout.stackLayout(space: 90, items: items)
+
+      // then: node 2 doesn't need the extra space
       // extra space: 60
       // 60 / 4 = 15
-      // node 2 doesn't need the extra space
       expect(result) == [15 + 5.0 / 3, 20.0, 15 + 5.0 / 3, 35 + 5.0 / 3] as ContiguousArray<CGFloat>
     }
 
+    // when: proposed space is 50
     do {
       let result = Layout.stackLayout(space: 50, items: items)
+
+      // then: the extra space is allocated evenly
       // extra space: 20
       // 20 / 4 = 5
       expect(result) == [5.0, 15.0, 5.0, 25.0]
     }
 
+    // when: proposed space is 40
     do {
       let result = Layout.stackLayout(space: 40, items: items)
+
+      // then: the extra space is allocated evenly
       // extra space: 10
       // 10 / 4 = 2.5
       expect(result) == [2.5, 12.5, 2.5, 22.5]
     }
 
+    // when: proposed space is 30
     do {
       let result = Layout.stackLayout(space: 30, items: items)
+
+      // then: range items get min sizes and flexible items get zero size
       // extra space: 0
       expect(result) == [0, 10, 0, 20]
     }
 
+    // when: proposed space is 20
     do {
       let result = Layout.stackLayout(space: 20, items: items)
+
+      // then: range items get min sizes and flexible items get zero size
       expect(result) == [0, 10, 0, 20]
     }
 
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
+
+      // then: range items get min sizes and flexible items get zero size
       expect(result) == [0, 10, 0, 20]
     }
 
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
+
+      // then: range items get min sizes and flexible items get zero size
       expect(result) == [0, 10, 0, 20]
     }
   }
 
   func test_mixedNodes1() {
+    // given: fixed, range, and flexible items
     let items: [ComposeNodeSizing.Sizing] = [
       .fixed(20),
       .range(min: 10, max: 30),
@@ -460,38 +563,59 @@ class Layout_StackLayout: XCTestCase {
       .range(min: 15, max: 25),
     ]
 
+    // when: proposed space is 100
     do {
       let result = Layout.stackLayout(space: 100, items: items)
+
+      // then: range items get max sizes and the flexible item takes the remaining space
       expect(result) == [20, 30, 25, 25]
     }
 
+    // when: proposed space is 75
     do {
       let result = Layout.stackLayout(space: 75, items: items)
+
+      // then: the extra space is allocated evenly
       expect(result) == [20, 20, 10, 25]
     }
 
+    // when: proposed space is 50
     do {
       let result = Layout.stackLayout(space: 50, items: items)
+
+      // then: the extra space is allocated evenly
       expect(result) == [20, 10 + 5.0 / 3, 5.0 / 3, 15 + 5.0 / 3] as ContiguousArray<CGFloat>
     }
 
+    // when: proposed space is 45
     do {
       let result = Layout.stackLayout(space: 45, items: items)
+
+      // then: range items get min sizes and the flexible item gets zero size
       expect(result) == [20, 10, 0, 15]
     }
 
+    // when: proposed space is 30
     do {
       let result = Layout.stackLayout(space: 30, items: items)
+
+      // then: range items get min sizes and the flexible item gets zero size
       expect(result) == [20, 10, 0, 15]
     }
 
+    // when: proposed space is zero
     do {
       let result = Layout.stackLayout(space: 0, items: items)
+
+      // then: range items get min sizes and the flexible item gets zero size
       expect(result) == [20, 10, 0, 15]
     }
 
+    // when: proposed space is negative
     do {
       let result = Layout.stackLayout(space: -100, items: items)
+
+      // then: range items get min sizes and the flexible item gets zero size
       expect(result) == [20, 10, 0, 15]
     }
   }

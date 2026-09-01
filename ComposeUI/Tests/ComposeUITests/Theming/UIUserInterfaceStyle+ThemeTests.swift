@@ -38,6 +38,7 @@ import ComposeUI
 class UIUserInterfaceStyle_ThemeTests: XCTestCase {
 
   func test_theme() {
+    // then: each interface style maps to the expected theme
     expect(UIUserInterfaceStyle.unspecified.theme) == .light
     expect(UIUserInterfaceStyle.light.theme) == .light
     expect(UIUserInterfaceStyle.dark.theme) == .dark

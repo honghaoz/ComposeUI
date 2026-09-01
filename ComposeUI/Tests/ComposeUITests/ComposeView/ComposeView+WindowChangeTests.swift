@@ -35,6 +35,7 @@ import ChouTiTest
 class ComposeView_WindowChangeTests: XCTestCase {
 
   func test_windowDidChange() throws {
+    // given: a test window and a compose view with render, refresh and animation tracking
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let window = TestWindow()
     #if canImport(UIKit)
@@ -55,6 +56,8 @@ class ComposeView_WindowChangeTests: XCTestCase {
     }
 
     view.frame = frame
+
+    // when: the view is added to the window
     #if canImport(AppKit)
     window.contentView?.addSubview(view)
     #endif
@@ -62,6 +65,7 @@ class ComposeView_WindowChangeTests: XCTestCase {
     window.addSubview(view)
     #endif
 
+    // then: a non-animated render is performed asynchronously
     expect(renderCount) == 0
     expect(refreshCount) == 0
     expect(renderCount).toEventually(beEqual(to: 1))
@@ -69,7 +73,10 @@ class ComposeView_WindowChangeTests: XCTestCase {
     expect(isAnimated) == false
     isAnimated = nil
 
+    // when: the view is removed from the window
     view.removeFromSuperview()
+
+    // then: setting window to nil should not trigger a new render
     expect(renderCount) == 1
     expect(refreshCount) == 1
 
@@ -77,18 +84,22 @@ class ComposeView_WindowChangeTests: XCTestCase {
     expect(renderCount) == 1 // setting window to nil should not trigger a new render
     expect(refreshCount) == 1
 
+    // when: the view is added to the same window again
     #if canImport(AppKit)
     window.contentView?.addSubview(view)
     #endif
     #if canImport(UIKit)
     window.addSubview(view)
     #endif
+
+    // then: adding to the same window again should trigger a new render
     expect(renderCount) == 1
     expect(renderCount).toEventually(beEqual(to: 2)) // adding to the same window again should trigger a new render
     expect(refreshCount) == 2
     expect(isAnimated) == false
     isAnimated = nil
 
+    // when: the view is added to a different window
     let window2 = TestWindow()
     #if canImport(UIKit)
     window.contentScaleFactor = 4
@@ -100,6 +111,8 @@ class ComposeView_WindowChangeTests: XCTestCase {
     #if canImport(UIKit)
     window2.addSubview(view)
     #endif
+
+    // then: adding to a different window should trigger a new render
     expect(renderCount) == 2
     expect(renderCount).toEventually(beEqual(to: 3)) // adding to a different window should trigger a new render
     expect(refreshCount) == 3

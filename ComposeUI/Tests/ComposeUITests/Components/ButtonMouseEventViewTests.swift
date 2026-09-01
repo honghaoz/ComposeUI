@@ -38,6 +38,7 @@ import ChouTiTest
 class ButtonMouseEventViewTests: XCTestCase {
 
   func test_hoverState_mouseEntered() {
+    // given: a button's mouse event view that is not hovering
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -48,13 +49,15 @@ class ButtonMouseEventViewTests: XCTestCase {
 
     expect(mouseEventView.isHovering) == false
 
-    // Simulate mouse entered
+    // when: simulating mouse entered
     mouseEventView.mouseEntered(with: event)
 
+    // then: the view is hovering
     expect(mouseEventView.isHovering) == true
   }
 
   func test_hoverState_mouseExited() {
+    // given: a button's mouse event view that is hovering after mouse entered first
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -63,15 +66,18 @@ class ButtonMouseEventViewTests: XCTestCase {
     let mouseEventView = buttonView.buttonTest.mouseEventView
     let event = createMouseEvent()
 
-    // First enter, then exit
     mouseEventView.mouseEntered(with: event)
     expect(mouseEventView.isHovering) == true
 
+    // when: simulating mouse exited
     mouseEventView.mouseExited(with: event)
+
+    // then: the view is not hovering
     expect(mouseEventView.isHovering) == false
   }
 
   func test_hoverState_mouseMoved() {
+    // given: a button's mouse event view that is not hovering
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -82,13 +88,15 @@ class ButtonMouseEventViewTests: XCTestCase {
 
     expect(mouseEventView.isHovering) == false
 
-    // Mouse move should set hovering to true
+    // when: simulating mouse moved
     mouseEventView.mouseMoved(with: event)
 
+    // then: the mouse move sets hovering to true
     expect(mouseEventView.isHovering) == true
   }
 
   func test_pressGestureRecognizer_mouseDown() {
+    // given: a button's mouse event view in the possible state
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -99,12 +107,15 @@ class ButtonMouseEventViewTests: XCTestCase {
 
     expect(mouseEventView.state) == .possible
 
+    // when: simulating mouse down
     mouseEventView.mouseDown(with: event)
 
+    // then: the gesture state is began
     expect(mouseEventView.state) == .began
   }
 
   func test_pressGestureRecognizer_mouseDragged() {
+    // given: a button's mouse event view
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -113,13 +124,16 @@ class ButtonMouseEventViewTests: XCTestCase {
     let mouseEventView = buttonView.buttonTest.mouseEventView
     let event = createMouseEvent()
 
+    // when: simulating mouse down then mouse dragged
     mouseEventView.mouseDown(with: event)
     mouseEventView.mouseDragged(with: event)
 
+    // then: the gesture state is changed
     expect(mouseEventView.state) == .changed
   }
 
   func test_pressGestureRecognizer_mouseUp() {
+    // given: a button's mouse event view
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -128,13 +142,16 @@ class ButtonMouseEventViewTests: XCTestCase {
     let mouseEventView = buttonView.buttonTest.mouseEventView
     let event = createMouseEvent()
 
+    // when: simulating mouse down then mouse up
     mouseEventView.mouseDown(with: event)
     mouseEventView.mouseUp(with: event)
 
+    // then: the gesture state is ended
     expect(mouseEventView.state) == .ended
   }
 
   func test_pressGestureRecognizer_cancel() {
+    // given: a button's mouse event view
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -142,12 +159,15 @@ class ButtonMouseEventViewTests: XCTestCase {
 
     let mouseEventView = buttonView.buttonTest.mouseEventView
 
+    // when: cancelling the gesture
     mouseEventView.cancel()
 
+    // then: the gesture state is cancelled
     expect(mouseEventView.state) == .cancelled
   }
 
   func test_location_inView() throws {
+    // given: a button view added to a test window
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -155,17 +175,18 @@ class ButtonMouseEventViewTests: XCTestCase {
 
     let mouseEventView = buttonView.buttonTest.mouseEventView
 
-    // Create a test window and add the button view
     let window = TestWindow()
     window.contentView?.addSubview(buttonView)
 
+    // when: getting the location in the button view
     let location = mouseEventView.location(in: buttonView)
 
-    // Should return a valid point (may be zero if no mouse location available)
+    // then: a valid point is returned (may be zero if no mouse location available)
     expect(location).toNot(beNil())
   }
 
   func test_location_inView_nilView() {
+    // given: a button's mouse event view
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -173,12 +194,15 @@ class ButtonMouseEventViewTests: XCTestCase {
 
     let mouseEventView = buttonView.buttonTest.mouseEventView
 
+    // when: getting the location in a nil view
     let location = mouseEventView.location(in: nil)
 
+    // then: the location is zero
     expect(location) == .zero
   }
 
   func test_hoverHandler_callback() {
+    // given: a button's mouse event view with a hover handler recording callbacks
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -189,7 +213,6 @@ class ButtonMouseEventViewTests: XCTestCase {
     var hoverCallbackCount = 0
     var lastHoverState: Bool?
 
-    // Set up hover handler
     mouseEventView.hoverHandler = { _, isHovering in
       hoverCallbackCount += 1
       lastHoverState = isHovering
@@ -197,19 +220,23 @@ class ButtonMouseEventViewTests: XCTestCase {
 
     let event = createMouseEvent()
 
-    // Simulate hover
+    // when: simulating hover by mouse entered
     mouseEventView.mouseEntered(with: event)
 
+    // then: the handler reports hovering
     expect(hoverCallbackCount) == 1
     expect(lastHoverState) == true
 
+    // when: simulating mouse exited
     mouseEventView.mouseExited(with: event)
 
+    // then: the handler reports not hovering
     expect(hoverCallbackCount) == 2
     expect(lastHoverState) == false
   }
 
   func test_pressHandler_callback() {
+    // given: a button's mouse event view with a press handler recording callbacks
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -220,7 +247,6 @@ class ButtonMouseEventViewTests: XCTestCase {
     var pressCallbackCount = 0
     var lastState: GestureRecognizer.State?
 
-    // Set up press handler
     mouseEventView.pressHandler = { view in
       pressCallbackCount += 1
       lastState = view.state
@@ -228,24 +254,30 @@ class ButtonMouseEventViewTests: XCTestCase {
 
     let event = createMouseEvent()
 
-    // Simulate press sequence
+    // when: simulating a press sequence with mouse down
     mouseEventView.mouseDown(with: event)
 
+    // then: the handler reports began
     expect(pressCallbackCount) == 1
     expect(lastState) == .began
 
+    // when: simulating mouse dragged
     mouseEventView.mouseDragged(with: event)
 
+    // then: the handler reports changed
     expect(pressCallbackCount) == 2
     expect(lastState) == .changed
 
+    // when: simulating mouse up
     mouseEventView.mouseUp(with: event)
 
+    // then: the handler reports ended
     expect(pressCallbackCount) == 3
     expect(lastState) == .ended
   }
 
   func test_inheritedMouseEventView_behavior() {
+    // given: a button's mouse event view
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -256,12 +288,13 @@ class ButtonMouseEventViewTests: XCTestCase {
     // Test that it's a subclass of MouseEventView
 //    expect(mouseEventView).to(beAnInstanceOf(MouseEventView.self))
 
-    // Test inherited properties
+    // then: the inherited properties are configured
     expect(mouseEventView.mouseDownCanMoveWindow) == false
     expect(mouseEventView.acceptsFirstMouse(for: nil)) == true
   }
 
   func test_stateTransitions_sequence() {
+    // given: a button's mouse event view in the possible state, for a complete interaction sequence
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -270,20 +303,29 @@ class ButtonMouseEventViewTests: XCTestCase {
     let mouseEventView = buttonView.buttonTest.mouseEventView
     let event = createMouseEvent()
 
-    // Test complete interaction sequence
     expect(mouseEventView.state) == .possible
 
+    // when: simulating mouse down
     mouseEventView.mouseDown(with: event)
+
+    // then: the gesture state is began
     expect(mouseEventView.state) == .began
 
+    // when: simulating mouse dragged
     mouseEventView.mouseDragged(with: event)
+
+    // then: the gesture state is changed
     expect(mouseEventView.state) == .changed
 
+    // when: simulating mouse up
     mouseEventView.mouseUp(with: event)
+
+    // then: the gesture state is ended
     expect(mouseEventView.state) == .ended
   }
 
   func test_multipleHoverEvents() {
+    // given: a button's mouse event view that is not hovering
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in
       Text("Test Button")
@@ -292,21 +334,30 @@ class ButtonMouseEventViewTests: XCTestCase {
     let mouseEventView = buttonView.buttonTest.mouseEventView
     let event = createMouseEvent()
 
-    // Multiple enters should maintain hovering state
     expect(mouseEventView.isHovering) == false
 
+    // when: simulating mouse entered
     mouseEventView.mouseEntered(with: event)
+
+    // then: the view is hovering
     expect(mouseEventView.isHovering) == true
 
+    // when: simulating mouse entered again
     mouseEventView.mouseEntered(with: event)
+
+    // then: multiple enters maintain the hovering state
     expect(mouseEventView.isHovering) == true
 
-    // Exit should turn off hovering
+    // when: simulating mouse exited
     mouseEventView.mouseExited(with: event)
+
+    // then: the exit turns off hovering
     expect(mouseEventView.isHovering) == false
 
-    // Multiple exits should maintain non-hovering state
+    // when: simulating mouse exited again
     mouseEventView.mouseExited(with: event)
+
+    // then: multiple exits maintain the non-hovering state
     expect(mouseEventView.isHovering) == false
   }
 }

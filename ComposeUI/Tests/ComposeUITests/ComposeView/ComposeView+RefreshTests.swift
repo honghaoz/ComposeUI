@@ -36,6 +36,7 @@ import ChouTi
 class ComposeView_RefreshTests: XCTestCase {
 
   func test_refresh() {
+    // given: a compose view with render, refresh and animation tracking
     var renderCount = 0
     var refreshCount = 0
     var isAnimated: Bool?
@@ -51,34 +52,55 @@ class ComposeView_RefreshTests: XCTestCase {
 
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
 
+    // when: the view is refreshed
     view.refresh()
+
+    // then: one render is performed, not animated
     expect(renderCount) == 1
     expect(refreshCount) == 1
     expect(isAnimated) == false // initial render is always not animated
     isAnimated = nil
 
+    // when: the view is refreshed again
     view.refresh()
+
+    // then: another render is performed, animated
     expect(renderCount) == 2
     expect(refreshCount) == 2
     expect(isAnimated) == true
     isAnimated = nil
 
+    // when: the view is refreshed without animation
     view.refresh(animated: false)
+
+    // then: another render is performed, not animated
     expect(renderCount) == 3
     expect(refreshCount) == 3
     expect(isAnimated) == false
     isAnimated = nil
 
+    // when: an animated refresh is requested
     view.setNeedsRefresh(animated: true)
-    expect(renderCount) == 3
-    expect(refreshCount) == 3
-    view.setNeedsRefresh()
-    expect(renderCount) == 3
-    expect(refreshCount) == 3
-    view.setNeedsRefresh(animated: false)
+
+    // then: no refresh is performed immediately
     expect(renderCount) == 3
     expect(refreshCount) == 3
 
+    // when: a refresh is requested with the default animation
+    view.setNeedsRefresh()
+
+    // then: no refresh is performed immediately
+    expect(renderCount) == 3
+    expect(refreshCount) == 3
+
+    // when: a non-animated refresh is requested
+    view.setNeedsRefresh(animated: false)
+
+    // then: no refresh is performed immediately
+    expect(renderCount) == 3
+    expect(refreshCount) == 3
+
+    // then: one merged refresh is performed, not animated
     expect(renderCount).toEventually(beEqual(to: 4))
     expect(refreshCount) == 4
     expect(isAnimated) == false // a non-animated request pins the merged refresh to non-animated
@@ -196,6 +218,7 @@ class ComposeView_RefreshTests: XCTestCase {
   func test_subview_order() {
     // verify that the subviews are in the correct order after a refresh.
 
+    // given: a compose view showing three views in an horizontal stack
     let view1 = BaseView()
     let view2 = BaseView()
     let view3 = BaseView()
@@ -212,15 +235,20 @@ class ComposeView_RefreshTests: XCTestCase {
           .frame(width: 100, height: 100)
       }
     }
+
+    // when: the view is refreshed
     contentView.refresh(animated: false)
 
+    // then: the subviews are in the content order
     expect(contentView.contentView().subviews) == [view1, view2, view3]
 
+    // when: the view is refreshed again
     contentView.refresh(animated: false)
 
+    // then: the subviews keep the same order
     expect(contentView.contentView().subviews) == [view1, view2, view3]
 
-    // change the order of the views
+    // when: the content changes the order of the views and the view is refreshed
     contentView.setContent {
       HStack {
         ViewNode(view3, update: { _, _ in })
@@ -232,6 +260,7 @@ class ComposeView_RefreshTests: XCTestCase {
 
     contentView.refresh(animated: false)
 
+    // then: the subviews are in the new order
     expect(contentView.contentView().subviews) == [view3, view2]
   }
 }

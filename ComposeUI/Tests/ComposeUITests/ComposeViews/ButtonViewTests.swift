@@ -43,11 +43,15 @@ import ChouTiTest
 final class ButtonViewTests: XCTestCase {
 
   func test_buttonState() {
+    // given: a button view
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    // then: the initial button state is normal
     expect(buttonView.buttonTest.buttonState) == .normal
   }
 
   func test_singleTapMode_singleTap() {
+    // given: a button view configured with a tap counter
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var tapCount = 0
@@ -70,7 +74,7 @@ final class ButtonViewTests: XCTestCase {
     )
     #endif
 
-    // down
+    // when: press down
     state = .began
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -78,10 +82,12 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the button is pressed and no tap is triggered
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 0
 
-    // up
+    // when: press up
     state = .ended
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -89,10 +95,12 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the button returns to normal and the tap block is triggered
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 1 // first up triggers the tap block
 
-    // down
+    // when: press down again
     state = .began
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -100,10 +108,12 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the button is pressed and the tap count is unchanged
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 1
 
-    // up
+    // when: press up again
     state = .ended
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -111,11 +121,14 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the button returns to normal and the tap block is triggered again
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 2 // second up triggers the tap block
   }
 
   func test_doubleTapMode_singleTap() {
+    // given: a button view configured with tap and double tap counters and a short double tap interval
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var tapCount = 0
@@ -144,7 +157,7 @@ final class ButtonViewTests: XCTestCase {
 
     buttonView.doubleTapInterval = 0.01
 
-    // down
+    // when: press down
     state = .began
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -152,11 +165,13 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the button is pressed and no blocks are triggered
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 0
     expect(doubleTapCount) == 0
 
-    // up
+    // when: press up
     state = .ended
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -164,6 +179,8 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the tap block is not triggered immediately, only after the double tap window passes
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 0 // first up does not trigger the tap block
     expect(doubleTapCount) == 0
@@ -172,6 +189,7 @@ final class ButtonViewTests: XCTestCase {
   }
 
   func test_doubleTapMode_doubleTap() {
+    // given: a button view configured with tap and double tap counters and a short double tap interval
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var tapCount = 0
@@ -200,7 +218,7 @@ final class ButtonViewTests: XCTestCase {
 
     buttonView.doubleTapInterval = 0.01
 
-    // down
+    // when: first press down
     state = .began
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -208,11 +226,13 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the button is pressed and no blocks are triggered
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 0
     expect(doubleTapCount) == 0
 
-    // up
+    // when: first press up
     state = .ended
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -220,11 +240,13 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the button returns to normal and no blocks are triggered yet
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 0
     expect(doubleTapCount) == 0
 
-    // down
+    // when: second press down within the double tap interval
     state = .began
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -232,11 +254,13 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the button is pressed and no blocks are triggered
     expect(buttonView.buttonTest.buttonState) == .pressed
     expect(tapCount) == 0
     expect(doubleTapCount) == 0
 
-    // up
+    // when: second press up
     state = .ended
     #if canImport(UIKit)
     buttonView.buttonTest.press()
@@ -244,6 +268,8 @@ final class ButtonViewTests: XCTestCase {
     #if canImport(AppKit)
     buttonView.buttonTest.handlePress(with: state)
     #endif
+
+    // then: the double tap block is triggered, not the tap block
     expect(buttonView.buttonTest.buttonState) == .normal
     expect(tapCount) == 0
     expect(doubleTapCount) == 1 // second up triggers the double tap block
@@ -251,17 +277,21 @@ final class ButtonViewTests: XCTestCase {
 
   #if canImport(AppKit)
   func test_performKeyEquivalent_withoutHandler() {
+    // given: a button view without a key equivalent handler
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in Empty() }, onTap: {})
 
     let keyEvent = createMockKeyEvent()
 
-    // should return false and call super when no shouldPerformKeyEquivalent is set
+    // when: performing a key equivalent
     let result = buttonView.performKeyEquivalent(with: keyEvent)
+
+    // then: it should return false and call super when no shouldPerformKeyEquivalent is set
     expect(result) == false
   }
 
   func test_performKeyEquivalent_handlerReturnsFalse() {
+    // given: a button view with a tap counter and a key equivalent handler that returns false
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var tapCount = 0
@@ -275,15 +305,18 @@ final class ButtonViewTests: XCTestCase {
       return false
     }
 
+    // when: performing a key equivalent
     let keyEvent = createMockKeyEvent()
     let result = buttonView.performKeyEquivalent(with: keyEvent)
 
+    // then: it returns false, the handler receives the event, and no tap is triggered
     expect(result) == false
     expect(receivedEvent) === keyEvent
     expect(tapCount) == 0 // should not trigger tap when handler returns false
   }
 
   func test_performKeyEquivalent_handlerReturnsTrue() {
+    // given: a button view with a tap counter and a key equivalent handler that returns true
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var tapCount = 0
@@ -297,9 +330,11 @@ final class ButtonViewTests: XCTestCase {
       return true
     }
 
+    // when: performing a key equivalent
     let keyEvent = createMockKeyEvent()
     let result = buttonView.performKeyEquivalent(with: keyEvent)
 
+    // then: it returns true and the handler receives the event
     expect(result) == true
     expect(receivedEvent) === keyEvent
 
@@ -312,6 +347,7 @@ final class ButtonViewTests: XCTestCase {
   }
 
   func test_performKeyEquivalent_withDoubleTap() {
+    // given: a button view with tap and double tap counters and a key equivalent handler that returns true
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var tapCount = 0
@@ -326,21 +362,27 @@ final class ButtonViewTests: XCTestCase {
 
     let keyEvent = createMockKeyEvent()
 
-    // first key equivalent
+    // when: first key equivalent
     let result1 = buttonView.performKeyEquivalent(with: keyEvent)
+
+    // then: it returns true
     expect(result1) == true
 
-    // second key equivalent - should be treated as separate tap for better UX
+    // when: second key equivalent, should be treated as separate tap for better UX
     // rapid keyboard shortcuts should not trigger double-tap behavior
     let result2 = buttonView.performKeyEquivalent(with: keyEvent)
+
+    // then: it returns true
     expect(result2) == true
 
+    // then: both taps fire and no double tap is triggered
     // wait for async completion
     expect(tapCount).toEventually(beEqual(to: 2))
     expect(doubleTapCount) == 0 // keyboard shortcuts should not trigger double-tap
   }
 
   func test_performKeyEquivalent_buttonStateSequence() {
+    // given: a button view with a key equivalent handler that returns true, starting in the normal state
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in Empty() }, onTap: {})
 
@@ -348,9 +390,11 @@ final class ButtonViewTests: XCTestCase {
 
     expect(buttonView.buttonTest.buttonState) == .normal
 
+    // when: performing a key equivalent
     let keyEvent = createMockKeyEvent()
     let result = buttonView.performKeyEquivalent(with: keyEvent)
 
+    // then: it returns true and the button goes through the pressed state
     expect(result) == true
     expect(buttonView.buttonTest.buttonState) == .pressed
 
@@ -359,6 +403,7 @@ final class ButtonViewTests: XCTestCase {
   }
 
   func test_performKeyEquivalent_multipleHandlerCalls() {
+    // given: a button view with a key equivalent handler that returns true every other call
     let buttonView = ButtonView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     buttonView.configure(content: { _, _ in Empty() }, onTap: {})
 
@@ -370,13 +415,17 @@ final class ButtonViewTests: XCTestCase {
 
     let keyEvent = createMockKeyEvent()
 
-    // First call - should return false
+    // when: first call
     let result1 = buttonView.performKeyEquivalent(with: keyEvent)
+
+    // then: it should return false
     expect(result1) == false
     expect(handlerCallCount) == 1
 
-    // Second call - should return true
+    // when: second call
     let result2 = buttonView.performKeyEquivalent(with: keyEvent)
+
+    // then: it should return true
     expect(result2) == true
     expect(handlerCallCount) == 2
   }
