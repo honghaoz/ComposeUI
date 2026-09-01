@@ -78,6 +78,49 @@ class ComposeView_TraitCollectionDidChangeTests: XCTestCase {
     expect(isAnimated) == false
   }
 
+  func test_traitCollectionDidChange_displayScaleAndThemeChanged() {
+    let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let window = TestWindow()
+
+    var renderCount = 0
+    var isAnimated: Bool?
+    let view = ComposeView {
+      renderCount += 1
+      LayerNode()
+        .animation(.linear())
+        .onUpdate { _, context in
+          isAnimated = context.animationTiming != nil
+        }
+    }
+
+    view.frame = frame
+    window.addSubview(view)
+
+    // initial render when added to window
+    expect(renderCount).toEventually(beEqual(to: 1))
+    expect(isAnimated) == false
+    isAnimated = nil
+
+    let displayScale = view.traitCollection.displayScale
+    expect(view.contentScaleFactor) == displayScale
+
+    // when: a theme change (which requests an animated refresh) and a display scale change (which requests a
+    // non-animated refresh) land in the same run loop window
+    view.overrideUserInterfaceStyle = view.traitCollection.userInterfaceStyle == .dark ? .light : .dark
+    let staleScale: CGFloat = displayScale == 1 ? 2 : 1
+    view.contentScaleFactor = staleScale
+    view.traitCollectionDidChange(nil)
+
+    // then: the new scale is adopted and the merged refresh is performed once, non-animated
+    expect(view.contentScaleFactor) == displayScale
+    expect(renderCount).toEventually(beEqual(to: 2))
+    expect(isAnimated) == false
+
+    // then: no extra refresh follows
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // flush any pending refreshes
+    expect(renderCount) == 2
+  }
+
   func test_traitCollectionDidChange_displayScaleUnchanged() {
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let window = TestWindow()

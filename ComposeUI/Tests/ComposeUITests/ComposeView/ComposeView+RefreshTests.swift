@@ -81,7 +81,60 @@ class ComposeView_RefreshTests: XCTestCase {
 
     expect(renderCount).toEventually(beEqual(to: 4))
     expect(refreshCount) == 4
-    expect(isAnimated) == false // the refresh animation flag should be the last scheduled refresh
+    expect(isAnimated) == false // a non-animated request pins the merged refresh to non-animated
+  }
+
+  func test_setNeedsRefresh_merging() {
+    // given: a compose view that has done its initial render
+    var renderCount = 0
+    var isAnimated: Bool?
+    let view = ComposeView {
+      renderCount += 1
+      LayerNode()
+        .animation(.linear())
+        .onUpdate { _, context in
+          isAnimated = context.animationTiming != nil
+        }
+    }
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    view.refresh()
+    expect(renderCount) == 1
+    expect(isAnimated) == false // initial render is always not animated
+    isAnimated = nil
+
+    // when: a non-animated request is followed by an animated one in the same run loop window
+    view.setNeedsRefresh(animated: false)
+    view.setNeedsRefresh(animated: true)
+
+    // then: one merged refresh is performed, non-animated
+    // a layout pass performs the pending refresh synchronously, so the test does not depend on run loop timing
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    expect(renderCount) == 2
+    expect(isAnimated) == false
+    isAnimated = nil
+
+    // when: an animated request is followed by a non-animated one in the same run loop window
+    view.setNeedsRefresh(animated: true)
+    view.setNeedsRefresh(animated: false)
+
+    // then: one merged refresh is performed, non-animated
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    expect(renderCount) == 3
+    expect(isAnimated) == false
+    isAnimated = nil
+
+    // when: all requests in the same run loop window are animated
+    view.setNeedsRefresh(animated: true)
+    view.setNeedsRefresh(animated: true)
+
+    // then: one merged refresh is performed, animated
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    expect(renderCount) == 4
+    expect(isAnimated) == true
   }
 
   func test_setNeedsRefresh() {

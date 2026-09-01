@@ -695,6 +695,10 @@ open class ComposeView: BaseScrollView {
   /// This method is non-blocking and will return immediately.
   /// The refresh will be performed on the next run loop iteration.
   ///
+  /// Requests made before the refresh is performed are merged into a single refresh. The merged refresh is non-animated
+  /// if any request was non-animated. To bypass the merging, call `refresh(animated:)` directly, which cancels any
+  /// pending request and refreshes with its own animation flag.
+  ///
   /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func setNeedsRefresh(animated: Bool = true) {
     ComposeUI.assert(Thread.isMainThread, "setNeedsRefresh(animated:) must be called on the main thread")
@@ -705,7 +709,10 @@ open class ComposeView: BaseScrollView {
       }
     }
 
-    pendingRefresh = PendingRefresh(isAnimated: animated)
+    // a non-animated request is a correctness requirement (for example, snapping to a new pixel grid on a display
+    // scale change), while an animated one is a preference, so a pending non-animated request is never upgraded
+    // to animated by a later request
+    pendingRefresh = PendingRefresh(isAnimated: animated && (pendingRefresh?.isAnimated ?? true))
   }
 
   private func performPendingRefresh() {
