@@ -34,7 +34,7 @@ import ChouTiTest
 
 class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
 
-  func testSwapRemove() {
+  func test_swapRemove() {
     // given: an array
     var array = [1, 2, 3, 4, 5]
 
@@ -47,7 +47,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   // Test correctness
-  func testSwapRemoveCorrectness() {
+  func test_swapRemoveCorrectness() {
     // given: an array
     var array = [1, 2, 3, 4, 5]
 
@@ -60,7 +60,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   // Test edge cases
-  func testSwapRemoveLastElement() {
+  func test_swapRemoveLastElement() {
     // given: an array
     var array = [1, 2, 3]
 
@@ -74,7 +74,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
 
   // MARK: - Performance tests
 
-  func testPerformanceSwapRemoveBulk() throws {
+  func test_performanceSwapRemoveBulk() throws {
     // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -90,7 +90,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveBulk() throws {
+  func test_performanceRegularRemoveBulk() throws {
     // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -106,7 +106,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceSwapRemoveFirst() throws {
+  func test_performanceSwapRemoveFirst() throws {
     // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -120,7 +120,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveFirst() throws {
+  func test_performanceRegularRemoveFirst() throws {
     // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -134,7 +134,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceSwapRemoveMiddle() throws {
+  func test_performanceSwapRemoveMiddle() throws {
     // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -149,7 +149,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveMiddle() throws {
+  func test_performanceRegularRemoveMiddle() throws {
     // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -164,7 +164,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceSwapRemoveLast() throws {
+  func test_performanceSwapRemoveLast() throws {
     // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -179,7 +179,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveLast() throws {
+  func test_performanceRegularRemoveLast() throws {
     // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -194,7 +194,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceSwapRemoveContiguousArray() throws {
+  func test_performanceSwapRemoveContiguousArray() throws {
     // given: a large contiguous array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
@@ -209,7 +209,7 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
     }
   }
 
-  func testPerformanceRegularRemoveContiguousArray() throws {
+  func test_performanceRegularRemoveContiguousArray() throws {
     // given: a large contiguous array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 

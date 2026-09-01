@@ -38,7 +38,7 @@
 //
 //  class NSLabelTests: XCTestCase {
 //
-//    func testCellClass() {
+//    func test_cellClass() {
 //      // "Optional(ComposeUI.(unknown context at $1039d9be4).TextFieldCell)"
 //      // "Optional(ComposeUI.TextFieldCell)"
 //      let cellClassString = String(describing: NSLabel.cellClass)
@@ -51,7 +51,7 @@
 //      expect(updatedCellClassString.range(of: pattern, options: .regularExpression)) != nil
 //    }
 //
-//    func testVerticalAlignment() {
+//    func test_verticalAlignment() {
 //      let label = NSLabel()
 //      expect(label.verticalAlignment) == .center
 //
@@ -59,7 +59,7 @@
 //      expect(label.verticalAlignment) == .top
 //    }
 //
-//    func testText() {
+//    func test_text() {
 //      let label = NSLabel()
 //      expect(label.text) == ""
 //      expect(label.stringValue) == ""
@@ -73,7 +73,7 @@
 //      expect(label.stringValue) == ""
 //    }
 //
-//    func testMultilineTruncatesLastVisibleLine() {
+//    func test_multilineTruncatesLastVisibleLine() {
 //      let label = NSLabel()
 //      expect(label.multilineTruncatesLastVisibleLine) == false
 //
@@ -81,7 +81,7 @@
 //      expect(label.multilineTruncatesLastVisibleLine) == true
 //    }
 //
-//    func testCommonInit() {
+//    func test_commonInit() {
 //      let label = NSLabel()
 //      expect(label.layerContentsRedrawPolicy) == .onSetNeedsDisplay
 //      expect(label.maximumNumberOfLines) == 1
@@ -106,7 +106,7 @@
 //      expect(label.ignoreHitTest) == true
 //    }
 //
-//    func testSetToSingleLineMode() {
+//    func test_setToSingleLineMode() {
 //      let label = NSLabel()
 //
 //      label.setToSingleLineMode(truncationMode: .none)
@@ -126,7 +126,7 @@
 //      expect(label.multilineTruncatesLastVisibleLine) == false
 //    }
 //
-//    func testSetToMultilineMode() {
+//    func test_setToMultilineMode() {
 //      let label = NSLabel()
 //
 //      label.setToMultilineMode(numberOfLines: 0, lineWrapMode: .byWord, truncatesLastVisibleLine: true)
@@ -140,7 +140,7 @@
 //      expect(label.multilineTruncatesLastVisibleLine) == false
 //    }
 //
-//    func testSetToSelectable() {
+//    func test_setToSelectable() {
 //      let label = NSLabel()
 //      label.setIsSelectable(true)
 //      expect(label.isSelectable) == true
@@ -154,13 +154,13 @@
 //
 //  class TextFieldCellTests: XCTestCase {
 //
-//    func testInit() {
+//    func test_init() {
 //      let cell = TextFieldCell()
 //      expect(cell.horizontalPadding) == 0
 //      expect(cell.verticalAlignment) == .center
 //    }
 //
-//    func testAdjustRect() {
+//    func test_adjustRect() {
 //      let cell = TextFieldCell()
 //      cell.stringValue = "hello world"
 //      cell.font = NSFont.systemFont(ofSize: 32)

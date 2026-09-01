@@ -556,7 +556,7 @@ class CALayer_AnimationsTests: XCTestCase {
       layer.setKeyPathValue("anchorPoint", CGPoint(x: 0, y: 0))
 
       // then: the frame moves to keep the anchor point position in parent the same
-      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0) // anchor point doesn't change
+      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0) // a plain layer takes the new anchor point directly
       expect(layer.frame) == CGRect(x: 225, y: 175, width: 50, height: 50)
     }
 
@@ -575,7 +575,9 @@ class CALayer_AnimationsTests: XCTestCase {
       layer.setKeyPathValue("anchorPoint", CGPoint(x: 0.5, y: 0.5))
 
       // then: the frame moves to keep the anchor point position in parent the same
-      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0) // anchor point doesn't change
+      // the anchor point reads back as (0, 0) because AppKit re-normalizes the backing layer's anchor point to the
+      // macOS default when the view's frame is set
+      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0)
       expect(layer.frame) == CGRect(x: 175, y: 125, width: 50, height: 50)
       expect(view.frame) == layer.frame
     }
@@ -596,7 +598,9 @@ class CALayer_AnimationsTests: XCTestCase {
       layer.setKeyPathValue("anchorPoint", CGPoint(x: 0.5, y: 0.5))
 
       // then: the frame moves to keep the anchor point position in parent the same
-      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0) // anchor point doesn't change
+      // the anchor point reads back as (0, 0) because AppKit re-normalizes the hosted layer's anchor point to the
+      // macOS default when the view's frame is set
+      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0)
       expect(layer.frame) == CGRect(x: 175, y: 125, width: 50, height: 50)
       expect(view.frame) == layer.frame
     }
