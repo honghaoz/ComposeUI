@@ -440,29 +440,35 @@ class VerticalStackNodeTests: XCTestCase {
   }
 
   func test_renderableItemsBoundingRect() {
-    // given: a laid out empty stack
+    // given: an empty stack
     var emptyNode = VStack {}
+
+    // when: laying out the stack
     _ = emptyNode.layout(containerSize: CGSize(width: 10, height: 20), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
     // then: the bounding rect is null since an empty stack has no renderable items
     expect(emptyNode.renderableItemsBoundingRect.isNull) == true
 
-    // given: a laid out stack with only spacers
+    // given: a stack with only spacers
     var spacerNode = VStack {
       Spacer()
     }
+
+    // when: laying out the stack
     _ = spacerNode.layout(containerSize: CGSize(width: 10, height: 20), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
     // then: the bounding rect is null since a stack with only spacers has no renderable items
     expect(spacerNode.renderableItemsBoundingRect.isNull) == true
 
-    // given: a laid out stack with an offset child
+    // given: a stack with an offset child
     var node = VStack {
       LayerNode().frame(width: 10, height: 10)
       LayerNode().frame(width: 10, height: 10)
         .offset(x: 0, y: -5)
         .onUpdate { _, _ in } // wrap in a modifier node to verify the bounding rect is forwarded
     }
+
+    // when: laying out the stack
     _ = node.layout(containerSize: CGSize(width: 10, height: 20), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
     // then: the bounding rect should include the translated child rect

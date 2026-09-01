@@ -97,7 +97,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expectedContext.isRendering = true
     expect(invokedContentUpdateContext) == expectedContext
 
-    // then: expect the lastRenderBounds should NOT consider the scrollers
+    // then: lastRenderBounds does not consider the scrollers
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
 
     // reset

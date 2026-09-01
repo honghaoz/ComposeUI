@@ -103,7 +103,7 @@ class RenderableItemCacheTests: XCTestCase {
     }
 
     // then: the same id string with a different "isFixed" must rebuild
-    // `ComposeNodeId.==` ignores "isFied", but the built item composes differently in the parent's `join` (a fixed
+    // `ComposeNodeId.==` ignores "isFixed", but the built item composes differently in the parent's `join` (a fixed
     // child id is not prefixed), so the cached non-fixed item must not be reused.
     expect(buildCount) == 2
     // the rebuilt item carries the fixed id (a fixed child id is not prefixed by its parent in `join`).

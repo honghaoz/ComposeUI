@@ -305,7 +305,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(view.bounds()) == CGRect(x: 0, y: 10, width: 120, height: 80)
     #endif
 
-    // the animated update verifies the underlying render bounds is correct
+    // the update is animated
     try expect(calledContext.unwrap().animationTiming) != nil
 
     // when: scroll the view again, with the animation behavior set to dynamic so we can verify the render type
