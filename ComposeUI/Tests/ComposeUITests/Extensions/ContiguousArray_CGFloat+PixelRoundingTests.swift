@@ -34,7 +34,7 @@ import ChouTiTest
 
 class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
 
-  func testEmptyArray() {
+  func test_emptyArray() {
     // given: an empty array
     let array: ContiguousArray<CGFloat> = []
 
@@ -42,7 +42,7 @@ class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
     expect(array.rounded(scaleFactor: 2)) == []
   }
 
-  func testArrayWithOneElement() {
+  func test_arrayWithOneElement() {
     // given: an array with one element
     let array: ContiguousArray<CGFloat> = [10.33333]
 
@@ -50,7 +50,7 @@ class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
     expect(array.rounded(scaleFactor: 2)) == [10.33333]
   }
 
-  func testArrayWithMultipleElements() {
+  func test_arrayWithMultipleElements() {
     // given: an array with multiple elements
     let array: ContiguousArray<CGFloat> = [10.3333333333, 10.333333333, 10.3333333333]
 
@@ -58,7 +58,7 @@ class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
     expect(array.rounded(scaleFactor: 2)) == [10.5, 10.5, 9.999999999600002]
   }
 
-  func testArrayWithMoreElements() {
+  func test_arrayWithMoreElements() {
     // given: an array with more elements
     let array: ContiguousArray<CGFloat> = [51.6666666667, 51.6666666667, 51.6666666667, 51.6666666667, 51.6666666667, 51.6666666667]
 
@@ -66,7 +66,7 @@ class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
     expect(array.rounded(scaleFactor: 2)) == [51.5, 51.5, 51.5, 52, 51.5, 52.00000000020002]
   }
 
-  func testArrayWithTooSmallPixelWidths() {
+  func test_arrayWithTooSmallPixelWidths() {
     // given: an array with values smaller than a pixel
     let array: ContiguousArray<CGFloat> = [0.3, 0.3, 0.3]
 
@@ -74,7 +74,7 @@ class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
     expect(array.rounded(scaleFactor: 2)) == [0.3, 0.3, 0.3]
   }
 
-  func testArrayWithTooSmallPixelWidths2() {
+  func test_arrayWithTooSmallPixelWidths2() {
     // given: an array with a single value smaller than a pixel
     let array: ContiguousArray<CGFloat> = [0.3]
 
@@ -82,7 +82,7 @@ class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
     expect(array.rounded(scaleFactor: 2)) == [0.3]
   }
 
-  func testArrayWithTooSmallPixelWidths3() {
+  func test_arrayWithTooSmallPixelWidths3() {
     // given: an array with two values smaller than a pixel
     let array: ContiguousArray<CGFloat> = [0.3, 0.3]
 

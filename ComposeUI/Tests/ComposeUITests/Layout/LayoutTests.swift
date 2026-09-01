@@ -34,7 +34,7 @@ import ComposeUI
 
 class LayoutTests: XCTestCase {
 
-  func testPosition_whenChildSizeIsSmallerThanContainer() {
+  func test_position_whenChildSizeIsSmallerThanContainer() {
     // given: a child size smaller than the container
     let smallSize = CGSize(width: 100, height: 200)
     let containerSize = CGSize(width: 300, height: 500)
@@ -112,7 +112,7 @@ class LayoutTests: XCTestCase {
     }
   }
 
-  func testPosition_whenChildSizeIsBiggerThanContainer() {
+  func test_position_whenChildSizeIsBiggerThanContainer() {
     // given: a child size bigger than the container
     let childSize = CGSize(width: 500, height: 800)
     let containerSize = CGSize(width: 300, height: 500)
