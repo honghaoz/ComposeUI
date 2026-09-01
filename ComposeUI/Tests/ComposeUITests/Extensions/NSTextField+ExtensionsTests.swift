@@ -39,30 +39,54 @@ import ComposeUI
 class NSTextField_ExtensionsTests: XCTestCase {
 
   func test_numberOfLines() {
+    // given: a text field
     let textField = NSTextField()
+
+    // when: maximumNumberOfLines is set
     textField.maximumNumberOfLines = 2
+
+    // then: numberOfLines reflects the value
     expect(textField.numberOfLines) == 2
 
+    // when: numberOfLines is set
     textField.numberOfLines = 3
+
+    // then: numberOfLines is updated
     expect(textField.numberOfLines) == 3
   }
 
   func test_attributedText() {
+    // given: a text field and an attributed string
     let textField = NSTextField()
     let attributedText = NSAttributedString(string: "Hello, World!")
+
+    // when: attributedStringValue is set
     textField.attributedStringValue = attributedText
+
+    // then: attributedText returns the attributed string
     expect(textField.attributedText) == attributedText
 
+    // when: attributedText is set
     textField.attributedText = attributedText
+
+    // then: attributedText returns the attributed string
     expect(textField.attributedText) == attributedText
   }
 
   func test_textAlignment() {
+    // given: a text field
     let textField = NSTextField()
+
+    // when: alignment is set
     textField.alignment = .center
+
+    // then: textAlignment reflects the value
     expect(textField.textAlignment) == .center
 
+    // when: textAlignment is set
     textField.textAlignment = .left
+
+    // then: textAlignment is updated
     expect(textField.textAlignment) == .left
   }
 }

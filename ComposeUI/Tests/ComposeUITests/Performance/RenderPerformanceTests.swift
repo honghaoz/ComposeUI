@@ -56,6 +56,7 @@ class RenderPerformanceTests: XCTestCase {
   // MARK: - Scroll (view-level, full render pass per scroll step)
 
   func test_scroll_flatRows_10000() {
+    // when: scrolling through 10000 flat color rows
     runScrollBenchmark(name: "scroll.flat.10000", rowCount: 10000) { _ in
       ColorNode(.red)
         .frame(width: .flexible, height: Constants.rowHeight)
@@ -63,6 +64,7 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_flatRows_1000() {
+    // when: scrolling through 1000 flat color rows
     runScrollBenchmark(name: "scroll.flat.1000", rowCount: 1000) { _ in
       ColorNode(.red)
         .frame(width: .flexible, height: Constants.rowHeight)
@@ -70,12 +72,14 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_nestedRows_10000() {
+    // when: scrolling through 10000 nested rows
     runScrollBenchmark(name: "scroll.nested.10000", rowCount: 10000) { i in
       Self.makeNestedRow(i)
     }
   }
 
   func test_scroll_nestedRows_10000_up() {
+    // when: scrolling up through 10000 nested rows
     // scrolling up makes new rows enter at the back of the z-order, which is the worst case
     // for z-order maintenance: a back insertion invalidates the "already in order" fast path.
     runScrollBenchmark(name: "scroll.nested.10000.up", rowCount: 10000, scrollUp: true) { i in
@@ -84,6 +88,7 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_flatSmallRows_5000() {
+    // when: scrolling through 5000 flat small rows
     // small rows make many items visible (~105), amplifying the per-item z-order maintenance cost
     runScrollBenchmark(name: "scroll.flatSmall.5000", rowCount: 5000, rowHeight: Constants.smallRowHeight) { _ in
       ColorNode(.red)
@@ -92,6 +97,7 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_flatSmallRows_5000_up() {
+    // when: scrolling up through 5000 flat small rows
     runScrollBenchmark(name: "scroll.flatSmall.5000.up", rowCount: 5000, rowHeight: Constants.smallRowHeight, scrollUp: true) { _ in
       ColorNode(.red)
         .frame(width: .flexible, height: Constants.smallRowHeight)
@@ -101,6 +107,7 @@ class RenderPerformanceTests: XCTestCase {
   // MARK: - Scroll (view-level, recycle pool's payoff)
 
   func test_scroll_viewRows_5000() {
+    // when: scrolling through 5000 unpooled view rows
     // view-backed rows are expensive to create/tear down (unlike layer-backed `ColorNode`)
     runScrollBenchmark(name: "scroll.viewRows.5000", rowCount: 5000) { _ in
       Self.makeViewRow(pooled: false)
@@ -108,6 +115,7 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_viewRowsPooled_5000() {
+    // when: scrolling through 5000 pooled view rows
     runScrollBenchmark(name: "scroll.viewRows.pooled.5000", rowCount: 5000) { _ in
       Self.makeViewRow(pooled: true)
     }
@@ -116,6 +124,7 @@ class RenderPerformanceTests: XCTestCase {
   // MARK: - Scroll (shadow nodes, default-pooled, - measure the pooling payoff vs disabled)
 
   func test_scroll_dropShadowRows_2000_noPool() {
+    // when: scrolling through 2000 drop shadow rows without pooling
     // baseline: pooling disabled, so each scrolled-in row creates a fresh `DropShadowLayer` (mask shape layer + setup).
     runScrollBenchmark(name: "scroll.dropShadow.2000.noPool", rowCount: 2000, poolingEnabled: false) { _ in
       Self.makeDropShadowRow()
@@ -123,6 +132,7 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_dropShadowRows_2000_pooled() {
+    // when: scrolling through 2000 drop shadow rows with pooling
     // DropShadowNode pools by default; leaving rows are recycled instead of recreated.
     runScrollBenchmark(name: "scroll.dropShadow.2000.pooled", rowCount: 2000, poolingEnabled: true) { _ in
       Self.makeDropShadowRow()
@@ -130,6 +140,7 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_dropShadowCutoutRows_2000_noPool() {
+    // when: scrolling through 2000 drop shadow cutout rows without pooling
     // a cutout installs a `CAShapeLayer` mask, so a fresh layer pays that allocation per scrolled-in row.
     runScrollBenchmark(name: "scroll.dropShadowCutout.2000.noPool", rowCount: 2000, poolingEnabled: false) { _ in
       Self.makeDropShadowCutoutRow()
@@ -137,6 +148,7 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_dropShadowCutoutRows_2000_pooled() {
+    // when: scrolling through 2000 drop shadow cutout rows with pooling
     // pooling reuses a layer that already has its mask, and the reset detaches it so the recycled layer is clean.
     runScrollBenchmark(name: "scroll.dropShadowCutout.2000.pooled", rowCount: 2000, poolingEnabled: true) { _ in
       Self.makeDropShadowCutoutRow()
@@ -144,12 +156,14 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_innerShadowRows_2000_noPool() {
+    // when: scrolling through 2000 inner shadow rows without pooling
     runScrollBenchmark(name: "scroll.innerShadow.2000.noPool", rowCount: 2000, poolingEnabled: false) { _ in
       Self.makeInnerShadowRow()
     }
   }
 
   func test_scroll_innerShadowRows_2000_pooled() {
+    // when: scrolling through 2000 inner shadow rows with pooling
     runScrollBenchmark(name: "scroll.innerShadow.2000.pooled", rowCount: 2000, poolingEnabled: true) { _ in
       Self.makeInnerShadowRow()
     }
@@ -158,6 +172,7 @@ class RenderPerformanceTests: XCTestCase {
   // MARK: - Scroll (text views, default-pooled - measure the BaseTextView reuse payoff vs disabled)
 
   func test_scroll_textRows_2000_noPool() {
+    // when: scrolling through 2000 text rows without pooling
     // baseline (pre-reuse behavior): pooling disabled, so each scrolled-in row creates a fresh `BaseTextView`
     // (an NSTextView/UITextView backed by a full TextKit stack), then tears it down when the row leaves.
     runScrollBenchmark(name: "scroll.text.2000.noPool", rowCount: 2000, poolingEnabled: false) { i in
@@ -166,6 +181,7 @@ class RenderPerformanceTests: XCTestCase {
   }
 
   func test_scroll_textRows_2000_pooled() {
+    // when: scrolling through 2000 text rows with pooling
     // TextNode pools its `BaseTextView` by default; a leaving row is reset and recycled for an entering row instead of
     // allocating a new text view + TextKit stack. This is the path added by the text-view reuse change.
     runScrollBenchmark(name: "scroll.text.2000.pooled", rowCount: 2000, poolingEnabled: true) { i in
@@ -181,6 +197,7 @@ class RenderPerformanceTests: XCTestCase {
   /// single pooled run therefore yields both figures: total inserts = creations without pooling, misses = creations with
   /// pooling, hits = allocations the pool avoided.
   func test_scroll_textRows_2000_allocationCounts() {
+    // given: a compose view with 2000 text rows and a counting pool, rendered for the initial fill
     let pool = CountingRenderablePool()
     let view = ComposeView {
       VStack {
@@ -193,6 +210,7 @@ class RenderPerformanceTests: XCTestCase {
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
     view.layoutIfNeeded() // initial fill (all misses: pool starts empty)
 
+    // when: scrolling through the rows
     var offset: CGFloat = 0
     for _ in 0 ..< Constants.scrollSteps {
       offset += Constants.scrollStep
@@ -200,6 +218,7 @@ class RenderPerformanceTests: XCTestCase {
       view.layoutIfNeeded()
     }
 
+    // then: report the text view allocation counts with and without pooling
     let creationsNoPool = pool.hitCount + pool.missCount
     let creationsPooled = pool.missCount
     // hits / (hits + misses): the share of entering rows served from the pool, which equals the reduction in
@@ -211,6 +230,7 @@ class RenderPerformanceTests: XCTestCase {
   // MARK: - Renderable Items (node-level, isolates the tree walk + id mapping)
 
   func test_renderableItems_flatRows_10000() {
+    // given: a laid out stack of 10000 flat color rows
     var node: any ComposeNode = VStack {
       for _ in 0 ..< 10000 {
         ColorNode(.red)
@@ -224,6 +244,7 @@ class RenderPerformanceTests: XCTestCase {
     let contentHeight = node.size.height
     var itemsCount = 0
 
+    // when: measuring renderable items queries across a moving visible window
     let result = measure(warmup: 20, iterations: 500) { i in
       // vary the visible window position to simulate scrolling, using a step that is
       // a non-multiple of row height for varied row churn
@@ -232,10 +253,12 @@ class RenderPerformanceTests: XCTestCase {
       itemsCount = node.renderableItems(in: visibleBounds).count
     }
 
+    // then: report the timings
     report(name: "renderableItems.flat.10000", result: result, extra: "visibleItems: \(itemsCount)")
   }
 
   func test_renderableItems_nestedRows_10000() {
+    // given: a laid out stack of 10000 nested rows
     var node: any ComposeNode = VStack {
       for i in 0 ..< 10000 {
         Self.makeNestedRow(i)
@@ -248,6 +271,7 @@ class RenderPerformanceTests: XCTestCase {
     let contentHeight = node.size.height
     var itemsCount = 0
 
+    // when: measuring renderable items queries across a moving visible window
     let result = measure(warmup: 20, iterations: 500) { i in
       // vary the visible window position to simulate scrolling, using a step that is
       // a non-multiple of row height for varied row churn
@@ -256,6 +280,7 @@ class RenderPerformanceTests: XCTestCase {
       itemsCount = node.renderableItems(in: visibleBounds).count
     }
 
+    // then: report the timings
     report(name: "renderableItems.nested.10000", result: result, extra: "visibleItems: \(itemsCount)")
   }
 
@@ -268,6 +293,7 @@ class RenderPerformanceTests: XCTestCase {
   /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_profile.txt
   /// ```
   func test_profile_scroll_nested() throws {
+    // given: profiling is enabled and a compose view with 10000 nested rows is laid out
     try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
 
     let view = ComposeView {
@@ -282,6 +308,7 @@ class RenderPerformanceTests: XCTestCase {
 
     print("[PROFILE] pid: \(ProcessInfo.processInfo.processIdentifier), scrolling for 30s...")
 
+    // when: scrolling continuously for 30 seconds so a sampling profiler can attach
     var offset: CGFloat = 0
     let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
     let deadline = Date().addingTimeInterval(30)
@@ -308,6 +335,7 @@ class RenderPerformanceTests: XCTestCase {
   /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_flat_profile.txt
   /// ```
   func test_profile_scroll_flatLayers() throws {
+    // given: profiling is enabled and a compose view with 10000 flat small color rows is laid out
     try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
 
     let view = ComposeView {
@@ -323,6 +351,7 @@ class RenderPerformanceTests: XCTestCase {
 
     print("[PROFILE] pid: \(ProcessInfo.processInfo.processIdentifier), scrolling for 30s...")
 
+    // when: scrolling continuously for 30 seconds so a sampling profiler can attach
     var offset: CGFloat = 0
     let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
     let deadline = Date().addingTimeInterval(30)
@@ -347,6 +376,7 @@ class RenderPerformanceTests: XCTestCase {
   /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_view_profile.txt
   /// ```
   func test_profile_scroll_viewRows() throws {
+    // given: profiling is enabled and a compose view with 10000 view rows, pooled per the REUSE flag, is laid out
     try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
 
     let pooled = ProcessInfo.processInfo.environment["REUSE"] == "1"
@@ -363,6 +393,7 @@ class RenderPerformanceTests: XCTestCase {
 
     print("[PROFILE] pid: \(ProcessInfo.processInfo.processIdentifier), pooled: \(pooled), scrolling for 30s...")
 
+    // when: scrolling continuously for 30 seconds so a sampling profiler can attach
     var offset: CGFloat = 0
     let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
     let deadline = Date().addingTimeInterval(30)
@@ -379,6 +410,7 @@ class RenderPerformanceTests: XCTestCase {
   // MARK: - Refresh (view-level, content rebuild + layout incl. text measurement)
 
   func test_refresh_nestedRows_200() {
+    // given: a compose view with 200 nested rows laid out
     let view = ComposeView {
       VStack {
         for i in 0 ..< 200 {
@@ -389,10 +421,12 @@ class RenderPerformanceTests: XCTestCase {
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
     view.layoutIfNeeded()
 
+    // when: measuring repeated non-animated refreshes
     let result = measure(warmup: 3, iterations: 30) { _ in
       view.refresh(animated: false)
     }
 
+    // then: report the timings
     report(name: "refresh.nested.200", result: result)
   }
 

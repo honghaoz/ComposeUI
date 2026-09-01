@@ -47,8 +47,10 @@ final class InnerShadowLayerTests: XCTestCase {
   // MARK: - init
 
   func test_init_setsContentsScale() {
+    // given: a new inner shadow layer
     let layer = InnerShadowLayer()
 
+    // then: the contents scale matches the platform screen scale
     #if canImport(AppKit)
     expect(layer.contentsScale) == NSScreen.main?.backingScaleFactor ?? ComposeUI.Constants.defaultScaleFactor
     #endif
@@ -66,19 +68,26 @@ final class InnerShadowLayerTests: XCTestCase {
   // MARK: - init(layer:)
 
   func test_initWithLayer_copiesCustomProperties() {
-    // when the source has the override set, the copy carries it over
     do {
+      // given: a source layer with the override set
       let source = InnerShadowLayer()
       source.test.supportsInvertsShadowOverride = false
 
+      // when: making a copy of the source layer
       let copy = InnerShadowLayer(layer: source)
+
+      // then: the copy carries the override over
       expect(copy.test.supportsInvertsShadowOverride) == false
     }
 
-    // when the source has no override, the copy is also unset
     do {
+      // given: a source layer with no override
       let source = InnerShadowLayer()
+
+      // when: making a copy of the source layer
       let copy = InnerShadowLayer(layer: source)
+
+      // then: the copy is also unset
       expect(copy.test.supportsInvertsShadowOverride) == nil
     }
   }
@@ -86,11 +95,13 @@ final class InnerShadowLayerTests: XCTestCase {
   // MARK: - Default path (uses `invertsShadow` private API)
 
   func test_update_default_noAnimation() throws {
+    // given: an inner shadow layer with a hole path
     let layer = InnerShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
     let holePath = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil)
 
+    // when: updating without animation timing
     layer.update(
       color: .red,
       opacity: 0.5,
@@ -101,6 +112,7 @@ final class InnerShadowLayerTests: XCTestCase {
       animationTiming: nil
     )
 
+    // then: shadow properties are set without animations and the mask matches the hole path
     expect(layer.invertsShadow) == true
     expect(layer.shadowColor) == Color.red.cgColor
     expect(layer.shadowOpacity) == 0.5
@@ -120,6 +132,7 @@ final class InnerShadowLayerTests: XCTestCase {
   }
 
   func test_update_default_withAnimation() throws {
+    // given: an inner shadow layer with a hole path
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
     defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
 
@@ -128,6 +141,7 @@ final class InnerShadowLayerTests: XCTestCase {
 
     let holePath = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil)
 
+    // when: updating with animation timing
     layer.update(
       color: .red,
       opacity: 0.5,
@@ -138,6 +152,7 @@ final class InnerShadowLayerTests: XCTestCase {
       animationTiming: .easeInEaseOut()
     )
 
+    // then: shadow properties are set with animations and the mask animates to the hole path
     expect(layer.invertsShadow) == true
     expect(layer.shadowPath) == holePath
 
@@ -155,6 +170,7 @@ final class InnerShadowLayerTests: XCTestCase {
   // MARK: - Fallback path (manual punched bigger rect)
 
   func test_update_fallback_noAnimation() throws {
+    // given: a layer forced to the fallback path, with a hole path
     let layer = InnerShadowLayer()
     layer.test.supportsInvertsShadowOverride = false
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -163,6 +179,7 @@ final class InnerShadowLayerTests: XCTestCase {
     let radius: CGFloat = 10
     let offset = CGSize(width: 2, height: -5)
 
+    // when: updating without animation timing
     layer.update(
       color: .red,
       opacity: 0.5,
@@ -173,6 +190,7 @@ final class InnerShadowLayerTests: XCTestCase {
       animationTiming: nil
     )
 
+    // then: shadow properties are set without animation, using the fallback shadow path
     // fallback never sets `invertsShadow`
     expect(layer.invertsShadow) == false
 
@@ -181,7 +199,7 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(layer.shadowRadius) == radius
     expect(layer.shadowOffset) == offset
 
-    // shadowPath is the bigger rect punched by holePath; its bounding box equals the bigger rect
+    // shadowPath is the bigger rect punched by holePath, its bounding box equals the bigger rect
     let expectedHExtra = radius + abs(offset.width) + 20
     let expectedVExtra = radius + abs(offset.height) + 20
     let expectedBiggerBounds = holePath.boundingBoxOfPath.insetBy(dx: -expectedHExtra, dy: -expectedVExtra)
@@ -197,6 +215,7 @@ final class InnerShadowLayerTests: XCTestCase {
   }
 
   func test_update_fallback_withAnimation() throws {
+    // given: a layer forced to the fallback path, with a hole path
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
     defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
 
@@ -208,6 +227,7 @@ final class InnerShadowLayerTests: XCTestCase {
     let radius: CGFloat = 10
     let offset = CGSize(width: 2, height: 5)
 
+    // when: updating with animation timing
     layer.update(
       color: .red,
       opacity: 0.5,
@@ -218,6 +238,7 @@ final class InnerShadowLayerTests: XCTestCase {
       animationTiming: .easeInEaseOut()
     )
 
+    // then: the fallback shadow path is used and shadow properties animate
     expect(layer.invertsShadow) == false
 
     let expectedBiggerBounds = holePath.boundingBoxOfPath.insetBy(
@@ -241,6 +262,7 @@ final class InnerShadowLayerTests: XCTestCase {
   /// The fallback's bigger rect must be computed from `clipPath` (not `holePath`), so the
   /// "spread" case where the clip region is larger than the hole still fully contains the shadow.
   func test_update_fallback_withSpread() throws {
+    // given: a layer forced to the fallback path, with a clip path larger than the hole path
     let layer = InnerShadowLayer()
     layer.test.supportsInvertsShadowOverride = false
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -250,6 +272,7 @@ final class InnerShadowLayerTests: XCTestCase {
     let radius: CGFloat = 10
     let offset = CGSize(width: 2, height: 5)
 
+    // when: updating with both a hole path and a clip path
     layer.update(
       color: .black,
       opacity: 0.5,
@@ -260,6 +283,7 @@ final class InnerShadowLayerTests: XCTestCase {
       animationTiming: nil
     )
 
+    // then: the bigger rect is computed from the clip path and the mask clips to the clip path
     let expectedBiggerBounds = clipPath.boundingBoxOfPath.insetBy(
       dx: -(radius + abs(offset.width) + 20),
       dy: -(radius + abs(offset.height) + 20)

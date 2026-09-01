@@ -44,31 +44,31 @@ import ComposeUI
 class SwiftUI_View_SizeThatFitsTests: XCTestCase {
 
   func test_sizeThatFits() {
-    // when the view has a fixed size
+    // given: a view with a fixed size
     do {
       let view = SwiftUI.Color.black.frame(width: 80, height: 50)
 
-      // when proposing size is larger
+      // then: a larger proposing size returns the fixed size
       expect(
         view.sizeThatFits(CGSize(width: 100, height: 100))
       ) == CGSize(width: 80, height: 50)
 
-      // when proposing size is smaller
+      // then: a smaller proposing size returns the fixed size
       expect(
         view.sizeThatFits(CGSize(width: 50, height: 40))
       ) == CGSize(width: 80, height: 50)
     }
 
-    // when the view has a flexible size
+    // given: a view with a flexible size
     do {
       let view = SwiftUI.Color.black
 
-      // when proposing size is larger
+      // then: a larger proposing size is returned as is
       expect(
         view.sizeThatFits(CGSize(width: 100, height: 100))
       ) == CGSize(width: 100, height: 100)
 
-      // when proposing size is smaller
+      // then: a smaller proposing size is returned as is
       expect(
         view.sizeThatFits(CGSize(width: 50, height: 50))
       ) == CGSize(width: 50, height: 50)
@@ -76,21 +76,30 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
   }
 
   func test_sizeThatFits_zeroProposingSize_fixedView_returnsFixedSize() {
+    // given: a view with a fixed size
     let view = SwiftUI.Color.black.frame(width: 80, height: 50)
+
+    // then: a zero proposing size returns the fixed size
     expect(view.sizeThatFits(.zero)) == CGSize(width: 80, height: 50)
   }
 
   func test_sizeThatFits_largeProposingSize_flexibleView_returnsProposing() {
+    // when: measuring a flexible view with a large proposing size
     let size = SwiftUI.Color.black.sizeThatFits(CGSize(width: 10000, height: 10000))
+
+    // then: the proposing size is returned
     expect(size) == CGSize(width: 10000, height: 10000)
   }
 
   func test_sizeThatFits_multipleSequentialCalls_returnsConsistentSizes() {
     // exercises the pool: first call creates a host, subsequent calls reuse it.
     // verifying each call returns the correct size proves the host is properly reset between calls.
+
+    // given: a fixed size view and a flexible view
     let fixed = SwiftUI.Color.black.frame(width: 80, height: 50)
     let flexible = SwiftUI.Color.black
 
+    // then: repeated measurements return the correct sizes
     for _ in 0 ..< 5 {
       expect(fixed.sizeThatFits(CGSize(width: 200, height: 200))) == CGSize(width: 80, height: 50)
       expect(flexible.sizeThatFits(CGSize(width: 70, height: 90))) == CGSize(width: 70, height: 90)
@@ -99,9 +108,12 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
 
   func test_sizeThatFits_alternatingViewTypes_returnsCorrectSizes() {
     // proves the host's `rootView` is properly swapped between calls (no stale measurement).
+
+    // given: two fixed size views with different sizes
     let small = SwiftUI.Color.black.frame(width: 30, height: 20)
     let large = SwiftUI.Color.black.frame(width: 150, height: 120)
 
+    // then: alternating measurements return each view's own size
     expect(small.sizeThatFits(CGSize(width: 200, height: 200))) == CGSize(width: 30, height: 20)
     expect(large.sizeThatFits(CGSize(width: 200, height: 200))) == CGSize(width: 150, height: 120)
     expect(small.sizeThatFits(CGSize(width: 200, height: 200))) == CGSize(width: 30, height: 20)
@@ -110,8 +122,11 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
 
   func test_sizeThatFits_alternatingProposingSize_fixedView_returnsFixed() {
     // proves the proposing size doesn't get cached between pool reuse calls.
+
+    // given: a view with a fixed size
     let view = SwiftUI.Color.black.frame(width: 80, height: 50)
 
+    // then: alternating proposing sizes always return the fixed size
     expect(view.sizeThatFits(CGSize(width: 10, height: 10))) == CGSize(width: 80, height: 50)
     expect(view.sizeThatFits(CGSize(width: 1000, height: 1000))) == CGSize(width: 80, height: 50)
     expect(view.sizeThatFits(CGSize(width: 10, height: 10))) == CGSize(width: 80, height: 50)
@@ -121,6 +136,8 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
     // a SwiftUI view whose `body` measures a child view re-enters the pool while the outer
     // measurement is still in flight. both measurements must return correct sizes, proving
     // the inner call gets its own host (rather than corrupting the outer's host state).
+
+    // given: a reentrant sizing view that measures a child inside its body
     let recorder = ReentrancyRecorder()
     let view = ReentrantSizingView(
       recorder: recorder,
@@ -128,8 +145,10 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
       proposingSize: CGSize(width: 200, height: 200)
     )
 
+    // when: measuring the outer view
     let outerSize = view.sizeThatFits(CGSize(width: 100, height: 100))
 
+    // then: both the inner and outer measurements return correct sizes
     expect(recorder.bodyCallCount) == 1
     expect(recorder.innerSize) == CGSize(width: 60, height: 40)
     expect(outerSize) == CGSize(width: 30, height: 20) // body returns Color.black.frame(30, 20)
@@ -138,6 +157,8 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
   func test_sizeThatFits_nestedReentrantCalls_returnCorrectSizes() {
     // measure an outer view, whose body measures an inner view, whose body measures a leaf.
     // exercises pool growth beyond a single reentrant level.
+
+    // given: nested reentrant sizing views with recorders
     let innerRecorder = ReentrancyRecorder()
     let outerRecorder = ReentrancyRecorder()
 
@@ -153,8 +174,10 @@ class SwiftUI_View_SizeThatFitsTests: XCTestCase {
       proposingSize: CGSize(width: 150, height: 150)
     )
 
+    // when: measuring the outer view
     let outerSize = outer.sizeThatFits(CGSize(width: 200, height: 200))
 
+    // then: each level measures once and returns the correct size
     expect(outerRecorder.bodyCallCount) == 1
     expect(outerRecorder.innerSize) == CGSize(width: 30, height: 20) // measured `inner` (its body returns 30x20 frame)
     expect(innerRecorder.bodyCallCount) == 1
@@ -200,6 +223,7 @@ private typealias TestHostingController = UIHostingController
 class SwiftUI_View_SizeThatFits_PerformanceTests: XCTestCase {
 
   func test_pool_vs_freshHostAllocation_simpleView() {
+    // given: a simple fixed size view and a warmed up pool
     let iterations = 200
     let view = SwiftUI.Color.black.frame(width: 80, height: 50)
     let proposingSize = CGSize(width: 200, height: 200)
@@ -207,6 +231,7 @@ class SwiftUI_View_SizeThatFits_PerformanceTests: XCTestCase {
     // warm up the pool so the first allocation isn't counted in the measured run.
     _ = view.sizeThatFits(proposingSize)
 
+    // when: measuring pooled sizing and fresh host sizing
     let pooledTime = ChouTiTest.measure(repeat: iterations) {
       _ = view.sizeThatFits(proposingSize)
     }
@@ -216,6 +241,7 @@ class SwiftUI_View_SizeThatFits_PerformanceTests: XCTestCase {
       _ = host.sizeThatFits(in: proposingSize)
     }
 
+    // then: report the timings and verify the pool is not slower
     let pooledMs = pooledTime * 1000
     let freshMs = freshTime * 1000
     let speedup = freshMs / pooledMs
@@ -232,6 +258,7 @@ class SwiftUI_View_SizeThatFits_PerformanceTests: XCTestCase {
   }
 
   func test_pool_vs_freshHostAllocation_complexView() {
+    // given: a complex view hierarchy and a warmed up pool
     let iterations = 200
     let view = SwiftUI.VStack(spacing: 4) {
       SwiftUI.HStack(spacing: 4) {
@@ -250,6 +277,7 @@ class SwiftUI_View_SizeThatFits_PerformanceTests: XCTestCase {
     // warm up
     _ = view.sizeThatFits(proposingSize)
 
+    // when: measuring pooled sizing and fresh host sizing
     let pooledTime = ChouTiTest.measure(repeat: iterations) {
       _ = view.sizeThatFits(proposingSize)
     }
@@ -259,6 +287,7 @@ class SwiftUI_View_SizeThatFits_PerformanceTests: XCTestCase {
       _ = host.sizeThatFits(in: proposingSize)
     }
 
+    // then: report the timings and verify the pool is not slower
     let pooledMs = pooledTime * 1000
     let freshMs = freshTime * 1000
     let speedup = freshMs / pooledMs

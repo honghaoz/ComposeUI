@@ -35,6 +35,7 @@ import ComposeUI
 class ComposeNode_ConditionalTests: XCTestCase {
 
   func test_if() {
+    // given: a node factory that conditionally adds a background or an overlay
     func makeNode(condition: Bool) -> any ComposeNode {
       ViewNode()
         .if(condition) {
@@ -50,24 +51,29 @@ class ComposeNode_ConditionalTests: XCTestCase {
         }
     }
 
-    // when condition is true
+    // when: condition is true
     do {
       var node = makeNode(condition: true)
       node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+
+      // then: the modifier applies and produces two renderable items
       expect(renderableItems.count) == 2
     }
 
-    // when condition is false
+    // when: condition is false
     do {
       var node = makeNode(condition: false)
       node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+
+      // then: the modifier is skipped and produces one renderable item
       expect(renderableItems.count) == 1
     }
   }
 
   func test_if_sameType() {
+    // then: a same-type if chains with other modifiers and the false branch is not called
     _ = LabelNode("")
       .if(true) {
         $0.font(.systemFont(ofSize: 20))
@@ -78,6 +84,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
       }
       .lineBreakMode(.byCharWrapping)
 
+    // then: the same holds with the if modifiers applied after other modifiers
     _ = LabelNode("")
       .lineBreakMode(.byCharWrapping)
       .if(true) {
@@ -90,6 +97,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
   }
 
   func test_if_else() {
+    // given: a node factory with an if branch and an else branch
     func makeNode(condition: Bool) -> any ComposeNode {
       ViewNode()
         .if(condition) {
@@ -111,25 +119,30 @@ class ComposeNode_ConditionalTests: XCTestCase {
         }
     }
 
-    // when condition is true
+    // when: condition is true
     do {
       var node = makeNode(condition: true)
       node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+
+      // then: the then branch applies and produces two renderable items
       expect(renderableItems.count) == 2
     }
 
-    // when condition is false
+    // when: condition is false
     do {
       var node = makeNode(condition: false)
       node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
       let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+
+      // then: the else branch applies, producing one renderable item with the offset
       expect(renderableItems.count) == 1
       expect(renderableItems[0].frame.origin.x) == 2
     }
   }
 
   func test_if_else_sameType() {
+    // then: a same-type if-else runs only the matching branch when chained before other modifiers
     _ = LabelNode("")
       .if(true, then: {
         $0.font(.systemFont(ofSize: 20))
@@ -145,6 +158,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
       })
       .lineBreakMode(.byCharWrapping)
 
+    // then: the same holds with the if-else modifiers applied after other modifiers
     _ = LabelNode("")
       .lineBreakMode(.byCharWrapping)
       .if(true, then: {
@@ -164,8 +178,10 @@ class ComposeNode_ConditionalTests: XCTestCase {
   // MARK: - ifLet Tests
 
   func test_ifLet_withValue() {
+    // given: a non-nil optional color
     let optionalColor: Color? = .red
 
+    // when: applying ifLet and rendering the node
     var node = ViewNode()
       .ifLet(optionalColor) { node, color in
         expect(color) == .red
@@ -176,12 +192,16 @@ class ComposeNode_ConditionalTests: XCTestCase {
 
     node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
     let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+
+    // then: the block receives the value and adds the background
     expect(renderableItems.count) == 2 // ViewNode + ColorNode background
   }
 
   func test_ifLet_withNil() {
+    // given: a nil optional color
     let optionalColor: Color? = nil
 
+    // when: applying ifLet and rendering the node
     var node = ViewNode()
       .ifLet(optionalColor) { node, color in
         fail("shouldn't call")
@@ -192,10 +212,13 @@ class ComposeNode_ConditionalTests: XCTestCase {
 
     node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
     let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+
+    // then: the block is not called and no background is added
     expect(renderableItems.count) == 1 // Only ViewNode, no background
   }
 
   func test_ifLet_sameType() {
+    // then: a same-type ifLet passes the value, skips the nil case, and chains with other modifiers
     _ = LabelNode("")
       .ifLet(20 as CGFloat?) {
         expect($1) == 20
@@ -207,6 +230,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
       }
       .lineBreakMode(.byCharWrapping)
 
+    // then: the same holds with the ifLet modifiers applied after other modifiers
     _ = LabelNode("")
       .lineBreakMode(.byCharWrapping)
       .ifLet(20 as CGFloat?) {
@@ -220,8 +244,10 @@ class ComposeNode_ConditionalTests: XCTestCase {
   }
 
   func test_ifLet_then_else_withValue() {
+    // given: a non-nil optional color
     let optionalColor: Color? = .red
 
+    // when: applying ifLet with then and else blocks and rendering the node
     var node = ViewNode()
       .ifLet(optionalColor, then: { node, color in
         expect(color) == .red
@@ -237,12 +263,16 @@ class ComposeNode_ConditionalTests: XCTestCase {
 
     node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
     let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+
+    // then: the then block receives the value and adds the red background
     expect(renderableItems.count) == 2 // ViewNode + red background
   }
 
   func test_ifLet_then_else_withNil() {
+    // given: a nil optional color
     let optionalColor: Color? = nil
 
+    // when: applying ifLet with then and else blocks and rendering the node
     var node = ViewNode()
       .ifLet(optionalColor, then: { node, color in
         fail("shouldn't call")
@@ -257,10 +287,13 @@ class ComposeNode_ConditionalTests: XCTestCase {
 
     node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
     let renderableItems = node.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
+
+    // then: the else block runs and adds the blue background
     expect(renderableItems.count) == 2 // ViewNode + blue background
   }
 
   func test_ifLet_then_else_sameType() {
+    // then: a same-type ifLet then-else runs only the matching block when chained before other modifiers
     _ = LabelNode("")
       .ifLet(20 as CGFloat?, then: {
         expect($1) == 20
@@ -277,6 +310,7 @@ class ComposeNode_ConditionalTests: XCTestCase {
       })
       .lineBreakMode(.byCharWrapping)
 
+    // then: the same holds with the ifLet then-else modifiers applied after other modifiers
     _ = LabelNode("")
       .lineBreakMode(.byCharWrapping)
       .ifLet(20 as CGFloat?, then: {

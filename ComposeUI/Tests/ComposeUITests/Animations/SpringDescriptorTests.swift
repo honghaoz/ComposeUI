@@ -39,6 +39,7 @@ class SpringDescriptorTests: XCTestCase {
   // MARK: - Physics-based Initialization
 
   func test_init_withPhysicsParameters() {
+    // when: creating a descriptor with physics parameters
     let descriptor = SpringDescriptor(
       initialVelocity: 10,
       mass: 2,
@@ -46,6 +47,7 @@ class SpringDescriptorTests: XCTestCase {
       damping: 20
     )
 
+    // then: the parameters are stored
     expect(descriptor.initialVelocity) == 10
     expect(descriptor.mass) == 2
     expect(descriptor.stiffness) == 300
@@ -53,12 +55,14 @@ class SpringDescriptorTests: XCTestCase {
   }
 
   func test_init_withPhysicsParameters_defaults() {
+    // when: creating a descriptor without an initial velocity
     let descriptor = SpringDescriptor(
       mass: 1,
       stiffness: 100,
       damping: 10
     )
 
+    // then: the initial velocity defaults to 0
     expect(descriptor.initialVelocity) == 0
     expect(descriptor.mass) == 1
     expect(descriptor.stiffness) == 100
@@ -68,12 +72,13 @@ class SpringDescriptorTests: XCTestCase {
   // MARK: - Intuitive Initialization
 
   func test_init_withDampingRatioAndResponse() {
+    // when: creating a descriptor with damping ratio and response
     let descriptor = SpringDescriptor(
       dampingRatio: 0.8,
       response: 0.5
     )
 
-    // Verify that physics parameters are calculated
+    // then: the physics parameters are calculated
     expect(descriptor.initialVelocity) == 0
     expect(descriptor.mass) == 1
 
@@ -87,129 +92,155 @@ class SpringDescriptorTests: XCTestCase {
   }
 
   func test_init_withDampingRatioAndResponse_withInitialVelocity() {
+    // when: creating a descriptor with an initial velocity
     let descriptor = SpringDescriptor(
       dampingRatio: 0.5,
       response: 0.6,
       initialVelocity: 15
     )
 
+    // then: the initial velocity is stored
     expect(descriptor.initialVelocity) == 15
     expect(descriptor.mass) == 1
   }
 
   func test_init_clampsDampingRatio() {
-    // Test lower bound
+    // when: creating a descriptor with a damping ratio below the lower bound
     let descriptorLow = SpringDescriptor(
       dampingRatio: -0.5,
       response: 0.5
     )
+
+    // then: the damping ratio is clamped to 0
     // damping = 4 * π * 0 / response = 0
     expect(descriptorLow.damping) == 0
 
-    // Test upper bound
+    // when: creating a descriptor with a damping ratio above the upper bound
     let descriptorHigh = SpringDescriptor(
       dampingRatio: 1.5,
       response: 0.5
     )
+
+    // then: the damping ratio is clamped to 1
     // damping = 4 * π * 1.0 / 0.5
     let expectedDamping: CGFloat = 4 * .pi * 1.0 / 0.5
     expect(descriptorHigh.damping).to(beApproximatelyEqual(to: expectedDamping, within: 1e-6))
 
-    // Test exact bounds
+    // when: creating a descriptor with a damping ratio exactly at the lower bound
     let descriptorZero = SpringDescriptor(
       dampingRatio: 0,
       response: 0.5
     )
+
+    // then: the damping is 0
     expect(descriptorZero.damping) == 0
 
+    // when: creating a descriptor with a damping ratio exactly at the upper bound
     let descriptorOne = SpringDescriptor(
       dampingRatio: 1.0,
       response: 0.5
     )
+
+    // then: the damping matches the upper bound value
     let expectedDampingOne: CGFloat = 4 * .pi * 1.0 / 0.5
     expect(descriptorOne.damping).to(beApproximatelyEqual(to: expectedDampingOne, within: 1e-6))
   }
 
   func test_init_clampsResponseToMinimum() {
-    // Test very small response
+    // when: creating a descriptor with a very small response
     let descriptorSmall = SpringDescriptor(
       dampingRatio: 0.5,
       response: 0.001
     )
-    // response should be clamped to 0.01
+
+    // then: the response is clamped to 0.01
     let expectedStiffness: CGFloat = pow(2 * .pi / 0.01, 2)
     expect(descriptorSmall.stiffness).to(beApproximatelyEqual(to: expectedStiffness, within: 1e-6))
 
-    // Test zero response
+    // when: creating a descriptor with a zero response
     let descriptorZero = SpringDescriptor(
       dampingRatio: 0.5,
       response: 0
     )
-    // response should be clamped to 0.01
+
+    // then: the response is clamped to 0.01
     expect(descriptorZero.stiffness).to(beApproximatelyEqual(to: expectedStiffness, within: 1e-6))
 
-    // Test negative response
+    // when: creating a descriptor with a negative response
     let descriptorNegative = SpringDescriptor(
       dampingRatio: 0.5,
       response: -0.5
     )
-    // response should be clamped to 0.01
+
+    // then: the response is clamped to 0.01
     expect(descriptorNegative.stiffness).to(beApproximatelyEqual(to: expectedStiffness, within: 1e-6))
   }
 
   // MARK: - Duration Methods
 
   func test_settlingDuration() {
+    // given: a spring descriptor
     let descriptor = SpringDescriptor(
       dampingRatio: 0.8,
       response: 0.5
     )
 
+    // then: the settling duration matches the expected value
     expect(descriptor.settlingDuration()).to(beApproximatelyEqual(to: 0.7714094006693448, within: 1e-6))
 
-    // Fast spring
+    // given: a fast spring
     let fastSpring = SpringDescriptor(
       dampingRatio: 1.0,
       response: 0.2
     )
+
+    // then: the settling duration is short
     expect(fastSpring.settlingDuration()).to(beApproximatelyEqual(to: 0.3, within: 1e-6))
 
-    // Slow spring
+    // given: a slow spring
     let slowSpring = SpringDescriptor(
       dampingRatio: 0.3,
       response: 1.5
     )
+
+    // then: the settling duration is long
     expect(slowSpring.settlingDuration()).to(beApproximatelyEqual(to: 5.71461784505134, within: 1e-6))
   }
 
   func test_perceptualDuration() {
+    // given: a spring descriptor
     let descriptor = SpringDescriptor(
       dampingRatio: 0.7,
       response: 0.6
     )
 
+    // then: the perceptual duration matches the expected value
     expect(descriptor.perceptualDuration()).to(beApproximatelyEqual(to: 0.8159891974978289, within: 1e-6))
   }
 
   func test_perceptualDuration_isReasonable() {
+    // given: a spring descriptor
     let descriptor = SpringDescriptor(
       dampingRatio: 0.8,
       response: 0.5
     )
 
+    // when: computing the perceptual and settling durations
     let perceptual = descriptor.perceptualDuration()
     let settling = descriptor.settlingDuration()
 
-    // Perceptual duration should be less than or equal to settling duration
+    // then: the perceptual duration is less than or equal to the settling duration
     expect(perceptual) <= settling
   }
 
   func test_duration_withEpsilon() throws {
+    // given: a spring descriptor
     let descriptor = SpringDescriptor(
       dampingRatio: 0.6,
       response: 0.5
     )
 
+    // then: the duration for the epsilon matches the expected value
     try expect(
       descriptor.duration(epsilon: 0.005).unwrap()
     ).to(
@@ -220,6 +251,7 @@ class SpringDescriptorTests: XCTestCase {
   // MARK: - Hashable
 
   func test_hashable() {
+    // given: two equal descriptors and a different one
     let descriptor1 = SpringDescriptor(
       initialVelocity: 5,
       mass: 1,
@@ -241,62 +273,71 @@ class SpringDescriptorTests: XCTestCase {
       damping: 15
     )
 
-    // Equal descriptors should be equal
+    // then: equal descriptors are equal with the same hash
     expect(descriptor1) == descriptor2
     expect(descriptor1.hashValue) == descriptor2.hashValue
 
-    // Different descriptors should not be equal
+    // then: different descriptors are not equal
     expect(descriptor1) != descriptor3
   }
 
   // MARK: - Real-world Examples
 
   func test_bouncySpring() {
+    // given: a bouncy spring with a low damping ratio
     let bouncy = SpringDescriptor(
       dampingRatio: 0.3,
       response: 0.5
     )
 
+    // then: the physics parameters are positive
     expect(bouncy.mass) == 1
     expect(bouncy.stiffness) > 0
     expect(bouncy.damping) > 0
 
-    // Bouncy springs should have lower damping relative to stiffness
+    // then: bouncy springs have lower damping relative to stiffness
     let criticalDamping = 2 * sqrt(bouncy.mass * bouncy.stiffness)
     expect(bouncy.damping) < criticalDamping
   }
 
   func test_criticallyDampedSpring() {
+    // given: a critically damped spring
     let criticallyDamped = SpringDescriptor(
       dampingRatio: 1.0,
       response: 0.5
     )
 
+    // then: the mass and stiffness are set
     expect(criticallyDamped.mass) == 1
     expect(criticallyDamped.stiffness) > 0
 
+    // then: the damping is the critical damping
     // For critically damped: damping = 2 * sqrt(mass * stiffness)
     let criticalDamping: CGFloat = 2 * sqrt(criticallyDamped.mass * criticallyDamped.stiffness)
     expect(criticallyDamped.damping).to(beApproximatelyEqual(to: criticalDamping, within: 1e-6))
   }
 
   func test_fastResponsiveSpring() {
+    // given: a fast responsive spring
     let fast = SpringDescriptor(
       dampingRatio: 0.8,
       response: 0.3
     )
 
+    // then: the spring settles quickly
     let duration = fast.settlingDuration()
-    expect(duration) < 1.0 // Should settle quickly
+    expect(duration) < 1.0
   }
 
   func test_slowHeavySpring() {
+    // given: a slow heavy spring
     let slow = SpringDescriptor(
       dampingRatio: 0.7,
       response: 1.5
     )
 
+    // then: the spring takes longer to settle
     let duration = slow.settlingDuration()
-    expect(duration) > 1.0 // Should take longer to settle
+    expect(duration) > 1.0
   }
 }

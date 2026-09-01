@@ -45,6 +45,7 @@ import ChouTiTest
 final class DropShadowLayerTests: XCTestCase {
 
   func test_update_clearsMaskWhenCutoutRemoved() throws {
+    // given: a layer updated with a cutout, with an animation added on the mask
     let layer = DropShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -66,7 +67,7 @@ final class DropShadowLayerTests: XCTestCase {
     mask.add(animation, forKey: "path")
     expect(mask.animationKeys()?.isEmpty) == false
 
-    // updating without a cutout clears the previously installed mask, so the rendered state matches the inputs.
+    // when: updating without a cutout
     layer.update(
       color: .black,
       opacity: 0.5,
@@ -76,6 +77,8 @@ final class DropShadowLayerTests: XCTestCase {
       cutoutPath: nil,
       animationTiming: nil
     )
+
+    // then: the previously installed mask is cleared, so the rendered state matches the inputs
     expect(layer.mask) == nil
     expect(mask.animationKeys() ?? []) == []
   }

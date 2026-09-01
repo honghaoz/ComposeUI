@@ -36,27 +36,39 @@ class ThemedTests: XCTestCase {
 
   func test() {
     do {
+      // given: a themed value with different light and dark values
       let themed = Themed(light: Color.red, dark: Color.blue)
+
+      // then: it resolves to the matching value for each theme
       expect(themed.resolve(for: .light)) == Color.red
       expect(themed.resolve(for: .dark)) == Color.blue
     }
 
     do {
+      // given: a themed value with a single value
       let themed = Themed(Color.red)
+
+      // then: it resolves to the same value for both themes
       expect(themed.resolve(for: .light)) == Color.red
       expect(themed.resolve(for: .dark)) == Color.red
     }
   }
 
   func test_equal() {
+    // given: two themed values with the same light and dark values
     let themed1 = Themed(light: Color.red, dark: Color.blue)
     let themed2 = Themed(light: Color.red, dark: Color.blue)
+
+    // then: they are equal
     expect(themed1) == themed2
   }
 
   func test_hashable() {
+    // given: two themed values with the same light and dark values
     let themed1 = Themed(light: Color.red, dark: Color.blue)
     let themed2 = Themed(light: Color.red, dark: Color.blue)
+
+    // then: they have the same hash value
     expect(themed1.hashValue) == themed2.hashValue
   }
 }

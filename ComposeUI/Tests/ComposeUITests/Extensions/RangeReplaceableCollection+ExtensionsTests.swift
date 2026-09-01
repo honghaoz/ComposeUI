@@ -35,26 +35,39 @@ import ChouTiTest
 class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
 
   func testSwapRemove() {
+    // given: an array
     var array = [1, 2, 3, 4, 5]
+
+    // when: swap removing an element
     let removed = array.swapRemove(at: 2)
+
+    // then: the element is removed and the last element takes its place
     expect(removed) == 3
     expect(array) == [1, 2, 5, 4]
   }
 
   // Test correctness
   func testSwapRemoveCorrectness() {
+    // given: an array
     var array = [1, 2, 3, 4, 5]
+
+    // when: swap removing an element
     let removed = array.swapRemove(at: 1)
 
+    // then: the element is removed and the last element takes its place
     expect(removed) == 2
     expect(array) == [1, 5, 3, 4]
   }
 
   // Test edge cases
   func testSwapRemoveLastElement() {
+    // given: an array
     var array = [1, 2, 3]
+
+    // when: swap removing the last element
     let removed = array.swapRemove(at: 2)
 
+    // then: the element is removed and the remaining order is unchanged
     expect(removed) == 3
     expect(array) == [1, 2]
   }
@@ -62,11 +75,13 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   // MARK: - Performance tests
 
   func testPerformanceSwapRemoveBulk() throws {
+    // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
 
+    // when: measuring swap removing half of the elements
     measure {
       var testArray = array
       for i in stride(from: 0, to: size / 2, by: 1) {
@@ -76,11 +91,13 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveBulk() throws {
+    // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
 
+    // when: measuring regular removing half of the elements
     measure {
       var testArray = array
       for i in stride(from: 0, to: size / 2, by: 1) {
@@ -90,11 +107,13 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceSwapRemoveFirst() throws {
+    // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
 
+    // when: measuring swap removing the first element
     measure {
       var testArray = array
       _ = testArray.swapRemove(at: 0)
@@ -102,11 +121,13 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveFirst() throws {
+    // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
 
+    // when: measuring regular removing the first element
     measure {
       var testArray = array
       _ = testArray.remove(at: 0)
@@ -114,12 +135,14 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceSwapRemoveMiddle() throws {
+    // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
     let middleIndex = size / 2
 
+    // when: measuring swap removing the middle element
     measure {
       var testArray = array
       _ = testArray.swapRemove(at: middleIndex)
@@ -127,12 +150,14 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveMiddle() throws {
+    // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
     let middleIndex = size / 2
 
+    // when: measuring regular removing the middle element
     measure {
       var testArray = array
       _ = testArray.remove(at: middleIndex)
@@ -140,12 +165,14 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceSwapRemoveLast() throws {
+    // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
     let lastIndex = size - 1
 
+    // when: measuring swap removing the last element
     measure {
       var testArray = array
       _ = testArray.swapRemove(at: lastIndex)
@@ -153,12 +180,14 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveLast() throws {
+    // given: a large array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = Array(0 ..< size)
     let lastIndex = size - 1
 
+    // when: measuring regular removing the last element
     measure {
       var testArray = array
       _ = testArray.remove(at: lastIndex)
@@ -166,12 +195,14 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceSwapRemoveContiguousArray() throws {
+    // given: a large contiguous array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = ContiguousArray(0 ..< size)
     let middleIndex = size / 2
 
+    // when: measuring swap removing the middle element
     measure {
       var testArray = array
       _ = testArray.swapRemove(at: middleIndex)
@@ -179,12 +210,14 @@ class RangeReplaceableCollection_ExtensionsTests: XCTestCase {
   }
 
   func testPerformanceRegularRemoveContiguousArray() throws {
+    // given: a large contiguous array
     try skipIf(ProcessInfo.isRunningInGitHubActions, "Skipping performance tests in GitHub Actions")
 
     let size = 100000
     let array = ContiguousArray(0 ..< size)
     let middleIndex = size / 2
 
+    // when: measuring regular removing the middle element
     measure {
       var testArray = array
       _ = testArray.remove(at: middleIndex)

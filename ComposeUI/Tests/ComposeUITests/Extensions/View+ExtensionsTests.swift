@@ -43,6 +43,7 @@ import ChouTiTest
 class View_ExtensionsTests: XCTestCase {
 
   func test_intrinsicSize_usesSizeThatFits() {
+    // given: a view with stubbed sizing values that translates autoresizing mask into constraints
     #if canImport(AppKit)
     let view = IntrinsicSizeView(fittingSize: CGSize(width: 11, height: 22))
     #endif
@@ -56,11 +57,15 @@ class View_ExtensionsTests: XCTestCase {
 
     view.translatesAutoresizingMaskIntoConstraints = true
 
+    // when: measuring the intrinsic size
     let size = view.intrinsicSize(for: CGSize(width: 100, height: 200))
+
+    // then: the size that fits value is used
     expect(size) == CGSize(width: 11, height: 22)
   }
 
   func test_intrinsicSize_usesSystemLayoutSizeFitting() {
+    // given: a view with stubbed sizing values that does not translate autoresizing mask into constraints
     #if canImport(AppKit)
     let view = IntrinsicSizeView(fittingSize: CGSize(width: 33, height: 44))
     #endif
@@ -74,7 +79,10 @@ class View_ExtensionsTests: XCTestCase {
 
     view.translatesAutoresizingMaskIntoConstraints = false
 
+    // when: measuring the intrinsic size
     let size = view.intrinsicSize(for: CGSize(width: 100, height: 200))
+
+    // then: the system layout fitting size is used
     expect(size) == CGSize(width: 33, height: 44)
   }
 }

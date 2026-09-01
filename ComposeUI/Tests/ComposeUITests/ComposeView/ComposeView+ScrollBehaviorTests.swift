@@ -35,8 +35,8 @@ import ComposeUI
 class ComposeView_ScrollBehaviorTests: XCTestCase {
 
   func test_scrollBehavior() {
-    // when content size is smaller than bounds size
     do {
+      // given: a rendered view whose content size is smaller than bounds size
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
@@ -44,45 +44,51 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // expect the view is not scrollable since the content size is smaller than bounds size
+      // then: the view is not scrollable since the content size is smaller than bounds size
       expect(contentView.isScrollable) == false
 
-      // when set to always scrollable
+      // when: set to always scrollable
       contentView.scrollBehavior = .always
       contentView.refresh(animated: false)
+
+      // then: the view is scrollable and always bounces
       expect(contentView.isScrollable) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
 
-      // when set to never scrollable
+      // when: set to never scrollable
       contentView.scrollBehavior = .never
       contentView.refresh(animated: false)
+
+      // then: the view is not scrollable and does not bounce
       expect(contentView.isScrollable) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.scrollBehavior = .manual
       contentView.refresh(animated: false)
-      // expect the view's scrollable behavior is not changed
+
+      // then: the view's scrollable behavior is not changed
       expect(contentView.isScrollable) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
-      // when manually set the scrollable behavior
+      // when: manually set the scrollable behavior and refresh
       contentView.isScrollable = true
       contentView.alwaysBounceHorizontal = true
       contentView.alwaysBounceVertical = true
 
-      // expect the view's scrollable behavior is not changed after refresh
       contentView.refresh(animated: false)
+
+      // then: the view's scrollable behavior is not changed after refresh
       expect(contentView.isScrollable) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
     }
 
-    // when content size is equal to bounds size
     do {
+      // given: a rendered view whose content size is equal to bounds size
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
@@ -90,45 +96,51 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // expect the view is not scrollable since the content size is equal to bounds size
+      // then: the view is not scrollable since the content size is equal to bounds size
       expect(contentView.isScrollable) == false
 
-      // when set to always scrollable
+      // when: set to always scrollable
       contentView.scrollBehavior = .always
       contentView.refresh(animated: false)
+
+      // then: the view is scrollable and always bounces
       expect(contentView.isScrollable) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
 
-      // when set to never scrollable
+      // when: set to never scrollable
       contentView.scrollBehavior = .never
       contentView.refresh(animated: false)
+
+      // then: the view is not scrollable and does not bounce
       expect(contentView.isScrollable) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.scrollBehavior = .manual
       contentView.refresh(animated: false)
-      // expect the view's scrollable behavior is not changed
+
+      // then: the view's scrollable behavior is not changed
       expect(contentView.isScrollable) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
-      // when manually set the scrollable behavior
+      // when: manually set the scrollable behavior and refresh
       contentView.isScrollable = true
       contentView.alwaysBounceHorizontal = true
       contentView.alwaysBounceVertical = true
 
-      // expect the view's scrollable behavior is not changed after refresh
       contentView.refresh(animated: false)
+
+      // then: the view's scrollable behavior is not changed after refresh
       expect(contentView.isScrollable) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
     }
 
-    // when content size is larger than bounds size
     do {
+      // given: a rendered view whose content size is larger than bounds size
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
@@ -136,38 +148,44 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       }
       contentView.refresh(animated: false)
 
-      // expect the view is scrollable since the content size is larger than bounds size
+      // then: the view is scrollable since the content size is larger than bounds size
       expect(contentView.isScrollable) == true
 
-      // when set to never scrollable
+      // when: set to never scrollable
       contentView.scrollBehavior = .never
       contentView.refresh(animated: false)
+
+      // then: the view is not scrollable and does not bounce
       expect(contentView.isScrollable) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
-      // when set to always scrollable
+      // when: set to always scrollable
       contentView.scrollBehavior = .always
       contentView.refresh(animated: false)
+
+      // then: the view is scrollable and always bounces
       expect(contentView.isScrollable) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.scrollBehavior = .manual
       contentView.refresh(animated: false)
-      // expect the view's scrollable behavior is not changed
+
+      // then: the view's scrollable behavior is not changed
       expect(contentView.isScrollable) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
 
-      // when manually set the scrollable behavior
+      // when: manually set the scrollable behavior and refresh
       contentView.isScrollable = false
       contentView.alwaysBounceHorizontal = false
       contentView.alwaysBounceVertical = false
 
-      // expect the view's scrollable behavior is not changed after refresh
       contentView.refresh(animated: false)
+
+      // then: the view's scrollable behavior is not changed after refresh
       expect(contentView.isScrollable) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false

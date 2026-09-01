@@ -35,93 +35,138 @@ import ChouTiTest
 class ComposeNodeIdTests: XCTestCase {
 
   func test_standard() {
+    // given: a standard id for the color node
     let id = ComposeNodeId.standard(.color)
+
+    // then: the id string is the short code
     expect(id.id) == "C"
   }
 
   func test_identity_ignoresIsFixed() {
+    // given: two custom ids with the same string but different isFixed flags
     let nonFixed = ComposeNodeId.custom("x", isFixed: false)
     let fixed = ComposeNodeId.custom("x", isFixed: true)
 
+    // then: the ids are equal and hash the same
     expect(nonFixed) == fixed
     expect(nonFixed.hashValue) == fixed.hashValue
 
+    // when: both ids are used as dictionary keys
     var map: [ComposeNodeId: Int] = [:]
     map[nonFixed] = 1
     map[fixed] = 2
+
+    // then: they collide into a single entry
     expect(map.count) == 1
     expect(map[nonFixed]) == 2
 
-    // different id strings remain distinct.
+    // then: different id strings remain distinct
     expect(ComposeNodeId.custom("x")) != ComposeNodeId.custom("y")
   }
 
   func test_custom() {
+    // given: a custom id
     let id = ComposeNodeId.custom("test")
+
+    // then: the id string matches
     expect(id.id) == "test"
 
+    // given: a parent id
     let parentId = ComposeNodeId.custom("parent")
+
+    // when: joining without a suffix
     do {
       let childId = parentId.join(with: id)
+
+      // then: the joined id concatenates parent and child ids
       expect(childId.id) == "parent|test"
     }
+
+    // when: joining with a suffix
     do {
       let childId = parentId.join(with: id, suffix: "suffix")
+
+      // then: the joined id includes the suffix
       expect(childId.id) == "parent|suffix|test"
     }
   }
 
   func test_join_hashMatchesDirectId() {
+    // given: a parent id and a child id
     let parentId = ComposeNodeId.custom("parent")
     let childId = ComposeNodeId.custom("test")
 
+    // when: joining without a suffix
     do {
       let joinedId = parentId.join(with: childId)
       let directId = ComposeNodeId.custom("parent|test")
+
+      // then: the joined id equals and hashes the same as the direct id
       expect(joinedId) == directId
       expect(joinedId.hashValue) == directId.hashValue
 
+      // when: both ids are used as dictionary keys
       var map: [ComposeNodeId: Int] = [:]
       map[joinedId] = 1
       map[directId] = 2
+
+      // then: they collide into a single entry
       expect(map.count) == 1
       expect(map[joinedId]) == 2
     }
 
+    // when: joining with a suffix
     do {
       let joinedId = parentId.join(with: childId, suffix: "suffix")
       let directId = ComposeNodeId.custom("parent|suffix|test")
+
+      // then: the joined id equals and hashes the same as the direct id
       expect(joinedId) == directId
       expect(joinedId.hashValue) == directId.hashValue
     }
   }
 
   func test_join_deepHashMatchesDirectId() {
+    // given: a root id
     var id = ComposeNodeId.custom("root")
     var expectedId = "root"
 
+    // when: joining 20 levels of children with suffixes
     for index in 0 ..< 20 {
       let childId = ComposeNodeId.custom("child-\(index)")
       id = id.join(with: childId, suffix: "suffix-\(index)")
       expectedId += "|suffix-\(index)|child-\(index)"
     }
 
+    // then: the deep joined id equals and hashes the same as the direct id
     let directId = ComposeNodeId.custom(expectedId)
     expect(id) == directId
     expect(id.hashValue) == directId.hashValue
   }
 
   func test_custom_fixed() {
+    // given: a fixed custom id
     let id = ComposeNodeId.custom("test", isFixed: true)
+
+    // then: the id string matches
     expect(id.id) == "test"
 
+    // given: a non-fixed parent id
     let parentId = ComposeNodeId.custom("parent", isFixed: false)
+
+    // when: joining without a suffix
     do {
       let childId = parentId.join(with: id)
+
+      // then: the fixed id is not prefixed by the parent
       expect(childId.id) == "test"
     }
+
+    // when: joining with a suffix
     do {
       let childId = parentId.join(with: id, suffix: "suffix")
+
+      // then: the fixed id is not prefixed by the parent
       expect(childId.id) == "test"
     }
   }
@@ -278,10 +323,11 @@ class ComposeNodeIdPerformanceTests: XCTestCase {
   // MARK: - Performance Tests
 
   func test_creationPerformance() {
-    // test creating deep hierarchies
+    // given: iteration and depth settings for creating deep hierarchies
     let hierarchyDepth = 10
     let iterations = 10000
 
+    // when: measuring deep id creation with each implementation
     let stringIdTime = ChouTiTest.measure(repeat: iterations) {
       var id = StringBasedNodeId(id: "AA", isFixed: false)
       for i in 1 ... hierarchyDepth {
@@ -314,6 +360,7 @@ class ComposeNodeIdPerformanceTests: XCTestCase {
       }
     }
 
+    // then: print the performance comparison
     let stringMs = stringIdTime * 1000
     let nestedEnumMs = nestedEnumIdTime * 1000
     let nestedEnumId2Ms = nestedEnumId2Time * 1000
@@ -329,10 +376,11 @@ class ComposeNodeIdPerformanceTests: XCTestCase {
   }
 
   func test_hashPerformance() {
-    // test hashing deep hierarchies
+    // given: iteration and depth settings for hashing deep hierarchies
     let hierarchyDepth = 10
     let iterations = 10000
 
+    // when: building a deep id and measuring hashing for each implementation
     var stringBasedIds = [String: Int]()
     var stringBasedId = StringBasedNodeId(id: "AA", isFixed: false)
     for i in 1 ... hierarchyDepth {
@@ -373,6 +421,7 @@ class ComposeNodeIdPerformanceTests: XCTestCase {
       linkedListBasedIds[linkedListBasedId] = 1
     }
 
+    // then: print the performance comparison
     let stringMs = stringIdTime * 1000
     let nestedEnumMs = nestedEnumIdTime * 1000
     let nestedEnumId2Ms = nestedEnumId2Time * 1000

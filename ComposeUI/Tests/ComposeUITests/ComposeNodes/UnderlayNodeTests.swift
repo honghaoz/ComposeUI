@@ -37,6 +37,7 @@ import ChouTiTest
 class UnderlayNodeTests: XCTestCase {
 
   func test() {
+    // given: a color node with an underlay and two backgrounds
     var content = ColorNode(.red)
       .underlay {
         ColorNode(.blue)
@@ -44,8 +45,11 @@ class UnderlayNodeTests: XCTestCase {
       .background(alignment: .center, content: { ColorNode(.green) })
       .background(ColorNode(.green))
 
+    // when: laying out and getting renderable items
     content.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
     let items = content.renderableItems(in: CGRect(x: 0, y: 0, width: 50, height: 50))
+
+    // then: four items are provided in the expected order
     guard items.count == 4 else {
       fail("Expected 4 items, got \(items.count)")
       return
@@ -58,25 +62,28 @@ class UnderlayNodeTests: XCTestCase {
   }
 
   func test_renderableItemsBoundingRect() {
+    // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
-    // when the underlay node is bigger than the node, the bounding rect should include the underlay rect
     do {
+      // given: a laid out node with an underlay bigger than the node
       var node = ColorNode(.red).underlay {
         ColorNode(.blue).frame(width: 120, height: 120)
       }
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // then: the bounding rect should include the underlay rect
       expect(node.renderableItemsBoundingRect) == CGRect(x: -10, y: -10, width: 120, height: 120)
     }
 
-    // when the underlay node has no renderable items, the bounding rect should be the child node's rect
     do {
+      // given: a laid out node with an underlay that has no renderable items
       var node = ColorNode(.red).underlay {
         Spacer()
       }
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // then: the bounding rect should be the child node's rect
       expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 100, height: 100)
     }
   }

@@ -35,16 +35,24 @@ import ChouTiTest
 class RunLoopTests: XCTestCase {
 
   func test_onNextRunLoop() {
+    // given: an expectation and an execution flag
     let expectation = expectation(description: "onNextRunLoop")
 
     var isExecuted = false
+
+    // when: a block is scheduled on the next run loop
     onNextRunLoop {
       isExecuted = true
       expectation.fulfill()
     }
 
+    // then: the block is not executed immediately
     expect(isExecuted) == false
+
+    // when: the next run loop iteration arrives
     wait(for: [expectation], timeout: 1)
+
+    // then: the block is executed
     expect(isExecuted) == true
   }
 }

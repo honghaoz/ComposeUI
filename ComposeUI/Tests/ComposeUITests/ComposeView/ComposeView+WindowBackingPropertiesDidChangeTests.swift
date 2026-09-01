@@ -38,6 +38,8 @@ import AppKit
 class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
 
   func test_windowBackingPropertiesDidChange() {
+    // given: a compose view with render, refresh and animation tracking, rendered in a window with a controllable
+    // backing scale factor
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let window = TestWindowWithBackingScaleFactor()
 
@@ -64,18 +66,20 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
     isAnimated = nil
     expect(view.contentScaleFactor) == window.backingScaleFactor
 
-    // change backing scale factor - should trigger refresh
+    // when: change backing scale factor
     window.backingScaleFactor = 3.0
 
+    // then: a non-animated refresh is triggered and the new scale is adopted
     expect(renderCount).toEventually(beEqual(to: 2))
     expect(refreshCount) == 2
     expect(isAnimated) == false
     isAnimated = nil
     expect(view.contentScaleFactor) == 3.0
 
-    // change backing scale factor again - should trigger another refresh
+    // when: change backing scale factor again
     window.backingScaleFactor = 1.0
 
+    // then: another non-animated refresh is triggered and the new scale is adopted
     expect(renderCount).toEventually(beEqual(to: 3))
     expect(refreshCount) == 3
     expect(isAnimated) == false
@@ -84,6 +88,8 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
   }
 
   func test_windowBackingPropertiesDidChange_viewRemovedFromWindow() {
+    // given: a compose view with render and refresh tracking, rendered in a window with a controllable backing
+    // scale factor
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let window = TestWindowWithBackingScaleFactor()
 
@@ -104,12 +110,12 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
     expect(renderCount).toEventually(beEqual(to: 1))
     expect(refreshCount) == 1
 
-    // remove view from window
+    // when: remove the view from the window and change the backing scale factor
     view.removeFromSuperview()
 
-    // change backing scale factor - should not trigger refresh since view is not in window
     window.backingScaleFactor = 3.0
 
+    // then: no refresh is triggered since the view is not in a window
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // flush any pending refreshes
     expect(renderCount) == 1 // no new render
     expect(refreshCount) == 1

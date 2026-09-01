@@ -35,38 +35,61 @@ import ChouTiTest
 class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
 
   func testEmptyArray() {
+    // given: an empty array
     let array: ContiguousArray<CGFloat> = []
+
+    // then: rounding returns an empty array
     expect(array.rounded(scaleFactor: 2)) == []
   }
 
   func testArrayWithOneElement() {
+    // given: an array with one element
     let array: ContiguousArray<CGFloat> = [10.33333]
+
+    // then: the value is unchanged
     expect(array.rounded(scaleFactor: 2)) == [10.33333]
   }
 
   func testArrayWithMultipleElements() {
+    // given: an array with multiple elements
     let array: ContiguousArray<CGFloat> = [10.3333333333, 10.333333333, 10.3333333333]
+
+    // then: the values are rounded to pixel boundaries
     expect(array.rounded(scaleFactor: 2)) == [10.5, 10.5, 9.999999999600002]
   }
 
   func testArrayWithMoreElements() {
+    // given: an array with more elements
     let array: ContiguousArray<CGFloat> = [51.6666666667, 51.6666666667, 51.6666666667, 51.6666666667, 51.6666666667, 51.6666666667]
+
+    // then: the values are rounded to pixel boundaries
     expect(array.rounded(scaleFactor: 2)) == [51.5, 51.5, 51.5, 52, 51.5, 52.00000000020002]
   }
 
   func testArrayWithTooSmallPixelWidths() {
+    // given: an array with values smaller than a pixel
     let array: ContiguousArray<CGFloat> = [0.3, 0.3, 0.3]
+
+    // then: the values are unchanged
     expect(array.rounded(scaleFactor: 2)) == [0.3, 0.3, 0.3]
   }
 
   func testArrayWithTooSmallPixelWidths2() {
+    // given: an array with a single value smaller than a pixel
     let array: ContiguousArray<CGFloat> = [0.3]
+
+    // then: the value is unchanged
     expect(array.rounded(scaleFactor: 2)) == [0.3]
   }
 
   func testArrayWithTooSmallPixelWidths3() {
+    // given: an array with two values smaller than a pixel
     let array: ContiguousArray<CGFloat> = [0.3, 0.3]
+
+    // when: rounding with a scale factor
     let roundedArray = array.rounded(scaleFactor: 2)
+
+    // then: the first value is rounded up and the second value compensates
     expect(roundedArray[0]) == 0.5
     expect(roundedArray[1]).to(beApproximatelyEqual(to: 0.1, within: 1e-12))
   }

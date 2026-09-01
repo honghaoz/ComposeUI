@@ -35,35 +35,46 @@ import ChouTiTest
 class ColorNodeTests: XCTestCase {
 
   func test_init() throws {
+    // then: color nodes can be created with plain and themed colors
     _ = ColorNode(.red)
     _ = ColorNode(ThemedColor(light: .red, dark: .blue))
   }
 
   func test_id() throws {
+    // then: the id is "C"
     expect(ColorNode(.red).id.id) == "C"
   }
 
   func test_size() throws {
+    // then: the default size is zero
     expect(ColorNode(.red).size) == .zero
   }
 
   func test_layout() throws {
+    // given: a color node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = ColorNode(.red)
+
+    // when: laying out in a 100x100 container
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    // then: the node is flexible and fills the container
     expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
     expect(node.size) == CGSize(width: 100, height: 100)
   }
 
   func test_renderableItems() throws {
+    // given: a laid out themed color node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = ColorNode(ThemedColor(light: .red, dark: .blue))
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-    // when visible bounds intersects with the node's frame
+    // when: visible bounds intersects with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: a single color item is provided with the expected id, frame, and behaviors
       expect(items.count) == 1
 
       let item = items[0]
@@ -168,15 +179,18 @@ class ColorNodeTests: XCTestCase {
       expect(item.animationTiming) == nil
     }
 
-    // when visible bounds does not intersect with the node's frame
+    // when: visible bounds does not intersect with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 100, width: 100, height: 100)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0
     }
   }
 
   func test_resetForReuse() throws {
+    // given: a color renderable updated with a background color
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = ColorNode(.red)
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
@@ -188,8 +202,10 @@ class ColorNodeTests: XCTestCase {
     item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
     expect(renderable.layer.backgroundColor) == Color.red.cgColor
 
-    // reset for reuse clears the background color so the pooled layer is freshly-made-equivalent
+    // when: resetting the renderable for reuse
     item.resetForReuse?(renderable)
+
+    // then: the background color is cleared so the pooled layer is freshly-made-equivalent
     expect(renderable.layer.backgroundColor) == nil
   }
 }

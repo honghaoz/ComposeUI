@@ -35,6 +35,7 @@ import ComposeUI
 class ComposeView_LayoutTests: XCTestCase {
 
   func test_layoutBounds() throws {
+    // given: a compose view with a label node, sized to fit, with a layout bounds recorder
     let view = ComposeView {
       try LabelNode("Test")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
@@ -46,7 +47,7 @@ class ComposeView_LayoutTests: XCTestCase {
     view.hasVerticalScroller = true
     #endif
 
-    // given a specified size
+    // use a specified size
     view.frame.size = view.sizeThatFits(
       CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
     )
@@ -61,9 +62,10 @@ class ComposeView_LayoutTests: XCTestCase {
       }
     }
 
+    // when: the view is refreshed
     view.refresh()
 
-    // the layout bounds should be the same as the view's bounds
+    // then: the layout bounds should be the same as the view's bounds
     expect(layoutBounds) == view.bounds
     expect(view.showsHorizontalScrollIndicator) == false
     expect(view.showsVerticalScrollIndicator) == false

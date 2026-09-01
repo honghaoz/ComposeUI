@@ -35,6 +35,7 @@ import ComposeUI
 class ComposeView_SetContentTests: XCTestCase {
 
   func test_setContent() {
+    // given: a compose view with render and animation tracking, rendered
     var renderCount = 0
     var isAnimated: Bool?
     let contentView = ComposeView {
@@ -53,6 +54,7 @@ class ComposeView_SetContentTests: XCTestCase {
     expect(isAnimated) == false // initial render is always not animated
     isAnimated = nil
 
+    // when: new content is set
     contentView.setContent {
       renderCount += 1
       LayerNode()
@@ -62,6 +64,7 @@ class ComposeView_SetContentTests: XCTestCase {
         }
     }
 
+    // then: an animated refresh is performed asynchronously
     expect(renderCount).toEventually(beEqual(to: 2))
     expect(isAnimated) == true
   }

@@ -36,6 +36,7 @@ import ComposeUI
 class ComposeView_KeyWindowTests: XCTestCase {
 
   func test_keyWindowDidChange() throws {
+    // given: a test window and a compose view with render, refresh and animation tracking, rendered
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let window = TestWindow()
 
@@ -60,35 +61,50 @@ class ComposeView_KeyWindowTests: XCTestCase {
     expect(isAnimated) == false
     isAnimated = nil
 
+    // when: the view is added to the window and the window becomes key
     window.contentView?.addSubview(view)
 
     window.makeKey()
+
+    // then: a non-animated refresh is performed
     expect(renderCount).toEventually(beEqual(to: 2))
     expect(refreshCount) == 2
     expect(isAnimated) == false
     isAnimated = nil
 
+    // when: the window resigns key
     window.resignKey()
+
+    // then: another non-animated refresh is performed
     expect(renderCount).toEventually(beEqual(to: 3))
     expect(refreshCount) == 3
     expect(isAnimated) == false
     isAnimated = nil
 
+    // when: the window becomes key again
     window.makeKey()
+
+    // then: another non-animated refresh is performed
     expect(renderCount).toEventually(beEqual(to: 4))
     expect(refreshCount) == 4
     expect(isAnimated) == false
     isAnimated = nil
 
+    // when: the view is removed from the window and the window resigns key
     view.removeFromSuperview()
 
     window.resignKey()
+
+    // then: no refresh is performed
     expect(renderCount) == 4
     expect(refreshCount) == 4
     expect(isAnimated) == nil
     isAnimated = nil
 
+    // when: the window becomes key again
     window.makeKey()
+
+    // then: no refresh is performed
     expect(renderCount) == 4
     expect(refreshCount) == 4
     expect(isAnimated) == nil

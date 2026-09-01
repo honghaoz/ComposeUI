@@ -49,26 +49,30 @@ class CATransaction_ExtensionsTests: XCTestCase {
   }
 
   func test_implicitAnimations() throws {
+    // given: a layer hosted in the test window
     let layer = makeTestLayer()
 
-    // without disableAnimations - should create implicit animations
+    // when: changing the frame and opacity without disabling animations
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     layer.opacity = 0.5
 
+    // then: implicit animations are created and the values are set
     expect(layer.animationKeys()?.sorted()) == ["bounds", "opacity", "position"]
     expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
     expect(layer.opacity) == 0.5
   }
 
   func test_implicitAnimations_disabled() throws {
+    // given: a layer hosted in the test window
     let layer = makeTestLayer()
 
-    // with disableAnimations - should NOT create implicit animations
+    // when: changing the frame and opacity with animations disabled
     CATransaction.disableAnimations {
       layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
       layer.opacity = 0.5
     }
 
+    // then: no implicit animations are created and the values are set
     expect(layer.animationKeys()) == nil
     expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
     expect(layer.opacity) == 0.5
@@ -88,16 +92,22 @@ class CATransaction_ExtensionsTests: XCTestCase {
   }
 
   func test_disableAnimations_returnsValue() {
+    // when: running a block that returns a value with animations disabled
     let result = CATransaction.disableAnimations {
       return 42
     }
+
+    // then: the block's value is returned
     expect(result) == 42
   }
 
   func test_disableAnimations_throwsError() {
+    // given: an error type and a thrown flag
     struct TestError: Error {}
 
     var didThrow = false
+
+    // when: the block throws with animations disabled
     do {
       try CATransaction.disableAnimations {
         throw TestError()
@@ -107,6 +117,8 @@ class CATransaction_ExtensionsTests: XCTestCase {
       didThrow = true
       expect(error is TestError) == true
     }
+
+    // then: the error propagates to the caller
     expect(didThrow) == true
   }
 }

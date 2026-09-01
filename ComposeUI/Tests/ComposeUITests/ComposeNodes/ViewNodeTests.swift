@@ -35,49 +35,53 @@ import ChouTiTest
 class ViewNodeTests: XCTestCase {
 
   func test_id() throws {
+    // then: a factory view node uses the default id
     expect(ViewNode().id.id) == "V"
 
+    // given: an external view
     let view = View()
     let id = ObjectIdentifier(view)
+
+    // then: a view node with the external view uses the view's identity in the id
     expect(ViewNode(view).id.id) == "view-\(id)"
   }
 
   func test_fixedSize() {
     do {
-      // when using view factory
+      // given: a view node using a view factory
       var node = ViewNode()
 
-      // then the size is flexible
+      // then: the size is flexible
       expect(node.isFixedWidth) == false
       expect(node.isFixedHeight) == false
 
-      // when set fixed size
+      // when: setting fixed size
       node = node.fixedSize()
 
-      // then the size is fixed
+      // then: the size is fixed
       expect(node.isFixedWidth) == true
       expect(node.isFixedHeight) == true
     }
 
     do {
-      // when using external view
+      // given: a view node using an external view
       var node = ViewNode(View())
 
-      // then the size is fixed
+      // then: the size is fixed
       expect(node.isFixedWidth) == true
       expect(node.isFixedHeight) == true
 
-      // when set flexible size
+      // when: setting flexible size
       node = node.flexibleSize()
 
-      // then the size is flexible
+      // then: the size is flexible
       expect(node.isFixedWidth) == false
       expect(node.isFixedHeight) == false
     }
   }
 
   func test_constraint_based_view() {
-    // given a view with constraints
+    // given: a view with constraints
     let view = BaseView(frame: CGRect(x: 10, y: 20, width: 100, height: 50))
     expect(view.frame) == CGRect(x: 10, y: 20, width: 100, height: 50) // test initial frame
 
@@ -88,6 +92,7 @@ class ViewNodeTests: XCTestCase {
 
     // when the view is used in ViewNode with fixed size
     do {
+      // given: the view in a fixed size ViewNode, in a compose view
       let node = ViewNode(view)
         .fixedSize()
         .padding(10)
@@ -96,32 +101,40 @@ class ViewNodeTests: XCTestCase {
       let container = ComposeView(content: { node })
       container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
+      // when: the compose view is refreshed
       container.refresh(animated: false)
 
-      // the view's translatesAutoresizingMaskIntoConstraints is changed to true
+      // then: the view's translatesAutoresizingMaskIntoConstraints is changed to true
       expect(view.translatesAutoresizingMaskIntoConstraints) == true
 
-      // the view's size should not be changed
+      // then: the view's size should not be changed
       expect(view.frame) == CGRect(x: 10, y: 10, width: 100, height: 50)
 
-      // force a layout pass
+      // when: force a layout pass
       container.setNeedsLayout()
       container.layoutIfNeeded()
-      // the view's size should not be changed
+
+      // then: the view's size should not be changed
       expect(view.frame) == CGRect(x: 10, y: 10, width: 100, height: 50)
 
-      // have the view update its size by constraints
+      // when: have the view update its size by constraints
       view.translatesAutoresizingMaskIntoConstraints = false
       view.setNeedsLayout()
       view.layoutIfNeeded()
+
+      // then: the view sizes itself by the constraints
       expect(view.bounds.size) == view.intrinsicSize(for: CGSize(width: 500, height: 500))
+
+      // when: the compose view is refreshed
       container.refresh(animated: false)
-      // the view's frame should be changed to the size of the constraints
+
+      // then: the view's frame should be changed to the size of the constraints
       expect(view.frame) == CGRect(x: 10, y: 10, width: 200, height: 100)
     }
 
     // when the view is used in ViewNode with flexible size
     do {
+      // given: the view in a flexible size ViewNode, in a compose view
       let node = ViewNode(view)
         .flexibleSize()
         .frame(width: 210, height: 110)
@@ -131,15 +144,17 @@ class ViewNodeTests: XCTestCase {
       let container = ComposeView(content: { node })
       container.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
+      // when: the compose view is refreshed
       container.refresh(animated: false)
 
-      // the view's frame should be set by ComposéUI, not by the constraints
+      // then: the view's frame should be set by ComposéUI, not by the constraints
       expect(view.frame) == CGRect(x: 10, y: 10, width: 210, height: 110)
 
-      // force a layout pass
+      // when: force a layout pass
       container.setNeedsLayout()
       container.layoutIfNeeded()
-      // the view's frame should not be changed by the constraints
+
+      // then: the view's frame should not be changed by the constraints
       expect(view.frame) == CGRect(x: 10, y: 10, width: 210, height: 110)
     }
   }
@@ -149,36 +164,49 @@ class ViewNodeTests: XCTestCase {
     do {
       // with external view
       do {
+        // given: a view node with an external view
         let view = BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
         var node = ViewNode(view)
 
         // fixed size
         do {
+          // when: laying out the node
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the sizing and size use the view's size
           expect(sizing) == ComposeNodeSizing(width: .fixed(50), height: .fixed(50))
           expect(node.size) == CGSize(width: 50, height: 50)
         }
 
         // fixed width, flexible height
         do {
+          // when: setting fixed width only and laying out
           node = node.fixedSize(width: true, height: false)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width uses the view's width and the height fills the container
           expect(sizing) == ComposeNodeSizing(width: .fixed(50), height: .flexible)
           expect(node.size) == CGSize(width: 50, height: 100)
         }
 
         // flexible width, fixed height
         do {
+          // when: setting fixed height only and laying out
           node = node.fixedSize(width: false, height: true)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width fills the container and the height uses the view's height
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(50))
           expect(node.size) == CGSize(width: 100, height: 50)
         }
 
         // flexible size
         do {
+          // when: setting flexible size and laying out
           node = node.flexibleSize()
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the sizing is flexible and the size fills the container
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
           expect(node.size) == CGSize(width: 100, height: 100)
         }
@@ -186,6 +214,7 @@ class ViewNodeTests: XCTestCase {
 
       // with view factory
       do {
+        // given: a view node with a view factory and a custom intrinsic size
         var node = ViewNode(
           make: { _ in BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) },
           intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
@@ -193,31 +222,43 @@ class ViewNodeTests: XCTestCase {
 
         // flexible size
         do {
+          // when: laying out the node
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the sizing is flexible and the size fills the container
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
           expect(node.size) == CGSize(width: 100, height: 100)
         }
 
         // fixed width, flexible height
         do {
+          // when: setting fixed width only and laying out
           node = node.fixedSize(width: true, height: false)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width uses the intrinsic width and the height fills the container
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .flexible)
           expect(node.size) == CGSize(width: 200, height: 100)
         }
 
         // flexible width, fixed height
         do {
+          // when: setting fixed height only and laying out
           node = node.fixedSize(width: false, height: true)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width fills the container and the height uses the intrinsic height
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(200))
           expect(node.size) == CGSize(width: 100, height: 200)
         }
 
         // fixed size
         do {
+          // when: setting fixed size and laying out
           node = node.fixedSize()
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the sizing and size use the intrinsic size
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .fixed(200))
           expect(node.size) == CGSize(width: 200, height: 200)
         }
@@ -228,36 +269,49 @@ class ViewNodeTests: XCTestCase {
     do {
       // with external view
       do {
+        // given: a view node with an external view and a custom intrinsic size
         let view = BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
         var node = ViewNode(view, intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) })
 
         // fixed size
         do {
+          // when: laying out the node
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the sizing and size use the intrinsic size
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .fixed(200))
           expect(node.size) == CGSize(width: 200, height: 200)
         }
 
         // fixed width, flexible height
         do {
+          // when: setting fixed width only and laying out
           node = node.fixedSize(width: true, height: false)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width uses the intrinsic width and the height fills the container
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .flexible)
           expect(node.size) == CGSize(width: 200, height: 100)
         }
 
         // flexible width, fixed height
         do {
+          // when: setting fixed height only and laying out
           node = node.fixedSize(width: false, height: true)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width fills the container and the height uses the intrinsic height
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(200))
           expect(node.size) == CGSize(width: 100, height: 200)
         }
 
         // flexible size
         do {
+          // when: setting flexible size and laying out
           node = node.flexibleSize()
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the sizing is flexible and the size fills the container
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
           expect(node.size) == CGSize(width: 100, height: 100)
         }
@@ -265,6 +319,7 @@ class ViewNodeTests: XCTestCase {
 
       // with view factory
       do {
+        // given: a view node with a view factory and a custom intrinsic size
         var node = ViewNode(
           make: { _ in BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) },
           intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
@@ -272,31 +327,43 @@ class ViewNodeTests: XCTestCase {
 
         // flexible size
         do {
+          // when: laying out the node
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the sizing is flexible and the size fills the container
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
           expect(node.size) == CGSize(width: 100, height: 100)
         }
 
         // fixed width, flexible height
         do {
+          // when: setting fixed width only and laying out
           node = node.fixedSize(width: true, height: false)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width uses the intrinsic width and the height fills the container
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .flexible)
           expect(node.size) == CGSize(width: 200, height: 100)
         }
 
         // flexible width, fixed height
         do {
+          // when: setting fixed height only and laying out
           node = node.fixedSize(width: false, height: true)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width fills the container and the height uses the intrinsic height
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(200))
           expect(node.size) == CGSize(width: 100, height: 200)
         }
 
         // fixed size
         do {
+          // when: setting fixed size and laying out
           node = node.fixedSize()
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the sizing and size use the intrinsic size
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .fixed(200))
           expect(node.size) == CGSize(width: 200, height: 200)
         }
@@ -309,16 +376,21 @@ class ViewNodeTests: XCTestCase {
 
     // empty view
     do {
+      // given: a fixed size factory view node without an intrinsic size provider
       var node = ViewNode()
         .fixedSize()
 
+      // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+      // then: the sizing and size are zero
       expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
       expect(node.size) == .zero
     }
 
     // fixed size (width: true, height: true)
     do {
+      // given: a fixed size factory node for a fixed size view, with a make call counter
       var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
         make: { _ in
@@ -327,7 +399,10 @@ class ViewNodeTests: XCTestCase {
         }
       ).fixedSize()
 
+      // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+      // then: the measurement view provides the fixed size and make is called once
       expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .fixed(60))
       expect(node.size) == CGSize(width: 80, height: 60)
       expect(makeCallCount) == 1
@@ -335,6 +410,7 @@ class ViewNodeTests: XCTestCase {
 
     // fixed width only (width: true, height: false)
     do {
+      // given: a fixed width factory node for a fixed size view, with a make call counter
       var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
         make: { _ in
@@ -343,7 +419,10 @@ class ViewNodeTests: XCTestCase {
         }
       ).fixedSize(width: true, height: false)
 
+      // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+      // then: the width uses the measurement view and the height fills the container
       expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .flexible)
       expect(node.size) == CGSize(width: 80, height: 200)
       expect(makeCallCount) == 1
@@ -351,6 +430,7 @@ class ViewNodeTests: XCTestCase {
 
     // fixed height only (width: false, height: true)
     do {
+      // given: a fixed height factory node for a fixed size view, with a make call counter
       var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
         make: { _ in
@@ -359,7 +439,10 @@ class ViewNodeTests: XCTestCase {
         }
       ).fixedSize(width: false, height: true)
 
+      // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+      // then: the height uses the measurement view and the width fills the container
       expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(60))
       expect(node.size) == CGSize(width: 200, height: 60)
       expect(makeCallCount) == 1
@@ -367,69 +450,84 @@ class ViewNodeTests: XCTestCase {
   }
 
   func test_view_as_composeContent() {
+    // given: a compose view using a plain view as content
     let view = ComposeView {
       BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)) as ViewType
     }
 
+    // when: the view is sized and refreshed
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     view.refresh(animated: false)
 
+    // then: the view is added and centered
     expect(view.contentView().subviews.count) == 1
     expect(view.contentView().subviews[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
   }
 
   func test_renderableItems() throws {
+    // given: a laid out view node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = ViewNode()
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-    // when visible bounds intersects with the node's frame
     do {
+      // when: getting renderable items in visible bounds intersecting the node's frame
       let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: one item with the node's id and frame is provided
       expect(items.count) == 1
 
       let item = items[0]
       expect(item.id.id) == "V"
       expect(item.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
 
-      // make
       do {
+        // when: making a renderable
         let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: nil))
+
+        // then: the renderable uses the initial frame
         expect(renderable.layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
       }
 
+      // then: the item has no insert or update callbacks
       expect(item.willInsert) == nil
       expect(item.didInsert) == nil
       expect(item.willUpdate) == nil
 
-      // update
       do {
+        // given: a renderable made from the item
         let contentView = ComposeView()
         let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
+        // when: updating the renderable
         let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
         item.update(renderable, context)
+
+        // then: the renderable keeps its frame
         let layer = renderable.layer
         expect(layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
       }
 
+      // then: the item has no remove callbacks, transition, or animation timing
       expect(item.willRemove) == nil
       expect(item.didRemove) == nil
       expect(item.transition) == nil
       expect(item.animationTiming) == nil
     }
 
-    // when visible bounds does not intersect with the node's frame
     do {
+      // when: getting renderable items in visible bounds not intersecting the node's frame
       let visibleBounds = CGRect(x: 0, y: 100, width: 100, height: 100)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0
     }
   }
 
   func test_renderableItems_visibleBounds() {
-    // given a view node with specific size
+    // given: a view node with specific size
     let view = BaseView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
     var node = ViewNode(view)
 
@@ -437,31 +535,37 @@ class ViewNodeTests: XCTestCase {
     _ = node.layout(containerSize: CGSize(width: 50, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
     expect(node.size) == CGSize(width: 50, height: 50)
 
-    // when visible bounds intersects with the node frame
     do {
+      // when: getting renderable items with visible bounds intersecting the node frame
       let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 100) // intersects
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: one item is provided
       expect(items.count) == 1
     }
 
-    // when visible bounds partially intersects with the node frame
     do {
+      // when: getting renderable items with visible bounds partially intersecting the node frame
       let visibleBounds = CGRect(x: 25, y: 25, width: 50, height: 50) // partially intersects
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: one item is provided
       expect(items.count) == 1
     }
 
-    // when visible bounds does not intersect with the node frame
     do {
+      // when: getting renderable items with visible bounds not intersecting the node frame
       let visibleBounds = CGRect(x: 100, y: 100, width: 50, height: 50) // no intersection
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0 // should return empty array
     }
   }
 
   #if canImport(AppKit)
   func test_nonLayerBackedView_assertion() {
-    // given a view that is not layer backed
+    // given: a view that is not layer backed, in a compose view, with a test assertion failure handler
     let view = BaseView()
     view.wantsLayer = false // explicitly disable layer backing
 
@@ -477,9 +581,10 @@ class ViewNodeTests: XCTestCase {
       assertionCount += 1
     }
 
-    // when refreshing the compose view
-    // then it should trigger the assertion for non-layer-backed view
+    // when: refreshing the compose view
     container.refresh(animated: false)
+
+    // then: it should trigger the assertion for non-layer-backed view
     expect(assertionCount) == 1
   }
   #endif

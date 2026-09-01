@@ -35,20 +35,26 @@ import ChouTiTest
 class CASpringAnimation_ExtensionsTests: XCTestCase {
 
   func test_perceptualDuration() {
+    // given: a spring animation with physics parameters
     let animation = CASpringAnimation()
     animation.mass = 1
     animation.stiffness = 1
     animation.damping = 1
     animation.initialVelocity = 0.1
+
+    // then: the perceptual duration matches the expected value
     expect(animation.perceptualDuration()) == 11.35608158495006
   }
 
   func test_durationForEpsilon() {
+    // given: a spring animation with physics parameters
     let animation = CASpringAnimation()
     animation.mass = 1
     animation.stiffness = 1
     animation.damping = 1
     animation.initialVelocity = 0.1
+
+    // then: the duration for the epsilon matches the expected value
     expect(animation.duration(epsilon: 0.1)) == 5.364617037842078
   }
 }

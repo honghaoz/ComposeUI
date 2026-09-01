@@ -37,30 +37,45 @@ import ChouTiTest
 final class CALayerPrivateTests: XCTestCase {
 
   func test_invertsShadow() {
+    // given: a layer
     let layer = CALayer()
 
-    // default value
+    // then: the default value is false
     expect(layer.invertsShadow) == false
     expect(layer.value(forKey: "invertsShadow") as? Bool) == false
 
-    // set and get
+    // when: setting invertsShadow to true
     layer.invertsShadow = true
+
+    // then: the property and the key value are true
     expect(layer.invertsShadow) == true
     expect(layer.value(forKey: "invertsShadow") as? Bool) == true
 
+    // when: setting invertsShadow to false
     layer.invertsShadow = false
+
+    // then: the property and the key value are false
     expect(layer.invertsShadow) == false
     expect(layer.value(forKey: "invertsShadow") as? Bool) == false
 
+    // when: setting invertsShadow back to true
     layer.invertsShadow = true
+
+    // then: the property and the key value are true
     expect(layer.invertsShadow) == true
     expect(layer.value(forKey: "invertsShadow") as? Bool) == true
 
+    // when: setting the key value to false
     layer.setValue(false, forKey: "invertsShadow")
+
+    // then: the property and the key value are false
     expect(layer.invertsShadow) == false
     expect(layer.value(forKey: "invertsShadow") as? Bool) == false
 
+    // when: setting the key value to true
     layer.setValue(true, forKey: "invertsShadow")
+
+    // then: the property and the key value are true
     expect(layer.invertsShadow) == true
     expect(layer.value(forKey: "invertsShadow") as? Bool) == true
   }

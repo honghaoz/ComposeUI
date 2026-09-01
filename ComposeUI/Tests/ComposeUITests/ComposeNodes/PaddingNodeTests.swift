@@ -35,44 +35,52 @@ import ComposeUI
 class PaddingNodeTests: XCTestCase {
 
   func test_padding() {
+    // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
     // padding(top:left:bottom:right:)
     do {
+      // given: a laid out fixed size node with per-edge padding
       var node = LayerNode().frame(width: 10, height: 10).padding(top: 1, left: 2, bottom: 3, right: 4)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // then: the size includes the padding and the child rect is inset
       expect(node.size) == CGSize(width: 16, height: 14)
       expect(node.renderableItemsBoundingRect) == CGRect(x: 2, y: 1, width: 10, height: 10)
     }
 
     // padding(horizontal:vertical:)
     do {
+      // given: a laid out fixed size node with horizontal and vertical padding
       var node = LayerNode().frame(width: 10, height: 10).padding(horizontal: 2, vertical: 3)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // then: the size includes the padding and the child rect is inset
       expect(node.size) == CGSize(width: 14, height: 16)
       expect(node.renderableItemsBoundingRect) == CGRect(x: 2, y: 3, width: 10, height: 10)
     }
   }
 
   func test_renderableItemsBoundingRect() {
+    // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
-    // the bounding rect should be translated by the padding insets
     do {
+      // given: a laid out fixed size node with padding
       var node = LayerNode().frame(width: 10, height: 10).padding(5)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // then: the bounding rect should be translated by the padding insets
       expect(node.size) == CGSize(width: 20, height: 20)
       expect(node.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
     }
 
-    // when the child node has no renderable items
     do {
+      // given: a laid out padding node whose child has no renderable items
       var node = Spacer().padding(5)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
+      // then: the bounding rect is null
       expect(node.renderableItemsBoundingRect.isNull) == true
     }
   }

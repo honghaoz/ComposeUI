@@ -35,7 +35,10 @@ import ChouTiTest
 class Optional_AssertTests: XCTestCase {
 
   func test_assert() {
+    // given: a non-nil optional
     let optional: Int? = 1
+
+    // then: assertNotNil returns the value
     expect(optional.assertNotNil()) == 1
   }
 }

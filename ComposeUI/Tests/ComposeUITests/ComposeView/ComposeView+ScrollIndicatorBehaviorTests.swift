@@ -35,230 +35,270 @@ import ComposeUI
 class ComposeView_ScrollIndicatorBehaviorTests: XCTestCase {
 
   func test_scrollIndicatorBehavior() {
-    // when content size is smaller than bounds size
     do {
+      // given: content size is smaller than bounds size
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
           .frame(width: 50, height: 50)
       }
 
-      // when set to auto, content fits within bounds, both indicators should be hidden
+      // when: set to auto
       contentView.scrollIndicatorBehavior = .auto
       contentView.refresh(animated: false)
+
+      // then: content fits within bounds, both indicators should be hidden
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when set to always shown
+      // when: set to always shown
       contentView.scrollIndicatorBehavior = .always
       contentView.refresh(animated: false)
-      // then both indicators should be shown
+
+      // then: both indicators should be shown
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when set to never shown
+      // when: set to never shown
       contentView.scrollIndicatorBehavior = .never
       contentView.refresh(animated: false)
-      // then both indicators should be hidden
+
+      // then: both indicators should be hidden
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.scrollIndicatorBehavior = .manual
       contentView.refresh(animated: false)
-      // then it should not change
+
+      // then: it should not change
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when manually flip the indicator values
+      // when: manually flip the indicator values
       contentView.showsHorizontalScrollIndicator = true
       contentView.showsVerticalScrollIndicator = true
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when manually set mixed values
+      // when: manually set mixed values
       contentView.showsHorizontalScrollIndicator = true
       contentView.showsVerticalScrollIndicator = false
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == false
     }
 
-    // when content size is equal to bounds size
     do {
+      // given: content size is equal to bounds size
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
           .frame(width: 100, height: 100)
       }
 
-      // when set to auto, content equals bounds, no overflow, both indicators should be hidden
+      // when: set to auto
       contentView.scrollIndicatorBehavior = .auto
       contentView.refresh(animated: false)
+
+      // then: content equals bounds, no overflow, both indicators should be hidden
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when set to always shown
+      // when: set to always shown
       contentView.scrollIndicatorBehavior = .always
       contentView.refresh(animated: false)
+
+      // then: both indicators should be shown
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when set to never shown
+      // when: set to never shown
       contentView.scrollIndicatorBehavior = .never
       contentView.refresh(animated: false)
+
+      // then: both indicators should be hidden
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.scrollIndicatorBehavior = .manual
       contentView.refresh(animated: false)
-      // then it should not change
+
+      // then: it should not change
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when manually flip the indicator values
+      // when: manually flip the indicator values
       contentView.showsHorizontalScrollIndicator = true
       contentView.showsVerticalScrollIndicator = true
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
     }
 
-    // when content overflows horizontally only
     do {
+      // given: content overflows horizontally only
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
           .frame(width: 150, height: 50)
       }
 
-      // when set to auto, only horizontal overflows, only horizontal indicator should be shown
+      // when: set to auto
       contentView.scrollIndicatorBehavior = .auto
       contentView.refresh(animated: false)
+
+      // then: only horizontal overflows, only horizontal indicator should be shown
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when set to always shown
+      // when: set to always shown
       contentView.scrollIndicatorBehavior = .always
       contentView.refresh(animated: false)
+
+      // then: both indicators should be shown
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when set to never shown
+      // when: set to never shown
       contentView.scrollIndicatorBehavior = .never
       contentView.refresh(animated: false)
+
+      // then: both indicators should be hidden
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.scrollIndicatorBehavior = .manual
       contentView.refresh(animated: false)
-      // then it should not change
+
+      // then: it should not change
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when manually flip the indicator values
+      // when: manually flip the indicator values
       contentView.showsHorizontalScrollIndicator = false
       contentView.showsVerticalScrollIndicator = true
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == true
     }
 
-    // when content overflows vertically only
     do {
+      // given: content overflows vertically only
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
           .frame(width: 50, height: 150)
       }
 
-      // when set to auto, only vertical overflows, only vertical indicator should be shown
+      // when: set to auto
       contentView.scrollIndicatorBehavior = .auto
       contentView.refresh(animated: false)
+
+      // then: only vertical overflows, only vertical indicator should be shown
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when set to always shown
+      // when: set to always shown
       contentView.scrollIndicatorBehavior = .always
       contentView.refresh(animated: false)
+
+      // then: both indicators should be shown
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when set to never shown
+      // when: set to never shown
       contentView.scrollIndicatorBehavior = .never
       contentView.refresh(animated: false)
+
+      // then: both indicators should be hidden
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.scrollIndicatorBehavior = .manual
       contentView.refresh(animated: false)
-      // then it should not change
+
+      // then: it should not change
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when manually flip the indicator values
+      // when: manually flip the indicator values
       contentView.showsHorizontalScrollIndicator = true
       contentView.showsVerticalScrollIndicator = false
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == false
     }
 
-    // when content overflows both directions
     do {
+      // given: content overflows both directions
       let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
       contentView.setContent {
         ColorNode(.red)
           .frame(width: 150, height: 150)
       }
 
-      // when set to auto, both directions overflow, both indicators should be shown
+      // when: set to auto
       contentView.scrollIndicatorBehavior = .auto
       contentView.refresh(animated: false)
+
+      // then: both directions overflow, both indicators should be shown
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when set to always shown
+      // when: set to always shown
       contentView.scrollIndicatorBehavior = .always
       contentView.refresh(animated: false)
+
+      // then: both indicators should be shown
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when set to never shown
+      // when: set to never shown
       contentView.scrollIndicatorBehavior = .never
       contentView.refresh(animated: false)
+
+      // then: both indicators should be hidden
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when set to manual mode
+      // when: set to manual mode
       contentView.scrollIndicatorBehavior = .manual
       contentView.refresh(animated: false)
-      // then it should not change
+
+      // then: it should not change
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
 
-      // when manually flip the indicator values
+      // when: manually flip the indicator values
       contentView.showsHorizontalScrollIndicator = true
       contentView.showsVerticalScrollIndicator = true
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.showsHorizontalScrollIndicator) == true
       expect(contentView.showsVerticalScrollIndicator) == true
 
-      // when manually set the indicator values again
+      // when: manually set the indicator values again
       contentView.showsHorizontalScrollIndicator = false
       contentView.showsVerticalScrollIndicator = false
       contentView.refresh(animated: false)
-      // then it should follow the manual setting
+
+      // then: it should follow the manual setting
       expect(contentView.showsHorizontalScrollIndicator) == false
       expect(contentView.showsVerticalScrollIndicator) == false
     }

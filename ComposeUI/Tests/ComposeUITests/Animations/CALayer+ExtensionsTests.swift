@@ -37,6 +37,7 @@ import ChouTiTest
 class CALayer_ExtensionsTests: XCTestCase {
 
   func test_backedView() {
+    // given: a view with a backing layer
     #if os(macOS)
     let view = View()
     view.wantsLayer = true
@@ -44,34 +45,46 @@ class CALayer_ExtensionsTests: XCTestCase {
     let view = View()
     #endif
     let layer = view.layer()
+
+    // then: the layer's backed view is the view
     expect(layer.backedView) === view
   }
 
   func test_positionFromFrame() {
+    // given: a layer with a frame and a centered anchor point
     let layer = CALayer()
     let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
     layer.frame = frame
     layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
 
+    // then: the position computed from the frame matches the anchor point
     expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
   }
 
   func test_bringSublayerToFront() {
+    // given: a layer with two sublayers
     let layer = CALayer()
     let sublayer1 = CALayer()
     let sublayer2 = CALayer()
     layer.addSublayer(sublayer1)
     layer.addSublayer(sublayer2)
+
+    // when: bringing the first sublayer to front
     layer.bringSublayerToFront(sublayer1)
 
+    // then: the first sublayer moves to the front
     expect(layer.sublayers) == [sublayer2, sublayer1]
 
+    // when: bringing a layer that is not a sublayer to front
     let sublayer3 = CALayer()
     layer.bringSublayerToFront(sublayer3)
+
+    // then: the sublayers are unchanged
     expect(layer.sublayers) == [sublayer2, sublayer1]
   }
 
   func test_positionFromFrame_nonIdentityTransform() {
+    // given: a layer with a non-identity transform and a test assertion failure handler
     let layer = CALayer()
     layer.transform = CATransform3DMakeRotation(CGFloat.pi / 4, 0, 0, 1)
     let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
@@ -84,6 +97,7 @@ class CALayer_ExtensionsTests: XCTestCase {
       assertionCount += 1
     }
 
+    // then: computing the position triggers an assertion and still returns the position
     expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
     expect(assertionCount) == 1
 

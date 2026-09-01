@@ -35,46 +35,72 @@ import ChouTiTest
 class LayoutCacheNodeTests: XCTestCase {
 
   func test() {
+    // given: a layout cache node wrapping a test node
     let state = TestNode.State()
     let node = TestNode(state: state)
     let cachedNode = LayoutCacheNode(node: node)
 
+    // then: the id is forwarded from the wrapped node
     expect(cachedNode.id.id) == "test"
+
+    // when: setting a new id
     cachedNode.id = .custom("test2")
+
+    // then: the id is updated
     expect(cachedNode.id.id) == "test2"
 
+    // then: the size is zero before layout
     expect(cachedNode.size) == .zero
 
     // node with different size
     do {
+      // given: a cache node wrapping a laid out node with a fixed size
       var node = LayerNode().frame(width: 100, height: 50)
       let context = ComposeNodeLayoutContext(scaleFactor: 1)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
       let cachedNode = LayoutCacheNode(node: node)
+
+      // then: the size is forwarded from the wrapped node
       expect(cachedNode.size) == CGSize(width: 100, height: 50)
     }
 
+    // when: laying out for the first time
     _ = cachedNode.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the wrapped node performs the layout
     expect(state.layoutCount) == 1
 
+    // when: laying out again with the same container size
     _ = cachedNode.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the cached layout is reused
     expect(state.layoutCount) == 1
 
+    // when: laying out with a different container size
     _ = cachedNode.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the wrapped node performs a new layout
     expect(state.layoutCount) == 2
 
+    // then: no renderable items are requested yet
     expect(state.renderCount) == 0
+
+    // when: getting renderable items
     _ = cachedNode.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    // then: the wrapped node provides the renderable items
     expect(state.renderCount) == 1
   }
 
   func test_renderableItemsBoundingRect() {
-    // the bounding rect should be forwarded from the wrapped node
+    // given: a cache node wrapping a laid out node with an offset
     var node = LayerNode().frame(width: 10, height: 10).offset(x: 5, y: 5)
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
     let cachedNode = LayoutCacheNode(node: node)
+
+    // then: the bounding rect is forwarded from the wrapped node
     expect(cachedNode.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
   }
 }

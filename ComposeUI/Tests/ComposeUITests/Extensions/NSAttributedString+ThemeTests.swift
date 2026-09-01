@@ -35,6 +35,7 @@ import ChouTiTest
 class NSAttributedString_ThemeTests: XCTestCase {
 
   func test() {
+    // given: an attributed string with themed foreground, background, and shadow attributes
     let lightShadow = NSShadow()
     lightShadow.shadowColor = Color.black
     lightShadow.shadowOffset = CGSize(width: 1, height: 1)
@@ -52,8 +53,11 @@ class NSAttributedString_ThemeTests: XCTestCase {
     )
 
     do {
+      // when: applying the dark theme
       let darkAttributedString = attributedString.apply(theme: .dark)
       let attributes = darkAttributedString.attributes(at: 0, effectiveRange: nil)
+
+      // then: the resolved attributes use the dark values and the themed attributes are kept
       expect(attributes[.foregroundColor] as? Color) == Color.blue
       expect(attributes[.backgroundColor] as? Color) == Color.yellow
       expect((attributes[.shadow] as? NSShadow)?.shadowColor as? Color) == Color.white
@@ -69,8 +73,11 @@ class NSAttributedString_ThemeTests: XCTestCase {
     }
 
     do {
+      // when: applying the light theme
       let lightAttributedString = attributedString.apply(theme: .light)
       let attributes = lightAttributedString.attributes(at: 0, effectiveRange: nil)
+
+      // then: the resolved attributes use the light values and the themed attributes are kept
       expect(attributes[.foregroundColor] as? Color) == Color.red
       expect(attributes[.backgroundColor] as? Color) == Color.green
       expect((attributes[.shadow] as? NSShadow)?.shadowColor as? Color) == Color.black
@@ -87,6 +94,7 @@ class NSAttributedString_ThemeTests: XCTestCase {
   }
 
   func test_incorrectValue() {
+    // given: a test assertion handler and an attributed string with incorrect themed attribute values
     let value = NSObject()
 
     var assertionCount = 0
@@ -112,7 +120,11 @@ class NSAttributedString_ThemeTests: XCTestCase {
         .themedShadow: value,
       ]
     )
+
+    // when: applying a theme
     _ = attributedString.apply(theme: .dark)
+
+    // then: an assertion is triggered for each themed attribute
     expect(assertionCount) == 3
   }
 }

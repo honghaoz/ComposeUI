@@ -38,25 +38,32 @@ class ModifierNodeTests: XCTestCase {
 
   func test_id() {
     // test that id property delegates to underlying node
+
+    // given: a modifier node wrapping a base node
     let baseNode = ViewNode()
     let originalId = baseNode.id
 
     let modifierNode = baseNode.opacity(0.5)
 
-    // initial id should match the base node
+    // then: the initial id should match the base node
     expect(modifierNode.id) == originalId
 
+    // when: setting a new id on the modifier node
     // setting id on modifier should affect the inner node, hence the renderable items
     let newId = ComposeNodeId.custom("new")
     var mutableModifierNode = modifierNode
     mutableModifierNode.id = newId
 
+    // then: the modifier node reports the new id
     expect(mutableModifierNode.id) == newId
 
+    // when: laying out and getting renderable items
     let containerSize = CGSize(width: 100, height: 50)
     let context = ComposeNodeLayoutContext(scaleFactor: 2)
     mutableModifierNode.layout(containerSize: containerSize, context: context)
     let renderableItems = mutableModifierNode.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 50))
+
+    // then: the renderable items use the new id
     expect(renderableItems.first?.id) == newId
   }
 
@@ -65,15 +72,18 @@ class ModifierNodeTests: XCTestCase {
 
     // initial size should be zero
     do {
+      // given: a modifier node on a base node without layout
       let baseNode = ViewNode()
       let modifierNode = baseNode.opacity(0.5)
 
+      // then: the size is zero, matching the base node
       expect(modifierNode.size) == .zero
       expect(modifierNode.size) == baseNode.size
     }
 
     // modifier node with pre-layout node
     do {
+      // given: a modifier node on a laid out base node
       var baseNode = ViewNode()
 
       let containerSize = CGSize(width: 100, height: 50)
@@ -83,6 +93,7 @@ class ModifierNodeTests: XCTestCase {
 
       let modifierNode = baseNode.opacity(0.5)
 
+      // then: the size matches the laid out base node
       expect(modifierNode.size) == containerSize
       expect(modifierNode.size) == baseNode.size
     }
@@ -91,7 +102,7 @@ class ModifierNodeTests: XCTestCase {
   // MARK: - Life cycle calls
 
   func test_lifeCycleCalls() {
-    // given many modifiers
+    // given: a view node with many modifiers
     var willInsertCalls: [String] = []
     var didInsertCalls: [String] = []
     var willUpdateCalls: [String] = []
@@ -113,18 +124,18 @@ class ModifierNodeTests: XCTestCase {
       .willRemove { _, _ in willRemoveCalls.append("second") }
       .onRemove { _, _ in didRemoveCalls.append("second") }
 
-    // expect modifiers are coalescing
+    // then: the modifiers are coalescing
     expect(
       String(describing: node).hasPrefix("ModifierNode(node: ComposeUI.ViewNode<")
     ) == true
 
-    // when the compose view is refreshed
+    // when: the compose view is refreshed
     let composeView = ComposeView { node }
     composeView.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
     composeView.refresh(animated: false)
 
-    // then the modifier calls are called in order
+    // then: the modifier calls are called in order
     expect(willInsertCalls) == ["first", "second"]
     expect(didInsertCalls) == ["first", "second"]
     expect(willUpdateCalls) == ["first", "second"]
@@ -132,11 +143,11 @@ class ModifierNodeTests: XCTestCase {
     expect(willRemoveCalls) == []
     expect(didRemoveCalls) == []
 
-    // when the content removed
+    // when: the content is removed
     composeView.setContent { Empty() }
     composeView.refresh(animated: false)
 
-    // then the remove modifier calls are called in order
+    // then: the remove modifier calls are called in order
     expect(willInsertCalls) == ["first", "second"]
     expect(didInsertCalls) == ["first", "second"]
     expect(willUpdateCalls) == ["first", "second"]
@@ -148,9 +159,9 @@ class ModifierNodeTests: XCTestCase {
   // MARK: - Animation
 
   func test_animation() {
+    // given: a view node with multiple animations
     let expectation = expectation(description: "animation")
 
-    // given a view node with multiple animations
     var updateCount = 0
     let node = ViewNode()
       .animation(.easeInEaseOut(duration: 1))
@@ -172,13 +183,14 @@ class ModifierNodeTests: XCTestCase {
         }
       }
 
-    // when the compose view is refreshed
+    // when: the compose view is refreshed twice
     let composeView = ComposeView { node }
     composeView.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
 
     composeView.refresh(animated: true)
     composeView.refresh(animated: true)
 
+    // then: the second update uses the inner animation timing
     wait(for: [expectation], timeout: 1)
   }
 
@@ -187,6 +199,7 @@ class ModifierNodeTests: XCTestCase {
   func test_transition() {
     // basic transition
     do {
+      // given: a layer node with a custom transition
       var insertionCompleted = false
       var removalCompleted = false
 
@@ -207,22 +220,26 @@ class ModifierNodeTests: XCTestCase {
           .transition(transition)
       }
 
+      // when: the view is sized and refreshed animated
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
 
+      // then: the insert transition is performed
       expect(insertionCompleted) == true
       expect(removalCompleted) == false
 
-      // remove the content to test removal transition
+      // when: the content is removed to test the removal transition
       contentView.setContent { Empty() }
       contentView.refresh(animated: true)
 
+      // then: the remove transition is performed
       expect(insertionCompleted) == true
       expect(removalCompleted) == true
     }
 
     // multiple transitions (inner one wins)
     do {
+      // given: a layer node with two transitions
       var firstTransitionUsed = false
       var secondTransitionUsed = false
 
@@ -254,15 +271,18 @@ class ModifierNodeTests: XCTestCase {
           .transition(secondTransition)
       }
 
+      // when: the view is sized and refreshed animated
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
 
+      // then: only the inner transition is used
       expect(firstTransitionUsed) == true
       expect(secondTransitionUsed) == false
     }
 
     // predefined opacity transition
     do {
+      // given: a layer node with the predefined opacity transition
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -272,10 +292,11 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed animated
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
 
-      // layer should eventually have full opacity after transition
+      // then: the layer should eventually have full opacity after the transition
       expect(layer?.opacity).toEventually(beEqual(to: 1.0))
     }
   }
@@ -285,6 +306,7 @@ class ModifierNodeTests: XCTestCase {
   func test_backgroundColor() {
     // solid color
     do {
+      // given: a layer node with a solid background color
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -294,14 +316,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer has the background color
       expect(layer?.backgroundColor) == Color.red.cgColor
     }
 
     // themed color
     do {
+      // given: a layer node with a themed background color
       var layer: CALayer?
       let themedColor = ThemedColor(light: .blue, dark: .green)
       let contentView = ComposeView {
@@ -314,17 +339,24 @@ class ModifierNodeTests: XCTestCase {
 
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
 
+      // when: refreshed with the dark theme
       contentView.overrideTheme = .dark
       contentView.refresh()
+
+      // then: the layer uses the dark color
       expect(layer?.backgroundColor) == Color.green.cgColor
 
+      // when: refreshed with the light theme
       contentView.overrideTheme = .light
       contentView.refresh()
+
+      // then: the layer uses the light color
       expect(layer?.backgroundColor) == Color.blue.cgColor
     }
 
     // multiple modifiers (last one wins)
     do {
+      // given: a layer node with two background color modifiers
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -335,14 +367,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the last background color wins
       expect(layer?.backgroundColor) == Color.blue.cgColor
     }
 
     // with animation
     do {
+      // given: a layer node with a background color and an animation
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -353,16 +388,19 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed animated twice
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
       contentView.refresh(animated: true)
 
+      // then: the layer has the background color with an animation
       expect(layer?.backgroundColor) == Color.red.cgColor
       expect(layer?.animationKeys()?.contains("backgroundColor")) == true
     }
 
     // early return when requiresFullUpdate is false
     do {
+      // given: a layer node with a captured background color
       var layer: CALayer?
       var color: Color = .red
 
@@ -374,23 +412,27 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the layer has the initial color
       expect(layer?.backgroundColor) == Color.red.cgColor
 
-      // bounds change should not set new color
+      // when: the bounds change with a new color set
       color = .blue
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change should not set the new color
       expect(layer?.backgroundColor) == Color.red.cgColor
 
-      // refresh should set new color
+      // when: the view is refreshed with a new color set
       color = .green
       contentView.refresh()
 
+      // then: the refresh should set the new color
       expect(layer?.backgroundColor) == Color.green.cgColor
     }
   }
@@ -400,6 +442,7 @@ class ModifierNodeTests: XCTestCase {
   func test_opacity() {
     // normal opacity value
     do {
+      // given: a layer node with an opacity modifier
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -409,14 +452,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer has the opacity
       expect(layer?.opacity) == 0.5
     }
 
     // themed opacity
     do {
+      // given: a layer node with a themed opacity
       var layer: CALayer?
       let themedOpacity = Themed<CGFloat>(light: 0.8, dark: 0.3)
       let contentView = ComposeView {
@@ -429,17 +475,24 @@ class ModifierNodeTests: XCTestCase {
 
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
 
+      // when: refreshed with the light theme
       contentView.overrideTheme = .light
       contentView.refresh()
+
+      // then: the layer uses the light opacity
       expect(layer?.opacity) == 0.8
 
+      // when: refreshed with the dark theme
       contentView.overrideTheme = .dark
       contentView.refresh()
+
+      // then: the layer uses the dark opacity
       expect(layer?.opacity) == 0.3
     }
 
     // multiple modifiers (last one wins)
     do {
+      // given: a layer node with two opacity modifiers
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -450,14 +503,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the last opacity wins
       expect(layer?.opacity) == 0.7
     }
 
     // with animation
     do {
+      // given: a layer node with an opacity and an animation
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -468,16 +524,19 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed animated twice
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
       contentView.refresh(animated: true)
 
+      // then: the layer has the opacity with an animation
       expect(layer?.opacity) == 0.6
       expect(layer?.animationKeys()?.contains("opacity")) == true
     }
 
     // early return when requiresFullUpdate is false
     do {
+      // given: a layer node with a captured opacity
       var layer: CALayer?
       var opacity: CGFloat = 0.5
 
@@ -489,23 +548,27 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the layer has the initial opacity
       expect(layer?.opacity) == 0.5
 
-      // bounds change should not set new opacity
+      // when: the bounds change with a new opacity set
       opacity = 0.8
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change should not set the new opacity
       expect(layer?.opacity) == 0.5
 
-      // refresh should set new opacity
+      // when: the view is refreshed with a new opacity set
       opacity = 0.3
       contentView.refresh()
 
+      // then: the refresh should set the new opacity
       expect(layer?.opacity) == 0.3
     }
   }
@@ -515,6 +578,7 @@ class ModifierNodeTests: XCTestCase {
   func test_border() {
     // basic border
     do {
+      // given: a layer node with a border
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -524,15 +588,18 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer has the border color and width
       expect(layer?.borderColor) == Color.red.cgColor
       expect(layer?.borderWidth) == 2
     }
 
     // themed border
     do {
+      // given: a layer node with a themed border
       var layer: CALayer?
       let themedColor = ThemedColor(light: .green, dark: .orange)
       let themedWidth = Themed<CGFloat>(light: 1, dark: 3)
@@ -546,19 +613,26 @@ class ModifierNodeTests: XCTestCase {
 
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
 
+      // when: refreshed with the light theme
       contentView.overrideTheme = .light
       contentView.refresh()
+
+      // then: the layer uses the light border
       expect(layer?.borderColor) == Color.green.cgColor
       expect(layer?.borderWidth) == 1
 
+      // when: refreshed with the dark theme
       contentView.overrideTheme = .dark
       contentView.refresh()
+
+      // then: the layer uses the dark border
       expect(layer?.borderColor) == Color.orange.cgColor
       expect(layer?.borderWidth) == 3
     }
 
     // multiple modifiers (last one wins)
     do {
+      // given: a layer node with two border modifiers
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -569,15 +643,18 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the last border wins
       expect(layer?.borderColor) == Color.blue.cgColor
       expect(layer?.borderWidth) == 3
     }
 
     // with animation
     do {
+      // given: a layer node with a border and an animation
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -588,10 +665,12 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed animated twice
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
       contentView.refresh(animated: true)
 
+      // then: the layer has the border with animations
       expect(layer?.borderColor) == Color.cyan.cgColor
       expect(layer?.borderWidth) == 4
       expect(layer?.animationKeys()?.contains("borderColor")) == true
@@ -600,6 +679,7 @@ class ModifierNodeTests: XCTestCase {
 
     // early return when requiresFullUpdate is false
     do {
+      // given: a layer node with a captured border
       var layer: CALayer?
       var borderColor: Color = .red
       var borderWidth: CGFloat = 2
@@ -612,27 +692,31 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the layer has the initial border
       expect(layer?.borderColor) == Color.red.cgColor
       expect(layer?.borderWidth) == 2
 
-      // bounds change should not set new border
+      // when: the bounds change with a new border set
       borderColor = .blue
       borderWidth = 5
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change should not set the new border
       expect(layer?.borderColor) == Color.red.cgColor
       expect(layer?.borderWidth) == 2
 
-      // refresh should set new border
+      // when: the view is refreshed with a new border set
       borderColor = .green
       borderWidth = 3
       contentView.refresh()
 
+      // then: the refresh should set the new border
       expect(layer?.borderColor) == Color.green.cgColor
       expect(layer?.borderWidth) == 3
     }
@@ -643,6 +727,7 @@ class ModifierNodeTests: XCTestCase {
   func test_cornerRadius() {
     // default cornerCurve
     do {
+      // given: a layer node with a corner radius
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -652,15 +737,18 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer has the corner radius with the continuous corner curve
       expect(layer?.cornerRadius) == 10
       expect(layer?.cornerCurve) == .continuous
     }
 
     // explicit cornerCurve
     do {
+      // given: a layer node with a corner radius and an explicit corner curve
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -670,15 +758,18 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer has the corner radius with the explicit corner curve
       expect(layer?.cornerRadius) == 15
       expect(layer?.cornerCurve) == .circular
     }
 
     // with animation
     do {
+      // given: a layer node with a corner radius and an animation
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -689,16 +780,19 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed animated twice
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
       contentView.refresh(animated: true)
 
+      // then: the layer has the corner radius with an animation
       expect(layer?.cornerRadius) == 15
       expect(layer?.animationKeys()?.contains("cornerRadius")) == true
     }
 
     // early return when requiresFullUpdate is false
     do {
+      // given: a layer node with a captured corner radius
       var layer: CALayer?
       var cornerRadius: CGFloat = 10
 
@@ -710,23 +804,27 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the layer has the initial corner radius
       expect(layer?.cornerRadius) == 10
 
-      // bounds change should not set new corner radius
+      // when: the bounds change with a new corner radius set
       cornerRadius = 20
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change should not set the new corner radius
       expect(layer?.cornerRadius) == 10
 
-      // refresh should set new corner radius
+      // when: the view is refreshed with a new corner radius set
       cornerRadius = 8
       contentView.refresh()
 
+      // then: the refresh should set the new corner radius
       expect(layer?.cornerRadius) == 8
     }
   }
@@ -736,6 +834,7 @@ class ModifierNodeTests: XCTestCase {
   func test_masksToBounds() {
     // default value (true)
     do {
+      // given: a layer node with the default masksToBounds modifier
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -745,14 +844,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer masks to bounds
       expect(layer?.masksToBounds) == true
     }
 
     // explicit true
     do {
+      // given: a layer node with masksToBounds enabled explicitly
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -762,14 +864,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer masks to bounds
       expect(layer?.masksToBounds) == true
     }
 
     // explicit false
     do {
+      // given: a layer node with masksToBounds disabled explicitly
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -779,14 +884,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer does not mask to bounds
       expect(layer?.masksToBounds) == false
     }
 
     // update from true to false
     do {
+      // given: a layer node with masksToBounds enabled
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -796,12 +904,14 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer masks to bounds
       expect(layer?.masksToBounds) == true
 
-      // Update to false
+      // when: the content is updated to masksToBounds false
       contentView.setContent {
         LayerNode()
           .masksToBounds(false)
@@ -811,11 +921,13 @@ class ModifierNodeTests: XCTestCase {
       }
       contentView.refresh()
 
+      // then: the layer does not mask to bounds
       expect(layer?.masksToBounds) == false
     }
 
     // multiple modifiers (last one wins)
     do {
+      // given: a layer node with two masksToBounds modifiers
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -826,14 +938,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the last masksToBounds wins
       expect(layer?.masksToBounds) == false
     }
 
     // early return when requiresFullUpdate is false
     do {
+      // given: a layer node with a captured masksToBounds
       var layer: CALayer?
       var masksToBounds: Bool = true
 
@@ -845,23 +960,27 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the layer has the initial masksToBounds
       expect(layer?.masksToBounds) == true
 
-      // bounds change should not set new masksToBounds
+      // when: the bounds change with a new masksToBounds set
       masksToBounds = false
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change should not set the new masksToBounds
       expect(layer?.masksToBounds) == true
 
-      // refresh should set new masksToBounds
+      // when: the view is refreshed with a new masksToBounds set
       masksToBounds = false
       contentView.refresh()
 
+      // then: the refresh should set the new masksToBounds
       expect(layer?.masksToBounds) == false
     }
   }
@@ -871,6 +990,7 @@ class ModifierNodeTests: XCTestCase {
   func test_shadow() {
     // basic shadow
     do {
+      // given: a layer node with a shadow
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -880,9 +1000,11 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer has the shadow and does not mask to bounds
       expect(layer?.shadowColor) == Color.red.cgColor
       expect(layer?.shadowOpacity) == 0.5
       expect(layer?.shadowRadius) == 4
@@ -892,6 +1014,7 @@ class ModifierNodeTests: XCTestCase {
 
     // themed shadow
     do {
+      // given: a layer node with a themed shadow
       var layer: CALayer?
       let themedColor = ThemedColor(light: .gray, dark: .white)
       let themedOpacity = Themed<CGFloat>(light: 0.3, dark: 0.8)
@@ -908,16 +1031,22 @@ class ModifierNodeTests: XCTestCase {
 
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
 
+      // when: refreshed with the light theme
       contentView.overrideTheme = .light
       contentView.refresh()
+
+      // then: the layer uses the light shadow
       expect(layer?.shadowColor) == Color.gray.cgColor
       expect(layer?.shadowOpacity) == 0.3
       expect(layer?.shadowRadius) == 2
       expect(layer?.shadowOffset) == CGSize(width: 1, height: 1)
       expect(layer?.shadowPath) == nil
 
+      // when: refreshed with the dark theme
       contentView.overrideTheme = .dark
       contentView.refresh()
+
+      // then: the layer uses the dark shadow
       expect(layer?.shadowColor) == Color.white.cgColor
       expect(layer?.shadowOpacity) == 0.8
       expect(layer?.shadowRadius) == 6
@@ -927,6 +1056,7 @@ class ModifierNodeTests: XCTestCase {
 
     // shadow with custom path
     do {
+      // given: a layer node with a shadow using a custom path
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -938,9 +1068,11 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer has the shadow with the custom path
       expect(layer?.shadowColor) == Color.blue.cgColor
       expect(layer?.shadowOpacity) == 0.7
       expect(layer?.shadowRadius) == 3
@@ -950,6 +1082,7 @@ class ModifierNodeTests: XCTestCase {
 
     // multiple modifiers (last one wins)
     do {
+      // given: a layer node with two shadow modifiers
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -960,9 +1093,11 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the last shadow wins
       expect(layer?.shadowColor) == Color.blue.cgColor
       expect(layer?.shadowOpacity) == 0.6
       expect(layer?.shadowRadius) == 5
@@ -971,6 +1106,7 @@ class ModifierNodeTests: XCTestCase {
 
     // with animation
     do {
+      // given: a layer node with a shadow and an animation
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -981,10 +1117,12 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed animated twice
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
       contentView.refresh(animated: true)
 
+      // then: the layer has the shadow with animations
       expect(layer?.shadowColor) == Color.orange.cgColor
       expect(layer?.shadowOpacity) == 0.5
       expect(layer?.shadowRadius) == 6
@@ -997,6 +1135,7 @@ class ModifierNodeTests: XCTestCase {
 
     // early return when for scroll update
     do {
+      // given: a layer node with a captured shadow
       var layer: CALayer?
       var shadowColor: Color = .red
       var shadowOpacity: CGFloat = 0.5
@@ -1011,15 +1150,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the layer has the initial shadow
       expect(layer?.shadowColor) == Color.red.cgColor
       expect(layer?.shadowOpacity) == 0.5
       expect(layer?.shadowRadius) == 4
       expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
 
-      // scroll should not set new shadow
+      // when: the view scrolls with a new shadow set
       shadowColor = .blue
       shadowOpacity = 0.8
       shadowRadius = 8
@@ -1028,28 +1169,31 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the scroll should not set the new shadow
       expect(layer?.shadowColor) == Color.red.cgColor
       expect(layer?.shadowOpacity) == 0.5
       expect(layer?.shadowRadius) == 4
       expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
 
-      // bounds change should set new shadow
+      // when: the bounds change
       contentView.frame = CGRect(x: 0, y: 2, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change should set the new shadow
       expect(layer?.shadowColor) == Color.blue.cgColor
       expect(layer?.shadowOpacity) == 0.8
       expect(layer?.shadowRadius) == 8
       expect(layer?.shadowOffset) == CGSize(width: 5, height: 5)
 
-      // refresh should set new shadow
+      // when: the view is refreshed with a new shadow set
       shadowColor = .red
       shadowOpacity = 0.4
       shadowRadius = 7
       shadowOffset = CGSize(width: 2, height: 3)
       contentView.refresh()
 
+      // then: the refresh should set the new shadow
       expect(layer?.shadowColor) == Color.red.cgColor
       expect(layer?.shadowOpacity) == 0.4
       expect(layer?.shadowRadius) == 7
@@ -1065,6 +1209,7 @@ class ModifierNodeTests: XCTestCase {
 
     // positive z index
     do {
+      // given: a layer node with a z-index
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -1074,14 +1219,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the layer's z position band matches the z-index
       expect(layer.map { floor($0.zPosition) }) == 5
     }
 
     // multiple modifiers (the outermost one wins)
     do {
+      // given: a layer node with two z-index modifiers
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -1092,14 +1240,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the outermost z-index wins
       expect(layer.map { floor($0.zPosition) }) == 8
     }
 
     // the outermost z-index wins across other modifiers in between
     do {
+      // given: a layer node with two z-index modifiers separated by another modifier
       var layer: CALayer?
       let contentView = ComposeView {
         LayerNode()
@@ -1111,14 +1262,17 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the outermost z-index wins
       expect(layer.map { floor($0.zPosition) }) == 8
     }
 
     // the z-index is re-applied on every render pass
     do {
+      // given: a layer node with a captured z-index
       var layer: CALayer?
       var zIndex: CGFloat = 5
 
@@ -1130,23 +1284,27 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the layer uses the initial z-index
       expect(layer.map { floor($0.zPosition) }) == 5
 
-      // bounds change re-evaluates the content, which picks up the new z-index
+      // when: the bounds change with a new z-index set
       zIndex = 10
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change re-evaluates the content, which picks up the new z-index
       expect(layer.map { floor($0.zPosition) }) == 10
 
-      // refresh picks up the new z-index
+      // when: the view is refreshed with a new z-index set
       zIndex = 3
       contentView.refresh()
 
+      // then: the refresh picks up the new z-index
       expect(layer.map { floor($0.zPosition) }) == 3
     }
   }
@@ -1155,6 +1313,7 @@ class ModifierNodeTests: XCTestCase {
 
   func test_interactive() {
     do {
+      // given: a view node with the default interactive modifier
       var view: View?
       let contentView = ComposeView {
         ViewNode()
@@ -1163,9 +1322,12 @@ class ModifierNodeTests: XCTestCase {
             view = renderable.view
           }
       }
+
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the view is interactive
       #if canImport(AppKit)
       expect(view?.ignoreHitTest) == false
       #endif
@@ -1176,6 +1338,7 @@ class ModifierNodeTests: XCTestCase {
     }
 
     do {
+      // given: a view node with interactive disabled
       var view: View?
       let contentView = ComposeView {
         ViewNode()
@@ -1184,9 +1347,12 @@ class ModifierNodeTests: XCTestCase {
             view = renderable.view
           }
       }
+
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh()
 
+      // then: the view is not interactive
       #if canImport(AppKit)
       expect(view?.ignoreHitTest) == true
       #endif
@@ -1198,6 +1364,7 @@ class ModifierNodeTests: XCTestCase {
 
     // early return when requiresFullUpdate is false
     do {
+      // given: a view node with a captured interactive state
       var view: View?
       var isInteractive: Bool = true
 
@@ -1209,9 +1376,11 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the view has the initial interactive state
       #if canImport(AppKit)
       expect(view?.ignoreHitTest) == false
       #endif
@@ -1220,12 +1389,13 @@ class ModifierNodeTests: XCTestCase {
       expect(view?.isUserInteractionEnabled) == true
       #endif
 
-      // bounds change should not set new interactive state
+      // when: the bounds change with a new interactive state set
       isInteractive = false
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change should not set the new interactive state
       #if canImport(AppKit)
       expect(view?.ignoreHitTest) == false
       #endif
@@ -1234,10 +1404,11 @@ class ModifierNodeTests: XCTestCase {
       expect(view?.isUserInteractionEnabled) == true
       #endif
 
-      // refresh should set new interactive state
+      // when: the view is refreshed with a new interactive state set
       isInteractive = false
       contentView.refresh()
 
+      // then: the refresh should set the new interactive state
       #if canImport(AppKit)
       expect(view?.ignoreHitTest) == true
       #endif
@@ -1251,6 +1422,7 @@ class ModifierNodeTests: XCTestCase {
   // MARK: - Rasterization
 
   func test_rasterize() {
+    // given: a layer node with rasterization disabled
     var layer: CALayer?
     let contentView = ComposeView {
       LayerNode()
@@ -1260,12 +1432,15 @@ class ModifierNodeTests: XCTestCase {
         }
     }
 
+    // when: the view is sized and refreshed
     contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
     contentView.refresh()
 
+    // then: the layer is not rasterized
     expect(layer?.shouldRasterize) == false
     expect(layer?.rasterizationScale) == 1
 
+    // when: the content is updated with a rasterization scale
     contentView.setContent {
       LayerNode()
         .rasterize(3)
@@ -1275,11 +1450,13 @@ class ModifierNodeTests: XCTestCase {
     }
     contentView.refresh()
 
+    // then: the layer is rasterized with the scale
     expect(layer?.shouldRasterize) == true
     expect(layer?.rasterizationScale) == 3
 
     // early return when requiresFullUpdate is false
     do {
+      // given: a layer node with a captured rasterization scale
       var layer: CALayer?
       var rasterizeScale: CGFloat? = 2
 
@@ -1291,25 +1468,29 @@ class ModifierNodeTests: XCTestCase {
           }
       }
 
+      // when: the view is sized and refreshed
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
+      // then: the layer has the initial rasterize settings
       expect(layer?.shouldRasterize) == true
       expect(layer?.rasterizationScale) == 2
 
-      // bounds change should not set new rasterize settings
+      // when: the bounds change with new rasterize settings set
       rasterizeScale = nil
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
+      // then: the bounds change should not set the new rasterize settings
       expect(layer?.shouldRasterize) == true
       expect(layer?.rasterizationScale) == 2
 
-      // refresh should set new rasterize settings
+      // when: the view is refreshed with new rasterize settings set
       rasterizeScale = nil
       contentView.refresh()
 
+      // then: the refresh should set the new rasterize settings
       expect(layer?.shouldRasterize) == false
       expect(layer?.rasterizationScale) == 1
     }
@@ -1323,58 +1504,88 @@ class ModifierNodeTests: XCTestCase {
 
     // backgroundColor
     do {
+      // given: a layer with a background color set
       let layer = CALayer()
       layer.backgroundColor = Color.red.cgColor
+
+      // when: the reset for reuse block runs
       firstRenderableItem(of: LayerNode().backgroundColor(.red))?.resetForReuse?(.layer(layer))
+
+      // then: the background color is reset
       expect(layer.backgroundColor) == nil
     }
 
     // opacity
     do {
+      // given: a layer with an opacity set
       let layer = CALayer()
       layer.opacity = 0.3
+
+      // when: the reset for reuse block runs
       firstRenderableItem(of: LayerNode().opacity(0.3))?.resetForReuse?(.layer(layer))
+
+      // then: the opacity is reset
       expect(layer.opacity) == 1
     }
 
     // border
     do {
+      // given: a layer with a border set
       let layer = CALayer()
       layer.borderColor = Color.red.cgColor
       layer.borderWidth = 4
+
+      // when: the reset for reuse block runs
       firstRenderableItem(of: LayerNode().border(color: .red, width: 4))?.resetForReuse?(.layer(layer))
+
+      // then: the border is reset
       expect(layer.borderColor) == CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
       expect(layer.borderWidth) == 0
     }
 
     // cornerRadius
     do {
+      // given: a layer with a corner radius set
       let layer = CALayer()
       layer.cornerRadius = 10
       layer.cornerCurve = .circular
+
+      // when: the reset for reuse block runs
       firstRenderableItem(of: LayerNode().cornerRadius(10))?.resetForReuse?(.layer(layer))
+
+      // then: the corner radius and corner curve are reset
       expect(layer.cornerRadius) == 0
       expect(layer.cornerCurve) == .continuous
     }
 
     // masksToBounds
     do {
+      // given: a layer with masksToBounds set
       let layer = CALayer()
       layer.masksToBounds = true
+
+      // when: the reset for reuse block runs
       firstRenderableItem(of: LayerNode().masksToBounds(true))?.resetForReuse?(.layer(layer))
+
+      // then: masksToBounds is reset
       expect(layer.masksToBounds) == false
     }
 
     // shadow
     do {
+      // given: a layer with a shadow set
       let layer = CALayer()
       layer.shadowColor = Color.red.cgColor
       layer.shadowOpacity = 0.8
       layer.shadowRadius = 12
       layer.shadowOffset = CGSize(width: 5, height: 5)
       layer.shadowPath = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 10), transform: nil)
+
+      // when: the reset for reuse block runs
       firstRenderableItem(of: LayerNode().shadow(color: .red, opacity: 0.8, radius: 12, offset: CGSize(width: 5, height: 5), path: nil))?
         .resetForReuse?(.layer(layer))
+
+      // then: the shadow is reset
       expect(layer.shadowOpacity) == 0
       expect(layer.shadowColor) == CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
       expect(layer.shadowRadius) == 3
@@ -1386,13 +1597,17 @@ class ModifierNodeTests: XCTestCase {
     // `resetForReuse`. the render pass owns the layer's `zPosition` and resets it when the renderable is pooled
     // (see `ComposeView_RenderReuseTests.test_pooledRenderable_zPositionIsReset`).
     do {
+      // given: a renderable item from a node with a z-index
       let item = firstRenderableItem(of: LayerNode().zIndex(7))
+
+      // then: the item has the z-index attribute and no reset block
       expect(item?.zIndex) == 7
       expect(item?.resetForReuse) == nil
     }
 
     // interactive
     do {
+      // given: a view with interaction disabled
       let view = View()
       #if canImport(AppKit)
       view.ignoreHitTest = true
@@ -1400,7 +1615,11 @@ class ModifierNodeTests: XCTestCase {
       #if canImport(UIKit)
       view.isUserInteractionEnabled = false
       #endif
+
+      // when: the reset for reuse block runs
       firstRenderableItem(of: ViewNode().interactive(true))?.resetForReuse?(.view(view))
+
+      // then: the interaction state is reset
       #if canImport(AppKit)
       expect(view.ignoreHitTest) == false
       #endif
@@ -1411,10 +1630,15 @@ class ModifierNodeTests: XCTestCase {
 
     // rasterize
     do {
+      // given: a layer with rasterization set
       let layer = CALayer()
       layer.shouldRasterize = true
       layer.rasterizationScale = 3
+
+      // when: the reset for reuse block runs
       firstRenderableItem(of: LayerNode().rasterize(3))?.resetForReuse?(.layer(layer))
+
+      // then: the rasterization is reset
       expect(layer.shouldRasterize) == false
       expect(layer.rasterizationScale) == 1
     }

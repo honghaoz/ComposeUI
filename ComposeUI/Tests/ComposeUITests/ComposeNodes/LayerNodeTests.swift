@@ -35,42 +35,46 @@ import ChouTiTest
 class LayerNodeTests: XCTestCase {
 
   func test_id() throws {
+    // then: a factory layer node has the standard id
     expect(LayerNode().id.id) == "L"
 
+    // given: an external layer
     let layer = CALayer()
     let id = ObjectIdentifier(layer)
+
+    // then: an external layer node id includes the layer identity
     expect(LayerNode(layer).id.id) == "layer-\(id)"
   }
 
   func test_fixedSize() {
     do {
-      // when using layer factory
+      // given: a node using layer factory
       var node = LayerNode<CALayer>()
 
-      // then the size is flexible
+      // then: the size is flexible
       expect(node.isFixedWidth) == false
       expect(node.isFixedHeight) == false
 
-      // when set fixed size
+      // when: set fixed size
       node = node.fixedSize()
 
-      // then the size is fixed
+      // then: the size is fixed
       expect(node.isFixedWidth) == true
       expect(node.isFixedHeight) == true
     }
 
     do {
-      // when using external layer
+      // given: a node using external layer
       var node = LayerNode(CALayer())
 
-      // then the size is fixed
+      // then: the size is fixed
       expect(node.isFixedWidth) == true
       expect(node.isFixedHeight) == true
 
-      // when set flexible size
+      // when: set flexible size
       node = node.flexibleSize()
 
-      // then the size is flexible
+      // then: the size is flexible
       expect(node.isFixedWidth) == false
       expect(node.isFixedHeight) == false
     }
@@ -79,45 +83,53 @@ class LayerNodeTests: XCTestCase {
   func test_size() {
     // using layer's bounds.size as intrinsic size
     do {
-      // with external layer
+      // given: a node with an external layer
       do {
         let layer = CALayer()
         layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
         var node = LayerNode(layer)
 
-        // fixed size
+        // when: laying out with fixed size
         do {
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the size is the layer's size
           expect(sizing) == ComposeNodeSizing(width: .fixed(50), height: .fixed(50))
           expect(node.size) == CGSize(width: 50, height: 50)
         }
 
-        // fixed width, flexible height
+        // when: laying out with fixed width, flexible height
         do {
           node = node.fixedSize(width: true, height: false)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width is the layer's width and the height fills the container
           expect(sizing) == ComposeNodeSizing(width: .fixed(50), height: .flexible)
           expect(node.size) == CGSize(width: 50, height: 100)
         }
 
-        // flexible width, fixed height
+        // when: laying out with flexible width, fixed height
         do {
           node = node.fixedSize(width: false, height: true)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width fills the container and the height is the layer's height
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(50))
           expect(node.size) == CGSize(width: 100, height: 50)
         }
 
-        // flexible size
+        // when: laying out with flexible size
         do {
           node = node.flexibleSize()
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the node fills the container
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
           expect(node.size) == CGSize(width: 100, height: 100)
         }
       }
 
-      // with layer factory
+      // given: a node created with a layer factory and custom intrinsic size
       do {
         var node = LayerNode(
           make: { _ in
@@ -128,33 +140,41 @@ class LayerNodeTests: XCTestCase {
           intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
         )
 
-        // flexible size
+        // when: laying out with flexible size
         do {
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the node fills the container
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
           expect(node.size) == CGSize(width: 100, height: 100)
         }
 
-        // fixed width, flexible height
+        // when: laying out with fixed width, flexible height
         do {
           node = node.fixedSize(width: true, height: false)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width is the intrinsic width and the height fills the container
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .flexible)
           expect(node.size) == CGSize(width: 200, height: 100)
         }
 
-        // flexible width, fixed height
+        // when: laying out with flexible width, fixed height
         do {
           node = node.fixedSize(width: false, height: true)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width fills the container and the height is the intrinsic height
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(200))
           expect(node.size) == CGSize(width: 100, height: 200)
         }
 
-        // fixed size
+        // when: laying out with fixed size
         do {
           node = node.fixedSize()
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the size is the intrinsic size
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .fixed(200))
           expect(node.size) == CGSize(width: 200, height: 200)
         }
@@ -163,45 +183,53 @@ class LayerNodeTests: XCTestCase {
 
     // using custom intrinsic size
     do {
-      // with external layer
+      // given: a node with an external layer and custom intrinsic size
       do {
         let layer = CALayer()
         layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
         var node = LayerNode(layer, intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) })
 
-        // fixed size
+        // when: laying out with fixed size
         do {
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the size is the custom intrinsic size
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .fixed(200))
           expect(node.size) == CGSize(width: 200, height: 200)
         }
 
-        // fixed width, flexible height
+        // when: laying out with fixed width, flexible height
         do {
           node = node.fixedSize(width: true, height: false)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width is the intrinsic width and the height fills the container
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .flexible)
           expect(node.size) == CGSize(width: 200, height: 100)
         }
 
-        // flexible width, fixed height
+        // when: laying out with flexible width, fixed height
         do {
           node = node.fixedSize(width: false, height: true)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width fills the container and the height is the intrinsic height
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(200))
           expect(node.size) == CGSize(width: 100, height: 200)
         }
 
-        // flexible size
+        // when: laying out with flexible size
         do {
           node = node.flexibleSize()
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the node fills the container
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
           expect(node.size) == CGSize(width: 100, height: 100)
         }
       }
 
-      // with layer factory
+      // given: a node created with a layer factory and custom intrinsic size
       do {
         var node = LayerNode(
           make: { _ in
@@ -212,33 +240,41 @@ class LayerNodeTests: XCTestCase {
           intrinsicSize: { containerSize in CGSize(width: containerSize.width * 2, height: containerSize.height * 2) }
         )
 
-        // flexible size
+        // when: laying out with flexible size
         do {
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the node fills the container
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .flexible)
           expect(node.size) == CGSize(width: 100, height: 100)
         }
 
-        // fixed width, flexible height
+        // when: laying out with fixed width, flexible height
         do {
           node = node.fixedSize(width: true, height: false)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width is the intrinsic width and the height fills the container
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .flexible)
           expect(node.size) == CGSize(width: 200, height: 100)
         }
 
-        // flexible width, fixed height
+        // when: laying out with flexible width, fixed height
         do {
           node = node.fixedSize(width: false, height: true)
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the width fills the container and the height is the intrinsic height
           expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(200))
           expect(node.size) == CGSize(width: 100, height: 200)
         }
 
-        // fixed size
+        // when: laying out with fixed size
         do {
           node = node.fixedSize()
           let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+          // then: the size is the intrinsic size
           expect(sizing) == ComposeNodeSizing(width: .fixed(200), height: .fixed(200))
           expect(node.size) == CGSize(width: 200, height: 200)
         }
@@ -247,6 +283,7 @@ class LayerNodeTests: XCTestCase {
   }
 
   func test_factoryLayer_requiresIntrinsicSizeForFixedSizing() {
+    // given: a fixed size layer node with a layer factory and no intrinsic size
     var node = LayerNode()
       .fixedSize()
 
@@ -256,7 +293,10 @@ class LayerNodeTests: XCTestCase {
       assertionCount += 1
     }
 
+    // when: laying out in a 100x100 container
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the assertion is triggered and the size falls back to zero
     expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
     expect(node.size) == .zero
     expect(assertionCount) == 1
@@ -265,14 +305,17 @@ class LayerNodeTests: XCTestCase {
   }
 
   func test_renderableItems() throws {
+    // given: a laid out layer node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = LayerNode()
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-    // when visible bounds intersects with the node's frame
+    // when: visible bounds intersects with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: a single layer item is provided with the expected id, frame, and behaviors
       expect(items.count) == 1
 
       let item = items[0]
@@ -306,16 +349,18 @@ class LayerNodeTests: XCTestCase {
       expect(item.animationTiming) == nil
     }
 
-    // when visible bounds does not intersect with the node's frame
+    // when: visible bounds does not intersect with the node's frame
     do {
       let visibleBounds = CGRect(x: 0, y: 100, width: 100, height: 100)
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0
     }
   }
 
   func test_renderableItems_visibleBounds() {
-    // given a layer node with specific size
+    // given: a layer node with specific size
     let layer = CALayer()
     layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     var node = LayerNode(layer)
@@ -324,29 +369,36 @@ class LayerNodeTests: XCTestCase {
     _ = node.layout(containerSize: CGSize(width: 50, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
     expect(node.size) == CGSize(width: 50, height: 50)
 
-    // when visible bounds intersects with the node frame
+    // when: visible bounds intersects with the node frame
     do {
       let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 100) // intersects
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: one item is provided
       expect(items.count) == 1
     }
 
-    // when visible bounds partially intersects with the node frame
+    // when: visible bounds partially intersects with the node frame
     do {
       let visibleBounds = CGRect(x: 25, y: 25, width: 50, height: 50) // partially intersects
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: one item is provided
       expect(items.count) == 1
     }
 
-    // when visible bounds does not intersect with the node frame
+    // when: visible bounds does not intersect with the node frame
     do {
       let visibleBounds = CGRect(x: 100, y: 100, width: 50, height: 50) // no intersection
       let items = node.renderableItems(in: visibleBounds)
+
+      // then: no items are provided
       expect(items.count) == 0 // should return empty array
     }
   }
 
   func test_layer_as_composeContent() {
+    // given: a compose view with a fixed size layer as content
     let view = ComposeView {
       let layer = CALayer()
       layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
@@ -354,8 +406,11 @@ class LayerNodeTests: XCTestCase {
     }
 
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the view is refreshed
     view.refresh(animated: false)
 
+    // then: the layer is rendered centered at its fixed size
     #if canImport(AppKit)
     expect(view.contentView().layer?.sublayers?.count) == 1
     expect(view.contentView().layer?.sublayers?[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)

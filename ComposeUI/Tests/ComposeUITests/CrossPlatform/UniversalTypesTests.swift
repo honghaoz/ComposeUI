@@ -47,6 +47,7 @@ final class UniversalTypesTests: XCTestCase {
   #if canImport(AppKit)
 
   func test_appKit_typealiases() {
+    // then: universal typealiases map to the AppKit types
     expect(ComposeUI.Window.self == NSWindow.self) == true
     expect(ComposeUI.View.self == NSView.self) == true
     expect(ComposeUI.TextView.self == NSTextView.self) == true
@@ -61,7 +62,10 @@ final class UniversalTypesTests: XCTestCase {
   }
 
   func test_appKit_edgeInsets_isNSEdgeInsets() {
+    // given: edge insets with distinct values
     let insets = ComposeUI.EdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
+
+    // then: the components match
     expect(insets.top) == 1
     expect(insets.left) == 2
     expect(insets.bottom) == 3
@@ -72,8 +76,11 @@ final class UniversalTypesTests: XCTestCase {
   }
 
   func test_appKit_gestureRecognizerDelegate_protocolConformance() {
+    // given: a delegate conforming to the universal delegate protocol
     final class Delegate: NSObject, ComposeUI.GestureRecognizerDelegate {}
     let delegate: NSGestureRecognizerDelegate = Delegate()
+
+    // then: it can be used as an AppKit gesture recognizer delegate
     expect(delegate).toNot(beNil())
   }
 
@@ -84,6 +91,7 @@ final class UniversalTypesTests: XCTestCase {
   #if canImport(UIKit)
 
   func test_uiKit_typealiases() {
+    // then: universal typealiases map to the UIKit types
     expect(ComposeUI.Window.self == UIWindow.self) == true
     expect(ComposeUI.View.self == UIView.self) == true
     expect(ComposeUI.TextView.self == UITextView.self) == true
@@ -98,7 +106,10 @@ final class UniversalTypesTests: XCTestCase {
   }
 
   func test_uiKit_edgeInsets_isUIEdgeInsets() {
+    // given: edge insets with distinct values
     let insets = ComposeUI.EdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
+
+    // then: the components match
     expect(insets.top) == 1
     expect(insets.left) == 2
     expect(insets.bottom) == 3
@@ -109,8 +120,11 @@ final class UniversalTypesTests: XCTestCase {
   }
 
   func test_uiKit_gestureRecognizerDelegate_protocolConformance() {
+    // given: a delegate conforming to the universal delegate protocol
     final class Delegate: NSObject, ComposeUI.GestureRecognizerDelegate {}
     let delegate: UIGestureRecognizerDelegate = Delegate()
+
+    // then: it can be used as a UIKit gesture recognizer delegate
     expect(delegate).toNot(beNil())
   }
 

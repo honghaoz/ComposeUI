@@ -59,6 +59,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
   // MARK: - Recycling
 
   func test_reuseId_recyclesRenderables_acrossScroll() {
+    // given: a rows view with a reuse id, rendered for the initial fill
     let counter = MakeCounter()
     let view = makeRowsView(reuseId: "row", counter: counter, update: nil)
     view.refresh(animated: false)
@@ -66,14 +67,16 @@ class ComposeView_RenderReuseTests: XCTestCase {
     let initialMakeCount = counter.madeCount
     expect(initialMakeCount) > 0
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // every row revealed during the scroll reused a renderable, so no new renderable was created after the
-    // initial fill.
+    // then: every row revealed during the scroll reused a renderable, so no new renderable was created after the
+    // initial fill
     expect(counter.madeCount) == initialMakeCount
   }
 
   func test_noReuseId_doesNotRecycle() {
+    // given: a rows view without a reuse id, rendered for the initial fill
     let counter = MakeCounter()
     let view = makeRowsView(reuseId: nil, counter: counter, update: nil)
     view.refresh(animated: false)
@@ -81,9 +84,10 @@ class ComposeView_RenderReuseTests: XCTestCase {
     let initialMakeCount = counter.madeCount
     expect(initialMakeCount) > 0
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // without a reuse identifier, each distinct row creates its own renderable as it is revealed.
+    // then: without a reuse identifier, each distinct row creates its own renderable as it is revealed
     expect(counter.madeCount) == Constants.rowCount
     expect(counter.madeCount) > initialMakeCount
   }
@@ -94,6 +98,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // A node id'd "x" (non-fixed) and the same node `fixedId`'d "x" are the SAME render item, because render identity is
     // the id string only. Changing only the "isFixed" must therefore reuse the existing renderable in place rather than
     // remove the old one and create a new one (which is what would happen if `isFixed` were part of the render map keys).
+
+    // given: a view rendering a node id'd "x" (non-fixed), with map-based reuse isolated from the recycle pool
     var madeCount = 0
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = nil // isolate map-based reuse from the recycle pool
@@ -108,7 +114,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     view.refresh(animated: false)
     expect(madeCount) == 1
 
-    // same string id, now fixed: the render maps (renderableItemMap/renderableMap) must treat it as the same key.
+    // when: the same string id renders again, now fixed
+    // the render maps (renderableItemMap/renderableMap) must treat it as the same key.
     view.setContent {
       LayerNode(make: { _ in
         madeCount += 1
@@ -118,7 +125,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    // reused in place: no new renderable was created, and nothing was stranded in the removing map.
+    // then: reused in place: no new renderable was created, and nothing was stranded in the removing map
     expect(madeCount) == 1
     expect(view.test.removingRenderableMap.count) == 0
   }
@@ -127,6 +134,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // Two copies of the same base leaf node share its itemCache (a reference stored in a value-type node). Giving them
     // the same id string but different "isFixed" must not let the fixed copy receive the non-fixed copy's cached item,
     // which would make the parent prefix it ("VS|1|x") instead of treating it as fixed ("x").
+
+    // given: two copies of the same base leaf node with the same id string but different isFixed, and an id recorder
     let base = ColorNode(.red)
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = nil
@@ -144,10 +153,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
         renderedIds = ids.map(\.id)
       }
     }
+
+    // when: the view renders
     view.refresh(animated: false)
 
-    // the fixed copy keeps its unprefixed id; with an `==`-based (isFixed-ignoring) cache key it would have rendered
-    // as "VS|1|x" by reusing the non-fixed copy's cached item.
+    // then: the fixed copy keeps its unprefixed id
+    // with an `==`-based (isFixed-ignoring) cache key it would have rendered as "VS|1|x" by reusing the non-fixed
+    // copy's cached item.
     expect(renderedIds.contains("x")) == true
     expect(renderedIds.contains("VS|1|x")) == false
   }
@@ -155,6 +167,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
   // MARK: - Default pooling (common nodes)
 
   func test_colorNode_poolsByDefault_acrossScroll() {
+    // given: a recording pool and a list of color rows, rendered for the initial fill
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = pool
@@ -169,15 +182,18 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // ColorNode added leaving layers to the pool and reused them for entering rows, all under a bucket with a framework-internal reuse id.
+    // then: ColorNode added leaving layers to the pool and reused them for entering rows, all under a bucket with a
+    // framework-internal reuse id
     expect(pool.enqueueCount) > 0
     expect(pool.dequeueCount) > 0
     expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "CALayer" }) == true
   }
 
   func test_textNode_poolsByDefault_acrossScroll() {
+    // given: a recording pool and a list of text rows, rendered for the initial fill
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = pool
@@ -192,15 +208,18 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // TextNode added leaving views to the pool and reused them for entering rows, all under a framework-internal bucket.
+    // then: TextNode added leaving views to the pool and reused them for entering rows, all under a framework-internal
+    // bucket
     expect(pool.enqueueCount) > 0
     expect(pool.dequeueCount) > 0
     expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "BaseTextView" }) == true
   }
 
   func test_textNode_recycledView_resetsTextViewStateFromPreviousUse() throws {
+    // given: a recording pool and a rendered text node, with the text view's state mutated by a previous use
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.renderablePool = pool
@@ -245,11 +264,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     #endif
     textView.isSelectable = false
 
+    // when: the text node is removed so its view is enqueued to the pool
     view.setContent {
       Empty()
     }
     view.refresh(animated: false)
 
+    // then: the same text view is enqueued with its state reset
     let enqueued = try (pool.lastEnqueuedRenderable?.view as? BaseTextView).unwrap()
     expect(enqueued) === textView
     expect(textView.attributedString.string) == ""
@@ -280,12 +301,14 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(textView.selectedRange) == NSRange(location: 0, length: 0)
     #endif
 
+    // when: a new text node reuses the pooled view
     view.setContent {
       TextNode("Second")
         .frame(width: 100, height: 100)
     }
     view.refresh(animated: false)
 
+    // then: the same view is dequeued and configured for the new text
     expect(pool.lastDequeuedRenderable?.view) === textView
     expect(textView.attributedString.string) == "Second"
     expect(textView.numberOfLines) == 0
@@ -294,6 +317,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
   func test_colorNode_recycledLayer_resetsModifierStateFromPreviousUse() {
     // a layer configured by a modifier in one use must not carry that state into a pool
+
+    // given: a recording pool and a rendered color node with a corner radius modifier
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.renderablePool = pool
@@ -303,26 +328,29 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
+    // when: the node is removed so its layer is enqueued to the pool
     view.setContent {
       Empty()
     }
     view.refresh(animated: false)
 
-    // the layer is enqueued with the modified corner radius reset for reuse.
+    // then: the layer is enqueued with the modified corner radius reset for reuse
     let enqueued = pool.lastEnqueuedRenderable
     expect(enqueued?.layer.cornerRadius) == 0
 
+    // when: a plain color node reuses the pooled layer
     view.setContent {
       ColorNode(.blue).frame(width: 100, height: 100)
     }
     view.refresh(animated: false)
 
-    // the plain ColorNode reused the very same enqueued layer and it carries no stale corner radius.
+    // then: the plain ColorNode reused the very same enqueued layer and it carries no stale corner radius
     expect(pool.lastDequeuedRenderable?.layer) === enqueued?.layer
     expect(enqueued?.layer.cornerRadius) == 0
   }
 
   func test_innerShadowNode_poolsByDefault_acrossScroll() {
+    // given: a recording pool and a list of inner shadow rows, rendered for the initial fill
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = pool
@@ -339,15 +367,18 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // InnerShadowNode added leaving layers to the pool and reused them for entering rows, all under a framework-internal bucket.
+    // then: InnerShadowNode added leaving layers to the pool and reused them for entering rows, all under a
+    // framework-internal bucket
     expect(pool.enqueueCount) > 0
     expect(pool.dequeueCount) > 0
     expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "InnerShadowLayer" }) == true
   }
 
   func test_dropShadowNode_poolsByDefault_acrossScroll() {
+    // given: a recording pool and a list of drop shadow rows, rendered for the initial fill
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = pool
@@ -364,9 +395,11 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // DropShadowNode added leaving layers to the pool and reused them for entering rows, all under a framework-internal bucket.
+    // then: DropShadowNode added leaving layers to the pool and reused them for entering rows, all under a
+    // framework-internal bucket
     // these plain (no cutout) rows never install a mask, so the reset's guard takes its no-op branch on each enqueue.
     expect(pool.enqueueCount) > 0
     expect(pool.dequeueCount) > 0
@@ -376,6 +409,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
   func test_dropShadowNode_recycledLayer_clearsCutoutMaskFromPreviousUse() {
     // a cutout mask installed in one use must not carry into the pool (the layer's `update` only sets the mask when a
     // cutout is provided, so a reuse without a cutout would otherwise leak the stale mask).
+
+    // given: a recording pool and a rendered drop shadow node with a cutout
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.renderablePool = pool
@@ -392,15 +427,17 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // the cutout installed a mask on the rendered layer.
     expect(firstDropShadowLayer(in: view)?.mask) != nil
 
+    // when: the node is removed so its layer is enqueued to the pool
     view.setContent {
       Empty()
     }
     view.refresh(animated: false)
 
-    // the layer is enqueued with the cutout mask cleared for reuse.
+    // then: the layer is enqueued with the cutout mask cleared for reuse
     let enqueued = pool.lastEnqueuedRenderable
     expect(enqueued?.layer.mask) == nil
 
+    // when: a plain (no cutout) drop shadow node reuses the pooled layer
     view.setContent {
       DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
         CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
@@ -409,7 +446,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    // the plain (no cutout) DropShadowNode reused the very same enqueued layer and it carries no stale mask.
+    // then: the plain (no cutout) DropShadowNode reused the very same enqueued layer and it carries no stale mask
     expect(pool.lastDequeuedRenderable?.layer) === enqueued?.layer
     expect(enqueued?.layer.mask) == nil
   }
@@ -420,6 +457,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // a layer added to the pool mid-animation (e.g. an animated color change interrupted by scrolling the row off-screen)
     // must not keep that animation: the render pass only disables implicit actions, so the explicit animation would
     // otherwise survive in the pool and leak into the next, possibly non-animated, reuse.
+
+    // given: a recording pool and a rendered color node with an in-flight animation on its layer
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.renderablePool = pool
@@ -436,12 +475,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     layer.add(animation, forKey: "backgroundColor")
     expect(layer.animationKeys()?.isEmpty) == false
 
+    // when: the node is removed so its layer is enqueued to the pool
     view.setContent {
       Empty()
     }
     view.refresh(animated: false)
 
-    // the same layer is enqueued, scrubbed of its in-flight animation, so reuse starts from a clean state.
+    // then: the same layer is enqueued, scrubbed of its in-flight animation, so reuse starts from a clean state
     expect(pool.lastEnqueuedRenderable?.layer) === layer
     expect(layer.animationKeys() ?? []) == []
   }
@@ -449,6 +489,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
   func test_innerShadowNode_recycledLayer_scrubsMaskAnimationFromPreviousUse() throws {
     // the inner shadow keeps its mask attached across reuses, so the centralized pooling scrub (which only reaches the
     // layer itself) can't clear an in-flight mask animation; the node's reset must.
+
+    // given: a recording pool and a rendered inner shadow node with an in-flight animation on its mask
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.renderablePool = pool
@@ -468,12 +510,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     mask.add(animation, forKey: "path")
     expect(mask.animationKeys()?.isEmpty) == false
 
+    // when: the node is removed so its layer is enqueued to the pool
     view.setContent {
       Empty()
     }
     view.refresh(animated: false)
 
-    // the mask stays attached but is scrubbed of its in-flight animation.
+    // then: the mask stays attached but is scrubbed of its in-flight animation
     expect(pool.lastEnqueuedRenderable?.layer.mask) === mask
     expect(mask.animationKeys() ?? []) == []
   }
@@ -481,6 +524,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
   func test_dropShadowNode_recycledLayer_scrubsCutoutMaskAnimationFromPreviousUse() throws {
     // the drop shadow detaches its cutout mask on reset, but the mask layer instance is retained and re-attached on a
     // later cutout update, so its in-flight animation must be cleared before it is detached.
+
+    // given: a recording pool and a rendered drop shadow node with an in-flight animation on its cutout mask
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.renderablePool = pool
@@ -501,12 +546,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     mask.add(animation, forKey: "path")
     expect(mask.animationKeys()?.isEmpty) == false
 
+    // when: the node is removed so its layer is enqueued to the pool
     view.setContent {
       Empty()
     }
     view.refresh(animated: false)
 
-    // the mask is detached for reuse and its in-flight animation is cleared, so a later cutout reuse won't leak it.
+    // then: the mask is detached for reuse and its in-flight animation is cleared, so a later cutout reuse won't leak it
     expect(pool.lastEnqueuedRenderable?.layer.mask) == nil
     expect(mask.animationKeys() ?? []) == []
   }
@@ -514,12 +560,15 @@ class ComposeView_RenderReuseTests: XCTestCase {
   // MARK: - Pool configuration
 
   func test_renderablePool_defaultsToSharedPool() {
+    // given: a compose view
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
-    // by default a view uses the process-wide shared pool, so reuse is amortized across views.
+
+    // then: by default a view uses the process-wide shared pool, so reuse is amortized across views
     expect(view.renderablePool === RenderablePool.shared) == true
   }
 
   func test_renderablePool_disabled_doesNotRecycle() {
+    // given: a rows view with a reuse id but pooling disabled, rendered for the initial fill
     let counter = MakeCounter()
     let view = makeRowsView(reuseId: "row", counter: counter, update: nil)
     view.renderablePool = nil // disable pooling despite the rows having a reuse identifier.
@@ -528,23 +577,26 @@ class ComposeView_RenderReuseTests: XCTestCase {
     let initialMakeCount = counter.madeCount
     expect(initialMakeCount) > 0
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // with pooling disabled, each revealed row creates its own renderable (nothing is enqueued or reused).
+    // then: with pooling disabled, each revealed row creates its own renderable (nothing is enqueued or reused)
     expect(counter.madeCount) == Constants.rowCount
     expect(counter.madeCount) > initialMakeCount
   }
 
   func test_renderablePool_customPool_isUsedForReuse() {
+    // given: a rows view using a custom pool, rendered for the initial fill
     let counter = MakeCounter()
     let pool = MockRenderablePool()
     let view = makeRowsView(reuseId: "row", counter: counter, update: nil)
     view.renderablePool = pool
     view.refresh(animated: false)
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // the custom pool received enqueued renderables and handed them back for reuse.
+    // then: the custom pool received enqueued renderables and handed them back for reuse
     expect(pool.enqueueCount) > 0
     expect(pool.dequeueCount) > 0
   }
@@ -552,6 +604,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
   // MARK: - Reconfiguration (dirty-state contract)
 
   func test_reuseId_recycledRenderable_isReconfiguredForNewRow() {
+    // given: a rows view with a reuse id, rendered for the initial fill
     let counter = MakeCounter()
     // each row stamps its own index onto the (possibly recycled) view on update.
     let view = makeRowsView(reuseId: "row", counter: counter, update: { rowView, index in
@@ -559,10 +612,12 @@ class ComposeView_RenderReuseTests: XCTestCase {
     })
     view.refresh(animated: false)
 
+    // when: the view scrolls to the bottom of the list
     scrollDown(view)
 
+    // then: the recycled renderables were reconfigured to the current rows (no stale state)
     // at the bottom, the two visible rows are the last two (indices 58 and 59). Their renderables are recycled from
-    // earlier rows, so this asserts the recycled renderables were reconfigured to the current rows (no stale state).
+    // earlier rows.
     let configuredValues = visibleRowViews(in: view).map(\.configuredValue).sorted()
     expect(configuredValues) == [Constants.rowCount - 2, Constants.rowCount - 1]
   }
@@ -573,6 +628,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // even rows are backed by `RowViewA`, odd rows by `RowViewB`, all sharing the same reuse identifier. The pool key
     // includes the concrete type, so a enqueued `RowViewA` is never handed to a `RowViewB` item (which would crash on the
     // `as!` cast in the update closure). Completing the scroll without crashing exercises that guard.
+
+    // given: a list mixing two row view types under one reuse id, rendered for the initial fill
     let counterA = MakeCounter()
     let counterB = MakeCounter()
 
@@ -601,9 +658,10 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // both types were created and recycled within their own type bucket.
+    // then: both types were created and recycled within their own type bucket
     expect(counterA.madeCount) > 0
     expect(counterB.madeCount) > 0
     // the visible views at the bottom must be the correct concrete types for their rows (58 -> A, 59 -> B).
@@ -615,26 +673,35 @@ class ComposeView_RenderReuseTests: XCTestCase {
   // MARK: - Modifier semantics
 
   func test_reuseIdModifier_setsReuseIdAndResolvesKey() {
+    // given: a color node with a user reuse id
     let item = firstRenderableItem(of: ColorNode(.red).reuseId("x").frame(width: 100, height: 100))
+
+    // then: the item carries the user reuse id and resolves a reuse key
     expect(item?.reuseId) == ReuseId(namespace: .user, id: "x")
     expect(item?.reuseKey) != nil
   }
 
   func test_reuseIdModifier_innerWins_whenCoalesced() {
-    // two adjacent reuse identifiers coalesce into one modifier node; the inner one wins.
+    // given: two adjacent reuse identifiers that coalesce into one modifier node
     let item = firstRenderableItem(of: ColorNode(.red).reuseId("inner").reuseId("outer").frame(width: 100, height: 100))
+
+    // then: the inner one wins
     expect(item?.reuseId) == ReuseId(namespace: .user, id: "inner")
   }
 
   func test_reuseIdModifier_innerWins_acrossNodeBoundary() {
-    // an outer reuse identifier applied across a frame boundary must not overwrite the inner one already on the item.
+    // given: an outer reuse identifier applied across a frame boundary
     let item = firstRenderableItem(of: ColorNode(.red).reuseId("inner").frame(width: 100, height: 100).reuseId("outer"))
+
+    // then: the outer identifier must not overwrite the inner one already on the item
     expect(item?.reuseId) == ReuseId(namespace: .user, id: "inner")
   }
 
   func test_nonPoolingNode_withoutReuseId_resolvesNilKey() {
-    // a node that does not pool by default (here a `LayerNode`) and is not given a reuse id has no reuse key.
+    // given: a node that does not pool by default (here a `LayerNode`) and is not given a reuse id
     let item = firstRenderableItem(of: LayerNode<CALayer>().frame(width: 100, height: 100))
+
+    // then: the item has no reuse key
     expect(item?.reuseId) == nil
     expect(item?.reuseKey) == nil
   }
@@ -642,65 +709,81 @@ class ComposeView_RenderReuseTests: XCTestCase {
   // MARK: - Default pooling (internal reuse id) and isolation
 
   func test_colorNode_defaultReuseKey_usesFrameworkNamespace() {
-    // ColorNode opts into pooling by default with a framework-internal reuse id.
+    // given: a plain color node
     let item = firstRenderableItem(of: ColorNode(.red).frame(width: 100, height: 100))
+
+    // then: ColorNode opts into pooling by default with a framework-internal reuse id
     expect(item?.reuseId) == ReuseId(namespace: .framework, id: "CALayer")
     expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "CALayer")
   }
 
   func test_textNode_defaultReuseKey_usesFrameworkNamespace() {
-    // TextNode opts into pooling by default with a framework-internal reuse id.
+    // given: a plain text node
     let item = firstRenderableItem(of: TextNode("Hello").frame(width: 100, height: 100))
+
+    // then: TextNode opts into pooling by default with a framework-internal reuse id
     expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
     expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
   }
 
   func test_colorNode_userReuseId_overridesInternalReuseId_andUsesUserNamespace() {
-    // an explicit user reuse id replaces the framework-internal identity, so the caller stays in control of pooling.
+    // given: a color node with an explicit user reuse id
     let item = firstRenderableItem(of: ColorNode(.red).reuseId("custom").frame(width: 100, height: 100))
+
+    // then: the user reuse id replaces the framework-internal identity, so the caller stays in control of pooling
     expect(item?.reuseId) == ReuseId(namespace: .user, id: "custom")
     expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .user, id: "custom")
   }
 
   func test_innerShadowNode_defaultReuseKey_usesFrameworkNamespace() {
-    // InnerShadowNode opts into pooling by default with a framework-internal reuse id.
+    // given: a plain inner shadow node
     let item = firstRenderableItem(of: InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { _ in
       CGPath(rect: .zero, transform: nil)
     }).frame(width: 100, height: 100))
+
+    // then: InnerShadowNode opts into pooling by default with a framework-internal reuse id
     expect(item?.reuseId) == ReuseId(namespace: .framework, id: "InnerShadowLayer")
     expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "InnerShadowLayer")
   }
 
   func test_dropShadowNode_defaultReuseKey_usesFrameworkNamespace() {
-    // DropShadowNode opts into pooling by default with a framework-internal reuse id.
+    // given: a plain drop shadow node
     let item = firstRenderableItem(of: DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { _ in
       CGPath(rect: .zero, transform: nil)
     }).frame(width: 100, height: 100))
+
+    // then: DropShadowNode opts into pooling by default with a framework-internal reuse id
     expect(item?.reuseId) == ReuseId(namespace: .framework, id: "DropShadowLayer")
     expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "DropShadowLayer")
   }
 
   func test_internalReuseId_doesNotOverrideExistingInternalReuseId() {
-    // the first internal reuse id wins; a second assignment is a no-op
+    // given: an item assigned two internal reuse ids
     let item = LayerItem<CALayer>(id: .custom("l"), frame: .zero, make: { _ in CALayer() }, update: { _, _ in })
       .eraseToRenderableItem()
       .reuseId(ReuseId(namespace: .framework, id: "first"))
       .reuseId(ReuseId(namespace: .framework, id: "second"))
+
+    // then: the first internal reuse id wins, a second assignment is a no-op
     expect(item.reuseId) == ReuseId(namespace: .framework, id: "first")
   }
 
   func test_publicInit_withReuseId_setsUserIdentity() {
-    // a reuse id passed to the public initializer is treated as a user-provided identifier.
+    // given: an item made with the public initializer taking a reuse id
     let item = LayerItem<CALayer>(id: .custom("l"), frame: .zero, make: { _ in CALayer() }, update: { _, _ in }, reuseId: "x")
+
+    // then: the reuse id is treated as a user-provided identifier
     expect(item.reuseId) == ReuseId(namespace: .user, id: "x")
     expect(item.reuseKey?.reuseId) == ReuseId(namespace: .user, id: "x")
   }
 
   func test_userReuseId_matchingInternalReuseIdString_resolvesDistinctKey() {
-    // even when a user reuse id string equals ColorNode's framework-internal one, the namespaces keep the keys distinct
-    // so a user renderable can never share a pool bucket with a framework-internal one.
+    // given: a framework-pooled item and a user item whose reuse id string equals ColorNode's framework-internal one
     let frameworkItem = firstRenderableItem(of: ColorNode(.red).frame(width: 100, height: 100))
     let userItem = firstRenderableItem(of: ColorNode(.red).reuseId("CALayer").frame(width: 100, height: 100))
+
+    // then: the namespaces keep the keys distinct so a user renderable can never share a pool bucket with a
+    // framework-internal one
     expect(frameworkItem?.reuseKey?.reuseId.id) == "CALayer"
     expect(userItem?.reuseKey?.reuseId.id) == "CALayer"
     expect(frameworkItem?.reuseKey) != userItem?.reuseKey
@@ -709,6 +792,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
   // MARK: - Transition interaction
 
   func test_reuseId_renderableIsPooledOnlyAfterRemoveTransitionCompletes() {
+    // given: a pool-isolated compose view showing a color node with a remove transition and a reuse id
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let pool = RenderablePool()
     contentView.renderablePool = pool
@@ -732,24 +816,27 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
+    // when: the content is removed with animation
     contentView.setContent {
       Empty()
     }
     contentView.refresh(animated: true)
 
-    // while the remove transition is in flight, the renderable is enqueued in the removing map and must not be pooled
-    // (it may still be re-inserted).
+    // then: while the remove transition is in flight, the renderable is enqueued in the removing map and must not be
+    // pooled (it may still be re-inserted)
     expect(contentView.test.removingRenderableMap.count) == 1
     expect(pool.count) == 0
 
+    // when: the remove transition completes
     removalCompletion?()
 
-    // once the remove transition completes, the renderable is moved into the pool for reuse.
+    // then: the renderable is moved into the pool for reuse
     expect(contentView.test.removingRenderableMap.count) == 0
     expect(pool.count) == 1
   }
 
   func test_reuseId_transitionResetForReuse_isCalledBeforePooling() {
+    // given: a pool-isolated compose view showing a color node with a residue-leaving remove transition
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let pool = RenderablePool()
     contentView.renderablePool = pool
@@ -783,23 +870,25 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
+    // when: the content is removed with animation
     contentView.setContent {
       Empty()
     }
     contentView.refresh(animated: true)
 
-    // while the remove transition is in flight, the residue is present and the renderable is not yet pooled.
+    // then: while the remove transition is in flight, the residue is present and the renderable is not yet pooled
     expect(removedLayer?.opacity) == 0
     expect(pool.count) == 0
 
+    // when: the remove transition completes
     removalCompletion?()
 
-    // once the transition completes, the engine asks the transition to reset its residue before pooling, so the enqueued
-    // renderable is clean (visible) and a future reuse does not re-insert it invisible.
+    // then: the engine asks the transition to reset its residue before pooling, so the enqueued renderable is clean
+    // (visible) and a future reuse does not re-insert it invisible
     expect(removedLayer?.opacity) == 1
     expect(pool.count) == 1
 
-    // reuse the enqueued renderable for a new row; it stays visible (no leftover fade).
+    // when: reuse the enqueued renderable for a new row
     contentView.setContent {
       ColorNode(.blue)
         .transition(transition)
@@ -808,11 +897,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
+    // then: the renderable is dequeued and stays visible (no leftover fade)
     expect(pool.count) == 0
     expect(removedLayer?.opacity) == 1
   }
 
   func test_reuseId_renderableReinsertedDuringRemoveTransition_isNotPooled() {
+    // given: a pool-isolated compose view showing a color node with a never-completing remove transition
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let pool = RenderablePool()
     contentView.renderablePool = pool
@@ -835,15 +926,17 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
+    // when: the content is removed with animation
     contentView.setContent {
       Empty()
     }
     contentView.refresh(animated: true)
+
+    // then: the renderable parks in the removing map and is not pooled
     expect(contentView.test.removingRenderableMap.count) == 1
     expect(pool.count) == 0
 
-    // re-insert the same node: the in-flight removal is cancelled and the renderable is revived, so it must never be
-    // pooled.
+    // when: re-insert the same node
     contentView.setContent {
       ColorNode(.red)
         .transition(transition)
@@ -852,6 +945,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: true)
 
+    // then: the in-flight removal is cancelled and the renderable is revived, so it must never be pooled
     expect(contentView.test.removingRenderableMap.count) == 0
     expect(pool.count) == 0
   }
@@ -859,6 +953,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
   // MARK: - Reset for reuse
 
   func test_onResetForReuse_isCalledOnlyForPooledReuse() {
+    // given: a list of reuse-tracking rows with an onResetForReuse hook, rendered for the initial fill
     let counter = MakeCounter()
     var resetForReuseCount = 0
 
@@ -889,16 +984,18 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(resetForReuseCount) == 0
     expect(visibleRowViews(in: view).contains { $0.wasResetForReuse }) == false
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
-    // every row that left the viewport during the scroll was enqueued, so the hook fired for each enqueuing; the visible
-    // (recycled) rows were themselves enqueued earlier and are therefore flagged as reset.
+    // then: the hook fired for each enqueued row, and the visible (recycled) rows are flagged as reset
+    // every row that left the viewport during the scroll was enqueued, so the hook fired for each enqueuing. the
+    // visible (recycled) rows were themselves enqueued earlier and are therefore flagged as reset.
     expect(resetForReuseCount) > 0
     expect(visibleRowViews(in: view).allSatisfy(\.wasResetForReuse)) == true
   }
 
   func test_onResetForReuse_coalescedHooks_runInOrder() {
-    // two adjacent hooks coalesce into one combined block; both run, outer after inner.
+    // given: two adjacent onResetForReuse hooks that coalesce into one combined block
     var calls: [String] = []
     let item = firstRenderableItem(
       of: ViewNode<ReuseTrackingView>(make: { _ in ReuseTrackingView() })
@@ -907,13 +1004,15 @@ class ComposeView_RenderReuseTests: XCTestCase {
         .frame(width: 100, height: 100)
     )
 
+    // when: the item's resetForReuse runs
     item?.resetForReuse?(.view(ReuseTrackingView()))
 
+    // then: both hooks run, outer after inner
     expect(calls) == ["a", "b"]
   }
 
   func test_onResetForReuse_hooksStackedAcrossNodeBoundary_runInOrder() {
-    // an inner hook (below a frame boundary) and an outer hook (coalesced with a reuse identifier) both run, inner first.
+    // given: an inner hook (below a frame boundary) and an outer hook (coalesced with a reuse identifier)
     var calls: [String] = []
     let item = firstRenderableItem(
       of: ViewNode<ReuseTrackingView>(make: { _ in ReuseTrackingView() })
@@ -923,13 +1022,17 @@ class ComposeView_RenderReuseTests: XCTestCase {
         .reuseId("x")
     )
 
+    // when: the item's resetForReuse runs
     item?.resetForReuse?(.view(ReuseTrackingView()))
 
+    // then: both hooks run, inner first
     expect(calls) == ["inner", "outer"]
   }
 
   func test_renderItem_erasurePreservesResetForReuse() {
     // a typed item's resetForReuse survives type erasure and runs against the concrete renderable.
+
+    // when: a type-erased view item's resetForReuse runs
     var viewCalls = 0
     let viewItem = ViewItem<ReuseTrackingView>(
       id: .custom("v"),
@@ -939,8 +1042,11 @@ class ComposeView_RenderReuseTests: XCTestCase {
       resetForReuse: { _ in viewCalls += 1 }
     ).eraseToRenderableItem()
     viewItem.resetForReuse?(.view(ReuseTrackingView()))
+
+    // then: the hook runs against the concrete view
     expect(viewCalls) == 1
 
+    // when: a type-erased layer item's resetForReuse runs
     var layerCalls = 0
     let layerItem = LayerItem<CALayer>(
       id: .custom("l"),
@@ -950,12 +1056,16 @@ class ComposeView_RenderReuseTests: XCTestCase {
       resetForReuse: { _ in layerCalls += 1 }
     ).eraseToRenderableItem()
     layerItem.resetForReuse?(.layer(CALayer()))
+
+    // then: the hook runs against the concrete layer
     expect(layerCalls) == 1
   }
 
   func test_colorNode_pooledLayerHasNoColorResidue() {
     // ColorNode pools its layer with a framework-internal reuse id, the enqueued layer must be
     // freshly-made-equivalent, with no stale background color from its previous use.
+
+    // given: a pool-isolated compose view showing a red color node, recording the pooled layer
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let pool = RenderablePool()
     contentView.renderablePool = pool
@@ -972,11 +1082,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
+    // when: the node is removed so its layer is pooled
     contentView.setContent {
       Empty()
     }
     contentView.refresh(animated: false)
 
+    // then: the pooled layer has no stale background color
     expect(pool.count) == 1
     expect(pooledLayer) != nil
     expect(pooledLayer?.backgroundColor) == nil
@@ -985,6 +1097,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
   func test_pooledRenderable_zPositionIsReset() {
     // the render pass owns the renderable layer's `zPosition` (assigned per render pass for the cross-kind
     // z-order); a pooled renderable must have it reset so the reused renderable is freshly-made-equivalent.
+
+    // given: a pool-isolated compose view showing stacked color nodes with a z-index, recording the pooled layer
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let pool = RenderablePool()
     contentView.renderablePool = pool
@@ -1004,11 +1118,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
+    // when: the nodes are removed so their layers are pooled
     contentView.setContent {
       Empty()
     }
     contentView.refresh(animated: false)
 
+    // then: the pooled layer's zPosition is reset
     expect(pool.count) == 2
     expect(pooledLayer) != nil
     expect(pooledLayer?.zPosition) == 0
@@ -1016,6 +1132,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
   func test_onResetForReuse_firesForLayerBackedReuse() {
     // a layer-backed node (ColorNode) also receives the hook when its layer is enqueued, exercising the layer erasure path.
+
+    // given: a list of color rows with an onResetForReuse hook, rendered for the initial fill
     var resetForReuseCount = 0
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
     view.renderablePool = RenderablePool() // isolate from the shared pool so reuse counts are deterministic.
@@ -1033,8 +1151,10 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     expect(resetForReuseCount) == 0
 
+    // when: the view scrolls through the whole list
     scrollDown(view)
 
+    // then: the hook fired for the enqueued layers
     expect(resetForReuseCount) > 0
   }
 

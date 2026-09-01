@@ -35,6 +35,7 @@ import ChouTiTest
 class ComposeView_RenderableTests: XCTestCase {
 
   func test_lifecycle() {
+    // given: a compose view and a view node with lifecycle callback counters
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var willInsertCount = 0
@@ -44,7 +45,7 @@ class ComposeView_RenderableTests: XCTestCase {
     var willRemoveCount = 0
     var didRemoveCount = 0
 
-    // show view
+    // when: show the view
     contentView.setContent {
       ViewNode(
         willInsert: { view, context in
@@ -69,19 +70,21 @@ class ComposeView_RenderableTests: XCTestCase {
     }
     contentView.refresh(animated: false)
 
+    // then: the insert and update callbacks are called
     expect(willInsertCount) == 1
     expect(didInsertCount) == 1
     expect(updateCount) == 1
     expect(willRemoveCount) == 0
     expect(didRemoveCount) == 0
 
-    // remove view
+    // when: remove the view
     contentView.setContent {
       Empty()
     }
 
     contentView.refresh(animated: false)
 
+    // then: the remove callbacks are called
     expect(willInsertCount) == 1
     expect(didInsertCount) == 1
     expect(willUpdateCount) == 1

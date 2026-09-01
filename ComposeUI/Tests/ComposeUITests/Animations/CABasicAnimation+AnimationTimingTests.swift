@@ -35,20 +35,23 @@ import ChouTiTest
 class CABasicAnimation_AnimationTimingTests: XCTestCase {
 
   func test_makeAnimation() {
-    // timing function
+    // when: making an animation with a timing function timing
     do {
       let animation = CABasicAnimation.makeAnimation(AnimationTiming.easeInEaseOut())
+
+      // then: the animation uses the timing function with default duration, speed, and fill mode
       expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
       expect(animation.duration) == Animations.defaultAnimationDuration
       expect(animation.speed) == 1
       expect(animation.fillMode) == .both
     }
 
-    // spring
+    // when: making an animation with a spring timing
     do {
       let timing = AnimationTiming.spring(dampingRatio: 0.5, response: 0.5, initialVelocity: 0.1, duration: nil, delay: 1, speed: 2)
       let animation = CABasicAnimation.makeAnimation(timing)
 
+      // then: the animation is a spring animation with derived spring values, speed, and fill mode
       let springAnimation = try unwrap(animation as? CASpringAnimation)
       expect(springAnimation.initialVelocity) == 0.1
       expect(springAnimation.mass) == 1
