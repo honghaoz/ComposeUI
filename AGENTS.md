@@ -57,14 +57,19 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 - Place a new `ComposeNode` extension API in a dedicated file named after its concern (for example `ComposeNode+Transform.swift`), not in an unrelated extension file.
 - Comments must explain the decision, not just state a fact: prefer "X can happen, so we do Y (instead of Z)" over "X can happen".
 - No em-dashes (—) and no semicolons in code comments or markdown docs. Use commas, hyphens, colons, or separate sentences.
-- Use `private enum Constants` at the bottom of the file for repeated literals and magic numbers where it improves clarity. For example:
+- Use `private enum Constants` for repeated literals and magic numbers where it improves clarity, nested at the bottom of the primary scope. A top-level private `Constants` collides with the module's public `Constants` type. For example:
   ```swift
-  // MARK: - Constants
+  public class SomeType {
 
-  private enum Constants {
+    // APIs...
 
-    /// The spacing between the items.
-    static let spacing: CGFloat = 8
+    // MARK: - Constants
+
+    private enum Constants {
+
+      /// The spacing between the items.
+      static let spacing: CGFloat = 8
+    }
   }
   ```
 
@@ -83,7 +88,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 Before reporting a change complete, verify in order:
 
 1. Focused tests pass: `cd ComposeUI && swift test --filter <TestCase>`.
-2. New code has full test coverage, including guard/assertion paths and both branches of conditionals. Verify with `swift test --enable-code-coverage` + `xcrun llvm-cov report` on the touched files.
+2. New code MUST have full test coverage, including guard/assertion paths and both branches of conditionals. Enumerate and test the logic's edge cases (boundary values, zero or empty inputs, interrupted in-flight states) and assert their observable outcomes. Full coverage must fall out of covering every case, not be the goal itself: a test can execute many lines without checking any corner case. Verify with `swift test --enable-code-coverage` + `xcrun llvm-cov report` on the touched files.
 3. `make format` and `make lint` pass.
 4. Cross-platform changes: both `AppKit` and `UIKit` conditional compilation paths build and are exercised by platform tests.
 5. User-facing behavior changes have an entry under `Unreleased` in `CHANGELOG.md`.
@@ -129,6 +134,10 @@ Hard-won rules from past corrections, grouped by theme.
 - Do not run a standalone `swift package resolve` before xcodebuild tests. xcodebuild resolves pinned packages into DerivedData/SourcePackages itself, so the standalone resolve only duplicates work.
 - On few-core CI runners, do not overlap simulator boot with compilation. Both are CPU-heavy, and contention makes the total slower than running them serially (build first, then boot).
 - To get CI telemetry without log access, emit `::notice::` workflow commands. They become check-run annotations readable via the public Checks API (capped at 10 annotations per step, so emit before noisy output).
+
+## Cross-platform
+
+- Do not ship platform-dependent rendered output with a doc note. When a platform primitive differs (for example AppKit anchors view-backing layers at the bottom left corner while everything else anchors at the center), compensate in the implementation so the visual result matches across platforms, instead of documenting the difference.
 
 ## Scripts
 

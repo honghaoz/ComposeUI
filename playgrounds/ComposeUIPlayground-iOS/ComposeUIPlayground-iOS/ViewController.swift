@@ -58,6 +58,8 @@ class ViewController: UIViewController {
     }()
 
     lazy var playgroundTextView = Playground.TextView()
+
+    lazy var transitionRevivalView = Playground.TransitionRevivalView(frame: .zero)
   }
 
   private let state = ViewState()
@@ -83,13 +85,14 @@ class ViewController: UIViewController {
         .padding(horizontal: Constants.padding)
         .frame(width: .flexible, height: 120)
 
-      ViewNode<Playground.TransitionRevivalView>()
+      ViewNode(state.transitionRevivalView)
+        .flexibleSize()
         .underlay {
           LayerNode()
             .border(color: Color.gray, width: 1)
         }
         .padding(horizontal: Constants.padding)
-        .frame(width: .flexible, height: 260)
+        .frame(width: .flexible, height: state.transitionRevivalView.preferredHeight)
 
       ViewNode<Playground.AnimateLabView>()
         .underlay {
