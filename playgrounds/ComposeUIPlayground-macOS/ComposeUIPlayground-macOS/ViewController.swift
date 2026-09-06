@@ -34,7 +34,14 @@ import ComposeUI
 
 class ViewController: NSViewController {
 
-  private lazy var contentView = ComposeView { contentView in
+  private class ViewState {
+
+    lazy var transitionRevivalView = Playground.TransitionRevivalView(frame: .zero)
+  }
+
+  private let state = ViewState()
+
+  private lazy var contentView = ComposeView { [state] contentView in
     let isKey = (contentView.window?.isKeyWindow ?? true)
 
     VStack {
@@ -78,13 +85,14 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
-      ViewNode<Playground.TransitionRevivalView>()
+      ViewNode(state.transitionRevivalView)
+        .flexibleSize()
         .underlay {
           LayerNode()
             .border(color: Color.gray, width: 1)
         }
         .padding(horizontal: 16)
-        .frame(width: .flexible, height: 260)
+        .frame(width: .flexible, height: state.transitionRevivalView.preferredHeight)
 
       Spacer(height: 16)
 

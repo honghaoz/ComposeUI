@@ -1190,9 +1190,11 @@ open class ComposeView: BaseScrollView {
         // the insert transition that will animate this insertion, if any.
         let insertTransition = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior) ? renderableItem.transition?.insert : nil
 
-        // the root-layer model position the removal left behind, captured before this pass applies the target frame,
-        // so a taking-over insert transition can anchor its animation to the removal's live state.
+        // the root-layer model position and transform the removal left behind, captured before this pass applies the
+        // target frame and resets the transform to identity, so a taking-over insert transition can anchor its
+        // animation to the removal's live state.
         var revivalPosition: CGPoint?
+        var revivalTransform: CATransform3D?
 
         if let removingRenderable = removingRenderableMap[id] {
           // found a matching removing renderable, should add it back to the renderable hierarchy.
@@ -1204,6 +1206,7 @@ open class ComposeView: BaseScrollView {
           // snaps the renderable to its resting state.
           if removingRenderable.removeTransition.isTakenOver(by: insertTransition) {
             revivalPosition = removingRenderable.renderable.layer.position
+            revivalTransform = removingRenderable.renderable.layer.transform
           } else {
             removingRenderable.removeTransition.resetForReuse(renderable: removingRenderable.renderable)
           }
@@ -1272,7 +1275,7 @@ open class ComposeView: BaseScrollView {
 
           insertTransition.animate(
             renderable: renderable,
-            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, revivalPosition: revivalPosition, contentView: self),
+            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, revivalPosition: revivalPosition, revivalTransform: revivalTransform, contentView: self),
             completion: completion.execute
           )
         } else {

@@ -52,16 +52,19 @@ public extension RenderableTransition {
                       options: RenderableTransition.Options = .both) -> RenderableTransition
   {
     RenderableTransition(
-      insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: ["opacity"]) { renderable, context, completion in
-        renderable.setFrame(context.targetFrame)
+      insert: options.contains(.insert) ? InsertTransition(
+        takesOverKeyPaths: ["opacity"],
+        animate: { renderable, context, completion in
+          renderable.setFrame(context.targetFrame)
 
-        renderable.layer.retargetOpacity(
-          freshStartValue: Float(from),
-          targetValue: Float(to),
-          timing: timing,
-          completion: completion
-        )
-      } : nil,
+          renderable.layer.retargetOpacity(
+            freshStartValue: Float(from),
+            targetValue: Float(to),
+            timing: timing,
+            completion: completion
+          )
+        }
+      ) : nil,
       remove: options.contains(.remove) ? RemoveTransition(
         animatedKeyPaths: ["opacity"],
         animate: { renderable, _, completion in

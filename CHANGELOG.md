@@ -4,25 +4,16 @@
 
 ### Breaking Changes
 
-- Delayed animations are now scheduled with Core Animation's `beginTime` instead of a GCD timer. The animation is added 
-  and the model value is set at dispatch, the layer's rendered output holds the pre-animation state for the delay window. 
-  An interrupted in-flight opacity transition freezes at its sampled value for a delayed retargeting's delay window 
-  instead of continuing to play, and a delayed spring retargeting launches from rest.
-- Zero-duration transitions now call their completion. Without a delay, the end state applies and the completion runs 
-  immediately. With a delay, the change is scheduled as a snap that applies right after the delay window. A transition 
-  completion is also called when its animation is torn down before finishing (superseded, reset, or the layer leaving 
-  the layer tree).
+- Delayed animations are now scheduled with Core Animation's `beginTime` instead of a GCD timer.
+- Zero-duration transitions now call their completion, and a completion is also called when its animation is torn down early.
 
 ### Changes
 
-- Slide transitions now continue a revival from wherever the removal left the renderable, for any side configuration: 
-  the `from` side applies only to fresh insertions, and a renderable that fully slid out re-enters from its exit side. 
-  The insert transition context gains `revivalPosition`, the model position captured for taking-over transitions.
-- `ComposeView` now adopts display scale changes on iOS/tvOS (for example, when the window moves to a screen with a 
-  different scale) and re-renders, matching the existing macOS backing scale handling.
-- `ComposeView.setNeedsRefresh(animated:)` now merges coalesced requests to non-animated when any request was 
-  non-animated (previously the last request's flag won), so a scale-driven or window-driven snap is never animated by a 
-  concurrent theme change.
+- Added a scale transition, `.scale(from:anchor:timing:options:)`.
+- Slide transitions now continue a revival from wherever the removal left the renderable.
+- The insert transition context gains `revivalPosition` and `revivalTransform` for taking-over transitions.
+- `ComposeView` now re-renders on display scale changes on iOS/tvOS, matching the existing macOS handling.
+- `ComposeView.setNeedsRefresh(animated:)` now merges coalesced requests to non-animated when any request was non-animated.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

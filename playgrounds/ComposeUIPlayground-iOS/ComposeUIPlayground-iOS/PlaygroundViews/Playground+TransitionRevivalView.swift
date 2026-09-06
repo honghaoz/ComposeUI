@@ -41,24 +41,8 @@ import ComposeUI
 extension Playground {
 
   /// An interactive insert/remove page for verifying transition revivals.
-  ///
-  /// The page inserts and removes two boxes together, so a revival is verified on both renderable kinds:
-  /// - The top, blue-gray box is a layer renderable.
-  /// - The bottom, green box is a view renderable, whose transitions additionally exercise the `backedView` model sync
-  ///   (the view's `frame` on macOS and `alpha` on both platforms).
-  ///
-  /// The transitions run slowly so a removal can be interrupted mid-flight, and the transition button cycles through a
-  /// fade, which retargets from the interrupted opacity, and two slide configurations, which continue the interrupted
-  /// motion from wherever the removal left it and differ only in their entry and exit sides.
-  /// A non-animated re-insert always snaps to the resting state.
-  ///
-  /// The page logs button taps, each box renderable's lifecycle events, and a continuous sample of each box layer's
-  /// model and presentation values, so a manual test session can be diagnosed from the console output. The boxes are
-  /// sampled independently, so a divergence between the layer box and the view box shows up as one box logging without
-  /// the other.
   final class TransitionRevivalView: ComposeView {
 
-    /// The transition to verify, cycled through by the page's transition button.
     private enum TransitionKind: CaseIterable {
 
       /// A fade, which retargets from the interrupted opacity on a revival.
@@ -67,10 +51,24 @@ extension Playground {
       /// A slide that enters from the side it exits to, which continues the interrupted motion on a revival.
       case slide
 
-      /// A slide that enters from a different side than it exits to. A revival continues the interrupted motion
-      /// from the removal's model frame, so the box returns from wherever it is instead of restarting from the
-      /// entry side.
+      /// A slide that enters from a different side than it exits to. A revival continues the interrupted motion from
+      /// the removal's model frame, so the box returns from wherever it is instead of restarting from the entry side.
       case crossSideSlide
+
+      /// A scale that grows in from zero and shrinks back to zero, running slowly so a removal can be interrupted
+      /// mid-flight. A revival continues from the interrupted scale.
+      case scale
+
+      /// A scale with the default spring timing, for checking the at-speed look and spring revivals.
+      case scaleSpring
+
+      /// The property a transition animates, for logging the relevant layer values.
+      enum AnimatedProperty {
+
+        case opacity
+        case position
+        case scale
+      }
 
       var title: String {
         switch self {
@@ -80,21 +78,29 @@ extension Playground {
           return "slide (left ⇄ left)"
         case .crossSideSlide:
           return "slide (left → right)"
+        case .scale:
+          return "scale (slow)"
+        case .scaleSpring:
+          return "scale (spring)"
         }
       }
 
       /// The animated property, for logging the relevant layer values.
-      var animatesPosition: Bool {
+      var animatedProperty: AnimatedProperty {
         switch self {
         case .opacity:
-          return false
+          return .opacity
         case .slide,
              .crossSideSlide:
-          return true
+          return .position
+        case .scale,
+             .scaleSpring:
+          return .scale
         }
       }
 
-      var transition: RenderableTransition {
+      /// The transition to verify. The scale kinds pivot about `scaleAnchor`, the other kinds ignore it.
+      func transition(scaleAnchor: Layout.Alignment) -> RenderableTransition {
         switch self {
         case .opacity:
           return .opacity(timing: .spring(dampingRatio: 0.8, response: 3))
@@ -102,6 +108,10 @@ extension Playground {
           return .slide(from: .left, timing: .easeInEaseOut(duration: 3))
         case .crossSideSlide:
           return .slide(from: .left, to: .right, timing: .easeInEaseOut(duration: 3))
+        case .scale:
+          return .scale(anchor: scaleAnchor, timing: .easeInEaseOut(duration: 3))
+        case .scaleSpring:
+          return .scale(anchor: scaleAnchor)
         }
       }
 
@@ -116,6 +126,14 @@ extension Playground {
 
     private var isShowing = true
     private var transitionKind: TransitionKind = .opacity
+    private var scaleAnchor: Layout.Alignment = .center
+
+    /// The page's preferred height, for the hosting content view's layout.
+    var preferredHeight: CGFloat {
+      let baseHeight: CGFloat = 260
+      let anchorRowHeight: CGFloat = 36 + 12
+      return transitionKind.animatedProperty == .scale ? baseHeight + anchorRowHeight : baseHeight
+    }
 
     private weak var layerBoxLayer: CALayer?
     private weak var viewBoxView: View?
@@ -152,7 +170,7 @@ extension Playground {
                 Playground.addBoxNameLabel("layer", to: layer, scale: Playground.displayScale(of: self))
               }
             )
-            .transition(transitionKind.transition)
+            .transition(transitionKind.transition(scaleAnchor: scaleAnchor))
             .frame(Constants.boxSize)
             .id("layer-box")
 
@@ -172,7 +190,7 @@ extension Playground {
                 Playground.addBoxNameLabel("view", to: boxLayer, scale: Playground.displayScale(of: self))
               }
             )
-            .transition(transitionKind.transition)
+            .transition(transitionKind.transition(scaleAnchor: scaleAnchor))
             .frame(Constants.boxSize)
             .id("view-box")
           } else {
@@ -212,8 +230,26 @@ extension Playground {
           self.transitionKind = self.transitionKind.next
           self.log("TAP transition kind -> \(self.transitionKind.title)")
           self.refresh(animated: false)
+
+          // the anchor button's visibility changed the page's preferred height, so the hosting content view must
+          // re-read it and re-layout
+          self.refreshEnclosingComposeView()
         }
         .frame(width: .flexible, height: 36)
+
+        if transitionKind.animatedProperty == .scale {
+          Playground.button(title: "Scale anchor: \(scaleAnchor)", fontSize: 14) { [weak self] in
+            guard let self else {
+              return
+            }
+            let anchors = Layout.Alignment.allCases
+            let index = anchors.firstIndex(of: self.scaleAnchor)! // swiftlint:disable:this force_unwrapping
+            self.scaleAnchor = anchors[(index + 1) % anchors.count]
+            self.log("TAP scale anchor -> \(self.scaleAnchor)")
+            self.refresh(animated: false)
+          }
+          .frame(width: .flexible, height: 36)
+        }
       }
       .padding(12)
     }
@@ -346,10 +382,15 @@ extension Playground {
         return "box view = nil"
       }
       let viewModel: String
-      if transitionKind.animatesPosition {
+      switch transitionKind.animatedProperty {
+      case .position:
         viewModel = "viewFrame = \(Debug.format(view.frame))"
-      } else {
+      case .opacity:
         viewModel = "viewAlpha = \(Debug.format(view.alpha))"
+      case .scale:
+        // a scale rides on the layer transform and syncs no view property, so the view's frame is the nearest
+        // view-level signal (on UIKit it is derived from the transform, on AppKit it holds still)
+        viewModel = "viewFrame = \(Debug.format(view.frame))"
       }
       return "\(viewModel), \(describeBox(layer: viewBoxLayer))"
     }
@@ -361,19 +402,51 @@ extension Playground {
       let pointer = String(describing: Unmanaged.passUnretained(layer).toOpaque())
       let model: String
       let presentation: String
-      if transitionKind.animatesPosition {
+      switch transitionKind.animatedProperty {
+      case .position:
         model = "position = \(Debug.format(layer.position))"
         presentation = "presentationPosition = \(layer.presentation().map { Debug.format($0.position) } ?? "nil")"
-      } else {
+      case .opacity:
         model = "opacity = \(Debug.format(layer.opacity))"
         presentation = "presentationOpacity = \(layer.presentation().map { Debug.format($0.opacity) } ?? "nil")"
+      case .scale:
+        // the translation is the center-pivot compensation, which should track (0.5 - anchor) * size * (1 - scale)
+        model = "scale = \(Debug.format(layer.uniformScale)), translation = \(Debug.format(layer.transformTranslation))"
+        presentation = "presentationScale = \(layer.presentation().map { Debug.format($0.uniformScale) } ?? "nil"), presentationTranslation = \(layer.presentation().map { Debug.format($0.transformTranslation) } ?? "nil")"
       }
       let inTree = layer.superlayer != nil ? "attached" : "DETACHED"
       return "layer = \(pointer) (\(inTree)), \(model), \(presentation), animations = \(Debug.describeAnimations(of: layer))"
     }
 
+    /// Refreshes the nearest enclosing compose view, so it re-reads this page's preferred height.
+    private func refreshEnclosingComposeView() {
+      var ancestor = superview
+      while let view = ancestor {
+        if let composeView = view as? ComposeView {
+          composeView.refresh(animated: false)
+          return
+        }
+        ancestor = view.superview
+      }
+    }
+
     private func log(_ message: String) {
       print("[Revival] \(String(format: "%.3f", CACurrentMediaTime())) | \(message)")
     }
+  }
+}
+
+private extension CALayer {
+
+  /// The uniform scale of the layer's transform, read through the "transform.scale" key path (the average of the three
+  /// scale factors).
+  var uniformScale: CGFloat {
+    value(forKeyPath: "transform.scale") as? CGFloat ?? 1
+  }
+
+  /// The translation of the layer's transform, as a point for formatting.
+  var transformTranslation: CGPoint {
+    let translation = value(forKeyPath: "transform.translation") as? CGSize ?? .zero
+    return CGPoint(x: translation.width, y: translation.height)
   }
 }

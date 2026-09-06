@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
+import QuartzCore
 
 /// A model contains the view insert and remove transition.
 public struct RenderableTransition {
@@ -47,12 +47,18 @@ public struct RenderableTransition {
       /// `nil` for a fresh insertion, or a revival that was reset.
       public let revivalPosition: CGPoint?
 
+      /// The renderable's root-layer model transform before the render pass reset it to identity, set when this
+      /// insertion revives a removing renderable and takes over its residue (see `takesOverKeyPaths`).
+      /// `nil` for a fresh insertion, or a revival that was reset.
+      public let revivalTransform: CATransform3D?
+
       /// The content view that the renderable is being inserted into.
       public private(set) weak var contentView: ComposeView!
 
-      init(targetFrame: CGRect, revivalPosition: CGPoint? = nil, contentView: ComposeView!) {
+      init(targetFrame: CGRect, revivalPosition: CGPoint? = nil, revivalTransform: CATransform3D? = nil, contentView: ComposeView!) {
         self.targetFrame = targetFrame
         self.revivalPosition = revivalPosition
+        self.revivalTransform = revivalTransform
         self.contentView = contentView
       }
     }

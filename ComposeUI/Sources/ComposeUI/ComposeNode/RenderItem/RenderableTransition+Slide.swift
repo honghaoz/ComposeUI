@@ -75,58 +75,61 @@ public extension RenderableTransition {
                     options: RenderableTransition.Options = .both) -> Self
   {
     RenderableTransition(
-      insert: options.contains(.insert) ? InsertTransition(takesOverKeyPaths: ["position"]) { renderable, context, completion in
-        let layer = renderable.layer
-        let targetFrame = context.targetFrame
+      insert: options.contains(.insert) ? InsertTransition(
+        takesOverKeyPaths: ["position"],
+        animate: { renderable, context, completion in
+          let layer = renderable.layer
+          let targetFrame = context.targetFrame
 
-        guard timing.timing.duration > 0 || timing.delay > 0 else {
-          if context.revivalPosition != nil {
-            // the taken-over leftover exit animations would render the snapped model off the target until they decay,
-            // so a snap clears them
-            layer.removeAnimations(forKeyPath: "position")
+          guard timing.timing.duration > 0 || timing.delay > 0 else {
+            if context.revivalPosition != nil {
+              // the taken-over leftover exit animations would render the snapped model off the target until they decay,
+              // so a snap clears them
+              layer.removeAnimations(forKeyPath: "position")
+            }
+            renderable.setFrame(targetFrame)
+            completion()
+            return
           }
+
+          let startPosition: CGPoint
+          if let revivalPosition = context.revivalPosition {
+            // a revival continues from the removal's model position: the offset from that position cancels the model
+            // change exactly, so the rendered position doesn't move at the revival instant, and the removal's leftover
+            // offset keeps decaying on top
+            startPosition = revivalPosition
+          } else {
+            let startFrame: CGRect
+            switch fromSide {
+            case .top:
+              startFrame = targetFrame.translate(dy: -targetFrame.maxY - overshoot)
+            case .bottom:
+              startFrame = targetFrame.translate(dy: context.contentView.bounds().height - targetFrame.minY + overshoot)
+            case .left:
+              startFrame = targetFrame.translate(dx: -targetFrame.maxX - overshoot)
+            case .right:
+              startFrame = targetFrame.translate(dx: context.contentView.bounds().width - targetFrame.minX + overshoot)
+            }
+            startPosition = layer.position(from: startFrame)
+          }
+
           renderable.setFrame(targetFrame)
-          completion()
-          return
+
+          layer.animate(
+            keyPath: "position",
+            timing: timing,
+            from: { startPosition - $0.position(from: targetFrame) },
+            to: { _ in .zero },
+            model: { $0.position(from: targetFrame) },
+            updateAnimation: {
+              $0.isAdditive = true
+              $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
+                completion()
+              })
+            }
+          )
         }
-
-        let startPosition: CGPoint
-        if let revivalPosition = context.revivalPosition {
-          // a revival continues from the removal's model position: the offset from that position cancels the model
-          // change exactly, so the rendered position doesn't move at the revival instant, and the removal's leftover
-          // offset keeps decaying on top
-          startPosition = revivalPosition
-        } else {
-          let startFrame: CGRect
-          switch fromSide {
-          case .top:
-            startFrame = targetFrame.translate(dy: -targetFrame.maxY - overshoot)
-          case .bottom:
-            startFrame = targetFrame.translate(dy: context.contentView.bounds().height - targetFrame.minY + overshoot)
-          case .left:
-            startFrame = targetFrame.translate(dx: -targetFrame.maxX - overshoot)
-          case .right:
-            startFrame = targetFrame.translate(dx: context.contentView.bounds().width - targetFrame.minX + overshoot)
-          }
-          startPosition = layer.position(from: startFrame)
-        }
-
-        renderable.setFrame(targetFrame)
-
-        layer.animate(
-          keyPath: "position",
-          timing: timing,
-          from: { startPosition - $0.position(from: targetFrame) },
-          to: { _ in .zero },
-          model: { $0.position(from: targetFrame) },
-          updateAnimation: {
-            $0.isAdditive = true
-            $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
-              completion()
-            })
-          }
-        )
-      } : nil,
+      ) : nil,
       remove: options.contains(.remove) ? RemoveTransition(
         animatedKeyPaths: ["position"],
         animate: { renderable, context, completion in
