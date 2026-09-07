@@ -149,12 +149,9 @@ public extension RenderableTransition {
 
           layer.animate(
             keyPath: "transform.scale",
+            to: from,
             timing: timing,
-            from: { ($0.value(forKeyPath: "transform.scale") as! CGFloat) - from }, // swiftlint:disable:this force_cast
-            to: { _ in CGFloat(0) },
-            model: { _ in from },
             updateAnimation: {
-              $0.isAdditive = true
               $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
                 completion()
               })
@@ -162,16 +159,7 @@ public extension RenderableTransition {
           )
 
           if endTranslation != .zero {
-            layer.animate(
-              keyPath: "transform.translation",
-              timing: timing,
-              from: { ($0.value(forKeyPath: "transform.translation") as! CGSize) - endTranslation }, // swiftlint:disable:this force_cast
-              to: { _ in CGSize.zero },
-              model: { _ in endTranslation },
-              updateAnimation: {
-                $0.isAdditive = true
-              }
-            )
+            layer.animate(keyPath: "transform.translation", to: endTranslation, timing: timing)
           }
         },
         resetForReuse: { renderable in
