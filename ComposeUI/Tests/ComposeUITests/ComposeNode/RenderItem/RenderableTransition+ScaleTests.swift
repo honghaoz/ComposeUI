@@ -136,46 +136,6 @@ class RenderableTransition_ScaleTests: XCTestCase {
     expect(CATransform3DIsIdentity(layer.transform)) == true
   }
 
-  func test_insertTransition_revival_directInvocation_restoresModelScale() throws {
-    // given: a layer mid-removal invoked directly: the model transform still carries the removal's scale, with a
-    // leftover additive scale animation attached
-    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
-    let targetFrame = Constants.targetFrame
-    let layer = TestLayer()
-
-    let leftoverAnimation = CABasicAnimation(keyPath: "transform.scale")
-    leftoverAnimation.fromValue = CGFloat(1) - Constants.revivalScale
-    leftoverAnimation.toValue = CGFloat(0)
-    leftoverAnimation.duration = 10
-    leftoverAnimation.isAdditive = true
-    layer.add(leftoverAnimation, forKey: "transform.scale")
-
-    layer.setValue(Constants.revivalScale, forKeyPath: "transform.scale")
-
-    // when: an insert transition animates with a revival transform
-    let transition = RenderableTransition.scale(timing: Constants.timing, options: .insert)
-    let revivalScale = Constants.revivalScale
-    try transition.insert.unwrap().animate(
-      renderable: .layer(layer),
-      context: RenderableTransition.InsertTransition.Context(
-        targetFrame: targetFrame,
-        revivalTransform: CATransform3DMakeScale(revivalScale, revivalScale, revivalScale),
-        contentView: contentView
-      ),
-      completion: {}
-    )
-
-    // then: the model scale is restored to identity before the frame applies, so the frame application is well-defined,
-    // and the additive offset continues from the removal's scale
-    expect(layer.frame) == targetFrame
-    expect(CATransform3DIsIdentity(layer.transform)) == true
-    expect(layer.basicAnimations(forKeyPath: "transform.scale").count) == 2
-
-    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
-    expect(animation.fromValue as? CGFloat) == revivalScale - 1
-    expect(animation.toValue as? CGFloat) == 0
-  }
-
   func test_insertTransition_zeroDuration_appliesTargetAndCompletes() throws {
     // given: a layer renderable and a zero-duration scale-in transition
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
@@ -199,7 +159,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_insertTransition_zeroDurationRevival_clearsLeftoverAndSnapsToRest() throws {
-    // given: a layer mid-removal invoked directly: the model transform still carries the removal's scale, with a
+    // given: a layer mid-removal in the framework flow: the model transform is already reset to identity, with a
     // leftover additive scale animation attached
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
@@ -211,8 +171,6 @@ class RenderableTransition_ScaleTests: XCTestCase {
     leftoverAnimation.duration = 10
     leftoverAnimation.isAdditive = true
     layer.add(leftoverAnimation, forKey: "transform.scale")
-
-    layer.setValue(Constants.revivalScale, forKeyPath: "transform.scale")
 
     // when: a zero-duration insert transition animates with a revival transform
     let transition = RenderableTransition.scale(timing: .linear(duration: 0), options: .insert)
@@ -602,9 +560,9 @@ class RenderableTransition_ScaleTests: XCTestCase {
     expect(completionCallCount) == 1
   }
 
-  func test_insertTransition_anchoredLayer_zeroDurationRevival_clearsResidueAndRestoresIdentity() throws {
-    // given: a layer mid-removal invoked directly: the model transform carries the removal's scale and translation,
-    // with leftover animations on both key paths
+  func test_insertTransition_anchoredLayer_zeroDurationRevival_clearsResidueAndSnapsToRest() throws {
+    // given: a layer mid-removal in the framework flow: the model transform is already reset to identity, with
+    // leftover animations on both key paths
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -625,9 +583,6 @@ class RenderableTransition_ScaleTests: XCTestCase {
     layer.add(leftoverTranslation, forKey: "transform.translation")
 
     let revivalScale = Constants.revivalScale
-    layer.setValue(revivalScale, forKeyPath: "transform.scale")
-    layer.setValue(CGSize(width: 12, height: 15), forKeyPath: "transform.translation")
-
     var revivalTransform = CATransform3DMakeScale(revivalScale, revivalScale, revivalScale)
     revivalTransform.m41 = 12
     revivalTransform.m42 = 15
@@ -645,7 +600,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
       completion: { completionCallCount += 1 }
     )
 
-    // then: the leftover animations on both key paths are cleared and the model transform snaps to identity at the
+    // then: the leftover animations on both key paths are cleared and the renderable rests at identity at the
     // target frame
     expect(layer.frame) == targetFrame
     expect(layer.basicAnimations(forKeyPath: "transform.scale").count) == 0

@@ -1126,7 +1126,7 @@ open class ComposeView: BaseScrollView {
         debug?.onEvent(.renderWillReuseRenderable(item: renderableItem, renderable: renderable))
         #endif
 
-        renderable.layer.reset()
+        renderable.layer.restoreIdentityTransformIfNeeded()
 
         let updateType: RenderableUpdateType
         switch context.updateType {
@@ -1223,7 +1223,7 @@ open class ComposeView: BaseScrollView {
         debug?.onEvent(.renderWillInsertRenderable(item: renderableItem, renderable: renderable))
         #endif
 
-        renderable.layer.reset()
+        renderable.layer.restoreIdentityTransformIfNeeded()
 
         let frameBeforeWillInsert = renderable.frame
         renderableItem.willInsert?(renderable, RenderableInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame, contentView: self))
@@ -1431,23 +1431,4 @@ open class ComposeView: BaseScrollView {
   }
 
   #endif
-}
-
-// MARK: - Helpers
-
-private extension CALayer {
-
-  /// Common reset for the layer managed by `ComposeView`.
-  ///
-  /// To ensure the frame update is applied correctly, the transform is reset to identity.
-  func reset() {
-    // a reused renderable almost always already has an identity transform, so skip the work in that case.
-    // only renderables left with a non-identity transform (e.g. an interrupted transition) need a reset.
-    guard !CATransform3DIsIdentity(transform) else {
-      return
-    }
-    disableActions(for: "transform") {
-      transform = CATransform3DIdentity // setting frame requires an identity transform
-    }
-  }
 }
