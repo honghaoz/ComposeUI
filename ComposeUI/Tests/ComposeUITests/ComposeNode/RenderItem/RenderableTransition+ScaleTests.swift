@@ -896,6 +896,58 @@ class RenderableTransition_ScaleTests: XCTestCase {
     expect(contentView.test.removingRenderableMap.count) == 0
   }
 
+  func test_composeViewIntegration_revivalWithDifferentConfig_continuesFromCapturedRemovalState() throws {
+    // given: a compose view showing content with a slow top-left-anchored scale transition
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    contentView.setContent {
+      ColorNode(.red)
+        .transition(.scale(anchor: .topLeft, timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.refresh(animated: false)
+
+    // when: the content is removed with animation
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    // then: the removal writes its end state into the model transform: the end scale and the top-left pivot's
+    // compensation for the center-anchored layer
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    expect(layer.value(forKeyPath: "transform.scale") as? CGFloat) == 0
+    expect(layer.value(forKeyPath: "transform.translation") as? CGSize) == CGSize(width: -50, height: -50)
+
+    // when: revive the renderable with a different scale configuration, a 0.5 scale about the center
+    // a fresh insert for this configuration would start the scale offset at -0.5 and would add no translation animation
+    // at all (a center pivot on a center-anchored layer needs no compensation), so the assertions below can only pass
+    // when the insert anchors to the captured removal state instead of the fresh configuration
+    contentView.setContent {
+      ColorNode(.red)
+        .transition(.scale(from: 0.5, timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.refresh(animated: true)
+
+    // then: the insert cancels the captured removal state on both channels, so the rendered transform is continuous
+    let scaleAnimations = layer.basicAnimations(forKeyPath: "transform.scale")
+    expect(scaleAnimations.count) == 2
+    let insertScale = try unwrap(scaleAnimations.last)
+    expect(insertScale.fromValue as? CGFloat) == -1
+    expect(insertScale.toValue as? CGFloat) == 0
+
+    let translationAnimations = layer.basicAnimations(forKeyPath: "transform.translation")
+    expect(translationAnimations.count) == 2
+    let insertTranslation = try unwrap(translationAnimations.last)
+    expect(insertTranslation.fromValue as? CGSize) == CGSize(width: -50, height: -50)
+    expect(insertTranslation.toValue as? CGSize) == .zero
+
+    // then: the model transform rests at identity
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+    expect(contentView.test.removingRenderableMap.count) == 0
+  }
+
   func test_composeViewIntegration_revival_renderedScaleIsContinuous() throws {
     // given: a hosted compose view showing content with a slow scale transition
     let window = TestWindow()
