@@ -417,7 +417,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
   // MARK: - Center Pivot Compensation
 
   func test_insertTransition_anchoredLayer_addsCenterPivotCompensation() throws {
-    // given: a layer anchored at the bottom left corner, like an AppKit view-backing layer, and a scale-in transition
+    // given: a layer anchored at the (0, 0) unit point, like an AppKit view-backing layer, and a scale-in transition
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -448,7 +448,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_removeTransition_anchoredLayer_addsCenterPivotCompensation() throws {
-    // given: a layer anchored at the bottom left corner and a scale-out transition
+    // given: a layer anchored at the (0, 0) unit point and a scale-out transition
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -536,7 +536,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_removeTransition_anchoredLayer_zeroDuration_appliesCompensatedEndState() throws {
-    // given: a layer anchored at the bottom left corner and a zero-duration scale-out transition removing to 0.5
+    // given: a layer anchored at the (0, 0) unit point and a zero-duration scale-out transition removing to 0.5
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let layer = TestLayer()
@@ -610,7 +610,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_removeTransition_anchoredLayer_resetForReuse_restoresIdentity() throws {
-    // given: a layer anchored at the bottom left corner with a scale remove transition in flight
+    // given: a layer anchored at the (0, 0) unit point with a scale remove transition in flight
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let layer = TestLayer()
     layer.anchorPoint = .zero
@@ -1041,7 +1041,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
     let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
     expect(layer.basicAnimations(forKeyPath: "transform.scale").count) == 1
     #if canImport(AppKit)
-    // AppKit anchors view-backing layers at the bottom left corner, so the removal pairs the scale with a center-pivot
+    // AppKit anchors view-backing layers at the (0, 0) unit point, so the removal pairs the scale with a center-pivot
     // translation towards the visual center
     expect(layer.anchorPoint) == .zero
     expect(layer.basicAnimations(forKeyPath: "transform.translation").count) == 1

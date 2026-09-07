@@ -76,8 +76,9 @@ public struct RenderableTransition {
     /// is additive, which the built-in transitions' animations satisfy.
     ///
     /// The renderable's content update runs before this transition, so content-written model values of the taken-over
-    /// properties land before this transition observes the state. The insertion context's `revivalPosition` is
-    /// captured earlier, before the render pass applies the target frame.
+    /// properties land before this transition observes the state. The insertion context's `revivalPosition` and
+    /// `revivalTransform` are captured earlier, before the render pass applies the target frame and resets the
+    /// transform to identity.
     public let takesOverKeyPaths: Set<String>
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
