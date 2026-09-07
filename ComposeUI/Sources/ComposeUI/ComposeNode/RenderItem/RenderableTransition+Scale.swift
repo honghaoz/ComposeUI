@@ -69,6 +69,7 @@ public extension RenderableTransition {
         takesOverKeyPaths: Constants.animatedKeyPaths,
         animate: { renderable, context, completion in
           let layer = renderable.layer
+          ComposeUI.assert(CATransform3DIsIdentity(layer.transform), "scale insert transition requires an identity model transform")
 
           guard timing.timing.duration > 0 || timing.delay > 0 else {
             if context.revivalTransform != nil {
@@ -78,7 +79,6 @@ public extension RenderableTransition {
                 layer.removeAnimations(forKeyPath: keyPath)
               }
             }
-            layer.restoreIdentityTransformIfNeeded()
             renderable.setFrame(context.targetFrame)
             completion()
             return
@@ -99,7 +99,6 @@ public extension RenderableTransition {
             startTranslation = layer.pivotTranslation(towards: anchor.unitPoint, for: from, size: context.targetFrame.size)
           }
 
-          layer.restoreIdentityTransformIfNeeded()
           renderable.setFrame(context.targetFrame)
 
           layer.animate(
@@ -224,19 +223,5 @@ private extension CALayer {
       width: (pivot.x - anchorPoint.x) * size.width * (1 - scale),
       height: (pivot.y - anchorPoint.y) * size.height * (1 - scale)
     )
-  }
-
-  /// Restores the layer's model transform to identity so a following frame application is well-defined.
-  ///
-  /// The framework resets a revived renderable's transform before the render pass applies frames, so this is a no-op
-  /// in framework flows. A direct invocation can still carry the removal's model transform, which would corrupt the
-  /// frame application, so the transition restores the transform itself.
-  func restoreIdentityTransformIfNeeded() {
-    guard !CATransform3DIsIdentity(transform) else {
-      return
-    }
-    disableActions(for: "transform") {
-      transform = CATransform3DIdentity
-    }
   }
 }

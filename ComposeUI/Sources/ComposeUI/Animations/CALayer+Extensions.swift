@@ -58,6 +58,16 @@ extension CALayer {
     )
   }
 
+  /// Restores the layer's model transform to identity.
+  func restoreIdentityTransformIfNeeded() {
+    guard !CATransform3DIsIdentity(transform) else {
+      return
+    }
+    disableActions(for: "transform") {
+      transform = CATransform3DIdentity
+    }
+  }
+
   /// Moves the sublayer to the front.
   ///
   /// - Parameter sublayer: The sublayer to move to the front.
