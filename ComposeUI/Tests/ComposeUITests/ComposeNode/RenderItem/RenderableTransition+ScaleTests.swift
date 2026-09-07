@@ -100,12 +100,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
 
-    let leftoverAnimation = CABasicAnimation(keyPath: "transform.scale")
-    leftoverAnimation.fromValue = CGFloat(1) - Constants.revivalScale
-    leftoverAnimation.toValue = CGFloat(0)
-    leftoverAnimation.duration = 10
-    leftoverAnimation.isAdditive = true
-    layer.add(leftoverAnimation, forKey: "transform.scale")
+    addLeftoverAnimation(to: layer, keyPath: "transform.scale", from: CGFloat(1) - Constants.revivalScale, to: CGFloat(0))
 
     // the framework applies the target frame as the model value before the transition runs
     layer.frame = targetFrame
@@ -165,12 +160,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
 
-    let leftoverAnimation = CABasicAnimation(keyPath: "transform.scale")
-    leftoverAnimation.fromValue = CGFloat(1) - Constants.revivalScale
-    leftoverAnimation.toValue = CGFloat(0)
-    leftoverAnimation.duration = 10
-    leftoverAnimation.isAdditive = true
-    layer.add(leftoverAnimation, forKey: "transform.scale")
+    addLeftoverAnimation(to: layer, keyPath: "transform.scale", from: CGFloat(1) - Constants.revivalScale, to: CGFloat(0))
 
     // when: a zero-duration insert transition animates with a revival transform
     let transition = RenderableTransition.scale(timing: .linear(duration: 0), options: .insert)
@@ -202,12 +192,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
 
-    let leftoverAnimation = CABasicAnimation(keyPath: "transform.scale")
-    leftoverAnimation.fromValue = CGFloat(1) - Constants.revivalScale
-    leftoverAnimation.toValue = CGFloat(0)
-    leftoverAnimation.duration = 10
-    leftoverAnimation.isAdditive = true
-    layer.add(leftoverAnimation, forKey: "transform.scale")
+    addLeftoverAnimation(to: layer, keyPath: "transform.scale", from: CGFloat(1) - Constants.revivalScale, to: CGFloat(0))
 
     layer.frame = targetFrame
 
@@ -484,19 +469,8 @@ class RenderableTransition_ScaleTests: XCTestCase {
     let layer = TestLayer()
     layer.anchorPoint = .zero
 
-    let leftoverScale = CABasicAnimation(keyPath: "transform.scale")
-    leftoverScale.fromValue = CGFloat(1) - Constants.revivalScale
-    leftoverScale.toValue = CGFloat(0)
-    leftoverScale.duration = 10
-    leftoverScale.isAdditive = true
-    layer.add(leftoverScale, forKey: "transform.scale")
-
-    let leftoverTranslation = CABasicAnimation(keyPath: "transform.translation")
-    leftoverTranslation.fromValue = CGSize(width: -12, height: -15)
-    leftoverTranslation.toValue = CGSize.zero
-    leftoverTranslation.duration = 10
-    leftoverTranslation.isAdditive = true
-    layer.add(leftoverTranslation, forKey: "transform.translation")
+    addLeftoverAnimation(to: layer, keyPath: "transform.scale", from: CGFloat(1) - Constants.revivalScale, to: CGFloat(0))
+    addLeftoverAnimation(to: layer, keyPath: "transform.translation", from: CGSize(width: -12, height: -15), to: CGSize.zero)
 
     layer.frame = targetFrame
 
@@ -568,19 +542,8 @@ class RenderableTransition_ScaleTests: XCTestCase {
     let layer = TestLayer()
     layer.anchorPoint = .zero
 
-    let leftoverScale = CABasicAnimation(keyPath: "transform.scale")
-    leftoverScale.fromValue = CGFloat(1) - Constants.revivalScale
-    leftoverScale.toValue = CGFloat(0)
-    leftoverScale.duration = 10
-    leftoverScale.isAdditive = true
-    layer.add(leftoverScale, forKey: "transform.scale")
-
-    let leftoverTranslation = CABasicAnimation(keyPath: "transform.translation")
-    leftoverTranslation.fromValue = CGSize(width: -12, height: -15)
-    leftoverTranslation.toValue = CGSize.zero
-    leftoverTranslation.duration = 10
-    leftoverTranslation.isAdditive = true
-    layer.add(leftoverTranslation, forKey: "transform.translation")
+    addLeftoverAnimation(to: layer, keyPath: "transform.scale", from: CGFloat(1) - Constants.revivalScale, to: CGFloat(0))
+    addLeftoverAnimation(to: layer, keyPath: "transform.translation", from: CGSize(width: -12, height: -15), to: CGSize.zero)
 
     let revivalScale = Constants.revivalScale
     var revivalTransform = CATransform3DMakeScale(revivalScale, revivalScale, revivalScale)
@@ -1096,6 +1059,18 @@ class RenderableTransition_ScaleTests: XCTestCase {
     // then: the invariant still holds later in the animation
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
     try assertCenterInvariant()
+  }
+
+  // MARK: - Helpers
+
+  /// Adds an additive animation to the layer, like the leftover an in-flight removal leaves behind.
+  private func addLeftoverAnimation(to layer: CALayer, keyPath: String, from fromValue: Any, to toValue: Any) {
+    let animation = CABasicAnimation(keyPath: keyPath)
+    animation.fromValue = fromValue
+    animation.toValue = toValue
+    animation.duration = 10
+    animation.isAdditive = true
+    layer.add(animation, forKey: keyPath)
   }
 
   // MARK: - Constants
