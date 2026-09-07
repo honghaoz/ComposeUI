@@ -770,6 +770,43 @@ class RenderableTransition_ScaleTests: XCTestCase {
     expect(abs(frameBefore.maxY - 100)).to(beApproximatelyEqual(to: 0, within: 0.5))
   }
 
+  func test_composeViewIntegration_viewRenderable_topAnchor_renderedTopEdgeStaysFixed() throws {
+    // given: a hosted compose view showing a view renderable with a slow top-anchored scale transition.
+    // the view's backing layer anchors at a corner on AppKit and at the center on UIKit, and a vertical pivot is the
+    // combination a y-axis mistake in the compensation would flip, so this pins the pivot on the risky configuration
+    let window = TestWindow()
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    window.contentView().addSubview(contentView)
+
+    contentView.setContent {
+      ViewNode<BaseView>()
+        .transition(.scale(anchor: .top, timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.refresh(animated: false)
+
+    // when: the content is removed with animation and the removal renders mid-flight
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    expect(layer.presentation()).toEventuallyNot(beNil())
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+
+    // then: the rendered frame stays anchored at the visual top while it shrinks: the top edge and the horizontal
+    // center hold still
+    let frameBefore = try unwrap(layer.presentation()).frame
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    let frameAfter = try unwrap(layer.presentation()).frame
+
+    expect(frameAfter.height) < frameBefore.height
+    expect(abs(frameAfter.minY - frameBefore.minY)).to(beApproximatelyEqual(to: 0, within: 0.5))
+    expect(abs(frameAfter.midX - frameBefore.midX)).to(beApproximatelyEqual(to: 0, within: 0.5))
+    expect(abs(frameBefore.minY)).to(beApproximatelyEqual(to: 0, within: 0.5))
+  }
+
   // MARK: - ComposeView Integration
 
   func test_composeViewIntegration() throws {
