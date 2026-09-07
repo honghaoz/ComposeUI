@@ -44,23 +44,12 @@ public extension RenderableTransition {
   /// Creates a slide transition.
   ///
   /// For insertion, the renderable starts outside the content view on the `from` side (with `overshoot` applied) and
-  /// slides into `targetFrame`.
-  /// For removal, the renderable slides from its current frame to outside the content view on the `to` side (or `from`
-  /// when `to` is nil).
+  /// slides into `targetFrame`. For removal, the renderable slides from its current frame to outside the content view
+  /// on the `to` side, or the `from` side when `to` is nil.
   ///
-  /// Reviving a renderable while its slide-out is in flight continues the motion: the insertion's offset from the
-  /// removal's model position cancels the model change, so the rendered position doesn't jump, and the leftover exit
-  /// offset keeps decaying on top while both animations settle into the resting position. This holds for any side
-  /// configuration, so a revival re-enters from wherever the removal left it: a renderable that fully slid out
-  /// re-enters from its exit side, and the `from` side only applies to fresh insertions.
-  ///
-  /// The composed revival motion's quality depends on the timings: curves that start at rest (springs, ease-in-out)
-  /// keep the velocity continuous, an equal-duration linear pair cancels to a standstill until the leftover decays,
-  /// and strongly mismatched durations can overshoot the resting position before settling.
-  ///
-  /// A zero-duration timing applies the end frame and completes immediately when there is no delay, and a zero-duration
-  /// revival also clears the leftover exit animations so the snap lands at rest. With a delay, the end frame is
-  /// scheduled as a snap that applies right after the delay window.
+  /// Reviving a renderable while its slide-out is in flight continues the motion from wherever the removal left it, so
+  /// the `from` side only applies to fresh insertions. A zero-duration timing applies the end frame and completes
+  /// immediately, or right after the delay window when the timing has a delay.
   ///
   /// - Parameters:
   ///   - from: The side of the slide transition to slide from.

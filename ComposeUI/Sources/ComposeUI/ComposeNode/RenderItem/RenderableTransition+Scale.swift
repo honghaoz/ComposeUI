@@ -34,25 +34,13 @@ public extension RenderableTransition {
 
   /// Creates a scale transition.
   ///
-  /// For insertion, the renderable starts at `from` scale and scales to its natural size at `targetFrame`.
-  /// For removal, the renderable scales from its current scale down to `from`.
+  /// For insertion, the renderable starts at `from` scale and scales to its natural size at `targetFrame`. For removal,
+  /// the renderable scales from its current scale down to `from`. The scaling pivots about `anchor` for any layer
+  /// anchor point.
   ///
-  /// The scaling pivots about `anchor`, the point of the renderable that stays fixed while it scales: each
-  /// "transform.scale" animation is paired with a same-timing "transform.translation" compensation that keeps the
-  /// anchor fixed for any layer anchor point (AppKit anchors view-backing layers at a corner, unlike the center anchor
-  /// elsewhere). The compensation is skipped when it is zero, for a center anchor on a center-anchored layer.
-  ///
-  /// The scale is rendered by additive animations while the model transform rests at identity. The transition owns the
-  /// layer's transform and assumes no other writer touches it.
-  ///
-  /// Reviving a renderable while its scale-out is in flight continues the motion: the insertion's offset from the
-  /// removal's model scale cancels the model change, so the rendered scale doesn't jump, and the leftover exit offset
-  /// keeps decaying on top while both animations settle into the resting scale. An underdamped timing can overshoot,
-  /// which renders a momentarily mirrored scale when the composed scale crosses below zero.
-  ///
-  /// A zero-duration timing applies the end state and completes immediately when there is no delay, and a zero-duration
-  /// revival also clears the leftover exit animations so the snap lands at rest. With a delay, the end state is
-  /// scheduled as a snap that applies right after the delay window.
+  /// The transition owns the layer's transform and assumes no other writer touches it. Reviving a renderable while its
+  /// scale-out is in flight continues the motion from the removal's in-flight state. A zero-duration timing applies the
+  /// end state and completes immediately, or right after the delay window when the timing has a delay.
   ///
   /// - Parameters:
   ///   - from: The scale to insert from and remove to. Values above 1 zoom down into place. Defaults to 0.

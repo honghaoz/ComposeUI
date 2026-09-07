@@ -34,12 +34,9 @@ public extension RenderableTransition {
 
   /// Creates an opacity transition.
   ///
-  /// The transition keeps a single opacity animation on the renderable: starting a transition while another one is in
-  /// flight replaces the in-flight animation with one that continues from the current visual opacity (and, for spring
-  /// timings, the current velocity).
-  /// Stacking is not an option for opacity because the render server clamps opacity per animation while compositing
-  /// additive animations, so opposing stacked animations do not compose (the screen diverges from the unclamped sum
-  /// that `presentation()` reports).
+  /// For insertion, the renderable fades from `from` to `to`. For removal, the renderable fades from its current
+  /// opacity back to `from`. Starting a transition while another one is in flight continues from the current visual
+  /// opacity.
   ///
   /// - Parameters:
   ///   - from: The starting opacity value.
@@ -130,6 +127,10 @@ private extension CALayer {
   /// the new animation continues from the opacity the layer currently shows. For a spring timing, it also continues
   /// with the current velocity, through the spring's initial velocity. Without an in-flight transition, the new
   /// animation starts from `freshStartValue`.
+  ///
+  /// Retargeting replaces the in-flight animations instead of stacking on them, because the render server clamps
+  /// opacity per animation while compositing additive animations, so opposing stacked animations do not compose (the
+  /// screen diverges from the unclamped sum that `presentation()` reports).
   ///
   /// The timing's delay schedules the new animation's begin time: the interrupted state is evaluated when the
   /// retargeting is dispatched, and the animation holds its start value until the delay elapses, so an interrupted
