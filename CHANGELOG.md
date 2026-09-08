@@ -4,11 +4,14 @@
 
 ### Breaking Changes
 
+- Removed `RenderableUpdateType.requiresFullUpdate`. Handle update types explicitly according to the renderable's dependencies, including bounds-dependent drawing and scroll effects.
+- Resizing `ComposeView` now lays out its existing content without reevaluating the content builder. Request `refresh()` or `setNeedsRefresh()` to apply changed configuration.
 - Delayed animations are now scheduled with Core Animation's `beginTime` instead of a GCD timer.
 - Zero-duration transitions now call their completion, and a completion is also called when its animation is torn down early.
 
 ### Changes
 
+- Resizing retains configured colors, text options, and gesture recognizers while updating layout and bounds-dependent drawing.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
 - Slide transitions now continue a revival from wherever the removal left the renderable.
 - The insert transition context gains `revivalPosition` and `revivalTransform` for taking-over transitions.

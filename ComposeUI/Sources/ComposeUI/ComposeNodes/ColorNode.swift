@@ -94,7 +94,12 @@ public struct ColorNode: ComposeNode {
           return layer
         },
         update: { layer, context in
-          guard context.updateType.requiresFullUpdate else {
+          switch context.updateType {
+          case .insert,
+               .refresh:
+            break
+          case .scroll,
+               .boundsChange:
             return
           }
 

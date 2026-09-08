@@ -73,6 +73,53 @@ class LabelNodeTests: XCTestCase {
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
+  func test_boundsChange_retainsLabelUntilRefresh() throws {
+    // given: a label whose text and font depend on the container width
+    var renderedView: BaseTextView?
+    let contentView = ComposeView { container in
+      let isWide = container.frame.width >= 150
+      LabelNode(isWide ? "Expanded" : "Compact")
+        .font(.systemFont(ofSize: isWide ? 20 : 12))
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+
+    // then: the narrow label is rendered
+    expect(textView.attributedString.string) == "Compact"
+    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
+
+    // when: the container crosses the width threshold
+    contentView.frame.size.width = 200
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: measurement and rendering retain the narrow configuration
+    expect(renderedView === textView) == true
+    expect(textView.attributedString.string) == "Compact"
+    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
+    var expectedNode = LabelNode("Compact").font(.systemFont(ofSize: 12))
+    _ = expectedNode.layout(containerSize: CGSize(width: 200, height: 100), context: ComposeNodeLayoutContext(scaleFactor: contentView.windowScaleFactor))
+    expect(textView.bounds.size) == expectedNode.size
+
+    // when: an explicit refresh reevaluates the label
+    contentView.refresh(animated: false)
+
+    // then: the retained label displays the new configuration
+    expect(renderedView === textView) == true
+    expect(textView.attributedString.string) == "Expanded"
+    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
+    #if canImport(AppKit)
+    expect(textView.string) == "Expanded"
+    #endif
+    #if canImport(UIKit)
+    expect(textView.attributedText.string) == "Expanded"
+    #endif
+  }
+
   // MARK: - Single-line
 
   func test_singleLine_enoughWidth() throws {

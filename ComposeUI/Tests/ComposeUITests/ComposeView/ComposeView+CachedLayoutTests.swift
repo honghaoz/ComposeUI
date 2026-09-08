@@ -80,8 +80,8 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: size change triggers a content make, layout and render
-    expect(contentMakeCount) == 2 // size change should trigger content make
+    // then: size change relayouts and renders the retained content
+    expect(contentMakeCount) == 1
     expect(state.layoutCount) == 2 // size change should trigger layout
     expect(state.renderCount) == 4 // size change should trigger render
 
@@ -90,8 +90,8 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: size change triggers a content make, layout and render
-    expect(contentMakeCount) == 3 // size change should trigger content make
+    // then: zero size relayouts and renders without rebuilding content
+    expect(contentMakeCount) == 1
     expect(state.layoutCount) == 3 // size change should trigger layout
     expect(state.renderCount) == 5 // size change should trigger render
 
@@ -101,7 +101,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     view.layoutIfNeeded()
 
     // then: scroll triggers a render but no content make or layout
-    expect(contentMakeCount) == 3 // scroll should not trigger content make
+    expect(contentMakeCount) == 1 // scroll should not trigger content make
     expect(state.layoutCount) == 3 // scroll should not trigger layout
     expect(state.renderCount) == 6 // scroll should trigger render
   }

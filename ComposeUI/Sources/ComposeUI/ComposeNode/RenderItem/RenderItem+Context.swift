@@ -59,37 +59,29 @@ public struct RenderableInsertContext {
 
 // MARK: - Update
 
-/// The renderable update type.
+/// The reason for a renderable update.
 public enum RenderableUpdateType: Equatable {
+
+  // TODO: Merge scroll into boundsChange and expose previous/current content-view render bounds in the update context,
+  // so origin and size changes can be detected independently, including during refresh.
 
   /// The renderable is inserted into a renderable hierarchy.
   case insert
 
-  /// The renderable is reused because the content view is refreshed explicitly.
+  /// The renderable is reused after an explicit refresh request or environment-triggered content refresh.
   case refresh
 
-  /// The renderable is reused because the content view is scrolled, i.e. the size is the same but the origin is changed.
+  /// The renderable is reused after the content view's bounds origin changes while its size stays the same, i.e. the 
+  /// content view is scrolled.
   case scroll
 
-  /// The renderable is reused because the content view's bounds are changed, i.e. the size is changed.
+  /// The renderable is reused after the content view's bounds changes.
   case boundsChange
-
-  /// Whether the update requires a full update, i.e. the renderable inserted or explicitly refreshed.
-  public var requiresFullUpdate: Bool {
-    switch self {
-    case .insert,
-         .refresh:
-      return true
-    case .scroll,
-         .boundsChange:
-      return false
-    }
-  }
 }
 
 public struct RenderableUpdateContext: Equatable {
 
-  /// The update type.
+  /// The reason for the update.
   public let updateType: RenderableUpdateType
 
   /// The old frame of the renderable before the update.

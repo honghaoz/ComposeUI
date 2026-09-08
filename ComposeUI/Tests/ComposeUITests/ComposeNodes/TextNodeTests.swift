@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class TextNodeTests: XCTestCase {
 
@@ -198,6 +198,283 @@ class TextNodeTests: XCTestCase {
     #if canImport(UIKit)
     expect(textView?.textContainerInset) == EdgeInsets(top: 20, left: 10, bottom: 20, right: 10)
     #endif
+  }
+
+  func test_boundsChange_retainsTextUntilRefresh() throws {
+    // given: fixed-size text whose configuration depends on the container width
+    var renderedView: BaseTextView?
+    let contentView = ComposeView { container in
+      let isWide = container.frame.width >= 150
+      TextNode(isWide ? "Expanded" : "Compact", font: .systemFont(ofSize: isWide ? 20 : 12))
+        .frame(width: 100, height: 50)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+
+    // then: the narrow configuration is rendered
+    expect(textView.attributedString.string) == "Compact"
+    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
+
+    // when: the container crosses the width threshold
+    contentView.frame.size.width = 200
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: the same fixed-size view retains its configured text and font
+    expect(renderedView === textView) == true
+    expect(textView.bounds.size) == CGSize(width: 100, height: 50)
+    expect(textView.attributedString.string) == "Compact"
+    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
+
+    // when: an explicit refresh reevaluates the text
+    contentView.refresh(animated: false)
+
+    // then: the same view receives the rebuilt text and font
+    expect(renderedView === textView) == true
+    expect(textView.attributedString.string) == "Expanded"
+    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
+    #if canImport(AppKit)
+    expect(textView.string) == "Expanded"
+    #endif
+    #if canImport(UIKit)
+    expect(textView.attributedText.string) == "Expanded"
+    #endif
+  }
+
+  func test_refresh_appliesChangedAttributesAndEmptyText() throws {
+    // given: a rendered text node with configurable attributed text
+    var text = NSAttributedString(string: "Text", attributes: [.font: Font.systemFont(ofSize: 12)])
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+
+    // when: attributes change without changing the string during resize
+    text = NSAttributedString(string: "Text", attributes: [.font: Font.systemFont(ofSize: 20)])
+    contentView.frame.size.width = 150
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: resizing retains the configured font
+    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
+
+    // when: an explicit refresh applies the changed attributes
+    contentView.refresh(animated: false)
+
+    // then: the changed font is applied to the text storage
+    expect(renderedView === textView) == true
+    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
+    #if canImport(AppKit)
+    expect(textView.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
+    #endif
+    #if canImport(UIKit)
+    expect(textView.attributedText.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
+    #endif
+
+    // when: the configured text becomes empty during resize
+    text = NSAttributedString()
+    contentView.frame.size.width = 200
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: resizing retains the previous text
+    expect(textView.attributedString.string) == "Text"
+
+    // when: an explicit refresh applies the empty text
+    contentView.refresh(animated: false)
+
+    // then: the previous text is cleared
+    expect(textView.attributedString.length) == 0
+    #if canImport(AppKit)
+    expect(textView.string) == ""
+    #endif
+    #if canImport(UIKit)
+    expect(textView.attributedText.length) == 0
+    #endif
+
+    // when: another resize leaves the configured text empty
+    contentView.frame.size.width = 250
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: the empty configuration remains valid
+    expect(renderedView === textView) == true
+    expect(textView.attributedString.length) == 0
+  }
+
+  func test_boundsChange_preservesEditingAndTextOptionsUntilRefresh() throws {
+    // given: editable text with a selection and edits not yet reflected in its configuration
+    var renderedView: BaseTextView?
+    var numberOfLines = 0
+    var lineBreakMode = NSLineBreakMode.byWordWrapping
+    var inset: CGFloat = 0
+    var isEditable = true
+    var isSelectable = true
+    let contentView = ComposeView {
+      TextNode("Configured text")
+        .editable(isEditable)
+        .selectable(isSelectable)
+        .numberOfLines(numberOfLines)
+        .lineBreakMode(lineBreakMode)
+        .textContainerInset(horizontal: inset, vertical: inset * 2)
+        .frame(width: .flexible, height: 300)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let selection = NSRange(location: 2, length: 4)
+    #if canImport(AppKit)
+    textView.string = "User edited text"
+    textView.setSelectedRange(selection)
+    #endif
+    #if canImport(UIKit)
+    textView.text = "User edited text"
+    textView.selectedRange = selection
+    #endif
+
+    // when: the retained text view scrolls
+    contentView.setContentOffset(CGPoint(x: 0, y: 20))
+    contentView.layoutIfNeeded()
+
+    // then: scrolling preserves the selection and edited text
+    expect(textView.selectedRange) == selection
+    #if canImport(AppKit)
+    expect(textView.string) == "User edited text"
+    #endif
+    #if canImport(UIKit)
+    expect(textView.text) == "User edited text"
+    #endif
+
+    // when: the view is resized while different text options await a refresh
+    numberOfLines = 3
+    lineBreakMode = .byClipping
+    inset = 4
+    contentView.frame.size.width = 200
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: resizing preserves editing and the configured text options
+    expect(renderedView === textView) == true
+    expect(textView.attributedString.string) == "Configured text"
+    expect(textView.selectedRange) == selection
+    expect(textView.numberOfLines) == 0
+    expect(textView.lineBreakMode) == .byWordWrapping
+    #if !os(tvOS)
+    expect(textView.isEditable) == true
+    #endif
+    #if canImport(AppKit)
+    expect(textView.string) == "User edited text"
+    expect(textView.textContainerInset) == .zero
+    #endif
+    #if canImport(UIKit)
+    expect(textView.text) == "User edited text"
+    expect(textView.textContainerInset) == .zero
+    #endif
+
+    // when: an explicit refresh reapplies the model configuration
+    contentView.refresh(animated: false)
+
+    // then: explicit refresh applies the new options and configured text
+    expect(textView.numberOfLines) == 3
+    expect(textView.lineBreakMode) == .byClipping
+    #if canImport(AppKit)
+    expect(textView.string) == "Configured text"
+    expect(textView.textContainerInset) == CGSize(width: 4, height: 8)
+    #endif
+    #if canImport(UIKit)
+    expect(textView.text) == "Configured text"
+    expect(textView.textContainerInset) == EdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
+    #endif
+
+    // when: resizing changes interaction options without changing configured text
+    isEditable = false
+    isSelectable = false
+    contentView.frame.size.width = 250
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: resizing retains the interaction options
+    expect(textView.isSelectable) == true
+    #if !os(tvOS)
+    expect(textView.isEditable) == true
+    #endif
+
+    // when: an explicit refresh applies the interaction options
+    contentView.refresh(animated: false)
+
+    // then: the retained text view applies the new interaction options
+    expect(renderedView === textView) == true
+    expect(textView.isSelectable) == false
+    #if !os(tvOS)
+    expect(textView.isEditable) == false
+    #endif
+    #if canImport(AppKit)
+    expect(textView.ignoreHitTest) == true
+    #endif
+    #if canImport(UIKit)
+    expect(textView.isUserInteractionEnabled) == false
+    #endif
+  }
+
+  func test_boundsChange_reflowsRetainedText() throws {
+    // given: multiline text with configuration that can change on refresh
+    let originalText = "A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container."
+    var text = originalText
+    let font = Font.systemFont(ofSize: 14)
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text, font: font)
+        .fixedSize(width: false, height: true)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 500)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let narrowHeight = textView.bounds.height
+    text = "Different content"
+
+    // when: the retained text is laid out with a wider proposal
+    contentView.frame.size.width = 240
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: the old configured text is measured and rendered at the new width
+    var expectedNode = TextNode(originalText, font: font).fixedSize(width: false, height: true)
+    _ = expectedNode.layout(containerSize: CGSize(width: 240, height: 500), context: ComposeNodeLayoutContext(scaleFactor: contentView.windowScaleFactor))
+    expect(renderedView === textView) == true
+    expect(textView.bounds.size) == expectedNode.size
+    expect(textView.bounds.height < narrowHeight) == true
+    expect(textView.attributedString.string) == originalText
+    #if canImport(AppKit)
+    expect(textView.string) == originalText
+    #endif
+    #if canImport(UIKit)
+    expect(textView.text) == originalText
+    #endif
+
+    // when: an explicit refresh applies the new text
+    contentView.refresh(animated: false)
+
+    // then: measurement and rendering both use the new content
+    var refreshedNode = TextNode(text, font: font).fixedSize(width: false, height: true)
+    _ = refreshedNode.layout(containerSize: CGSize(width: 240, height: 500), context: ComposeNodeLayoutContext(scaleFactor: contentView.windowScaleFactor))
+    expect(textView.bounds.size) == refreshedNode.size
+    expect(textView.attributedString.string) == text
   }
 
   func test_adjustIntrinsicTextSize() throws {

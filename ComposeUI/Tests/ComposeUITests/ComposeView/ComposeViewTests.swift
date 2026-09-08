@@ -148,6 +148,8 @@ class ComposeViewTests: XCTestCase {
     expect(isBottomRendered) == true
   }
 
+  // MARK: - sizeThatFits
+
   func test_sizeThatFits() {
     // given: a compose view with a flexible-width, fixed-height node
     let contentView = ComposeView {
@@ -159,6 +161,144 @@ class ComposeViewTests: XCTestCase {
     expect(contentView.sizeThatFits(CGSize(width: 10, height: 10))) == CGSize(width: 10, height: 30)
     expect(contentView.sizeThatFits(CGSize(width: 50, height: 50))) == CGSize(width: 50, height: 30)
   }
+
+  func test_sizeThatFits_doesNotReplaceRetainedContent() throws {
+    // given: rendered content whose next configuration has a different color and height
+    var color = Color.red
+    var height: CGFloat = 300
+    var layer: CALayer?
+    var contentMakeCount = 0
+    let view = ComposeView {
+      contentMakeCount += 1
+      LayoutCacheNode(node: ColorNode(color)
+        .frame(width: .flexible, height: height)
+        .onUpdate { renderable, _ in layer = renderable.layer })
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    let originalLayer = try unwrap(layer)
+    color = .blue
+    height = 400
+
+    // when: fresh content is measured with a different proposal
+    let measuredSize = view.sizeThatFits(CGSize(width: 200, height: 80))
+
+    // then: measurement observes fresh configuration without installing it
+    expect(measuredSize) == CGSize(width: 200, height: 400)
+    expect(contentMakeCount) == 2
+    expect(view.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 300)
+    expect(layer?.backgroundColor) == Color.red.cgColor
+
+    // when: the displayed content scrolls and resizes after measurement
+    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.layoutIfNeeded()
+    view.frame.size.width = 150
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the retained tree still uses its original configuration and fresh geometry
+    expect(contentMakeCount) == 2
+    expect(layer === originalLayer) == true
+    expect(layer?.frame) == CGRect(x: 0, y: 0, width: 150, height: 300)
+    expect(layer?.backgroundColor) == Color.red.cgColor
+
+    // when: fresh content is measured while an explicit refresh is pending
+    view.setNeedsRefresh(animated: false)
+    expect(view.sizeThatFits(CGSize(width: 250, height: 50))) == CGSize(width: 250, height: 400)
+
+    // then: measurement does not perform the pending refresh
+    expect(contentMakeCount) == 3
+    expect(layer?.backgroundColor) == Color.red.cgColor
+    expect(layer?.frame) == CGRect(x: 0, y: 0, width: 150, height: 300)
+
+    // when: layout fulfills the pending refresh
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the fresh configuration is now committed to the same renderable
+    expect(contentMakeCount) == 4
+    expect(layer === originalLayer) == true
+    expect(layer?.backgroundColor) == Color.blue.cgColor
+    expect(layer?.frame) == CGRect(x: 0, y: 0, width: 150, height: 400)
+  }
+
+  func test_sizeThatFits_usesProposedSizeForIntrinsicLayout() throws {
+    // given: a view whose intrinsic height follows its proposed width
+    var renderedView: BaseView?
+    let view = ComposeView {
+      ViewNode<BaseView>(intrinsicSize: { CGSize(width: $0.width, height: $0.width / 2) })
+        .fixedSize(width: false, height: true)
+        .onUpdate { renderable, _ in renderedView = renderable.view as? BaseView }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    let originalView = try unwrap(renderedView)
+
+    // when: measuring proposals different from the host bounds
+    let wideSize = view.sizeThatFits(CGSize(width: 200, height: 300))
+    let narrowSize = view.sizeThatFits(CGSize(width: 40, height: 300))
+
+    // then: intrinsic layout uses each proposal without changing the mounted view
+    expect(wideSize) == CGSize(width: 200, height: 100)
+    expect(narrowSize) == CGSize(width: 40, height: 20)
+    expect(originalView.bounds.size) == CGSize(width: 100, height: 50)
+
+    // when: the mounted content resizes
+    view.frame.size.width = 160
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the retained view adapts to its own new proposal
+    expect(renderedView === originalView) == true
+    expect(originalView.bounds.size) == CGSize(width: 160, height: 80)
+  }
+
+  func test_sizeThatFits_preservesFreshCacheInNestedContent() throws {
+    // given: a nested compose view whose cached content is created separately for each builder evaluation
+    var nestedView: ComposeView?
+    var layer: CALayer?
+    let view = ComposeView {
+      ComposeViewNode {
+        LayoutCacheNode(node: ColorNode(.red)
+          .frame(width: .flexible, height: 300)
+          .onUpdate { renderable, _ in layer = renderable.layer })
+      }
+      .fixedSize(width: false, height: true)
+      .onUpdate { renderable, _ in nestedView = renderable.view as? ComposeView }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    let nested = try unwrap(nestedView)
+    nested.setNeedsLayout()
+    nested.layoutIfNeeded()
+    let originalLayer = try unwrap(layer)
+
+    // when: fresh content is measured and the mounted content is resized
+    expect(view.sizeThatFits(CGSize(width: 250, height: 150))) == CGSize(width: 250, height: 300)
+    view.frame.size.width = 180
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    nested.setNeedsLayout()
+    nested.layoutIfNeeded()
+
+    // then: the original nested cache renders the mounted proposal rather than the measurement proposal
+    expect(nestedView === nested) == true
+    expect(layer === originalLayer) == true
+    expect(nested.bounds().size) == CGSize(width: 180, height: 300)
+    expect(layer?.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
+    expect(layer?.backgroundColor) == Color.red.cgColor
+
+    // when: the outer view scrolls without another layout proposal
+    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.layoutIfNeeded()
+
+    // then: the nested geometry remains consistent
+    expect(layer?.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
+    expect(nested.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
+  }
+
+  // MARK: - 
 
   func test_contentInsetAdjustmentBehavior() {
     // then: automatic content inset adjustment is disabled

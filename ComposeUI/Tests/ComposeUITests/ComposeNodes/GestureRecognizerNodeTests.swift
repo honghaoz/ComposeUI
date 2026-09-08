@@ -99,30 +99,41 @@ class GestureRecognizerNodeTests: XCTestCase {
           expect((view as? GestureRecognizerDelegate)?.gestureRecognizer?(GestureRecognizer(), shouldRecognizeSimultaneouslyWith: GestureRecognizer())) == true
         }
 
-        // conditional update
+        // update with various update types
         do {
+          // given: an unconfigured gesture overlay
           let contentView = ComposeView()
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+          let view = try renderable.view.unwrap()
 
-          // scroll doesn't trigger update
-          do {
-            let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
-            item.update(renderable, context)
-            let view = try (renderable.view).unwrap()
-            let viewLookup = DynamicLookup(view)
-            expect((viewLookup.property("handlers") as? [AnyHashable: Any])?.count) == 0 // doesn't update
-            expect((viewLookup.property("installedGestureRecognizers") as? [AnyHashable: Any])?.count) == 0 // doesn't update
-          }
+          // when: updating for a scroll
+          item.update(renderable, RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
 
-          // bounds change triggers update
-          do {
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
-            item.update(renderable, context)
-            let view = try (renderable.view).unwrap()
-            let viewLookup = DynamicLookup(view)
-            expect((viewLookup.property("handlers") as? [AnyHashable: Any])?.count) == 0 // doesn't update
-            expect((viewLookup.property("installedGestureRecognizers") as? [AnyHashable: Any])?.count) == 0 // doesn't update
-          }
+          // then: no gesture recognizers are installed
+          let unconfiguredRecognizers: [GestureRecognizer]? = view.gestureRecognizers
+          expect(unconfiguredRecognizers?.isEmpty ?? true) == true
+
+          // when: updating for a bounds change
+          item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
+
+          // then: geometry updates do not install gesture recognizers
+          let resizedRecognizers: [GestureRecognizer]? = view.gestureRecognizers
+          expect(resizedRecognizers?.isEmpty ?? true) == true
+
+          // when: inserting the gesture overlay
+          item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
+
+          // then: insertion installs the configured tap recognizer
+          let recognizers: [GestureRecognizer]? = view.gestureRecognizers
+          expect(recognizers?.count) == 1
+          let tapRecognizer = try (recognizers?.first as? TapGestureRecognizer).unwrap()
+          expect(tapRecognizer.view === view) == true
+          #if canImport(AppKit)
+          expect(tapRecognizer.numberOfClicksRequired) == 1
+          #endif
+          #if canImport(UIKit)
+          expect(tapRecognizer.numberOfTapsRequired) == 1
+          #endif
         }
       }
 
@@ -225,6 +236,305 @@ class GestureRecognizerNodeTests: XCTestCase {
 
   // MARK: - Integration Tests
 
+  func test_geometryUpdates_retainGestureRecognizers_untilRefresh() throws {
+    // given: a fixed-size gesture node configured from the container width
+    var additionalTapCount = 0
+    var renderedGestureView: View?
+    var updateType: RenderableUpdateType?
+    let contentView = ComposeView { contentView in
+      let isNarrow = contentView.bounds().width < 150
+      let color: Color = isNarrow ? .red : .blue
+      VStack(alignment: .left) {
+        LayerNode()
+          .frame(width: 80, height: 120)
+          .onTap(count: (isNarrow ? 1 : 2) + additionalTapCount) { recognizer in
+            recognizer.view?.layer().backgroundColor = color.cgColor
+          }
+          .onPress(duration: isNarrow ? 0.25 : 0.75) { _ in }
+          .onUpdate { renderable, context in
+            if let view = renderable.view {
+              renderedGestureView = view
+              updateType = context.updateType
+            }
+          }
+        Spacer()
+          .frame(width: .flexible, height: 180)
+      }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.scrollIndicatorBehavior = .never
+
+    // when: rendering in the narrow container
+    contentView.refresh(animated: false)
+
+    // then: insertion installs the requested tap and press recognizers
+    let gestureView = try renderedGestureView.unwrap()
+    let itemFrame = CGRect(x: 0, y: 0, width: 80, height: 120)
+    let initialRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
+    let initialTap = try (initialRecognizers?.compactMap { $0 as? TapGestureRecognizer }.first).unwrap()
+    let initialPress = try (initialRecognizers?.compactMap { $0 as? PressGestureRecognizer }.first).unwrap()
+    expect(updateType) == .insert
+    expect(gestureView.frame) == itemFrame
+    expect(initialRecognizers?.count) == 2
+    expect(initialTap.view === gestureView) == true
+    expect(initialPress.view === gestureView) == true
+    #if canImport(AppKit)
+    expect(initialTap.numberOfClicksRequired) == 1
+    #endif
+    #if canImport(UIKit)
+    expect(initialTap.numberOfTapsRequired) == 1
+    #endif
+    expect(initialPress.minimumPressDuration) == 0.25
+
+    // when: dispatching the installed tap action
+    _ = gestureView.perform(NSSelectorFromString("handleGesture:"), with: initialTap)
+
+    // then: the configured handler produces the narrow color
+    expect(gestureView.layer().backgroundColor) == Color.red.cgColor
+
+    // when: resizing the container without refreshing explicitly
+    contentView.frame.size.width = 200
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: the same overlay retains its recognizers and configuration
+    let resizedRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
+    expect(updateType) == .boundsChange
+    expect(renderedGestureView === gestureView) == true
+    expect(gestureView.frame) == itemFrame
+    expect(resizedRecognizers?.count) == 2
+    expect(resizedRecognizers?.contains { $0 === initialTap }) == true
+    expect(resizedRecognizers?.contains { $0 === initialPress }) == true
+    expect(initialTap.view === gestureView) == true
+    expect(initialPress.view === gestureView) == true
+    #if canImport(AppKit)
+    expect(initialTap.numberOfClicksRequired) == 1
+    #endif
+    #if canImport(UIKit)
+    expect(initialTap.numberOfTapsRequired) == 1
+    #endif
+    expect(initialPress.minimumPressDuration) == 0.25
+
+    // when: dispatching the retained tap action after resize
+    gestureView.layer().backgroundColor = nil
+    _ = gestureView.perform(NSSelectorFromString("handleGesture:"), with: initialTap)
+
+    // then: the handler still uses the retained configuration
+    expect(gestureView.layer().backgroundColor) == Color.red.cgColor
+
+    // when: scrolling with changed data but without an explicit refresh
+    additionalTapCount = 1
+    contentView.setContentOffset(CGPoint(x: 0, y: 50))
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: the visible overlay retains its installed recognizers
+    let scrolledRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
+    expect(updateType) == .scroll
+    expect(renderedGestureView === gestureView) == true
+    expect(gestureView.frame) == itemFrame
+    expect(scrolledRecognizers?.count) == 2
+    expect(scrolledRecognizers?.contains { $0 === initialTap }) == true
+    expect(scrolledRecognizers?.contains { $0 === initialPress }) == true
+
+    // when: dispatching the retained tap action after scroll
+    gestureView.layer().backgroundColor = nil
+    _ = gestureView.perform(NSSelectorFromString("handleGesture:"), with: initialTap)
+
+    // then: scrolling preserves the handler's rendered output
+    expect(gestureView.layer().backgroundColor) == Color.red.cgColor
+
+    // when: refreshing the changed gesture data at the same container size
+    contentView.refresh(animated: false)
+
+    // then: the same overlay installs the refreshed handler configuration
+    let refreshedRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
+    let refreshedTap = try (refreshedRecognizers?.compactMap { $0 as? TapGestureRecognizer }.first).unwrap()
+    let refreshedPress = try (refreshedRecognizers?.compactMap { $0 as? PressGestureRecognizer }.first).unwrap()
+    expect(updateType) == .refresh
+    expect(renderedGestureView === gestureView) == true
+    expect(gestureView.frame) == itemFrame
+    expect(refreshedRecognizers?.count) == 2
+    expect(initialTap.view) == nil
+    expect(initialPress.view) == nil
+    expect(refreshedTap.view === gestureView) == true
+    expect(refreshedPress.view === gestureView) == true
+    #if canImport(AppKit)
+    expect(refreshedTap.numberOfClicksRequired) == 3
+    #endif
+    #if canImport(UIKit)
+    expect(refreshedTap.numberOfTapsRequired) == 3
+    #endif
+    expect(refreshedPress.minimumPressDuration) == 0.75
+
+    // when: dispatching the refreshed tap action
+    _ = gestureView.perform(NSSelectorFromString("handleGesture:"), with: refreshedTap)
+
+    // then: refresh supplies the new handler output
+    expect(gestureView.layer().backgroundColor) == Color.blue.cgColor
+  }
+
+  func test_boundsChange_retainsGestureIdentity_withUnchangedSettings() throws {
+    // given: a flexible gesture node with constant settings
+    var renderedGestureView: View?
+    let contentView = ComposeView {
+      LayerNode()
+        .onTap(count: 2) { recognizer in
+          recognizer.view?.layer().backgroundColor = Color.green.cgColor
+        }
+        .onPress(duration: 0.75) { _ in }
+        .onPan { _ in }
+        .onUpdate { renderable, _ in
+          if let view = renderable.view {
+            renderedGestureView = view
+          }
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh(animated: false)
+    let gestureView = try renderedGestureView.unwrap()
+    let initialRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
+    let tap = try (initialRecognizers?.compactMap { $0 as? TapGestureRecognizer }.first).unwrap()
+    let press = try (initialRecognizers?.compactMap { $0 as? PressGestureRecognizer }.first).unwrap()
+    let pan = try (initialRecognizers?.compactMap { $0 as? PanGestureRecognizer }.first).unwrap()
+
+    // then: the overlay begins at the original size
+    expect(gestureView.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: resizing without changing gesture settings
+    contentView.frame.size = CGSize(width: 200, height: 150)
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: the overlay resizes without replacing any recognizer
+    let resizedRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
+    expect(renderedGestureView === gestureView) == true
+    expect(gestureView.frame) == CGRect(x: 0, y: 0, width: 200, height: 150)
+    expect(resizedRecognizers?.count) == 3
+    expect(resizedRecognizers?.contains { $0 === tap }) == true
+    expect(resizedRecognizers?.contains { $0 === press }) == true
+    expect(resizedRecognizers?.contains { $0 === pan }) == true
+    expect(tap.view === gestureView) == true
+    expect(press.view === gestureView) == true
+    expect(pan.view === gestureView) == true
+    expect(tap.state) == .possible
+    expect(press.state) == .possible
+    expect(pan.state) == .possible
+    #if canImport(AppKit)
+    expect(tap.numberOfClicksRequired) == 2
+    #endif
+    #if canImport(UIKit)
+    expect(tap.numberOfTapsRequired) == 2
+    #endif
+    expect(press.minimumPressDuration) == 0.75
+
+    // when: dispatching the retained tap action
+    _ = gestureView.perform(NSSelectorFromString("handleGesture:"), with: tap)
+
+    // then: the handler still produces its configured output
+    expect(gestureView.layer().backgroundColor) == Color.green.cgColor
+  }
+
+  #if canImport(AppKit)
+  func test_geometryUpdates_preserveActivePan() throws {
+    // given: a window-backed overlay with an installed native pan recognizer
+    let testWindow = TestWindow()
+    var renderedGestureView: View?
+    let contentView = ComposeView {
+      LayerNode()
+        .frame(width: .flexible, height: 300)
+        .onPan { recognizer in
+          switch recognizer.state {
+          case .began:
+            recognizer.view?.layer().backgroundColor = Color.green.cgColor
+          case .changed:
+            recognizer.view?.layer().backgroundColor = Color.yellow.cgColor
+          case .ended:
+            recognizer.view?.layer().backgroundColor = Color.blue.cgColor
+          default:
+            break
+          }
+        }
+        .onUpdate { renderable, _ in
+          if let view = renderable.view {
+            renderedGestureView = view
+          }
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.scrollIndicatorBehavior = .never
+    testWindow.contentView().addSubview(contentView)
+    testWindow.makeKeyAndOrderFront(nil)
+    defer { testWindow.orderOut(nil) }
+    contentView.refresh(animated: false)
+    let gestureView = try renderedGestureView.unwrap()
+    let pan = try (gestureView.gestureRecognizers.compactMap { $0 as? PanGestureRecognizer }.first).unwrap()
+    let eventView = GestureEventView(frame: gestureView.bounds)
+    eventView.autoresizingMask = [.width, .height]
+    gestureView.addSubview(eventView)
+
+    func mouseEvent(_ type: NSEvent.EventType, x: CGFloat, number: Int) throws -> NSEvent {
+      try NSEvent.mouseEvent(
+        with: type,
+        location: gestureView.convert(CGPoint(x: x, y: 50), to: nil),
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: testWindow.windowNumber,
+        context: nil,
+        eventNumber: number,
+        clickCount: 1,
+        pressure: type == .leftMouseUp ? 0 : 1
+      ).unwrap()
+    }
+
+    // when: window-dispatched mouse events begin a pan
+    try testWindow.sendEvent(mouseEvent(.leftMouseDown, x: 20, number: 1))
+    try testWindow.sendEvent(mouseEvent(.leftMouseDragged, x: 60, number: 2))
+
+    // then: the installed recognizer is active and its native action renders the active color
+    expect(pan.state).toEventually(beEqual(to: .began))
+    expect(gestureView.layer().backgroundColor).toEventually(beEqual(to: Color.green.cgColor))
+
+    // when: resizing during the active pan
+    contentView.frame.size = CGSize(width: 200, height: 150)
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: resizing preserves the original active recognizer and its output
+    expect(renderedGestureView === gestureView) == true
+    expect(gestureView.frame) == CGRect(x: 0, y: 0, width: 200, height: 300)
+    expect(gestureView.gestureRecognizers.contains { $0 === pan }) == true
+    expect(pan.view === gestureView) == true
+    expect(pan.state) == .began
+    expect(gestureView.layer().backgroundColor) == Color.green.cgColor
+
+    // when: scrolling during the active pan
+    contentView.setContentOffset(CGPoint(x: 0, y: 30))
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: scrolling also preserves the recognizer state and output
+    expect(renderedGestureView === gestureView) == true
+    expect(pan.view === gestureView) == true
+    expect(pan.state) == .began
+    expect(gestureView.layer().backgroundColor) == Color.green.cgColor
+
+    // when: the mouse continues dragging after both geometry changes
+    try testWindow.sendEvent(mouseEvent(.leftMouseDragged, x: 80, number: 3))
+
+    // then: the original recognizer continues delivering its native action
+    expect(pan.state).toEventually(beEqual(to: .changed))
+    expect(gestureView.layer().backgroundColor).toEventually(beEqual(to: Color.yellow.cgColor))
+
+    // when: the mouse is released
+    try testWindow.sendEvent(mouseEvent(.leftMouseUp, x: 80, number: 4))
+
+    // then: the original gesture completes on the same view
+    expect(gestureView.layer().backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
+    expect(pan.view === gestureView) == true
+  }
+  #endif
+
   func test_gestureRecognizer() throws {
     // given: a compose view in a test window with a tap gesture
     var optionalGestureView: View?
@@ -279,3 +589,14 @@ class GestureRecognizerNodeTests: XCTestCase {
     }
   }
 }
+
+#if canImport(AppKit)
+private final class GestureEventView: NSView {
+
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+    true
+  }
+
+  override func mouseDown(with event: NSEvent) {}
+}
+#endif

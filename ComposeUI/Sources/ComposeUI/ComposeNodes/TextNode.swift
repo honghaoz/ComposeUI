@@ -327,7 +327,12 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
         frame: frame,
         make: { BaseTextView(frame: $0.initialFrame ?? .zero) },
         update: { view, context in
-          guard context.updateType.requiresFullUpdate else {
+          switch context.updateType {
+          case .insert,
+               .refresh:
+            break
+          case .scroll,
+               .boundsChange:
             return
           }
           TextNode.updateTextView(

@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class ModifierNodeTests: XCTestCase {
 
@@ -398,7 +398,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("backgroundColor")) == true
     }
 
-    // early return when requiresFullUpdate is false
+    // bounds changes retain configuration
     do {
       // given: a layer node with a captured background color
       var layer: CALayer?
@@ -425,8 +425,10 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change should not set the new color
+      // then: the frame changes but the configured color is retained
+      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.backgroundColor) == Color.red.cgColor
+      expect(layer?.animation(forKey: "backgroundColor")) == nil
 
       // when: the view is refreshed with a new color set
       color = .green
@@ -534,7 +536,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("opacity")) == true
     }
 
-    // early return when requiresFullUpdate is false
+    // bounds changes retain configuration
     do {
       // given: a layer node with a captured opacity
       var layer: CALayer?
@@ -561,8 +563,10 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change should not set the new opacity
+      // then: the frame changes but the configured opacity is retained
+      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.opacity) == 0.5
+      expect(layer?.animation(forKey: "opacity")) == nil
 
       // when: the view is refreshed with a new opacity set
       opacity = 0.3
@@ -677,7 +681,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("borderWidth")) == true
     }
 
-    // early return when requiresFullUpdate is false
+    // bounds changes retain configuration
     do {
       // given: a layer node with a captured border
       var layer: CALayer?
@@ -707,9 +711,12 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change should not set the new border
+      // then: the frame changes but the configured border is retained
+      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.borderColor) == Color.red.cgColor
       expect(layer?.borderWidth) == 2
+      expect(layer?.animation(forKey: "borderColor")) == nil
+      expect(layer?.animation(forKey: "borderWidth")) == nil
 
       // when: the view is refreshed with a new border set
       borderColor = .green
@@ -790,15 +797,16 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("cornerRadius")) == true
     }
 
-    // early return when requiresFullUpdate is false
+    // bounds changes retain configuration
     do {
-      // given: a layer node with a captured corner radius
+      // given: a layer node with a captured corner radius and curve
       var layer: CALayer?
       var cornerRadius: CGFloat = 10
+      var cornerCurve: CALayerCornerCurve = .continuous
 
       let contentView = ComposeView {
         LayerNode()
-          .cornerRadius(cornerRadius)
+          .cornerRadius(cornerRadius, cornerCurve: cornerCurve)
           .onUpdate { renderable, context in
             layer = renderable.layer
           }
@@ -808,24 +816,31 @@ class ModifierNodeTests: XCTestCase {
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh() // initial refresh
 
-      // then: the layer has the initial corner radius
+      // then: the layer has the initial corner radius and curve
       expect(layer?.cornerRadius) == 10
+      expect(layer?.cornerCurve) == .continuous
 
-      // when: the bounds change with a new corner radius set
+      // when: the bounds change with a new corner radius and curve set
       cornerRadius = 20
+      cornerCurve = .circular
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change should not set the new corner radius
+      // then: the frame changes but the configured corner radius and curve are retained
+      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.cornerRadius) == 10
+      expect(layer?.cornerCurve) == .continuous
+      expect(layer?.animation(forKey: "cornerRadius")) == nil
 
-      // when: the view is refreshed with a new corner radius set
+      // when: the view is refreshed with a new corner radius and curve set
       cornerRadius = 8
+      cornerCurve = .continuous
       contentView.refresh()
 
-      // then: the refresh should set the new corner radius
+      // then: the refresh applies the new corner radius and curve
       expect(layer?.cornerRadius) == 8
+      expect(layer?.cornerCurve) == .continuous
     }
   }
 
@@ -946,7 +961,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.masksToBounds) == false
     }
 
-    // early return when requiresFullUpdate is false
+    // bounds changes retain configuration
     do {
       // given: a layer node with a captured masksToBounds
       var layer: CALayer?
@@ -973,7 +988,17 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change should not set the new masksToBounds
+      // then: the frame changes but the configured mask is retained
+      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+      expect(layer?.masksToBounds) == true
+
+      // when: the bounds change with masksToBounds enabled
+      masksToBounds = true
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 70)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      // then: another bounds change retains the configured mask
       expect(layer?.masksToBounds) == true
 
       // when: the view is refreshed with a new masksToBounds set
@@ -1144,7 +1169,9 @@ class ModifierNodeTests: XCTestCase {
 
       let contentView = ComposeView {
         LayerNode()
-          .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: nil)
+          .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { renderable in
+            CGPath(rect: renderable.layer.bounds, transform: nil)
+          })
           .onUpdate { renderable, context in
             layer = renderable.layer
           }
@@ -1159,6 +1186,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.shadowOpacity) == 0.5
       expect(layer?.shadowRadius) == 4
       expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
+      expect(layer?.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 50), transform: nil)
 
       // when: the view scrolls with a new shadow set
       shadowColor = .blue
@@ -1180,11 +1208,13 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change should set the new shadow
-      expect(layer?.shadowColor) == Color.blue.cgColor
-      expect(layer?.shadowOpacity) == 0.8
-      expect(layer?.shadowRadius) == 8
-      expect(layer?.shadowOffset) == CGSize(width: 5, height: 5)
+      // then: the shadow geometry updates while its configuration is retained
+      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+      expect(layer?.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 60), transform: nil)
+      expect(layer?.shadowColor) == Color.red.cgColor
+      expect(layer?.shadowOpacity) == 0.5
+      expect(layer?.shadowRadius) == 4
+      expect(layer?.shadowOffset) == CGSize(width: 2, height: 2)
 
       // when: the view is refreshed with a new shadow set
       shadowColor = .red
@@ -1297,8 +1327,8 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change re-evaluates the content, which picks up the new z-index
-      expect(layer.map { floor($0.zPosition) }) == 10
+      // then: the bounds change retains the configured z-index
+      expect(layer.map { floor($0.zPosition) }) == 5
 
       // when: the view is refreshed with a new z-index set
       zIndex = 3
@@ -1362,7 +1392,7 @@ class ModifierNodeTests: XCTestCase {
       #endif
     }
 
-    // early return when requiresFullUpdate is false
+    // bounds changes retain configuration
     do {
       // given: a view node with a captured interactive state
       var view: View?
@@ -1395,7 +1425,23 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change should not set the new interactive state
+      // then: the frame changes but interaction remains enabled
+      expect(view?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+      #if canImport(AppKit)
+      expect(view?.ignoreHitTest) == false
+      #endif
+
+      #if canImport(UIKit)
+      expect(view?.isUserInteractionEnabled) == true
+      #endif
+
+      // when: the bounds change with interaction enabled
+      isInteractive = true
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 70)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      // then: another bounds change retains the configured interaction state
       #if canImport(AppKit)
       expect(view?.ignoreHitTest) == false
       #endif
@@ -1454,7 +1500,7 @@ class ModifierNodeTests: XCTestCase {
     expect(layer?.shouldRasterize) == true
     expect(layer?.rasterizationScale) == 3
 
-    // early return when requiresFullUpdate is false
+    // bounds changes retain configuration
     do {
       // given: a layer node with a captured rasterization scale
       var layer: CALayer?
@@ -1482,7 +1528,18 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change should not set the new rasterize settings
+      // then: the frame changes but the configured rasterization is retained
+      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+      expect(layer?.shouldRasterize) == true
+      expect(layer?.rasterizationScale) == 2
+
+      // when: the bounds change with rasterization enabled
+      rasterizeScale = 3
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 70)
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      // then: another bounds change retains the configured rasterization
       expect(layer?.shouldRasterize) == true
       expect(layer?.rasterizationScale) == 2
 
@@ -1493,6 +1550,228 @@ class ModifierNodeTests: XCTestCase {
       // then: the refresh should set the new rasterize settings
       expect(layer?.shouldRasterize) == false
       expect(layer?.rasterizationScale) == 1
+    }
+  }
+
+  // MARK: - Update types
+
+  func test_layerModifiers_geometryUpdates_retainProperties() throws {
+    for isEnabled in [true, false] {
+      // given: a layer with properties that differ from the modifier configuration
+      let contentView = ComposeView()
+      let layer = CALayer()
+      layer.backgroundColor = Color.red.cgColor
+      layer.opacity = 0.25
+      layer.borderColor = Color.green.cgColor
+      layer.borderWidth = 2
+      layer.cornerRadius = 10
+      layer.cornerCurve = .continuous
+      layer.masksToBounds = isEnabled
+      layer.shouldRasterize = isEnabled
+      layer.rasterizationScale = isEnabled ? 2 : 1
+      let item = try firstRenderableItem(
+        of: LayerNode()
+          .backgroundColor(.blue)
+          .opacity(0.75)
+          .border(color: .yellow, width: 6)
+          .cornerRadius(20, cornerCurve: .circular)
+          .masksToBounds(!isEnabled)
+          .rasterize(isEnabled ? nil : 3)
+      ).unwrap()
+
+      for updateType in [RenderableUpdateType.scroll, .boundsChange] {
+        // when: a geometry update provides an animation timing
+        item.update(.layer(layer), RenderableUpdateContext(
+          updateType: updateType,
+          oldFrame: item.frame,
+          newFrame: CGRect(x: 0, y: 0, width: 100, height: 60),
+          animationTiming: .easeInEaseOut(duration: 1),
+          contentView: contentView
+        ))
+
+        // then: every property is retained without adding animations
+        expect(layer.backgroundColor) == Color.red.cgColor
+        expect(layer.opacity) == 0.25
+        expect(layer.borderColor) == Color.green.cgColor
+        expect(layer.borderWidth) == 2
+        expect(layer.cornerRadius) == 10
+        expect(layer.cornerCurve) == .continuous
+        expect(layer.masksToBounds) == isEnabled
+        expect(layer.shouldRasterize) == isEnabled
+        expect(layer.rasterizationScale) == (isEnabled ? 2 : 1)
+        expect(layer.animationKeys()) == nil
+      }
+
+      // when: the same item receives an explicit refresh
+      item.update(.layer(layer), RenderableUpdateContext(
+        updateType: .refresh,
+        oldFrame: item.frame,
+        newFrame: item.frame,
+        animationTiming: nil,
+        contentView: contentView
+      ))
+
+      // then: refresh applies every configured property without animation
+      expect(layer.backgroundColor) == Color.blue.cgColor
+      expect(layer.opacity) == 0.75
+      expect(layer.borderColor) == Color.yellow.cgColor
+      expect(layer.borderWidth) == 6
+      expect(layer.cornerRadius) == 20
+      expect(layer.cornerCurve) == .circular
+      expect(layer.masksToBounds) == !isEnabled
+      expect(layer.shouldRasterize) == !isEnabled
+      expect(layer.rasterizationScale) == (isEnabled ? 1 : 3)
+      expect(layer.animationKeys()) == nil
+    }
+  }
+
+  func test_layerModifiers_refresh_animated() throws {
+    for hasColors in [false, true] {
+      // given: a layer with existing attributes and optional colors
+      let contentView = ComposeView()
+      let layer = CALayer()
+      layer.backgroundColor = hasColors ? Color.red.cgColor : nil
+      layer.opacity = 0.25
+      layer.borderColor = hasColors ? Color.green.cgColor : nil
+      layer.borderWidth = 2
+      layer.cornerRadius = 10
+      layer.cornerCurve = .continuous
+      let item = try firstRenderableItem(
+        of: LayerNode()
+          .backgroundColor(.blue)
+          .opacity(0.75)
+          .border(color: .yellow, width: 6)
+          .cornerRadius(20, cornerCurve: .circular)
+      ).unwrap()
+
+      // when: a refresh applies new attributes with animation
+      item.update(.layer(layer), RenderableUpdateContext(
+        updateType: .refresh,
+        oldFrame: item.frame,
+        newFrame: item.frame,
+        animationTiming: .easeInEaseOut(duration: 1),
+        contentView: contentView
+      ))
+
+      // then: the model layer has the newly supplied attributes
+      expect(layer.backgroundColor) == Color.blue.cgColor
+      expect(layer.opacity) == 0.75
+      expect(layer.borderColor) == Color.yellow.cgColor
+      expect(layer.borderWidth) == 6
+      expect(layer.cornerRadius) == 20
+      expect(layer.cornerCurve) == .circular
+
+      // then: color animations use the previous color or a clear fallback
+      let backgroundAnimation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
+      expect(backgroundAnimation.fromValue as! CGColor) == (hasColors ? Color.red.cgColor : Color.clear.cgColor) // swiftlint:disable:this force_cast
+      expect(backgroundAnimation.toValue as! CGColor) == Color.blue.cgColor // swiftlint:disable:this force_cast
+      expect(backgroundAnimation.isAdditive) == false
+      let borderColorAnimation = try (layer.animation(forKey: "borderColor") as? CABasicAnimation).unwrap()
+      expect(borderColorAnimation.fromValue as! CGColor) == (hasColors ? Color.green.cgColor : Color.clear.cgColor) // swiftlint:disable:this force_cast
+      expect(borderColorAnimation.toValue as! CGColor) == Color.yellow.cgColor // swiftlint:disable:this force_cast
+      expect(borderColorAnimation.isAdditive) == false
+
+      // then: scalar animations preserve their additive deltas
+      let opacityAnimation = try (layer.animation(forKey: "opacity") as? CABasicAnimation).unwrap()
+      expect(opacityAnimation.fromValue as? Float) == -0.5
+      expect(opacityAnimation.toValue as? Float) == 0
+      expect(opacityAnimation.isAdditive) == true
+      let borderWidthAnimation = try (layer.animation(forKey: "borderWidth") as? CABasicAnimation).unwrap()
+      expect(borderWidthAnimation.fromValue as? CGFloat) == -4
+      expect(borderWidthAnimation.toValue as? CGFloat) == 0
+      expect(borderWidthAnimation.isAdditive) == true
+      let cornerRadiusAnimation = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+      expect(cornerRadiusAnimation.fromValue as? CGFloat) == -10
+      expect(cornerRadiusAnimation.toValue as? CGFloat) == 0
+      expect(cornerRadiusAnimation.isAdditive) == true
+      for animation in [backgroundAnimation, opacityAnimation, borderColorAnimation, borderWidthAnimation, cornerRadiusAnimation] {
+        expect(animation.duration) == 1
+        expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+      }
+    }
+  }
+
+  func test_interactive_geometryUpdates_retainState() throws {
+    for isEnabled in [true, false] {
+      // given: a view whose interaction state differs from the modifier configuration
+      let contentView = ComposeView()
+      let view = View()
+      #if canImport(AppKit)
+      view.ignoreHitTest = !isEnabled
+      #endif
+      #if canImport(UIKit)
+      view.isUserInteractionEnabled = isEnabled
+      #endif
+      let item = try firstRenderableItem(of: ViewNode().interactive(!isEnabled)).unwrap()
+
+      for updateType in [RenderableUpdateType.scroll, .boundsChange] {
+        // when: the modifier receives a geometry update
+        item.update(.view(view), RenderableUpdateContext(
+          updateType: updateType,
+          oldFrame: item.frame,
+          newFrame: CGRect(x: 0, y: 0, width: 100, height: 60),
+          animationTiming: nil,
+          contentView: contentView
+        ))
+
+        // then: the existing interaction state is retained
+        #if canImport(AppKit)
+        expect(view.ignoreHitTest) == !isEnabled
+        #endif
+        #if canImport(UIKit)
+        expect(view.isUserInteractionEnabled) == isEnabled
+        #endif
+      }
+
+      // when: the same item receives an explicit refresh
+      item.update(.view(view), RenderableUpdateContext(
+        updateType: .refresh,
+        oldFrame: item.frame,
+        newFrame: item.frame,
+        animationTiming: nil,
+        contentView: contentView
+      ))
+
+      // then: refresh applies the configured interaction state
+      #if canImport(AppKit)
+      expect(view.ignoreHitTest) == isEnabled
+      #endif
+      #if canImport(UIKit)
+      expect(view.isUserInteractionEnabled) == !isEnabled
+      #endif
+    }
+  }
+
+  func test_interactive_nonView_preservesLayer() throws {
+    for isEnabled in [true, false] {
+      // given: an interactive modifier applied to a non-view renderable
+      let contentView = ComposeView()
+      let layer = CALayer()
+      layer.opacity = 0.5
+      layer.backgroundColor = Color.red.cgColor
+      let item = try firstRenderableItem(of: LayerNode().interactive(isEnabled)).unwrap()
+
+      for updateType in [RenderableUpdateType.insert, .refresh, .boundsChange, .scroll] {
+        // when: the modifier receives an update for the layer
+        item.update(.layer(layer), RenderableUpdateContext(
+          updateType: updateType,
+          oldFrame: item.frame,
+          newFrame: item.frame,
+          animationTiming: nil,
+          contentView: contentView
+        ))
+
+        // then: the non-view renderable retains its properties
+        expect(layer.opacity) == 0.5
+        expect(layer.backgroundColor) == Color.red.cgColor
+      }
+
+      // when: the modifier resets the non-view renderable for reuse
+      item.resetForReuse?(.layer(layer))
+
+      // then: the layer properties are unchanged
+      expect(layer.opacity) == 0.5
+      expect(layer.backgroundColor) == Color.red.cgColor
     }
   }
 
