@@ -325,7 +325,12 @@ public extension ComposeNode {
     ModifierNode(
       node: self,
       update: { item, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          break
+        case .scroll,
+             .boundsChange:
           return
         }
 
@@ -375,7 +380,12 @@ public extension ComposeNode {
     ModifierNode(
       node: self,
       update: { item, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          break
+        case .scroll,
+             .boundsChange:
           return
         }
         let layer = item.layer
@@ -423,7 +433,12 @@ public extension ComposeNode {
     ModifierNode(
       node: self,
       update: { item, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          break
+        case .scroll,
+             .boundsChange:
           return
         }
 
@@ -470,7 +485,12 @@ public extension ComposeNode {
     ModifierNode(
       node: self,
       update: { item, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          break
+        case .scroll,
+             .boundsChange:
           return
         }
 
@@ -509,7 +529,12 @@ public extension ComposeNode {
     ModifierNode(
       node: self,
       update: { item, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          break
+        case .scroll,
+             .boundsChange:
           return
         }
 
@@ -646,7 +671,16 @@ public extension ComposeNode {
     ModifierNode(
       node: self,
       update: { item, context in
-        guard context.updateType.requiresFullUpdate, let view = item.view else {
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          break
+        case .scroll,
+             .boundsChange:
+          return
+        }
+
+        guard let view = item.view else {
           return
         }
 
@@ -686,7 +720,12 @@ public extension ComposeNode {
     ModifierNode(
       node: self,
       update: { item, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          break
+        case .scroll,
+             .boundsChange:
           return
         }
 

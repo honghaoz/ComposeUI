@@ -67,10 +67,10 @@ public protocol ComposeNode: ComposeContent {
   /// Like `size`, this value is only valid after `layout(containerSize:context:)` is called.
   var renderableItemsBoundingRect: CGRect { get }
 
-  /// Layout the node in the given container size.
+  /// Compute the node's layout with the given container size and layout context.
   ///
   /// - Parameters:
-  ///   - containerSize: The container size.
+  ///   - containerSize: The proposed container size.
   ///   - context: The layout context.
   /// - Returns: The sizing information of the node.
   @discardableResult

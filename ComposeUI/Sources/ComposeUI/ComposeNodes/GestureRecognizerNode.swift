@@ -80,9 +80,15 @@ private struct GestureRecognizerNode: ComposeNode {
       frame: CGRect(origin: .zero, size: size),
       make: { GestureView(frame: $0.initialFrame ?? .zero) },
       update: { view, context in
-        guard context.updateType.requiresFullUpdate else {
+        switch context.updateType {
+        case .insert,
+             .refresh:
+          break
+        case .scroll,
+             .boundsChange:
           return
         }
+
         view.updateGestureRecognizerHandlers(handlers)
       }
     )

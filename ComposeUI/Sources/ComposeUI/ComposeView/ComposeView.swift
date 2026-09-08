@@ -82,7 +82,7 @@ open class ComposeView: BaseScrollView {
   /// The type of the render pass.
   public enum RenderType: Equatable {
 
-    /// The content is explicitly refreshed.
+    /// The content is refreshed by the an explicit refresh request or in response to an environment change.
     case refresh(isAnimated: Bool)
 
     /// The content is scrolled, i.e. the size is the same but the origin is changed.
@@ -178,7 +178,7 @@ open class ComposeView: BaseScrollView {
 
   /// Creates a `ComposeView` with the given content.
   ///
-  /// - Parameter content: The content builder block. It passes in the content view that renders the content.
+  /// - Parameter content: A content builder with the host view as the parameter.
   public init(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     self.makeContent = content
 
@@ -189,7 +189,7 @@ open class ComposeView: BaseScrollView {
 
   /// Creates a `ComposeView` with the given content.
   ///
-  /// - Parameter content: The content builder block.
+  /// - Parameter content: A content builder.
   public init(@ComposeContentBuilder content: @escaping () throws -> ComposeContent) {
     makeContent = { _ in try content() }
 
@@ -260,7 +260,7 @@ open class ComposeView: BaseScrollView {
   ///
   /// An animated refresh will be scheduled. To disable the animation, call `setNeedsRefresh(animated: false)` or `refresh(animated: false)`.
   ///
-  /// - Parameter content: The content builder block. It passes in the content view that renders the content.
+  /// - Parameter content: A content builder with the host view as the parameter.
   open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     makeContent = content
     setNeedsRefresh()
@@ -270,7 +270,7 @@ open class ComposeView: BaseScrollView {
   ///
   /// An animated refresh will be scheduled. To disable the animation, call `setNeedsRefresh(animated: false)` or `refresh(animated: false)`.
   ///
-  /// - Parameter content: The content builder block.
+  /// - Parameter content: A content builder.
   open func setContent(@ComposeContentBuilder content: @escaping () throws -> ComposeContent) {
     setContent(content: { _ in try content() })
   }
@@ -399,9 +399,9 @@ open class ComposeView: BaseScrollView {
   // MARK: - Size
 
   #if canImport(AppKit)
-  /// Get the size that fits the content.
+  /// Returns the size that fits the content.
   ///
-  /// - Parameter size: The container size.
+  /// - Parameter size: The proposed layout container size.
   /// - Returns: The size that fits the content.
   open func sizeThatFits(_ size: CGSize) -> CGSize {
     _sizeThatFits(size)
@@ -409,9 +409,9 @@ open class ComposeView: BaseScrollView {
   #endif
 
   #if canImport(UIKit)
-  /// Get the size that fits the content.
+  /// Returns the size that fits the content.
   ///
-  /// - Parameter size: The container size.
+  /// - Parameter size: The proposed layout container size.
   /// - Returns: The size that fits the content.
   override open func sizeThatFits(_ size: CGSize) -> CGSize {
     _sizeThatFits(size)
@@ -737,8 +737,7 @@ open class ComposeView: BaseScrollView {
     if contentUpdateContext == nil, renderBounds != lastRenderBounds {
       // no pending render request but bounds changed, should re-render the content
 
-      if contentNode == nil || renderBounds.size != lastRenderBounds.size {
-        // the content is never made or bounds size changed, should make a new content
+      if contentNode == nil {
         contentNode = LayoutCacheNode(node: _makeContent())
       }
 
