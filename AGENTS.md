@@ -146,3 +146,8 @@ Hard-won rules from past corrections, grouped by theme.
 ## Docs
 
 - Match content to the section's altitude: overview sections get a couple of high-level sentences, mechanics and specifics go in the section that owns them.
+
+## Design decisions
+
+- Question the premise before designing around it: when an existing behavior drives a decision, first check whether that behavior is intentional (documented, tested for its own sake, or explained in history) or incidental. Incidental behavior is a candidate to change, not a constraint to satisfy.
+- Surface rejected alternatives: when you consider an option and drop it for scope, cost, or risk, state it in one line with the reason. A silently dropped alternative takes the decision away from the reviewer.
