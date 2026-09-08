@@ -563,6 +563,51 @@ class ViewNodeTests: XCTestCase {
     }
   }
 
+  func test_update_appliesBoundsAndScrollDependentConfiguration() throws {
+    // given: a view whose appearance depends on its width and the container's scroll position
+    var renderedView: BaseView?
+    var updateType: RenderableUpdateType?
+    let contentView = ComposeView {
+      ViewNode<BaseView>(update: { view, context in
+        view.layer().cornerRadius = context.newFrame.width / 4
+        view.layer().backgroundColor = context.contentView.contentOffset().y > 0 ? Color.blue.cgColor : Color.red.cgColor
+        renderedView = view
+        updateType = context.updateType
+      })
+      .frame(width: .flexible, height: 200)
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the view is inserted
+    contentView.refresh(animated: false)
+
+    // then: the initial configuration is applied
+    let view = try unwrap(renderedView)
+    expect(view.layer().cornerRadius) == 25
+    expect(view.layer().backgroundColor) == Color.red.cgColor
+    expect(updateType) == .insert
+
+    // when: the container is resized
+    contentView.frame.size.width = 200
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: the same view receives its new size-dependent configuration
+    expect(renderedView === view) == true
+    expect(view.bounds.size) == CGSize(width: 200, height: 200)
+    expect(view.layer().cornerRadius) == 50
+    expect(updateType) == .boundsChange
+
+    // when: the container scrolls
+    contentView.setContentOffset(CGPoint(x: 0, y: 20))
+    contentView.layoutIfNeeded()
+
+    // then: custom updates can also apply scroll-dependent configuration
+    expect(renderedView === view) == true
+    expect(view.layer().backgroundColor) == Color.blue.cgColor
+    expect(updateType) == .scroll
+  }
+
   #if canImport(AppKit)
   func test_nonLayerBackedView_assertion() {
     // given: a view that is not layer backed, in a compose view, with a test assertion failure handler
