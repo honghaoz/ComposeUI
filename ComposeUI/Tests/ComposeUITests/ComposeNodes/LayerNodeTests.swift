@@ -397,6 +397,55 @@ class LayerNodeTests: XCTestCase {
     }
   }
 
+  func test_update_appliesBoundsAndScrollDependentConfiguration() throws {
+    // given: a layer whose appearance depends on its width and the container's scroll position
+    var renderedLayer: CALayer?
+    var updateType: RenderableUpdateType?
+    let contentView = ComposeView {
+      LayerNode<CALayer>(update: { layer, context in
+        layer.cornerRadius = context.newFrame.width / 4
+        layer.backgroundColor = context.contentView.contentOffset().y > 0 ? Color.blue.cgColor : Color.red.cgColor
+        renderedLayer = layer
+        updateType = context.updateType
+      })
+      .frame(width: .flexible, height: 200)
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the layer is inserted
+    contentView.refresh(animated: false)
+
+    // then: the initial configuration is applied
+    let layer = try unwrap(renderedLayer)
+    expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 200)
+    expect(layer.cornerRadius) == 25
+    expect(layer.backgroundColor) == Color.red.cgColor
+    expect(updateType) == .insert
+
+    // when: the container is resized
+    contentView.frame.size.width = 200
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+
+    // then: the same layer receives its new size-dependent configuration
+    expect(renderedLayer === layer) == true
+    expect(layer.frame) == CGRect(x: 0, y: 0, width: 200, height: 200)
+    expect(layer.cornerRadius) == 50
+    expect(layer.backgroundColor) == Color.red.cgColor
+    expect(updateType) == .boundsChange
+
+    // when: the container scrolls
+    contentView.setContentOffset(CGPoint(x: 0, y: 20))
+    contentView.layoutIfNeeded()
+
+    // then: custom updates can also apply scroll-dependent configuration without changing the content-space frame
+    expect(renderedLayer === layer) == true
+    expect(layer.frame) == CGRect(x: 0, y: 0, width: 200, height: 200)
+    expect(layer.cornerRadius) == 50
+    expect(layer.backgroundColor) == Color.blue.cgColor
+    expect(updateType) == .scroll
+  }
+
   func test_layer_as_composeContent() {
     // given: a compose view with a fixed size layer as content
     let view = ComposeView {

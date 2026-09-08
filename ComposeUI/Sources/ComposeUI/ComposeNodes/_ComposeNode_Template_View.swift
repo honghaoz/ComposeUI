@@ -75,10 +75,17 @@
        frame: frame,
        make: { <#MyView#>(frame: $0.initialFrame ?? .zero) },
        update: { view, context in
-         // NOTE: if the content update depends on the view's bounds, should switch context.updateType explicitly (for .boundsChange)
-         guard context.updateType.requiresFullUpdate else {
+         // NOTE: skip update if the view content doesn't depends on the bounds 
+         // change, adjust the logic accordingly.
+         switch context.updateType {
+         case .insert,
+              .refresh:
+           break
+         case .boundsChange,
+              .scroll:
            return
          }
+
          view.update(state: state, context: context)
        }
      )

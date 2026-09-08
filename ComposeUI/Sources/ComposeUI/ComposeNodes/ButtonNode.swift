@@ -106,10 +106,10 @@ public struct ButtonNode: ComposeNode {
       update: { view, context in
         switch context.updateType {
         case .insert,
-             .refresh,
-             .boundsChange:
+             .refresh:
           break
-        case .scroll:
+        case .scroll,
+             .boundsChange:
           return
         }
 

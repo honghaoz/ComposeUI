@@ -75,10 +75,17 @@
        frame: frame,
        make: { _ in <#MyLayer#>() },
        update: { layer, context in
-         // NOTE: if the content update depends on the layer's bounds, should switch context.updateType explicitly (for .boundsChange)
-         guard context.updateType.requiresFullUpdate else {
+         // NOTE: skip update if the layer content doesn't depends on the bounds 
+         // change, adjust the logic accordingly.
+         switch context.updateType {
+         case .insert,
+              .refresh:
+           break
+         case .boundsChange,
+              .scroll:
            return
          }
+
          layer.update(state: state, context: context)
        }
      )

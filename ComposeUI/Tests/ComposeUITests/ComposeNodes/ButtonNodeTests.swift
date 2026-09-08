@@ -28,6 +28,10 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(UIKit)
+import UIKit.UIGestureRecognizerSubclass
+#endif
+
 import ChouTiTest
 import ChouTi
 
@@ -181,13 +185,15 @@ class ButtonNodeTests: XCTestCase {
             expect(viewLookup.property("onTap")) == nil // doesn't update
           }
 
-          // bounds change triggers update
+          // when: updating for a bounds change
           do {
             let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
             item.update(renderable, context)
             let view = try (renderable.view as? ButtonView).unwrap()
             let viewLookup = DynamicLookup(view)
-            expect(viewLookup.property("onTap")) != nil // update
+
+            // then: geometry updates do not configure the button
+            expect(viewLookup.property("onTap")) == nil
           }
         }
       }
@@ -206,6 +212,229 @@ class ButtonNodeTests: XCTestCase {
       // then: no items are provided
       expect(items.count) == 0
     }
+  }
+
+  func test_update_skipsGeometryChanges() throws {
+    // given: a configured button and a replacement configuration
+    let frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    let button = ButtonView(frame: frame)
+    var action = ""
+    button.configure(
+      content: { _, _ in
+        ColorNode(.red)
+      },
+      onTap: {
+        action = "old tap" }
+      ,
+      onDoubleTap: { action =
+        "old double tap"
+      }
+    )
+    button.refresh(animated: false)
+
+    let layer = try (button.contentView().layer().sublayers?.first).unwrap()
+    var node = ButtonNode(
+      content: { _ in
+        ColorNode(.blue)
+      },
+      onTap: {
+        action = "new tap"
+      }
+    )
+    .onDoubleTap { action = "new double tap" }
+    _ = node.layout(containerSize: frame.size, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let item = try node.renderableItems(in: frame).first.unwrap()
+    let renderable = Renderable.view(button)
+
+    for updateType in [RenderableUpdateType.scroll, .boundsChange] {
+      // when: updating geometry without an explicit refresh
+      item.update(renderable, RenderableUpdateContext(updateType: updateType, oldFrame: frame, newFrame: frame, animationTiming: nil, contentView: nil))
+      button.setNeedsLayout()
+      button.layoutIfNeeded()
+      button.onDoubleTap?()
+
+      // then: the existing content and handler remain installed
+      expect(layer.backgroundColor) == Color.red.cgColor
+      expect(action) == "old double tap"
+    }
+
+    // when: explicitly refreshing the configuration
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, animationTiming: nil, contentView: nil))
+    button.onDoubleTap?()
+
+    // then: the new content and handler replace the prior configuration
+    expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
+    expect(action) == "new double tap"
+    expect(button.contentView().layer().sublayers?.first === layer) == true
+  }
+
+  func test_boundsChange_preservesPressedContentAndNormalMeasurement() throws {
+    // given: a button with separate normal measurement and state-specific appearance
+    var text = "Initial"
+    var generation = 1
+    var tappedGeneration = 0
+    var renderedButton: ButtonView?
+    var colorLayer: CALayer?
+    var textView: BaseTextView?
+
+    let contentView = ComposeView {
+      let configuration = generation
+      ButtonNode(
+        content: { state in
+          VStack {
+            ColorNode(state == .pressed ? (configuration == 1 ? .blue : .black) : .red)
+              .frame(width: .flexible, height: 20)
+              .onUpdate { item, _ in colorLayer = item.layer }
+            TextNode(text, font: .systemFont(ofSize: 12))
+              .frame(width: .flexible, height: state == .pressed ? 50 : 30)
+              .onUpdate { item, _ in textView = item.view as? BaseTextView }
+          }
+        },
+        onTap: { tappedGeneration = configuration }
+      )
+      .onUpdate { item, _ in renderedButton = item.view as? ButtonView }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 240, height: 150)
+
+    contentView.refresh(animated: false)
+
+    expect(textView?.attributedString.string).toEventually(beEqual(to: "Initial"))
+    let button = try renderedButton.unwrap()
+    let originalLayer = try colorLayer.unwrap()
+    let originalTextView = try textView.unwrap()
+    expect(button.frame.size) == CGSize(width: 240, height: 50)
+    expect(originalLayer.backgroundColor) == Color.red.cgColor
+    #if canImport(UIKit)
+    var pressState = GestureRecognizer.State.possible
+    let recognizer = button.buttonTest.pressGestureRecognizer
+    recognizer.override(
+      locationInView: { view in CGPoint(x: 10, y: 10) },
+      state: { pressState }
+    )
+    #endif
+    #if canImport(AppKit)
+    let mouseEventView = button.buttonTest.mouseEventView
+    #endif
+
+    // when: a local press changes the button state
+    #if canImport(UIKit)
+    pressState = .began
+    button.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    button.buttonTest.handlePress(with: .began)
+    #endif
+
+    // then: the actual appearance changes without changing the normal-state measurement
+    expect(button.buttonTest.buttonState) == .pressed
+    expect(originalLayer.backgroundColor) == Color.blue.cgColor
+    expect(originalTextView.frame.height) == 50
+    expect(button.frame.height) == 50
+
+    // when: external configuration changes and the parent only resizes
+    text = "Updated"
+    generation = 2
+    contentView.frame.size.width = 120
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+    button.setNeedsLayout()
+    button.layoutIfNeeded()
+
+    // then: pressed content and interaction identity survive while geometry reflows
+    expect(renderedButton === button) == true
+    expect(colorLayer === originalLayer) == true
+    expect(textView === originalTextView) == true
+    expect(button.buttonTest.buttonState) == .pressed
+    expect(button.frame.size) == CGSize(width: 120, height: 50)
+    expect(originalTextView.frame.size) == CGSize(width: 120, height: 50)
+    expect(originalTextView.attributedString.string) == "Initial"
+    expect(originalLayer.backgroundColor) == Color.blue.cgColor
+    #if canImport(UIKit)
+    expect(button.buttonTest.pressGestureRecognizer === recognizer) == true
+    expect(recognizer.state) == .began
+    #endif
+    #if canImport(AppKit)
+    expect(button.buttonTest.mouseEventView === mouseEventView) == true
+    #endif
+    let oldTap = try (DynamicLookup(button).property("onTap") as? (() -> Void)).unwrap()
+    oldTap()
+    expect(tappedGeneration) == 1
+
+    // when: the parent explicitly refreshes with the same button id and size
+    contentView.refresh(animated: false)
+    button.setNeedsLayout()
+    button.layoutIfNeeded()
+
+    // then: refreshed content uses the current local state and preserves the button view
+    expect(renderedButton === button) == true
+    expect(button.frame.size) == CGSize(width: 120, height: 50)
+    expect(button.buttonTest.buttonState) == .pressed
+    expect(originalTextView.attributedString.string) == "Updated"
+    expect(originalLayer.backgroundColor) == Color.black.cgColor
+    #if canImport(AppKit)
+    expect(originalTextView.string) == "Updated"
+    #endif
+    #if canImport(UIKit)
+    expect(originalTextView.attributedText.string) == "Updated"
+    #endif
+
+    // when: the local press ends after the parent refresh
+    #if canImport(UIKit)
+    pressState = .ended
+    button.buttonTest.press()
+    #endif
+    #if canImport(AppKit)
+    button.buttonTest.handlePress(with: .ended)
+    #endif
+
+    // then: normal appearance is restored and the new tap handler runs
+    expect(button.buttonTest.buttonState) == .normal
+    expect(originalLayer.backgroundColor) == Color.red.cgColor
+    expect(originalTextView.frame.height) == 30
+    expect(originalTextView.attributedString.string) == "Updated"
+    expect(tappedGeneration) == 2
+  }
+
+  func test_refresh_updatesDoubleTapHandler() throws {
+    // given: a mounted button with a captured double tap action
+    var generation = 1
+    var tappedGeneration = 0
+    var renderedButton: ButtonView?
+    let contentView = ComposeView {
+      let configuration = generation
+      ButtonNode(content: { _ in ColorNode(configuration == 1 ? .red : .blue) }, onTap: {})
+        .onDoubleTap { tappedGeneration = configuration }
+        .onUpdate { item, _ in renderedButton = item.view as? ButtonView }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh(animated: false)
+    let button = try renderedButton.unwrap()
+    button.setNeedsLayout()
+    button.layoutIfNeeded()
+    let layer = try (button.contentView().layer().sublayers?.first).unwrap()
+
+    // when: new data is supplied without a refresh and the parent resizes
+    generation = 2
+    contentView.frame.size.width = 200
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+    button.setNeedsLayout()
+    button.layoutIfNeeded()
+    button.onDoubleTap?()
+
+    // then: content and the existing double tap action are retained
+    expect(layer.backgroundColor) == Color.red.cgColor
+    expect(tappedGeneration) == 1
+
+    // when: the parent refreshes at the same size
+    contentView.refresh(animated: false)
+    button.onDoubleTap?()
+
+    // then: content and the double tap action update on the same button
+    expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
+    expect(tappedGeneration) == 2
+    expect(renderedButton === button) == true
+    expect(button.frame.size) == CGSize(width: 200, height: 50)
   }
 
   func test_doubleTap() {
