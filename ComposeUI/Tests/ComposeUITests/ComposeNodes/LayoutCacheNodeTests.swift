@@ -92,6 +92,83 @@ class LayoutCacheNodeTests: XCTestCase {
     expect(state.renderCount) == 1
   }
 
+  func test_invalidateLayout() throws {
+    // given: a cached node wrapping a test node
+    let state = TestNode.State()
+    let node = TestNode(state: state)
+    let cachedNode = LayoutCacheNode(node: node)
+
+    // when: trigger layout
+    let containerSize = CGSize(width: 100, height: 100)
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = cachedNode.layout(containerSize: containerSize, context: context)
+
+    // then: the wrapped node performs the layout
+    expect(state.layoutCount) == 1
+    expect(cachedNode.size) == containerSize
+
+    // when: trigger layout again with the same container size and context
+    _ = cachedNode.layout(containerSize: containerSize, context: context)
+
+    // then: the wrapped node performs the layout again
+    expect(state.layoutCount) == 1
+    expect(cachedNode.size) == containerSize
+
+    // when: invalidate the layout and trigger layout again
+    cachedNode.invalidateLayout()
+    _ = cachedNode.layout(containerSize: containerSize, context: context)
+
+    // then: the wrapped node performs the layout again
+    expect(state.layoutCount) == 2
+    expect(cachedNode.size) == containerSize
+  }
+
+  func test_layoutContextChange_recomputesCachedGeometry() throws {
+    // given: a node whose layout depends on display scale
+    let state = TestNode.State()
+    let node = ScaleDependentNode(state: state)
+    let cachedNode = LayoutCacheNode(node: node)
+    let size = CGSize(width: 100, height: 100)
+    let evaluation = ContentEvaluation()
+
+    // when: trigger layout with scale factor 1 and content evaluation
+    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentEvaluation: evaluation))
+
+    // then: the wrapped node performs the layout
+    expect(state.layoutCount) == 1
+    expect(cachedNode.size) == size
+    do {
+      let item = try cachedNode.renderableItems(in: CGRect(origin: .zero, size: size)).first.unwrap()
+      let renderable = item.make(RenderableMakeContext(initialFrame: item.frame, contentView: nil))
+      expect(renderable.frame) == CGRect(origin: .zero, size: size)
+    }
+
+    // when: trigger layout with a different scale factor without changing proposed size or content evaluation
+    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: evaluation))
+
+    // then: the wrapped node performs the layout again
+    expect(state.layoutCount) == 2
+    expect(cachedNode.size) == CGSize(width: 50, height: 50)
+
+    do {
+      let item = try cachedNode.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 50, height: 50))).first.unwrap()
+      let renderable = item.make(RenderableMakeContext(initialFrame: item.frame, contentView: nil))
+      expect(renderable.frame) == CGRect(origin: .zero, size: CGSize(width: 50, height: 50))
+    }
+
+    // when: trigger layout with a context with the same scale factor but without a content evaluation
+    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // then: the wrapped node performs the layout again
+    expect(state.layoutCount) == 3
+    expect(cachedNode.size) == CGSize(width: 50, height: 50)
+    do {
+      let item = try cachedNode.renderableItems(in: CGRect(origin: .zero, size: CGSize(width: 50, height: 50))).first.unwrap()
+      let renderable = item.make(RenderableMakeContext(initialFrame: item.frame, contentView: nil))
+      expect(renderable.frame) == CGRect(origin: .zero, size: CGSize(width: 50, height: 50))
+    }
+  }
+
   func test_renderableItemsBoundingRect() {
     // given: a cache node wrapping a laid out node with an offset
     var node = LayerNode().frame(width: 10, height: 10).offset(x: 5, y: 5)
@@ -102,5 +179,35 @@ class LayoutCacheNodeTests: XCTestCase {
 
     // then: the bounding rect is forwarded from the wrapped node
     expect(cachedNode.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
+  }
+}
+
+private struct ScaleDependentNode: ComposeNode {
+
+  private var state: TestNode.State
+  private var node = LayerNode<CALayer>()
+
+  init(state: TestNode.State) {
+    self.state = state
+  }
+
+  var id: ComposeNodeId = .custom("scale-dependent")
+
+  var size: CGSize { node.size }
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    state.layoutCount += 1
+    return node.layout(
+      containerSize: CGSize(
+        width: containerSize.width / context.scaleFactor,
+        height: containerSize.height / context.scaleFactor
+      ),
+      context: context
+    )
+  }
+
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    state.renderCount += 1
+    return node.renderableItems(in: visibleBounds)
   }
 }

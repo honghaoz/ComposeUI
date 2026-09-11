@@ -110,7 +110,7 @@ Before reporting a change complete, verify in order:
 # Workflow
 
 - Prefer `rg` for search.
-- Enter plan mode for any non-trivial task (3+ steps or architectural decisions). Write detailed specs upfront to reduce ambiguity.
+- For non-trivial tasks, briefly outline the approach and proceed with the requested work. You may propose a dedicated planning mode when useful, but enter it only after the user explicitly requests or approves it.
 - Stop and re-plan instead of pushing forward when any of these happen: the same error survives two different fix attempts, the change is growing beyond the planned scope, you need a workaround or special case to keep the plan viable, or a plan assumption turns out to be wrong.
 - Record a lesson only when a correction reveals a non-trivial, generalizable principle (skip one-offs). Write the rule, not the incident. File it under the matching theme below (create a new theme if needed). Review lessons at session start.
 

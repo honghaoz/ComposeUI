@@ -289,28 +289,27 @@ class ComposeViewNodeTests: XCTestCase {
         expect(renderable.frame) == .zero
       }
 
-      // willInsert
+      expect(item.willInsert) == nil
+
+      // given: a nested view that has not rendered its content
       do {
-        let willInsert = try item.willInsert.unwrap()
         let composeView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
         let renderable = Renderable.view(composeView)
-        willInsert(renderable, RenderableInsertContext(oldFrame: .zero, newFrame: .zero, contentView: nil))
-        composeView.refresh()
+        let layer = composeView.contentView().layer()
 
-        #if canImport(AppKit)
-        let layer = try (composeView.subviews.first(where: { ($0 as? NSClipView) != nil })?.subviews[0].layer).unwrap()
-        #endif
-        #if canImport(UIKit)
-        let layer = composeView.layer
-        #endif
-        expect(layer.sublayers?.count) == 1
+        // when: an unrendered view receives invalidation before its initial content is installed
+        item.willUpdate?(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: composeView.frame, animationTiming: nil, contentView: nil))
+        item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: composeView.frame, animationTiming: nil, contentView: nil))
+
+        // then: content installation schedules rendering instead of rendering immediately
+        expect(layer.sublayers?.count ?? 0) == 0
+        expect(layer.sublayers?.first?.backgroundColor).toEventually(beEqual(to: Color.red.cgColor))
         let sublayer = try (layer.sublayers?.first).unwrap()
         expect(sublayer.frame) == CGRect(x: 25.0, y: 75.0, width: 50, height: 50)
-        expect(sublayer.backgroundColor) == Color.red.cgColor
       }
 
       expect(item.didInsert) == nil
-      expect(item.willUpdate) == nil
+      expect(item.willUpdate) != nil
       expect(item.update) != nil
       expect(item.willRemove) == nil
       expect(item.didRemove) == nil
@@ -326,6 +325,312 @@ class ComposeViewNodeTests: XCTestCase {
       // then: no items are provided
       expect(items.count) == 0
     }
+  }
+
+  func test_update_skipsGeometryChanges() throws {
+    // given: a nested view rendering red content and a new blue configuration
+    var node = ComposeViewNode {
+      ColorNode(.blue)
+    }
+    let frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    _ = node.layout(containerSize: frame.size, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let item = try node.renderableItems(in: frame).first.unwrap()
+    let nestedView = ComposeView {
+      ColorNode(.red)
+    }
+    nestedView.frame = frame
+    nestedView.refresh(animated: false)
+    let layer = try (nestedView.contentView().layer().sublayers?.first).unwrap()
+    let renderable = Renderable.view(nestedView)
+
+    for updateType in [RenderableUpdateType.scroll, .boundsChange] {
+      // when: updating geometry without refreshing content
+      item.update(renderable, RenderableUpdateContext(updateType: updateType, oldFrame: frame, newFrame: frame, animationTiming: nil, contentView: nil))
+      nestedView.setNeedsLayout()
+      nestedView.layoutIfNeeded()
+
+      // then: the existing nested content is not replaced
+      expect(layer.backgroundColor) == Color.red.cgColor
+    }
+
+    // when: explicitly refreshing the nested configuration
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, animationTiming: nil, contentView: nil))
+
+    // then: the scheduled refresh applies the new color without replacing the layer
+    expect(layer.backgroundColor) == Color.red.cgColor
+    expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
+    expect(nestedView.contentView().layer().sublayers?.first) === layer
+  }
+
+  func test_refresh_updatesMountedContentWithUnchangedSize() throws {
+    // given: nested color and text content with stable ids and fixed sizes
+    var color = Color.red
+    var text = "Before"
+    var font = Font.systemFont(ofSize: 12)
+    var selectable = false
+    var nestedView: ComposeView?
+    var colorLayer: CALayer?
+    var textView: BaseTextView?
+    let contentView = ComposeView {
+      ComposeViewNode {
+        VStack {
+          ColorNode(color)
+            .frame(width: 80, height: 20)
+            .onUpdate { item, _ in
+              colorLayer = item.layer
+            }
+          TextNode(NSAttributedString(string: text, attributes: [.font: font]))
+            .selectable(selectable)
+            .frame(width: 80, height: 30)
+            .onUpdate { item, _ in
+              textView = item.view as? BaseTextView
+            }
+        }
+      }
+      .onUpdate { item, _ in
+        nestedView = item.view as? ComposeView
+      }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh(animated: false)
+    expect(textView?.attributedString.string).toEventually(beEqual(to: "Before"))
+    let child = try nestedView.unwrap()
+    let originalLayer = try colorLayer.unwrap()
+    let originalTextView = try textView.unwrap()
+    let originalFrame = child.frame
+    let originalTextFrame = originalTextView.frame
+    var childRenderType: ComposeView.RenderType?
+    child.onDidRender { _, context in
+      childRenderType = context.renderType
+    }
+    expect(originalLayer.backgroundColor) == Color.red.cgColor
+    expect(originalTextView.isSelectable) == false
+
+    // when: the parent refreshes new configuration without changing ids or sizes
+    color = .blue
+    text = "After"
+    font = .systemFont(ofSize: 18)
+    selectable = true
+    contentView.refresh(animated: false)
+
+    // then: the child keeps its native views and applies configuration on its scheduled refresh
+    expect(originalTextView.attributedString.string) == "Before"
+    expect(originalLayer.backgroundColor) == Color.red.cgColor
+    expect(originalTextView.attributedString.string).toEventually(beEqual(to: "After"))
+    expect(nestedView) === child
+    expect(colorLayer) === originalLayer
+    expect(textView) === originalTextView
+    expect(child.frame) == originalFrame
+    expect(originalTextView.frame) == originalTextFrame
+    expect(originalLayer.backgroundColor) == Color.blue.cgColor
+    expect(originalTextView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == font
+    expect(originalTextView.isSelectable) == true
+    expect(childRenderType) == .refresh(isAnimated: true)
+    #if canImport(AppKit)
+    expect(originalTextView.string) == "After"
+    #endif
+    #if canImport(UIKit)
+    expect(originalTextView.attributedText.string) == "After"
+    #endif
+  }
+
+  func test_boundsChange_reflowsRetainedContentAfterMeasurement() throws {
+    for usesLayoutCache in [false, true] {
+      // given: multiline nested content with a fresh optional cache for each construction
+      let originalText = "Nested content wraps onto several lines when the available width becomes narrow."
+      let font = Font.systemFont(ofSize: 14)
+      var text = originalText
+      var nestedView: ComposeView?
+      var textView: BaseTextView?
+      let contentView = ComposeView {
+        ComposeViewNode {
+          let label = LabelNode(text)
+            .font(font)
+            .numberOfLines(0)
+            .onUpdate { item, _ in
+              textView = item.view as? BaseTextView
+            }
+          if usesLayoutCache {
+            LayoutCacheNode(node: label)
+          } else {
+            label
+          }
+        }
+        .onUpdate { item, _ in
+          nestedView = item.view as? ComposeView
+        }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 240, height: 300)
+      contentView.refresh(animated: false)
+      expect(textView?.attributedString.string).toEventually(beEqual(to: originalText))
+      let child = try nestedView.unwrap()
+      let labelView = try textView.unwrap()
+      let wideHeight = labelView.frame.height
+      text = "Fresh"
+
+      for width: CGFloat in [80, 240, 120, 240] {
+        // when: fresh measurement uses different content and a different width before a resize
+        let proposal = CGSize(width: width / 2, height: 300)
+        var freshLabel = LabelNode(text).font(font).numberOfLines(0)
+        let context = ComposeNodeLayoutContext(scaleFactor: contentView.contentScaleFactor)
+        _ = freshLabel.layout(containerSize: proposal, context: context)
+        let measuredSize = contentView.sizeThatFits(proposal)
+        contentView.frame.size.width = width
+        contentView.setNeedsLayout()
+        contentView.layoutIfNeeded()
+        child.setNeedsLayout()
+        child.layoutIfNeeded()
+
+        // then: measurement is fresh while the mounted label reflows its retained text
+        expect(measuredSize) == freshLabel.size
+        var retainedLabel = LabelNode(originalText).font(font).numberOfLines(0)
+        _ = retainedLabel.layout(containerSize: CGSize(width: width, height: 300), context: context)
+        expect(nestedView) === child
+        expect(textView) === labelView
+        expect(child.frame.size) == retainedLabel.size
+        expect(labelView.frame.size) == retainedLabel.size
+        expect(labelView.attributedString.string) == originalText
+        expect(labelView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == font
+        if width == 80 {
+          expect(labelView.frame.height) > wideHeight
+        }
+      }
+    }
+  }
+
+  func test_boundsChange_preservesNestedCacheWhenChildSizeIsUnchanged() throws {
+    for nestingDepth in 1 ... 3 {
+      // given: cached nested content whose intrinsic height exceeds every ancestor's initial proposal
+      var nestedView: ComposeView?
+      var colorLayer: CALayer?
+      var colorUpdateType: RenderableUpdateType?
+      let contentView = ComposeView {
+        var content: any ComposeNode = ComposeViewNode {
+          LayoutCacheNode(node: ZStack {
+            ColorNode(.red)
+              .onUpdate { renderable, context in
+                colorLayer = renderable.layer
+                colorUpdateType = context.updateType
+              }
+            Spacer(height: 300)
+            ViewNode<BaseView>()
+              .frame(width: 1, height: 1)
+          })
+        }
+        .onUpdate { renderable, _ in
+          nestedView = renderable.view as? ComposeView
+        }
+        for _ in 1 ..< nestingDepth {
+          let childContent = content
+          content = ComposeViewNode { childContent }
+        }
+        return content
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+      contentView.refresh(animated: false)
+      expect(nestedView != nil).toEventually(beEqual(to: true))
+      let child = try unwrap(nestedView)
+      child.scrollBehavior = .always
+      child.setContentInsets(EdgeInsets(top: 0, left: 0, bottom: 50, right: 0))
+      child.setNeedsLayout()
+      child.layoutIfNeeded()
+      let layer = try unwrap(colorLayer)
+      expect(child.bounds().size) == CGSize(width: 100, height: 300)
+      expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 300)
+
+      // when: the parent resizes but the nested view retains its intrinsic size
+      contentView.frame.size.height = 200
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+      child.setNeedsLayout()
+      child.layoutIfNeeded()
+
+      // then: the nested view keeps its original bounds
+      expect(nestedView) === child
+      expect(child.bounds().size) == CGSize(width: 100, height: 300)
+
+      // when: scrolling causes the nested view to render its cached layout
+      colorUpdateType = nil
+      child.setContentOffset(CGPoint(x: 0, y: 10))
+      child.setNeedsLayout()
+      child.layoutIfNeeded()
+
+      // then: the retained color uses the child's proposal rather than the parent's measurement proposal
+      expect(colorUpdateType) == .scroll
+      expect(child.contentOffset().y) == 10
+      expect(colorLayer) === layer
+      expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 300)
+      expect(layer.backgroundColor) == Color.red.cgColor
+    }
+  }
+
+  func test_delayedInsertionAndReinsertion_useRetainedContent() throws {
+    // given: nested content laid out offscreen before application data changes
+    var color = Color.red
+    var text = "Retained"
+    var nestedView: ComposeView?
+    var colorLayer: CALayer?
+    var textView: BaseTextView?
+    let contentView = ComposeView {
+      VStack {
+        Spacer(height: 150)
+        ComposeViewNode {
+          VStack {
+            ColorNode(color)
+              .frame(width: 80, height: 20)
+              .onUpdate { item, _ in
+                colorLayer = item.layer
+              }
+            LabelNode(text)
+              .font(.systemFont(ofSize: 12))
+              .frame(width: 80, height: 30)
+              .onUpdate { item, _ in
+                textView = item.view as? BaseTextView
+              }
+          }
+        }
+        .onUpdate { item, _ in nestedView = item.view as? ComposeView }
+        Spacer(height: 150)
+      }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh(animated: false)
+    expect(nestedView) == nil
+    color = .blue
+    text = "Changed"
+
+    // when: the parent resizes before scrolling the nested view onscreen
+    contentView.frame.size.width = 160
+    contentView.setNeedsLayout()
+    contentView.layoutIfNeeded()
+    contentView.setContentOffset(CGPoint(x: 0, y: 125))
+    contentView.layoutIfNeeded()
+
+    // then: delayed insertion renders the retained configuration after its scheduled refresh
+    expect(textView?.attributedString.string).toEventually(beEqual(to: "Retained"))
+    let firstChild = try nestedView.unwrap()
+    expect(firstChild.frame.size) == CGSize(width: 80, height: 50)
+    expect(colorLayer?.backgroundColor) == Color.red.cgColor
+
+    // when: scrolling the nested view offscreen removes it
+    contentView.setContentOffset(.zero)
+    contentView.layoutIfNeeded()
+
+    // then: the first nested view is detached
+    expect(firstChild.superview) == nil
+
+    // when: the retained node is inserted again
+    nestedView = nil
+    textView = nil
+    colorLayer = nil
+    contentView.setContentOffset(CGPoint(x: 0, y: 125))
+    contentView.layoutIfNeeded()
+
+    // then: reinsertion initializes the nested content without reevaluating application data
+    expect(textView?.attributedString.string).toEventually(beEqual(to: "Retained"))
+    expect(nestedView?.superview) != nil
+    expect(nestedView?.frame.size) == CGSize(width: 80, height: 50)
+    expect(colorLayer?.backgroundColor) == Color.red.cgColor
   }
 
   func test_layoutCalledBeforeRenderableItems() {

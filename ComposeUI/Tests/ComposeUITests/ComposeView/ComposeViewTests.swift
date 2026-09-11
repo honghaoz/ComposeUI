@@ -199,7 +199,7 @@ class ComposeViewTests: XCTestCase {
 
     // then: the retained tree still uses its original configuration and fresh geometry
     expect(contentMakeCount) == 2
-    expect(layer === originalLayer) == true
+    expect(layer) === originalLayer
     expect(layer?.frame) == CGRect(x: 0, y: 0, width: 150, height: 300)
     expect(layer?.backgroundColor) == Color.red.cgColor
 
@@ -218,9 +218,50 @@ class ComposeViewTests: XCTestCase {
 
     // then: the fresh configuration is now committed to the same renderable
     expect(contentMakeCount) == 4
-    expect(layer === originalLayer) == true
+    expect(layer) === originalLayer
     expect(layer?.backgroundColor) == Color.blue.cgColor
     expect(layer?.frame) == CGRect(x: 0, y: 0, width: 150, height: 400)
+  }
+
+  func test_sizeThatFits_measuresNewBuilderBeforeScheduledRefresh() throws {
+    // given: an existing red renderable and a replacement builder waiting to be displayed
+    var layer: CALayer?
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 30)
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    let originalLayer = try unwrap(layer)
+    view.setContent {
+      ColorNode(.blue)
+        .frame(width: .flexible, height: 80)
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+
+    // when: measuring the replacement before its scheduled refresh
+    let measuredSize = view.sizeThatFits(CGSize(width: 200, height: 200))
+
+    // then: measurement uses the new builder without replacing the displayed content
+    expect(measuredSize) == CGSize(width: 200, height: 80)
+    expect(layer) === originalLayer
+    expect(layer?.backgroundColor) == Color.red.cgColor
+    expect(layer?.bounds.size) == CGSize(width: 100, height: 30)
+    expect(view.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: layout performs the pending refresh
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the same renderable receives the replacement configuration and geometry
+    expect(layer) === originalLayer
+    expect(layer?.backgroundColor) == Color.blue.cgColor
+    expect(layer?.bounds.size) == CGSize(width: 100, height: 80)
   }
 
   func test_sizeThatFits_usesProposedSizeForIntrinsicLayout() throws {
@@ -250,7 +291,7 @@ class ComposeViewTests: XCTestCase {
     view.layoutIfNeeded()
 
     // then: the retained view adapts to its own new proposal
-    expect(renderedView === originalView) == true
+    expect(renderedView) === originalView
     expect(originalView.bounds.size) == CGSize(width: 160, height: 80)
   }
 
@@ -283,8 +324,8 @@ class ComposeViewTests: XCTestCase {
     nested.layoutIfNeeded()
 
     // then: the original nested cache renders the mounted proposal rather than the measurement proposal
-    expect(nestedView === nested) == true
-    expect(layer === originalLayer) == true
+    expect(nestedView) === nested
+    expect(layer) === originalLayer
     expect(nested.bounds().size) == CGSize(width: 180, height: 300)
     expect(layer?.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
     expect(layer?.backgroundColor) == Color.red.cgColor
@@ -298,7 +339,7 @@ class ComposeViewTests: XCTestCase {
     expect(nested.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
   }
 
-  // MARK: - 
+  // MARK: -
 
   func test_contentInsetAdjustmentBehavior() {
     // then: automatic content inset adjustment is disabled

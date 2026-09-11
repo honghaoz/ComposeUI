@@ -64,7 +64,7 @@ class ViewController: UIViewController {
 
   private let state = ViewState()
 
-  private lazy var contentView = ComposeView { [state] contentView in
+  private lazy var contentView = ComposeView { [state] in
     Spacer().height(60)
 
     Label("Hello, ComposéUI!")
@@ -102,21 +102,25 @@ class ViewController: UIViewController {
         .padding(horizontal: Constants.padding)
         .frame(width: .flexible, height: 360)
 
-      ViewNode<Playground.FrameView>()
-        .underlay {
-          LayerNode()
-            .border(color: Color.gray, width: 1)
-        }
-        .padding(horizontal: Constants.padding)
-        .frame(width: .flexible, height: contentView.bounds.width)
+      ViewNode<Playground.FrameView>(intrinsicSize: { proposedSize in
+        CGSize(width: proposedSize.width, height: proposedSize.width + Constants.padding * 2)
+      })
+      .fixedSize(width: false, height: true)
+      .underlay {
+        LayerNode()
+          .border(color: Color.gray, width: 1)
+      }
+      .padding(horizontal: Constants.padding)
 
-      ViewNode<Playground.LayersView>()
-        .underlay {
-          LayerNode()
-            .border(color: Color.gray, width: 1)
-        }
-        .padding(horizontal: 16)
-        .frame(width: .flexible, height: contentView.bounds.width)
+      ViewNode<Playground.LayersView>(intrinsicSize: { proposedSize in
+        CGSize(width: proposedSize.width, height: proposedSize.width + Constants.padding * 2)
+      })
+      .fixedSize(width: false, height: true)
+      .underlay {
+        LayerNode()
+          .border(color: Color.gray, width: 1)
+      }
+      .padding(horizontal: Constants.padding)
 
       ViewNode<Playground.ZOrderView>()
         .underlay {

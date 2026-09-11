@@ -41,39 +41,43 @@ import UIKit
 /// A node that renders a SwiftUI view.
 ///
 /// The node has flexible width and flexible height.
-/// Use `fixedSize(width:height:)` to control whether the node uses the view's intrinsic size
-/// or adapts to the container size for each dimension.
+/// Use `fixedSize(width:height:)` to control whether the node uses the view's intrinsic size or adapts to the container
+/// size for each dimension.
 public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSizableComposeNode {
 
   public var isFixedWidth: Bool = false
   public var isFixedHeight: Bool = false
 
-  private var content: () -> Content
-  private var isStaticContent: Bool
+  /// The retained content closure, identified consistently across copies of this node.
+  private let contentProvider: ContentEvaluation.Provider<Content>
 
-  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
-  private let itemCache = RenderableItemCache()
+  /// Whether the SwiftUI content is static. Static content is not reevaluated on refresh.
+  private let isStaticContent: Bool
+
+  /// The render state by the most recent layout.
+  private var renderState: RenderState?
 
   /// Create a static SwiftUI view node.
-  ///
-  /// This is a static SwiftUI view node. The SwiftUI view will be rendered once and not updated.
+  /// 
+  /// A static SwiftUI view node will evaluate the SwiftUI view once and not update it on refresh.
   /// Use `SwiftUIViewNode { ... }` to create a dynamic SwiftUI view node.
   ///
   /// - Parameters:
   ///   - id: The id used to differentiate the SwiftUI content. The id should be unique to the SwiftUI content.
   ///   - content: The SwiftUI view to render.
   public init(id: String, _ content: Content) {
-    self.content = { content }
+    self.contentProvider = ContentEvaluation.Provider(make: { content })
     self.isStaticContent = true
     self.id = .custom("SUI-\(id)")
   }
 
   /// Create a dynamic SwiftUI view node.
+  /// 
+  /// The dynamic SwiftUI view node will evaluate the SwiftUI view on each refresh.
   ///
-  /// - Parameters:
-  ///   - content: A closure that returns the SwiftUI view to render.
+  /// - Parameter content: The SwiftUI view to render.
   public init(_ content: @escaping () -> Content) {
-    self.content = content
+    self.contentProvider = ContentEvaluation.Provider(make: content)
     self.isStaticContent = false
     self.id = .standard(.swiftui)
   }
@@ -85,15 +89,17 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    let content = prepareContent(for: context.contentEvaluation)
+
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
-      size = content().sizeThatFits(containerSize)
+      size = content.value.sizeThatFits(containerSize)
       return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
     case (true, false):
-      size = CGSize(width: content().sizeThatFits(containerSize).width, height: containerSize.height)
+      size = CGSize(width: content.value.sizeThatFits(containerSize).width, height: containerSize.height)
       return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
     case (false, true):
-      size = CGSize(width: containerSize.width, height: content().sizeThatFits(containerSize).height)
+      size = CGSize(width: containerSize.width, height: content.value.sizeThatFits(containerSize).height)
       return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
     case (false, false):
       size = containerSize
@@ -107,19 +113,22 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
       return []
     }
 
-    // bind config locally so the cached make/update closures capture values, not `self` (which holds `itemCache`),
-    // which would form the retain cycle: itemCache -> cachedItem -> closure -> self copy -> itemCache.
-    let content = content
+    guard let renderState else {
+      return []
+    }
+
+    // capture only content and configuration, since renderState also owns the cache retaining these closures.
+    let content = renderState.content
     let isStaticContent = isStaticContent
 
-    let item = itemCache.item(id: id, frame: frame) {
+    let item = renderState.itemCache.item(id: id, frame: frame) {
       ViewItem<View>(
         id: id,
         frame: frame,
         make: { context in
           let view: SwiftUIHostingView<AnyView>
           if isStaticContent {
-            view = SwiftUIHostingView(rootView: AnyView(content()))
+            view = SwiftUIHostingView(rootView: AnyView(content.value))
           } else {
             view = MutableSwiftUIHostingView()
           }
@@ -135,21 +144,48 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
 
           switch context.updateType {
           case .insert,
-               .refresh,
-               .boundsChange:
+               .refresh:
             break
-          case .scroll:
+          case .boundsChange,
+               .scroll:
             return
           }
 
           (view as? MutableSwiftUIHostingView)
             .assertNotNil("view should be a MutableSwiftUIHostingView")?
-            .content = AnyView(content())
+            .content = AnyView(content.value)
         }
       )
       .eraseToRenderableItem()
     }
 
     return [item]
+  }
+
+  // MARK: - Content
+
+  /// Returns the content value for the given content evaluation. It returns the cached content if possible.
+  private mutating func prepareContent(for evaluation: ContentEvaluation?) -> ContentEvaluation.LazyValue<Content> {
+    // Repeated layout proposals reuse the cached content without another dictionary lookup in the evaluation.
+    if let renderState, renderState.evaluation === evaluation {
+      return renderState.content
+    }
+
+    let content = evaluation?.lazyValue(for: contentProvider) ?? ContentEvaluation.LazyValue(provider: contentProvider)
+    renderState = RenderState(evaluation: evaluation, content: content)
+    return content
+  }
+
+  private struct RenderState {
+
+    let evaluation: ContentEvaluation?
+    let content: ContentEvaluation.LazyValue<Content>
+    let itemCache: RenderableItemCache
+
+    init(evaluation: ContentEvaluation?, content: ContentEvaluation.LazyValue<Content>) {
+      self.evaluation = evaluation
+      self.content = content
+      self.itemCache = RenderableItemCache()
+    }
   }
 }

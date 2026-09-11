@@ -32,8 +32,10 @@ import Foundation
 
 extension ComposeView {
 
+  /// The content and bounds used for one update.
   struct ContentUpdateContext: Equatable {
 
+    /// The type of the content update.
     enum ContentUpdateType: Equatable {
 
       /// Explicit refresh request, with a flag to indicate if the refresh is animated.
@@ -43,18 +45,46 @@ extension ComposeView {
       case boundsChange(previousRenderBounds: CGRect)
     }
 
-    /// The render update type.
+    /// The root layout node used for this update.
+    let contentNode: LayoutCacheNode
+
+    /// The content evaluation used for this update.
+    let contentEvaluation: ContentEvaluation
+
+    /// The content update type.
     let updateType: ContentUpdateType
 
     /// The bounds used for rendering.
     let renderBounds: CGRect
 
+    /// Whether this context is already executing a render pass.
     var isRendering: Bool = false
 
-    init(updateType: ContentUpdateType, renderBounds: CGRect) {
+    /// Creates a content update context.
+    ///
+    /// - Parameters:
+    ///   - contentNode: The root layout node used for this update.
+    ///   - contentEvaluation: The content evaluation used for this update.
+    ///   - updateType: The reason for the update.
+    ///   - renderBounds: The bounds used for rendering.
+    init(contentNode: LayoutCacheNode, contentEvaluation: ContentEvaluation, updateType: ContentUpdateType, renderBounds: CGRect) {
+      self.contentNode = contentNode
+      self.contentEvaluation = contentEvaluation
       self.updateType = updateType
       self.renderBounds = renderBounds
     }
+
+    // MARK: - Equatable
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+      lhs.contentNode === rhs.contentNode &&
+        lhs.contentEvaluation === rhs.contentEvaluation &&
+        lhs.updateType == rhs.updateType &&
+        lhs.renderBounds == rhs.renderBounds &&
+        lhs.isRendering == rhs.isRendering
+    }
+
+    // MARK: - Animation Helper
 
     func shouldAnimate(contentView: ComposeView, animationBehavior: AnimationBehavior) -> Bool {
       switch animationBehavior {

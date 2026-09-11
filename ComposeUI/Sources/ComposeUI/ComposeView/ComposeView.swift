@@ -124,11 +124,20 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Private
 
-  /// The block to make content.
+  /// The content builder.
   private var makeContent: (ComposeView) throws -> ComposeContent
 
-  /// The current content node that the view is rendering.
+  /// The root layout node for the current content.
   private var contentNode: LayoutCacheNode?
+
+  /// The evaluation used to measure and render the current content.
+  private var contentEvaluation: ContentEvaluation?
+
+  /// The prepared content waiting to be applied by refresh.
+  private var preparedContentNode: LayoutCacheNode?
+
+  /// The evaluation supplied with the prepared content, or nil to create a new one.
+  private var preparedContentEvaluation: ContentEvaluation?
 
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
@@ -256,23 +265,40 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Content
 
-  /// Set a new content.
+  /// Sets a new content.
   ///
   /// An animated refresh will be scheduled. To disable the animation, call `setNeedsRefresh(animated: false)` or `refresh(animated: false)`.
   ///
   /// - Parameter content: A content builder with the host view as the parameter.
   open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     makeContent = content
+    preparedContentNode = nil
+    preparedContentEvaluation = nil
     setNeedsRefresh()
   }
 
-  /// Set a new content.
+  /// Sets a new content.
   ///
   /// An animated refresh will be scheduled. To disable the animation, call `setNeedsRefresh(animated: false)` or `refresh(animated: false)`.
   ///
   /// - Parameter content: A content builder.
   open func setContent(@ComposeContentBuilder content: @escaping () throws -> ComposeContent) {
     setContent(content: { _ in try content() })
+  }
+
+  /// Sets a new content and with a prepared content evaluation.
+  /// 
+  /// This is used internally to set a prepared content from parent ComposeView, so the child ComposeView can reuse the 
+  /// prepared content evaluation.
+  ///
+  /// - Parameters:
+  ///   - content: A new content.
+  ///   - contentEvaluation: The evaluation to reuse once, or nil to create a new one on refresh.
+  func setPreparedContent(_ content: ComposeNode, contentEvaluation: ContentEvaluation? = nil) {
+    makeContent = { _ in content }
+    preparedContentNode = LayoutCacheNode(node: content)
+    preparedContentEvaluation = contentEvaluation
+    setNeedsRefresh()
   }
 
   /// Makes the content node.
@@ -399,7 +425,7 @@ open class ComposeView: BaseScrollView {
   // MARK: - Size
 
   #if canImport(AppKit)
-  /// Returns the size that fits the content.
+  /// Returns the size that fits the content. This measures the latest content, it may not be the same as the displayed content.
   ///
   /// - Parameter size: The proposed layout container size.
   /// - Returns: The size that fits the content.
@@ -409,7 +435,7 @@ open class ComposeView: BaseScrollView {
   #endif
 
   #if canImport(UIKit)
-  /// Returns the size that fits the content.
+  /// Returns the size that fits the content. This measures the latest content, it may not be the same as the displayed content.
   ///
   /// - Parameter size: The proposed layout container size.
   /// - Returns: The size that fits the content.
@@ -419,9 +445,23 @@ open class ComposeView: BaseScrollView {
   #endif
 
   private func _sizeThatFits(_ size: CGSize) -> CGSize {
+    // measurement can mutate shared descendants, so force mounted geometry to be recomputed without replacing its content evaluation.
+    defer {
+      invalidateContentLayout()
+    }
+
     var contentNode = _makeContent()
-    _ = contentNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
+    let context = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: ContentEvaluation())
+    _ = contentNode.layout(containerSize: size, context: context)
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
+  }
+
+  /// Invalidates this view's and nested child views' cached layout without rebuilding content or scheduling a render.
+  func invalidateContentLayout() {
+    contentNode?.invalidateLayout()
+    for renderable in renderableMap.values {
+      (renderable.view as? ComposeView)?.invalidateContentLayout()
+    }
   }
 
   // MARK: - Scroll
@@ -671,9 +711,23 @@ open class ComposeView: BaseScrollView {
   open func refresh(animated: Bool = true) {
     ComposeUI.assert(Thread.isMainThread, "refresh(animated:) must be called on the main thread")
 
-    // explicit render request, should make a new content
-    contentNode = LayoutCacheNode(node: _makeContent())
-    contentUpdateContext = ContentUpdateContext(updateType: .refresh(isAnimated: animated), renderBounds: renderBounds())
+    // explicit render request, should either consume the prepared content or make a new content
+    let preparedContentNode = self.preparedContentNode
+    let preparedContentEvaluation = self.preparedContentEvaluation
+    self.preparedContentNode = nil
+    self.preparedContentEvaluation = nil
+
+    let contentNode = preparedContentNode ?? LayoutCacheNode(node: _makeContent())
+    let contentEvaluation = preparedContentEvaluation ?? ContentEvaluation()
+    self.contentNode = contentNode
+    self.contentEvaluation = contentEvaluation
+
+    contentUpdateContext = ContentUpdateContext(
+      contentNode: contentNode,
+      contentEvaluation: contentEvaluation,
+      updateType: .refresh(isAnimated: animated),
+      renderBounds: renderBounds()
+    )
 
     // cancel the pending refresh if there is any to avoid double rendering
     // this can happen if `setNeedsRefresh(animated:)` is called then `refresh(animated:)` is called immediately
@@ -737,11 +791,17 @@ open class ComposeView: BaseScrollView {
     if contentUpdateContext == nil, renderBounds != lastRenderBounds {
       // no pending render request but bounds changed, should re-render the content
 
-      if contentNode == nil {
-        contentNode = LayoutCacheNode(node: _makeContent())
-      }
+      let contentNode = contentNode ?? LayoutCacheNode(node: _makeContent())
+      let contentEvaluation = contentEvaluation ?? ContentEvaluation()
+      self.contentNode = contentNode
+      self.contentEvaluation = contentEvaluation
 
-      contentUpdateContext = ContentUpdateContext(updateType: .boundsChange(previousRenderBounds: lastRenderBounds), renderBounds: renderBounds)
+      contentUpdateContext = ContentUpdateContext(
+        contentNode: contentNode,
+        contentEvaluation: contentEvaluation,
+        updateType: .boundsChange(previousRenderBounds: lastRenderBounds),
+        renderBounds: renderBounds
+      )
     }
 
     render()
@@ -762,13 +822,12 @@ open class ComposeView: BaseScrollView {
       render(contentUpdateContext)
     }
 
-    self.contentUpdateContext = nil
+    self.contentUpdateContext = nil // TODO: verify if we can clear contentUpdateContext after the context is passed into render, verify if isRendering is necessary
   }
 
   private func render(_ context: ContentUpdateContext) {
-    guard let contentNode else {
-      return
-    }
+    let contentNode = context.contentNode
+    let contentEvaluation = context.contentEvaluation
 
     var bounds = context.renderBounds
     let boundsSize = bounds.size
@@ -797,7 +856,8 @@ open class ComposeView: BaseScrollView {
     #endif
 
     // do the layout
-    _ = contentNode.layout(containerSize: boundsSize, context: ComposeNodeLayoutContext(scaleFactor: contentScaleFactor))
+    let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: contentEvaluation)
+    _ = contentNode.layout(containerSize: boundsSize, context: layoutContext)
     var contentSize = contentNode.size
 
     #if DEBUG
@@ -1154,7 +1214,8 @@ open class ComposeView: BaseScrollView {
           oldFrame: oldFrame,
           newFrame: newFrame,
           animationTiming: animationTiming,
-          contentView: self
+          contentView: self,
+          contentEvaluation: contentEvaluation
         )
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
@@ -1233,7 +1294,8 @@ open class ComposeView: BaseScrollView {
           oldFrame: frameAfterWillInsert,
           newFrame: newFrame,
           animationTiming: nil, // no animation for insertion
-          contentView: self
+          contentView: self,
+          contentEvaluation: contentEvaluation
         )
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
