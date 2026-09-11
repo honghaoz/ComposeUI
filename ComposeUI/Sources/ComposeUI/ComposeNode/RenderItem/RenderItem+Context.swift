@@ -102,13 +102,13 @@ public struct RenderableUpdateContext: Equatable {
   // MARK: - Equatable
 
   public static func == (lhs: Self, rhs: Self) -> Bool {
+    // contentEvaluation is intentionally omitted: it is internal pass ownership, so it must not change the public
+    // update-context equality contract
     lhs.updateType == rhs.updateType &&
       lhs.oldFrame == rhs.oldFrame &&
       lhs.newFrame == rhs.newFrame &&
       lhs.animationTiming == rhs.animationTiming &&
       lhs.contentView == rhs.contentView
-      // intentionally omit contentEvaluation for equality comparison as internal content ownership does not change the 
-      // public update-context equality contract
   }
 }
 

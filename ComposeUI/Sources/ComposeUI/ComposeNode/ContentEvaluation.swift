@@ -28,16 +28,16 @@
 //  IN THE SOFTWARE.
 //
 
-/// An object that manages content evaluation. 
-/// It it used to share the evaluated content between node copies and nested ComposeViews.
+/// An object that manages content evaluation.
+/// It is used to share the evaluated content between node copies and nested ComposeViews.
 final class ContentEvaluation {
-  
+
   /// A wrapper for a content closure.
   final class Provider<Value> {
-    
+
     /// The content closure.
     fileprivate let make: () -> Value
-    
+
     /// Creates a provider for a content closure, without evaluating it.
     ///
     /// - Parameter make: The closure to make a content.
@@ -45,16 +45,16 @@ final class ContentEvaluation {
       self.make = make
     }
   }
-  
+
   /// A lazy value wrapper that resolves provider's content on first access.
   final class LazyValue<Value> {
-    
+
     /// The resolved content.
     private(set) lazy var value: Value = provider.make()
-    
+
     /// The provider that makes the content.
     private let provider: Provider<Value>
-    
+
     /// Creates a lazy value for a provider.
     ///
     /// - Parameter provider: The provider that makes the content.
@@ -62,13 +62,13 @@ final class ContentEvaluation {
       self.provider = provider
     }
   }
-  
+
   /// The map of the lazy values by the provider's identifier.
   private var values: [ObjectIdentifier: AnyObject] = [:]
-  
+
   init() {}
 
-  /// Returns the a lazy value for the provider's content.
+  /// Returns the lazy value for the provider's content.
   ///
   /// - Parameter provider: The provider shared by node copies that should use the same content.
   /// - Returns: The existing or newly created lazy value, retained for this evaluation's lifetime.

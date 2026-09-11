@@ -12,7 +12,6 @@
 
 ### Changes
 
-- Resizing now retains the content without re-evaluating the content builder. Request `refresh()` or `setNeedsRefresh()` to apply changed configuration.
 - `ComposeViewNode` now updates an already-mounted child view's content when the parent is refreshed.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
 - Slide transitions now continue a revival from wherever the removal left the renderable.

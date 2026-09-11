@@ -82,7 +82,7 @@ open class ComposeView: BaseScrollView {
   /// The type of the render pass.
   public enum RenderType: Equatable {
 
-    /// The content is refreshed by the an explicit refresh request or in response to an environment change.
+    /// The content is refreshed by an explicit refresh request or in response to an environment change.
     case refresh(isAnimated: Bool)
 
     /// The content is scrolled, i.e. the size is the same but the origin is changed.
@@ -286,10 +286,10 @@ open class ComposeView: BaseScrollView {
     setContent(content: { _ in try content() })
   }
 
-  /// Sets a new content and with a prepared content evaluation.
-  /// 
-  /// This is used internally to set a prepared content from parent ComposeView, so the child ComposeView can reuse the 
-  /// prepared content evaluation.
+  /// Sets a new content with a prepared content evaluation.
+  ///
+  /// This is used internally to set a prepared content from the parent ComposeView, so the child ComposeView can reuse
+  /// the prepared content evaluation.
   ///
   /// - Parameters:
   ///   - content: A new content.

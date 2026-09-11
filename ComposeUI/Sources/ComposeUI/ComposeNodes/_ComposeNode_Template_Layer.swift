@@ -75,8 +75,8 @@
        frame: frame,
        make: { _ in <#MyLayer#>() },
        update: { layer, context in
-         // NOTE: skip update if the layer content doesn't depends on the bounds 
-         // change, adjust the logic accordingly.
+         // NOTE: this skips geometry-only updates because the layer content doesn't depend on the bounds change.
+         // adjust the cases if the content depends on the bounds or the scroll position.
          switch context.updateType {
          case .insert,
               .refresh:

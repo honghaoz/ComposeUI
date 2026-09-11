@@ -224,10 +224,10 @@ class ButtonNodeTests: XCTestCase {
         ColorNode(.red)
       },
       onTap: {
-        action = "old tap" }
-      ,
-      onDoubleTap: { action =
-        "old double tap"
+        action = "old tap"
+      },
+      onDoubleTap: {
+        action = "old double tap"
       }
     )
     button.refresh(animated: false)
