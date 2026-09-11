@@ -81,9 +81,23 @@ public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
         make: {
           ComposeView(frame: $0.initialFrame ?? .zero)
         },
-        willInsert: { [node] view, _ in
-          // set the content to the view
-          view.setContent { node }
+        willUpdate: { view, context in
+          if context.updateType == .boundsChange {
+            // the parent calls this node's layout to size the inner ComposeView, which can change layout data shared
+            // with that view.
+            // invalidate the inner view's cache before setting its frame, so it recalculates layout using its own bounds.
+            view.invalidateContentLayout()
+          }
+        },
+        update: { [node] view, context in
+          switch context.updateType {
+          case .insert,
+               .refresh:
+            view.setPreparedContent(node, contentEvaluation: context.contentEvaluation)
+          case .scroll,
+               .boundsChange:
+            return
+          }
         }
       )
       viewNode?.id = id

@@ -45,8 +45,11 @@ public final class LayoutCacheNode: ComposeNode {
   private var node: ComposeNode
 
   /// The cached layout result of the wrapped node.
-  private var cachedLayout: (containerSize: CGSize, sizing: ComposeNodeSizing)?
+  private var cachedLayout: (containerSize: CGSize, context: ComposeNodeLayoutContext, sizing: ComposeNodeSizing)?
 
+  /// Creates a cache around the supplied node's mutable layout state.
+  ///
+  /// - Parameter node: The node whose layout should be reused when its inputs remain unchanged.
   public init(node: ComposeNode) {
     self.node = node
   }
@@ -67,18 +70,25 @@ public final class LayoutCacheNode: ComposeNode {
   }
 
   public func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    if let cachedLayout, cachedLayout.containerSize == containerSize {
-      // layout size is the same, reuse the cached layout result
+    if let cachedLayout,
+       cachedLayout.containerSize == containerSize,
+       cachedLayout.context.scaleFactor == context.scaleFactor,
+       cachedLayout.context.contentEvaluation === context.contentEvaluation
+    {
       return cachedLayout.sizing
     } else {
-      // layout size is different, layout the wrapped node and cache the result
       let sizing = node.layout(containerSize: containerSize, context: context)
-      cachedLayout = (containerSize, sizing)
+      cachedLayout = (containerSize, context, sizing)
       return sizing
     }
   }
 
   public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     node.renderableItems(in: visibleBounds)
+  }
+
+  /// Invalidates the cached layout result so that the next layout call will recompute the layout.
+  func invalidateLayout() {
+    cachedLayout = nil
   }
 }

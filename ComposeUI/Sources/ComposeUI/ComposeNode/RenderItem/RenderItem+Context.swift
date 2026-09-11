@@ -71,7 +71,7 @@ public enum RenderableUpdateType: Equatable {
   /// The renderable is reused after an explicit refresh request or environment-triggered content refresh.
   case refresh
 
-  /// The renderable is reused after the content view's bounds origin changes while its size stays the same, i.e. the 
+  /// The renderable is reused after the content view's bounds origin changes while its size stays the same, i.e. the
   /// content view is scrolled.
   case scroll
 
@@ -95,6 +95,21 @@ public struct RenderableUpdateContext: Equatable {
 
   /// The content view that contains the renderable.
   public private(set) weak var contentView: ComposeView!
+
+  /// The content evaluation of this render pass.
+  var contentEvaluation: ContentEvaluation?
+
+  // MARK: - Equatable
+
+  public static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.updateType == rhs.updateType &&
+      lhs.oldFrame == rhs.oldFrame &&
+      lhs.newFrame == rhs.newFrame &&
+      lhs.animationTiming == rhs.animationTiming &&
+      lhs.contentView == rhs.contentView
+      // intentionally omit contentEvaluation for equality comparison as internal content ownership does not change the 
+      // public update-context equality contract
+  }
 }
 
 // MARK: - Remove
