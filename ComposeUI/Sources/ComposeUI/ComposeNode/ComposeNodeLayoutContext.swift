@@ -37,7 +37,7 @@ public struct ComposeNodeLayoutContext {
   public let scaleFactor: CGFloat
 
   /// The content evaluation shared by layout and rendering, or nil for direct node layout.
-  internal let contentEvaluation: ContentEvaluation?
+  let contentEvaluation: ContentEvaluation?
 
   /// Creates a `ComposeNodeLayoutContext` with the given scale factor.
   ///
@@ -48,7 +48,7 @@ public struct ComposeNodeLayoutContext {
   }
 
   /// Creates a layout context.
-  internal init(scaleFactor: CGFloat, contentEvaluation: ContentEvaluation) {
+  init(scaleFactor: CGFloat, contentEvaluation: ContentEvaluation) {
     self.scaleFactor = scaleFactor
     self.contentEvaluation = contentEvaluation
   }

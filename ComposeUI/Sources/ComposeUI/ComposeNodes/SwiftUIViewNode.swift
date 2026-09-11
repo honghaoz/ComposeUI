@@ -58,7 +58,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   private var renderState: RenderState?
 
   /// Create a static SwiftUI view node.
-  /// 
+  ///
   /// A static SwiftUI view node will evaluate the SwiftUI view once and not update it on refresh.
   /// Use `SwiftUIViewNode { ... }` to create a dynamic SwiftUI view node.
   ///
@@ -72,7 +72,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   }
 
   /// Create a dynamic SwiftUI view node.
-  /// 
+  ///
   /// The dynamic SwiftUI view node will evaluate the SwiftUI view on each refresh.
   ///
   /// - Parameter content: The SwiftUI view to render.
