@@ -28,6 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
+// TODO: can expose this as a public API so third-party node with closure-built content defer the content evaluation
+// until the node is laid out, and share the same content evaluation in layouts and rendering.
+
 /// An object that manages content evaluation.
 /// It is used to share the evaluated content between node copies and nested ComposeViews.
 final class ContentEvaluation {

@@ -358,7 +358,7 @@ class SwiftUIViewNodeTests: XCTestCase {
   }
 
   func test_dynamic_layout_repeatedProposals_retainsResolvedContent() {
-    // given: all fixed and flexible sizing combinations
+    // given: all fixed and flexible sizing combinations laid out with one context
     let proposals = [CGSize(width: 20, height: 10), CGSize(width: 400, height: 300), .zero, CGSize(width: 20, height: 10)]
     for (fixedWidth, fixedHeight) in [(true, true), (true, false), (false, true), (false, false)] {
       var suppliedSize = CGSize(width: 80, height: 50)
@@ -366,10 +366,11 @@ class SwiftUIViewNodeTests: XCTestCase {
         SwiftUI.Color.red.frame(width: suppliedSize.width, height: suppliedSize.height)
       }
       .fixedSize(width: fixedWidth, height: fixedHeight)
+      let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
       for proposal in proposals {
-        // when: laying out the same node at small, large, zero, and repeated sizes
-        let sizing = node.layout(containerSize: proposal, context: ComposeNodeLayoutContext(scaleFactor: 1))
+        // when: laying out the same node at small, large, zero, and repeated sizes with the same context
+        let sizing = node.layout(containerSize: proposal, context: context)
 
         // then: intrinsic dimensions retain the first resolved content and flexible dimensions use the proposal
         expect(node.size) == CGSize(width: fixedWidth ? 80 : proposal.width, height: fixedHeight ? 50 : proposal.height)
@@ -377,6 +378,27 @@ class SwiftUIViewNodeTests: XCTestCase {
         suppliedSize = CGSize(width: 140, height: 70)
       }
     }
+  }
+
+  func test_dynamic_layout_newContext_resolvesContentAgain() {
+    // given: intrinsic content whose external data changes between layouts
+    var suppliedSize = CGSize(width: 80, height: 50)
+    var providerCalls = 0
+    var node = SwiftUIViewNode {
+      providerCalls += 1
+      return SwiftUI.Color.red.frame(width: suppliedSize.width, height: suppliedSize.height)
+    }
+    .fixedSize()
+    let proposal = CGSize(width: 400, height: 300)
+
+    // when: laying out with a new context after the data changes
+    _ = node.layout(containerSize: proposal, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    suppliedSize = CGSize(width: 140, height: 70)
+    _ = node.layout(containerSize: proposal, context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: each context starts a new content evaluation, so the node measures the latest content
+    expect(node.size) == CGSize(width: 140, height: 70)
+    expect(providerCalls) == 2
   }
 
   func test_dynamic_layout_flexibleContent_usesCurrentProposal() {
@@ -611,14 +633,14 @@ class SwiftUIViewNodeTests: XCTestCase {
     expect(node.size) == CGSize(width: 140, height: 50)
     expect(providerCalls) == 2
 
-    // when: direct standalone layout resumes with a different context
+    // when: direct standalone layout resumes with the earlier context
     _ = node.layout(containerSize: proposal, context: standalone)
 
-    // then: the node resolves new standalone content without changing either existing item
-    expect(node.size) == CGSize(width: 160, height: 50)
+    // then: the node returns to that context's resolved content without evaluating again or changing either item
+    expect(node.size) == CGSize(width: 80, height: 50)
     expect(firstHost.content.sizeThatFits(proposal)) == CGSize(width: 80, height: 50)
     expect(secondHost.content.sizeThatFits(proposal)) == CGSize(width: 140, height: 50)
-    expect(providerCalls) == 3
+    expect(providerCalls) == 2
   }
 
   func test_dynamic_nestedInsertion_reusesParentMeasuredContent() throws {
