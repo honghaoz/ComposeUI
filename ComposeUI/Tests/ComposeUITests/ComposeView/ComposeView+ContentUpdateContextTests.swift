@@ -212,6 +212,31 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(itemContext?.updateType) == .refresh
     expect(itemContext?.isAnimated) == false
 
+    // when: a dynamic behavior animates scrolls only and an animated refresh is requested
+    var dynamicRenderTypes: [ComposeView.RenderType] = []
+    view.animationBehavior = .dynamic { _, renderType in
+      dynamicRenderTypes.append(renderType)
+      if case .scroll = renderType {
+        return true
+      }
+      return false
+    }
+    view.refresh(animated: true)
+
+    // then: the closure sees the refresh and its decision, not the request, reaches the item
+    expect(dynamicRenderTypes.last) == .refresh(isAnimated: true)
+    expect(itemContext?.updateType) == .refresh
+    expect(itemContext?.isAnimated) == false
+
+    // when: the view scrolls under the dynamic behavior
+    view.setContentOffset(CGPoint(x: 0, y: 40))
+    view.layoutIfNeeded()
+
+    // then: the closure sees the scroll and its decision reaches the item
+    expect(dynamicRenderTypes.last) == .scroll(previousBounds: CGRect(x: 0, y: 20, width: 150, height: 100))
+    expect(itemContext?.updateType) == .scroll
+    expect(itemContext?.isAnimated) == true
+
     // when: another view's first render is an animated refresh
     var insertContext: RenderableUpdateContext?
     let animatedView = ComposeView {
@@ -229,5 +254,54 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(insertContext?.isAnimated) == true
   }
 
-  // TODO: add shouldAnimate tests
+  func test_shouldAnimate() {
+    // given: update contexts for an animated refresh, a non-animated refresh, a scroll, and a size change
+    let view = ComposeView()
+    let node = ComposeView.LayoutCacheNode(node: ColorNode(.red))
+    let evaluation = ContentEvaluation()
+    let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let scrolledBounds = CGRect(x: 0, y: 20, width: 100, height: 100)
+    let resizedBounds = CGRect(x: 0, y: 0, width: 50, height: 100)
+    func makeContext(_ updateType: ComposeView.ContentUpdateContext.ContentUpdateType) -> ComposeView.ContentUpdateContext {
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: updateType, renderBounds: bounds)
+    }
+    let animatedRefresh = makeContext(.refresh(isAnimated: true))
+    let refresh = makeContext(.refresh(isAnimated: false))
+    let scroll = makeContext(.boundsChange(previousRenderBounds: scrolledBounds))
+    let sizeChange = makeContext(.boundsChange(previousRenderBounds: resizedBounds))
+    let contexts = [animatedRefresh, refresh, scroll, sizeChange]
+
+    // then: the default behavior animates animated refreshes and scrolls only
+    expect(animatedRefresh.shouldAnimate(contentView: view, animationBehavior: .default)) == true
+    expect(refresh.shouldAnimate(contentView: view, animationBehavior: .default)) == false
+    expect(scroll.shouldAnimate(contentView: view, animationBehavior: .default)) == true
+    expect(sizeChange.shouldAnimate(contentView: view, animationBehavior: .default)) == false
+
+    // then: the disabled behavior never animates
+    for context in contexts {
+      expect(context.shouldAnimate(contentView: view, animationBehavior: .disabled)) == false
+    }
+
+    // then: the dynamic behavior receives the view and the render type for each update, and its decision is returned
+    for decision in [true, false] {
+      var receivedViews: [ComposeView] = []
+      var receivedRenderTypes: [ComposeView.RenderType] = []
+      let behavior = ComposeView.AnimationBehavior.dynamic { contentView, renderType in
+        receivedViews.append(contentView)
+        receivedRenderTypes.append(renderType)
+        return decision
+      }
+      for context in contexts {
+        expect(context.shouldAnimate(contentView: view, animationBehavior: behavior)) == decision
+      }
+      expect(receivedViews.count) == contexts.count
+      expect(receivedViews.allSatisfy { $0 === view }) == true
+      expect(receivedRenderTypes) == [
+        .refresh(isAnimated: true),
+        .refresh(isAnimated: false),
+        .scroll(previousBounds: scrolledBounds),
+        .boundsChange(previousBounds: resizedBounds),
+      ]
+    }
+  }
 }
