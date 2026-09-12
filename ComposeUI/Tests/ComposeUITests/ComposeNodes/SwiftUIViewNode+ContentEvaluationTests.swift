@@ -422,20 +422,29 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     expect(providerCalls) == 3
   }
 
-  func test_dynamic_unlaidOutNode_doesNotEvaluateContent() {
-    // given: a lazy node that has not been laid out
+  func test_dynamic_unlaidOutNode_assertsWithoutEvaluatingContent() {
+    // given: a lazy node that has not been laid out and a test assertion failure handler
     var providerCalls = 0
     let node = SwiftUIViewNode {
       providerCalls += 1
       return SwiftUI.Color.red
     }
 
+    var assertionCount = 0
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      expect(message) == "renderableItems(in:) is called before layout(containerSize:context:)."
+      assertionCount += 1
+    }
+
     // when: requesting renderable items before layout
     let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
 
-    // then: no renderable or content value is created before a valid layout
+    // then: the assertion is triggered and no renderable or content value is created
     expect(items.isEmpty) == true
+    expect(assertionCount) == 1
     expect(providerCalls) == 0
+
+    Assert.resetTestAssertionFailureHandler()
   }
 
   func test_dynamic_layoutContext_replacesValueWithoutChangingEarlierItems() throws {

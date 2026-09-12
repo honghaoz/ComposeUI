@@ -40,6 +40,13 @@ import Combine
 
 /// A view that renders `ComposeContent`.
 ///
+/// ## Content Lifecycle
+///
+/// The content builder runs on refresh: an explicit `refresh()` or `setNeedsRefresh()`, or an environment change such
+/// as a window or display scale change. A bounds change (resize or scroll) lays out the retained content again without
+/// running the builder, so changed application data shows only after a refresh. `sizeThatFits(_:)` measures the
+/// builder's latest content, which may differ from the displayed content.
+///
 /// ## Z-Order
 ///
 /// The content's renderables (views and layers) render in the items order: a later item renders above an earlier item,

@@ -33,6 +33,9 @@
 
 /// An object that manages content evaluation.
 /// It is used to share the evaluated content between node copies and nested ComposeViews.
+///
+/// Like layout and rendering, it must be used on the main thread only: the value map and the lazy values are not
+/// synchronized.
 final class ContentEvaluation {
 
   /// A wrapper for a content closure.
