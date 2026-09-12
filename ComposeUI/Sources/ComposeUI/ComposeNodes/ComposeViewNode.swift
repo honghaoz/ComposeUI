@@ -66,6 +66,8 @@ import CoreGraphics
 ///     nestedView = renderable.view as? ComposeView
 ///   }
 /// }
+/// contentView.frame = CGRect(x: 0, y: 0, width: 300, height: 100)
+/// contentView.refresh() // renders and inserts the nested view, measured for "Short"
 ///
 /// text = "A much longer text"
 /// nestedView?.refresh() // shows the longer text within the frame measured for "Short"
