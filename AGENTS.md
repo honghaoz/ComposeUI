@@ -51,8 +51,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 
 - SwiftFormat and SwiftLint own formatting and style (configs in `configs/`). Run `make format` after edits instead of hand-formatting. The bullets below cover only what the tools can't enforce.
 - Follow existing Swift naming conventions: `lowerCamelCase` for functions/vars, `UpperCamelCase` for types.
-- Keep public APIs documented with concise, practical comments and examples when useful.
-- Keep doc comments to a one-line summary (plus parameter docs). Put extended rationale in the commit or PR description instead of multi-paragraph comments.
+- Keep documentation concise: a one-line short summary plus parameter docs is the norm, not an essay. Add a clarification or a code example when it is necessary to understand or correctly use the API. Design rationale belong in the inline comments or commit/PR description.
 - New Swift files start with the standard header: copy it from a neighboring file, then update the file name and the `Created by Honghao Zhang on M/D/YY.` date. SwiftFormat's header template (in `configs/.swiftformat`) enforces the rest but cannot generate the `Created by` line for new files.
 - Place a new `ComposeNode` extension API in a dedicated file named after its concern (for example `ComposeNode+Transform.swift`), not in an unrelated extension file.
 - Stored properties are `let` unless they are mutated after initialization. Never declare a `var` with a default value only to get a defaulted memberwise initializer: keep the property `let` and write an explicit initializer with default parameters instead.
