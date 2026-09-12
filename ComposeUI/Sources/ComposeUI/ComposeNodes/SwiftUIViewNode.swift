@@ -108,12 +108,13 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   }
 
   public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    let frame = CGRect(origin: .zero, size: size)
-    guard visibleBounds.intersects(frame) else {
+    guard let renderState else {
+      ComposeUI.assertFailure("renderableItems(in:) is called before layout(containerSize:context:).")
       return []
     }
 
-    guard let renderState else {
+    let frame = CGRect(origin: .zero, size: size)
+    guard visibleBounds.intersects(frame) else {
       return []
     }
 
