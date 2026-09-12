@@ -436,6 +436,10 @@ class GestureRecognizerNodeTests: XCTestCase {
   }
 
   #if canImport(AppKit)
+  // this test drives a real pan with window-dispatched mouse events, which only AppKit allows, so the active gesture
+  // state across geometry updates is verified on AppKit only. UIKit cannot synthesize touches without private API, and
+  // a recognizer with a faked state would only assert the value the test supplied. The UIKit path is covered by the
+  // recognizer identity tests above, which run on both platforms.
   func test_geometryUpdates_preserveActivePan() throws {
     // given: a window-backed overlay with an installed native pan recognizer
     let testWindow = TestWindow()
