@@ -97,7 +97,6 @@ class ComposeView_RenderBoundsTests: XCTestCase {
       updateType: .boundsChange(previousRenderBounds: .zero),
       renderBounds: CGRect(x: 0, y: 0, width: 120, height: 80)
     )
-    expectedContext.isRendering = true
     expect(invokedContentUpdateContext) == expectedContext
 
     // then: lastRenderBounds does not consider the scrollers
@@ -129,7 +128,6 @@ class ComposeView_RenderBoundsTests: XCTestCase {
       updateType: .boundsChange(previousRenderBounds: CGRect(x: 0, y: 0, width: 120, height: 80)),
       renderBounds: CGRect(x: 0, y: 10, width: 120, height: 80)
     )
-    expectedContext.isRendering = true
     expect(invokedContentUpdateContext) == expectedContext
 
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 10, width: 120, height: 80)

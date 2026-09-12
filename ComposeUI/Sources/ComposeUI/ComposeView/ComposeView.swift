@@ -700,11 +700,20 @@ open class ComposeView: BaseScrollView {
 
   /// Refreshes and re-renders the content.
   ///
-  /// This call will make a new content from the builder block and re-render the content immediately.
+  /// This call will make a new content from the builder block and re-render the content immediately. A refresh
+  /// requested during a render pass, for example from a render handler, is performed after the pass on the next run
+  /// loop iteration.
   ///
   /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func refresh(animated: Bool = true) {
     ComposeUI.assert(Thread.isMainThread, "refresh(animated:) must be called on the main thread")
+
+    guard !isRendering else {
+      // replacing the content while a pass is applying it would render a second pass over a half-updated renderable
+      // map, so schedule the refresh for after the pass instead
+      setNeedsRefresh(animated: animated)
+      return
+    }
 
     // explicit render request, should either consume the prepared content or make a new content
     let preparedContentNode = self.preparedContentNode
@@ -802,22 +811,27 @@ open class ComposeView: BaseScrollView {
     render()
   }
 
+  /// Whether a render pass is in progress.
+  private var isRendering = false
+
   /// Performs a render pass.
   open func render() {
     ComposeUI.assert(Thread.isMainThread, "render() must be called on the main thread")
 
-    guard var contentUpdateContext = self.contentUpdateContext, !contentUpdateContext.isRendering else {
+    guard let contentUpdateContext, !isRendering else {
       return
     }
 
-    contentUpdateContext.isRendering = true
-    self.contentUpdateContext = contentUpdateContext
+    isRendering = true
+    defer {
+      isRendering = false
+    }
 
     CATransaction.disableAnimations { // disable all implicit animations to have a clean environment for rendering
       render(contentUpdateContext)
     }
 
-    self.contentUpdateContext = nil // TODO: verify if we can clear contentUpdateContext after the context is passed into render, verify if isRendering is necessary
+    self.contentUpdateContext = nil
   }
 
   private func render(_ context: ContentUpdateContext) {
