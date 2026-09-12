@@ -57,31 +57,13 @@ extension ComposeView {
     /// The bounds used for rendering.
     let renderBounds: CGRect
 
-    /// Whether this context is already executing a render pass.
-    var isRendering: Bool = false
-
-    /// Creates a content update context.
-    ///
-    /// - Parameters:
-    ///   - contentNode: The root layout node used for this update.
-    ///   - contentEvaluation: The content evaluation used for this update.
-    ///   - updateType: The reason for the update.
-    ///   - renderBounds: The bounds used for rendering.
-    init(contentNode: LayoutCacheNode, contentEvaluation: ContentEvaluation, updateType: ContentUpdateType, renderBounds: CGRect) {
-      self.contentNode = contentNode
-      self.contentEvaluation = contentEvaluation
-      self.updateType = updateType
-      self.renderBounds = renderBounds
-    }
-
     // MARK: - Equatable
 
     static func == (lhs: Self, rhs: Self) -> Bool {
       lhs.contentNode === rhs.contentNode &&
         lhs.contentEvaluation === rhs.contentEvaluation &&
         lhs.updateType == rhs.updateType &&
-        lhs.renderBounds == rhs.renderBounds &&
-        lhs.isRendering == rhs.isRendering
+        lhs.renderBounds == rhs.renderBounds
     }
 
     // MARK: - Animation Helper

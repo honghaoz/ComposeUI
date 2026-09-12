@@ -41,15 +41,12 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let original = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds)
     let same = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds)
-    var rendering = original
-    rendering.isRendering = true
     let different = [
       ComposeView.ContentUpdateContext(contentNode: ComposeView.LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: ContentEvaluation(), updateType: .refresh(isAnimated: false), renderBounds: bounds),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: true), renderBounds: bounds),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange(previousRenderBounds: .zero), renderBounds: bounds),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: .zero),
-      rendering,
     ]
 
     // then: content identity and every update field participate in equality

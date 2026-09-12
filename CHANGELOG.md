@@ -13,7 +13,7 @@
 
 ### Changes
 
-- `ComposeViewNode` now updates an already-mounted child view's content when the parent is refreshed.
+- `ComposeViewNode` now updates an already-mounted child view's content when the parent is refreshed. The child renders within the parent's render pass. Properties set on the child view in `onInsert` or `onUpdate` no longer apply to its first render. Set them in `willInsert` or `willUpdate` instead.
 - `RenderableUpdateContext` gains `isAnimated`, whether the render pass is animated.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
 - Slide transitions now continue a revival from wherever the removal left the renderable.
