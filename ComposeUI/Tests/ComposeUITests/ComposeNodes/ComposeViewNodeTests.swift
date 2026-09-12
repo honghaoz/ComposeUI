@@ -297,8 +297,7 @@ class ComposeViewNodeTests: XCTestCase {
         let renderable = Renderable.view(composeView)
         let layer = composeView.contentView().layer()
 
-        // when: an unrendered view receives invalidation before its initial content is installed
-        item.willUpdate?(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: composeView.frame, animationTiming: nil, contentView: nil))
+        // when: the view is inserted
         item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: composeView.frame, animationTiming: nil, contentView: nil))
 
         // then: content installation renders immediately at the view's own bounds
@@ -309,7 +308,7 @@ class ComposeViewNodeTests: XCTestCase {
       }
 
       expect(item.didInsert) == nil
-      expect(item.willUpdate) != nil
+      expect(item.willUpdate) == nil
       expect(item.update) != nil
       expect(item.willRemove) == nil
       expect(item.didRemove) == nil
@@ -535,78 +534,71 @@ class ComposeViewNodeTests: XCTestCase {
   }
 
   func test_boundsChange_reflowsRetainedContentAfterMeasurement() throws {
-    for usesLayoutCache in [false, true] {
-      // given: multiline nested content with a fresh optional cache for each construction
-      let originalText = "Nested content wraps onto several lines when the available width becomes narrow."
-      let font = Font.systemFont(ofSize: 14)
-      var text = originalText
-      var nestedView: ComposeView?
-      var textView: BaseTextView?
-      let contentView = ComposeView {
-        ComposeViewNode {
-          let label = LabelNode(text)
-            .font(font)
-            .numberOfLines(0)
-            .onUpdate { item, _ in
-              textView = item.view as? BaseTextView
-            }
-          if usesLayoutCache {
-            LayoutCacheNode(node: label)
-          } else {
-            label
+    // given: multiline nested content
+    let originalText = "Nested content wraps onto several lines when the available width becomes narrow."
+    let font = Font.systemFont(ofSize: 14)
+    var text = originalText
+    var nestedView: ComposeView?
+    var textView: BaseTextView?
+    let contentView = ComposeView {
+      ComposeViewNode {
+        LabelNode(text)
+          .font(font)
+          .numberOfLines(0)
+          .onUpdate { item, _ in
+            textView = item.view as? BaseTextView
           }
-        }
-        .onUpdate { item, _ in
-          nestedView = item.view as? ComposeView
-        }
       }
-      contentView.frame = CGRect(x: 0, y: 0, width: 240, height: 300)
-      contentView.refresh(animated: false)
-      expect(textView?.attributedString.string) == originalText
-      let child = try nestedView.unwrap()
-      let labelView = try textView.unwrap()
-      let wideHeight = labelView.frame.height
-      text = "Fresh"
+      .onUpdate { item, _ in
+        nestedView = item.view as? ComposeView
+      }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 240, height: 300)
+    contentView.refresh(animated: false)
+    expect(textView?.attributedString.string) == originalText
+    let child = try nestedView.unwrap()
+    let labelView = try textView.unwrap()
+    let wideHeight = labelView.frame.height
+    text = "Fresh"
 
-      for width: CGFloat in [80, 240, 120, 240] {
-        // when: fresh measurement uses different content and a different width before a resize
-        let proposal = CGSize(width: width / 2, height: 300)
-        var freshLabel = LabelNode(text).font(font).numberOfLines(0)
-        let context = ComposeNodeLayoutContext(scaleFactor: contentView.contentScaleFactor)
-        _ = freshLabel.layout(containerSize: proposal, context: context)
-        let measuredSize = contentView.sizeThatFits(proposal)
-        contentView.frame.size.width = width
-        contentView.setNeedsLayout()
-        contentView.layoutIfNeeded()
-        child.setNeedsLayout()
-        child.layoutIfNeeded()
+    for width: CGFloat in [80, 240, 120, 240] {
+      // when: fresh measurement uses different content and a different width before a resize
+      let proposal = CGSize(width: width / 2, height: 300)
+      var freshLabel = LabelNode(text).font(font).numberOfLines(0)
+      let context = ComposeNodeLayoutContext(scaleFactor: contentView.contentScaleFactor)
+      _ = freshLabel.layout(containerSize: proposal, context: context)
+      let measuredSize = contentView.sizeThatFits(proposal)
+      contentView.frame.size.width = width
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+      child.setNeedsLayout()
+      child.layoutIfNeeded()
 
-        // then: measurement is fresh while the mounted label reflows its retained text
-        expect(measuredSize) == freshLabel.size
-        var retainedLabel = LabelNode(originalText).font(font).numberOfLines(0)
-        _ = retainedLabel.layout(containerSize: CGSize(width: width, height: 300), context: context)
-        expect(nestedView) === child
-        expect(textView) === labelView
-        expect(child.frame.size) == retainedLabel.size
-        expect(labelView.frame.size) == retainedLabel.size
-        expect(labelView.attributedString.string) == originalText
-        expect(labelView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == font
-        if width == 80 {
-          expect(labelView.frame.height) > wideHeight
-        }
+      // then: measurement is fresh while the mounted label reflows its retained text
+      expect(measuredSize) == freshLabel.size
+      var retainedLabel = LabelNode(originalText).font(font).numberOfLines(0)
+      _ = retainedLabel.layout(containerSize: CGSize(width: width, height: 300), context: context)
+      expect(nestedView) === child
+      expect(textView) === labelView
+      expect(child.frame.size) == retainedLabel.size
+      expect(labelView.frame.size) == retainedLabel.size
+      expect(labelView.attributedString.string) == originalText
+      expect(labelView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == font
+      if width == 80 {
+        expect(labelView.frame.height) > wideHeight
       }
     }
   }
 
-  func test_boundsChange_preservesNestedCacheWhenChildSizeIsUnchanged() throws {
+  func test_boundsChange_doesNotLeakParentMeasurementIntoNestedContent() throws {
     for nestingDepth in 1 ... 3 {
-      // given: cached nested content whose intrinsic height exceeds every ancestor's initial proposal
+      // given: nested content whose intrinsic height exceeds every ancestor's initial proposal
       var nestedView: ComposeView?
       var colorLayer: CALayer?
       var colorUpdateType: RenderableUpdateType?
       let contentView = ComposeView {
         var content: any ComposeNode = ComposeViewNode {
-          LayoutCacheNode(node: ZStack {
+          ZStack {
             ColorNode(.red)
               .onUpdate { renderable, context in
                 colorLayer = renderable.layer
@@ -615,7 +607,7 @@ class ComposeViewNodeTests: XCTestCase {
             Spacer(height: 300)
             ViewNode<BaseView>()
               .frame(width: 1, height: 1)
-          })
+          }
         }
         .onUpdate { renderable, _ in
           nestedView = renderable.view as? ComposeView
@@ -637,7 +629,8 @@ class ComposeViewNodeTests: XCTestCase {
       expect(child.bounds().size) == CGSize(width: 100, height: 300)
       expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 300)
 
-      // when: the parent resizes but the nested view retains its intrinsic size
+      // when: the parent resizes, measuring its own copy of the content at the new size, while the nested view keeps
+      // its intrinsic size
       contentView.frame.size.height = 200
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
@@ -648,13 +641,13 @@ class ComposeViewNodeTests: XCTestCase {
       expect(nestedView) === child
       expect(child.bounds().size) == CGSize(width: 100, height: 300)
 
-      // when: scrolling causes the nested view to render its cached layout
+      // when: scrolling causes the nested view to render from its cached layout
       colorUpdateType = nil
       child.setContentOffset(CGPoint(x: 0, y: 10))
       child.setNeedsLayout()
       child.layoutIfNeeded()
 
-      // then: the retained color uses the child's proposal rather than the parent's measurement proposal
+      // then: the retained content keeps the nested view's geometry, not the parent's measurement geometry
       expect(colorUpdateType) == .scroll
       expect(child.contentOffset().y) == 10
       expect(colorLayer) === layer

@@ -36,7 +36,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
 
   func test_equality_comparesContentAndUpdateInputs() {
     // given: matching contexts and a second context for each changed field
-    let node = LayoutCacheNode(node: ColorNode(.red))
+    let node = ComposeView.LayoutCacheNode(node: ColorNode(.red))
     let evaluation = ContentEvaluation()
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let original = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds)
@@ -44,7 +44,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     var rendering = original
     rendering.isRendering = true
     let different = [
-      ComposeView.ContentUpdateContext(contentNode: LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds),
+      ComposeView.ContentUpdateContext(contentNode: ComposeView.LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: ContentEvaluation(), updateType: .refresh(isAnimated: false), renderBounds: bounds),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: true), renderBounds: bounds),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange(previousRenderBounds: .zero), renderBounds: bounds),
@@ -134,7 +134,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
   func test_updateContext_preservesContentAfterReplacement() throws {
     // given: a pass created before the current node and evaluation are replaced
     let provider = ContentEvaluation.Provider { Color.red.cgColor }
-    var contentNode = LayoutCacheNode(node: ColorNode(.red))
+    var contentNode = ComposeView.LayoutCacheNode(node: ColorNode(.red))
     var contentEvaluation = ContentEvaluation()
     let originalNode = contentNode
     let originalEvaluation = contentEvaluation
@@ -143,7 +143,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let originalValue = pass.contentEvaluation.lazyValue(for: provider)
 
     // when: a later refresh selects different content while the earlier pass is retained
-    contentNode = LayoutCacheNode(node: ColorNode(.blue))
+    contentNode = ComposeView.LayoutCacheNode(node: ColorNode(.blue))
     contentEvaluation = ContentEvaluation()
     _ = pass.contentNode.layout(containerSize: bounds.size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentEvaluation: pass.contentEvaluation))
     let item = try unwrap(pass.contentNode.renderableItems(in: bounds).first)

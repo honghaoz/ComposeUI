@@ -40,7 +40,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     var width: CGFloat = 80
     var providerCalls = 0
     var hostedView: MutableSwiftUIHostingView?
-    var renderedRoot: LayoutCacheNode?
+    var renderedRoot: ComposeView.LayoutCacheNode?
     var renderedEvaluation: ContentEvaluation?
     let evaluation = ContentEvaluation()
     var node = SwiftUIViewNode {
@@ -100,7 +100,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     var width: CGFloat = 80
     var providerCalls = 0
     var hostedView: MutableSwiftUIHostingView?
-    var renderedRoot: LayoutCacheNode?
+    var renderedRoot: ComposeView.LayoutCacheNode?
     var renderedEvaluation: ContentEvaluation?
     let child = ComposeView()
     let proposal = CGSize(width: 200, height: 100)
@@ -185,7 +185,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
 
   func test_measurement_usesSuppliedContentWithoutChangingPreparedRoot() throws {
     // given: a prepared root displaying flexible content at the child's size
-    var renderedRoot: LayoutCacheNode?
+    var renderedRoot: ComposeView.LayoutCacheNode?
     var renderedLayer: CALayer?
     let content = ColorNode(.red)
       .onUpdate { renderable, _ in
@@ -298,7 +298,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     // given: parent-measured content and a child that declines its refresh
     var width: CGFloat = 80
     var hostedView: MutableSwiftUIHostingView?
-    var renderedRoot: LayoutCacheNode?
+    var renderedRoot: ComposeView.LayoutCacheNode?
     var renderedEvaluation: ContentEvaluation?
     let evaluation = ContentEvaluation()
     var node = SwiftUIViewNode {

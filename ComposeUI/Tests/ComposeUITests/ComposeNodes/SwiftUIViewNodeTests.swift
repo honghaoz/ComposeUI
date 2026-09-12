@@ -512,45 +512,6 @@ class SwiftUIViewNodeTests: XCTestCase {
     expect(providerCalls) == 3
   }
 
-  func test_dynamic_cachedNode_refreshInvalidatesContentBeforeMeasurement() throws {
-    // given: a persistent layout cache wrapping lazy intrinsic content
-    var width: CGFloat = 80
-    var providerCalls = 0
-    let node = LayoutCacheNode(node: SwiftUIViewNode {
-      providerCalls += 1
-      return SwiftUI.Color.red.frame(width: width, height: 50)
-    }.fixedSize())
-    var renderedView: MutableSwiftUIHostingView?
-    let contentView = ComposeView {
-      node.onInsert { renderable, _ in
-        renderedView = renderable.view as? MutableSwiftUIHostingView
-      }
-    }
-    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
-    contentView.refresh(animated: false)
-    let view = try renderedView.unwrap()
-
-    // when: the host refreshes at the same proposed size
-    width = 140
-    contentView.refresh(animated: false)
-
-    // then: the persistent layout cache cannot hide the new content evaluation
-    expect(view.bounds.size) == CGSize(width: 140, height: 50)
-    expect(view.content.sizeThatFits(view.bounds.size)) == CGSize(width: 140, height: 50)
-    expect(providerCalls) == 2
-
-    // when: resizing without a refresh after another data change
-    width = 160
-    contentView.frame.size.width = 240
-    contentView.setNeedsLayout()
-    contentView.layoutIfNeeded()
-
-    // then: the same cache keeps the value from the most recent refresh
-    expect(view.bounds.size) == CGSize(width: 140, height: 50)
-    expect(view.content.sizeThatFits(view.bounds.size)) == CGSize(width: 140, height: 50)
-    expect(providerCalls) == 2
-  }
-
   func test_dynamic_sameFrameRefresh_updatesNativeAppearance() throws {
     // given: a lazy flexible node with native content
     let window = TestWindow()
@@ -740,42 +701,6 @@ class SwiftUIViewNodeTests: XCTestCase {
       expect(host.content.sizeThatFits(host.bounds.size)) == CGSize(width: 80, height: 50)
       expect(providerCalls) == 1
     }
-  }
-
-  func test_dynamic_cachedNode_measurementDoesNotChangeReinsertedContent() throws {
-    // given: a persistent cache whose visible content has already been resolved
-    var width: CGFloat = 80
-    let node = LayoutCacheNode(node: SwiftUIViewNode {
-      SwiftUI.Color.red.frame(width: width, height: 50)
-    }.fixedSize())
-    var renderedView: MutableSwiftUIHostingView?
-    let contentView = ComposeView {
-      VStack {
-        node.onInsert { renderable, _ in
-          renderedView = renderable.view as? MutableSwiftUIHostingView
-        }
-        Spacer(height: 300)
-      }
-    }
-    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
-    contentView.refresh(animated: false)
-    let initialView = try renderedView.unwrap()
-    expect(initialView.content.sizeThatFits(initialView.bounds.size)) == CGSize(width: 80, height: 50)
-
-    // when: standalone measurement resolves different content through the persistent cache
-    width = 140
-    let measuredSize = contentView.sizeThatFits(contentView.bounds().size)
-    contentView.setContentOffset(CGPoint(x: 0, y: 150))
-    contentView.layoutIfNeeded()
-    expect(initialView.superview) == nil
-    renderedView = nil
-    contentView.setContentOffset(.zero)
-    contentView.layoutIfNeeded()
-
-    // then: reinsertion still uses the rendered tree's content rather than the measurement result
-    let view = try renderedView.unwrap()
-    expect(measuredSize.width) == 140
-    expect(view.content.sizeThatFits(view.bounds.size)) == CGSize(width: 80, height: 50)
   }
 
   func test_dynamic_publicSetContent_replacesInheritedContentWithNewEvaluation() throws {

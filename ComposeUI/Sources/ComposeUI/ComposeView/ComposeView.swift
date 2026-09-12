@@ -446,23 +446,10 @@ open class ComposeView: BaseScrollView {
   #endif
 
   private func _sizeThatFits(_ size: CGSize) -> CGSize {
-    // measurement can mutate shared descendants, so force mounted geometry to be recomputed without replacing its content evaluation.
-    defer {
-      invalidateContentLayout()
-    }
-
     var contentNode = _makeContent()
     let context = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: ContentEvaluation())
     _ = contentNode.layout(containerSize: size, context: context)
     return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
-  }
-
-  /// Invalidates this view's and nested child views' cached layout without rebuilding content or scheduling a render.
-  func invalidateContentLayout() {
-    contentNode?.invalidateLayout()
-    for renderable in renderableMap.values {
-      (renderable.view as? ComposeView)?.invalidateContentLayout()
-    }
   }
 
   // MARK: - Scroll

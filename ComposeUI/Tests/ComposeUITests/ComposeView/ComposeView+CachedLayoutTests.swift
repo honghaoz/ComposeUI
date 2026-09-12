@@ -107,14 +107,14 @@ class ComposeView_CachedLayoutTests: XCTestCase {
   }
 
   func test_resize_relayoutsRetainedContentAcrossZeroSize() throws {
-    // given: a cached node with padding, an overlay, and a geometry-dependent shadow
+    // given: content with padding, an overlay, and a geometry-dependent shadow
     var color = Color.red
     var contentMakeCount = 0
     var layer: CALayer?
     var overlayLayer: CALayer?
     let view = ComposeView {
       contentMakeCount += 1
-      LayoutCacheNode(node: ColorNode(color)
+      ColorNode(color)
         .shadow(color: .black, opacity: 1, radius: 2, offset: .zero, path: { CGPath(rect: $0.layer.bounds, transform: nil) })
         .onUpdate { renderable, _ in
           layer = renderable.layer
@@ -126,7 +126,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
               overlayLayer = renderable.layer
             }
         }
-        .padding(10))
+        .padding(10)
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 80)
     view.refresh(animated: false)
