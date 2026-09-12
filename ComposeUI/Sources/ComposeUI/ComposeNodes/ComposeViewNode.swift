@@ -50,6 +50,27 @@ import CoreGraphics
 /// }
 /// .fixedSize(width: true, height: false)
 /// ```
+///
+/// The nested view's frame is owned by this node's layout. Refreshing the nested view directly updates its content
+/// within that frame, so to change the nested content's size, refresh the parent view instead. For example, the nested
+/// text below is measured by the parent's layout:
+///
+/// ```swift
+/// var text = "Short"
+/// var nestedView: ComposeView?
+/// let contentView = ComposeView {
+///   ComposeViewNode {
+///     SwiftUIViewNode { Text(text) }.fixedSize()
+///   }
+///   .onInsert { renderable, _ in
+///     nestedView = renderable.view as? ComposeView
+///   }
+/// }
+///
+/// text = "A much longer text"
+/// nestedView?.refresh() // shows the longer text within the frame measured for "Short"
+/// contentView.refresh() // measures the longer text and resizes the nested view
+/// ```
 public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
 
   public var isFixedWidth: Bool = true
