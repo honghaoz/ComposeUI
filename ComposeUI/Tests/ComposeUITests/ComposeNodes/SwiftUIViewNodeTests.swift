@@ -684,9 +684,8 @@ class SwiftUIViewNodeTests: XCTestCase {
     }
     contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
 
-    // when: the parent inserts the nested view and the child performs its scheduled refresh
+    // when: the parent inserts the nested view, which renders within the parent's pass
     contentView.refresh(animated: false)
-    expect(innerHost != nil).toEventually(beEqual(to: true))
     let view = try innerHost.unwrap()
 
     // then: the nested host renders the value used to measure its parent's frame
@@ -779,31 +778,33 @@ class SwiftUIViewNodeTests: XCTestCase {
     expect(view.content.sizeThatFits(view.bounds.size)) == CGSize(width: 80, height: 50)
   }
 
-  func test_dynamic_publicSetContent_replacesPendingInheritedContent() throws {
-    // given: measured content and its evaluation waiting to be installed in another view
+  func test_dynamic_publicSetContent_replacesInheritedContentWithNewEvaluation() throws {
+    // given: measured content displayed with its parent's evaluation
     var width: CGFloat = 80
     let evaluation = ContentEvaluation()
+    var renderedView: MutableSwiftUIHostingView?
     var node = SwiftUIViewNode {
       SwiftUI.Color.red.frame(width: width, height: 50)
-    }.fixedSize()
+    }
+    .fixedSize()
+    .onUpdate { renderable, _ in
+      renderedView = renderable.view as? MutableSwiftUIHostingView
+    }
     _ = node.layout(containerSize: CGSize(width: 200, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1, contentEvaluation: evaluation))
-    var renderedView: MutableSwiftUIHostingView?
     let contentView = ComposeView()
     contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
-    contentView.setPreparedContent(node, contentEvaluation: evaluation)
+    contentView.setPreparedContent(node, contentEvaluation: evaluation, animated: false)
+    let view = try renderedView.unwrap()
+    expect(view.bounds.size) == CGSize(width: 80, height: 50)
 
-    // when: the application replaces the pending inherited content through the public API
+    // when: the application replaces the inherited content through the public API after its data changes
     width = 140
-    contentView.setContent {
-      node.onInsert { renderable, _ in
-        renderedView = renderable.view as? MutableSwiftUIHostingView
-      }
-    }
+    contentView.setContent { node }
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: the application refresh gets a new evaluation rather than reusing the inherited value
-    let view = try renderedView.unwrap()
+    // then: the application refresh reuses the host but evaluates the content anew instead of reusing the inherited value
+    expect(renderedView) === view
     expect(view.bounds.size) == CGSize(width: 140, height: 50)
     expect(view.content.sizeThatFits(view.bounds.size)) == CGSize(width: 140, height: 50)
   }

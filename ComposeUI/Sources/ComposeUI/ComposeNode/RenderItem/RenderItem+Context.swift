@@ -90,23 +90,54 @@ public struct RenderableUpdateContext: Equatable {
   /// The new frame that the renderable should be set to after the update.
   public let newFrame: CGRect
 
-  /// The animation context if the update is animated.
+  /// Whether the render pass is animated.
+  public let isAnimated: Bool
+
+  /// The animation timing for the renderable update.
   public let animationTiming: AnimationTiming?
 
   /// The content view that contains the renderable.
   public private(set) weak var contentView: ComposeView!
 
   /// The content evaluation of this render pass.
-  var contentEvaluation: ContentEvaluation?
+  let contentEvaluation: ContentEvaluation?
+
+  /// Creates a renderable update context.
+  ///
+  /// - Parameters:
+  ///   - updateType: The reason for the update.
+  ///   - oldFrame: The old frame of the renderable before the update.
+  ///   - newFrame: The new frame that the renderable should be set to after the update.
+  ///   - isAnimated: Whether the render pass is animated.
+  ///   - animationTiming: The animation timing for the renderable update.
+  ///   - contentView: The content view that contains the renderable.
+  ///   - contentEvaluation: The content evaluation of this render pass.
+  init(updateType: RenderableUpdateType,
+       oldFrame: CGRect,
+       newFrame: CGRect,
+       isAnimated: Bool = false,
+       animationTiming: AnimationTiming?,
+       contentView: ComposeView?,
+       contentEvaluation: ContentEvaluation? = nil)
+  {
+    self.updateType = updateType
+    self.oldFrame = oldFrame
+    self.newFrame = newFrame
+    self.isAnimated = isAnimated
+    self.animationTiming = animationTiming
+    self.contentView = contentView
+    self.contentEvaluation = contentEvaluation
+  }
 
   // MARK: - Equatable
 
   public static func == (lhs: Self, rhs: Self) -> Bool {
-    // contentEvaluation is intentionally omitted: it is internal pass ownership, so it must not change the public
+    // contentEvaluation is intentionally omitted: it is internal pass state, so it must not change the public
     // update-context equality contract
     lhs.updateType == rhs.updateType &&
       lhs.oldFrame == rhs.oldFrame &&
       lhs.newFrame == rhs.newFrame &&
+      lhs.isAnimated == rhs.isAnimated &&
       lhs.animationTiming == rhs.animationTiming &&
       lhs.contentView == rhs.contentView
   }

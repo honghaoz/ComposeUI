@@ -13,6 +13,7 @@
 ### Changes
 
 - `ComposeViewNode` now updates an already-mounted child view's content when the parent is refreshed.
+- `RenderableUpdateContext` gains `isAnimated`, whether the render pass is animated.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
 - Slide transitions now continue a revival from wherever the removal left the renderable.
 - The insert transition context gains `revivalPosition` and `revivalTransform` for taking-over transitions.

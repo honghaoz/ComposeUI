@@ -161,5 +161,76 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(renderable.frame) == bounds
   }
 
+  func test_renderPass_forwardsAnimationDecisionToItemContexts() throws {
+    // given: a view whose item records the update context it receives
+    var itemContext: RenderableUpdateContext?
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 300)
+        .onUpdate { _, context in
+          itemContext = context
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the initial bounds change inserts the content
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: insertion during a size change is not animated
+    expect(itemContext?.updateType) == .insert
+    expect(itemContext?.isAnimated) == false
+
+    for animated in [true, false] {
+      // when: the view refreshes with an explicit animation flag
+      view.refresh(animated: animated)
+
+      // then: the reused item receives the pass's decision
+      expect(itemContext?.updateType) == .refresh
+      expect(itemContext?.isAnimated) == animated
+    }
+
+    // when: the view scrolls
+    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.layoutIfNeeded()
+
+    // then: a scroll pass animates by default
+    expect(itemContext?.updateType) == .scroll
+    expect(itemContext?.isAnimated) == true
+
+    // when: the view resizes
+    view.frame.size.width = 150
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: a size change is not animated
+    expect(itemContext?.updateType) == .boundsChange
+    expect(itemContext?.isAnimated) == false
+
+    // when: animations are disabled and an animated refresh is requested
+    view.animationBehavior = .disabled
+    view.refresh(animated: true)
+
+    // then: the animation behavior overrides the request
+    expect(itemContext?.updateType) == .refresh
+    expect(itemContext?.isAnimated) == false
+
+    // when: another view's first render is an animated refresh
+    var insertContext: RenderableUpdateContext?
+    let animatedView = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 300)
+        .onUpdate { _, context in
+          insertContext = context
+        }
+    }
+    animatedView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    animatedView.refresh(animated: true)
+
+    // then: insertion carries the animated decision
+    expect(insertContext?.updateType) == .insert
+    expect(insertContext?.isAnimated) == true
+  }
+
   // TODO: add shouldAnimate tests
 }
