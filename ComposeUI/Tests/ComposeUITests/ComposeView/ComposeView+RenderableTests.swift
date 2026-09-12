@@ -162,11 +162,12 @@ class ComposeView_RenderableTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
-    // then: expect the update context is correct
+    // then: expect the update context is correct, a scroll pass is animated by default
     expect(willUpdateContext) == RenderableUpdateContext(
       updateType: .scroll,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+      isAnimated: true,
       animationTiming: nil,
       contentView: view
     )
@@ -174,6 +175,7 @@ class ComposeView_RenderableTests: XCTestCase {
       updateType: .scroll,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+      isAnimated: true,
       animationTiming: nil,
       contentView: view
     )

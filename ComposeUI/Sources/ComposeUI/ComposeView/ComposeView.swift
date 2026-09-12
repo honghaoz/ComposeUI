@@ -286,7 +286,7 @@ open class ComposeView: BaseScrollView {
     setContent(content: { _ in try content() })
   }
 
-  /// Sets a new content with a prepared content evaluation.
+  /// Sets a new content with a prepared content evaluation and refreshes immediately within the caller's render pass.
   ///
   /// This is used internally to set a prepared content from the parent ComposeView, so the child ComposeView can reuse
   /// the prepared content evaluation.
@@ -294,11 +294,12 @@ open class ComposeView: BaseScrollView {
   /// - Parameters:
   ///   - content: A new content.
   ///   - contentEvaluation: The evaluation to reuse once, or nil to create a new one on refresh.
-  func setPreparedContent(_ content: ComposeNode, contentEvaluation: ContentEvaluation? = nil) {
+  ///   - animated: Whether the refresh is animated.
+  func setPreparedContent(_ content: ComposeNode, contentEvaluation: ContentEvaluation?, animated: Bool) {
     makeContent = { _ in content }
     preparedContentNode = LayoutCacheNode(node: content)
     preparedContentEvaluation = contentEvaluation
-    setNeedsRefresh()
+    refresh(animated: animated)
   }
 
   /// Makes the content node.
@@ -1202,8 +1203,10 @@ open class ComposeView: BaseScrollView {
         let oldFrame = renderable.frame
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
+        let isAnimated = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior)
+
         let animationTiming: AnimationTiming?
-        if context.shouldAnimate(contentView: self, animationBehavior: animationBehavior), let renderableItemAnimationTiming = renderableItem.animationTiming {
+        if isAnimated, let renderableItemAnimationTiming = renderableItem.animationTiming {
           animationTiming = renderableItemAnimationTiming
         } else {
           animationTiming = nil
@@ -1213,6 +1216,7 @@ open class ComposeView: BaseScrollView {
           updateType: updateType,
           oldFrame: oldFrame,
           newFrame: newFrame,
+          isAnimated: isAnimated,
           animationTiming: animationTiming,
           contentView: self,
           contentEvaluation: contentEvaluation
@@ -1247,8 +1251,10 @@ open class ComposeView: BaseScrollView {
         // [3/3] 🆕 insert the renderable item that is new
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
+        let isAnimated = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior)
+
         // the insert transition that will animate this insertion, if any.
-        let insertTransition = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior) ? renderableItem.transition?.insert : nil
+        let insertTransition = isAnimated ? renderableItem.transition?.insert : nil
 
         // the root-layer model position and transform the removal left behind, captured before this pass applies the
         // target frame and resets the transform to identity, so a taking-over insert transition can anchor its
@@ -1293,6 +1299,7 @@ open class ComposeView: BaseScrollView {
           updateType: .insert,
           oldFrame: frameAfterWillInsert,
           newFrame: newFrame,
+          isAnimated: isAnimated,
           animationTiming: nil, // no animation for insertion
           contentView: self,
           contentEvaluation: contentEvaluation

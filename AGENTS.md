@@ -55,6 +55,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 - Keep doc comments to a one-line summary (plus parameter docs). Put extended rationale in the commit or PR description instead of multi-paragraph comments.
 - New Swift files start with the standard header: copy it from a neighboring file, then update the file name and the `Created by Honghao Zhang on M/D/YY.` date. SwiftFormat's header template (in `configs/.swiftformat`) enforces the rest but cannot generate the `Created by` line for new files.
 - Place a new `ComposeNode` extension API in a dedicated file named after its concern (for example `ComposeNode+Transform.swift`), not in an unrelated extension file.
+- Stored properties are `let` unless they are mutated after initialization. Never declare a `var` with a default value only to get a defaulted memberwise initializer: keep the property `let` and write an explicit initializer with default parameters instead.
 - Comments must explain the decision, not just state a fact: prefer "X can happen, so we do Y (instead of Z)" over "X can happen".
 - No em-dashes (—) and no semicolons in code comments or markdown docs. Use commas, hyphens, colons, or separate sentences.
 - Use `private enum Constants` for repeated literals and magic numbers where it improves clarity, nested at the bottom of the primary scope. A top-level private `Constants` collides with the module's public `Constants` type. For example:

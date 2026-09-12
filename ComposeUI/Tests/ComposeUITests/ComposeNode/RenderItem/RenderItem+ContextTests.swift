@@ -52,6 +52,7 @@ class RenderItem_ContextTests: XCTestCase {
       RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: frame, animationTiming: nil, contentView: view),
       RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, animationTiming: nil, contentView: view),
       RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: view),
+      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, isAnimated: true, animationTiming: nil, contentView: view),
       RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, animationTiming: .linear(), contentView: view),
       RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, animationTiming: nil, contentView: otherView),
       RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, animationTiming: nil, contentView: nil),

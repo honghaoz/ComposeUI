@@ -35,7 +35,7 @@ import SwiftUI
 
 class ComposeView_PreparedContentTests: XCTestCase {
 
-  func test_preparedContent_isAppliedOnceThenRefreshEvaluatesIndependently() throws {
+  func test_preparedContent_appliesImmediatelyThenRefreshEvaluatesIndependently() throws {
     // given: intrinsic content measured by its parent before the child displays it
     var width: CGFloat = 80
     var providerCalls = 0
@@ -63,22 +63,12 @@ class ComposeView_PreparedContentTests: XCTestCase {
         renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
       }
     }
-
-    // when: the child queues the prepared content and additional refresh requests
-    child.setPreparedContent(node, contentEvaluation: evaluation)
-    child.setNeedsRefresh(animated: false)
-    child.setNeedsRefresh(animated: true)
     width = 140
 
-    // then: queuing does not render or reevaluate the prepared content
-    expect(hostedView) == nil
-    expect(providerCalls) == 1
+    // when: the parent supplies the prepared content
+    child.setPreparedContent(node, contentEvaluation: evaluation, animated: false)
 
-    // when: layout performs the merged refresh
-    child.setNeedsLayout()
-    child.layoutIfNeeded()
-
-    // then: the supplied tree and evaluation are applied together
+    // then: the supplied tree and evaluation render immediately without reevaluating the content
     let host = try unwrap(hostedView)
     var previousRoot = try unwrap(renderedRoot)
     var previousEvaluation = try unwrap(renderedEvaluation)
@@ -105,7 +95,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(providerCalls) == 3
   }
 
-  func test_preparedContent_withoutEvaluation_resolvesLazilyThenRefreshReevaluates() throws {
+  func test_preparedContent_withoutEvaluation_resolvesWhenAppliedThenRefreshReevaluates() throws {
     // given: lazy content without a parent-supplied evaluation
     var width: CGFloat = 80
     var providerCalls = 0
@@ -121,38 +111,27 @@ class ComposeView_PreparedContentTests: XCTestCase {
         renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
       }
     }
+    let content = SwiftUIViewNode {
+      providerCalls += 1
+      return SwiftUI.Color.red.frame(width: width, height: 50)
+    }
+    .fixedSize()
+    .onUpdate { renderable, _ in
+      hostedView = renderable.view as? MutableSwiftUIHostingView
+    }
 
-    // when: content is queued without an evaluation and its external value changes
-    child.setPreparedContent(
-      SwiftUIViewNode {
-        providerCalls += 1
-        return SwiftUI.Color.red.frame(width: width, height: 50)
-      }
-      .fixedSize()
-      .onUpdate { renderable, _ in
-        hostedView = renderable.view as? MutableSwiftUIHostingView
-      },
-      contentEvaluation: nil
-    )
-    width = 140
+    // when: the content is applied without an evaluation
+    child.setPreparedContent(content, contentEvaluation: nil, animated: false)
 
-    // then: queuing leaves the provider unresolved
-    expect(hostedView) == nil
-    expect(providerCalls) == 0
-
-    // when: the first render resolves the lazy content
-    child.setNeedsLayout()
-    child.layoutIfNeeded()
-
-    // then: a fresh evaluation displays the latest value and geometry
+    // then: a fresh evaluation resolves the content once with its current value and geometry
     let host = try unwrap(hostedView)
     let firstRoot = try unwrap(renderedRoot)
     let firstEvaluation = try unwrap(renderedEvaluation)
-    expect(host.bounds.size) == CGSize(width: 140, height: 50)
-    expect(host.content.sizeThatFits(proposal)) == CGSize(width: 140, height: 50)
+    expect(host.bounds.size) == CGSize(width: 80, height: 50)
+    expect(host.content.sizeThatFits(proposal)) == CGSize(width: 80, height: 50)
     expect(providerCalls) == 1
 
-    // when: an independent refresh follows another external change
+    // when: an independent refresh follows an external change
     width = 160
     child.refresh(animated: false)
 
@@ -165,11 +144,13 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(providerCalls) == 2
   }
 
-  func test_latestPreparedContent_replacesTreeAndEvaluationTogether() throws {
-    // given: two parent-supplied updates before the child refreshes
+  func test_consecutivePreparedContent_latestReplacesTreeAndEvaluationTogether() throws {
+    // given: two complete parent-supplied updates
     var layer: CALayer?
     var renderedEvaluation: ContentEvaluation?
-    let first = ColorNode(.red).frame(width: .flexible, height: 40)
+    let first = ColorNode(.red)
+      .frame(width: .flexible, height: 40)
+      .onUpdate { renderable, _ in layer = renderable.layer }
     let firstEvaluation = ContentEvaluation()
     let second = ColorNode(.blue)
       .frame(width: .flexible, height: 80)
@@ -183,59 +164,23 @@ class ComposeView_PreparedContentTests: XCTestCase {
       }
     }
 
-    // when: both complete updates are queued before rendering
-    child.setPreparedContent(first, contentEvaluation: firstEvaluation)
-    child.setPreparedContent(second, contentEvaluation: secondEvaluation)
-    child.setNeedsLayout()
-    child.layoutIfNeeded()
+    // when: the first update is applied
+    child.setPreparedContent(first, contentEvaluation: firstEvaluation, animated: false)
 
-    // then: only the latest content and evaluation determine displayed configuration and geometry
+    // then: the first content and evaluation determine the displayed configuration and geometry
     let renderedLayer = try unwrap(layer)
+    expect(renderedEvaluation) === firstEvaluation
+    expect(renderedLayer.backgroundColor) == ComposeUI.Color.red.cgColor
+    expect(renderedLayer.bounds.size) == CGSize(width: 100, height: 40)
+
+    // when: the second update is applied
+    child.setPreparedContent(second, contentEvaluation: secondEvaluation, animated: false)
+
+    // then: the retained layer shows the latest content and the evaluation is replaced with it
+    expect(layer) === renderedLayer
     expect(renderedEvaluation) === secondEvaluation
-    expect(renderedEvaluation) !== firstEvaluation
     expect(renderedLayer.backgroundColor) == ComposeUI.Color.blue.cgColor
     expect(renderedLayer.bounds.size) == CGSize(width: 100, height: 80)
-  }
-
-  func test_measurement_preservesQueuedPreparedContent() throws {
-    // given: parent-measured content queued for a child that has not rendered it
-    var width: CGFloat = 80
-    var providerCalls = 0
-    var hostedView: MutableSwiftUIHostingView?
-    let evaluation = ContentEvaluation()
-    var node = SwiftUIViewNode {
-      providerCalls += 1
-      return SwiftUI.Color.red.frame(width: width, height: 50)
-    }
-    .fixedSize()
-    .onUpdate { renderable, _ in
-      hostedView = renderable.view as? MutableSwiftUIHostingView
-    }
-
-    let proposal = CGSize(width: 200, height: 100)
-    node.layout(containerSize: proposal, context: ComposeNodeLayoutContext(scaleFactor: 1, contentEvaluation: evaluation))
-    let child = ComposeView()
-    child.frame = CGRect(origin: .zero, size: proposal)
-    child.setPreparedContent(node, contentEvaluation: evaluation)
-    width = 140
-
-    // when: standalone measurement resolves the latest provider value
-    let measuredSize = child.sizeThatFits(proposal)
-
-    // then: measurement does not display or consume the queued content
-    expect(measuredSize) == CGSize(width: 140, height: 50)
-    expect(hostedView) == nil
-    expect(providerCalls) == 2
-
-    // when: the pending child update renders
-    child.setNeedsLayout()
-    child.layoutIfNeeded()
-
-    // then: the prepared evaluation restores its originally measured value and geometry
-    let host = try unwrap(hostedView)
-    expect(host.bounds.size) == CGSize(width: 80, height: 50)
-    expect(host.content.sizeThatFits(proposal)) == CGSize(width: 80, height: 50)
-    expect(providerCalls) == 2
   }
 
   func test_measurement_usesSuppliedContentWithoutChangingPreparedRoot() throws {
@@ -253,8 +198,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
         renderedRoot = child.test.contentUpdateContext?.contentNode
       }
     }
-    child.setPreparedContent(content)
-    child.refresh(animated: false)
+    child.setPreparedContent(content, contentEvaluation: nil, animated: false)
     let preparedRoot = try unwrap(renderedRoot)
     let layer = try unwrap(renderedLayer)
     let originalBounds = CGRect(x: 0, y: 0, width: 100, height: 80)
@@ -282,18 +226,18 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(preparedRoot.renderableItems(in: originalBounds).first?.frame) == originalBounds
   }
 
-  func test_preparedContent_mergesAnimationRequestsInEitherOrder() throws {
-    for requestBeforeContent in [true, false] {
-      // given: a retained layer and parent-supplied content with animated geometry
+  func test_preparedContent_rendersOnceWithSuppliedAnimationAndCancelsPendingRequest() throws {
+    for (pendingAnimated, suppliedAnimated) in [(false, true), (true, false)] {
+      // given: a retained layer with animated geometry and a pending request with the opposite animation preference
       var layer: CALayer?
       var animationTiming: AnimationTiming?
+      var renderCount = 0
       let child = ComposeView {
         ColorNode(.red)
           .frame(width: 40, height: 40)
           .animation(.linear())
-          .onUpdate { renderable, context in
+          .onUpdate { renderable, _ in
             layer = renderable.layer
-            animationTiming = context.animationTiming
           }
       }
       child.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
@@ -305,93 +249,53 @@ class ComposeView_PreparedContentTests: XCTestCase {
         .onUpdate { renderable, context in
           layer = renderable.layer
           animationTiming = context.animationTiming
+          renderCount += 1
         }
+      child.setNeedsRefresh(animated: pendingAnimated)
 
-      // when: a non-animated request is merged before or after the prepared content
-      if requestBeforeContent {
-        child.setNeedsRefresh(animated: false)
-      }
-      child.setPreparedContent(prepared, contentEvaluation: nil)
-      if !requestBeforeContent {
-        child.setNeedsRefresh(animated: false)
-      }
-      child.setNeedsRefresh(animated: true)
-      child.setNeedsLayout()
-      child.layoutIfNeeded()
+      // when: the parent supplies prepared content with its own animation decision
+      child.setPreparedContent(prepared, contentEvaluation: nil, animated: suppliedAnimated)
 
-      // then: geometry changes without animation while the supplied content is still applied
+      // then: the content renders immediately with the supplied decision rather than the pending preference
       expect(layer) === originalLayer
       expect(layer?.backgroundColor) == ComposeUI.Color.blue.cgColor
       expect(layer?.bounds.size) == CGSize(width: 80, height: 60)
-      expect(animationTiming) == nil
+      expect(animationTiming) == (suppliedAnimated ? .linear() : nil)
+      expect(renderCount) == 1
+
+      // when: the run loop reaches the callback scheduled by the cancelled request
+      var isDrained = false
+      RunLoop.main.perform { isDrained = true }
+      expect(isDrained).toEventually(beTrue())
+
+      // then: the cancelled request does not render again
+      expect(renderCount) == 1
     }
   }
 
-  func test_immediateRefresh_appliesPreparedContentWithExplicitAnimation() throws {
-    // given: an existing layer and a non-animated pending content request
-    var layer: CALayer?
-    var animationTiming: AnimationTiming?
-    var renderCount = 0
-    let child = ComposeView {
-      ColorNode(.red)
-        .frame(width: 40, height: 40)
-        .animation(.linear())
+  func test_preparedContent_goesThroughRefreshOverride() throws {
+    for animated in [false, true] {
+      // given: a child subclass that participates in the refresh lifecycle
+      let child = RefreshOverrideView()
+      var layer: CALayer?
+      let prepared = ColorNode(.blue)
         .onUpdate { renderable, _ in
           layer = renderable.layer
         }
+
+      // when: prepared content is applied
+      child.setPreparedContent(prepared, contentEvaluation: nil, animated: animated)
+
+      // then: the open refresh override runs synchronously with the supplied animation decision before rendering
+      expect(child.refreshCount) == 1
+      expect(child.lastAnimated) == animated
+      expect(layer?.backgroundColor) == ComposeUI.Color.blue.cgColor
+      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
     }
-    child.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
-    child.refresh(animated: false)
-    let originalLayer = try unwrap(layer)
-    let prepared = ColorNode(.blue)
-      .frame(width: 80, height: 60)
-      .animation(.linear())
-      .onUpdate { renderable, context in
-        layer = renderable.layer
-        animationTiming = context.animationTiming
-        renderCount += 1
-      }
-    child.setPreparedContent(prepared, contentEvaluation: nil)
-    child.setNeedsRefresh(animated: false)
-
-    // when: an immediate refresh overrides the queued animation preference
-    child.refresh(animated: true)
-
-    // then: the prepared content is applied once with the explicitly requested animation
-    expect(layer) === originalLayer
-    expect(layer?.backgroundColor) == ComposeUI.Color.blue.cgColor
-    expect(layer?.bounds.size) == CGSize(width: 80, height: 60)
-    expect(animationTiming) == .linear()
-    expect(renderCount) == 1
-
-    // when: the previously scheduled callback has an opportunity to run
-    wait(timeout: 0.01)
-
-    // then: the consumed prepared request is not rendered again
-    expect(renderCount) == 1
-  }
-
-  func test_scheduledPreparedContent_usesRefreshOverride() throws {
-    // given: a child subclass that participates in the refresh lifecycle
-    let child = RefreshOverrideView()
-    var layer: CALayer?
-    let prepared = ColorNode(.blue)
-      .onUpdate { renderable, _ in
-        layer = renderable.layer
-      }
-
-    // when: prepared content is dispatched on the run loop
-    child.setPreparedContent(prepared, contentEvaluation: nil)
-
-    // then: the open refresh override runs before rendering the supplied content
-    expect(layer?.backgroundColor).toEventually(beEqual(to: ComposeUI.Color.blue.cgColor))
-    expect(child.refreshCount) == 1
-    expect(child.lastAnimated) == true
-    expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
   }
 
   func test_refreshOverrideWithoutSuper_preservesPreparedStateUntilApplied() throws {
-    // given: parent-measured content and a child that declines its first scheduled refresh
+    // given: parent-measured content and a child that declines its refresh
     var width: CGFloat = 80
     var hostedView: MutableSwiftUIHostingView?
     var renderedRoot: LayoutCacheNode?
@@ -413,12 +317,12 @@ class ComposeView_PreparedContentTests: XCTestCase {
         renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
       }
     }
-    child.setPreparedContent(node, contentEvaluation: evaluation)
 
-    // when: the override handles the request without calling super
-    expect(child.refreshCount).toEventually(beEqual(to: 1))
+    // when: the override handles the prepared update without calling super
+    child.setPreparedContent(node, contentEvaluation: evaluation, animated: false)
 
     // then: the prepared content remains unapplied
+    expect(child.refreshCount) == 1
     expect(hostedView) == nil
     expect(child.contentView().layer().sublayers?.isEmpty ?? true) == true
 
@@ -448,8 +352,8 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(host.content.sizeThatFits(child.bounds().size)) == CGSize(width: 140, height: 50)
   }
 
-  func test_refreshOverride_preservesRequestQueuedAfterSuper() throws {
-    // given: a child whose override queues replacement content after its first render
+  func test_refreshOverride_appliesReplacementSuppliedAfterSuper() throws {
+    // given: a child whose override supplies replacement content after its first render
     let child = RefreshOverrideView()
     var colors: [CGColor] = []
     let first = ColorNode(.red)
@@ -466,68 +370,71 @@ class ComposeView_PreparedContentTests: XCTestCase {
       }
     child.afterRefresh = { view in
       view.afterRefresh = nil
-      view.setPreparedContent(second, contentEvaluation: nil)
-      view.setNeedsRefresh(animated: false)
+      view.setPreparedContent(second, contentEvaluation: nil, animated: false)
     }
 
-    // when: the first prepared update triggers the override and its follow-up request
-    child.setPreparedContent(first, contentEvaluation: nil)
+    // when: the first prepared update triggers the override and its nested replacement
+    child.setPreparedContent(first, contentEvaluation: nil, animated: true)
 
-    // then: cleanup of the first dispatch leaves the replacement request intact
-    expect(colors).toEventually(beEqual(to: [ComposeUI.Color.red.cgColor, ComposeUI.Color.blue.cgColor]))
+    // then: both updates render in order and the replacement uses its own animation decision
+    expect(colors) == [ComposeUI.Color.red.cgColor, ComposeUI.Color.blue.cgColor]
     expect(child.refreshCount) == 2
     expect(child.lastAnimated) == false
     expect(child.contentView().layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
   }
 
-  func test_refreshOverride_consumesReplacementQueuedBeforeSuper() throws {
+  func test_refreshOverride_replacementSuppliedBeforeSuper_supersedesOriginalContent() throws {
     // given: an override replacing the prepared content before calling the base refresh
     let child = RefreshOverrideView()
-    var color: CGColor?
+    var colors: [CGColor] = []
+    let first = ColorNode(.red)
+      .onUpdate { renderable, _ in
+        if let color = renderable.layer.backgroundColor {
+          colors.append(color)
+        }
+      }
     let second = ColorNode(.blue)
       .onUpdate { renderable, _ in
-        color = renderable.layer.backgroundColor
+        if let color = renderable.layer.backgroundColor {
+          colors.append(color)
+        }
       }
     child.beforeRefresh = { view in
       view.beforeRefresh = nil
-      view.setPreparedContent(second, contentEvaluation: nil)
+      view.setPreparedContent(second, contentEvaluation: nil, animated: false)
     }
 
-    // when: the base implementation sees the replacement queued by its override
-    child.setPreparedContent(ColorNode(.red), contentEvaluation: nil)
+    // when: the original prepared update is replaced from within its own refresh
+    child.setPreparedContent(first, contentEvaluation: nil, animated: false)
 
-    // then: the latest prepared content is applied by that refresh
-    expect(color).toEventually(beEqual(to: ComposeUI.Color.blue.cgColor))
-    expect(child.refreshCount) == 1
-
-    // when: the redundant scheduled callback has an opportunity to run
-    wait(timeout: 0.01)
-
-    // then: the consumed replacement does not cause another refresh
-    expect(child.refreshCount) == 1
+    // then: the superseded content never renders and the replacement is displayed once
+    expect(colors.isEmpty) == false
+    expect(colors.contains(ComposeUI.Color.red.cgColor)) == false
+    expect(child.refreshCount) == 2
+    expect(child.contentView().layer().sublayers?.count) == 1
     expect(child.contentView().layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
   }
 
-  func test_refreshOverrideWithoutSuper_preservesReplacementRequest() throws {
-    // given: an override that defers rendering by scheduling a replacement before returning
+  func test_refreshOverrideWithoutSuper_appliesReplacementSuppliedByOverride() throws {
+    // given: an override that skips rendering once and supplies a replacement before returning
     let child = RefreshOverrideView()
     child.callsSuper = false
     child.afterRefresh = { view in
       view.afterRefresh = nil
       view.callsSuper = true
-      view.setPreparedContent(ColorNode(.blue), contentEvaluation: nil)
+      view.setPreparedContent(ColorNode(.blue), contentEvaluation: nil, animated: false)
     }
 
-    // when: the initial override skips super but leaves a replacement scheduled
-    child.setPreparedContent(ColorNode(.red), contentEvaluation: nil)
+    // when: the initial override skips super and supplies the replacement
+    child.setPreparedContent(ColorNode(.red), contentEvaluation: nil, animated: false)
 
-    // then: the replacement is dispatched instead of being cleared with the first request
-    expect(child.contentView().layer().sublayers?.first?.backgroundColor).toEventually(beEqual(to: ComposeUI.Color.blue.cgColor))
+    // then: the replacement renders instead of the superseded content
+    expect(child.contentView().layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
     expect(child.refreshCount) == 2
     expect(child.contentView().layer().sublayers?.count) == 1
   }
 
-  func test_refreshOverride_replacementKeepsItsOwnAnimationPreference() throws {
+  func test_refreshOverride_replacementKeepsItsOwnAnimationDecision() throws {
     for handledAnimated in [false, true] {
       for replacementAnimated in [false, true] {
         // given: a rendered layer and an override that handles one request without calling super
@@ -555,14 +462,13 @@ class ComposeView_PreparedContentTests: XCTestCase {
         child.afterRefresh = { view in
           view.afterRefresh = nil
           view.callsSuper = true
-          view.setPreparedContent(replacement, contentEvaluation: nil)
-          view.setNeedsRefresh(animated: replacementAnimated)
+          view.setPreparedContent(replacement, contentEvaluation: nil, animated: replacementAnimated)
         }
 
-        // when: the handled request is followed by a new prepared update from its override
+        // when: the handled request is followed by a prepared update from its override
         child.setNeedsRefresh(animated: handledAnimated)
 
-        // then: the replacement follows its own animation preference, independently of the handled request
+        // then: the replacement follows its own animation decision, independently of the handled request
         expect(child.refreshCount).toEventually(beEqual(to: 3))
         expect(child.lastAnimated) == replacementAnimated
         expect(layer) === originalLayer
@@ -573,42 +479,38 @@ class ComposeView_PreparedContentTests: XCTestCase {
     }
   }
 
-  func test_publicContentReplacement_discardsPreparedPairAndKeepsAnimationPreference() throws {
-    // given: queued parent content followed by an application replacement
+  func test_publicContentReplacement_discardsPendingPreparedContent() throws {
+    // given: prepared content left pending by an override that skipped super
+    let child = RefreshOverrideView()
     var layer: CALayer?
-    var animationTiming: AnimationTiming?
-    let child = ComposeView {
-      ColorNode(.red)
-        .frame(width: 40, height: 40)
-        .animation(.linear())
+    var renderedEvaluation: ContentEvaluation?
+    let preparedEvaluation = ContentEvaluation()
+    child.debug { child, event in
+      if case .renderWillBegin = event {
+        renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
+      }
+    }
+    child.callsSuper = false
+    child.setPreparedContent(ColorNode(.blue), contentEvaluation: preparedEvaluation, animated: false)
+    expect(child.refreshCount) == 1
+    expect(child.contentView().layer().sublayers?.isEmpty ?? true) == true
+
+    // when: the application replaces the builder before the prepared content is applied
+    child.callsSuper = true
+    child.setContent {
+      ColorNode(.green)
         .onUpdate { renderable, _ in
           layer = renderable.layer
         }
     }
-    child.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
-    child.refresh(animated: false)
-    child.setPreparedContent(ColorNode(.blue).frame(width: 80, height: 60), contentEvaluation: ContentEvaluation())
-    child.setNeedsRefresh(animated: false)
-
-    // when: the application replaces the builder before the pending refresh
-    child.setContent {
-      ColorNode(.green)
-        .frame(width: 120, height: 70)
-        .animation(.linear())
-        .onUpdate { renderable, context in
-          layer = renderable.layer
-          animationTiming = context.animationTiming
-        }
-    }
-    let measuredSize = child.sizeThatFits(CGSize(width: 200, height: 100))
     child.setNeedsLayout()
     child.layoutIfNeeded()
 
-    // then: the application builder wins without losing the existing non-animated requirement
-    expect(measuredSize) == CGSize(width: 120, height: 70)
+    // then: the application builder renders with its own evaluation and the prepared pair is discarded
+    expect(child.refreshCount) == 2
     expect(layer?.backgroundColor) == ComposeUI.Color.green.cgColor
-    expect(layer?.bounds.size) == CGSize(width: 120, height: 70)
-    expect(animationTiming) == nil
+    expect(renderedEvaluation) !== preparedEvaluation
+    expect(child.contentView().layer().sublayers?.count) == 1
   }
 }
 
