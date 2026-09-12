@@ -170,9 +170,9 @@ class ComposeViewTests: XCTestCase {
     var contentMakeCount = 0
     let view = ComposeView {
       contentMakeCount += 1
-      LayoutCacheNode(node: ColorNode(color)
+      ColorNode(color)
         .frame(width: .flexible, height: height)
-        .onUpdate { renderable, _ in layer = renderable.layer })
+        .onUpdate { renderable, _ in layer = renderable.layer }
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     view.refresh(animated: false)
@@ -295,15 +295,15 @@ class ComposeViewTests: XCTestCase {
     expect(originalView.bounds.size) == CGSize(width: 160, height: 80)
   }
 
-  func test_sizeThatFits_preservesFreshCacheInNestedContent() throws {
-    // given: a nested compose view whose cached content is created separately for each builder evaluation
+  func test_sizeThatFits_doesNotDisturbNestedContent() throws {
+    // given: a nested compose view with flexible-width content
     var nestedView: ComposeView?
     var layer: CALayer?
     let view = ComposeView {
       ComposeViewNode {
-        LayoutCacheNode(node: ColorNode(.red)
+        ColorNode(.red)
           .frame(width: .flexible, height: 300)
-          .onUpdate { renderable, _ in layer = renderable.layer })
+          .onUpdate { renderable, _ in layer = renderable.layer }
       }
       .fixedSize(width: false, height: true)
       .onUpdate { renderable, _ in nestedView = renderable.view as? ComposeView }
@@ -323,7 +323,7 @@ class ComposeViewTests: XCTestCase {
     nested.setNeedsLayout()
     nested.layoutIfNeeded()
 
-    // then: the original nested cache renders the mounted proposal rather than the measurement proposal
+    // then: the nested content renders the mounted proposal rather than the measurement proposal
     expect(nestedView) === nested
     expect(layer) === originalLayer
     expect(nested.bounds().size) == CGSize(width: 180, height: 300)
