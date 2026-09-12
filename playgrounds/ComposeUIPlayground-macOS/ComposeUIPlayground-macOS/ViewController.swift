@@ -106,23 +106,27 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
-      ViewNode<Playground.FrameView>()
-        .underlay {
-          LayerNode()
-            .border(color: Color.gray, width: 1)
-        }
-        .padding(horizontal: 16)
-        .frame(width: .flexible, height: contentView.bounds.width)
+      ViewNode<Playground.FrameView>(intrinsicSize: { proposedSize in
+        CGSize(width: proposedSize.width, height: proposedSize.width + 16 * 2)
+      })
+      .fixedSize(width: false, height: true)
+      .underlay {
+        LayerNode()
+          .border(color: Color.gray, width: 1)
+      }
+      .padding(horizontal: 16)
 
       Spacer(height: 16)
 
-      ViewNode<Playground.LayersView>()
-        .underlay {
-          LayerNode()
-            .border(color: Color.gray, width: 1)
-        }
-        .padding(horizontal: 16)
-        .frame(width: .flexible, height: contentView.bounds.width)
+      ViewNode<Playground.LayersView>(intrinsicSize: { proposedSize in
+        CGSize(width: proposedSize.width, height: proposedSize.width + 16 * 2)
+      })
+      .fixedSize(width: false, height: true)
+      .underlay {
+        LayerNode()
+          .border(color: Color.gray, width: 1)
+      }
+      .padding(horizontal: 16)
 
       Spacer(height: 16)
 
