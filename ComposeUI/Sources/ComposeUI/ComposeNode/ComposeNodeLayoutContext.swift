@@ -36,18 +36,25 @@ public struct ComposeNodeLayoutContext {
   /// The scale factor.
   public let scaleFactor: CGFloat
 
-  /// The content evaluation shared by layout and rendering, or nil for direct node layout.
-  let contentEvaluation: ContentEvaluation?
+  /// The content evaluation shared by the layout and rendering that use this context.
+  let contentEvaluation: ContentEvaluation
 
   /// Creates a `ComposeNodeLayoutContext` with the given scale factor.
+  ///
+  /// Nodes with lazily evaluated content, such as `SwiftUIViewNode`, evaluate it once per context. Reuse one context
+  /// across layout calls to keep the evaluated content, or create a new context to evaluate it again.
   ///
   /// - Parameter scaleFactor: The scale factor.
   public init(scaleFactor: CGFloat) {
     self.scaleFactor = scaleFactor
-    self.contentEvaluation = nil
+    self.contentEvaluation = ContentEvaluation()
   }
 
-  /// Creates a layout context.
+  /// Creates a layout context with the given content evaluation.
+  ///
+  /// - Parameters:
+  ///   - scaleFactor: The scale factor.
+  ///   - contentEvaluation: The content evaluation shared by the layout and rendering that use this context.
   init(scaleFactor: CGFloat, contentEvaluation: ContentEvaluation) {
     self.scaleFactor = scaleFactor
     self.contentEvaluation = contentEvaluation

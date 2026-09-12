@@ -165,24 +165,24 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   // MARK: - Content
 
   /// Returns the content value for the given content evaluation. It returns the cached content if possible.
-  private mutating func prepareContent(for evaluation: ContentEvaluation?) -> ContentEvaluation.LazyValue<Content> {
+  private mutating func prepareContent(for evaluation: ContentEvaluation) -> ContentEvaluation.LazyValue<Content> {
     // Repeated layout proposals reuse the cached content without another dictionary lookup in the evaluation.
     if let renderState, renderState.evaluation === evaluation {
       return renderState.content
     }
 
-    let content = evaluation?.lazyValue(for: contentProvider) ?? ContentEvaluation.LazyValue(provider: contentProvider)
+    let content = evaluation.lazyValue(for: contentProvider)
     renderState = RenderState(evaluation: evaluation, content: content)
     return content
   }
 
   private struct RenderState {
 
-    let evaluation: ContentEvaluation?
+    let evaluation: ContentEvaluation
     let content: ContentEvaluation.LazyValue<Content>
     let itemCache: RenderableItemCache
 
-    init(evaluation: ContentEvaluation?, content: ContentEvaluation.LazyValue<Content>) {
+    init(evaluation: ContentEvaluation, content: ContentEvaluation.LazyValue<Content>) {
       self.evaluation = evaluation
       self.content = content
       self.itemCache = RenderableItemCache()
