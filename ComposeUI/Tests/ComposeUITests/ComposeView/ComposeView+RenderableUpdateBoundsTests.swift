@@ -605,7 +605,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     originalLayer.removeAllAnimations()
   }
 
-  func test_contentShrink_reportsTheViewportUsedWithoutAWillRenderCallback() throws {
+  func test_contentShrink_rendersTheClampedViewportWithoutAWillRenderCallback() throws {
     // given: long content is scrolled near its bottom
     var height: CGFloat = 500
     var context: RenderableUpdateContext?
@@ -622,26 +622,34 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     view.refresh(animated: false)
     view.setContentOffset(CGPoint(x: 0, y: 350))
     view.layoutIfNeeded()
-    let previousBounds = try unwrap(context).renderBounds
+    let previousBounds = CGRect(x: 0, y: 350, width: 100, height: 100)
+    expect(try unwrap(context).renderBounds) == previousBounds
     context = nil
 
     // when: refreshed content is shorter than the old scroll offset
     height = 150
     view.refresh(animated: false)
 
-    // then: any synchronous offset correction is reflected in the rendered viewport and visible content
-    let currentOffset = view.contentOffset()
-    if currentOffset.y < height {
-      let update = try unwrap(context)
-      expect(update.updateType) == .refresh
-      expect(update.previousRenderBounds) == previousBounds
-      expect(update.renderBounds.origin) == currentOffset
-      expect(update.renderBounds.size) == CGSize(width: 100, height: 100)
-      expect(layer?.superlayer) != nil
-      expect(layer?.backgroundColor) == Color.red.cgColor
-    } else {
-      expect(context) == nil
-      expect(layer?.superlayer) == nil
-    }
+    // then: the scroll view clamps the offset to the new content size, and the pass renders the clamped viewport
+    let clampedBounds = CGRect(x: 0, y: 50, width: 100, height: 100)
+    expect(view.contentOffset()) == clampedBounds.origin
+    let update = try unwrap(context)
+    expect(update.updateType) == .refresh
+    expect(update.previousRenderBounds) == previousBounds
+    expect(update.renderBounds) == clampedBounds
+    let renderedLayer = try unwrap(layer)
+    expect(renderedLayer.superlayer) != nil
+    expect(renderedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 150)
+    expect(renderedLayer.backgroundColor) == Color.red.cgColor
+    expect(view.test.lastRenderBounds) == clampedBounds
+
+    // when: laying out again without changing the viewport
+    context = nil
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the clamped viewport is already the render history, so no pass is repeated
+    expect(context) == nil
+    expect(renderedLayer.superlayer) != nil
   }
 }
