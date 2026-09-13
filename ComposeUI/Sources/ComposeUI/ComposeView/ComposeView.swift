@@ -104,7 +104,7 @@ open class ComposeView: BaseScrollView {
   public enum AnimationBehavior {
 
     /// The default animation behavior.
-    /// 
+    ///
     /// This behavior allows configured transitions and animations during bounds changes and refreshes requested with `animated: true`.
     case `default`
 
@@ -112,7 +112,7 @@ open class ComposeView: BaseScrollView {
     case disabled
 
     /// The dynamic animation behavior.
-    /// 
+    ///
     /// The closure determines whether to animate.
     case dynamic(_ shouldAnimate: (_ contentView: ComposeView, _ renderType: RenderType) -> Bool)
   }
@@ -886,8 +886,8 @@ open class ComposeView: BaseScrollView {
 
     if let willRenderHandler {
       willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
-      
-      // the will-render handler may change the bounds 
+
+      // the will-render handler may change the bounds
       // we only pick the origin part of the bounds to ensure the content offset is correct for rendering
       // ignoring the size change from the updated bounds because the above layout step has already used the old size.
       bounds.origin = contentOffset()

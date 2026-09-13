@@ -18,7 +18,7 @@
 ### Changes
 
 - Added previous and current viewport bounds to `RenderableUpdateContext`.
-- Fixed stale scroll offsets after content-size changes.
+- Fixed a render pass without an `onWillRender` handler using the scroll offset from before a content-size change, which dropped the items visible at the clamped offset until the next layout.
 - `ComposeViewNode` now updates an already-mounted child view's content when the parent is refreshed. The child renders within the parent's render pass. Properties set on the child view in `onInsert` or `onUpdate` no longer apply to its first render. Set them in `willInsert` or `willUpdate` instead.
 - `RenderableUpdateContext` gains `isAnimated`, whether the render pass is animated.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
