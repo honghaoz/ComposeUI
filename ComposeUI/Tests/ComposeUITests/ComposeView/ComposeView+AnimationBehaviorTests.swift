@@ -63,15 +63,15 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.frame.size = CGSize(width: 100, height: 7)
     view.layoutIfNeeded()
 
-    // then: no animation for resizing
-    try expect(layer1Context.unwrap().animationTiming) == nil // no animation for resizing
+    // then: the retained layer's configured animation applies during resizing
+    try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1)
     expect(layer2Context) == nil
 
     // when: scrolling
     view.setContentOffset(CGPoint(x: 0, y: 4))
     view.layoutIfNeeded()
 
-    // then: animation for scrolling, no animation for the newly inserted layer
+    // then: animation for scrolling, no frame animation for the newly inserted layer
     try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for scrolling
     try expect(layer2Context.unwrap().animationTiming) == nil // no animation for insertion
 
@@ -81,6 +81,221 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     // then: animation for refreshing
     try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for refreshing
     try expect(layer2Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for refreshing
+  }
+
+  func test_boundsChange_animatesConfiguredTransitionsAndRetainedFrames() throws {
+    // given: one visible row and an offscreen row with configured transitions and frame animations
+    var layers: [Int: CALayer] = [:]
+    var contexts: [Int: RenderableUpdateContext] = [:]
+    let timing = AnimationTiming.linear(duration: 10)
+    let view = ComposeView {
+      VStack(spacing: 0) {
+        for index in 0 ..< 3 {
+          ColorNode(index == 0 ? .red : .blue)
+            .frame(width: .flexible, height: 60)
+            .animation(timing)
+            .transition(.opacity(timing: timing))
+            .onUpdate { renderable, context in
+              layers[index] = renderable.layer
+              contexts[index] = context
+            }
+        }
+      }
+    }
+    view.renderablePool = nil
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    view.refresh(animated: false)
+    let retainedLayer = try unwrap(layers[0])
+    expect(retainedLayer.animationKeys()) == nil
+    expect(layers[1]) == nil
+
+    // when: resizing changes retained geometry and reveals another row
+    view.frame.size = CGSize(width: 140, height: 100)
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the retained row animates its frame and the new row runs its insert transition
+    let insertedLayer = try unwrap(layers[1])
+    expect(layers[0]) === retainedLayer
+    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 140, height: 60)
+    expect(retainedLayer.backgroundColor) == Color.red.cgColor
+    expect(contexts[0]?.updateType) == .boundsChange
+    expect(contexts[0]?.isAnimated) == true
+    expect(contexts[0]?.animationTiming) == timing
+    let frameAnimation = try unwrap(retainedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
+    expect(frameAnimation.fromValue as? CGSize) == CGSize(width: -40, height: 0)
+    expect(frameAnimation.toValue as? CGSize) == .zero
+    expect(frameAnimation.isAdditive) == true
+    expect(frameAnimation.duration) == 10
+    expect(insertedLayer.frame) == CGRect(x: 0, y: 60, width: 140, height: 60)
+    expect(insertedLayer.backgroundColor) == Color.blue.cgColor
+    expect(insertedLayer.opacity) == 1
+    expect(contexts[1]?.updateType) == .insert
+    expect(contexts[1]?.isAnimated) == true
+    expect(contexts[1]?.animationTiming) == nil
+    let insertAnimation = try unwrap(insertedLayer.animation(forKey: "opacity") as? CABasicAnimation)
+    expect(insertAnimation.fromValue as? Float) == -1
+    expect(insertAnimation.toValue as? Float) == 0
+    expect(insertAnimation.isAdditive) == true
+    expect(insertAnimation.duration) == 10
+    retainedLayer.removeAllAnimations()
+    insertedLayer.removeAllAnimations()
+
+    // when: shrinking the viewport removes that row
+    view.frame.size.height = 50
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the row remains attached while its removal transition runs
+    expect(insertedLayer.superlayer) != nil
+    expect(insertedLayer.opacity) == 0
+    let removeAnimation = try unwrap(insertedLayer.animation(forKey: "opacity") as? CABasicAnimation)
+    expect(removeAnimation.fromValue as? Float) == 1
+    expect(removeAnimation.toValue as? Float) == 0
+    expect(removeAnimation.isAdditive) == true
+    expect(removeAnimation.duration) == 10
+
+    // when: growing the viewport revives the row before removal completes
+    view.frame.size.height = 100
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the same row is revived with an insert transition and its target appearance
+    expect(layers[1]) === insertedLayer
+    expect(insertedLayer.superlayer) != nil
+    expect(insertedLayer.opacity) == 1
+    expect(insertedLayer.frame) == CGRect(x: 0, y: 60, width: 140, height: 60)
+    expect(contexts[1]?.updateType) == .insert
+    expect(contexts[1]?.isAnimated) == true
+    expect(insertedLayer.animation(forKey: "opacity")) != nil
+    for layer in layers.values {
+      layer.removeAllAnimations()
+    }
+  }
+
+  func test_boundsChange_respectsAnimationBehaviorFromFirstRender() throws {
+    let behaviors: [(ComposeView.AnimationBehavior, Bool)] = [
+      (.default, true),
+      (.disabled, false),
+      (.dynamic { _, _ in false }, false),
+      (.dynamic { _, _ in true }, true),
+    ]
+    for (behavior, allowsAnimation) in behaviors {
+      // given: configured transitions and frame animations controlled by the view's animation behavior
+      var layers: [Int: CALayer] = [:]
+      var views: [Int: View] = [:]
+      var contexts: [Int: RenderableUpdateContext] = [:]
+      let timing = AnimationTiming.linear(duration: 10)
+      let view = ComposeView {
+        VStack(spacing: 0) {
+          for index in 0 ..< 3 {
+            ViewNode<BaseView>()
+              .backgroundColor(.red)
+              .frame(width: .flexible, height: 60)
+              .animation(timing)
+              .transition(.opacity(timing: timing))
+              .onUpdate { renderable, context in
+                layers[index] = renderable.layer
+                views[index] = renderable.view
+                contexts[index] = context
+              }
+          }
+        }
+      }
+      view.animationBehavior = behavior
+      view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+      // when: the first bounds-driven pass renders the initial row
+      view.setNeedsLayout()
+      view.layoutIfNeeded()
+
+      // then: first insertion honors the configured behavior without inventing a frame animation
+      let first = try unwrap(layers[0])
+      expect(contexts[0]?.previousRenderBounds) == nil
+      expect(contexts[0]?.updateType) == .insert
+      expect(contexts[0]?.isAnimated) == allowsAnimation
+      expect(contexts[0]?.animationTiming) == nil
+      expect(first.animation(forKey: "opacity") != nil) == allowsAnimation
+      expect(first.animation(forKey: "bounds.size")) == nil
+      expect(first.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+      expect(first.backgroundColor) == Color.red.cgColor
+      first.removeAllAnimations()
+
+      // when: resizing changes the retained row and inserts another row
+      view.frame.size = CGSize(width: 140, height: 100)
+      view.setNeedsLayout()
+      view.layoutIfNeeded()
+
+      // then: the same override controls both retained animations and insertion transitions
+      let second = try unwrap(layers[1])
+      let secondView = try unwrap(views[1])
+      expect(layers[0]) === first
+      expect(first.frame) == CGRect(x: 0, y: 0, width: 140, height: 60)
+      expect(contexts[0]?.isAnimated) == allowsAnimation
+      expect(contexts[0]?.animationTiming) == (allowsAnimation ? timing : nil)
+      expect(first.animation(forKey: "bounds.size") != nil) == allowsAnimation
+      expect(contexts[1]?.isAnimated) == allowsAnimation
+      expect(second.animation(forKey: "opacity") != nil) == allowsAnimation
+      expect(second.frame) == CGRect(x: 0, y: 60, width: 140, height: 60)
+      first.removeAllAnimations()
+      second.removeAllAnimations()
+
+      // when: shrinking removes the second row
+      view.frame.size.height = 50
+      view.setNeedsLayout()
+      view.layoutIfNeeded()
+
+      // then: removal obeys the same override as insertion and retained updates
+      expect(secondView.superview != nil) == allowsAnimation
+      expect(second.animation(forKey: "opacity") != nil) == allowsAnimation
+      expect(second.opacity) == (allowsAnimation ? 0 : 1)
+      for layer in layers.values {
+        layer.removeAllAnimations()
+      }
+    }
+  }
+
+  func test_boundsChange_withoutConfiguredAnimations_updatesImmediately() throws {
+    // given: rows without animation timings or transitions
+    var layers: [Int: CALayer] = [:]
+    let view = ComposeView {
+      VStack(spacing: 0) {
+        for index in 0 ..< 3 {
+          ColorNode(.red)
+            .frame(width: .flexible, height: 60)
+            .onUpdate { renderable, _ in
+              layers[index] = renderable.layer
+            }
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    let first = try unwrap(layers[0])
+    expect(first.animationKeys()) == nil
+
+    // when: resizing updates one row and reveals another
+    view.frame.size = CGSize(width: 140, height: 100)
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: both rows have their target appearance without animations
+    let second = try unwrap(layers[1])
+    expect(first.frame) == CGRect(x: 0, y: 0, width: 140, height: 60)
+    expect(second.frame) == CGRect(x: 0, y: 60, width: 140, height: 60)
+    expect(first.animationKeys()) == nil
+    expect(second.animationKeys()) == nil
+    expect(second.backgroundColor) == Color.red.cgColor
+
+    // when: shrinking hides the second row
+    view.frame.size.height = 50
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: removal is immediate because no transition is configured
+    expect(second.superlayer) == nil
+    expect(first.animationKeys()) == nil
   }
 
   func test_animationBehavior_disabled() throws {
@@ -158,18 +373,9 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       case .refresh(let isAnimated):
         calledIsAnimated = isAnimated
         return false
-      case .boundsChange(let previousBounds):
+      case .boundsChange(let previousBounds, let bounds):
         calledPreviousBounds = previousBounds
-        return true
-      case .scroll(let previousBounds):
-        calledPreviousBounds = previousBounds
-        if contentView.contentOffset().y == 4 {
-          return false
-        } else if contentView.contentOffset().y == 5 {
-          return true
-        } else {
-          return true
-        }
+        return previousBounds?.size != bounds.size || bounds.minY != 4
       }
     }
 
@@ -319,13 +525,13 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.layoutIfNeeded()
 
     // then: the render type should have correct previous bounds
-    expect(calledRenderType) == .scroll(previousBounds: CGRect(x: 0, y: 10, width: 120, height: 80))
+    expect(calledRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 10, width: 120, height: 80), bounds: CGRect(x: 0, y: 20, width: 120, height: 80))
 
     // when: resize the view
     view.frame.size = CGSize(width: 140, height: 90)
     view.layoutIfNeeded()
 
     // then: the render type should have correct previous bounds
-    expect(calledRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 120, height: 80))
+    expect(calledRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 120, height: 80), bounds: CGRect(x: 0, y: 20, width: 140, height: 90))
   }
 }

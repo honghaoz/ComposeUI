@@ -337,7 +337,7 @@ class LayerNodeTests: XCTestCase {
         let contentView = ComposeView()
         let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-        let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+        let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
         item.update(renderable, context)
         let layer = renderable.layer
         expect(layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
@@ -443,7 +443,7 @@ class LayerNodeTests: XCTestCase {
     expect(layer.frame) == CGRect(x: 0, y: 0, width: 200, height: 200)
     expect(layer.cornerRadius) == 50
     expect(layer.backgroundColor) == Color.blue.cgColor
-    expect(updateType) == .scroll
+    expect(updateType) == .boundsChange
   }
 
   func test_layer_as_composeContent() {

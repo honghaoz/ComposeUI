@@ -178,11 +178,13 @@ public struct InnerShadowNode: ComposeNode {
         update: { layer, context in
           switch context.updateType {
           case .insert,
-               .refresh,
-               .boundsChange: // the shadow path is affected by the layer's size, should update
+               .refresh:
             break
-          case .scroll:
-            return
+          case .boundsChange:
+            // the shadow path depends on the layer's size, should update if the size is changed
+            guard context.oldFrame.size != context.newFrame.size else {
+              return
+            }
           }
 
           let theme = context.contentView.theme

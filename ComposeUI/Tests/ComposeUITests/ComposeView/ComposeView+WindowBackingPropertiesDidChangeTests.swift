@@ -37,7 +37,7 @@ import AppKit
 
 class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
 
-  func test_windowBackingPropertiesDidChange() {
+  func test_windowBackingPropertiesDidChange() throws {
     // given: a compose view with render, refresh and animation tracking, rendered in a window with a controllable
     // backing scale factor
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -46,13 +46,18 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
     var renderCount = 0
     var refreshCount = 0
     var isAnimated: Bool?
-    let view = ComposeView {
+    var updateContext: RenderableUpdateContext?
+    var renderedLayer: CALayer?
+    let view = ComposeView { contentView in
       renderCount += 1
       LayerNode()
+        .cornerRadius(contentView.contentScaleFactor)
         .animation(.linear())
-        .onUpdate { _, context in
+        .onUpdate { renderable, context in
           isAnimated = context.animationTiming != nil
           refreshCount += 1
+          updateContext = context
+          renderedLayer = renderable.layer
         }
     }
 
@@ -60,11 +65,14 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
     window.contentView?.addSubview(view)
 
     // initial render when added to window
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // settle the initial environment refresh
     expect(renderCount).toEventually(beEqual(to: 1))
     expect(refreshCount) == 1
     expect(isAnimated) == false
     isAnimated = nil
     expect(view.contentScaleFactor) == window.backingScaleFactor
+    let layer = try unwrap(renderedLayer)
+    expect(layer.cornerRadius) == window.backingScaleFactor
 
     // when: change backing scale factor
     window.backingScaleFactor = 3.0
@@ -75,6 +83,13 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
     expect(isAnimated) == false
     isAnimated = nil
     expect(view.contentScaleFactor) == 3.0
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.previousRenderBounds) == frame
+    expect(updateContext?.renderBounds) == frame
+    expect(renderedLayer) === layer
+    expect(layer.cornerRadius) == 3.0
+    expect(layer.frame) == frame
 
     // when: change backing scale factor again
     window.backingScaleFactor = 1.0
@@ -84,6 +99,13 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
     expect(refreshCount) == 3
     expect(isAnimated) == false
     expect(view.contentScaleFactor) == 1.0
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.previousRenderBounds) == frame
+    expect(updateContext?.renderBounds) == frame
+    expect(renderedLayer) === layer
+    expect(layer.cornerRadius) == 1.0
+    expect(layer.frame) == frame
     isAnimated = nil
   }
 

@@ -62,20 +62,13 @@ public struct RenderableInsertContext {
 /// The reason for a renderable update.
 public enum RenderableUpdateType: Equatable {
 
-  // TODO: Merge scroll into boundsChange and expose previous/current content-view render bounds in the update context,
-  // so origin and size changes can be detected independently, including during refresh.
-
   /// The renderable is inserted into a renderable hierarchy.
   case insert
 
   /// The renderable is reused after an explicit refresh request or environment-triggered content refresh.
   case refresh
 
-  /// The renderable is reused after the content view's bounds origin changes while its size stays the same, i.e. the
-  /// content view is scrolled.
-  case scroll
-
-  /// The renderable is reused after the content view's bounds changes.
+  /// The renderable is reused after scrolling, resizing, or both, without refreshing its content.
   case boundsChange
 }
 
@@ -89,6 +82,12 @@ public struct RenderableUpdateContext: Equatable {
 
   /// The new frame that the renderable should be set to after the update.
   public let newFrame: CGRect
+
+  /// The content view's bounds from its last completed render, or nil before its first render.
+  public let previousRenderBounds: CGRect?
+
+  /// The content view's bounds used to render this pass, before applying visibleBoundsInsets.
+  public let renderBounds: CGRect
 
   /// Whether the render pass is animated.
   public let isAnimated: Bool
@@ -108,6 +107,8 @@ public struct RenderableUpdateContext: Equatable {
   ///   - updateType: The reason for the update.
   ///   - oldFrame: The old frame of the renderable before the update.
   ///   - newFrame: The new frame that the renderable should be set to after the update.
+  ///   - previousRenderBounds: The content view's last completed render bounds, or nil if it has not rendered.
+  ///   - renderBounds: The content view's bounds used for this pass.
   ///   - isAnimated: Whether the render pass is animated.
   ///   - animationTiming: The animation timing for the renderable update.
   ///   - contentView: The content view that contains the renderable.
@@ -115,6 +116,8 @@ public struct RenderableUpdateContext: Equatable {
   init(updateType: RenderableUpdateType,
        oldFrame: CGRect,
        newFrame: CGRect,
+       previousRenderBounds: CGRect?,
+       renderBounds: CGRect,
        isAnimated: Bool = false,
        animationTiming: AnimationTiming?,
        contentView: ComposeView?,
@@ -123,6 +126,8 @@ public struct RenderableUpdateContext: Equatable {
     self.updateType = updateType
     self.oldFrame = oldFrame
     self.newFrame = newFrame
+    self.previousRenderBounds = previousRenderBounds
+    self.renderBounds = renderBounds
     self.isAnimated = isAnimated
     self.animationTiming = animationTiming
     self.contentView = contentView
@@ -137,6 +142,8 @@ public struct RenderableUpdateContext: Equatable {
     lhs.updateType == rhs.updateType &&
       lhs.oldFrame == rhs.oldFrame &&
       lhs.newFrame == rhs.newFrame &&
+      lhs.previousRenderBounds == rhs.previousRenderBounds &&
+      lhs.renderBounds == rhs.renderBounds &&
       lhs.isAnimated == rhs.isAnimated &&
       lhs.animationTiming == rhs.animationTiming &&
       lhs.contentView == rhs.contentView

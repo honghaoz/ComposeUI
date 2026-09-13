@@ -467,8 +467,8 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     let secondItem = try node.renderableItems(in: CGRect(origin: .zero, size: proposal)).first.unwrap()
     let firstRenderable = firstItem.make(RenderableMakeContext(initialFrame: firstItem.frame, contentView: nil))
     let secondRenderable = secondItem.make(RenderableMakeContext(initialFrame: secondItem.frame, contentView: nil))
-    firstItem.update(firstRenderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: firstItem.frame, animationTiming: nil, contentView: nil))
-    secondItem.update(secondRenderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: secondItem.frame, animationTiming: nil, contentView: nil))
+    firstItem.update(firstRenderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: firstItem.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil))
+    secondItem.update(secondRenderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: secondItem.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil))
     let firstHost = try (firstRenderable.view as? MutableSwiftUIHostingView).unwrap()
     let secondHost = try (secondRenderable.view as? MutableSwiftUIHostingView).unwrap()
 
@@ -567,7 +567,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
       let child = try unwrap(renderable.view as? ComposeView)
 
       // when: the original pass supplies its content to the nested view after the parent's state changed
-      item.update(renderable, RenderableUpdateContext(updateType: updateType, oldFrame: .zero, newFrame: item.frame, animationTiming: nil, contentView: parent, contentEvaluation: evaluation))
+      item.update(renderable, RenderableUpdateContext(updateType: updateType, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: parent, contentEvaluation: evaluation))
       child.setNeedsLayout()
       child.layoutIfNeeded()
 

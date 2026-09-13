@@ -108,6 +108,7 @@ public struct DropShadowNode: ComposeNode {
   ///   - opacity: The opacity of the drop shadow.
   ///   - radius: The radius of the drop shadow.
   ///   - offset: The offset of the drop shadow.
+  ///   - path: The shadow path provider.
   public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (Renderable) -> CGPath) {
     self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
   }
@@ -164,11 +165,13 @@ public struct DropShadowNode: ComposeNode {
         update: { layer, context in
           switch context.updateType {
           case .insert,
-               .refresh,
-               .boundsChange: // the shadow path is affected by the layer's size, should update
+               .refresh:
             break
-          case .scroll:
-            return
+          case .boundsChange:
+            // the shadow path depends on the layer's size, should update if the size is changed
+            guard context.oldFrame.size != context.newFrame.size else {
+              return
+            }
           }
 
           let theme = context.contentView.theme

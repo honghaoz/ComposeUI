@@ -1231,6 +1231,172 @@ class ModifierNodeTests: XCTestCase {
     }
   }
 
+  func test_shadow_boundsChange_updatesPathOnlyForRenderableResize() throws {
+    for animationTiming in [nil, AnimationTiming.easeInEaseOut()] {
+      // given: a layer with a local shadow path and an external input that requires refresh
+      let window = TestWindow()
+      let contentView = ComposeView()
+      let viewport = CGRect(x: 0, y: 0, width: 200, height: 200)
+      let frame = CGRect(x: 0, y: 0, width: 40, height: 40)
+      var inset: CGFloat = 0
+      var node = LayerNode().shadow(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+        CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+      })
+      _ = node.layout(containerSize: frame.size, context: ComposeNodeLayoutContext(scaleFactor: 1))
+      let item = try unwrap(node.renderableItems(in: frame).first)
+      let renderable = item.make(RenderableMakeContext(initialFrame: frame, contentView: contentView))
+      let layer = renderable.layer
+      window.layer.addSublayer(layer)
+
+      // when: inserting at the already assigned frame
+      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView))
+
+      // then: the initial shadow is applied without a size change
+      let initialPath = CGPath(rect: layer.bounds, transform: nil)
+      expect(layer.shadowPath) == initialPath
+      expect(layer.shadowColor) == Color.red.cgColor
+      expect(layer.shadowOpacity) == 0.5
+      CATransaction.flush()
+      inset = 2
+
+      // when: only the viewport changes, including missing viewport history
+      for previousBounds in [viewport, nil] {
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: previousBounds, renderBounds: CGRect(x: 0, y: 20, width: 300, height: 250), animationTiming: animationTiming, contentView: contentView))
+
+        // then: no path or animation update occurs without a renderable-size change
+        expect(layer.shadowPath) == initialPath
+        expect(layer.animationKeys()) == nil
+      }
+
+      // when: moving the renderable without changing its size
+      let movedFrame = frame.offsetBy(dx: 10, dy: 20)
+      layer.disableActions { layer.frame = movedFrame }
+      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: movedFrame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+
+      // then: local geometry remains unchanged during position-only updates
+      expect(layer.shadowPath) == initialPath
+      expect(layer.animationKeys()) == nil
+
+      // when: each dimension changes without a viewport resize, replacing any preceding path animation
+      for size in [CGSize(width: 60, height: 40), CGSize(width: 60, height: 80)] {
+        let oldFrame = layer.frame
+        let previousPath = layer.presentation()?.shadowPath
+        layer.disableActions { layer.frame.size = size }
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+
+        // then: the path is recalculated from the new local bounds
+        let expectedPath = CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+        expect(layer.shadowPath) == expectedPath
+        if animationTiming != nil {
+          let animation = try unwrap(layer.animation(forKey: "shadowPath") as? CABasicAnimation)
+          expect(try CFEqual(unwrap(animation.fromValue) as CFTypeRef, unwrap(previousPath))) == true
+          expect(try CFEqual(unwrap(animation.toValue) as CFTypeRef, expectedPath)) == true
+        } else {
+          expect(layer.animation(forKey: "shadowPath")) == nil
+        }
+      }
+
+      // when: explicit refresh changes an external input without changing the renderable's size
+      inset = 4
+      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: layer.frame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+
+      // then: refresh applies the path independently of the size comparison
+      expect(layer.shadowPath) == CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+      expect(layer.shadowColor) == Color.red.cgColor
+      expect(layer.animation(forKey: "shadowPath") != nil) == (animationTiming != nil)
+      layer.removeAllAnimations()
+    }
+  }
+
+  func test_shadows_followRenderableSizeDuringHostUpdates() throws {
+    for hasFixedWidth in [true, false] {
+      // given: all shadow APIs render local paths with a configurable inset
+      var inset: CGFloat = 0
+      var directLayer: CALayer?
+      var viewLayer: CALayer?
+      var dropLayer: CALayer?
+      var innerLayer: CALayer?
+      var directContext: RenderableUpdateContext?
+      let width: FrameSize = hasFixedWidth ? .fixed(40) : .flexible
+      let contentView = ComposeView {
+        VStack(spacing: 0) {
+          LayerNode()
+            .shadow(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+              CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+            })
+            .frame(width: width, height: 40)
+            .onUpdate { renderable, context in
+              directLayer = renderable.layer
+              directContext = context
+            }
+          ViewNode<BaseView>()
+            .shadow(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+              CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+            })
+            .frame(width: width, height: 40)
+            .onUpdate { renderable, _ in
+              viewLayer = renderable.layer
+            }
+          DropShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+            CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+          })
+          .frame(width: width, height: 40)
+          .onUpdate { renderable, _ in
+            dropLayer = renderable.layer
+          }
+          InnerShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+            CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+          })
+          .frame(width: width, height: 40)
+          .onUpdate { renderable, _ in
+            innerLayer = renderable.layer
+          }
+        }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
+      contentView.refresh(animated: false)
+      let layers = try [unwrap(directLayer), unwrap(viewLayer), unwrap(dropLayer), unwrap(innerLayer)]
+      let initialWidth: CGFloat = hasFixedWidth ? 40 : 100
+
+      // then: initial insertion configures the path even when the initial frame is already assigned
+      for layer in layers {
+        expect(layer.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: initialWidth, height: 40), transform: nil)
+        expect(layer.shadowColor) == Color.red.cgColor
+      }
+
+      // when: the host resizes while the external path input changes without a refresh
+      inset = 2
+      contentView.frame.size.width = 200
+      contentView.setNeedsLayout()
+      contentView.layoutIfNeeded()
+
+      // then: flexible shadows update, while fixed-size shadows retain their old paths
+      expect(directContext?.updateType) == .boundsChange
+      expect(directLayer) === layers[0]
+      expect(viewLayer) === layers[1]
+      expect(dropLayer) === layers[2]
+      expect(innerLayer) === layers[3]
+      let resizedWidth: CGFloat = hasFixedWidth ? 40 : 200
+      let expectedInset: CGFloat = hasFixedWidth ? 0 : inset
+      for layer in layers {
+        let rect = CGRect(x: 0, y: 0, width: resizedWidth, height: 40).insetBy(dx: expectedInset, dy: expectedInset)
+        expect(layer.bounds.size) == CGSize(width: resizedWidth, height: 40)
+        expect(layer.shadowPath) == CGPath(rect: rect, transform: nil)
+      }
+
+      // when: an explicit refresh applies the external input without another size change
+      inset = 4
+      contentView.refresh(animated: false)
+
+      // then: all shadow APIs apply the new path
+      expect(directContext?.updateType) == .refresh
+      for layer in layers {
+        let rect = CGRect(x: 0, y: 0, width: resizedWidth, height: 40).insetBy(dx: inset, dy: inset)
+        expect(layer.shadowPath) == CGPath(rect: rect, transform: nil)
+      }
+    }
+  }
+
   // MARK: - Z-Index
 
   func test_zIndex() {
@@ -1579,12 +1745,15 @@ class ModifierNodeTests: XCTestCase {
           .rasterize(isEnabled ? nil : 3)
       ).unwrap()
 
-      for updateType in [RenderableUpdateType.scroll, .boundsChange] {
+      let previousRenderBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+      for renderBounds in [previousRenderBounds.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
         // when: a geometry update provides an animation timing
         item.update(.layer(layer), RenderableUpdateContext(
-          updateType: updateType,
+          updateType: .boundsChange,
           oldFrame: item.frame,
           newFrame: CGRect(x: 0, y: 0, width: 100, height: 60),
+          previousRenderBounds: previousRenderBounds,
+          renderBounds: renderBounds,
           animationTiming: .easeInEaseOut(duration: 1),
           contentView: contentView
         ))
@@ -1607,6 +1776,8 @@ class ModifierNodeTests: XCTestCase {
         updateType: .refresh,
         oldFrame: item.frame,
         newFrame: item.frame,
+        previousRenderBounds: .zero,
+        renderBounds: .zero,
         animationTiming: nil,
         contentView: contentView
       ))
@@ -1649,6 +1820,8 @@ class ModifierNodeTests: XCTestCase {
         updateType: .refresh,
         oldFrame: item.frame,
         newFrame: item.frame,
+        previousRenderBounds: .zero,
+        renderBounds: .zero,
         animationTiming: .easeInEaseOut(duration: 1),
         contentView: contentView
       ))
@@ -1704,12 +1877,15 @@ class ModifierNodeTests: XCTestCase {
       #endif
       let item = try firstRenderableItem(of: ViewNode().interactive(!isEnabled)).unwrap()
 
-      for updateType in [RenderableUpdateType.scroll, .boundsChange] {
+      let previousRenderBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+      for renderBounds in [previousRenderBounds.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
         // when: the modifier receives a geometry update
         item.update(.view(view), RenderableUpdateContext(
-          updateType: updateType,
+          updateType: .boundsChange,
           oldFrame: item.frame,
           newFrame: CGRect(x: 0, y: 0, width: 100, height: 60),
+          previousRenderBounds: previousRenderBounds,
+          renderBounds: renderBounds,
           animationTiming: nil,
           contentView: contentView
         ))
@@ -1728,6 +1904,8 @@ class ModifierNodeTests: XCTestCase {
         updateType: .refresh,
         oldFrame: item.frame,
         newFrame: item.frame,
+        previousRenderBounds: .zero,
+        renderBounds: .zero,
         animationTiming: nil,
         contentView: contentView
       ))
@@ -1751,12 +1929,21 @@ class ModifierNodeTests: XCTestCase {
       layer.backgroundColor = Color.red.cgColor
       let item = try firstRenderableItem(of: LayerNode().interactive(isEnabled)).unwrap()
 
-      for updateType in [RenderableUpdateType.insert, .refresh, .boundsChange, .scroll] {
+      let previousRenderBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+      let scenarios: [(RenderableUpdateType, CGRect)] = [
+        (.insert, previousRenderBounds),
+        (.refresh, previousRenderBounds),
+        (.boundsChange, previousRenderBounds.offsetBy(dx: 0, dy: 20)),
+        (.boundsChange, CGRect(x: 0, y: 0, width: 100, height: 60)),
+      ]
+      for (updateType, renderBounds) in scenarios {
         // when: the modifier receives an update for the layer
         item.update(.layer(layer), RenderableUpdateContext(
           updateType: updateType,
           oldFrame: item.frame,
           newFrame: item.frame,
+          previousRenderBounds: previousRenderBounds,
+          renderBounds: renderBounds,
           animationTiming: nil,
           contentView: contentView
         ))

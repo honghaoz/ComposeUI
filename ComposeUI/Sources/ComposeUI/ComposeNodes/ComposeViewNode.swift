@@ -109,8 +109,7 @@ public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
           case .insert,
                .refresh:
             view.setPreparedContent(node, contentEvaluation: context.contentEvaluation, animated: context.isAnimated)
-          case .scroll,
-               .boundsChange:
+          case .boundsChange:
             return
           }
         }

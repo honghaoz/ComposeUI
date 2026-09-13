@@ -128,6 +128,8 @@ class ComposeView_RenderableTests: XCTestCase {
       updateType: .insert,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+      previousRenderBounds: nil,
+      renderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       animationTiming: nil,
       contentView: view
     )
@@ -135,6 +137,8 @@ class ComposeView_RenderableTests: XCTestCase {
       updateType: .insert,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+      previousRenderBounds: nil,
+      renderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       animationTiming: nil,
       contentView: view
     )
@@ -147,6 +151,8 @@ class ComposeView_RenderableTests: XCTestCase {
       updateType: .refresh,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+      previousRenderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
+      renderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       animationTiming: nil,
       contentView: view
     )
@@ -154,6 +160,8 @@ class ComposeView_RenderableTests: XCTestCase {
       updateType: .refresh,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+      previousRenderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
+      renderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       animationTiming: nil,
       contentView: view
     )
@@ -164,17 +172,21 @@ class ComposeView_RenderableTests: XCTestCase {
 
     // then: expect the update context is correct, a scroll pass is animated by default
     expect(willUpdateContext) == RenderableUpdateContext(
-      updateType: .scroll,
+      updateType: .boundsChange,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+      previousRenderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
+      renderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
       isAnimated: true,
       animationTiming: nil,
       contentView: view
     )
     expect(updateContext) == RenderableUpdateContext(
-      updateType: .scroll,
+      updateType: .boundsChange,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
+      previousRenderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
+      renderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
       isAnimated: true,
       animationTiming: nil,
       contentView: view
@@ -189,6 +201,9 @@ class ComposeView_RenderableTests: XCTestCase {
       updateType: .boundsChange,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
+      previousRenderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
+      renderBounds: CGRect(origin: view.contentOffset(), size: CGSize(width: 200, height: 200)),
+      isAnimated: true,
       animationTiming: nil,
       contentView: view
     )
@@ -196,6 +211,9 @@ class ComposeView_RenderableTests: XCTestCase {
       updateType: .boundsChange,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
+      previousRenderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
+      renderBounds: CGRect(origin: view.contentOffset(), size: CGSize(width: 200, height: 200)),
+      isAnimated: true,
       animationTiming: nil,
       contentView: view
     )

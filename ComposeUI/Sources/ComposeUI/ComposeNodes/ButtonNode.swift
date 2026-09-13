@@ -108,8 +108,7 @@ public struct ButtonNode: ComposeNode {
         case .insert,
              .refresh:
           break
-        case .scroll,
-             .boundsChange:
+        case .boundsChange:
           return
         }
 
