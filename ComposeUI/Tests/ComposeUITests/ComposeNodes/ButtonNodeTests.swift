@@ -157,7 +157,7 @@ class ButtonNodeTests: XCTestCase {
           let contentView = ComposeView()
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+          let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
           item.update(renderable, context)
           let view = try (renderable.view as? ButtonView).unwrap()
           let viewLookup = DynamicLookup(view)
@@ -176,18 +176,20 @@ class ButtonNodeTests: XCTestCase {
           let contentView = ComposeView()
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          // scroll doesn't trigger update
+          // when: updating for a scroll
           do {
-            let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds, renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), animationTiming: nil, contentView: contentView)
             item.update(renderable, context)
             let view = try (renderable.view as? ButtonView).unwrap()
             let viewLookup = DynamicLookup(view)
-            expect(viewLookup.property("onTap")) == nil // doesn't update
+
+            // then: scrolling does not configure the button
+            expect(viewLookup.property("onTap")) == nil
           }
 
-          // when: updating for a bounds change
+          // when: updating for a viewport resize
           do {
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView)
             item.update(renderable, context)
             let view = try (renderable.view as? ButtonView).unwrap()
             let viewLookup = DynamicLookup(view)
@@ -246,9 +248,9 @@ class ButtonNodeTests: XCTestCase {
     let item = try node.renderableItems(in: frame).first.unwrap()
     let renderable = Renderable.view(button)
 
-    for updateType in [RenderableUpdateType.scroll, .boundsChange] {
-      // when: updating geometry without an explicit refresh
-      item.update(renderable, RenderableUpdateContext(updateType: updateType, oldFrame: frame, newFrame: frame, animationTiming: nil, contentView: nil))
+    for renderBounds in [frame.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
+      // when: scrolling or resizing without an explicit refresh
+      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: renderBounds, animationTiming: nil, contentView: nil))
       button.setNeedsLayout()
       button.layoutIfNeeded()
       button.onDoubleTap?()
@@ -259,7 +261,7 @@ class ButtonNodeTests: XCTestCase {
     }
 
     // when: explicitly refreshing the configuration
-    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, animationTiming: nil, contentView: nil))
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil))
     button.onDoubleTap?()
 
     // then: the new content and handler replace the prior configuration

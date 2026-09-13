@@ -101,7 +101,7 @@ class ColorNodeTests: XCTestCase {
 
           // without animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.backgroundColor) == Color.red.cgColor
@@ -110,7 +110,7 @@ class ColorNodeTests: XCTestCase {
 
           // with animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.backgroundColor) == Color.red.cgColor
@@ -129,7 +129,7 @@ class ColorNodeTests: XCTestCase {
 
           // without animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.backgroundColor) == Color.blue.cgColor
@@ -138,7 +138,7 @@ class ColorNodeTests: XCTestCase {
 
           // with animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.backgroundColor) == Color.blue.cgColor
@@ -158,28 +158,28 @@ class ColorNodeTests: XCTestCase {
         let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
         // when: updating for a scroll
-        item.update(renderable, RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds, renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), animationTiming: nil, contentView: contentView))
 
         // then: the background color is not applied
         expect(renderable.layer.backgroundColor) == nil
 
-        // when: updating for a bounds change
-        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
+        // when: updating for a viewport resize
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView))
 
         // then: geometry updates do not initialize configuration
         expect(renderable.layer.backgroundColor) == nil
 
         // when: inserting the renderable
-        item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
+        item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView))
 
         // then: insertion applies the configured color
         expect(renderable.layer.backgroundColor) == Color.red.cgColor
 
         // given: a different theme before refresh
         contentView.overrideTheme = .dark
-        for updateType in [RenderableUpdateType.scroll, .boundsChange] {
-          // when: updating geometry with an animation timing
-          item.update(renderable, RenderableUpdateContext(updateType: updateType, oldFrame: .zero, newFrame: .zero, animationTiming: .easeInEaseOut(), contentView: contentView))
+        for renderBounds in [visibleBounds.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
+          // when: scrolling or resizing with an animation timing
+          item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds, renderBounds: renderBounds, animationTiming: .easeInEaseOut(), contentView: contentView))
 
           // then: geometry updates retain the applied color without animation
           expect(renderable.layer.backgroundColor) == Color.red.cgColor
@@ -187,7 +187,7 @@ class ColorNodeTests: XCTestCase {
         }
 
         // when: refreshing with the different theme
-        item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
+        item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView))
 
         // then: the background color reflects the current theme
         expect(renderable.layer.backgroundColor) == Color.blue.cgColor
@@ -364,7 +364,7 @@ class ColorNodeTests: XCTestCase {
 
     // then: the retained layer keeps its color and the newly visible layer is initialized
     let insertedLayer = try secondLayer.unwrap()
-    expect(firstUpdateType) == .scroll
+    expect(firstUpdateType) == .boundsChange
     expect(firstLayer === retainedLayer) == true
     expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
     expect(retainedLayer.backgroundColor) == Color.red.cgColor
@@ -395,7 +395,7 @@ class ColorNodeTests: XCTestCase {
     let contentView = ComposeView()
     contentView.overrideTheme = .light
     let renderable = item.make(RenderableMakeContext(initialFrame: .zero, contentView: contentView))
-    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView))
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView))
     expect(renderable.layer.backgroundColor) == Color.red.cgColor
 
     // when: resetting the renderable for reuse

@@ -147,8 +147,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
           case .insert,
                .refresh:
             break
-          case .boundsChange,
-               .scroll:
+          case .boundsChange:
             return
           }
 

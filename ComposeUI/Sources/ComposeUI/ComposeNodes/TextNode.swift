@@ -331,8 +331,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
           case .insert,
                .refresh:
             break
-          case .scroll,
-               .boundsChange:
+          case .boundsChange:
             return
           }
           TextNode.updateTextView(

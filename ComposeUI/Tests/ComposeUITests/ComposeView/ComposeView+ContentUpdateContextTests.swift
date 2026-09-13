@@ -39,14 +39,16 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let node = ComposeView.LayoutCacheNode(node: ColorNode(.red))
     let evaluation = ContentEvaluation()
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let original = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds)
-    let same = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds)
+    let original = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds)
+    let same = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds)
     let different = [
-      ComposeView.ContentUpdateContext(contentNode: ComposeView.LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: ContentEvaluation(), updateType: .refresh(isAnimated: false), renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: true), renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange(previousRenderBounds: .zero), renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), renderBounds: .zero),
+      ComposeView.ContentUpdateContext(contentNode: ComposeView.LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: ContentEvaluation(), updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: true), previousRenderBounds: .zero, renderBounds: bounds),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: .zero, renderBounds: bounds),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: .zero),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: bounds, renderBounds: bounds),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: nil, renderBounds: bounds),
     ]
 
     // then: content identity and every update field participate in equality
@@ -112,7 +114,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(pass?.contentNode) === initial.contentNode
     expect(pass?.contentEvaluation) === initial.contentEvaluation
     expect(itemContext?.contentEvaluation) === initial.contentEvaluation
-    expect(itemContext?.updateType) == .scroll
+    expect(itemContext?.updateType) == .boundsChange
     expect(originalLayer.backgroundColor) == Color.red.cgColor
 
     // when: an explicit refresh replaces the content
@@ -136,7 +138,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let originalNode = contentNode
     let originalEvaluation = contentEvaluation
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let pass = ComposeView.ContentUpdateContext(contentNode: contentNode, contentEvaluation: contentEvaluation, updateType: .refresh(isAnimated: false), renderBounds: bounds)
+    let pass = ComposeView.ContentUpdateContext(contentNode: contentNode, contentEvaluation: contentEvaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds)
     let originalValue = pass.contentEvaluation.lazyValue(for: provider)
 
     // when: a later refresh selects different content while the earlier pass is retained
@@ -146,7 +148,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let item = try unwrap(pass.contentNode.renderableItems(in: bounds).first)
     let view = ComposeView()
     let renderable = item.make(RenderableMakeContext(initialFrame: item.frame, contentView: view))
-    item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: item.frame, animationTiming: nil, contentView: view, contentEvaluation: pass.contentEvaluation))
+    item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: .zero, renderBounds: bounds, animationTiming: nil, contentView: view, contentEvaluation: pass.contentEvaluation))
 
     // then: the pass still measures and renders its original node and evaluation
     expect(pass.contentNode) === originalNode
@@ -174,9 +176,9 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: insertion during a size change is not animated
+    // then: first insertion during a size change allows configured transitions
     expect(itemContext?.updateType) == .insert
-    expect(itemContext?.isAnimated) == false
+    expect(itemContext?.isAnimated) == true
 
     for animated in [true, false] {
       // when: the view refreshes with an explicit animation flag
@@ -192,7 +194,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     view.layoutIfNeeded()
 
     // then: a scroll pass animates by default
-    expect(itemContext?.updateType) == .scroll
+    expect(itemContext?.updateType) == .boundsChange
     expect(itemContext?.isAnimated) == true
 
     // when: the view resizes
@@ -200,9 +202,9 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: a size change is not animated
+    // then: a size change also allows configured animations
     expect(itemContext?.updateType) == .boundsChange
-    expect(itemContext?.isAnimated) == false
+    expect(itemContext?.isAnimated) == true
 
     // when: animations are disabled and an animated refresh is requested
     view.animationBehavior = .disabled
@@ -216,8 +218,8 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     var dynamicRenderTypes: [ComposeView.RenderType] = []
     view.animationBehavior = .dynamic { _, renderType in
       dynamicRenderTypes.append(renderType)
-      if case .scroll = renderType {
-        return true
+      if case .boundsChange(let previousBounds, let bounds) = renderType {
+        return previousBounds?.size == bounds.size
       }
       return false
     }
@@ -233,8 +235,8 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     view.layoutIfNeeded()
 
     // then: the closure sees the scroll and its decision reaches the item
-    expect(dynamicRenderTypes.last) == .scroll(previousBounds: CGRect(x: 0, y: 20, width: 150, height: 100))
-    expect(itemContext?.updateType) == .scroll
+    expect(dynamicRenderTypes.last) == .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 150, height: 100), bounds: CGRect(x: 0, y: 40, width: 150, height: 100))
+    expect(itemContext?.updateType) == .boundsChange
     expect(itemContext?.isAnimated) == true
 
     // when: another view's first render is an animated refresh
@@ -254,6 +256,35 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(insertContext?.isAnimated) == true
   }
 
+  func test_initialBoundsUpdate_allowsAnimationsAndPreservesRenderType() {
+    // given: initial passes have no completed viewport to report
+    let view = ComposeView()
+    let node = ComposeView.LayoutCacheNode(node: ColorNode(.red))
+    let evaluation = ContentEvaluation()
+    let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let initial = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: nil, renderBounds: bounds)
+    let initialZero = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: nil, renderBounds: .zero)
+
+    // then: both initial bounds updates allow animation and preserve missing history
+    expect(initial.renderType(bounds: bounds)) == .boundsChange(previousBounds: nil, bounds: bounds)
+    expect(initial.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
+    expect(initialZero.renderType(bounds: .zero)) == .boundsChange(previousBounds: nil, bounds: .zero)
+    expect(initialZero.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: .zero)) == true
+    expect(initial.previousRenderBounds) == nil
+    expect(initialZero.previousRenderBounds) == nil
+
+    // when: dynamic behavior observes the initial pass
+    var observedType: ComposeView.RenderType?
+    let isAnimated = initial.shouldAnimate(contentView: view, animationBehavior: .dynamic { _, renderType in
+      observedType = renderType
+      return true
+    }, renderBounds: bounds)
+
+    // then: the dynamic override receives current bounds without inventing previous bounds
+    expect(observedType) == .boundsChange(previousBounds: nil, bounds: bounds)
+    expect(isAnimated) == true
+  }
+
   func test_shouldAnimate() {
     // given: update contexts for an animated refresh, a non-animated refresh, a scroll, and a size change
     let view = ComposeView()
@@ -262,24 +293,26 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let scrolledBounds = CGRect(x: 0, y: 20, width: 100, height: 100)
     let resizedBounds = CGRect(x: 0, y: 0, width: 50, height: 100)
-    func makeContext(_ updateType: ComposeView.ContentUpdateContext.ContentUpdateType) -> ComposeView.ContentUpdateContext {
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: updateType, renderBounds: bounds)
+    func makeContext(_ updateType: ComposeView.ContentUpdateContext.ContentUpdateType, previousRenderBounds: CGRect?) -> ComposeView.ContentUpdateContext {
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: updateType, previousRenderBounds: previousRenderBounds, renderBounds: bounds)
     }
-    let animatedRefresh = makeContext(.refresh(isAnimated: true))
-    let refresh = makeContext(.refresh(isAnimated: false))
-    let scroll = makeContext(.boundsChange(previousRenderBounds: scrolledBounds))
-    let sizeChange = makeContext(.boundsChange(previousRenderBounds: resizedBounds))
-    let contexts = [animatedRefresh, refresh, scroll, sizeChange]
+    let animatedRefresh = makeContext(.refresh(isAnimated: true), previousRenderBounds: .zero)
+    let refresh = makeContext(.refresh(isAnimated: false), previousRenderBounds: .zero)
+    let scroll = makeContext(.boundsChange, previousRenderBounds: scrolledBounds)
+    let sizeChange = makeContext(.boundsChange, previousRenderBounds: resizedBounds)
+    let combinedChange = makeContext(.boundsChange, previousRenderBounds: resizedBounds.offsetBy(dx: 0, dy: 20))
+    let contexts = [animatedRefresh, refresh, scroll, sizeChange, combinedChange]
 
-    // then: the default behavior animates animated refreshes and scrolls only
-    expect(animatedRefresh.shouldAnimate(contentView: view, animationBehavior: .default)) == true
-    expect(refresh.shouldAnimate(contentView: view, animationBehavior: .default)) == false
-    expect(scroll.shouldAnimate(contentView: view, animationBehavior: .default)) == true
-    expect(sizeChange.shouldAnimate(contentView: view, animationBehavior: .default)) == false
+    // then: the default behavior allows animation for animated refreshes and all bounds changes
+    expect(animatedRefresh.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
+    expect(refresh.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == false
+    expect(scroll.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
+    expect(sizeChange.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
+    expect(combinedChange.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
 
     // then: the disabled behavior never animates
     for context in contexts {
-      expect(context.shouldAnimate(contentView: view, animationBehavior: .disabled)) == false
+      expect(context.shouldAnimate(contentView: view, animationBehavior: .disabled, renderBounds: bounds)) == false
     }
 
     // then: the dynamic behavior receives the view and the render type for each update, and its decision is returned
@@ -292,15 +325,16 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
         return decision
       }
       for context in contexts {
-        expect(context.shouldAnimate(contentView: view, animationBehavior: behavior)) == decision
+        expect(context.shouldAnimate(contentView: view, animationBehavior: behavior, renderBounds: bounds)) == decision
       }
       expect(receivedViews.count) == contexts.count
       expect(receivedViews.allSatisfy { $0 === view }) == true
       expect(receivedRenderTypes) == [
         .refresh(isAnimated: true),
         .refresh(isAnimated: false),
-        .scroll(previousBounds: scrolledBounds),
-        .boundsChange(previousBounds: resizedBounds),
+        .boundsChange(previousBounds: scrolledBounds, bounds: bounds),
+        .boundsChange(previousBounds: resizedBounds, bounds: bounds),
+        .boundsChange(previousBounds: resizedBounds.offsetBy(dx: 0, dy: 20), bounds: bounds),
       ]
     }
   }

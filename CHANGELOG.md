@@ -4,6 +4,10 @@
 
 ### Breaking Changes
 
+- Replaced `ComposeView.RenderType.scroll` with `.boundsChange(previousBounds:bounds:)`.
+- Resizing now runs configured animations and transitions by default, including on the first bounds-driven render.
+- Shadow paths now follow renderable size instead of viewport size. Request a refresh when other path inputs change.
+- Merged `RenderableUpdateType.scroll` into `.boundsChange`. Use the supplied bounds to distinguish scrolling from resizing.
 - Removed `RenderableUpdateType.requiresFullUpdate`. Handle update types explicitly according to the renderable's dependencies, including bounds-dependent drawing and scroll effects.
 - Resizing `ComposeView` now lays out its existing content without reevaluating the content builder. Request `refresh()` or `setNeedsRefresh()` to apply changed configuration.
 - `SwiftUIViewNode` now evaluates dynamic content lazily when measurement or insertion first needs it and reuses that value until refresh.
@@ -13,6 +17,8 @@
 
 ### Changes
 
+- Added previous and current viewport bounds to `RenderableUpdateContext`.
+- Fixed stale scroll offsets after content-size changes.
 - `ComposeViewNode` now updates an already-mounted child view's content when the parent is refreshed. The child renders within the parent's render pass. Properties set on the child view in `onInsert` or `onUpdate` no longer apply to its first render. Set them in `willInsert` or `willUpdate` instead.
 - `RenderableUpdateContext` gains `isAnimated`, whether the render pass is animated.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.

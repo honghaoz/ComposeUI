@@ -38,11 +38,11 @@ extension ComposeView {
     /// The type of the content update.
     enum ContentUpdateType: Equatable {
 
-      /// Explicit refresh request, with a flag to indicate if the refresh is animated.
+      /// An application-requested or environment-triggered refresh with its animation preference.
       case refresh(isAnimated: Bool)
 
-      /// The view bounds changed, the previous render bounds is provided.
-      case boundsChange(previousRenderBounds: CGRect)
+      /// A bounds update using retained content.
+      case boundsChange
     }
 
     /// The root layout node used for this update.
@@ -54,7 +54,10 @@ extension ComposeView {
     /// The content update type.
     let updateType: ContentUpdateType
 
-    /// The bounds used for rendering.
+    /// The bounds from the last completed render pass, or nil before the first render.
+    let previousRenderBounds: CGRect?
+
+    /// The viewport bounds proposed for this pass's layout.
     let renderBounds: CGRect
 
     // MARK: - Equatable
@@ -63,41 +66,37 @@ extension ComposeView {
       lhs.contentNode === rhs.contentNode &&
         lhs.contentEvaluation === rhs.contentEvaluation &&
         lhs.updateType == rhs.updateType &&
+        lhs.previousRenderBounds == rhs.previousRenderBounds &&
         lhs.renderBounds == rhs.renderBounds
+    }
+
+    /// The render type describes the update using the viewport available at the current callback phase.
+    ///
+    /// - Parameter bounds: The viewport used by the callback, without applying `visibleBoundsInsets`.
+    func renderType(bounds: CGRect) -> RenderType {
+      switch updateType {
+      case .refresh(let isAnimated):
+        return .refresh(isAnimated: isAnimated)
+      case .boundsChange:
+        return .boundsChange(previousBounds: previousRenderBounds, bounds: bounds)
+      }
     }
 
     // MARK: - Animation Helper
 
-    func shouldAnimate(contentView: ComposeView, animationBehavior: AnimationBehavior) -> Bool {
+    func shouldAnimate(contentView: ComposeView, animationBehavior: AnimationBehavior, renderBounds: CGRect) -> Bool {
       switch animationBehavior {
       case .default:
         switch updateType {
         case .refresh(let isAnimated):
           return isAnimated
-        case .boundsChange(let previousRenderBounds):
-          if previousRenderBounds.size == renderBounds.size {
-            // scroll
-            return true
-          } else {
-            // size change
-            return false
-          }
+        case .boundsChange:
+          return true
         }
       case .disabled:
         return false
       case .dynamic(let shouldAnimate):
-        let renderType: ComposeView.RenderType
-        switch updateType {
-        case .refresh(let isAnimated):
-          renderType = .refresh(isAnimated: isAnimated)
-        case .boundsChange(let previousRenderBounds):
-          if previousRenderBounds.size == renderBounds.size {
-            renderType = .scroll(previousBounds: previousRenderBounds)
-          } else {
-            renderType = .boundsChange(previousBounds: previousRenderBounds)
-          }
-        }
-        return shouldAnimate(contentView, renderType)
+        return shouldAnimate(contentView, renderType(bounds: renderBounds))
       }
     }
   }

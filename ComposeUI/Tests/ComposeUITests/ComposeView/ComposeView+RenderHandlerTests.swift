@@ -110,16 +110,16 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(callOrder) == ["willLayout", "willRender", "didRender"]
 
     expect(willLayoutContainerSize) == CGSize(width: 150, height: 150)
-    expect(willLayoutRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100))
+    expect(willLayoutRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 0, width: 150, height: 150))
 
     // the content (50x80) is still smaller than the new container (150x150), so content size is adjusted
     expect(willRenderContentSize) == CGSize(width: 150, height: 150)
     expect(willRenderRenderBounds) == CGRect(x: 0, y: 0, width: 150, height: 150)
-    expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100))
+    expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 0, width: 150, height: 150))
 
     expect(didRenderContentSize) == CGSize(width: 150, height: 150)
     expect(didRenderRenderBounds) == CGRect(x: 0, y: 0, width: 150, height: 150)
-    expect(didRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100))
+    expect(didRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 0, width: 150, height: 150))
   }
 
   func test_renderHandlers_contentSizeLargerThanContainerSize() {
@@ -198,15 +198,15 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(callOrder) == ["willLayout", "willRender", "didRender"]
 
     expect(willLayoutContainerSize) == CGSize(width: 100, height: 100)
-    expect(willLayoutRenderType) == .scroll(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100))
+    expect(willLayoutRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 100, height: 100))
 
     expect(willRenderContentSize) == CGSize(width: 100, height: 200)
     expect(willRenderRenderBounds) == CGRect(x: 0, y: 50, width: 100, height: 100)
-    expect(willRenderRenderType) == .scroll(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100))
+    expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 100, height: 100))
 
     expect(didRenderContentSize) == CGSize(width: 100, height: 200)
     expect(didRenderRenderBounds) == CGRect(x: 0, y: 50, width: 100, height: 100)
-    expect(didRenderRenderType) == .scroll(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100))
+    expect(didRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 100, height: 100))
 
     // when: the view is resized
     callOrder = []
@@ -226,16 +226,16 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(callOrder) == ["willLayout", "willRender", "didRender"]
 
     expect(willLayoutContainerSize) == CGSize(width: 150, height: 150)
-    expect(willLayoutRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 50, width: 100, height: 100))
+    expect(willLayoutRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 50, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 150, height: 150))
 
     // the content width (100) is now smaller than the container width (150), so content size width is adjusted
     expect(willRenderContentSize) == CGSize(width: 150, height: 200)
     expect(willRenderRenderBounds) == CGRect(x: 0, y: 50, width: 150, height: 150)
-    expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 50, width: 100, height: 100))
+    expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 50, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 150, height: 150))
 
     expect(didRenderContentSize) == CGSize(width: 150, height: 200)
     expect(didRenderRenderBounds) == CGRect(x: 0, y: 50, width: 150, height: 150)
-    expect(didRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 50, width: 100, height: 100))
+    expect(didRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 50, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 150, height: 150))
   }
 
   func test_willRenderHandler() {
@@ -297,7 +297,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(willRenderCallCount) == 2
     expect(willRenderContentSize) == CGSize(width: 100, height: 200)
     expect(willRenderRenderBounds) == CGRect(x: 0, y: 10, width: 100, height: 100)
-    expect(willRenderRenderType) == .scroll(previousBounds: CGRect(x: 0, y: 100, width: 100, height: 100))
+    expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 100, width: 100, height: 100), bounds: CGRect(x: 0, y: 10, width: 100, height: 100))
     expect(view.contentOffset().y) == 100
 
     expect(eventOrder) == ["willRender", "renderItems", "willRender", "renderItems"]
@@ -315,7 +315,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(willRenderCallCount) == 3
     expect(willRenderContentSize) == CGSize(width: 150, height: 200)
     expect(willRenderRenderBounds) == CGRect(x: 0, y: 50, width: 150, height: 150)
-    expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 100, width: 100, height: 100))
+    expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 100, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 150, height: 150))
     #if canImport(AppKit)
     expect(view.contentOffset().y) == 50 // AppKit doesn't allow over scroll
     #endif
@@ -332,6 +332,215 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     #if canImport(UIKit)
     expect(requestedVisibleBounds) == CGRect(x: -25, y: 100, width: 150, height: 150)
     #endif
+  }
+
+  func test_boundsChange_renderTypeMatchesEachCallbackViewport() throws {
+    // given: a view whose dynamic animation policy uses the bounds supplied with the render type
+    var willLayoutType: ComposeView.RenderType?
+    var willRenderContext: ComposeView.WillRenderContext?
+    var didRenderContext: ComposeView.DidRenderContext?
+    var animationTypes: [ComposeView.RenderType] = []
+    var itemContext: RenderableUpdateContext?
+    var layer: CALayer?
+    var adjustedOffset: CGFloat?
+    let timing = AnimationTiming.linear(duration: 10)
+    let view = ComposeView {
+      LayerNode<CALayer>(update: { renderable, context in
+        renderable.cornerRadius = context.renderBounds.minY
+        layer = renderable
+        itemContext = context
+      })
+      .frame(width: .flexible, height: 400)
+      .animation(timing)
+    }
+    view.visibleBoundsInsets = EdgeInsets(top: -20, left: -10, bottom: -30, right: -10)
+    view.onWillLayout { _, context in
+      willLayoutType = context.renderType
+    }
+    view.onWillRender { contentView, context in
+      willRenderContext = context
+      if let adjustedOffset {
+        contentView.setContentOffset(CGPoint(x: 0, y: adjustedOffset))
+      }
+    }
+    view.onDidRender { _, context in
+      didRenderContext = context
+    }
+    view.animationBehavior = .dynamic { _, renderType in
+      animationTypes.append(renderType)
+      if case .boundsChange(_, let bounds) = renderType {
+        return bounds.minY == 40
+      }
+      return false
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the first bounds-driven pass renders without previous history
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: all callbacks report nil previous bounds and the actual viewport, without visibility insets
+    let initialBounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let initialType = ComposeView.RenderType.boundsChange(previousBounds: nil, bounds: initialBounds)
+    let renderedLayer = try unwrap(layer)
+    expect(willLayoutType) == initialType
+    expect(willRenderContext?.renderType) == initialType
+    expect(willRenderContext?.renderBounds) == initialBounds
+    expect(didRenderContext?.renderType) == initialType
+    expect(didRenderContext?.renderBounds) == initialBounds
+    expect(animationTypes) == [initialType]
+    expect(itemContext?.isAnimated) == false
+    expect(renderedLayer.cornerRadius) == 0
+
+    // when: resizing also adjusts the offset from onWillRender
+    animationTypes.removeAll()
+    adjustedOffset = 40
+    view.frame.size.width = 150
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: early callbacks use the proposed viewport, while animation and completion use the adjusted viewport
+    let proposedBounds = CGRect(x: 0, y: 0, width: 150, height: 100)
+    let finalBounds = CGRect(x: 0, y: 40, width: 150, height: 100)
+    let finalType = ComposeView.RenderType.boundsChange(previousBounds: initialBounds, bounds: finalBounds)
+    expect(willLayoutType) == .boundsChange(previousBounds: initialBounds, bounds: proposedBounds)
+    expect(willRenderContext?.renderType) == .boundsChange(previousBounds: initialBounds, bounds: proposedBounds)
+    expect(willRenderContext?.renderBounds) == proposedBounds
+    expect(didRenderContext?.renderType) == finalType
+    expect(didRenderContext?.renderBounds) == finalBounds
+    expect(animationTypes) == [finalType]
+    expect(itemContext?.isAnimated) == true
+    expect(itemContext?.animationTiming) == timing
+    expect(itemContext?.renderBounds) == finalBounds
+    expect(layer) === renderedLayer
+    expect(renderedLayer.frame) == CGRect(x: 0, y: 0, width: 150, height: 400)
+    expect(renderedLayer.cornerRadius) == 40
+    let animation = try unwrap(renderedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
+    expect(animation.fromValue as? CGSize) == CGSize(width: -50, height: 0)
+    expect(animation.toValue as? CGSize) == .zero
+    expect(animation.isAdditive) == true
+    renderedLayer.removeAllAnimations()
+
+    // when: a later scroll uses the completed adjusted viewport as history
+    adjustedOffset = nil
+    animationTypes.removeAll()
+    view.setContentOffset(CGPoint(x: 0, y: 60))
+    view.layoutIfNeeded()
+
+    // then: scrolling uses the same public case and the dynamic policy can reject its new bounds
+    let scrolledBounds = CGRect(x: 0, y: 60, width: 150, height: 100)
+    let scrollType = ComposeView.RenderType.boundsChange(previousBounds: finalBounds, bounds: scrolledBounds)
+    expect(willLayoutType) == scrollType
+    expect(willRenderContext?.renderType) == scrollType
+    expect(didRenderContext?.renderType) == scrollType
+    expect(animationTypes) == [scrollType]
+    expect(itemContext?.isAnimated) == false
+    expect(itemContext?.animationTiming) == nil
+    expect(renderedLayer.cornerRadius) == 60
+    expect(renderedLayer.animationKeys()) == nil
+  }
+
+  func test_boundsChange_keepsSnapshotsWhenAnItemChangesLiveBounds() throws {
+    // given: the first renderable may change the live offset during an item update
+    var changesOffset = false
+    var animationTypes: [ComposeView.RenderType] = []
+    var itemContexts: [RenderableUpdateContext] = []
+    var layers: [CALayer] = []
+    var didRenderContext: ComposeView.DidRenderContext?
+    let view = ComposeView {
+      ZStack {
+        for index in 0 ..< 2 {
+          LayerNode<CALayer>(update: { renderable, context in
+            if index == 0, changesOffset {
+              changesOffset = false
+              context.contentView.setContentOffset(CGPoint(x: 0, y: 40))
+            }
+            renderable.cornerRadius = context.renderBounds.minY
+            layers.append(renderable)
+            itemContexts.append(context)
+          })
+          .frame(width: .flexible, height: 400)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    layers.removeAll()
+    itemContexts.removeAll()
+    view.onDidRender { _, context in
+      didRenderContext = context
+    }
+    view.animationBehavior = .dynamic { _, renderType in
+      animationTypes.append(renderType)
+      return true
+    }
+    changesOffset = true
+
+    // when: a size change renders and the first item moves the live viewport
+    view.frame.size.width = 150
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: all policies and items keep the bounds chosen before item updates, despite the live offset change
+    let initialBounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let passBounds = CGRect(x: 0, y: 0, width: 150, height: 100)
+    let expectedType = ComposeView.RenderType.boundsChange(previousBounds: initialBounds, bounds: passBounds)
+    expect(view.contentOffset().y) == 40
+    expect(animationTypes) == [expectedType, expectedType]
+    expect(didRenderContext?.renderType) == expectedType
+    expect(didRenderContext?.renderBounds) == passBounds
+    expect(itemContexts.count) == 2
+    for context in itemContexts {
+      expect(context.previousRenderBounds) == initialBounds
+      expect(context.renderBounds) == passBounds
+    }
+    for layer in layers {
+      expect(layer.cornerRadius) == 0
+    }
+
+    // when: the next layout renders the changed live offset
+    animationTypes.removeAll()
+    itemContexts.removeAll()
+    layers.removeAll()
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: the next pass reports the scroll from the last completed viewport
+    let scrolledBounds = CGRect(x: 0, y: 40, width: 150, height: 100)
+    let scrolledType = ComposeView.RenderType.boundsChange(previousBounds: passBounds, bounds: scrolledBounds)
+    expect(animationTypes) == [scrolledType, scrolledType]
+    expect(didRenderContext?.renderType) == scrolledType
+    expect(didRenderContext?.renderBounds) == scrolledBounds
+    for layer in layers {
+      expect(layer.cornerRadius) == 40
+    }
+  }
+
+  func test_boundsChange_reportsCompletedZeroBoundsInsteadOfMissingHistory() throws {
+    // given: a host completes a render at zero size before any renderable is visible
+    var layer: CALayer?
+    var renderType: ComposeView.RenderType?
+    let view = ComposeView {
+      LayerNode<CALayer>(update: { renderable, _ in
+        renderable.backgroundColor = Color.red.cgColor
+        layer = renderable
+      })
+    }
+    view.refresh(animated: false)
+    view.onDidRender { _, context in
+      renderType = context.renderType
+    }
+
+    // when: a size change makes the first renderable visible
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // then: history is a real zero viewport, not nil merely because the renderable is being inserted
+    let renderedLayer = try unwrap(layer)
+    expect(renderType) == .boundsChange(previousBounds: .zero, bounds: CGRect(x: 0, y: 0, width: 100, height: 100))
+    expect(renderedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(renderedLayer.backgroundColor) == Color.red.cgColor
   }
 
   func test_willRenderHandler_boundsSizeChanged() {

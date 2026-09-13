@@ -184,7 +184,7 @@ class InnerShadowNodeTests: XCTestCase {
 
           // without animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -213,7 +213,7 @@ class InnerShadowNodeTests: XCTestCase {
           do {
             ComposeUI.Assert.setTestAssertionFailureHandler(nil)
 
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -249,7 +249,7 @@ class InnerShadowNodeTests: XCTestCase {
 
           // without animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -278,7 +278,7 @@ class InnerShadowNodeTests: XCTestCase {
           do {
             ComposeUI.Assert.setTestAssertionFailureHandler(nil)
 
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -312,27 +312,54 @@ class InnerShadowNodeTests: XCTestCase {
           contentView.overrideTheme = .light
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          // scroll doesn't trigger update
-          do {
-            let context = RenderableUpdateContext(updateType: .scroll, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+          for animationTiming in [nil, AnimationTiming.easeInEaseOut()] {
+            // when: scrolling with or without animation
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: renderable.frame, newFrame: renderable.frame, previousRenderBounds: visibleBounds, renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), animationTiming: animationTiming, contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
-            expect(layer.shadowOpacity) == 0 // doesn't update
-            expect(layer.shadowRadius) == 3 // doesn't update
-            expect(layer.shadowOffset) == CGSize(width: 0, height: -3) // doesn't update
-            expect(layer.mask) == nil // doesn't update
+
+            // then: the shadow remains unconfigured without animations
+            expect(layer.shadowOpacity) == 0
+            expect(layer.shadowRadius) == 3
+            expect(layer.shadowOffset) == CGSize(width: 0, height: -3)
+            expect(layer.shadowPath) == nil
+            expect(layer.mask) == nil
+            expect(layer.animationKeys()) == nil
           }
 
-          // bounds change triggers update
+          // when: resizing the viewport without changing the renderable's frame
           do {
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: renderable.frame, newFrame: renderable.frame, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView)
             item.update(renderable, context)
             let layer = renderable.layer
+
+            // then: the viewport change does not configure the unchanged renderable
+            expect(layer.shadowOpacity) == 0
+            expect(layer.shadowRadius) == 3
+            expect(layer.shadowOffset) == CGSize(width: 0, height: -3)
+            expect(layer.shadowPath) == nil
+            expect(layer.mask) == nil
+            expect(layer.animationKeys()) == nil
+          }
+
+          // when: resizing the renderable with unchanged viewport bounds
+          do {
+            let oldFrame = renderable.frame
+            let newFrame = CGRect(x: 1, y: 2, width: 6, height: 8)
+            let layer = renderable.layer
+            layer.disableActions { layer.frame = newFrame }
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: newFrame, previousRenderBounds: visibleBounds, renderBounds: visibleBounds, animationTiming: nil, contentView: contentView)
+            item.update(renderable, context)
+
+            // then: the shadow and clip paths use the renderable's new size
             expect(layer.shadowColor) == Color.red.cgColor
             expect(layer.shadowOpacity) == 0.5
             expect(layer.shadowRadius) == 10
             expect(layer.shadowOffset) == CGSize(width: 2, height: 5)
-            expect(layer.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
+            expect(layer.shadowPath) == CGPath(rect: CGRect(origin: .zero, size: newFrame.size), transform: nil)
+            let mask = try unwrap(layer.mask as? CAShapeLayer)
+            expect(mask.frame) == CGRect(origin: .zero, size: newFrame.size)
+            expect(mask.path) == layer.shadowPath
           }
         }
       }
@@ -345,6 +372,101 @@ class InnerShadowNodeTests: XCTestCase {
 
       // then: no items are provided
       expect(items.count) == 0
+    }
+  }
+
+  func test_boundsChange_updatesPathsOnlyForRenderableResize() throws {
+    for animationTiming in [nil, AnimationTiming.easeInEaseOut()] {
+      // given: local shadow and clip paths with an external input that requires refresh
+      let window = TestWindow()
+      let contentView = ComposeView()
+      let viewport = CGRect(x: 0, y: 0, width: 200, height: 200)
+      let frame = CGRect(x: 0, y: 0, width: 40, height: 40)
+      var inset: CGFloat = 0
+      var node = InnerShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, paths: { renderable in
+        let bounds = renderable.layer.bounds
+        return InnerShadowPaths(
+          shadowPath: CGPath(rect: bounds.insetBy(dx: inset, dy: inset), transform: nil),
+          clipPath: CGPath(rect: bounds.insetBy(dx: inset / 2, dy: inset / 2), transform: nil)
+        )
+      })
+      _ = node.layout(containerSize: frame.size, context: ComposeNodeLayoutContext(scaleFactor: 1))
+      let item = try unwrap(node.renderableItems(in: frame).first)
+      let renderable = item.make(RenderableMakeContext(initialFrame: frame, contentView: contentView))
+      let layer = renderable.layer
+      window.layer.addSublayer(layer)
+
+      // when: inserting at the already assigned frame
+      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView))
+
+      // then: both paths are initialized even though the size did not change
+      let initialPath = CGPath(rect: layer.bounds, transform: nil)
+      let mask = try unwrap(layer.mask as? CAShapeLayer)
+      expect(layer.shadowPath) == initialPath
+      expect(mask.path) == initialPath
+      expect(layer.shadowColor) == Color.red.cgColor
+      CATransaction.flush()
+      inset = 2
+
+      // when: only the viewport changes, including missing viewport history
+      for previousBounds in [viewport, nil] {
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: previousBounds, renderBounds: CGRect(x: 0, y: 20, width: 300, height: 250), animationTiming: animationTiming, contentView: contentView))
+
+        // then: both local paths and their animation state remain unchanged
+        expect(layer.shadowPath) == initialPath
+        expect(mask.path) == initialPath
+        expect(layer.animationKeys()) == nil
+        expect(mask.animationKeys()) == nil
+      }
+
+      // when: the renderable moves without changing size
+      let movedFrame = frame.offsetBy(dx: 10, dy: 20)
+      layer.disableActions { layer.frame = movedFrame }
+      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: movedFrame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+
+      // then: position-only updates preserve the paths
+      expect(layer.shadowPath) == initialPath
+      expect(mask.path) == initialPath
+      expect(layer.animationKeys()) == nil
+      expect(mask.animationKeys()) == nil
+
+      // when: resizing each dimension without a viewport change, replacing any preceding path animation
+      for size in [CGSize(width: 60, height: 40), CGSize(width: 60, height: 80)] {
+        let oldFrame = layer.frame
+        let previousPath = layer.presentation()?.shadowPath
+        let previousMaskPath = mask.presentation()?.path
+        layer.disableActions { layer.frame.size = size }
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+
+        // then: shadow and clip paths use the new local bounds
+        let expectedPath = CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+        let expectedClipPath = CGPath(rect: layer.bounds.insetBy(dx: inset / 2, dy: inset / 2), transform: nil)
+        expect(layer.shadowPath) == expectedPath
+        expect(mask.path) == expectedClipPath
+        expect(mask.frame) == layer.bounds
+        if animationTiming != nil {
+          let animation = try unwrap(layer.animation(forKey: "shadowPath") as? CABasicAnimation)
+          let maskAnimation = try unwrap(mask.animation(forKey: "path") as? CABasicAnimation)
+          expect(try CFEqual(unwrap(animation.fromValue) as CFTypeRef, unwrap(previousPath))) == true
+          expect(try CFEqual(unwrap(animation.toValue) as CFTypeRef, expectedPath)) == true
+          expect(try CFEqual(unwrap(maskAnimation.fromValue) as CFTypeRef, unwrap(previousMaskPath))) == true
+          expect(try CFEqual(unwrap(maskAnimation.toValue) as CFTypeRef, expectedClipPath)) == true
+        } else {
+          expect(layer.animation(forKey: "shadowPath")) == nil
+          expect(mask.animation(forKey: "path")) == nil
+        }
+      }
+
+      // when: explicit refresh changes an external input without changing size
+      inset = 4
+      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: layer.frame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+
+      // then: refresh applies both paths independently of size changes
+      expect(layer.shadowPath) == CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+      expect(mask.path) == CGPath(rect: layer.bounds.insetBy(dx: inset / 2, dy: inset / 2), transform: nil)
+      expect(layer.shadowColor) == Color.red.cgColor
+      layer.removeAllAnimations()
+      mask.removeAllAnimations()
     }
   }
 

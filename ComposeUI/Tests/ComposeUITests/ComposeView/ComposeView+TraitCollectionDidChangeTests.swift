@@ -37,7 +37,7 @@ import ComposeUI
 
 class ComposeView_TraitCollectionDidChangeTests: XCTestCase {
 
-  func test_traitCollectionDidChange_displayScaleChanged() {
+  func test_traitCollectionDidChange_displayScaleChanged() throws {
     // given: a compose view in a window, rendered, with its content scale matching the trait collection's display scale
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let window = TestWindow()
@@ -45,26 +45,34 @@ class ComposeView_TraitCollectionDidChangeTests: XCTestCase {
     var renderCount = 0
     var refreshCount = 0
     var isAnimated: Bool?
-    let view = ComposeView {
+    var updateContext: RenderableUpdateContext?
+    var renderedLayer: CALayer?
+    let view = ComposeView { contentView in
       renderCount += 1
       LayerNode()
+        .cornerRadius(contentView.contentScaleFactor)
         .animation(.linear())
-        .onUpdate { _, context in
+        .onUpdate { renderable, context in
           isAnimated = context.animationTiming != nil
           refreshCount += 1
+          updateContext = context
+          renderedLayer = renderable.layer
         }
     }
 
     view.frame = frame
     window.addSubview(view)
 
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // settle the initial environment refresh
     expect(renderCount).toEventually(beEqual(to: 1)) // initial render when added to window
     expect(refreshCount) == 1
     expect(isAnimated) == false
     isAnimated = nil
+    let layer = try unwrap(renderedLayer)
 
     let displayScale = view.traitCollection.displayScale
     expect(view.contentScaleFactor) == displayScale
+    expect(layer.cornerRadius) == displayScale
 
     // when: the content scale is stale (left by a previous display) and a trait change is delivered
     let staleScale: CGFloat = displayScale == 1 ? 2 : 1
@@ -76,37 +84,55 @@ class ComposeView_TraitCollectionDidChangeTests: XCTestCase {
     expect(renderCount).toEventually(beEqual(to: 2))
     expect(refreshCount) == 2
     expect(isAnimated) == false
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.previousRenderBounds) == frame
+    expect(updateContext?.renderBounds) == frame
+    expect(renderedLayer) === layer
+    expect(layer.cornerRadius) == displayScale
+    expect(layer.frame) == frame
   }
 
-  func test_traitCollectionDidChange_displayScaleAndThemeChanged() {
+  func test_traitCollectionDidChange_displayScaleAndThemeChanged() throws {
     // given: a compose view in a window, rendered, with its content scale matching the trait collection's display scale
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     let window = TestWindow()
+    let color = ThemedColor(light: .red, dark: .blue)
 
     var renderCount = 0
     var isAnimated: Bool?
-    let view = ComposeView {
+    var updateContext: RenderableUpdateContext?
+    var renderedLayer: CALayer?
+    let view = ComposeView { contentView in
       renderCount += 1
       LayerNode()
+        .backgroundColor(color)
+        .cornerRadius(contentView.contentScaleFactor)
         .animation(.linear())
-        .onUpdate { _, context in
+        .onUpdate { renderable, context in
           isAnimated = context.animationTiming != nil
+          updateContext = context
+          renderedLayer = renderable.layer
         }
     }
 
     view.frame = frame
     window.addSubview(view)
 
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // settle the initial environment refresh
     expect(renderCount).toEventually(beEqual(to: 1)) // initial render when added to window
     expect(isAnimated) == false
     isAnimated = nil
+    let layer = try unwrap(renderedLayer)
+    let initialTheme = view.theme
+    expect(layer.backgroundColor) == color.resolve(for: initialTheme).cgColor
 
     let displayScale = view.traitCollection.displayScale
     expect(view.contentScaleFactor) == displayScale
 
     // when: a theme change (which requests an animated refresh) and a display scale change (which requests a
     // non-animated refresh) land in the same run loop window
-    view.overrideUserInterfaceStyle = view.traitCollection.userInterfaceStyle == .dark ? .light : .dark
+    view.overrideUserInterfaceStyle = initialTheme.isLight ? .dark : .light
     let staleScale: CGFloat = displayScale == 1 ? 2 : 1
     view.contentScaleFactor = staleScale
     view.traitCollectionDidChange(nil)
@@ -115,6 +141,15 @@ class ComposeView_TraitCollectionDidChangeTests: XCTestCase {
     expect(view.contentScaleFactor) == displayScale
     expect(renderCount).toEventually(beEqual(to: 2))
     expect(isAnimated) == false
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.previousRenderBounds) == frame
+    expect(updateContext?.renderBounds) == frame
+    expect(view.theme) == (initialTheme.isLight ? .dark : .light)
+    expect(renderedLayer) === layer
+    expect(layer.backgroundColor) == color.resolve(for: view.theme).cgColor
+    expect(layer.cornerRadius) == displayScale
+    expect(layer.frame) == frame
 
     // then: no extra refresh follows
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // flush any pending refreshes

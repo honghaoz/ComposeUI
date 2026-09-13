@@ -92,29 +92,28 @@ open class ComposeView: BaseScrollView {
     /// The content is refreshed by an explicit refresh request or in response to an environment change.
     case refresh(isAnimated: Bool)
 
-    /// The content is scrolled, i.e. the size is the same but the origin is changed.
-    case scroll(previousBounds: CGRect)
-
-    /// The content bounds are changed, i.e. the size is changed.
-    case boundsChange(previousBounds: CGRect)
+    /// The viewport is changed by scrolling, resizing, or both.
+    ///
+    /// - Parameters:
+    ///   - previousBounds: The viewport from the last completed render, or nil before the first render.
+    ///   - bounds: The viewport used by this callback, before visibility insets.
+    case boundsChange(previousBounds: CGRect?, bounds: CGRect)
   }
 
   /// The animation behavior of the ComposeView's content update.
   public enum AnimationBehavior {
 
     /// The default animation behavior.
-    ///
-    /// With this behavior, the content update is animated if:
-    /// - the content is refreshed with `animated: true`
-    /// - the content is scrolled
+    /// 
+    /// This behavior allows configured transitions and animations during bounds changes and refreshes requested with `animated: true`.
     case `default`
 
-    /// The animation is disabled.
+    /// The transitions and animations are disabled.
     case disabled
 
     /// The dynamic animation behavior.
-    ///
-    /// With this behavior, whether the content update is animated is determined by the `shouldAnimate` closure.
+    /// 
+    /// The closure determines whether to animate.
     case dynamic(_ shouldAnimate: (_ contentView: ComposeView, _ renderType: RenderType) -> Bool)
   }
 
@@ -149,8 +148,8 @@ open class ComposeView: BaseScrollView {
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
 
-  /// The bounds used for last render pass.
-  private var lastRenderBounds: CGRect = .zero
+  /// The bounds from the last completed render pass, or nil before the first render.
+  private var lastRenderBounds: CGRect?
 
   /// The ids of the renderable items that are being rendered.
   private var renderableItemIds: [ComposeNodeId] = []
@@ -730,6 +729,7 @@ open class ComposeView: BaseScrollView {
       contentNode: contentNode,
       contentEvaluation: contentEvaluation,
       updateType: .refresh(isAnimated: animated),
+      previousRenderBounds: lastRenderBounds,
       renderBounds: renderBounds()
     )
 
@@ -792,7 +792,7 @@ open class ComposeView: BaseScrollView {
     }
 
     let renderBounds = renderBounds()
-    if contentUpdateContext == nil, renderBounds != lastRenderBounds {
+    if contentUpdateContext == nil, renderBounds != (lastRenderBounds ?? .zero) {
       // no pending render request but bounds changed, should re-render the content
 
       let contentNode = contentNode ?? LayoutCacheNode(node: _makeContent())
@@ -803,7 +803,8 @@ open class ComposeView: BaseScrollView {
       contentUpdateContext = ContentUpdateContext(
         contentNode: contentNode,
         contentEvaluation: contentEvaluation,
-        updateType: .boundsChange(previousRenderBounds: lastRenderBounds),
+        updateType: .boundsChange,
+        previousRenderBounds: lastRenderBounds,
         renderBounds: renderBounds
       )
     }
@@ -845,19 +846,7 @@ open class ComposeView: BaseScrollView {
     debug?.onEvent(.renderWillBegin(contentNode: contentNode))
     #endif
 
-    let renderType: RenderType
-    switch context.updateType {
-    case .refresh(let isAnimated):
-      renderType = .refresh(isAnimated: isAnimated)
-    case .boundsChange(let previousRenderBounds):
-      if previousRenderBounds.size == boundsSize {
-        renderType = .scroll(previousBounds: previousRenderBounds)
-      } else {
-        renderType = .boundsChange(previousBounds: previousRenderBounds)
-      }
-    }
-
-    willLayoutHandler?(self, WillLayoutContext(containerSize: boundsSize, renderType: renderType))
+    willLayoutHandler?(self, WillLayoutContext(containerSize: boundsSize, renderType: context.renderType(bounds: bounds)))
 
     #if DEBUG
     let layoutVisibleBounds = bounds.inset(by: visibleBoundsInsets)
@@ -892,29 +881,26 @@ open class ComposeView: BaseScrollView {
     // set content size
     setContentSize(roundedContentSize)
 
-    // call the will-render handler if there is any
-    // this gives the caller a chance to adjust the content offset before the renderable items are requested
-    let hasWillRenderHandler = willRenderHandler != nil
+    // updating content size can move the scroll offset, so read it again to ensure the correct offset is used for rendering
+    bounds.origin = contentOffset()
+
     if let willRenderHandler {
-      willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: renderType))
-    }
+      willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
+      
+      // the will-render handler may change the bounds 
+      // we only pick the origin part of the bounds to ensure the content offset is correct for rendering
+      // ignoring the size change from the updated bounds because the above layout step has already used the old size.
+      bounds.origin = contentOffset()
 
-    if hasWillRenderHandler {
-      // the will-render handler may change the bounds, so we need to adjust the bounds accordingly
-      let updatedBounds = renderBounds()
-
-      // only pick up the origin from the updated bounds so that the content offset is updated correctly
-      // ignore the size change from the updated bounds because the above layout step has already used the old size.
-      bounds.origin = updatedBounds.origin
-
-      // if the bounds size changed (which is not expected but possible), schedule a follow-up refresh to make sure the
+      // if the bounds size changed (which is not expected but possible), schedule a follow-up layout to make sure the
       // rendering is correct for the new bounds size.
-      if updatedBounds.size != bounds.size {
+      if renderBounds().size != bounds.size {
         onNextRunLoop { [weak self] in
           self?.layoutIfNeeded()
         }
       }
     }
+
     let visibleBounds = bounds.inset(by: visibleBoundsInsets)
 
     // get renderable items
@@ -1066,7 +1052,7 @@ open class ComposeView: BaseScrollView {
           oldRenderableItem.willRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
 
           let removeTransition = (
-            context.shouldAnimate(contentView: self, animationBehavior: animationBehavior) ?
+            context.shouldAnimate(contentView: self, animationBehavior: animationBehavior, renderBounds: bounds) ?
               oldRenderableItem.transition?.remove
               :
               nil
@@ -1200,18 +1186,14 @@ open class ComposeView: BaseScrollView {
         switch context.updateType {
         case .refresh:
           updateType = .refresh
-        case .boundsChange(let previousRenderBounds):
-          if previousRenderBounds.size == bounds.size {
-            updateType = .scroll
-          } else {
-            updateType = .boundsChange
-          }
+        case .boundsChange:
+          updateType = .boundsChange
         }
 
         let oldFrame = renderable.frame
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
-        let isAnimated = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior)
+        let isAnimated = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior, renderBounds: bounds)
 
         let animationTiming: AnimationTiming?
         if isAnimated, let renderableItemAnimationTiming = renderableItem.animationTiming {
@@ -1224,6 +1206,8 @@ open class ComposeView: BaseScrollView {
           updateType: updateType,
           oldFrame: oldFrame,
           newFrame: newFrame,
+          previousRenderBounds: context.previousRenderBounds,
+          renderBounds: bounds,
           isAnimated: isAnimated,
           animationTiming: animationTiming,
           contentView: self,
@@ -1259,7 +1243,7 @@ open class ComposeView: BaseScrollView {
         // [3/3] 🆕 insert the renderable item that is new
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
-        let isAnimated = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior)
+        let isAnimated = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior, renderBounds: bounds)
 
         // the insert transition that will animate this insertion, if any.
         let insertTransition = isAnimated ? renderableItem.transition?.insert : nil
@@ -1307,6 +1291,8 @@ open class ComposeView: BaseScrollView {
           updateType: .insert,
           oldFrame: frameAfterWillInsert,
           newFrame: newFrame,
+          previousRenderBounds: context.previousRenderBounds,
+          renderBounds: bounds,
           isAnimated: isAnimated,
           animationTiming: nil, // no animation for insertion
           contentView: self,
@@ -1392,7 +1378,7 @@ open class ComposeView: BaseScrollView {
     #endif
 
     if let didRenderHandler {
-      didRenderHandler(self, DidRenderContext(contentSize: contentSize, renderBounds: bounds, renderType: renderType))
+      didRenderHandler(self, DidRenderContext(contentSize: contentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
     }
 
     #if DEBUG

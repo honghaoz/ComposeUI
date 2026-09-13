@@ -81,8 +81,7 @@
          case .insert,
               .refresh:
            break
-         case .boundsChange,
-              .scroll:
+         case .boundsChange:
            return
          }
 

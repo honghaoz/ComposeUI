@@ -69,7 +69,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     #endif
 
     // before layout, the lastRenderBounds is not set
-    expect(view.test.lastRenderBounds) == .zero
+    expect(view.test.lastRenderBounds) == nil
 
     // when: the view lays out initially
     view.layoutIfNeeded()
@@ -94,7 +94,8 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     var expectedContext = ComposeView.ContentUpdateContext(
       contentNode: initialContext.contentNode,
       contentEvaluation: initialContext.contentEvaluation,
-      updateType: .boundsChange(previousRenderBounds: .zero),
+      updateType: .boundsChange,
+      previousRenderBounds: nil,
       renderBounds: CGRect(x: 0, y: 0, width: 120, height: 80)
     )
     expect(invokedContentUpdateContext) == expectedContext
@@ -125,7 +126,8 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expectedContext = ComposeView.ContentUpdateContext(
       contentNode: initialContext.contentNode,
       contentEvaluation: initialContext.contentEvaluation,
-      updateType: .boundsChange(previousRenderBounds: CGRect(x: 0, y: 0, width: 120, height: 80)),
+      updateType: .boundsChange,
+      previousRenderBounds: CGRect(x: 0, y: 0, width: 120, height: 80),
       renderBounds: CGRect(x: 0, y: 10, width: 120, height: 80)
     )
     expect(invokedContentUpdateContext) == expectedContext

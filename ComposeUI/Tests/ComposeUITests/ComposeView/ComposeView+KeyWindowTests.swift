@@ -43,13 +43,18 @@ class ComposeView_KeyWindowTests: XCTestCase {
     var renderCount = 0
     var refreshCount = 0
     var isAnimated: Bool?
-    let view = ComposeView {
+    var updateContext: RenderableUpdateContext?
+    var renderedLayer: CALayer?
+    let view = ComposeView { contentView in
       renderCount += 1
       LayerNode()
+        .backgroundColor(contentView.window?.isKeyWindow == true ? Color.blue : Color.red)
         .animation(.linear())
-        .onUpdate { _, context in
+        .onUpdate { renderable, context in
           isAnimated = context.animationTiming != nil
           refreshCount += 1
+          updateContext = context
+          renderedLayer = renderable.layer
         }
     }
 
@@ -60,6 +65,8 @@ class ComposeView_KeyWindowTests: XCTestCase {
     expect(refreshCount) == 1
     expect(isAnimated) == false
     isAnimated = nil
+    let layer = try unwrap(renderedLayer)
+    expect(layer.backgroundColor) == Color.red.cgColor
 
     // when: the view is added to the window and the window becomes key
     window.contentView?.addSubview(view)
@@ -67,9 +74,17 @@ class ComposeView_KeyWindowTests: XCTestCase {
     window.makeKey()
 
     // then: a non-animated refresh is performed
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // settle the initial environment refresh
     expect(renderCount).toEventually(beEqual(to: 2))
     expect(refreshCount) == 2
     expect(isAnimated) == false
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.previousRenderBounds) == frame
+    expect(updateContext?.renderBounds) == frame
+    expect(renderedLayer) === layer
+    expect(layer.backgroundColor) == Color.blue.cgColor
+    expect(layer.frame) == frame
     isAnimated = nil
 
     // when: the window resigns key
@@ -79,6 +94,13 @@ class ComposeView_KeyWindowTests: XCTestCase {
     expect(renderCount).toEventually(beEqual(to: 3))
     expect(refreshCount) == 3
     expect(isAnimated) == false
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.previousRenderBounds) == frame
+    expect(updateContext?.renderBounds) == frame
+    expect(renderedLayer) === layer
+    expect(layer.backgroundColor) == Color.red.cgColor
+    expect(layer.frame) == frame
     isAnimated = nil
 
     // when: the window becomes key again
@@ -88,6 +110,13 @@ class ComposeView_KeyWindowTests: XCTestCase {
     expect(renderCount).toEventually(beEqual(to: 4))
     expect(refreshCount) == 4
     expect(isAnimated) == false
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.previousRenderBounds) == frame
+    expect(updateContext?.renderBounds) == frame
+    expect(renderedLayer) === layer
+    expect(layer.backgroundColor) == Color.blue.cgColor
+    expect(layer.frame) == frame
     isAnimated = nil
 
     // when: the view is removed from the window and the window resigns key

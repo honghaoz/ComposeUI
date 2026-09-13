@@ -501,7 +501,7 @@ class ViewNodeTests: XCTestCase {
         let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
         // when: updating the renderable
-        let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, animationTiming: nil, contentView: contentView)
+        let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
         item.update(renderable, context)
 
         // then: the renderable keeps its frame
@@ -605,7 +605,7 @@ class ViewNodeTests: XCTestCase {
     // then: custom updates can also apply scroll-dependent configuration
     expect(renderedView === view) == true
     expect(view.layer().backgroundColor) == Color.blue.cgColor
-    expect(updateType) == .scroll
+    expect(updateType) == .boundsChange
   }
 
   #if canImport(AppKit)
