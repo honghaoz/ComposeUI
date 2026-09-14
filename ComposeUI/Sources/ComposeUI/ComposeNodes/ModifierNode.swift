@@ -557,6 +557,7 @@ public extension ComposeNode {
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
   ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
+  ///     It runs when the renderable is inserted, refreshed, or changes size. Request a refresh when other inputs of the path change.
   /// - Returns: A new node with the shadow set.
   func shadow(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     shadow(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
@@ -575,6 +576,7 @@ public extension ComposeNode {
   ///   - radius: The themed radius of the shadow.
   ///   - offset: The themed offset of the shadow.
   ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
+  ///     It runs when the renderable is inserted, refreshed, or changes size. Request a refresh when other inputs of the path change.
   /// - Returns: A new node with the shadow set.
   func shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     ModifierNode(
