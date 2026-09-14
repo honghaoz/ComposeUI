@@ -891,14 +891,16 @@ open class ComposeView: BaseScrollView {
     if let willRenderHandler {
       willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
 
-      // the will-render handler may change the bounds
+      // the will-render handler may change the bounds, so read them again
+      let updatedBounds = renderBounds()
+
       // we only pick the origin part of the bounds to ensure the content offset is correct for rendering
       // ignoring the size change from the updated bounds because the above layout step has already used the old size.
-      bounds.origin = contentOffset()
+      bounds.origin = updatedBounds.origin
 
       // if the bounds size changed (which is not expected but possible), schedule a follow-up layout to make sure the
       // rendering is correct for the new bounds size.
-      if renderBounds().size != bounds.size {
+      if updatedBounds.size != bounds.size {
         onNextRunLoop { [weak self] in
           self?.layoutIfNeeded()
         }
