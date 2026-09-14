@@ -201,6 +201,57 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     }
   }
 
+  func test_preparedContent_hostDecisionCapsADynamicChild() throws {
+    for transitions in [false, true] {
+      for animations in [false, true] {
+        // given: a child whose dynamic behavior always animates, showing a row configured for transitions and animations
+        let host = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: animations)
+        let timing = AnimationTiming.linear(duration: 10)
+        let child = ComposeView()
+        child.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        child.animationBehavior = .dynamic { _, _ in true }
+        var height: CGFloat = 100
+        var context: RenderableUpdateContext?
+        var layer: CALayer?
+        func content() -> any ComposeNode {
+          ColorNode(.red)
+            .frame(width: .flexible, height: height)
+            .animation(timing)
+            .transition(.opacity(timing: timing))
+            .onUpdate { renderable, update in
+              layer = renderable.layer
+              context = update
+            }
+        }
+
+        // when: the host inserts the row through prepared content
+        child.setPreparedContent(content(), contentEvaluation: nil, animationDecision: host)
+
+        // then: the insert transition runs only if the host allows transitions
+        let renderedLayer = try unwrap(layer)
+        expect(renderedLayer.bounds.size) == CGSize(width: 100, height: 100)
+        expect(renderedLayer.backgroundColor) == Color.red.cgColor
+        expect(renderedLayer.opacity) == 1
+        expect(renderedLayer.animation(forKey: "opacity") != nil) == transitions
+        expect(context?.updateType) == .insert
+        expect(context?.animationTiming) == nil
+        renderedLayer.removeAllAnimations()
+
+        // when: the host refreshes the row with a new height through prepared content
+        height = 150
+        child.setPreparedContent(content(), contentEvaluation: nil, animationDecision: host)
+
+        // then: the frame animates only if the host allows update animations
+        expect(layer) === renderedLayer
+        expect(renderedLayer.bounds.size) == CGSize(width: 100, height: 150)
+        expect(renderedLayer.animation(forKey: "bounds.size") != nil) == animations
+        expect(context?.updateType) == .refresh
+        expect(context?.animationTiming) == (animations ? timing : nil)
+        renderedLayer.removeAllAnimations()
+      }
+    }
+  }
+
   func test_scrollDependentGeometry_updatesImmediatelyDespiteConfiguredAnimation() throws {
     // given: a renderable whose frame follows the viewport during scrolling
     var layer: CALayer?

@@ -47,27 +47,23 @@ public extension ComposeView {
     /// The dynamic animation behavior.
     ///
     /// The closure is called once per render pass and determines whether the transitions and animations are enabled.
+    ///
+    /// Note: For render type `boundsChange`, returning `true` will also animate the reused renderables' updates, so
+    /// their frame can lag behind scrolling and live resizing.
     case dynamic(_ shouldAnimate: (_ contentView: ComposeView, _ renderType: RenderType) -> Bool)
 
-    /// Resolves transition and update animation behavior once for the render pass.
+    /// Resolves the transition and update animation decision of this behavior once for the render pass.
     ///
     /// - Parameters:
     ///   - renderType: The render type with the pass's final render bounds.
-    ///   - inheritedDecision: The parent's decision when applying prepared content.
     ///   - contentView: The content view performing the pass.
-    /// - Returns: The configured animation types allowed by this behavior.
-    func animationDecision(renderType: ComposeView.RenderType,
-                           inheritedDecision: ComposeView.AnimationDecision?,
-                           contentView: ComposeView) -> ComposeView.AnimationDecision
-    {
+    /// - Returns: The animation types this behavior allows for the pass.
+    func animationDecision(renderType: ComposeView.RenderType, contentView: ComposeView) -> ComposeView.AnimationDecision {
       switch self {
       case .default:
         switch renderType {
         case .refresh(let isAnimated):
-          return ComposeView.AnimationDecision(
-            allowsTransitions: isAnimated && (inheritedDecision?.allowsTransitions ?? true),
-            allowsAnimations: isAnimated && (inheritedDecision?.allowsAnimations ?? true)
-          )
+          return ComposeView.AnimationDecision(allowsTransitions: isAnimated, allowsAnimations: isAnimated)
         case .boundsChange:
           return ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
         }
@@ -91,5 +87,19 @@ extension ComposeView {
 
     /// Whether reused renderables use their configured update animations.
     let allowsAnimations: Bool
+
+    /// The decision limited by a parent's decision.
+    ///
+    /// A view rendering its parent's prepared content can lower the parent's decision with its own animation behavior but
+    /// must not raise it, so nested content never animates more than the parent's pass.
+    ///
+    /// - Parameter parent: The decision of the parent's render pass.
+    /// - Returns: A decision allowing each animation type only if both decisions allow it.
+    func capped(by parent: AnimationDecision) -> AnimationDecision {
+      AnimationDecision(
+        allowsTransitions: allowsTransitions && parent.allowsTransitions,
+        allowsAnimations: allowsAnimations && parent.allowsAnimations
+      )
+    }
   }
 }

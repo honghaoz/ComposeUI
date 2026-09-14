@@ -539,14 +539,14 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
 
     // then: refresh controls both decisions, while all bounds changes allow only transitions
     expect(
-      renderTypes.map { ComposeView.AnimationBehavior.default.animationDecision(renderType: $0, inheritedDecision: nil, contentView: view) }
+      renderTypes.map { ComposeView.AnimationBehavior.default.animationDecision(renderType: $0, contentView: view) }
     ) == [
-      both, neither, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly
+      both, neither, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly,
     ]
 
     // then: disabled behavior permits neither animation type
     expect(
-      renderTypes.map { ComposeView.AnimationBehavior.disabled.animationDecision(renderType: $0, inheritedDecision: nil, contentView: view) }
+      renderTypes.map { ComposeView.AnimationBehavior.disabled.animationDecision(renderType: $0, contentView: view) }
     ) == Array(repeating: neither, count: renderTypes.count)
 
     // when: dynamic behavior returns one answer for each pass
@@ -558,7 +558,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
         receivedRenderTypes.append(renderType)
         return decision
       }
-      let results = renderTypes.map { behavior.animationDecision(renderType: $0, inheritedDecision: nil, contentView: view) }
+      let results = renderTypes.map { behavior.animationDecision(renderType: $0, contentView: view) }
 
       // then: its single answer controls both decisions and each pass is queried once
       expect(results) == Array(repeating: decision ? both : neither, count: renderTypes.count)
@@ -570,25 +570,42 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     }
   }
 
-  func test_animationDecision_inheritsPreparedContentWithoutCollapsingTheDecisions() {
-    // given: all possible inherited transition and update decisions
+  func test_animationDecision_capped() {
+    // given: every combination of a view's own decision and its host's decision
+    let decisions = [false, true].flatMap { transitions in
+      [false, true].map { animations in
+        ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: animations)
+      }
+    }
+
+    // then: each animation type stays allowed only if both decisions allow it
+    for own in decisions {
+      for host in decisions {
+        expect(own.capped(by: host)) == ComposeView.AnimationDecision(
+          allowsTransitions: own.allowsTransitions && host.allowsTransitions,
+          allowsAnimations: own.allowsAnimations && host.allowsAnimations
+        )
+      }
+    }
+
+    // given: a view rendering its host's prepared content, with the refresh flag the host passes and a merged
+    // non-animated request, under every behavior
     let view = ComposeView()
-    for transitions in [false, true] {
-      for updates in [false, true] {
-        let inherited = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates)
-        for animated in [false, true] {
-          let renderType = ComposeView.RenderType.refresh(isAnimated: animated)
+    let neither = ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+    for host in decisions {
+      for isAnimated in [host.allowsTransitions || host.allowsAnimations, false] {
+        let renderType = ComposeView.RenderType.refresh(isAnimated: isAnimated)
 
-          // then: the refresh flag gates each inherited decision independently
-          expect(ComposeView.AnimationBehavior.default.animationDecision(renderType: renderType, inheritedDecision: inherited, contentView: view)) == ComposeView.AnimationDecision(allowsTransitions: animated && transitions, allowsAnimations: animated && updates)
-          expect(ComposeView.AnimationBehavior.disabled.animationDecision(renderType: renderType, inheritedDecision: inherited, contentView: view)) == ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+        // then: the default behavior follows the flag within the host's decision, so the host's separate flags are
+        // restored from the summarizing refresh flag
+        expect(ComposeView.AnimationBehavior.default.animationDecision(renderType: renderType, contentView: view).capped(by: host)) == (isAnimated ? host : neither)
 
-          // then: a child's explicit dynamic behavior keeps its existing override semantics
-          for decision in [false, true] {
-            let behavior = ComposeView.AnimationBehavior.dynamic { _, _ in decision }
-            expect(behavior.animationDecision(renderType: renderType, inheritedDecision: inherited, contentView: view)) == ComposeView.AnimationDecision(allowsTransitions: decision, allowsAnimations: decision)
-          }
-        }
+        // then: the disabled behavior stays off under any host
+        expect(ComposeView.AnimationBehavior.disabled.animationDecision(renderType: renderType, contentView: view).capped(by: host)) == neither
+
+        // then: a dynamic behavior can lower the host's decision but never raise it
+        expect(ComposeView.AnimationBehavior.dynamic { _, _ in true }.animationDecision(renderType: renderType, contentView: view).capped(by: host)) == host
+        expect(ComposeView.AnimationBehavior.dynamic { _, _ in false }.animationDecision(renderType: renderType, contentView: view).capped(by: host)) == neither
       }
     }
   }
