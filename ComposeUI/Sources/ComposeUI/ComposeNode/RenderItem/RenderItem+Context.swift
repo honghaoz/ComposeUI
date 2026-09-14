@@ -89,10 +89,7 @@ public struct RenderableUpdateContext: Equatable {
   /// The content view's bounds used to render this pass, before applying visibleBoundsInsets.
   public let renderBounds: CGRect
 
-  /// Whether the render pass is animated.
-  public let isAnimated: Bool
-
-  /// The animation timing for the renderable update.
+  /// The timing to use for this renderable update, or nil to apply changes immediately.
   public let animationTiming: AnimationTiming?
 
   /// The content view that contains the renderable.
@@ -100,6 +97,9 @@ public struct RenderableUpdateContext: Equatable {
 
   /// The content evaluation of this render pass.
   let contentEvaluation: ContentEvaluation?
+
+  /// Whether transitions and update animations are enabled for this render pass.
+  let animationDecision: ComposeView.AnimationDecision
 
   /// Creates a renderable update context.
   ///
@@ -109,42 +109,42 @@ public struct RenderableUpdateContext: Equatable {
   ///   - newFrame: The new frame that the renderable should be set to after the update.
   ///   - previousRenderBounds: The content view's last completed render bounds, or nil if it has not rendered.
   ///   - renderBounds: The content view's bounds used for this pass.
-  ///   - isAnimated: Whether the render pass is animated.
-  ///   - animationTiming: The animation timing for the renderable update.
+  ///   - animationTiming: The timing to use for this renderable update, or nil to apply changes immediately.
   ///   - contentView: The content view that contains the renderable.
   ///   - contentEvaluation: The content evaluation of this render pass.
+  ///   - animationDecision: Whether transitions and update animations are enabled.
   init(updateType: RenderableUpdateType,
        oldFrame: CGRect,
        newFrame: CGRect,
        previousRenderBounds: CGRect?,
        renderBounds: CGRect,
-       isAnimated: Bool = false,
        animationTiming: AnimationTiming?,
        contentView: ComposeView?,
-       contentEvaluation: ContentEvaluation? = nil)
+       contentEvaluation: ContentEvaluation?,
+       animationDecision: ComposeView.AnimationDecision)
   {
     self.updateType = updateType
     self.oldFrame = oldFrame
     self.newFrame = newFrame
     self.previousRenderBounds = previousRenderBounds
     self.renderBounds = renderBounds
-    self.isAnimated = isAnimated
     self.animationTiming = animationTiming
     self.contentView = contentView
     self.contentEvaluation = contentEvaluation
+    self.animationDecision = animationDecision
   }
 
   // MARK: - Equatable
 
   public static func == (lhs: Self, rhs: Self) -> Bool {
-    // contentEvaluation is intentionally omitted: it is internal pass state, so it must not change the public
-    // update-context equality contract
+    // ignore internal properties that are not part of the public contract:
+    // - contentEvaluation
+    // - animationDecision
     lhs.updateType == rhs.updateType &&
       lhs.oldFrame == rhs.oldFrame &&
       lhs.newFrame == rhs.newFrame &&
       lhs.previousRenderBounds == rhs.previousRenderBounds &&
       lhs.renderBounds == rhs.renderBounds &&
-      lhs.isAnimated == rhs.isAnimated &&
       lhs.animationTiming == rhs.animationTiming &&
       lhs.contentView == rhs.contentView
   }

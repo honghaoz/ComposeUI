@@ -39,16 +39,17 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let node = ComposeView.LayoutCacheNode(node: ColorNode(.red))
     let evaluation = ContentEvaluation()
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let original = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds)
-    let same = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds)
+    let original = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, inheritedAnimationDecision: nil)
+    let same = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, inheritedAnimationDecision: nil)
     let different = [
-      ComposeView.ContentUpdateContext(contentNode: ComposeView.LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: ContentEvaluation(), updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: true), previousRenderBounds: .zero, renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: .zero, renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: .zero),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: bounds, renderBounds: bounds),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: nil, renderBounds: bounds),
+      ComposeView.ContentUpdateContext(contentNode: ComposeView.LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, inheritedAnimationDecision: nil),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: ContentEvaluation(), updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, inheritedAnimationDecision: nil),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: true), previousRenderBounds: .zero, renderBounds: bounds, inheritedAnimationDecision: nil),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: .zero, renderBounds: bounds, inheritedAnimationDecision: nil),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: .zero, inheritedAnimationDecision: nil),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: bounds, renderBounds: bounds, inheritedAnimationDecision: nil),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: nil, renderBounds: bounds, inheritedAnimationDecision: nil),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, inheritedAnimationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)),
     ]
 
     // then: content identity and every update field participate in equality
@@ -138,7 +139,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let originalNode = contentNode
     let originalEvaluation = contentEvaluation
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let pass = ComposeView.ContentUpdateContext(contentNode: contentNode, contentEvaluation: contentEvaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds)
+    let pass = ComposeView.ContentUpdateContext(contentNode: contentNode, contentEvaluation: contentEvaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, inheritedAnimationDecision: nil)
     let originalValue = pass.contentEvaluation.lazyValue(for: provider)
 
     // when: a later refresh selects different content while the earlier pass is retained
@@ -148,7 +149,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let item = try unwrap(pass.contentNode.renderableItems(in: bounds).first)
     let view = ComposeView()
     let renderable = item.make(RenderableMakeContext(initialFrame: item.frame, contentView: view))
-    item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: .zero, renderBounds: bounds, animationTiming: nil, contentView: view, contentEvaluation: pass.contentEvaluation))
+    item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: .zero, renderBounds: bounds, animationTiming: nil, contentView: view, contentEvaluation: pass.contentEvaluation, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
 
     // then: the pass still measures and renders its original node and evaluation
     expect(pass.contentNode) === originalNode
@@ -160,14 +161,18 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(renderable.frame) == bounds
   }
 
-  func test_renderPass_forwardsAnimationDecisionToItemContexts() throws {
-    // given: a view whose item records the update context it receives
+  func test_renderPass_resolvesTimingForItemContexts() throws {
+    // given: an item with a configured timing whose update context records the resolved result
     var itemContext: RenderableUpdateContext?
+    var layer: CALayer?
+    let timing = AnimationTiming.linear()
     let view = ComposeView {
       ColorNode(.red)
         .frame(width: .flexible, height: 300)
-        .onUpdate { _, context in
+        .animation(timing)
+        .onUpdate { renderable, context in
           itemContext = context
+          layer = renderable.layer
         }
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -176,35 +181,36 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: first insertion during a size change allows configured transitions
+    // then: first insertion applies its configuration without update animations
     expect(itemContext?.updateType) == .insert
-    expect(itemContext?.isAnimated) == true
+    expect(itemContext?.animationTiming) == nil
 
     for animated in [true, false] {
       // when: the view refreshes with an explicit animation flag
       view.refresh(animated: animated)
 
-      // then: the reused item receives the pass's decision
+      // then: the reused item receives timing only when the refresh permits it
       expect(itemContext?.updateType) == .refresh
-      expect(itemContext?.isAnimated) == animated
+      expect(itemContext?.animationTiming) == (animated ? timing : nil)
+      expect(layer?.backgroundColor) == Color.red.cgColor
     }
 
     // when: the view scrolls
     view.setContentOffset(CGPoint(x: 0, y: 20))
     view.layoutIfNeeded()
 
-    // then: a scroll pass animates by default
+    // then: retained scroll updates are immediate by default
     expect(itemContext?.updateType) == .boundsChange
-    expect(itemContext?.isAnimated) == true
+    expect(itemContext?.animationTiming) == nil
 
     // when: the view resizes
     view.frame.size.width = 150
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: a size change also allows configured animations
+    // then: a size change updates immediately
     expect(itemContext?.updateType) == .boundsChange
-    expect(itemContext?.isAnimated) == true
+    expect(itemContext?.animationTiming) == nil
 
     // when: animations are disabled and an animated refresh is requested
     view.animationBehavior = .disabled
@@ -212,7 +218,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
 
     // then: the animation behavior overrides the request
     expect(itemContext?.updateType) == .refresh
-    expect(itemContext?.isAnimated) == false
+    expect(itemContext?.animationTiming) == nil
 
     // when: a dynamic behavior animates scrolls only and an animated refresh is requested
     var dynamicRenderTypes: [ComposeView.RenderType] = []
@@ -228,7 +234,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     // then: the closure sees the refresh and its decision, not the request, reaches the item
     expect(dynamicRenderTypes.last) == .refresh(isAnimated: true)
     expect(itemContext?.updateType) == .refresh
-    expect(itemContext?.isAnimated) == false
+    expect(itemContext?.animationTiming) == nil
 
     // when: the view scrolls under the dynamic behavior
     view.setContentOffset(CGPoint(x: 0, y: 40))
@@ -237,13 +243,14 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     // then: the closure sees the scroll and its decision reaches the item
     expect(dynamicRenderTypes.last) == .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 150, height: 100), bounds: CGRect(x: 0, y: 40, width: 150, height: 100))
     expect(itemContext?.updateType) == .boundsChange
-    expect(itemContext?.isAnimated) == true
+    expect(itemContext?.animationTiming) == timing
 
     // when: another view's first render is an animated refresh
     var insertContext: RenderableUpdateContext?
     let animatedView = ComposeView {
       ColorNode(.red)
         .frame(width: .flexible, height: 300)
+        .animation(timing)
         .onUpdate { _, context in
           insertContext = context
         }
@@ -251,91 +258,33 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     animatedView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     animatedView.refresh(animated: true)
 
-    // then: insertion carries the animated decision
+    // then: insertion still applies initial configuration immediately despite its configured timing
     expect(insertContext?.updateType) == .insert
-    expect(insertContext?.isAnimated) == true
+    expect(insertContext?.animationTiming) == nil
   }
 
-  func test_initialBoundsUpdate_allowsAnimationsAndPreservesRenderType() {
-    // given: initial passes have no completed viewport to report
-    let view = ComposeView()
-    let node = ComposeView.LayoutCacheNode(node: ColorNode(.red))
-    let evaluation = ContentEvaluation()
-    let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let initial = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: nil, renderBounds: bounds)
-    let initialZero = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: nil, renderBounds: .zero)
-
-    // then: both initial bounds updates allow animation and preserve missing history
-    expect(initial.renderType(bounds: bounds)) == .boundsChange(previousBounds: nil, bounds: bounds)
-    expect(initial.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
-    expect(initialZero.renderType(bounds: .zero)) == .boundsChange(previousBounds: nil, bounds: .zero)
-    expect(initialZero.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: .zero)) == true
-    expect(initial.previousRenderBounds) == nil
-    expect(initialZero.previousRenderBounds) == nil
-
-    // when: dynamic behavior observes the initial pass
-    var observedType: ComposeView.RenderType?
-    let isAnimated = initial.shouldAnimate(contentView: view, animationBehavior: .dynamic { _, renderType in
-      observedType = renderType
-      return true
-    }, renderBounds: bounds)
-
-    // then: the dynamic override receives current bounds without inventing previous bounds
-    expect(observedType) == .boundsChange(previousBounds: nil, bounds: bounds)
-    expect(isAnimated) == true
-  }
-
-  func test_shouldAnimate() {
-    // given: update contexts for an animated refresh, a non-animated refresh, a scroll, and a size change
-    let view = ComposeView()
+  func test_renderType() {
+    // given: update contexts for a refresh and for bounds changes with and without render history
     let node = ComposeView.LayoutCacheNode(node: ColorNode(.red))
     let evaluation = ContentEvaluation()
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let scrolledBounds = CGRect(x: 0, y: 20, width: 100, height: 100)
-    let resizedBounds = CGRect(x: 0, y: 0, width: 50, height: 100)
     func makeContext(_ updateType: ComposeView.ContentUpdateContext.ContentUpdateType, previousRenderBounds: CGRect?) -> ComposeView.ContentUpdateContext {
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: updateType, previousRenderBounds: previousRenderBounds, renderBounds: bounds)
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: updateType, previousRenderBounds: previousRenderBounds, renderBounds: bounds, inheritedAnimationDecision: nil)
     }
-    let animatedRefresh = makeContext(.refresh(isAnimated: true), previousRenderBounds: .zero)
-    let refresh = makeContext(.refresh(isAnimated: false), previousRenderBounds: .zero)
-    let scroll = makeContext(.boundsChange, previousRenderBounds: scrolledBounds)
-    let sizeChange = makeContext(.boundsChange, previousRenderBounds: resizedBounds)
-    let combinedChange = makeContext(.boundsChange, previousRenderBounds: resizedBounds.offsetBy(dx: 0, dy: 20))
-    let contexts = [animatedRefresh, refresh, scroll, sizeChange, combinedChange]
+    let animatedRefresh = makeContext(.refresh(isAnimated: true), previousRenderBounds: bounds)
+    let refresh = makeContext(.refresh(isAnimated: false), previousRenderBounds: nil)
+    let initial = makeContext(.boundsChange, previousRenderBounds: nil)
+    let scroll = makeContext(.boundsChange, previousRenderBounds: bounds)
 
-    // then: the default behavior allows animation for animated refreshes and all bounds changes
-    expect(animatedRefresh.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
-    expect(refresh.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == false
-    expect(scroll.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
-    expect(sizeChange.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
-    expect(combinedChange.shouldAnimate(contentView: view, animationBehavior: .default, renderBounds: bounds)) == true
+    // then: a refresh reports its animation flag and no viewport
+    expect(animatedRefresh.renderType(bounds: bounds)) == .refresh(isAnimated: true)
+    expect(refresh.renderType(bounds: bounds)) == .refresh(isAnimated: false)
 
-    // then: the disabled behavior never animates
-    for context in contexts {
-      expect(context.shouldAnimate(contentView: view, animationBehavior: .disabled, renderBounds: bounds)) == false
-    }
-
-    // then: the dynamic behavior receives the view and the render type for each update, and its decision is returned
-    for decision in [true, false] {
-      var receivedViews: [ComposeView] = []
-      var receivedRenderTypes: [ComposeView.RenderType] = []
-      let behavior = ComposeView.AnimationBehavior.dynamic { contentView, renderType in
-        receivedViews.append(contentView)
-        receivedRenderTypes.append(renderType)
-        return decision
-      }
-      for context in contexts {
-        expect(context.shouldAnimate(contentView: view, animationBehavior: behavior, renderBounds: bounds)) == decision
-      }
-      expect(receivedViews.count) == contexts.count
-      expect(receivedViews.allSatisfy { $0 === view }) == true
-      expect(receivedRenderTypes) == [
-        .refresh(isAnimated: true),
-        .refresh(isAnimated: false),
-        .boundsChange(previousBounds: scrolledBounds, bounds: bounds),
-        .boundsChange(previousBounds: resizedBounds, bounds: bounds),
-        .boundsChange(previousBounds: resizedBounds.offsetBy(dx: 0, dy: 20), bounds: bounds),
-      ]
-    }
+    // then: a bounds change reports the render history and the callback's viewport, without inventing missing history
+    expect(initial.renderType(bounds: bounds)) == .boundsChange(previousBounds: nil, bounds: bounds)
+    expect(initial.renderType(bounds: .zero)) == .boundsChange(previousBounds: nil, bounds: .zero)
+    expect(scroll.renderType(bounds: scrolledBounds)) == .boundsChange(previousBounds: bounds, bounds: scrolledBounds)
+    expect(scroll.renderType(bounds: bounds)) == .boundsChange(previousBounds: bounds, bounds: bounds)
   }
 }

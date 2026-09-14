@@ -298,7 +298,7 @@ class ComposeViewNodeTests: XCTestCase {
         let layer = composeView.contentView().layer()
 
         // when: the view is inserted
-        item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: composeView.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil))
+        item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: composeView.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
 
         // then: content installation renders immediately at the view's own bounds
         expect(layer.sublayers?.count) == 1
@@ -344,7 +344,7 @@ class ComposeViewNodeTests: XCTestCase {
 
     for renderBounds in [frame.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
       // when: scrolling or resizing without refreshing content
-      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: renderBounds, animationTiming: nil, contentView: nil))
+      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: renderBounds, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
       nestedView.setNeedsLayout()
       nestedView.layoutIfNeeded()
 
@@ -353,7 +353,7 @@ class ComposeViewNodeTests: XCTestCase {
     }
 
     // when: explicitly refreshing the nested configuration
-    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil))
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
 
     // then: the new color is applied immediately without replacing the layer
     expect(layer.backgroundColor) == Color.blue.cgColor

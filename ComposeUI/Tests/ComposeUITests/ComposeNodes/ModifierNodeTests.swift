@@ -1249,7 +1249,7 @@ class ModifierNodeTests: XCTestCase {
       window.layer.addSublayer(layer)
 
       // when: inserting at the already assigned frame
-      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView))
+      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
 
       // then: the initial shadow is applied without a size change
       let initialPath = CGPath(rect: layer.bounds, transform: nil)
@@ -1261,7 +1261,7 @@ class ModifierNodeTests: XCTestCase {
 
       // when: only the viewport changes, including missing viewport history
       for previousBounds in [viewport, nil] {
-        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: previousBounds, renderBounds: CGRect(x: 0, y: 20, width: 300, height: 250), animationTiming: animationTiming, contentView: contentView))
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: previousBounds, renderBounds: CGRect(x: 0, y: 20, width: 300, height: 250), animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
         // then: no path or animation update occurs without a renderable-size change
         expect(layer.shadowPath) == initialPath
@@ -1271,7 +1271,7 @@ class ModifierNodeTests: XCTestCase {
       // when: moving the renderable without changing its size
       let movedFrame = frame.offsetBy(dx: 10, dy: 20)
       layer.disableActions { layer.frame = movedFrame }
-      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: movedFrame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: movedFrame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
       // then: local geometry remains unchanged during position-only updates
       expect(layer.shadowPath) == initialPath
@@ -1282,7 +1282,7 @@ class ModifierNodeTests: XCTestCase {
         let oldFrame = layer.frame
         let previousPath = layer.presentation()?.shadowPath
         layer.disableActions { layer.frame.size = size }
-        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
         // then: the path is recalculated from the new local bounds
         let expectedPath = CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
@@ -1298,7 +1298,7 @@ class ModifierNodeTests: XCTestCase {
 
       // when: explicit refresh changes an external input without changing the renderable's size
       inset = 4
-      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: layer.frame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: layer.frame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
       // then: refresh applies the path independently of the size comparison
       expect(layer.shadowPath) == CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
@@ -1755,7 +1755,9 @@ class ModifierNodeTests: XCTestCase {
           previousRenderBounds: previousRenderBounds,
           renderBounds: renderBounds,
           animationTiming: .easeInEaseOut(duration: 1),
-          contentView: contentView
+          contentView: contentView,
+          contentEvaluation: nil,
+          animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
         ))
 
         // then: every property is retained without adding animations
@@ -1779,7 +1781,9 @@ class ModifierNodeTests: XCTestCase {
         previousRenderBounds: .zero,
         renderBounds: .zero,
         animationTiming: nil,
-        contentView: contentView
+        contentView: contentView,
+        contentEvaluation: nil,
+        animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
       ))
 
       // then: refresh applies every configured property without animation
@@ -1823,7 +1827,9 @@ class ModifierNodeTests: XCTestCase {
         previousRenderBounds: .zero,
         renderBounds: .zero,
         animationTiming: .easeInEaseOut(duration: 1),
-        contentView: contentView
+        contentView: contentView,
+        contentEvaluation: nil,
+        animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
       ))
 
       // then: the model layer has the newly supplied attributes
@@ -1887,7 +1893,9 @@ class ModifierNodeTests: XCTestCase {
           previousRenderBounds: previousRenderBounds,
           renderBounds: renderBounds,
           animationTiming: nil,
-          contentView: contentView
+          contentView: contentView,
+          contentEvaluation: nil,
+          animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
         ))
 
         // then: the existing interaction state is retained
@@ -1907,7 +1915,9 @@ class ModifierNodeTests: XCTestCase {
         previousRenderBounds: .zero,
         renderBounds: .zero,
         animationTiming: nil,
-        contentView: contentView
+        contentView: contentView,
+        contentEvaluation: nil,
+        animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
       ))
 
       // then: refresh applies the configured interaction state
@@ -1945,7 +1955,9 @@ class ModifierNodeTests: XCTestCase {
           previousRenderBounds: previousRenderBounds,
           renderBounds: renderBounds,
           animationTiming: nil,
-          contentView: contentView
+          contentView: contentView,
+          contentEvaluation: nil,
+          animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
         ))
 
         // then: the non-view renderable retains its properties

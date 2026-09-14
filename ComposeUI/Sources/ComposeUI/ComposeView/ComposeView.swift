@@ -100,23 +100,6 @@ open class ComposeView: BaseScrollView {
     case boundsChange(previousBounds: CGRect?, bounds: CGRect)
   }
 
-  /// The animation behavior of the ComposeView's content update.
-  public enum AnimationBehavior {
-
-    /// The default animation behavior.
-    ///
-    /// This behavior allows configured transitions and animations during bounds changes and refreshes requested with `animated: true`.
-    case `default`
-
-    /// The transitions and animations are disabled.
-    case disabled
-
-    /// The dynamic animation behavior.
-    ///
-    /// The closure determines whether to animate.
-    case dynamic(_ shouldAnimate: (_ contentView: ComposeView, _ renderType: RenderType) -> Bool)
-  }
-
   /// The animation behavior of the content update.
   public var animationBehavior: AnimationBehavior = .default
 
@@ -144,6 +127,9 @@ open class ComposeView: BaseScrollView {
 
   /// The evaluation supplied with the prepared content, or nil to create a new one.
   private var preparedContentEvaluation: ContentEvaluation?
+
+  /// The parent's animation decisions for the next prepared-content refresh.
+  private var preparedAnimationDecision: AnimationDecision?
 
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
@@ -280,6 +266,7 @@ open class ComposeView: BaseScrollView {
     makeContent = content
     preparedContentNode = nil
     preparedContentEvaluation = nil
+    preparedAnimationDecision = nil
     setNeedsRefresh()
   }
 
@@ -300,12 +287,18 @@ open class ComposeView: BaseScrollView {
   /// - Parameters:
   ///   - content: A new content.
   ///   - contentEvaluation: The evaluation to reuse once, or nil to create a new one on refresh.
-  ///   - animated: Whether the refresh is animated.
-  func setPreparedContent(_ content: ComposeNode, contentEvaluation: ContentEvaluation?, animated: Bool) {
+  ///   - animationDecision: The parent's resolved transition and update decisions.
+  func setPreparedContent(_ content: ComposeNode, contentEvaluation: ContentEvaluation?, animationDecision: AnimationDecision) {
     makeContent = { _ in content }
     preparedContentNode = LayoutCacheNode(node: content)
     preparedContentEvaluation = contentEvaluation
-    refresh(animated: animated)
+    preparedAnimationDecision = animationDecision
+
+    // under .default, animated: false disables both transitions and update animations.
+    // a child inserted during scrolling inherits allowsTransitions = true and allowsAnimations = false.
+    // passing true lets transitions inside the child run, while preparedAnimationDecision keeps update animations off.
+    // the same applies when only update animations are allowed, so pass false only when both are disabled.
+    refresh(animated: animationDecision.allowsTransitions || animationDecision.allowsAnimations)
   }
 
   /// Makes the content node.
@@ -717,8 +710,10 @@ open class ComposeView: BaseScrollView {
     // explicit render request, should either consume the prepared content or make a new content
     let preparedContentNode = self.preparedContentNode
     let preparedContentEvaluation = self.preparedContentEvaluation
+    let preparedAnimationDecision = self.preparedAnimationDecision
     self.preparedContentNode = nil
     self.preparedContentEvaluation = nil
+    self.preparedAnimationDecision = nil
 
     let contentNode = preparedContentNode ?? LayoutCacheNode(node: _makeContent())
     let contentEvaluation = preparedContentEvaluation ?? ContentEvaluation()
@@ -730,7 +725,8 @@ open class ComposeView: BaseScrollView {
       contentEvaluation: contentEvaluation,
       updateType: .refresh(isAnimated: animated),
       previousRenderBounds: lastRenderBounds,
-      renderBounds: renderBounds()
+      renderBounds: renderBounds(),
+      inheritedAnimationDecision: preparedAnimationDecision
     )
 
     // cancel the pending refresh if there is any to avoid double rendering
@@ -805,7 +801,8 @@ open class ComposeView: BaseScrollView {
         contentEvaluation: contentEvaluation,
         updateType: .boundsChange,
         previousRenderBounds: lastRenderBounds,
-        renderBounds: renderBounds
+        renderBounds: renderBounds,
+        inheritedAnimationDecision: nil
       )
     }
 
@@ -900,6 +897,14 @@ open class ComposeView: BaseScrollView {
         }
       }
     }
+
+    // the bounds are final from here on, so the render type and the animation decision are made once for the pass.
+    let renderType = context.renderType(bounds: bounds)
+    let animationDecision = animationBehavior.animationDecision(
+      renderType: renderType,
+      inheritedDecision: context.inheritedAnimationDecision,
+      contentView: self
+    )
 
     let visibleBounds = bounds.inset(by: visibleBoundsInsets)
 
@@ -1051,12 +1056,7 @@ open class ComposeView: BaseScrollView {
           let oldFrame = oldRenderable.frame
           oldRenderableItem.willRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
 
-          let removeTransition = (
-            context.shouldAnimate(contentView: self, animationBehavior: animationBehavior, renderBounds: bounds) ?
-              oldRenderableItem.transition?.remove
-              :
-              nil
-          )
+          let removeTransition = animationDecision.allowsTransitions ? oldRenderableItem.transition?.remove : nil
 
           let removeBlock = {
             oldRenderable.removeFromParent()
@@ -1193,10 +1193,8 @@ open class ComposeView: BaseScrollView {
         let oldFrame = renderable.frame
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
-        let isAnimated = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior, renderBounds: bounds)
-
         let animationTiming: AnimationTiming?
-        if isAnimated, let renderableItemAnimationTiming = renderableItem.animationTiming {
+        if animationDecision.allowsAnimations, let renderableItemAnimationTiming = renderableItem.animationTiming {
           animationTiming = renderableItemAnimationTiming
         } else {
           animationTiming = nil
@@ -1208,10 +1206,10 @@ open class ComposeView: BaseScrollView {
           newFrame: newFrame,
           previousRenderBounds: context.previousRenderBounds,
           renderBounds: bounds,
-          isAnimated: isAnimated,
           animationTiming: animationTiming,
           contentView: self,
-          contentEvaluation: contentEvaluation
+          contentEvaluation: contentEvaluation,
+          animationDecision: animationDecision
         )
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
@@ -1243,10 +1241,8 @@ open class ComposeView: BaseScrollView {
         // [3/3] 🆕 insert the renderable item that is new
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
-        let isAnimated = context.shouldAnimate(contentView: self, animationBehavior: animationBehavior, renderBounds: bounds)
-
         // the insert transition that will animate this insertion, if any.
-        let insertTransition = isAnimated ? renderableItem.transition?.insert : nil
+        let insertTransition = animationDecision.allowsTransitions ? renderableItem.transition?.insert : nil
 
         // the root-layer model position and transform the removal left behind, captured before this pass applies the
         // target frame and resets the transform to identity, so a taking-over insert transition can anchor its
@@ -1293,10 +1289,10 @@ open class ComposeView: BaseScrollView {
           newFrame: newFrame,
           previousRenderBounds: context.previousRenderBounds,
           renderBounds: bounds,
-          isAnimated: isAnimated,
           animationTiming: nil, // no animation for insertion
           contentView: self,
-          contentEvaluation: contentEvaluation
+          contentEvaluation: contentEvaluation,
+          animationDecision: animationDecision
         )
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
@@ -1378,7 +1374,7 @@ open class ComposeView: BaseScrollView {
     #endif
 
     if let didRenderHandler {
-      didRenderHandler(self, DidRenderContext(contentSize: contentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
+      didRenderHandler(self, DidRenderContext(contentSize: contentSize, renderBounds: bounds, renderType: renderType))
     }
 
     #if DEBUG

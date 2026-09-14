@@ -157,7 +157,7 @@ class ButtonNodeTests: XCTestCase {
           let contentView = ComposeView()
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
+          let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
           item.update(renderable, context)
           let view = try (renderable.view as? ButtonView).unwrap()
           let viewLookup = DynamicLookup(view)
@@ -178,7 +178,7 @@ class ButtonNodeTests: XCTestCase {
 
           // when: updating for a scroll
           do {
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds, renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds, renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
             item.update(renderable, context)
             let view = try (renderable.view as? ButtonView).unwrap()
             let viewLookup = DynamicLookup(view)
@@ -189,7 +189,7 @@ class ButtonNodeTests: XCTestCase {
 
           // when: updating for a viewport resize
           do {
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
             item.update(renderable, context)
             let view = try (renderable.view as? ButtonView).unwrap()
             let viewLookup = DynamicLookup(view)
@@ -250,7 +250,7 @@ class ButtonNodeTests: XCTestCase {
 
     for renderBounds in [frame.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
       // when: scrolling or resizing without an explicit refresh
-      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: renderBounds, animationTiming: nil, contentView: nil))
+      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: renderBounds, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
       button.setNeedsLayout()
       button.layoutIfNeeded()
       button.onDoubleTap?()
@@ -261,7 +261,7 @@ class ButtonNodeTests: XCTestCase {
     }
 
     // when: explicitly refreshing the configuration
-    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil))
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
     button.onDoubleTap?()
 
     // then: the new content and handler replace the prior configuration

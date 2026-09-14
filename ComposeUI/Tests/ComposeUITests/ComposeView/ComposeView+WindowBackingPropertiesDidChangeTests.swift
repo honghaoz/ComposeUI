@@ -84,7 +84,7 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
     isAnimated = nil
     expect(view.contentScaleFactor) == 3.0
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == frame
     expect(updateContext?.renderBounds) == frame
     expect(renderedLayer) === layer
@@ -100,7 +100,7 @@ class ComposeView_WindowBackingPropertiesDidChangeTests: XCTestCase {
     expect(isAnimated) == false
     expect(view.contentScaleFactor) == 1.0
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == frame
     expect(updateContext?.renderBounds) == frame
     expect(renderedLayer) === layer
