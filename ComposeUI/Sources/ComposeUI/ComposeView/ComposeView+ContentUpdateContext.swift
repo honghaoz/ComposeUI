@@ -76,9 +76,10 @@ extension ComposeView {
 
     // MARK: - Render Type
 
-    /// The render type describes the update using the viewport available at the current callback phase.
+    /// Returns the public render type for a callback phase, reporting `bounds` as that phase's viewport.
     ///
-    /// - Parameter bounds: The viewport used by the callback, without applying `visibleBoundsInsets`.
+    /// - Parameter bounds: The viewport of the callback phase, without applying `visibleBoundsInsets`.
+    /// - Returns: The render type for the callback.
     func renderType(bounds: CGRect) -> RenderType {
       switch updateType {
       case .refresh(let isAnimated):

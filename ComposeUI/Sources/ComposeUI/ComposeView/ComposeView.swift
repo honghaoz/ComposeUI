@@ -96,7 +96,10 @@ open class ComposeView: BaseScrollView {
     ///
     /// - Parameters:
     ///   - previousBounds: The viewport from the last completed render, or nil before the first render.
-    ///   - bounds: The viewport used by this callback, before visibility insets.
+    ///   - bounds: The viewport of the callback receiving this render type, without applying `visibleBoundsInsets`.
+    ///     The will-layout handler receives the proposed layout viewport, the will-render handler receives the viewport
+    ///     after the layout, when the content size was applied, and later callbacks receive the viewport after the
+    ///     will-render handler ran.
     case boundsChange(previousBounds: CGRect?, bounds: CGRect)
   }
 
@@ -790,6 +793,8 @@ open class ComposeView: BaseScrollView {
     }
 
     let renderBounds = renderBounds()
+    // `lastRenderBounds` is nil before the first render. compare against `.zero` in that case, so that the view does not
+    // render while its size is still zero, and renders once it gets a non-zero size.
     if contentUpdateContext == nil, renderBounds != (lastRenderBounds ?? .zero) {
       // no pending render request but bounds changed, should re-render the content
 

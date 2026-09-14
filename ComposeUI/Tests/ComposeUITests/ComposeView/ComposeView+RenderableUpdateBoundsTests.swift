@@ -229,7 +229,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     }
   }
 
-  func test_itemOffsetChange_doesNotMutateTheCurrentPassSnapshot() throws {
+  func test_itemOffsetChange_duringRefresh_doesNotMutateTheCurrentPassSnapshot() throws {
     // given: the first item can change live scroll position while the remaining items are being updated
     var changesOffset = false
     var contexts: [RenderableUpdateContext] = []
@@ -525,7 +525,8 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
   }
 
   func test_pooledInsertion_usesTheHostViewportRatherThanTheLayerFrame() throws {
-    // given: one row visible at a time and a private pool used to recycle its layer
+    // given: rows taller than the viewport, so one row is visible at a time and its frame differs from the viewport,
+    // with a private pool recycling the layer
     var layers: [Int: CALayer] = [:]
     var contexts: [Int: RenderableUpdateContext] = [:]
     let view = ComposeView {
@@ -541,20 +542,21 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
       }
     }
     view.renderablePool = RenderablePool()
-    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 60)
     view.refresh(animated: false)
     let firstLayer = try unwrap(layers[0])
+    expect(firstLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
 
     // when: scrolling replaces the visible row
     view.setContentOffset(CGPoint(x: 0, y: 200))
     view.layoutIfNeeded()
 
-    // then: the recycled layer is initialized with the new row's color and the host's history
+    // then: the recycled layer is initialized with the new row's color and the host's viewports, not its own frames
     expect(layers[2]) === firstLayer
     expect(firstLayer.backgroundColor) == Color.blue.cgColor
     expect(contexts[2]?.updateType) == .insert
-    expect(contexts[2]?.previousRenderBounds) == CGRect(x: 0, y: 0, width: 100, height: 100)
-    expect(contexts[2]?.renderBounds) == CGRect(x: 0, y: 200, width: 100, height: 100)
+    expect(contexts[2]?.previousRenderBounds) == CGRect(x: 0, y: 0, width: 100, height: 60)
+    expect(contexts[2]?.renderBounds) == CGRect(x: 0, y: 200, width: 100, height: 60)
     expect(firstLayer.frame) == CGRect(x: 0, y: 200, width: 100, height: 100)
   }
 

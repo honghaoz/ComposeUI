@@ -86,7 +86,7 @@ public struct RenderableUpdateContext: Equatable {
   /// The content view's bounds from its last completed render, or nil before its first render.
   public let previousRenderBounds: CGRect?
 
-  /// The content view's bounds used to render this pass, before applying visibleBoundsInsets.
+  /// The content view's bounds used to select and position the renderables of this pass, before applying `visibleBoundsInsets`.
   public let renderBounds: CGRect
 
   /// The timing to use for this renderable update, or nil to apply changes immediately.

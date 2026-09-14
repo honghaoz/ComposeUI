@@ -57,7 +57,8 @@ public struct DropShadowPaths {
 
 /// A node that renders a drop shadow.
 ///
-/// The node has a flexible size.
+/// The node has a flexible size. The path providers run when the renderable is inserted, refreshed, or changes size.
+/// Request a refresh when other inputs of a path change.
 public struct DropShadowNode: ComposeNode {
 
   private let color: ThemedColor
