@@ -188,7 +188,7 @@ class DropShadowNodeTests: XCTestCase {
 
           // without animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.shadowColor) == Color.red.cgColor
@@ -205,7 +205,7 @@ class DropShadowNodeTests: XCTestCase {
 
           // with animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true))
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.shadowColor) == Color.red.cgColor
@@ -229,7 +229,7 @@ class DropShadowNodeTests: XCTestCase {
 
           // without animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.shadowColor) == Color.blue.cgColor
@@ -246,7 +246,7 @@ class DropShadowNodeTests: XCTestCase {
 
           // with animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true))
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.shadowColor) == Color.blue.cgColor
@@ -270,7 +270,7 @@ class DropShadowNodeTests: XCTestCase {
 
           for animationTiming in [nil, AnimationTiming.easeInEaseOut()] {
             // when: scrolling with or without animation
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: renderable.frame, newFrame: renderable.frame, previousRenderBounds: visibleBounds, renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), animationTiming: animationTiming, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: renderable.frame, newFrame: renderable.frame, previousRenderBounds: visibleBounds, renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil))
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -284,7 +284,7 @@ class DropShadowNodeTests: XCTestCase {
 
           // when: resizing the viewport without changing the renderable's frame
           do {
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: renderable.frame, newFrame: renderable.frame, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: renderable.frame, newFrame: renderable.frame, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -302,7 +302,7 @@ class DropShadowNodeTests: XCTestCase {
             let newFrame = CGRect(x: 1, y: 2, width: 6, height: 8)
             let layer = renderable.layer
             layer.disableActions { layer.frame = newFrame }
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: newFrame, previousRenderBounds: visibleBounds, renderBounds: visibleBounds, animationTiming: nil, contentView: contentView)
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: newFrame, previousRenderBounds: visibleBounds, renderBounds: visibleBounds, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
             item.update(renderable, context)
 
             // then: the shadow path and configuration are applied to the new size
@@ -350,7 +350,7 @@ class DropShadowNodeTests: XCTestCase {
       window.layer.addSublayer(layer)
 
       // when: inserting at the already assigned frame
-      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView))
+      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
 
       // then: insertion initializes the shadow even though its size did not change
       let initialPath = CGPath(rect: layer.bounds, transform: nil)
@@ -364,7 +364,7 @@ class DropShadowNodeTests: XCTestCase {
 
       // when: only the viewport changes, including missing viewport history
       for previousBounds in [viewport, nil] {
-        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: previousBounds, renderBounds: CGRect(x: 0, y: 20, width: 300, height: 250), animationTiming: animationTiming, contentView: contentView))
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: previousBounds, renderBounds: CGRect(x: 0, y: 20, width: 300, height: 250), animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
         // then: external input changes do not alter the shadow or start animations
         expect(layer.shadowPath) == initialPath
@@ -376,7 +376,7 @@ class DropShadowNodeTests: XCTestCase {
       // when: the renderable moves without changing size
       let movedFrame = frame.offsetBy(dx: 10, dy: 20)
       layer.disableActions { layer.frame = movedFrame }
-      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: movedFrame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: movedFrame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
       // then: local paths remain unchanged during position-only updates
       expect(layer.shadowPath) == initialPath
@@ -390,7 +390,7 @@ class DropShadowNodeTests: XCTestCase {
         let previousPath = layer.presentation()?.shadowPath
         let previousMaskPath = mask.presentation()?.path
         layer.disableActions { layer.frame.size = size }
-        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+        item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
         // then: the new local geometry and external path input are applied
         let expectedPath = CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
@@ -413,7 +413,7 @@ class DropShadowNodeTests: XCTestCase {
 
       // when: explicit refresh changes an external input with the same renderable and viewport sizes
       inset = 4
-      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: layer.frame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView))
+      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: layer.frame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
       // then: refresh recalculates the supplied paths independently of size changes
       expect(layer.shadowPath) == CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)

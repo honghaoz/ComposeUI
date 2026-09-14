@@ -60,6 +60,9 @@ extension ComposeView {
     /// The viewport bounds proposed for this pass's layout.
     let renderBounds: CGRect
 
+    /// The parent's decisions when this pass applies prepared content.
+    let inheritedAnimationDecision: AnimationDecision?
+
     // MARK: - Equatable
 
     static func == (lhs: Self, rhs: Self) -> Bool {
@@ -67,8 +70,11 @@ extension ComposeView {
         lhs.contentEvaluation === rhs.contentEvaluation &&
         lhs.updateType == rhs.updateType &&
         lhs.previousRenderBounds == rhs.previousRenderBounds &&
-        lhs.renderBounds == rhs.renderBounds
+        lhs.renderBounds == rhs.renderBounds &&
+        lhs.inheritedAnimationDecision == rhs.inheritedAnimationDecision
     }
+
+    // MARK: - Render Type
 
     /// The render type describes the update using the viewport available at the current callback phase.
     ///
@@ -79,24 +85,6 @@ extension ComposeView {
         return .refresh(isAnimated: isAnimated)
       case .boundsChange:
         return .boundsChange(previousBounds: previousRenderBounds, bounds: bounds)
-      }
-    }
-
-    // MARK: - Animation Helper
-
-    func shouldAnimate(contentView: ComposeView, animationBehavior: AnimationBehavior, renderBounds: CGRect) -> Bool {
-      switch animationBehavior {
-      case .default:
-        switch updateType {
-        case .refresh(let isAnimated):
-          return isAnimated
-        case .boundsChange:
-          return true
-        }
-      case .disabled:
-        return false
-      case .dynamic(let shouldAnimate):
-        return shouldAnimate(contentView, renderType(bounds: renderBounds))
       }
     }
   }

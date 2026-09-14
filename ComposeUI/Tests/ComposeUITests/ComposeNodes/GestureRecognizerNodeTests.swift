@@ -89,7 +89,17 @@ class GestureRecognizerNodeTests: XCTestCase {
           let contentView = ComposeView()
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
+          let context = RenderableUpdateContext(
+            updateType: .refresh,
+            oldFrame: .zero,
+            newFrame: .zero,
+            previousRenderBounds: .zero,
+            renderBounds: .zero,
+            animationTiming: nil,
+            contentView: contentView,
+            contentEvaluation: nil,
+            animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+          )
           item.update(renderable, context)
           let view = try (renderable.view).unwrap()
           let viewLookup = DynamicLookup(view)
@@ -107,21 +117,60 @@ class GestureRecognizerNodeTests: XCTestCase {
           let view = try renderable.view.unwrap()
 
           // when: updating for a scroll
-          item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds, renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), animationTiming: nil, contentView: contentView))
+          item.update(
+            renderable,
+            RenderableUpdateContext(
+              updateType: .boundsChange,
+              oldFrame: .zero,
+              newFrame: .zero,
+              previousRenderBounds: visibleBounds,
+              renderBounds: visibleBounds.offsetBy(dx: 0, dy: 20),
+              animationTiming: nil,
+              contentView: contentView,
+              contentEvaluation: nil,
+              animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+            )
+          )
 
           // then: no gesture recognizers are installed
           let unconfiguredRecognizers: [GestureRecognizer]? = view.gestureRecognizers
           expect(unconfiguredRecognizers?.isEmpty ?? true) == true
 
           // when: updating for a viewport resize
-          item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView))
+          item.update(
+            renderable,
+            RenderableUpdateContext(
+              updateType: .boundsChange,
+              oldFrame: .zero,
+              newFrame: .zero,
+              previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20),
+              renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60),
+              animationTiming: nil,
+              contentView: contentView,
+              contentEvaluation: nil,
+              animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+            )
+          )
 
           // then: geometry updates do not install gesture recognizers
           let resizedRecognizers: [GestureRecognizer]? = view.gestureRecognizers
           expect(resizedRecognizers?.isEmpty ?? true) == true
 
           // when: inserting the gesture overlay
-          item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView))
+          item.update(
+            renderable,
+            RenderableUpdateContext(
+              updateType: .insert,
+              oldFrame: .zero,
+              newFrame: .zero,
+              previousRenderBounds: .zero,
+              renderBounds: .zero,
+              animationTiming: nil,
+              contentView: contentView,
+              contentEvaluation: nil,
+              animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+            )
+          )
 
           // then: insertion installs the configured tap recognizer
           let recognizers: [GestureRecognizer]? = view.gestureRecognizers

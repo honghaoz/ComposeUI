@@ -66,7 +66,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     width = 140
 
     // when: the parent supplies the prepared content
-    child.setPreparedContent(node, contentEvaluation: evaluation, animated: false)
+    child.setPreparedContent(node, contentEvaluation: evaluation, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
 
     // then: the supplied tree and evaluation render immediately without reevaluating the content
     let host = try unwrap(hostedView)
@@ -121,7 +121,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     }
 
     // when: the content is applied without an evaluation
-    child.setPreparedContent(content, contentEvaluation: nil, animated: false)
+    child.setPreparedContent(content, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
 
     // then: a fresh evaluation resolves the content once with its current value and geometry
     let host = try unwrap(hostedView)
@@ -165,7 +165,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     }
 
     // when: the first update is applied
-    child.setPreparedContent(first, contentEvaluation: firstEvaluation, animated: false)
+    child.setPreparedContent(first, contentEvaluation: firstEvaluation, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
 
     // then: the first content and evaluation determine the displayed configuration and geometry
     let renderedLayer = try unwrap(layer)
@@ -174,7 +174,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(renderedLayer.bounds.size) == CGSize(width: 100, height: 40)
 
     // when: the second update is applied
-    child.setPreparedContent(second, contentEvaluation: secondEvaluation, animated: false)
+    child.setPreparedContent(second, contentEvaluation: secondEvaluation, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
 
     // then: the retained layer shows the latest content and the evaluation is replaced with it
     expect(layer) === renderedLayer
@@ -198,7 +198,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
         renderedRoot = child.test.contentUpdateContext?.contentNode
       }
     }
-    child.setPreparedContent(content, contentEvaluation: nil, animated: false)
+    child.setPreparedContent(content, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
     let preparedRoot = try unwrap(renderedRoot)
     let layer = try unwrap(renderedLayer)
     let originalBounds = CGRect(x: 0, y: 0, width: 100, height: 80)
@@ -254,7 +254,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
       child.setNeedsRefresh(animated: pendingAnimated)
 
       // when: the parent supplies prepared content with its own animation decision
-      child.setPreparedContent(prepared, contentEvaluation: nil, animated: suppliedAnimated)
+      child.setPreparedContent(prepared, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: suppliedAnimated, allowsAnimations: suppliedAnimated))
 
       // then: the content renders immediately with the supplied decision rather than the pending preference
       expect(layer) === originalLayer
@@ -274,23 +274,115 @@ class ComposeView_PreparedContentTests: XCTestCase {
   }
 
   func test_preparedContent_goesThroughRefreshOverride() throws {
-    for animated in [false, true] {
-      // given: a child subclass that participates in the refresh lifecycle
-      let child = RefreshOverrideView()
-      var layer: CALayer?
-      let prepared = ColorNode(.blue)
-        .onUpdate { renderable, _ in
-          layer = renderable.layer
+    for transitions in [false, true] {
+      for updates in [false, true] {
+        // given: a child subclass that participates in the refresh lifecycle
+        let child = RefreshOverrideView()
+        var layer: CALayer?
+        var context: RenderableUpdateContext?
+        let prepared = ColorNode(.blue)
+          .transition(.opacity(timing: .linear(duration: 10)))
+          .onUpdate { renderable, update in
+            layer = renderable.layer
+            context = update
+          }
+        let decision = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates)
+
+        // when: prepared content is applied with one resolved decision
+        child.setPreparedContent(prepared, contentEvaluation: nil, animationDecision: decision)
+
+        // then: the refresh override receives permission for either animation type while rendering keeps both flags
+        let renderable = try unwrap(layer)
+        let update = try unwrap(context)
+        expect(child.refreshCount) == 1
+        expect(child.lastAnimated) == (transitions || updates)
+        expect(update.animationDecision) == decision
+        expect(update.animationTiming) == nil
+        expect(renderable.backgroundColor) == ComposeUI.Color.blue.cgColor
+        expect(renderable.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+        expect(renderable.animation(forKey: "opacity") != nil) == transitions
+        renderable.removeAllAnimations()
+      }
+    }
+  }
+
+  func test_deferredPreparedContent_respectsCoalescedNonAnimatedRefresh() throws {
+    for nonAnimatedFirst in [false, true] {
+      for decision in [ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false), ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: true)] {
+        // given: a retained item and a prepared replacement requested during rendering
+        let view = ComposeView()
+        view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        var layers: [String: CALayer] = [:]
+        var contexts: [String: RenderableUpdateContext] = [:]
+        view.setContent {
+          ColorNode(.red)
+            .id("retained")
+            .frame(width: 40, height: 40)
+            .animation(.linear(duration: 10))
+            .onUpdate { renderable, context in
+              layers["retained"] = renderable.layer
+              contexts["retained"] = context
+            }
+        }
+        view.refresh(animated: false)
+        let originalLayer = try unwrap(layers["retained"])
+        let prepared = ZStack {
+          ColorNode(.blue)
+            .id("retained")
+            .frame(width: 80, height: 60)
+            .animation(.linear(duration: 10))
+            .onUpdate { renderable, context in
+              layers["retained"] = renderable.layer
+              contexts["retained"] = context
+            }
+          ColorNode(.green)
+            .id("inserted")
+            .frame(width: 20, height: 20)
+            .transition(.opacity(timing: .linear(duration: 10)))
+            .onUpdate { renderable, context in
+              layers["inserted"] = renderable.layer
+              contexts["inserted"] = context
+            }
+        }
+        var requestsPreparedContent = true
+        view.onDidRender { contentView, _ in
+          guard requestsPreparedContent else {
+            return
+          }
+          requestsPreparedContent = false
+          if nonAnimatedFirst {
+            contentView.setNeedsRefresh(animated: false)
+          }
+          contentView.setPreparedContent(prepared, contentEvaluation: nil, animationDecision: decision)
+          if !nonAnimatedFirst {
+            contentView.setNeedsRefresh(animated: false)
+          }
         }
 
-      // when: prepared content is applied
-      child.setPreparedContent(prepared, contentEvaluation: nil, animated: animated)
+        // when: the current pass queues the prepared decision and a non-animated request
+        view.refresh(animated: false)
 
-      // then: the open refresh override runs synchronously with the supplied animation decision before rendering
-      expect(child.refreshCount) == 1
-      expect(child.lastAnimated) == animated
-      expect(layer?.backgroundColor) == ComposeUI.Color.blue.cgColor
-      expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+        // then: prepared content remains unapplied until the current pass finishes
+        expect(originalLayer.backgroundColor) == ComposeUI.Color.red.cgColor
+        expect(layers["inserted"]) == nil
+
+        // when: the run loop applies the coalesced refresh
+        expect(layers["inserted"] != nil).toEventually(beTrue())
+
+        // then: non-animated dominates in either order without losing the prepared content
+        let inserted = try unwrap(layers["inserted"])
+        expect(layers["retained"]) === originalLayer
+        expect(originalLayer.backgroundColor) == ComposeUI.Color.blue.cgColor
+        expect(originalLayer.bounds.size) == CGSize(width: 80, height: 60)
+        expect(originalLayer.animationKeys()) == nil
+        expect(inserted.backgroundColor) == ComposeUI.Color.green.cgColor
+        expect(inserted.bounds.size) == CGSize(width: 20, height: 20)
+        expect(inserted.animationKeys()) == nil
+        for context in contexts.values {
+          expect(context.animationDecision) == ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+          expect(context.animationTiming) == nil
+        }
+      }
     }
   }
 
@@ -319,7 +411,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     }
 
     // when: the override handles the prepared update without calling super
-    child.setPreparedContent(node, contentEvaluation: evaluation, animated: false)
+    child.setPreparedContent(node, contentEvaluation: evaluation, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
 
     // then: the prepared content remains unapplied
     expect(child.refreshCount) == 1
@@ -370,11 +462,11 @@ class ComposeView_PreparedContentTests: XCTestCase {
       }
     child.afterRefresh = { view in
       view.afterRefresh = nil
-      view.setPreparedContent(second, contentEvaluation: nil, animated: false)
+      view.setPreparedContent(second, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
     }
 
     // when: the first prepared update triggers the override and its nested replacement
-    child.setPreparedContent(first, contentEvaluation: nil, animated: true)
+    child.setPreparedContent(first, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true))
 
     // then: both updates render in order and the replacement uses its own animation decision
     expect(colors) == [ComposeUI.Color.red.cgColor, ComposeUI.Color.blue.cgColor]
@@ -401,11 +493,11 @@ class ComposeView_PreparedContentTests: XCTestCase {
       }
     child.beforeRefresh = { view in
       view.beforeRefresh = nil
-      view.setPreparedContent(second, contentEvaluation: nil, animated: false)
+      view.setPreparedContent(second, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
     }
 
     // when: the original prepared update is replaced from within its own refresh
-    child.setPreparedContent(first, contentEvaluation: nil, animated: false)
+    child.setPreparedContent(first, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
 
     // then: the superseded content never renders and the replacement is displayed once
     expect(colors.isEmpty) == false
@@ -422,11 +514,11 @@ class ComposeView_PreparedContentTests: XCTestCase {
     child.afterRefresh = { view in
       view.afterRefresh = nil
       view.callsSuper = true
-      view.setPreparedContent(ColorNode(.blue), contentEvaluation: nil, animated: false)
+      view.setPreparedContent(ColorNode(.blue), contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
     }
 
     // when: the initial override skips super and supplies the replacement
-    child.setPreparedContent(ColorNode(.red), contentEvaluation: nil, animated: false)
+    child.setPreparedContent(ColorNode(.red), contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
 
     // then: the replacement renders instead of the superseded content
     expect(child.contentView().layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
@@ -462,7 +554,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
         child.afterRefresh = { view in
           view.afterRefresh = nil
           view.callsSuper = true
-          view.setPreparedContent(replacement, contentEvaluation: nil, animated: replacementAnimated)
+          view.setPreparedContent(replacement, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: replacementAnimated, allowsAnimations: replacementAnimated))
         }
 
         // when: the handled request is followed by a prepared update from its override
@@ -491,7 +583,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
       }
     }
     child.callsSuper = false
-    child.setPreparedContent(ColorNode(.blue), contentEvaluation: preparedEvaluation, animated: false)
+    child.setPreparedContent(ColorNode(.blue), contentEvaluation: preparedEvaluation, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
     expect(child.refreshCount) == 1
     expect(child.contentView().layer().sublayers?.isEmpty ?? true) == true
 

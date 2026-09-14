@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class ComposeView_AnimationBehaviorTests: XCTestCase {
 
@@ -63,16 +63,16 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.frame.size = CGSize(width: 100, height: 7)
     view.layoutIfNeeded()
 
-    // then: the retained layer's configured animation applies during resizing
-    try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1)
+    // then: resizing applies the retained layer's geometry without animation
+    try expect(layer1Context.unwrap().animationTiming) == nil
     expect(layer2Context) == nil
 
     // when: scrolling
     view.setContentOffset(CGPoint(x: 0, y: 4))
     view.layoutIfNeeded()
 
-    // then: animation for scrolling, no frame animation for the newly inserted layer
-    try expect(layer1Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for scrolling
+    // then: retained updates follow scrolling immediately, and insertion has no frame animation
+    try expect(layer1Context.unwrap().animationTiming) == nil
     try expect(layer2Context.unwrap().animationTiming) == nil // no animation for insertion
 
     // when: animated refresh
@@ -83,8 +83,8 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     try expect(layer2Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for refreshing
   }
 
-  func test_boundsChange_animatesConfiguredTransitionsAndRetainedFrames() throws {
-    // given: one visible row and an offscreen row with configured transitions and frame animations
+  func test_boundsChange_dynamicBehaviorAnimatesTransitionsAndRetainedFrames() throws {
+    // given: a view explicitly allowing resize animations for its configured rows
     var layers: [Int: CALayer] = [:]
     var contexts: [Int: RenderableUpdateContext] = [:]
     let timing = AnimationTiming.linear(duration: 10)
@@ -108,6 +108,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     let retainedLayer = try unwrap(layers[0])
     expect(retainedLayer.animationKeys()) == nil
     expect(layers[1]) == nil
+    view.animationBehavior = .dynamic { _, _ in true }
 
     // when: resizing changes retained geometry and reveals another row
     view.frame.size = CGSize(width: 140, height: 100)
@@ -120,7 +121,6 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 140, height: 60)
     expect(retainedLayer.backgroundColor) == Color.red.cgColor
     expect(contexts[0]?.updateType) == .boundsChange
-    expect(contexts[0]?.isAnimated) == true
     expect(contexts[0]?.animationTiming) == timing
     let frameAnimation = try unwrap(retainedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
     expect(frameAnimation.fromValue as? CGSize) == CGSize(width: -40, height: 0)
@@ -131,7 +131,6 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(insertedLayer.backgroundColor) == Color.blue.cgColor
     expect(insertedLayer.opacity) == 1
     expect(contexts[1]?.updateType) == .insert
-    expect(contexts[1]?.isAnimated) == true
     expect(contexts[1]?.animationTiming) == nil
     let insertAnimation = try unwrap(insertedLayer.animation(forKey: "opacity") as? CABasicAnimation)
     expect(insertAnimation.fromValue as? Float) == -1
@@ -166,7 +165,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(insertedLayer.opacity) == 1
     expect(insertedLayer.frame) == CGRect(x: 0, y: 60, width: 140, height: 60)
     expect(contexts[1]?.updateType) == .insert
-    expect(contexts[1]?.isAnimated) == true
+    expect(contexts[1]?.animationTiming) == nil
     expect(insertedLayer.animation(forKey: "opacity")) != nil
     for layer in layers.values {
       layer.removeAllAnimations()
@@ -174,13 +173,13 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
   }
 
   func test_boundsChange_respectsAnimationBehaviorFromFirstRender() throws {
-    let behaviors: [(ComposeView.AnimationBehavior, Bool)] = [
-      (.default, true),
-      (.disabled, false),
-      (.dynamic { _, _ in false }, false),
-      (.dynamic { _, _ in true }, true),
+    let behaviors: [(ComposeView.AnimationBehavior, Bool, Bool)] = [
+      (.default, true, false),
+      (.disabled, false, false),
+      (.dynamic { _, _ in false }, false, false),
+      (.dynamic { _, _ in true }, true, true),
     ]
-    for (behavior, allowsAnimation) in behaviors {
+    for (behavior, allowsTransitions, allowsUpdates) in behaviors {
       // given: configured transitions and frame animations controlled by the view's animation behavior
       var layers: [Int: CALayer] = [:]
       var views: [Int: View] = [:]
@@ -213,9 +212,8 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       let first = try unwrap(layers[0])
       expect(contexts[0]?.previousRenderBounds) == nil
       expect(contexts[0]?.updateType) == .insert
-      expect(contexts[0]?.isAnimated) == allowsAnimation
       expect(contexts[0]?.animationTiming) == nil
-      expect(first.animation(forKey: "opacity") != nil) == allowsAnimation
+      expect(first.animation(forKey: "opacity") != nil) == allowsTransitions
       expect(first.animation(forKey: "bounds.size")) == nil
       expect(first.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(first.backgroundColor) == Color.red.cgColor
@@ -226,16 +224,15 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       view.setNeedsLayout()
       view.layoutIfNeeded()
 
-      // then: the same override controls both retained animations and insertion transitions
+      // then: the policy resolves insertion transitions independently from retained updates
       let second = try unwrap(layers[1])
       let secondView = try unwrap(views[1])
       expect(layers[0]) === first
       expect(first.frame) == CGRect(x: 0, y: 0, width: 140, height: 60)
-      expect(contexts[0]?.isAnimated) == allowsAnimation
-      expect(contexts[0]?.animationTiming) == (allowsAnimation ? timing : nil)
-      expect(first.animation(forKey: "bounds.size") != nil) == allowsAnimation
-      expect(contexts[1]?.isAnimated) == allowsAnimation
-      expect(second.animation(forKey: "opacity") != nil) == allowsAnimation
+      expect(contexts[0]?.animationTiming) == (allowsUpdates ? timing : nil)
+      expect(first.animation(forKey: "bounds.size") != nil) == allowsUpdates
+      expect(contexts[1]?.animationTiming) == nil
+      expect(second.animation(forKey: "opacity") != nil) == allowsTransitions
       expect(second.frame) == CGRect(x: 0, y: 60, width: 140, height: 60)
       first.removeAllAnimations()
       second.removeAllAnimations()
@@ -245,10 +242,10 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       view.setNeedsLayout()
       view.layoutIfNeeded()
 
-      // then: removal obeys the same override as insertion and retained updates
-      expect(secondView.superview != nil) == allowsAnimation
-      expect(second.animation(forKey: "opacity") != nil) == allowsAnimation
-      expect(second.opacity) == (allowsAnimation ? 0 : 1)
+      // then: removal obeys the transition decision
+      expect(secondView.superview != nil) == allowsTransitions
+      expect(second.animation(forKey: "opacity") != nil) == allowsTransitions
+      expect(second.opacity) == (allowsTransitions ? 0 : 1)
       for layer in layers.values {
         layer.removeAllAnimations()
       }
@@ -455,6 +452,147 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(calledPreviousBounds) == nil
   }
 
+  func test_animationBehavior_dynamic_decidesOncePerPass() throws {
+    // given: rows with transitions and frame animations, and a dynamic behavior whose answer flips on every call
+    var layers: [Int: CALayer] = [:]
+    var contexts: [Int: RenderableUpdateContext] = [:]
+    let timing = AnimationTiming.linear(duration: 10)
+    let view = ComposeView {
+      VStack(spacing: 0) {
+        for index in 0 ..< 4 {
+          ColorNode(.red)
+            .frame(width: .flexible, height: 100)
+            .animation(timing)
+            .transition(.opacity(timing: timing))
+            .onUpdate { renderable, context in
+              layers[index] = renderable.layer
+              contexts[index] = context
+            }
+        }
+      }
+    }
+    view.renderablePool = nil
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
+    view.refresh(animated: false)
+    let firstRow = try unwrap(layers[0])
+    let secondRow = try unwrap(layers[1])
+
+    var callCount = 0
+    view.animationBehavior = .dynamic { _, _ in
+      callCount += 1
+      return callCount % 2 == 1
+    }
+
+    // when: one scroll removes a row, retains a row, and reveals a row
+    view.setContentOffset(CGPoint(x: 0, y: 100))
+    view.layoutIfNeeded()
+
+    // then: the behavior is asked once and its answer applies to the removal, the retained update, and the insertion
+    let thirdRow = try unwrap(layers[2])
+    expect(callCount) == 1
+    expect(firstRow.superlayer) != nil
+    expect(firstRow.opacity) == 0
+    expect(firstRow.animation(forKey: "opacity")) != nil
+    expect(layers[1]) === secondRow
+    expect(contexts[1]?.updateType) == .boundsChange
+    expect(contexts[1]?.animationTiming) == timing
+    expect(contexts[2]?.updateType) == .insert
+    expect(contexts[2]?.animationTiming) == nil
+    expect(thirdRow.animation(forKey: "opacity")) != nil
+
+    // when: the next scroll removes, retains, and reveals again
+    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.layoutIfNeeded()
+
+    // then: the flipped answer applies to the whole pass, so nothing animates
+    let fourthRow = try unwrap(layers[3])
+    expect(callCount) == 2
+    expect(secondRow.superlayer) == nil
+    expect(layers[2]) === thirdRow
+    expect(contexts[2]?.updateType) == .boundsChange
+    expect(contexts[2]?.animationTiming) == nil
+    expect(contexts[3]?.updateType) == .insert
+    expect(contexts[3]?.animationTiming) == nil
+    expect(fourthRow.animationKeys()) == nil
+    for layer in layers.values {
+      layer.removeAllAnimations()
+    }
+  }
+
+  func test_animationDecision() {
+    // given: refreshes and bounds changes with missing, equal, and changing geometry
+    let view = ComposeView()
+    let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let renderTypes: [ComposeView.RenderType] = [
+      .refresh(isAnimated: true),
+      .refresh(isAnimated: false),
+      .boundsChange(previousBounds: nil, bounds: bounds),
+      .boundsChange(previousBounds: nil, bounds: .zero),
+      .boundsChange(previousBounds: bounds, bounds: bounds),
+      .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 100, height: 100), bounds: bounds),
+      .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 50, height: 100), bounds: bounds),
+      .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 50, height: 100), bounds: bounds),
+    ]
+    let both = ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
+    let neither = ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+    let transitionsOnly = ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
+
+    // then: refresh controls both decisions, while all bounds changes allow only transitions
+    expect(
+      renderTypes.map { ComposeView.AnimationBehavior.default.animationDecision(renderType: $0, inheritedDecision: nil, contentView: view) }
+    ) == [
+      both, neither, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly
+    ]
+
+    // then: disabled behavior permits neither animation type
+    expect(
+      renderTypes.map { ComposeView.AnimationBehavior.disabled.animationDecision(renderType: $0, inheritedDecision: nil, contentView: view) }
+    ) == Array(repeating: neither, count: renderTypes.count)
+
+    // when: dynamic behavior returns one answer for each pass
+    for decision in [true, false] {
+      var receivedViews: [ComposeView] = []
+      var receivedRenderTypes: [ComposeView.RenderType] = []
+      let behavior = ComposeView.AnimationBehavior.dynamic { contentView, renderType in
+        receivedViews.append(contentView)
+        receivedRenderTypes.append(renderType)
+        return decision
+      }
+      let results = renderTypes.map { behavior.animationDecision(renderType: $0, inheritedDecision: nil, contentView: view) }
+
+      // then: its single answer controls both decisions and each pass is queried once
+      expect(results) == Array(repeating: decision ? both : neither, count: renderTypes.count)
+      expect(receivedViews.count) == renderTypes.count
+      for receivedView in receivedViews {
+        expect(receivedView) === view
+      }
+      expect(receivedRenderTypes) == renderTypes
+    }
+  }
+
+  func test_animationDecision_inheritsPreparedContentWithoutCollapsingTheDecisions() {
+    // given: all possible inherited transition and update decisions
+    let view = ComposeView()
+    for transitions in [false, true] {
+      for updates in [false, true] {
+        let inherited = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates)
+        for animated in [false, true] {
+          let renderType = ComposeView.RenderType.refresh(isAnimated: animated)
+
+          // then: the refresh flag gates each inherited decision independently
+          expect(ComposeView.AnimationBehavior.default.animationDecision(renderType: renderType, inheritedDecision: inherited, contentView: view)) == ComposeView.AnimationDecision(allowsTransitions: animated && transitions, allowsAnimations: animated && updates)
+          expect(ComposeView.AnimationBehavior.disabled.animationDecision(renderType: renderType, inheritedDecision: inherited, contentView: view)) == ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+
+          // then: a child's explicit dynamic behavior keeps its existing override semantics
+          for decision in [false, true] {
+            let behavior = ComposeView.AnimationBehavior.dynamic { _, _ in decision }
+            expect(behavior.animationDecision(renderType: renderType, inheritedDecision: inherited, contentView: view)) == ComposeView.AnimationDecision(allowsTransitions: decision, allowsAnimations: decision)
+          }
+        }
+      }
+    }
+  }
+
   func test_previousBounds_withAppKitScrollers() {
     // given: a compose view with a layer node that has an animation and an update hook to track the context
     var calledContext: RenderableUpdateContext?
@@ -498,7 +636,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
-    // then: the bounds reflect the scroll and the update is animated
+    // then: the bounds reflect the scroll while the retained update stays immediate
     #if canImport(AppKit)
     // verify the scrollers does affect the bounds
     if #available(macOS 26.0, *) {
@@ -511,8 +649,8 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(view.bounds()) == CGRect(x: 0, y: 10, width: 120, height: 80)
     #endif
 
-    // the update is animated
-    try expect(calledContext.unwrap().animationTiming) != nil
+    // the retained update does not animate
+    try expect(calledContext.unwrap().animationTiming) == nil
 
     // when: scroll the view again, with the animation behavior set to dynamic so we can verify the render type
     var calledRenderType: ComposeView.RenderType?

@@ -4,8 +4,9 @@
 
 ### Breaking Changes
 
+- Removed `RenderableUpdateContext.isAnimated`. Use `animationTiming` for update animations, or apply changes immediately when it is nil. Insertion transitions remain independent.
+- Bounds changes now run configured insertion and removal transitions without starting retained-item update animations. Refresh flags still control both, and existing animations continue running.
 - Replaced `ComposeView.RenderType.scroll` with `.boundsChange(previousBounds:bounds:)`.
-- Resizing now runs configured animations and transitions by default, including on the first bounds-driven render.
 - Shadow paths now follow renderable size instead of viewport size. Request a refresh when other path inputs change.
 - Merged `RenderableUpdateType.scroll` into `.boundsChange`. Use the supplied bounds to distinguish scrolling from resizing.
 - Removed `RenderableUpdateType.requiresFullUpdate`. Handle update types explicitly according to the renderable's dependencies, including bounds-dependent drawing and scroll effects.
@@ -20,7 +21,7 @@
 - Added previous and current viewport bounds to `RenderableUpdateContext`.
 - Fixed a render pass without an `onWillRender` handler using the scroll offset from before a content-size change, which dropped the items visible at the clamped offset until the next layout.
 - `ComposeViewNode` now updates an already-mounted child view's content when the parent is refreshed. The child renders within the parent's render pass. Properties set on the child view in `onInsert` or `onUpdate` no longer apply to its first render. Set them in `willInsert` or `willUpdate` instead.
-- `RenderableUpdateContext` gains `isAnimated`, whether the render pass is animated.
+- The `AnimationBehavior.dynamic` closure is now called once per render pass instead of once per renderable, so one decision applies to the whole pass.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
 - Slide transitions now continue a revival from wherever the removal left the renderable.
 - The insert transition context gains `revivalPosition` and `revivalTransform` for taking-over transitions.

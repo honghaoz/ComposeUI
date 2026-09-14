@@ -65,7 +65,7 @@ class ComposeView_EnvironmentUpdateContextTests: XCTestCase {
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
     expect(renderedLayer) === layer
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == true
+    expect(updateContext?.animationTiming) == .linear()
     expect(updateContext?.previousRenderBounds) == bounds
     expect(updateContext?.renderBounds) == bounds
     expect(layer.frame) == bounds
@@ -81,7 +81,7 @@ class ComposeView_EnvironmentUpdateContextTests: XCTestCase {
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.red.cgColor))
     expect(renderedLayer) === layer
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == bounds
     expect(updateContext?.renderBounds) == bounds
     expect(layer.frame) == bounds
@@ -118,7 +118,7 @@ class ComposeView_EnvironmentUpdateContextTests: XCTestCase {
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
     expect(renderedLayer) === layer
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == bounds
     expect(updateContext?.renderBounds) == bounds
     expect(layer.frame) == bounds
@@ -134,7 +134,7 @@ class ComposeView_EnvironmentUpdateContextTests: XCTestCase {
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.red.cgColor))
     expect(renderedLayer) === layer
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == true
+    expect(updateContext?.animationTiming) == .linear()
     expect(updateContext?.previousRenderBounds) == bounds
     expect(updateContext?.renderBounds) == bounds
     expect(layer.frame) == bounds

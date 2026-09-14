@@ -85,7 +85,7 @@ class ComposeView_TraitCollectionDidChangeTests: XCTestCase {
     expect(refreshCount) == 2
     expect(isAnimated) == false
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == frame
     expect(updateContext?.renderBounds) == frame
     expect(renderedLayer) === layer
@@ -142,7 +142,7 @@ class ComposeView_TraitCollectionDidChangeTests: XCTestCase {
     expect(renderCount).toEventually(beEqual(to: 2))
     expect(isAnimated) == false
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == frame
     expect(updateContext?.renderBounds) == frame
     expect(view.theme) == (initialTheme.isLight ? .dark : .light)

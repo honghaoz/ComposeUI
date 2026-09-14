@@ -389,7 +389,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(didRenderContext?.renderType) == initialType
     expect(didRenderContext?.renderBounds) == initialBounds
     expect(animationTypes) == [initialType]
-    expect(itemContext?.isAnimated) == false
+    expect(itemContext?.animationTiming) == nil
     expect(renderedLayer.cornerRadius) == 0
 
     // when: resizing also adjusts the offset from onWillRender
@@ -409,7 +409,6 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(didRenderContext?.renderType) == finalType
     expect(didRenderContext?.renderBounds) == finalBounds
     expect(animationTypes) == [finalType]
-    expect(itemContext?.isAnimated) == true
     expect(itemContext?.animationTiming) == timing
     expect(itemContext?.renderBounds) == finalBounds
     expect(layer) === renderedLayer
@@ -434,7 +433,6 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(willRenderContext?.renderType) == scrollType
     expect(didRenderContext?.renderType) == scrollType
     expect(animationTypes) == [scrollType]
-    expect(itemContext?.isAnimated) == false
     expect(itemContext?.animationTiming) == nil
     expect(renderedLayer.cornerRadius) == 60
     expect(renderedLayer.animationKeys()) == nil
@@ -481,12 +479,12 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: all policies and items keep the bounds chosen before item updates, despite the live offset change
+    // then: the pass-level policy and all items keep the bounds chosen before item updates, despite the live offset change
     let initialBounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let passBounds = CGRect(x: 0, y: 0, width: 150, height: 100)
     let expectedType = ComposeView.RenderType.boundsChange(previousBounds: initialBounds, bounds: passBounds)
     expect(view.contentOffset().y) == 40
-    expect(animationTypes) == [expectedType, expectedType]
+    expect(animationTypes) == [expectedType]
     expect(didRenderContext?.renderType) == expectedType
     expect(didRenderContext?.renderBounds) == passBounds
     expect(itemContexts.count) == 2
@@ -508,7 +506,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     // then: the next pass reports the scroll from the last completed viewport
     let scrolledBounds = CGRect(x: 0, y: 40, width: 150, height: 100)
     let scrolledType = ComposeView.RenderType.boundsChange(previousBounds: passBounds, bounds: scrolledBounds)
-    expect(animationTypes) == [scrolledType, scrolledType]
+    expect(animationTypes) == [scrolledType]
     expect(didRenderContext?.renderType) == scrolledType
     expect(didRenderContext?.renderBounds) == scrolledBounds
     for layer in layers {

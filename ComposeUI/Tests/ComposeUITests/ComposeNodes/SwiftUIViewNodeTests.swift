@@ -100,7 +100,7 @@ class SwiftUIViewNodeTests: XCTestCase {
       view.content = AnyView(SwiftUI.Color.blue.frame(width: 30, height: 20))
 
       // when: applying a configuration update
-      let context = RenderableUpdateContext(updateType: updateType, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView)
+      let context = RenderableUpdateContext(updateType: updateType, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
       item.update(renderable, context)
 
       // then: the supplied content replaces the host's previous content
@@ -113,7 +113,7 @@ class SwiftUIViewNodeTests: XCTestCase {
       view.content = AnyView(SwiftUI.Color.blue.frame(width: 30, height: 20))
 
       // when: applying a scroll or resize update directly
-      let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: previousRenderBounds, renderBounds: renderBounds, animationTiming: nil, contentView: contentView)
+      let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: previousRenderBounds, renderBounds: renderBounds, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
       item.update(renderable, context)
 
       // then: geometry-only updates retain the host's current content
@@ -140,7 +140,7 @@ class SwiftUIViewNodeTests: XCTestCase {
     }
 
     // when: applying the configuration to an incompatible host
-    let context = RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil)
+    let context = RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
     item.update(.view(view), context)
 
     // then: the invalid host is reported without changing its appearance

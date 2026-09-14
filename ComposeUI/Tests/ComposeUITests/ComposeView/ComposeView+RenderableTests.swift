@@ -131,7 +131,9 @@ class ComposeView_RenderableTests: XCTestCase {
       previousRenderBounds: nil,
       renderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       animationTiming: nil,
-      contentView: view
+      contentView: view,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .insert,
@@ -140,7 +142,9 @@ class ComposeView_RenderableTests: XCTestCase {
       previousRenderBounds: nil,
       renderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       animationTiming: nil,
-      contentView: view
+      contentView: view,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
     )
 
     // when: refresh the view again
@@ -154,7 +158,9 @@ class ComposeView_RenderableTests: XCTestCase {
       previousRenderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       renderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       animationTiming: nil,
-      contentView: view
+      contentView: view,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .refresh,
@@ -163,7 +169,9 @@ class ComposeView_RenderableTests: XCTestCase {
       previousRenderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       renderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       animationTiming: nil,
-      contentView: view
+      contentView: view,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
     )
 
     // when: scroll the view
@@ -177,9 +185,10 @@ class ComposeView_RenderableTests: XCTestCase {
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       previousRenderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       renderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
-      isAnimated: true,
       animationTiming: nil,
-      contentView: view
+      contentView: view,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .boundsChange,
@@ -187,9 +196,10 @@ class ComposeView_RenderableTests: XCTestCase {
       newFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       previousRenderBounds: CGRect(x: 0, y: 0, width: 100, height: 150),
       renderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
-      isAnimated: true,
       animationTiming: nil,
-      contentView: view
+      contentView: view,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
     )
 
     // when: resize the view
@@ -203,9 +213,10 @@ class ComposeView_RenderableTests: XCTestCase {
       newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
       previousRenderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
       renderBounds: CGRect(origin: view.contentOffset(), size: CGSize(width: 200, height: 200)),
-      isAnimated: true,
       animationTiming: nil,
-      contentView: view
+      contentView: view,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .boundsChange,
@@ -213,9 +224,10 @@ class ComposeView_RenderableTests: XCTestCase {
       newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
       previousRenderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
       renderBounds: CGRect(origin: view.contentOffset(), size: CGSize(width: 200, height: 200)),
-      isAnimated: true,
       animationTiming: nil,
-      contentView: view
+      contentView: view,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
     )
   }
 }

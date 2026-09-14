@@ -79,7 +79,7 @@ class ComposeView_KeyWindowTests: XCTestCase {
     expect(refreshCount) == 2
     expect(isAnimated) == false
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == frame
     expect(updateContext?.renderBounds) == frame
     expect(renderedLayer) === layer
@@ -95,7 +95,7 @@ class ComposeView_KeyWindowTests: XCTestCase {
     expect(refreshCount) == 3
     expect(isAnimated) == false
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == frame
     expect(updateContext?.renderBounds) == frame
     expect(renderedLayer) === layer
@@ -111,7 +111,7 @@ class ComposeView_KeyWindowTests: XCTestCase {
     expect(refreshCount) == 4
     expect(isAnimated) == false
     expect(updateContext?.updateType) == .refresh
-    expect(updateContext?.isAnimated) == false
+    expect(updateContext?.animationTiming) == nil
     expect(updateContext?.previousRenderBounds) == frame
     expect(updateContext?.renderBounds) == frame
     expect(renderedLayer) === layer

@@ -34,22 +34,46 @@ import ChouTiTest
 
 class RenderItem_ContextTests: XCTestCase {
 
+  func test_equality_ignoresInternalAnimationPolicyWhenTimingMatches() {
+    // given: matching public update inputs with every internal policy combination
+    let frame = CGRect(x: 0, y: 0, width: 40, height: 40)
+    for updateType in [RenderableUpdateType.insert, .refresh, .boundsChange] {
+      let reference = RenderableUpdateContext(updateType: updateType, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+      for transitions in [false, true] {
+        for updates in [false, true] {
+          let decision = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates)
+          let context = RenderableUpdateContext(updateType: updateType, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: decision)
+
+          // then: policy metadata does not change the public timing instruction or equality
+          expect(context.animationTiming) == nil
+          expect(context) == reference
+        }
+      }
+    }
+  }
+
   func test_updateContext_equalityPreservesPublicFields() {
     // given: contexts with identical public values and different internal evaluations
     let view = ComposeView()
     let otherView = ComposeView()
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let base = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view)
-    let first = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: ContentEvaluation())
-    let second = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: ContentEvaluation())
+    let noAnimations = ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+    let base = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations)
+    let first = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: ContentEvaluation(), animationDecision: noAnimations)
+    let second = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: ContentEvaluation(), animationDecision: noAnimations)
 
-    // then: internal ownership does not change equality
+    let transitionsOnly = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false))
+    let neither = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+
+    // then: internal ownership and inherited decisions do not change public equality
     expect(base) == first
     expect(first) == second
+    expect(base) == transitionsOnly
+    expect(transitionsOnly) == neither
 
     // given: missing history differs from completed zero bounds
-    let withoutHistory = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: nil, renderBounds: frame, animationTiming: nil, contentView: view)
-    let sameWithoutHistory = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: nil, renderBounds: frame, animationTiming: nil, contentView: view)
+    let withoutHistory = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: nil, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations)
+    let sameWithoutHistory = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: nil, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations)
 
     // then: equality preserves the distinction
     expect(withoutHistory) == sameWithoutHistory
@@ -57,15 +81,14 @@ class RenderItem_ContextTests: XCTestCase {
 
     // given: each public field can independently differ
     let differentContexts = [
-      RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view),
-      RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view),
-      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view),
-      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: view),
-      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: view),
-      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, isAnimated: true, animationTiming: nil, contentView: view),
-      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: .linear(), contentView: view),
-      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: otherView),
-      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: nil),
+      RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations),
+      RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations),
+      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations),
+      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations),
+      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations),
+      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: .linear(), contentView: view, contentEvaluation: nil, animationDecision: noAnimations),
+      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: otherView, contentEvaluation: nil, animationDecision: noAnimations),
+      RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: noAnimations),
     ]
 
     // then: every public difference remains observable through equality
