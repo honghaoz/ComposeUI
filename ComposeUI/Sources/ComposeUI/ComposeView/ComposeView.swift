@@ -122,14 +122,21 @@ open class ComposeView: BaseScrollView {
   /// The evaluation used to measure and render the current content.
   private var contentEvaluation: ContentEvaluation?
 
+  /// Content a parent view prepared for the next refresh.
+  private struct PreparedContent {
+
+    /// The root layout node of the prepared content.
+    let node: LayoutCacheNode
+
+    /// The evaluation supplied with the prepared content, or nil to create a new one.
+    let evaluation: ContentEvaluation?
+
+    /// The parent's animation decision capping the refresh that applies the content.
+    let animationDecision: AnimationDecision
+  }
+
   /// The prepared content waiting to be applied by refresh.
-  private var preparedContentNode: LayoutCacheNode?
-
-  /// The evaluation supplied with the prepared content, or nil to create a new one.
-  private var preparedContentEvaluation: ContentEvaluation?
-
-  /// The parent's animation decisions for the next prepared-content refresh.
-  private var preparedAnimationDecision: AnimationDecision?
+  private var preparedContent: PreparedContent?
 
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
@@ -264,9 +271,7 @@ open class ComposeView: BaseScrollView {
   /// - Parameter content: A content builder with the host view as the parameter.
   open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     makeContent = content
-    preparedContentNode = nil
-    preparedContentEvaluation = nil
-    preparedAnimationDecision = nil
+    preparedContent = nil
     setNeedsRefresh()
   }
 
@@ -290,9 +295,11 @@ open class ComposeView: BaseScrollView {
   ///   - animationDecision: The parent's resolved transition and update decisions.
   func setPreparedContent(_ content: ComposeNode, contentEvaluation: ContentEvaluation?, animationDecision: AnimationDecision) {
     makeContent = { _ in content }
-    preparedContentNode = LayoutCacheNode(node: content)
-    preparedContentEvaluation = contentEvaluation
-    preparedAnimationDecision = animationDecision
+    preparedContent = PreparedContent(
+      node: LayoutCacheNode(node: content),
+      evaluation: contentEvaluation,
+      animationDecision: animationDecision
+    )
 
     // trigger an immediate refresh
     // if the parent's render pass allows either transitions or update animations, this child view's content will be
@@ -707,15 +714,11 @@ open class ComposeView: BaseScrollView {
     }
 
     // explicit render request, should either consume the prepared content or make a new content
-    let preparedContentNode = self.preparedContentNode
-    let preparedContentEvaluation = self.preparedContentEvaluation
-    let preparedAnimationDecision = self.preparedAnimationDecision
-    self.preparedContentNode = nil
-    self.preparedContentEvaluation = nil
-    self.preparedAnimationDecision = nil
+    let preparedContent = self.preparedContent
+    self.preparedContent = nil
 
-    let contentNode = preparedContentNode ?? LayoutCacheNode(node: _makeContent())
-    let contentEvaluation = preparedContentEvaluation ?? ContentEvaluation()
+    let contentNode = preparedContent?.node ?? LayoutCacheNode(node: _makeContent())
+    let contentEvaluation = preparedContent?.evaluation ?? ContentEvaluation()
     self.contentNode = contentNode
     self.contentEvaluation = contentEvaluation
 
@@ -725,7 +728,7 @@ open class ComposeView: BaseScrollView {
       updateType: .refresh(isAnimated: animated),
       previousRenderBounds: lastRenderBounds,
       renderBounds: renderBounds(),
-      inheritedAnimationDecision: preparedAnimationDecision
+      inheritedAnimationDecision: preparedContent?.animationDecision ?? .all
     )
 
     // cancel the pending refresh if there is any to avoid double rendering
@@ -801,7 +804,7 @@ open class ComposeView: BaseScrollView {
         updateType: .boundsChange,
         previousRenderBounds: lastRenderBounds,
         renderBounds: renderBounds,
-        inheritedAnimationDecision: nil
+        inheritedAnimationDecision: .all
       )
     }
 
@@ -898,13 +901,12 @@ open class ComposeView: BaseScrollView {
     }
 
     // the bounds are final from here on, so the render type and the animation decision are made once for the pass.
+    // a pass applying a parent's prepared content is capped by the parent's decision: the view's animation behavior can
+    // lower it but never raise it. the view's own updates carry `.all`, which caps nothing.
     let renderType = context.renderType(bounds: bounds)
-    var animationDecision = animationBehavior.animationDecision(renderType: renderType, contentView: self)
-    if let hostAnimationDecision = context.inheritedAnimationDecision {
-      // this pass applies a parent's prepared content, so the parent's decision caps this view's own decision: the view's
-      // animation behavior can lower it but never raise it.
-      animationDecision = animationDecision.capped(by: hostAnimationDecision)
-    }
+    let animationDecision = animationBehavior
+      .animationDecision(renderType: renderType, contentView: self)
+      .capped(by: context.inheritedAnimationDecision)
 
     let visibleBounds = bounds.inset(by: visibleBoundsInsets)
 

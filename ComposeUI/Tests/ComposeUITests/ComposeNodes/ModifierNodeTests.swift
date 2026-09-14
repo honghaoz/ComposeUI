@@ -1249,7 +1249,7 @@ class ModifierNodeTests: XCTestCase {
       window.layer.addSublayer(layer)
 
       // when: inserting at the already assigned frame
-      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
+      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
 
       // then: the initial shadow is applied without a size change
       let initialPath = CGPath(rect: layer.bounds, transform: nil)
@@ -1757,7 +1757,7 @@ class ModifierNodeTests: XCTestCase {
           animationTiming: .easeInEaseOut(duration: 1),
           contentView: contentView,
           contentEvaluation: nil,
-          animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
+          animationDecision: ComposeView.AnimationDecision.all
         ))
 
         // then: every property is retained without adding animations
@@ -1783,7 +1783,7 @@ class ModifierNodeTests: XCTestCase {
         animationTiming: nil,
         contentView: contentView,
         contentEvaluation: nil,
-        animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+        animationDecision: ComposeView.AnimationDecision.disabled
       ))
 
       // then: refresh applies every configured property without animation
@@ -1829,7 +1829,7 @@ class ModifierNodeTests: XCTestCase {
         animationTiming: .easeInEaseOut(duration: 1),
         contentView: contentView,
         contentEvaluation: nil,
-        animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
+        animationDecision: ComposeView.AnimationDecision.all
       ))
 
       // then: the model layer has the newly supplied attributes
@@ -1895,7 +1895,7 @@ class ModifierNodeTests: XCTestCase {
           animationTiming: nil,
           contentView: contentView,
           contentEvaluation: nil,
-          animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+          animationDecision: ComposeView.AnimationDecision.disabled
         ))
 
         // then: the existing interaction state is retained
@@ -1917,7 +1917,7 @@ class ModifierNodeTests: XCTestCase {
         animationTiming: nil,
         contentView: contentView,
         contentEvaluation: nil,
-        animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+        animationDecision: ComposeView.AnimationDecision.disabled
       ))
 
       // then: refresh applies the configured interaction state
@@ -1957,7 +1957,7 @@ class ModifierNodeTests: XCTestCase {
           animationTiming: nil,
           contentView: contentView,
           contentEvaluation: nil,
-          animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+          animationDecision: ComposeView.AnimationDecision.disabled
         ))
 
         // then: the non-view renderable retains its properties

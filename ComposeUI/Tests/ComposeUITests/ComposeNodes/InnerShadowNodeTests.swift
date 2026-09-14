@@ -184,7 +184,7 @@ class InnerShadowNodeTests: XCTestCase {
 
           // without animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -213,7 +213,7 @@ class InnerShadowNodeTests: XCTestCase {
           do {
             ComposeUI.Assert.setTestAssertionFailureHandler(nil)
 
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true))
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -249,7 +249,7 @@ class InnerShadowNodeTests: XCTestCase {
 
           // without animations
           do {
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -278,7 +278,7 @@ class InnerShadowNodeTests: XCTestCase {
           do {
             ComposeUI.Assert.setTestAssertionFailureHandler(nil)
 
-            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true))
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -329,7 +329,7 @@ class InnerShadowNodeTests: XCTestCase {
 
           // when: resizing the viewport without changing the renderable's frame
           do {
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: renderable.frame, newFrame: renderable.frame, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: renderable.frame, newFrame: renderable.frame, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
             item.update(renderable, context)
             let layer = renderable.layer
 
@@ -348,7 +348,7 @@ class InnerShadowNodeTests: XCTestCase {
             let newFrame = CGRect(x: 1, y: 2, width: 6, height: 8)
             let layer = renderable.layer
             layer.disableActions { layer.frame = newFrame }
-            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: newFrame, previousRenderBounds: visibleBounds, renderBounds: visibleBounds, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+            let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: newFrame, previousRenderBounds: visibleBounds, renderBounds: visibleBounds, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
             item.update(renderable, context)
 
             // then: the shadow and clip paths use the renderable's new size
@@ -397,7 +397,7 @@ class InnerShadowNodeTests: XCTestCase {
       window.layer.addSublayer(layer)
 
       // when: inserting at the already assigned frame
-      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
+      item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: frame, newFrame: frame, previousRenderBounds: nil, renderBounds: viewport, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
 
       // then: both paths are initialized even though the size did not change
       let initialPath = CGPath(rect: layer.bounds, transform: nil)

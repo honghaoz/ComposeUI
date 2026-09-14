@@ -172,6 +172,68 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     }
   }
 
+  func test_refresh_dynamicBehaviorAnimatesTransitionsAndRetainedFrames() throws {
+    // given: a view whose dynamic behavior animates every pass, with a retained row and content taller than the viewport
+    var rowCount = 1
+    var firstRowHeight: CGFloat = 60
+    var layers: [Int: CALayer] = [:]
+    var contexts: [Int: RenderableUpdateContext] = [:]
+    let timing = AnimationTiming.linear(duration: 10)
+    let view = ComposeView {
+      VStack(spacing: 0) {
+        for index in 0 ..< rowCount {
+          ColorNode(index == 0 ? .red : .blue)
+            .frame(width: .flexible, height: index == 0 ? firstRowHeight : 60)
+            .animation(timing)
+            .transition(.opacity(timing: timing))
+            .onUpdate { renderable, context in
+              layers[index] = renderable.layer
+              contexts[index] = context
+            }
+        }
+        Spacer(height: 200)
+      }
+    }
+    view.renderablePool = nil
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
+    view.refresh(animated: false)
+    let retainedLayer = try unwrap(layers[0])
+    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+    expect(retainedLayer.animationKeys()) == nil
+    expect(layers[1]) == nil
+    view.animationBehavior = .dynamic { _, _ in true }
+
+    // when: a non-animated refresh grows the retained row and adds a row
+    rowCount = 2
+    firstRowHeight = 80
+    view.refresh(animated: false)
+
+    // then: the dynamic behavior overrides the refresh flag, so the retained row animates its frame and the new row
+    // runs its insert transition
+    let insertedLayer = try unwrap(layers[1])
+    expect(layers[0]) === retainedLayer
+    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 80)
+    expect(contexts[0]?.updateType) == .refresh
+    expect(contexts[0]?.animationTiming) == timing
+    let frameAnimation = try unwrap(retainedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
+    expect(frameAnimation.fromValue as? CGSize) == CGSize(width: 0, height: -20)
+    expect(frameAnimation.toValue as? CGSize) == .zero
+    expect(frameAnimation.isAdditive) == true
+    expect(frameAnimation.duration) == 10
+    expect(insertedLayer.frame) == CGRect(x: 0, y: 80, width: 100, height: 60)
+    expect(insertedLayer.backgroundColor) == Color.blue.cgColor
+    expect(insertedLayer.opacity) == 1
+    expect(contexts[1]?.updateType) == .insert
+    expect(contexts[1]?.animationTiming) == nil
+    let insertAnimation = try unwrap(insertedLayer.animation(forKey: "opacity") as? CABasicAnimation)
+    expect(insertAnimation.fromValue as? Float) == -1
+    expect(insertAnimation.toValue as? Float) == 0
+    expect(insertAnimation.isAdditive) == true
+    expect(insertAnimation.duration) == 10
+    retainedLayer.removeAllAnimations()
+    insertedLayer.removeAllAnimations()
+  }
+
   func test_boundsChange_respectsAnimationBehaviorFromFirstRender() throws {
     let behaviors: [(ComposeView.AnimationBehavior, Bool, Bool)] = [
       (.default, true, false),
@@ -533,9 +595,9 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 50, height: 100), bounds: bounds),
       .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 50, height: 100), bounds: bounds),
     ]
-    let both = ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
-    let neither = ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
-    let transitionsOnly = ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
+    let both = ComposeView.AnimationDecision.all
+    let neither = ComposeView.AnimationDecision.disabled
+    let transitionsOnly = ComposeView.AnimationDecision.transitionsOnly
 
     // then: refresh controls both decisions, while all bounds changes allow only transitions
     expect(
@@ -591,7 +653,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     // given: a view rendering its host's prepared content, with the refresh flag the host passes and a merged
     // non-animated request, under every behavior
     let view = ComposeView()
-    let neither = ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+    let neither = ComposeView.AnimationDecision.disabled
     for host in decisions {
       for isAnimated in [host.allowsTransitions || host.allowsAnimations, false] {
         let renderType = ComposeView.RenderType.refresh(isAnimated: isAnimated)

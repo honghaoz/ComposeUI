@@ -51,55 +51,5 @@ public extension ComposeView {
     /// Note: For render type `boundsChange`, returning `true` will also animate the reused renderables' updates, so
     /// their frame can lag behind scrolling and live resizing.
     case dynamic(_ shouldAnimate: (_ contentView: ComposeView, _ renderType: RenderType) -> Bool)
-
-    /// Resolves the transition and update animation decision of this behavior once for the render pass.
-    ///
-    /// - Parameters:
-    ///   - renderType: The render type with the pass's final render bounds.
-    ///   - contentView: The content view performing the pass.
-    /// - Returns: The animation types this behavior allows for the pass.
-    func animationDecision(renderType: ComposeView.RenderType, contentView: ComposeView) -> ComposeView.AnimationDecision {
-      switch self {
-      case .default:
-        switch renderType {
-        case .refresh(let isAnimated):
-          return ComposeView.AnimationDecision(allowsTransitions: isAnimated, allowsAnimations: isAnimated)
-        case .boundsChange:
-          return ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
-        }
-      case .disabled:
-        return ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
-      case .dynamic(let shouldAnimate):
-        let isAnimated = shouldAnimate(contentView, renderType)
-        return ComposeView.AnimationDecision(allowsTransitions: isAnimated, allowsAnimations: isAnimated)
-      }
-    }
-  }
-}
-
-extension ComposeView {
-
-  /// The transition and update animation decisions for one render pass.
-  struct AnimationDecision: Equatable {
-
-    /// Whether inserted and removed renderables run their configured transitions.
-    let allowsTransitions: Bool
-
-    /// Whether reused renderables use their configured update animations.
-    let allowsAnimations: Bool
-
-    /// The decision limited by a parent's decision.
-    ///
-    /// A view rendering its parent's prepared content can lower the parent's decision with its own animation behavior but
-    /// must not raise it, so nested content never animates more than the parent's pass.
-    ///
-    /// - Parameter parent: The decision of the parent's render pass.
-    /// - Returns: A decision allowing each animation type only if both decisions allow it.
-    func capped(by parent: AnimationDecision) -> AnimationDecision {
-      AnimationDecision(
-        allowsTransitions: allowsTransitions && parent.allowsTransitions,
-        allowsAnimations: allowsAnimations && parent.allowsAnimations
-      )
-    }
   }
 }

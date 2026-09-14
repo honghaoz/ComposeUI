@@ -98,7 +98,7 @@ class GestureRecognizerNodeTests: XCTestCase {
             animationTiming: nil,
             contentView: contentView,
             contentEvaluation: nil,
-            animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+            animationDecision: ComposeView.AnimationDecision.disabled
           )
           item.update(renderable, context)
           let view = try (renderable.view).unwrap()
@@ -128,7 +128,7 @@ class GestureRecognizerNodeTests: XCTestCase {
               animationTiming: nil,
               contentView: contentView,
               contentEvaluation: nil,
-              animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+              animationDecision: ComposeView.AnimationDecision.disabled
             )
           )
 
@@ -148,7 +148,7 @@ class GestureRecognizerNodeTests: XCTestCase {
               animationTiming: nil,
               contentView: contentView,
               contentEvaluation: nil,
-              animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+              animationDecision: ComposeView.AnimationDecision.disabled
             )
           )
 
@@ -168,7 +168,7 @@ class GestureRecognizerNodeTests: XCTestCase {
               animationTiming: nil,
               contentView: contentView,
               contentEvaluation: nil,
-              animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+              animationDecision: ComposeView.AnimationDecision.disabled
             )
           )
 

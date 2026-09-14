@@ -34,6 +34,137 @@ import ChouTiTest
 
 class ComposeViewNode_AnimationTests: XCTestCase {
 
+  func test_insert_childFirstRenderFollowsParentAnimation() throws {
+    for animated in [false, true] {
+      // given: a parent whose nested view is observed before its first render, with an inner insert transition
+      var childRenderType: ComposeView.RenderType?
+      var colorLayer: CALayer?
+      var colorContext: RenderableUpdateContext?
+      let contentView = ComposeView {
+        ComposeViewNode {
+          ColorNode(.red)
+            .frame(width: 80, height: 20)
+            .transition(.opacity(timing: .linear(duration: 10)))
+            .onUpdate { item, context in
+              colorLayer = item.layer
+              colorContext = context
+            }
+        }
+        .willInsert { renderable, _ in
+          (renderable.view as? ComposeView)?.onDidRender { _, context in
+            childRenderType = context.renderType
+          }
+        }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: the parent's refresh inserts the nested view
+      contentView.refresh(animated: animated)
+
+      // then: the nested view renders its content within the parent's pass, and the inner insert transition follows
+      // the parent's decision
+      let layer = try unwrap(colorLayer)
+      expect(childRenderType) == .refresh(isAnimated: animated)
+      expect(colorContext?.updateType) == .insert
+      expect(colorContext?.animationDecision) == (animated ? ComposeView.AnimationDecision.all : .disabled)
+      expect(layer.backgroundColor) == Color.red.cgColor
+      expect(layer.frame.size) == CGSize(width: 80, height: 20)
+      expect(layer.opacity) == 1
+      expect(layer.animation(forKey: "opacity") != nil) == animated
+      layer.removeAllAnimations()
+    }
+  }
+
+  func test_willInsert_configuresNestedViewBeforeItsFirstRender() throws {
+    for disablesAnimations in [false, true] {
+      // given: nested content with an insert transition, optionally disabling animations on the nested view up front
+      var colorLayer: CALayer?
+      let contentView = ComposeView {
+        ComposeViewNode {
+          ColorNode(.red)
+            .frame(width: 80, height: 20)
+            .transition(.opacity(timing: .linear(duration: 1)))
+            .onUpdate { item, _ in
+              colorLayer = item.layer
+            }
+        }
+        .willInsert { renderable, _ in
+          if disablesAnimations {
+            (renderable.view as? ComposeView)?.animationBehavior = .disabled
+          }
+        }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: the parent's animated refresh inserts the nested view
+      contentView.refresh(animated: true)
+
+      // then: the nested view's own animation behavior, set before its first render, decides the insert transition
+      let layer = try unwrap(colorLayer)
+      expect(layer.backgroundColor) == Color.red.cgColor
+      if disablesAnimations {
+        expect(layer.animationKeys() ?? []) == []
+      } else {
+        expect(layer.animationKeys()?.contains("opacity")) == true
+      }
+      layer.removeAllAnimations()
+    }
+  }
+
+  func test_scrollInsert_childFirstRenderRunsTransitionsWithinTheScrollDecision() throws {
+    // given: a nested view with insert transitions on itself and its content, laid out below the visible bounds
+    let timing = AnimationTiming.linear(duration: 10)
+    var childView: ComposeView?
+    var childRenderType: ComposeView.RenderType?
+    var colorLayer: CALayer?
+    var colorContext: RenderableUpdateContext?
+    let contentView = ComposeView {
+      VStack {
+        Spacer(height: 150)
+        ComposeViewNode {
+          ColorNode(.red)
+            .frame(width: 80, height: 20)
+            .animation(timing)
+            .transition(.opacity(timing: timing))
+            .onUpdate { item, context in
+              colorLayer = item.layer
+              colorContext = context
+            }
+        }
+        .transition(.opacity(timing: timing))
+        .willInsert { renderable, _ in
+          childView = renderable.view as? ComposeView
+          childView?.onDidRender { _, context in
+            childRenderType = context.renderType
+          }
+        }
+        Spacer(height: 150)
+      }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh(animated: false)
+    expect(childView) == nil
+
+    // when: scrolling inserts the nested view
+    contentView.setContentOffset(CGPoint(x: 0, y: 125))
+    contentView.layoutIfNeeded()
+
+    // then: the nested view and its content both run their insert transitions, while the scroll pass allows no
+    // update animations
+    let child = try unwrap(childView)
+    let layer = try unwrap(colorLayer)
+    expect(childRenderType) == .refresh(isAnimated: true)
+    expect(child.layer().animation(forKey: "opacity")) != nil
+    expect(colorContext?.updateType) == .insert
+    expect(colorContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    expect(colorContext?.animationTiming) == nil
+    expect(layer.backgroundColor) == Color.red.cgColor
+    expect(layer.opacity) == 1
+    expect(layer.animation(forKey: "opacity")) != nil
+    child.layer().removeAllAnimations()
+    layer.removeAllAnimations()
+  }
+
   func test_boundsRevival_preservesTransitionsWithoutAnimatingRetainedDescendants_atEveryDepth() throws {
     for nestingDepth in 1 ... 3 {
       // given: nested viewports retaining a row that shrinks when the available width grows
@@ -151,7 +282,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       parent.layoutIfNeeded()
 
       // then: every nested view is retained and refreshes with the parent's separate decisions
-      let transitionsOnly = ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
+      let transitionsOnly = ComposeView.AnimationDecision.transitionsOnly
       for level in 0 ..< nestingDepth {
         let child = originalViews[level]
         expect(nestedViews[level]) === child

@@ -51,7 +51,7 @@ class ComposeNode_TransformTests: XCTestCase {
     let contentView = ComposeView()
     contentView.overrideTheme = .light
     let renderable = backgroundItem.make(RenderableMakeContext(initialFrame: .zero, contentView: contentView))
-    let updateContext = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+    let updateContext = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
     backgroundItem.update(renderable, updateContext)
 
     // then: the rendered layer has the red background color
@@ -77,7 +77,7 @@ class ComposeNode_TransformTests: XCTestCase {
     let contentView = ComposeView()
     contentView.overrideTheme = .light
     let renderable = item.make(RenderableMakeContext(initialFrame: .zero, contentView: contentView))
-    let updateContext = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+    let updateContext = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
     item.update(renderable, updateContext)
 
     // then: the rendered text uses the mapped font and the node grows taller
