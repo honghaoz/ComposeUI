@@ -60,7 +60,7 @@ extension ComposeView {
     /// The viewport bounds proposed for this pass's layout.
     let renderBounds: CGRect
 
-    /// The parent's decisions when this pass applies prepared content.
+    /// The parent's decision capping this pass when it applies prepared content, or nil for the view's own updates.
     let inheritedAnimationDecision: AnimationDecision?
 
     // MARK: - Equatable

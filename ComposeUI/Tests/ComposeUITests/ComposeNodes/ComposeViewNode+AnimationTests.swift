@@ -191,6 +191,122 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     }
   }
 
+  func test_boundsRevival_dynamicChildCannotExceedTheHostDecision() throws {
+    // given: a nested view whose dynamic behavior always animates, retaining a row that shrinks when the width grows
+    let timing = AnimationTiming.linear(duration: 10)
+    var childView: ComposeView?
+    var childRenderType: ComposeView.RenderType?
+    var layers: [Int: CALayer] = [:]
+    var layerContexts: [Int: RenderableUpdateContext] = [:]
+    let parent = ComposeView {
+      VStack(spacing: 0) {
+        ComposeViewNode {
+          VStack(spacing: 0) {
+            LayerNode<CALayer>(intrinsicSize: { proposedSize in
+              CGSize(width: proposedSize.width, height: 220 - proposedSize.width)
+            })
+            .fixedSize(width: false, height: true)
+            .backgroundColor(.red)
+            .animation(timing)
+            .onUpdate { renderable, context in
+              layers[0] = renderable.layer
+              layerContexts[0] = context
+            }
+            ColorNode(.blue)
+              .frame(width: .flexible, height: 40)
+              .animation(timing)
+              .transition(.opacity(timing: timing))
+              .onUpdate { renderable, context in
+                layers[1] = renderable.layer
+                layerContexts[1] = context
+              }
+            Spacer(height: 100)
+          }
+        }
+        .flexibleSize()
+        .frame(width: .flexible, height: 100)
+        .transition(.opacity(timing: timing))
+        .willInsert { renderable, _ in
+          let child = renderable.view as? ComposeView
+          child?.renderablePool = nil
+          child?.animationBehavior = .dynamic { _, _ in true }
+          child?.onDidRender { _, context in
+            childRenderType = context.renderType
+          }
+        }
+        .onUpdate { renderable, _ in
+          childView = renderable.view as? ComposeView
+        }
+        Spacer(height: 400)
+      }
+    }
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let child = try unwrap(childView)
+    let retainedLayer = try unwrap(layers[0])
+    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+    expect(retainedLayer.animationKeys()) == nil
+    expect(layers[1]) == nil
+    defer {
+      child.layer().removeAllAnimations()
+      for layer in layers.values {
+        layer.removeAllAnimations()
+      }
+    }
+
+    // when: scrolling the nested view offscreen starts its removal transition
+    parent.setContentOffset(CGPoint(x: 0, y: 200))
+    parent.layoutIfNeeded()
+
+    // then: the nested view stays mounted during the removal
+    expect(child.superview) != nil
+    expect(child.layer().animation(forKey: "opacity")) != nil
+
+    // when: the parent resizes while the nested view is still offscreen
+    parent.frame.size.width = 160
+    parent.setNeedsLayout()
+    parent.layoutIfNeeded()
+
+    // then: the retained row has not received the new geometry yet
+    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+    layerContexts.removeAll()
+    childRenderType = nil
+
+    // when: scrolling back revives the nested view before its removal completes
+    parent.setContentOffset(.zero)
+    parent.layoutIfNeeded()
+
+    // then: the host's scroll decision caps the nested view's own behavior, so the retained row snaps to its new
+    // geometry while the newly visible row still runs its insert transition
+    expect(childView) === child
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    expect(childRenderType) == .refresh(isAnimated: true)
+    expect(layers[0]) === retainedLayer
+    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
+    expect(retainedLayer.animationKeys()) == nil
+    expect(layerContexts[0]?.updateType) == .refresh
+    expect(layerContexts[0]?.animationTiming) == nil
+    let insertedLayer = try unwrap(layers[1])
+    expect(insertedLayer.frame) == CGRect(x: 0, y: 60, width: 160, height: 40)
+    expect(insertedLayer.opacity) == 1
+    expect(insertedLayer.animationKeys()) == ["opacity"]
+    expect(layerContexts[1]?.updateType) == .insert
+
+    // when: the nested view refreshes its own content with animation
+    for layer in layers.values {
+      layer.removeAllAnimations()
+    }
+    child.frame.size.width = 200
+    child.refresh(animated: true)
+
+    // then: the nested view's own pass is not capped, so the retained row animates its frame
+    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 20)
+    expect(retainedLayer.animation(forKey: "bounds.size")) != nil
+    expect(layerContexts[0]?.updateType) == .refresh
+    expect(layerContexts[0]?.animationTiming) == timing
+  }
+
   func test_applicationRefresh_controlsDescendantUpdates_atEveryDepth() throws {
     for nestingDepth in 1 ... 3 {
       for animated in [false, true] {

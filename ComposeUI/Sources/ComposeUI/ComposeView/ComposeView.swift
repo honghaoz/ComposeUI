@@ -294,10 +294,9 @@ open class ComposeView: BaseScrollView {
     preparedContentEvaluation = contentEvaluation
     preparedAnimationDecision = animationDecision
 
-    // under .default, animated: false disables both transitions and update animations.
-    // a child inserted during scrolling inherits allowsTransitions = true and allowsAnimations = false.
-    // passing true lets transitions inside the child run, while preparedAnimationDecision keeps update animations off.
-    // the same applies when only update animations are allowed, so pass false only when both are disabled.
+    // trigger an immediate refresh
+    // if the parent's render pass allows either transitions or update animations, this child view's content will be
+    // rendered with animations, and the parent's decision caps the animations this view runs (see `render(_:)`).
     refresh(animated: animationDecision.allowsTransitions || animationDecision.allowsAnimations)
   }
 
@@ -900,11 +899,12 @@ open class ComposeView: BaseScrollView {
 
     // the bounds are final from here on, so the render type and the animation decision are made once for the pass.
     let renderType = context.renderType(bounds: bounds)
-    let animationDecision = animationBehavior.animationDecision(
-      renderType: renderType,
-      inheritedDecision: context.inheritedAnimationDecision,
-      contentView: self
-    )
+    var animationDecision = animationBehavior.animationDecision(renderType: renderType, contentView: self)
+    if let hostAnimationDecision = context.inheritedAnimationDecision {
+      // this pass applies a parent's prepared content, so the parent's decision caps this view's own decision: the view's
+      // animation behavior can lower it but never raise it.
+      animationDecision = animationDecision.capped(by: hostAnimationDecision)
+    }
 
     let visibleBounds = bounds.inset(by: visibleBoundsInsets)
 
