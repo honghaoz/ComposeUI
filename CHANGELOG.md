@@ -4,8 +4,7 @@
 
 ### Breaking Changes
 
-- Removed `RenderableUpdateContext.isAnimated`. Use `animationTiming` for update animations, or apply changes immediately when it is nil. Insertion transitions remain independent.
-- Bounds changes now run configured insertion and removal transitions without starting retained-item update animations. Refresh flags still control both, and existing animations continue running.
+- With the default animation behavior, bounds changes no longer animate reused renderables' updates (scrolling used to), and now run the configured insert and remove transitions of entering and leaving renderables on resizes and the first layout as well as scrolls. Refreshes still control both with their `animated` flag, and running animations are left to finish.
 - Replaced `ComposeView.RenderType.scroll` with `.boundsChange(previousBounds:bounds:)`.
 - Shadow paths now follow renderable size instead of viewport size. Request a refresh when other path inputs change.
 - Merged `RenderableUpdateType.scroll` into `.boundsChange`. Use the supplied bounds to distinguish scrolling from resizing.

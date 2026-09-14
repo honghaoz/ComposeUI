@@ -133,7 +133,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+      animationDecision: ComposeView.AnimationDecision.disabled
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .insert,
@@ -144,7 +144,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+      animationDecision: ComposeView.AnimationDecision.disabled
     )
 
     // when: refresh the view again
@@ -160,7 +160,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+      animationDecision: ComposeView.AnimationDecision.disabled
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .refresh,
@@ -171,7 +171,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+      animationDecision: ComposeView.AnimationDecision.disabled
     )
 
     // when: scroll the view
@@ -188,7 +188,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
+      animationDecision: ComposeView.AnimationDecision.transitionsOnly
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .boundsChange,
@@ -199,7 +199,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
+      animationDecision: ComposeView.AnimationDecision.transitionsOnly
     )
 
     // when: resize the view
@@ -216,7 +216,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
+      animationDecision: ComposeView.AnimationDecision.transitionsOnly
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .boundsChange,
@@ -227,7 +227,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false)
+      animationDecision: ComposeView.AnimationDecision.transitionsOnly
     )
   }
 }

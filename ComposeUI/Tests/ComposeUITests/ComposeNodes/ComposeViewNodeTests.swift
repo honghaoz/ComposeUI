@@ -298,7 +298,7 @@ class ComposeViewNodeTests: XCTestCase {
         let layer = composeView.contentView().layer()
 
         // when: the view is inserted
-        item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: composeView.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
+        item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: composeView.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
 
         // then: content installation renders immediately at the view's own bounds
         expect(layer.sublayers?.count) == 1
@@ -344,7 +344,7 @@ class ComposeViewNodeTests: XCTestCase {
 
     for renderBounds in [frame.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
       // when: scrolling or resizing without refreshing content
-      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: renderBounds, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
+      item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: renderBounds, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
       nestedView.setNeedsLayout()
       nestedView.layoutIfNeeded()
 
@@ -353,7 +353,7 @@ class ComposeViewNodeTests: XCTestCase {
     }
 
     // when: explicitly refreshing the nested configuration
-    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)))
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
 
     // then: the new color is applied immediately without replacing the layer
     expect(layer.backgroundColor) == Color.blue.cgColor
@@ -467,72 +467,6 @@ class ComposeViewNodeTests: XCTestCase {
     }
   }
 
-  func test_insert_childFirstRenderFollowsParentAnimation() throws {
-    for animated in [false, true] {
-      // given: a parent whose nested view is observed before its first render
-      var childRenderType: ComposeView.RenderType?
-      var colorLayer: CALayer?
-      let contentView = ComposeView {
-        ComposeViewNode {
-          ColorNode(.red)
-            .frame(width: 80, height: 20)
-            .onUpdate { item, _ in
-              colorLayer = item.layer
-            }
-        }
-        .willInsert { renderable, _ in
-          (renderable.view as? ComposeView)?.onDidRender { _, context in
-            childRenderType = context.renderType
-          }
-        }
-      }
-      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-
-      // when: the parent's refresh inserts the nested view
-      contentView.refresh(animated: animated)
-
-      // then: the nested view renders its content within the parent's pass with the parent's animation decision
-      expect(childRenderType) == .refresh(isAnimated: animated)
-      expect(colorLayer?.backgroundColor) == Color.red.cgColor
-      expect(colorLayer?.frame.size) == CGSize(width: 80, height: 20)
-    }
-  }
-
-  func test_willInsert_configuresNestedViewBeforeItsFirstRender() throws {
-    for disablesAnimations in [false, true] {
-      // given: nested content with an insert transition, optionally disabling animations on the nested view up front
-      var colorLayer: CALayer?
-      let contentView = ComposeView {
-        ComposeViewNode {
-          ColorNode(.red)
-            .frame(width: 80, height: 20)
-            .transition(.opacity(timing: .linear(duration: 1)))
-            .onUpdate { item, _ in
-              colorLayer = item.layer
-            }
-        }
-        .willInsert { renderable, _ in
-          if disablesAnimations {
-            (renderable.view as? ComposeView)?.animationBehavior = .disabled
-          }
-        }
-      }
-      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-
-      // when: the parent's animated refresh inserts the nested view
-      contentView.refresh(animated: true)
-
-      // then: the nested view's own animation behavior, set before its first render, decides the insert transition
-      let layer = try unwrap(colorLayer)
-      expect(layer.backgroundColor) == Color.red.cgColor
-      if disablesAnimations {
-        expect(layer.animationKeys() ?? []) == []
-      } else {
-        expect(layer.animationKeys()?.contains("opacity")) == true
-      }
-    }
-  }
-
   func test_parentRefresh_fromNestedRenderCallback_isDeferredUntilThePassCompletes() throws {
     // given: a nested view whose first render refreshes the parent synchronously, and a handler capturing assertions
     var color = Color.red
@@ -593,41 +527,6 @@ class ComposeViewNodeTests: XCTestCase {
     expect(nestedViews.count) == 1
     expect(parent.contentView().subviews.filter { $0 is ComposeView }.count) == 1
     expect(colorLayer?.backgroundColor) == Color.blue.cgColor
-  }
-
-  func test_scrollInsert_childFirstRenderFollowsScrollAnimation() throws {
-    // given: a nested view laid out below the parent's visible bounds
-    var childRenderType: ComposeView.RenderType?
-    var colorLayer: CALayer?
-    let contentView = ComposeView {
-      VStack {
-        Spacer(height: 150)
-        ComposeViewNode {
-          ColorNode(.red)
-            .frame(width: 80, height: 20)
-            .onUpdate { item, _ in
-              colorLayer = item.layer
-            }
-        }
-        .willInsert { renderable, _ in
-          (renderable.view as? ComposeView)?.onDidRender { _, context in
-            childRenderType = context.renderType
-          }
-        }
-        Spacer(height: 150)
-      }
-    }
-    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-    contentView.refresh(animated: false)
-    expect(childRenderType) == nil
-
-    // when: scrolling inserts the nested view
-    contentView.setContentOffset(CGPoint(x: 0, y: 125))
-    contentView.layoutIfNeeded()
-
-    // then: the nested view's first render follows the scroll pass, which animates by default
-    expect(childRenderType) == .refresh(isAnimated: true)
-    expect(colorLayer?.backgroundColor) == Color.red.cgColor
   }
 
   func test_boundsChange_reflowsRetainedContentAfterMeasurement() throws {

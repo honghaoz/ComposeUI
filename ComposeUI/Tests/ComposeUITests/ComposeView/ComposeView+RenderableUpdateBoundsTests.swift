@@ -69,8 +69,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     // then: initial insertion has no previous viewport and initializes both renderables
     expect(viewContext?.updateType) == .insert
     expect(layerContext?.updateType) == .insert
-    expect(viewContext?.animationTiming) == nil
-    expect(layerContext?.animationTiming) == nil
     expect(viewContext?.previousRenderBounds) == nil
     expect(layerContext?.previousRenderBounds) == nil
     expect(viewContext?.renderBounds) == initialBounds
@@ -91,7 +89,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
       expect(context.previousRenderBounds) == initialBounds
       expect(context.renderBounds) == scrolledBounds
       expect(context.oldFrame) == context.newFrame
-      expect(context.animationTiming) == nil
     }
     expect(nativeView.layer().backgroundColor) == Color.blue.cgColor
     expect(layer.backgroundColor) == Color.blue.cgColor
@@ -110,7 +107,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
       expect(context.previousRenderBounds) == scrolledBounds
       expect(context.renderBounds) == resizedBounds
       expect(context.oldFrame) == context.newFrame
-      expect(context.animationTiming) == nil
     }
     expect(nativeView.layer().cornerRadius) == 15
     expect(layer.cornerRadius) == 15
@@ -129,7 +125,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
       expect(context.updateType) == .boundsChange
       expect(context.previousRenderBounds) == resizedBounds
       expect(context.renderBounds) == CGRect(x: 0, y: 40, width: 180, height: 100)
-      expect(context.animationTiming) == nil
     }
     expect(nativeView.layer().cornerRadius) == 18
     expect(layer.cornerRadius) == 18
@@ -172,7 +167,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(context?.updateType) == .refresh
     expect(context?.previousRenderBounds) == initialBounds
     expect(context?.renderBounds) == refreshedBounds
-    expect(context?.animationTiming) == nil
     expect(layer) === originalLayer
     expect(originalLayer.backgroundColor) == Color.blue.cgColor
     expect(builderCalls) == 2
@@ -185,7 +179,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(context?.updateType) == .refresh
     expect(context?.previousRenderBounds) == refreshedBounds
     expect(context?.renderBounds) == refreshedBounds
-    expect(context?.animationTiming) == nil
     expect(originalLayer.backgroundColor) == Color.green.cgColor
     expect(builderCalls) == 3
   }
@@ -341,7 +334,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(update.updateType) == .insert
     expect(update.previousRenderBounds) == .some(.zero)
     expect(update.renderBounds) == CGRect(x: 0, y: 0, width: 100, height: 100)
-    expect(update.animationTiming) == nil
     expect(layer?.backgroundColor) == Color.red.cgColor
     expect(layer?.frame) == update.renderBounds
     expect(builderCalls) == 2
@@ -385,7 +377,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(update.updateType) == .insert
     expect(update.previousRenderBounds) == bounds
     expect(update.renderBounds) == bounds
-    expect(update.animationTiming) == nil
     expect(layer?.backgroundColor) == Color.blue.cgColor
   }
 
@@ -483,11 +474,11 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     // when: the parent refreshes and supplies the nested content again
     parent.refresh(animated: true)
 
-    // then: the child's refresh keeps its own previous viewport and remains immediate without configured animation
+    // then: the child's refresh keeps its own previous viewport and inherits the parent's animated decision
     expect(childContext?.updateType) == .refresh
     expect(childContext?.previousRenderBounds) == CGRect(x: 0, y: 30, width: 100, height: 100)
     expect(childContext?.renderBounds) == childContext?.previousRenderBounds
-    expect(childContext?.animationTiming) == nil
+    expect(childContext?.animationDecision) == ComposeView.AnimationDecision.all
     expect(layer) === originalLayer
     expect(originalLayer.cornerRadius) == 30
   }
@@ -529,7 +520,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(contexts[0].renderBounds) == CGRect(x: 0, y: 20, width: 100, height: 100)
     expect(contexts[1].previousRenderBounds) == contexts[0].renderBounds
     expect(contexts[1].renderBounds) == contexts[0].renderBounds
-    expect(contexts[1].animationTiming) == nil
     expect(layer) === originalLayer
     expect(originalLayer.backgroundColor) == Color.blue.cgColor
   }
@@ -563,7 +553,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(layers[2]) === firstLayer
     expect(firstLayer.backgroundColor) == Color.blue.cgColor
     expect(contexts[2]?.updateType) == .insert
-    expect(contexts[2]?.animationTiming) == nil
     expect(contexts[2]?.previousRenderBounds) == CGRect(x: 0, y: 0, width: 100, height: 100)
     expect(contexts[2]?.renderBounds) == CGRect(x: 0, y: 200, width: 100, height: 100)
     expect(firstLayer.frame) == CGRect(x: 0, y: 200, width: 100, height: 100)
@@ -601,7 +590,6 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     // then: the revived layer receives insertion with the immediately preceding viewport
     expect(layer) === originalLayer
     expect(context?.updateType) == .insert
-    expect(context?.animationTiming) == nil
     expect(originalLayer.animation(forKey: "opacity")) != nil
     expect(context?.previousRenderBounds) == CGRect(x: 0, y: 200, width: 100, height: 100)
     expect(context?.renderBounds) == CGRect(x: 0, y: 0, width: 100, height: 100)

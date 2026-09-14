@@ -386,7 +386,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     height = 20
 
     // when: prepared content updates the existing row and reveals the next row
-    child.setPreparedContent(content(), contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false))
+    child.setPreparedContent(content(), contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.transitionsOnly)
 
     // then: the two inherited decisions apply separately in the child
     expect(layers[0]) === retained
@@ -403,7 +403,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     child.refresh(animated: true)
 
     // then: consuming the prepared decision restores ordinary animated refresh behavior
-    expect(contexts[0]?.animationDecision) == ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
+    expect(contexts[0]?.animationDecision) == ComposeView.AnimationDecision.all
     expect(contexts[0]?.animationTiming) == .linear(duration: 10)
     expect(layers[0]) === retained
     expect(retained.bounds.size) == CGSize(width: 140, height: 20)
@@ -425,7 +425,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     child.refresh(animated: true)
 
     // then: the new tree has no inherited suppression and initializes its inserted item immediately
-    expect(contexts[0]?.animationDecision) == ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
+    expect(contexts[0]?.animationDecision) == ComposeView.AnimationDecision.all
     expect(contexts[0]?.updateType) == .insert
     expect(contexts[0]?.animationTiming) == nil
     expect(layers[0]?.backgroundColor) == Color.green.cgColor
@@ -437,7 +437,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
   func test_publicSetContent_discardsUnconsumedPreparedAnimationDecision() throws {
     // given: a subclass holds a prepared update without rendering it
     let child = DeferredPreparedView()
-    let neither = ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+    let neither = ComposeView.AnimationDecision.disabled
     child.setPreparedContent(ColorNode(.red), contentEvaluation: nil, animationDecision: neither)
     var layer: CALayer?
     var context: RenderableUpdateContext?
@@ -456,7 +456,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
 
     // then: the new request permits its configured insertion transition
     let renderable = try unwrap(layer)
-    expect(context?.animationDecision) == ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: true)
+    expect(context?.animationDecision) == ComposeView.AnimationDecision.all
     expect(context?.animationTiming) == nil
     expect(renderable.backgroundColor) == Color.blue.cgColor
     expect(renderable.animation(forKey: "opacity")) != nil

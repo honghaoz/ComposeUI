@@ -38,7 +38,7 @@ class RenderItem_ContextTests: XCTestCase {
     // given: matching public update inputs with every internal policy combination
     let frame = CGRect(x: 0, y: 0, width: 40, height: 40)
     for updateType in [RenderableUpdateType.insert, .refresh, .boundsChange] {
-      let reference = RenderableUpdateContext(updateType: updateType, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+      let reference = RenderableUpdateContext(updateType: updateType, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
       for transitions in [false, true] {
         for updates in [false, true] {
           let decision = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates)
@@ -57,13 +57,13 @@ class RenderItem_ContextTests: XCTestCase {
     let view = ComposeView()
     let otherView = ComposeView()
     let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let noAnimations = ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+    let noAnimations = ComposeView.AnimationDecision.disabled
     let base = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: noAnimations)
     let first = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: ContentEvaluation(), animationDecision: noAnimations)
     let second = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: ContentEvaluation(), animationDecision: noAnimations)
 
-    let transitionsOnly = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: true, allowsAnimations: false))
-    let neither = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: false))
+    let transitionsOnly = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.transitionsOnly)
+    let neither = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: frame, previousRenderBounds: .zero, renderBounds: frame, animationTiming: nil, contentView: view, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
 
     // then: internal ownership and inherited decisions do not change public equality
     expect(base) == first
