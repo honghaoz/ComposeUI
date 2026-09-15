@@ -93,7 +93,7 @@ class ComposeView_RenderableTests: XCTestCase {
     expect(didRemoveCount) == 1
   }
 
-  func test_updateContext() {
+  func test_updateContext() throws {
     // test the update context provided to the renderable update block is correct
 
     // given: a compose view
@@ -123,7 +123,7 @@ class ComposeView_RenderableTests: XCTestCase {
     // when: refresh the view initially
     view.refresh(animated: false)
 
-    // then: expect the update context is correct
+    // then: expect the update context is correct, a non-animated refresh allows no animations
     expect(willUpdateContext) == RenderableUpdateContext(
       updateType: .insert,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
@@ -146,6 +146,12 @@ class ComposeView_RenderableTests: XCTestCase {
       contentEvaluation: nil,
       animationDecision: ComposeView.AnimationDecision.disabled
     )
+    // the equality above ignores the internal decision and evaluation, so assert them separately: both callbacks receive
+    // the pass's decision and its non-nil evaluation
+    expect(willUpdateContext?.animationDecision) == ComposeView.AnimationDecision.disabled
+    expect(updateContext?.animationDecision) == ComposeView.AnimationDecision.disabled
+    let initialEvaluation = try unwrap(updateContext?.contentEvaluation)
+    expect(willUpdateContext?.contentEvaluation) === initialEvaluation
 
     // when: refresh the view again
     view.refresh(animated: false)
@@ -173,12 +179,18 @@ class ComposeView_RenderableTests: XCTestCase {
       contentEvaluation: nil,
       animationDecision: ComposeView.AnimationDecision.disabled
     )
+    expect(willUpdateContext?.animationDecision) == ComposeView.AnimationDecision.disabled
+    expect(updateContext?.animationDecision) == ComposeView.AnimationDecision.disabled
+    // a refresh starts a new evaluation
+    let refreshedEvaluation = try unwrap(updateContext?.contentEvaluation)
+    expect(refreshedEvaluation) !== initialEvaluation
+    expect(willUpdateContext?.contentEvaluation) === refreshedEvaluation
 
     // when: scroll the view
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
-    // then: expect the update context is correct, a scroll pass is animated by default
+    // then: expect the update context is correct, a scroll pass allows transitions only by default
     expect(willUpdateContext) == RenderableUpdateContext(
       updateType: .boundsChange,
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
@@ -201,6 +213,11 @@ class ComposeView_RenderableTests: XCTestCase {
       contentEvaluation: nil,
       animationDecision: ComposeView.AnimationDecision.transitionsOnly
     )
+    expect(willUpdateContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    expect(updateContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    // a bounds change keeps the evaluation of the refreshed content
+    expect(try unwrap(updateContext?.contentEvaluation)) === refreshedEvaluation
+    expect(willUpdateContext?.contentEvaluation) === refreshedEvaluation
 
     // when: resize the view
     view.frame.size = CGSize(width: 200, height: 200)
@@ -229,5 +246,9 @@ class ComposeView_RenderableTests: XCTestCase {
       contentEvaluation: nil,
       animationDecision: ComposeView.AnimationDecision.transitionsOnly
     )
+    expect(willUpdateContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    expect(updateContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    expect(try unwrap(updateContext?.contentEvaluation)) === refreshedEvaluation
+    expect(willUpdateContext?.contentEvaluation) === refreshedEvaluation
   }
 }
