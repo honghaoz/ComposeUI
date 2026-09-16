@@ -412,7 +412,7 @@ class ComposeViewNodeTests: XCTestCase {
       selectable = true
       contentView.refresh(animated: animated)
 
-      // then: the child keeps its native views and applies the configuration in the parent's pass with its animation
+      // then: the child keeps its native views and applies the configuration in the parent's render pass with its animation
       expect(nestedView) === child
       expect(colorLayer) === originalLayer
       expect(textView) === originalTextView

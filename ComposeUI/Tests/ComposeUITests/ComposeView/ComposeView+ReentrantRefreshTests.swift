@@ -52,7 +52,7 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
     }
 
     for trigger in Trigger.allCases {
-      // given: a rendered view with a one-shot reentrant refresh armed on one of its render callbacks
+      // given: a rendered view with a one-shot reentrant refresh armed on one of its render handlers
       var color = Color.red
       var contentMakeCount = 0
       var layer: CALayer?

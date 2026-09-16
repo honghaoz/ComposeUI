@@ -86,7 +86,7 @@ public struct RenderableUpdateContext: Equatable {
   /// The content view's bounds from its last completed render, or nil before its first render.
   public let previousRenderBounds: CGRect?
 
-  /// The content view's bounds used to select and position the renderables of this pass, before applying `visibleBoundsInsets`.
+  /// The content view's bounds used to select and position the renderables of this render pass, before applying `visibleBoundsInsets`.
   public let renderBounds: CGRect
 
   /// The timing to use for this renderable update, or nil to apply changes immediately.
@@ -108,10 +108,10 @@ public struct RenderableUpdateContext: Equatable {
   ///   - oldFrame: The old frame of the renderable before the update.
   ///   - newFrame: The new frame that the renderable should be set to after the update.
   ///   - previousRenderBounds: The content view's last completed render bounds, or nil if it has not rendered.
-  ///   - renderBounds: The content view's bounds used for this pass.
+  ///   - renderBounds: The content view's bounds used for this render pass.
   ///   - animationTiming: The timing to use for this renderable update, or nil to apply changes immediately.
   ///   - contentView: The content view that contains the renderable.
-  ///   - contentEvaluation: The content evaluation of this render pass.
+  ///   - contentEvaluation: The content evaluation of this render render pass.
   ///   - animationDecision: Whether transitions and update animations are enabled.
   init(updateType: RenderableUpdateType,
        oldFrame: CGRect,

@@ -110,6 +110,7 @@ public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
                .refresh:
             view.setPreparedContent(node, contentEvaluation: context.contentEvaluation, animationDecision: context.animationDecision)
           case .boundsChange:
+            // the content is unchanged. the parent's render pass lays out a resized nested view itself, see `ComposeView.render(_:)`.
             return
           }
         }
