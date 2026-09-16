@@ -61,8 +61,8 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       // when: the parent's refresh inserts the nested view
       contentView.refresh(animated: animated)
 
-      // then: the nested view renders its content within the parent's pass, and the inner insert transition follows
-      // the parent's decision
+      // then: the nested view renders its content within the parent's render pass, and the inner insert transition
+      // follows the parent's decision
       let layer = try unwrap(colorLayer)
       expect(childRenderType) == .refresh(isAnimated: animated)
       expect(colorContext?.updateType) == .insert

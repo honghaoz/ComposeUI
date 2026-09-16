@@ -53,7 +53,7 @@ extension ComposeView {
     /// The decision limited by a parent's decision.
     ///
     /// A view rendering its parent's prepared content can lower the parent's decision with its own animation behavior but
-    /// must not raise it, so nested content never animates more than the parent's pass.
+    /// must not raise it, so nested content never animates more than the parent's render pass.
     ///
     /// - Parameter parent: The decision of the parent's render pass.
     /// - Returns: A decision allowing each animation type only if both decisions allow it.
@@ -72,8 +72,8 @@ extension ComposeView.AnimationBehavior {
   ///
   /// - Parameters:
   ///   - renderType: The render type with the pass's final render bounds.
-  ///   - contentView: The content view performing the pass.
-  /// - Returns: The animation types this behavior allows for the pass.
+  ///   - contentView: The content view performing the render pass.
+  /// - Returns: The animation types this behavior allows for the render pass.
   func animationDecision(renderType: ComposeView.RenderType, contentView: ComposeView) -> ComposeView.AnimationDecision {
     switch self {
     case .default:

@@ -521,7 +521,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     }
     contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
 
-    // when: the parent inserts the nested view, which renders within the parent's pass
+    // when: the parent inserts the nested view, which renders within the parent's render pass
     contentView.refresh(animated: false)
     let view = try innerHost.unwrap()
 
