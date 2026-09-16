@@ -133,13 +133,16 @@ open class ComposeView: BaseScrollView {
 
     /// The evaluation supplied with the prepared content, or nil to create a new one.
     let evaluation: ContentEvaluation?
+
+    /// The parent's animation decision capping the refresh that applies the content.
+    let animationDecision: AnimationDecision
   }
 
   /// The prepared content waiting to be applied by refresh.
   private var preparedContent: PreparedContent?
 
-  /// The parent's animation decision handed over with a parent-driven update, capping the render pass that applies the
-  /// update. See `consumeInheritedAnimationDecision()`.
+  /// The parent's animation decision handed over with a resize this view could not render within the parent's render
+  /// pass, capping the pass that renders the new size. See `consumeInheritedAnimationDecision()`.
   private var pendingInheritedAnimationDecision: AnimationDecision?
 
   /// The animation decision of the render pass in progress, or nil between passes.
@@ -281,8 +284,9 @@ open class ComposeView: BaseScrollView {
   open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     makeContent = content
 
-    // the new content replaces a parent's prepared update that was not applied yet, so the decision handed over with
-    // that update is dropped too and the refresh follows the view's own animation behavior
+    // the new content replaces a parent's prepared content and its animation decision. the refresh renders the current
+    // size as well, so an animation decision a parent's resize handed over for a later layout is dropped too. the
+    // refresh follows the view's own animation behavior.
     preparedContent = nil
     pendingInheritedAnimationDecision = nil
 
@@ -311,14 +315,13 @@ open class ComposeView: BaseScrollView {
     makeContent = { _ in content }
     preparedContent = PreparedContent(
       node: LayoutCacheNode(node: content),
-      evaluation: contentEvaluation
+      evaluation: contentEvaluation,
+      animationDecision: animationDecision
     )
 
-    // hand the parent's decision to the refresh below. normally the refresh runs right away, inside the parent's render
-    // pass. if this view is rendering right now, the refresh runs after its own pass instead, when the parent is no
-    // longer rendering, so the handed-over decision is how the cap still reaches it (see `consumeInheritedAnimationDecision()`).
-    // this also replaces any stale decision from an earlier parent update, for example on a reused view.
-    pendingInheritedAnimationDecision = animationDecision
+    // the refresh below renders the current size as well, under the animation decision of this update, so an animation
+    // decision an earlier resize handed over for a later layout is dropped
+    pendingInheritedAnimationDecision = nil
 
     // trigger an immediate refresh
     // if the parent's render pass allows either transitions or update animations, this child view's content will be
@@ -747,7 +750,7 @@ open class ComposeView: BaseScrollView {
       updateType: .refresh(isAnimated: animated),
       previousRenderBounds: lastRenderBounds,
       renderBounds: renderBounds(),
-      inheritedAnimationDecision: consumeInheritedAnimationDecision()
+      inheritedAnimationDecision: (preparedContent?.animationDecision ?? .all).capped(by: consumeInheritedAnimationDecision())
     )
 
     // cancel the pending refresh if there is any to avoid double rendering
@@ -898,8 +901,8 @@ open class ComposeView: BaseScrollView {
     // - the parent's `renderingAnimationDecision`, which is set only while the parent is in a render pass. a pass that
     //   runs inside the parent's pass is capped by it, whatever triggered the pass (the parent resizing this view, an
     //   AppKit layout during that frame change, a pending refresh). a pass the view runs on its own finds nil.
-    // - `pendingInheritedAnimationDecision`, which a parent update leaves behind when this view cannot apply it right
-    //   away. the pass that applies the update picks it up, once.
+    // - `pendingInheritedAnimationDecision`, which a parent's resize leaves behind when this view cannot render the new
+    //   size right away. the pass that renders it picks it up, once.
     defer {
       pendingInheritedAnimationDecision = nil
     }

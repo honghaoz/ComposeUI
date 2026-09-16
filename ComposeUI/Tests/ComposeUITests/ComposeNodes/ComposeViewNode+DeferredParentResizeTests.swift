@@ -340,6 +340,173 @@ class ComposeViewNode_DeferredParentResizeTests: XCTestCase {
     row.removeAllAnimations()
   }
 
+  func test_parentRefresh_duringNestedRender_thenARevertedResize_keepsThePreparedContentCapped() throws {
+    // given: a parent without animations and a nested view whose dynamic behavior always animates, with a render
+    // handler that refreshes the parent with new content, then grows the parent and puts it back
+    let timing = AnimationTiming.linear(duration: 10)
+    var color = Color.red
+    var childView: ComposeView?
+    var childRenderTypes: [ComposeView.RenderType] = []
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var acts = false
+    let parent = ComposeView {
+      ComposeViewNode {
+        ColorNode(color)
+          .frame(width: .flexible, height: 100)
+          .animation(timing)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+            layerContexts.append(context)
+          }
+      }
+      .flexibleSize()
+      .frame(width: .flexible, height: 100)
+      .willInsert { renderable, _ in
+        childView = renderable.view as? ComposeView
+        childView?.renderablePool = nil
+        childView?.animationBehavior = .dynamic { _, _ in true }
+        childView?.onDidRender { _, context in
+          childRenderTypes.append(context.renderType)
+        }
+      }
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let child = try unwrap(childView)
+    let row = try unwrap(layer)
+    expect(row.backgroundColor) == Color.red.cgColor
+    child.onWillRender { _, _ in
+      guard acts else {
+        return
+      }
+      acts = false
+      color = .blue
+      parent.refresh(animated: false)
+      for width: CGFloat in [160, 100] {
+        parent.frame.size.width = width
+        parent.setNeedsLayout()
+        parent.layoutIfNeeded()
+      }
+    }
+    acts = true
+    childRenderTypes.removeAll()
+
+    // when: the nested view's own refresh makes the parent prepare new content for it and resize it away and back, all
+    // while it is rendering, so the prepared content waits for a later refresh
+    child.refresh(animated: false)
+
+    // then: the pass in progress renders the old content at the size the parent came back to
+    expect(childRenderTypes) == [.refresh(isAnimated: false)]
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(row.backgroundColor) == Color.red.cgColor
+    row.removeAllAnimations()
+    layerContexts.removeAll()
+    childRenderTypes.removeAll()
+
+    // when: the nested view lays out, which performs the deferred refresh
+    child.setNeedsLayout()
+    child.layoutIfNeeded()
+
+    // then: the prepared content is applied capped by the parent's decision, so the color snaps although the reverted
+    // resize left nothing else for a later layout
+    expect(childRenderTypes) == [.refresh(isAnimated: false)]
+    expect(row.backgroundColor) == Color.blue.cgColor
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(row.animationKeys()) == nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.animationTiming) == nil
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+
+    // when: the nested view later refreshes on its own with a new width
+    child.frame.size.width = 200
+    child.refresh(animated: true)
+
+    // then: the parent's update is applied, so the nested view's own behavior animates the row again
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 200, height: 100)
+    expect(row.animation(forKey: "bounds.size")) != nil
+    row.removeAllAnimations()
+  }
+
+  func test_parentResize_duringNestedRender_thenAnAnimatedParentRefresh_followsTheRefreshDecision() throws {
+    // given: a parent with the default animation behavior and a nested view whose dynamic behavior always animates,
+    // with a render handler that resizes the parent and then refreshes it animated with new content
+    let timing = AnimationTiming.linear(duration: 10)
+    var color = Color.red
+    var childView: ComposeView?
+    var childRenderTypes: [ComposeView.RenderType] = []
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var acts = false
+    let parent = ComposeView {
+      ComposeViewNode {
+        ColorNode(color)
+          .frame(width: .flexible, height: 100)
+          .animation(timing)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+            layerContexts.append(context)
+          }
+      }
+      .flexibleSize()
+      .frame(width: .flexible, height: 100)
+      .willInsert { renderable, _ in
+        childView = renderable.view as? ComposeView
+        childView?.renderablePool = nil
+        childView?.animationBehavior = .dynamic { _, _ in true }
+        childView?.onDidRender { _, context in
+          childRenderTypes.append(context.renderType)
+        }
+      }
+    }
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let child = try unwrap(childView)
+    let row = try unwrap(layer)
+    child.onWillRender { _, _ in
+      guard acts else {
+        return
+      }
+      acts = false
+      parent.frame.size.width = 160
+      parent.setNeedsLayout()
+      parent.layoutIfNeeded()
+      color = .blue
+      parent.refresh(animated: true)
+    }
+    acts = true
+    childRenderTypes.removeAll()
+
+    // when: the nested view's own refresh makes the parent resize it, transitions only, and then prepare new content
+    // for it with an animated refresh, all while it is rendering
+    child.refresh(animated: false)
+    expect(childRenderTypes) == [.refresh(isAnimated: false)]
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    row.removeAllAnimations()
+    layerContexts.removeAll()
+    childRenderTypes.removeAll()
+
+    // when: the nested view lays out, which performs the deferred refresh
+    child.setNeedsLayout()
+    child.layoutIfNeeded()
+
+    // then: the parent's newest update governs: the animated refresh allows animations, so the row animates to its new
+    // color and size although the earlier resize alone would have allowed transitions only
+    expect(childRenderTypes) == [.refresh(isAnimated: true)]
+    expect(row.backgroundColor) == Color.blue.cgColor
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    expect(row.animation(forKey: "bounds.size")) != nil
+    expect(row.animation(forKey: "backgroundColor")) != nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.animationTiming) == timing
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.all
+    row.removeAllAnimations()
+  }
+
   func test_parentResize_duringNestedRender_toTheLastRenderedSize_capsTheDeferredNestedLayout() throws {
     // given: a parent without animations and a nested view whose dynamic behavior always animates, rendered 100 wide
     let timing = AnimationTiming.linear(duration: 10)
