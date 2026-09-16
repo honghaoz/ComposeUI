@@ -131,6 +131,22 @@ class ComposeView_ParentComposeViewTests: XCTestCase {
     expect(child.parentComposeView) == nil
   }
 
+  func test_parentComposeView_viewInsideAnOverlayOnTheParent_isNil() {
+    // given: a view inside a container inside an overlay added to a parent as a plain subview, bypassing the content view
+    let parent = ComposeView { Empty() }
+    let overlay = BaseView()
+    let container = BaseView()
+    let child = ComposeView { Empty() }
+    parent.addSubview(overlay)
+    overlay.addSubview(container)
+    container.addSubview(child)
+
+    // then: the view sits three levels below the parent like a rendered view does on AppKit, but outside the content
+    // view, so it has no parent
+    expect(child.superview?.superview?.superview) === parent
+    expect(child.parentComposeView) == nil
+  }
+
   func test_parentComposeView_subviewOfTheParentItself_dependsOnWhereTheContentViewIs() {
     // given: a view added to a parent as a plain subview, bypassing the content view
     let parent = ComposeView { Empty() }
