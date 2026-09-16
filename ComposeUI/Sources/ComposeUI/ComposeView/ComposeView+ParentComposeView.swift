@@ -41,7 +41,13 @@ extension ComposeView {
   /// The `ComposeView` whose content view directly contains this view, or nil.
   var parentComposeView: ComposeView? {
     #if canImport(AppKit)
-    return superview?.superview?.superview as? ComposeView
+    // three levels up: the document view, the clip view, then the parent. an unrelated hierarchy can have the same
+    // depth, for example a view inside an overlay added to a compose view itself, so the view must be in the content view
+    guard let superview, let parent = superview.superview?.superview as? ComposeView else {
+      return nil
+    }
+    let contentView: View = parent.contentView() // the explicit type picks the document view over the clip view
+    return superview === contentView ? parent : nil
     #else
     return superview as? ComposeView
     #endif
