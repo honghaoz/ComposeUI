@@ -52,8 +52,8 @@ extension ComposeView {
 
     /// The decision limited by a parent's decision.
     ///
-    /// A view rendering its parent's prepared content can lower the parent's decision with its own animation behavior but
-    /// must not raise it, so nested content never animates more than the parent's render pass.
+    /// A view rendering within its parent's render pass can lower the parent's decision with its own animation behavior
+    /// but must not raise it, so nested content never animates more than the parent's render pass.
     ///
     /// - Parameter parent: The decision of the parent's render pass.
     /// - Returns: A decision allowing each animation type only if both decisions allow it.

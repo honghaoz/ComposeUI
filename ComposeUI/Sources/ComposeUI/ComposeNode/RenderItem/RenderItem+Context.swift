@@ -111,7 +111,7 @@ public struct RenderableUpdateContext: Equatable {
   ///   - renderBounds: The content view's bounds used for this render pass.
   ///   - animationTiming: The timing to use for this renderable update, or nil to apply changes immediately.
   ///   - contentView: The content view that contains the renderable.
-  ///   - contentEvaluation: The content evaluation of this render render pass.
+  ///   - contentEvaluation: The content evaluation of this render pass.
   ///   - animationDecision: Whether transitions and update animations are enabled.
   init(updateType: RenderableUpdateType,
        oldFrame: CGRect,
