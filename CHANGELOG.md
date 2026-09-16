@@ -20,7 +20,7 @@
 - Added previous and current viewport bounds to `RenderableUpdateContext`.
 - Fixed a render pass without an `onWillRender` handler using the scroll offset from before a content-size change, which dropped the items visible at the clamped offset until the next layout.
 - `ComposeViewNode` now updates an already-mounted child view's content when the parent is refreshed. The child renders within the parent's render pass. Properties set on the child view in `onInsert` or `onUpdate` no longer apply to its first render. Set them in `willInsert` or `willUpdate` instead.
-- A child view rendered by `ComposeViewNode` lays out for a parent resize within the parent's render pass. Any pass a child view runs within its parent's render pass, including one the application requests from a render handler, never runs more transitions or animations than the parent's pass allows, whatever the child's own `animationBehavior`.
+- A nested `ComposeView`, rendered by `ComposeViewNode` or hosted by a `ViewNode`, lays out within the parent's render pass when that pass inserts or resizes it. Any pass a nested view runs while the parent's render pass updates its renderables, including a layout the parent's resize triggers and a pending refresh performed then, never runs more transitions or animations than the parent's pass allows, whatever the nested view's own `animationBehavior`.
 - The `AnimationBehavior.dynamic` closure is now called once per render pass instead of once per renderable, so one decision applies to the whole pass.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
 - Slide transitions now continue a revival from wherever the removal left the renderable.

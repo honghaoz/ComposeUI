@@ -999,6 +999,189 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     }
   }
 
+  func test_parentRefresh_resizingAViewNodeHostedView_laysItOutWithinTheParentPass() throws {
+    // given: a parent without animations hosting a rendered view through a view node, whose dynamic behavior always
+    // animates
+    let timing = AnimationTiming.linear(duration: 10)
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var childRenderTypes: [ComposeView.RenderType] = []
+    let child = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 100)
+        .animation(timing)
+        .onUpdate { renderable, context in
+          layer = renderable.layer
+          layerContexts.append(context)
+        }
+    }
+    child.renderablePool = nil
+    child.animationBehavior = .dynamic { _, _ in true }
+    child.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    child.refresh(animated: false)
+    child.onDidRender { _, context in
+      childRenderTypes.append(context.renderType)
+    }
+    let parent = ComposeView {
+      ViewNode<ComposeView>(child).flexibleSize()
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let row = try unwrap(layer)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    row.removeAllAnimations()
+    layerContexts.removeAll()
+    childRenderTypes.removeAll()
+
+    // when: a refresh of the parent, not a layout, gives the hosted view a new size
+    parent.frame.size.width = 200
+    parent.refresh(animated: false)
+
+    // then: the hosted view lays out within the parent's pass, capped by the parent's decision, so the row follows the
+    // new size at once and snaps
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 200, height: 100)
+    expect(childRenderTypes) == [.boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 0, width: 200, height: 100))]
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 200, height: 100)
+    expect(row.animationKeys()) == nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.animationTiming) == nil
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+
+    // when: the hosted view later refreshes on its own with a new width
+    child.frame.size.width = 240
+    child.refresh(animated: true)
+
+    // then: the parent's pass is over, so the hosted view's own behavior animates the row again
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 240, height: 100)
+    expect(row.animation(forKey: "bounds.size")) != nil
+    row.removeAllAnimations()
+  }
+
+  func test_parentInsert_ofAViewNodeHostedView_rendersItWithinTheParentPass() throws {
+    // given: a parent without animations whose content can host a view, not rendered yet, through a view node. the
+    // hosted view's dynamic behavior always animates and its row has an insert transition.
+    let timing = AnimationTiming.linear(duration: 10)
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var childRenderTypes: [ComposeView.RenderType] = []
+    let child = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 100)
+        .transition(.opacity(timing: timing))
+        .animation(timing)
+        .onUpdate { renderable, context in
+          layer = renderable.layer
+          layerContexts.append(context)
+        }
+    }
+    child.renderablePool = nil
+    child.animationBehavior = .dynamic { _, _ in true }
+    child.onDidRender { _, context in
+      childRenderTypes.append(context.renderType)
+    }
+    var showsChild = false
+    let parent = ComposeView {
+      if showsChild {
+        ViewNode<ComposeView>(child).flexibleSize()
+      } else {
+        Empty()
+      }
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    expect(layer) == nil
+
+    // when: a refresh of the parent inserts the hosted view
+    showsChild = true
+    parent.refresh(animated: false)
+
+    // then: the hosted view renders within the parent's pass, capped by the parent's decision, so its content is there
+    // at once and the row's insert transition does not run
+    let row = try unwrap(layer)
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(childRenderTypes) == [.boundsChange(previousBounds: nil, bounds: CGRect(x: 0, y: 0, width: 100, height: 100))]
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(row.animationKeys()) == nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.updateType) == .insert
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+  }
+
+  func test_parentResize_duringNestedRender_revertedBeforeThePassEnds_withAScrolledView_completesBeforeAnIndependentRefresh() throws {
+    // given: a parent without animations and a scrolled nested view whose dynamic behavior always animates, with a
+    // render handler that grows the parent and then puts it back, so the first resize clamps the scroll offset
+    let timing = AnimationTiming.linear(duration: 10)
+    var childView: ComposeView?
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var resizesParent = false
+    let parent = ComposeView {
+      ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 400)
+          .animation(timing)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+            layerContexts.append(context)
+          }
+      }
+      .flexibleSize()
+      .willInsert { renderable, _ in
+        childView = renderable.view as? ComposeView
+        childView?.renderablePool = nil
+        childView?.animationBehavior = .dynamic { _, _ in true }
+      }
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let child = try unwrap(childView)
+    let row = try unwrap(layer)
+    child.setContentOffset(CGPoint(x: 0, y: 290))
+    child.layoutIfNeeded()
+    expect(child.contentOffset()) == CGPoint(x: 0, y: 290)
+    child.onWillRender { _, _ in
+      guard resizesParent else {
+        return
+      }
+      resizesParent = false
+      for size in [CGSize(width: 140, height: 140), CGSize(width: 100, height: 100)] {
+        parent.frame.size = size
+        parent.setNeedsLayout()
+        parent.layoutIfNeeded()
+      }
+    }
+    resizesParent = true
+
+    // when: the nested view's own refresh resizes the parent twice, ending at the size the pass renders
+    child.refresh(animated: false)
+
+    // then: the pass in progress renders the clamped offset at the original size, so nothing is left for a later layout
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(child.contentOffset()) == CGPoint(x: 0, y: 260)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 400)
+    row.removeAllAnimations()
+    layerContexts.removeAll()
+    child.setNeedsLayout()
+    child.layoutIfNeeded()
+    expect(layerContexts.isEmpty) == true
+
+    // when: the nested view refreshes on its own with a new width
+    child.frame.size.width = 160
+    child.refresh(animated: true)
+
+    // then: no decision was left behind, so the nested view's own behavior animates the row
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 400)
+    expect(row.animation(forKey: "bounds.size")) != nil
+    expect(layerContexts.last?.animationDecision) == ComposeView.AnimationDecision.all
+    row.removeAllAnimations()
+  }
+
   func test_parentResize_directViewNodeHost_capsDynamicChildAndAllowsLaterIndependentRefresh() throws {
     // given: a direct view node hosts a child that always animates, while the parent disables animations
     let timing = AnimationTiming.linear(duration: 10)
@@ -1298,6 +1481,89 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
   }
 
   #if canImport(AppKit)
+  func test_parentResize_duringNestedRender_revertedBeforeThePassEnds_withLegacyScrollers_completesBeforeAnIndependentRefresh() throws {
+    // given: a parent without animations and a scrolled nested view with legacy scrollers, whose dynamic behavior always
+    // animates, with a render handler that grows the parent and then puts it back. the nested view reads its bounds
+    // while it renders, which toggles the legacy scrollers and lays the view out again.
+    let timing = AnimationTiming.linear(duration: 10)
+    var childView: ComposeView?
+    var childRenderTypes: [ComposeView.RenderType] = []
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var resizesParent = false
+    let parent = ComposeView {
+      ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 400)
+          .animation(timing)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+            layerContexts.append(context)
+          }
+      }
+      .flexibleSize()
+      .willInsert { renderable, _ in
+        childView = renderable.view as? ComposeView
+        childView?.renderablePool = nil
+        childView?.animationBehavior = .dynamic { _, _ in true }
+        childView?.scrollIndicatorBehavior = .always
+        childView?.scrollerStyle = .legacy
+        childView?.hasHorizontalScroller = true
+        childView?.hasVerticalScroller = true
+        childView?.onDidRender { _, context in
+          childRenderTypes.append(context.renderType)
+        }
+      }
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let child = try unwrap(childView)
+    let row = try unwrap(layer)
+    child.setContentOffset(CGPoint(x: 0, y: 290))
+    child.layoutIfNeeded()
+    expect(child.contentOffset()) == CGPoint(x: 0, y: 290)
+    childRenderTypes.removeAll()
+    child.onWillRender { _, _ in
+      guard resizesParent else {
+        return
+      }
+      resizesParent = false
+      for size in [CGSize(width: 140, height: 140), CGSize(width: 100, height: 100)] {
+        parent.frame.size = size
+        parent.setNeedsLayout()
+        parent.layoutIfNeeded()
+      }
+    }
+    resizesParent = true
+
+    // when: the nested view's own refresh resizes the parent twice, ending at the size the pass renders
+    child.refresh(animated: false)
+
+    // then: the pass in progress is the only pass, and nothing is left for a later layout. the offset was clamped while
+    // a bounds read had the scrollers hidden, so it matches the grown viewport without them.
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(child.contentOffset()) == CGPoint(x: 0, y: 260)
+    expect(childRenderTypes) == [.refresh(isAnimated: false)]
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 400)
+    row.removeAllAnimations()
+    layerContexts.removeAll()
+    child.setNeedsLayout()
+    child.layoutIfNeeded()
+    expect(layerContexts.isEmpty) == true
+
+    // when: the nested view refreshes on its own with a new width
+    child.frame.size.width = 160
+    child.refresh(animated: true)
+
+    // then: no decision was left behind, so the nested view's own behavior animates the row
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 400)
+    expect(row.animation(forKey: "bounds.size")) != nil
+    expect(layerContexts.last?.animationDecision) == ComposeView.AnimationDecision.all
+    row.removeAllAnimations()
+  }
+
   func test_parentResize_capsEveryNestedLayoutTheResizeTriggers_withLegacyScrollers() throws {
     // given: a parent without animations and a scrolled nested view with legacy scrollers, whose dynamic behavior always
     // animates. resizing the nested view lays it out several times: the frame change clamps the scroll offset, and the
