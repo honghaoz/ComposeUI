@@ -805,10 +805,17 @@ open class ComposeView: BaseScrollView {
     renderBoundsChangeIfNeeded()
   }
 
+  /// Lays out the content of a nested `ComposeView` within this render pass, see `layoutContent()`.
+  ///
+  /// - Parameter renderable: A renderable this pass inserted or resized.
+  private func layoutNestedContent(of renderable: Renderable) {
+    (renderable.view as? ComposeView)?.layoutContent()
+  }
+
   /// Lays out the content for the view's bounds within the parent's render pass, if they changed since the last render.
   ///
-  /// The parent's render pass calls this after changing the size of a nested `ComposeView`, so the nested content
-  /// follows the parent's resize in the same pass and, like prepared content, never animates more than the parent's
+  /// The parent's render pass calls this after inserting or resizing a nested `ComposeView`, so the nested content
+  /// follows the parent in the same render pass and, like prepared content, never animates more than the parent's
   /// animation decision allows.
   private func layoutContent() {
     guard !isRendering else {
@@ -816,16 +823,17 @@ open class ComposeView: BaseScrollView {
       // the pass in progress cannot render the new size. a later layout will, but by then the parent is no longer
       // rendering, so the parent's animation decision is handed over here for that layout to pick up.
       //
-      // `contentUpdateContext.renderBounds` is the size the render pass in progress is rendering, captured when it started.
-      // `renderBounds()` is the size the view has now, after the parent's resize. they differ in the normal case: the
-      // parent gave the view a size the pass in progress will not render, so a later layout has to.
+      // `contentUpdateContext.renderBounds.size` is the size the render pass in progress is rendering, captured when
+      // it started. `renderBounds().size` is the size the view has now, after the parent's resize. they differ in the
+      // normal case: the parent gave the view a size the pass in progress will not render, so a later layout has to.
       //
       // they are equal in one edge case: the same render handler resized the parent twice, first to a new size, then
       // back to the original size. the first resize came through here and handed over a decision for a later layout.
       // the second resize put the view back to the size the pass in progress is rendering anyway, so that later layout
       // has nothing left to render. drop the handed-over decision, or the view's next unrelated pass (a scroll, a
-      // refresh the application requests) would pick it up and be capped for no reason.
-      guard renderBounds() != contentUpdateContext?.renderBounds else {
+      // refresh the application requests) would pick it up and be capped for no reason. only the sizes are compared,
+      // since a resize can clamp the scroll offset, which the pass in progress adopts.
+      guard renderBounds().size != contentUpdateContext?.renderBounds.size else {
         pendingInheritedAnimationDecision = nil
         return
       }
@@ -1323,18 +1331,10 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.update(renderable, renderableUpdateContext)
 
-        switch updateType {
-        case .boundsChange:
-          // a nested `ComposeView` that this render pass resized, whether `ComposeViewNode` or a `ViewNode` hosts it,
-          // lays out within this render pass instead of on its own later, so its content follows the resize in the same
-          // frame and its animations are capped by this render pass (see `inheritedAnimationDecision()`).
-          // a scroll only moves it, so nothing to do.
-          if oldFrame.size != newFrame.size, let nestedView = renderable.view as? ComposeView {
-            nestedView.layoutContent()
-          }
-        case .insert,
-             .refresh:
-          break
+        // a nested `ComposeView` this pass resized renders its content for the new size within this render pass,
+        // instead of on its own later, so its animations are capped by this pass's animation decision
+        if oldFrame.size != newFrame.size {
+          layoutNestedContent(of: renderable)
         }
 
         #if DEBUG
@@ -1407,6 +1407,9 @@ open class ComposeView: BaseScrollView {
         updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
         renderableItem.update(renderable, renderableUpdateContext)
+
+        // a nested `ComposeView` this pass inserted renders now, within this pass, for the same reasons as a resized one
+        layoutNestedContent(of: renderable)
 
         let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame, contentView: self)
         if let insertTransition {
