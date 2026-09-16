@@ -859,6 +859,12 @@ open class ComposeView: BaseScrollView {
       return
     }
 
+    // a handed-over animation decision is for a layout that runs on its own, after the parent's render pass ended (see
+    // above). this layout runs inside the parent's render pass and gets the parent's animation decision live, and it
+    // leaves the view rendered at its current size, so no layout on its own is coming that needs it.
+    // clear it, or the view's next unrelated pass, a scroll or refresh, would be capped by it.
+    pendingInheritedAnimationDecision = nil
+
     renderBoundsChangeIfNeeded()
   }
 
