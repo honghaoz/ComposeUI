@@ -172,8 +172,12 @@ extension Playground {
       controls.frame = CGRect(x: padding, y: y, width: width, height: Constants.controlsHeight)
       y += Constants.controlsHeight + Constants.sectionSpacing
 
-      status.frame = CGRect(x: padding, y: y, width: width, height: Constants.statusHeight)
-      y += Constants.statusHeight + Constants.sectionSpacing
+      // the container is the render target, so when the height is short (a small window) the status gives up height
+      // first, down to the room the container's minimum size and its handle need. the status clips what no longer fits.
+      let reservedForContainer = Constants.minContainerSize + Constants.grabberReservation
+      let statusHeight = min(Constants.statusHeight, max(bounds.height - y - Constants.sectionSpacing - reservedForContainer - padding, 0))
+      status.frame = CGRect(x: padding, y: y, width: width, height: statusHeight)
+      y += statusHeight + Constants.sectionSpacing
 
       containerArea = CGRect(x: padding, y: y, width: width, height: max(bounds.height - y - padding, 0))
       applyContainerFrame()
@@ -181,14 +185,14 @@ extension Playground {
 
     /// Sets the container's frame from its size or the window. A changed frame is a bounds change of the container.
     ///
-    /// The container keeps its minimum size while the area allows it, and shrinks with the area below that (a landscape
-    /// phone, a small window), so it never draws over the controls and status.
+    /// The container keeps its minimum size while the area allows it, and shrinks with the area below that, so it never
+    /// draws over the controls and status.
     private func applyContainerFrame() {
       let handleSize = Constants.resizeHandleSize
       let frame: CGRect
       if Constants.isPanel {
         // a full-width panel at the bottom, leaving room above it for the grabber
-        let maxHeight = max(containerArea.height - handleSize.height - Constants.grabberSpacing, 0)
+        let maxHeight = max(containerArea.height - Constants.grabberReservation, 0)
         let height = Self.clamp(containerSize.height, max: maxHeight)
         frame = CGRect(x: containerArea.minX, y: containerArea.maxY - height, width: containerArea.width, height: height)
         resizeHandle.frame = CGRect(x: frame.midX - handleSize.width / 2, y: frame.minY - handleSize.height - Constants.grabberSpacing, width: handleSize.width, height: handleSize.height)
@@ -980,6 +984,10 @@ extension Playground {
       static let resizeStep: CGFloat = 40
       static let resizeHandleSize = isPanel ? CGSize(width: 48, height: 8) : CGSize(width: 20, height: 20)
       static let grabberSpacing: CGFloat = 6
+
+      /// The height the grabber and its spacing take above the panel on iOS. The macOS knob sits on the container's
+      /// corner and needs no room of its own.
+      static let grabberReservation: CGFloat = isPanel ? resizeHandleSize.height + grabberSpacing : 0
       static let outlineWidth: CGFloat = 1
 
       static let rowHeight: CGFloat = 40
