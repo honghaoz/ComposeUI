@@ -568,4 +568,72 @@ class ComposeView_RenderHandlerTests: XCTestCase {
       beEqual(to: CGRect(x: 0, y: 10, width: 150, height: 150))
     )
   }
+
+  func test_didRenderHandler_boundsChanged() throws {
+    // given: a rendered view whose dynamic behavior always animates, with a did-render handler that resizes and scrolls
+    // the view and lays it out once
+    let timing = AnimationTiming.linear(duration: 10)
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var renderTypes: [ComposeView.RenderType] = []
+    var changesBounds = false
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 200)
+        .animation(timing)
+        .onUpdate { renderable, context in
+          layer = renderable.layer
+          layerContexts.append(context)
+        }
+    }
+    view.renderablePool = nil
+    view.animationBehavior = .dynamic { _, _ in true }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    let row = try unwrap(layer)
+    view.onDidRender { view, context in
+      renderTypes.append(context.renderType)
+      guard changesBounds else {
+        return
+      }
+      changesBounds = false
+      view.setBounds(CGRect(x: 0, y: 10, width: 160, height: 100))
+      view.setNeedsLayout()
+      view.layoutIfNeeded()
+    }
+    changesBounds = true
+    layerContexts.removeAll()
+
+    // when: the view refreshes and its handler changes the bounds from inside the pass
+    view.refresh(animated: false)
+
+    // then: the pass completes with the bounds it started with, and the layout during the pass has nothing to do
+    expect(renderTypes) == [.refresh(isAnimated: false)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 200)
+    layerContexts.removeAll()
+    row.removeAllAnimations()
+
+    // when: the run loop performs the follow-up layout. the row's animations are read in the same run loop iteration,
+    // since a layer outside a window keeps none past the transaction commit.
+    var rowAnimationKeys: [String]?
+    var isDrained = false
+    RunLoop.main.perform {
+      rowAnimationKeys = row.animationKeys()
+      isDrained = true
+    }
+    expect(isDrained).toEventually(beTrue())
+
+    // then: the new bounds render as a bounds change under the view's own animation behavior
+    expect(renderTypes) == [
+      .refresh(isAnimated: false),
+      .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 10, width: 160, height: 100)),
+    ]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 10, width: 160, height: 100)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 200)
+    expect(rowAnimationKeys?.contains("bounds.size")) == true
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.animationTiming) == timing
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.all
+  }
 }

@@ -823,7 +823,8 @@ open class ComposeView: BaseScrollView {
   /// Performs a pending refresh, or renders the content for the current bounds if they changed since the last render.
   private func renderBoundsChangeIfNeeded() {
     guard !isRendering else {
-      // a layout during this view's own render pass has nothing to do, the pass reads the bounds itself
+      // a layout during this view's own render pass has nothing to do: the pass reads the bounds itself, and checks them
+      // again when it ends (see `render()`)
       return
     }
 
@@ -928,6 +929,14 @@ open class ComposeView: BaseScrollView {
 
     self.contentUpdateContext = nil
     renderingAnimationDecision = nil
+
+    // a handler or a renderable callback can change the bounds after the pass read them, so render the current bounds
+    // after the pass if they differ
+    if renderBounds() != lastRenderBounds {
+      onNextRunLoop { [weak self] in
+        self?.renderBoundsChangeIfNeeded()
+      }
+    }
   }
 
   /// Performs the render pass for a content update.
@@ -987,20 +996,11 @@ open class ComposeView: BaseScrollView {
     if let willRenderHandler {
       willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
 
-      // the will-render handler may change the bounds, so read them again
-      let updatedBounds = renderBounds()
-
-      // we only pick the origin part of the bounds to ensure the content offset is correct for rendering
-      // ignoring the size change from the updated bounds because the above layout step has already used the old size.
-      bounds.origin = updatedBounds.origin
-
-      // if the bounds size changed (which is not expected but possible), schedule a follow-up layout to make sure the
-      // rendering is correct for the new bounds size.
-      if updatedBounds.size != bounds.size {
-        onNextRunLoop { [weak self] in
-          self?.layoutIfNeeded()
-        }
-      }
+      // the will-render handler may change the bounds, so read them again.
+      // only the origin is picked to ensure the correct content offset is used for rendering.
+      // ignoring the size change because the layout above already used the old size. if the size changes, the render
+      // pass will be triggered again after the pass ends (see `render()`).
+      bounds.origin = renderBounds().origin
     }
 
     // the bounds are final from here on, so the render type and the animation decision are made once for the render pass.
