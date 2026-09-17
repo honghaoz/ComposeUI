@@ -716,10 +716,9 @@ open class ComposeView: BaseScrollView {
   ///
   /// This call will make a new content from the builder block and re-render the content immediately.
   ///
-  /// A refresh requested during a render pass, for example from a render handler, is performed later: at the view's
-  /// next layout or on the next run loop iteration, whichever comes first. The exception is a view nested in the
-  /// rendering view: it renders within that pass, capped by the pass's animation decision, like the nested views a
-  /// render pass updates.
+  /// A refresh requested during a render pass, for example from a render handler, is performed after the pass, at the
+  /// view's next layout or on the next run loop iteration, whichever comes first. A view nested in the rendering view
+  /// renders within that pass instead.
   ///
   /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func refresh(animated: Bool = true) {
