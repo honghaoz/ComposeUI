@@ -905,10 +905,6 @@ open class ComposeView: BaseScrollView {
 
     isRendering = true
     ComposeView.renderingView = self
-    defer {
-      isRendering = false
-      ComposeView.renderingView = outerRenderingView
-    }
 
     CATransaction.disableAnimations { // disable all implicit animations to have a clean environment for rendering
       render(contentUpdateContext, animationDecisionCap: animationDecisionCap)
@@ -916,6 +912,9 @@ open class ComposeView: BaseScrollView {
 
     self.contentUpdateContext = nil
     renderingAnimationDecision = nil
+
+    ComposeView.renderingView = outerRenderingView
+    isRendering = false
 
     // a handler or a renderable callback can change the bounds after the pass read them, so render the current bounds
     // after the pass if they differ
