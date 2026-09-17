@@ -420,7 +420,8 @@ extension Playground {
       case resizeRowsSnap
       case dynamicRowsAnimate
       case containerCapsNested
-      case nestedAloneAnimates
+      case nestedAloneKeepsContent
+      case hostedAloneAnimates
       case hostedResizesInPass
       case requestInPassWaits
       case layoutInPassWaits
@@ -438,8 +439,10 @@ extension Playground {
           return "dynamic: rows animate"
         case .containerCapsNested:
           return "container caps nested"
-        case .nestedAloneAnimates:
-          return "nested alone animates"
+        case .nestedAloneKeepsContent:
+          return "nested alone keeps rows"
+        case .hostedAloneAnimates:
+          return "hosted alone animates"
         case .hostedResizesInPass:
           return "hosted resizes in pass"
         case .requestInPassWaits:
@@ -461,8 +464,10 @@ extension Playground {
         case .dynamicRowsAnimate:
           return "color rows, container dynamic"
         case .containerCapsNested,
-             .nestedAloneAnimates:
+             .nestedAloneKeepsContent:
           return "nested view, container disabled, nested dynamic"
+        case .hostedAloneAnimates:
+          return "hosted view, container disabled, hosted dynamic"
         case .hostedResizesInPass,
              .earlyNestedRefreshWaits:
           return "hosted view, both default"
@@ -485,8 +490,10 @@ extension Playground {
           return "resize the container by \(Int(Constants.resizeStep))"
         case .containerCapsNested:
           return "mutate data, container.refresh (animated)"
-        case .nestedAloneAnimates:
+        case .nestedAloneKeepsContent:
           return "mutate data, nested.refresh (animated)"
+        case .hostedAloneAnimates:
+          return "mutate data, hosted.refresh (animated)"
         case .requestInPassWaits:
           return "nested.refresh, didRender: container.refresh"
         case .layoutInPassWaits:
@@ -508,9 +515,11 @@ extension Playground {
         case .dynamicRowsAnimate:
           return "rows resize (animated)"
         case .containerCapsNested:
-          return "nested pass and rows refresh (instant)"
-        case .nestedAloneAnimates:
-          return "nested rows refresh (animated)"
+          return "container builds rows, nested refresh (instant)"
+        case .nestedAloneKeepsContent:
+          return "no rows build, re-renders the container's rows"
+        case .hostedAloneAnimates:
+          return "hosted builds rows, rows refresh (animated)"
         case .hostedResizesInPass:
           return "hosted resize inside the container's pass"
         case .requestInPassWaits:
@@ -536,6 +545,7 @@ extension Playground {
 
       let passSequence: [String]
       let buildCount: Int
+      let rowBuilds: [String: Int]
       let lastPasses: [String: String]
       let rowUpdates: [String: RowUpdate]
 
@@ -543,10 +553,21 @@ extension Playground {
       func passes(since earlier: Snapshot) -> [String] {
         Array(passSequence.dropFirst(earlier.passSequence.count))
       }
+
+      /// How many times the rows of a view were built since the earlier snapshot.
+      func rowBuilds(of owner: String, since earlier: Snapshot) -> Int {
+        (rowBuilds[owner] ?? 0) - (earlier.rowBuilds[owner] ?? 0)
+      }
     }
 
     private func snapshot() -> Snapshot {
-      Snapshot(passSequence: passSequence, buildCount: model.buildCount, lastPasses: lastPasses, rowUpdates: model.rowUpdates)
+      Snapshot(
+        passSequence: passSequence,
+        buildCount: model.buildCount,
+        rowBuilds: model.rowBuilds,
+        lastPasses: lastPasses,
+        rowUpdates: model.rowUpdates
+      )
     }
 
     /// Runs the selected check: configure, let the setup settle, act, then verify once deferred passes had a turn.
@@ -598,8 +619,12 @@ extension Playground {
         model.preset = .colorRows
         setContainerBehavior(.dynamic)
       case .containerCapsNested,
-           .nestedAloneAnimates:
+           .nestedAloneKeepsContent:
         model.preset = .nestedComposeView
+        setContainerBehavior(.disabled)
+        setNestedBehavior(.dynamic)
+      case .hostedAloneAnimates:
+        model.preset = .hostedComposeView
         setContainerBehavior(.disabled)
         setNestedBehavior(.dynamic)
       case .hostedResizesInPass,
@@ -635,9 +660,10 @@ extension Playground {
         mutateData()
         log("check: container.refresh (animated)")
         container.refresh(animated: true)
-      case .nestedAloneAnimates:
+      case .nestedAloneKeepsContent,
+           .hostedAloneAnimates:
         mutateData()
-        log("check: nested.refresh (animated)")
+        log("check: \(model.currentNestedOwner ?? "nested").refresh (animated)")
         model.currentNestedView?.refresh(animated: true)
       case .requestInPassWaits:
         run(.parentRefreshFromNested)
@@ -671,9 +697,16 @@ extension Playground {
         return Self.result(containerRows == "resize (animated)", "rows \(containerRows)")
       case .containerCapsNested:
         let pass = settled.lastPasses[Owner.nested] ?? "-"
-        return Self.result(pass == "refresh (instant)" && nestedRows == "refresh (instant)", "nested pass \(pass), rows \(nestedRows)")
-      case .nestedAloneAnimates:
-        return Self.result(nestedRows == "refresh (animated)", "nested rows \(nestedRows)")
+        let nestedBuilds = settled.rowBuilds(of: Owner.nested, since: before)
+        return Self.result(nestedBuilds == 1 && pass == "refresh (instant)" && nestedRows == "refresh (instant)", "nested rows built \(nestedBuilds), nested pass \(pass), rows \(nestedRows)")
+      case .nestedAloneKeepsContent:
+        // the container built the rows the nested view renders, so its own refresh re-renders them: the pass is
+        // animated as its behavior asks, but no row changes, so nothing moves
+        let nestedBuilds = settled.rowBuilds(of: Owner.nested, since: before)
+        return Self.result(nestedBuilds == 0 && nestedRows == "refresh (animated)", "nested rows built \(nestedBuilds), rows \(nestedRows), nothing to animate")
+      case .hostedAloneAnimates:
+        let hostedBuilds = settled.rowBuilds(of: Owner.hosted, since: before)
+        return Self.result(hostedBuilds == 1 && hostedRows == "refresh (animated)", "hosted rows built \(hostedBuilds), rows \(hostedRows)")
       case .hostedResizesInPass:
         // the hosted pass completes before the container's, so it ran inside the container's pass
         let pass = afterAction.lastPasses[Owner.hosted] ?? "-"
@@ -728,9 +761,9 @@ extension Playground {
         "  pass  \(lastPasses[Owner.container] ?? "-")",
         "  rows  \(model.rowUpdates[Owner.container]?.description ?? "-")",
       ]
-      if let nestedOwner = model.currentNestedOwner {
+      if let nestedOwner = model.currentNestedOwner, let note = model.currentNestedNote {
         lines += [
-          "\(nestedOwner) (\(model.preset.title))",
+          "\(nestedOwner) (\(model.preset.title), \(note))",
           "  pass  \(lastPasses[nestedOwner] ?? "-")",
           "  rows  \(model.rowUpdates[nestedOwner]?.description ?? "-")",
         ]
