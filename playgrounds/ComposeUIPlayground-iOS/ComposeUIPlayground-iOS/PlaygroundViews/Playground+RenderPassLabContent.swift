@@ -133,7 +133,8 @@ extension Playground.RenderPassLab {
     /// The kind of update, in the words the pass descriptions use: `insert`, `refresh`, `resize`, `scroll`.
     let kind: String
 
-    /// Whether the update applied an animation timing.
+    /// Whether the update installed an animation on the row's layer. Observed on the layer rather than read from the
+    /// context's timing, so an update that was meant to animate but did not reads as instant.
     let isAnimated: Bool
 
     /// The background color the row's layer has after the update. The rendered output, so a check can tell whether
@@ -148,7 +149,8 @@ extension Playground.RenderPassLab {
     /// - Parameters:
     ///   - renderable: The row's renderable, after the update was applied.
     ///   - context: The update's context.
-    init(_ renderable: Renderable, _ context: RenderableUpdateContext) {
+    ///   - isAnimated: Whether the update installed an animation on the row's layer.
+    init(_ renderable: Renderable, _ context: RenderableUpdateContext, isAnimated: Bool) {
       switch context.updateType {
       case .insert:
         kind = "insert"
@@ -161,7 +163,7 @@ extension Playground.RenderPassLab {
           kind = "scroll"
         }
       }
-      isAnimated = context.animationTiming != nil
+      self.isAnimated = isAnimated
       // the node's own update ran before this, and an animated color change sets the model value synchronously
       color = renderable.layer.backgroundColor
     }
@@ -192,6 +194,10 @@ extension Playground.RenderPassLab {
 
     /// The last update of the marker row, per view rendering rows.
     var rowUpdates: [String: RowUpdate] = [:]
+
+    /// The keys of the marker row's layer animations before its update, per view rendering rows. Compared with the keys
+    /// after the update, so an animation still in flight from an earlier pass does not count as this update's.
+    private var rowAnimationKeysBeforeUpdate: [String: Set<String>] = [:]
 
     /// The nested view rendered by `ComposeViewNode`, captured when the parent inserts it.
     weak var nestedComposeView: ComposeView?
@@ -307,11 +313,21 @@ extension Playground.RenderPassLab {
             .frame(width: .flexible, height: Constants.rowHeight)
             .animation(.spring())
             .transition(.opacity(timing: .linear(duration: 0.5)))
-            .onUpdate { [weak self] renderable, context in
+            .willUpdate { [weak self] renderable, _ in
               guard index == 0 else {
                 return
               }
-              self?.rowUpdates[owner] = RowUpdate(renderable, context)
+              self?.rowAnimationKeysBeforeUpdate[owner] = Self.animationKeys(of: renderable)
+            }
+            .onUpdate { [weak self] renderable, context in
+              guard let self, index == 0 else {
+                return
+              }
+              // an update that carries a timing animates the frame with additive animations under fresh keys, even
+              // when the frame is unchanged, so new keys are what an animated update looks like on the layer
+              let before = self.rowAnimationKeysBeforeUpdate.removeValue(forKey: owner) ?? []
+              let isAnimated = !Self.animationKeys(of: renderable).subtracting(before).isEmpty
+              self.rowUpdates[owner] = RowUpdate(renderable, context, isAnimated: isAnimated)
             }
             .id("\(owner)-row-\(index)")
         }
@@ -324,6 +340,10 @@ extension Playground.RenderPassLab {
         }
       }
       .padding(Constants.contentPadding)
+    }
+
+    private static func animationKeys(of renderable: Renderable) -> Set<String> {
+      Set(renderable.layer.animationKeys() ?? [])
     }
 
     /// The rows inside a nested view rendered by `ComposeViewNode`. The node animates its frame like the rows do, so the

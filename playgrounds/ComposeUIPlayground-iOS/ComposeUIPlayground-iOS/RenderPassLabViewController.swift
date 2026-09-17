@@ -50,6 +50,12 @@ final class RenderPassLabViewController: UIViewController {
     view.addSubview(lab)
   }
 
+  /// The lab needs about 500 points of height for its controls, status and container together, which a phone only
+  /// has in portrait. An iPad has it in both orientations.
+  override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+    traitCollection.userInterfaceIdiom == .phone ? .portrait : .all
+  }
+
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
 
