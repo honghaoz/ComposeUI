@@ -542,6 +542,74 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
     row.removeAllAnimations()
   }
 
+  func test_refresh_ofANestedView_fromTheParentWillRenderHandler_whenThePassResizesTheView_runsWithinThePassCappedByItsDecision() throws {
+    // given: a parent without animations hosting a view whose dynamic behavior always animates, with a parent render
+    // handler that refreshes the hosted view with a new width once before the parent has its animation decision
+    let timing = AnimationTiming.linear(duration: 10)
+    var width: CGFloat = 40
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var childRenderTypes: [ComposeView.RenderType] = []
+    var refreshesChild = false
+    let child = ComposeView {
+      ColorNode(.red)
+        .frame(width: width, height: 40)
+        .animation(timing)
+        .onUpdate { renderable, context in
+          layer = renderable.layer
+          layerContexts.append(context)
+        }
+    }
+    child.renderablePool = nil
+    child.animationBehavior = .dynamic { _, _ in true }
+    child.onDidRender { _, context in
+      childRenderTypes.append(context.renderType)
+    }
+    let parent = ComposeView {
+      ViewNode<ComposeView>(child)
+        .flexibleSize()
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.onWillRender { _, _ in
+      guard refreshesChild else {
+        return
+      }
+      refreshesChild = false
+      width = 80
+      child.refresh(animated: true)
+    }
+    parent.refresh(animated: false)
+    let row = try unwrap(layer)
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    childRenderTypes.removeAll()
+    layerContexts.removeAll()
+    refreshesChild = true
+
+    // when: the parent is resized and refreshes, so the pass whose handler's refresh waits also resizes the hosted view
+    parent.frame.size.width = 160
+    parent.refresh(animated: false)
+
+    // then: the layout the parent's pass runs for the resized view performs the waiting refresh within the pass, capped
+    // by the parent's decision, so the new content renders once at the new size and the animated refresh does not animate
+    expect(childRenderTypes) == [.refresh(isAnimated: true)]
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    expect(row.frame.size) == CGSize(width: 80, height: 40)
+    expect(row.animationKeys()) == nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.animationTiming) == nil
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+
+    // when: the run loop turns
+    var isDrained = false
+    RunLoop.main.perform { isDrained = true }
+    expect(isDrained).toEventually(beTrue())
+
+    // then: the refresh was performed, nothing is left to run
+    expect(childRenderTypes) == [.refresh(isAnimated: true)]
+  }
+
   func test_refresh_ofAViewInsideAHostedContainer_duringTheParentRenderPass_runsWithinThePassCappedByItsDecision() throws {
     // given: a parent without animations hosting a plain container that contains a view whose dynamic behavior always
     // animates, with a parent render handler that refreshes the contained view with new content once

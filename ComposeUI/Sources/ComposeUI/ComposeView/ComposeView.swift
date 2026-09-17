@@ -410,7 +410,7 @@ open class ComposeView: BaseScrollView {
     return self
   }
 
-  /// Set a handler to be called after the render pass is completed.
+  /// Set a handler to be called at the end of the render pass, after all renderables are updated.
   ///
   /// At this point, all renderables have been placed with their new frames (model values updated), animations or
   /// transitions may still be running.
@@ -716,9 +716,10 @@ open class ComposeView: BaseScrollView {
   ///
   /// This call will make a new content from the builder block and re-render the content immediately.
   ///
-  /// A refresh requested during a render pass, for example from a render handler, is performed after the pass, on the
-  /// next run loop iteration. The exception is a view nested in the rendering view: it renders within that pass, capped
-  /// by the pass's animation decision, like the nested views a render pass updates.
+  /// A refresh requested during a render pass, for example from a render handler, is performed later: at the view's
+  /// next layout or on the next run loop iteration, whichever comes first. The exception is a view nested in the
+  /// rendering view: it renders within that pass, capped by the pass's animation decision, like the nested views a
+  /// render pass updates.
   ///
   /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func refresh(animated: Bool = true) {
@@ -765,7 +766,7 @@ open class ComposeView: BaseScrollView {
   /// Requests a refresh of the content.
   ///
   /// This method is non-blocking and will return immediately.
-  /// The refresh will be performed on the next run loop iteration.
+  /// The refresh will be performed at the view's next layout or on the next run loop iteration, whichever comes first.
   ///
   /// Requests made before the refresh is performed are merged into a single refresh. The merged refresh is non-animated
   /// if any request was non-animated. To bypass the merging, call `refresh(animated:)` directly, which cancels any
@@ -871,9 +872,10 @@ open class ComposeView: BaseScrollView {
   /// can start one, and only once the rendering view has made its animation decision, which caps the nested pass (see
   /// `render()`). This is how a parent's pass renders the nested views it updates.
   ///
-  /// Any other request waits and runs on the next run loop iteration. That covers the rendering view itself, whose
-  /// renderables are mid-update, an ancestor, whose pass would update the rendering view mid-update, and an unrelated
-  /// view. So a render handler never interrupts the pass that calls it.
+  /// Any other request waits, and runs at the view's next layout or on the next run loop iteration, whichever comes
+  /// first. That covers the rendering view itself, whose renderables are mid-update, an ancestor, whose pass would
+  /// update the rendering view mid-update, and an unrelated view. So a render handler never interrupts the pass that
+  /// calls it.
   private var canStartRenderPass: Bool {
     guard !isRendering else {
       return false
