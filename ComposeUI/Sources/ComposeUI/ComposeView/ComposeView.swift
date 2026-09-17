@@ -803,24 +803,11 @@ open class ComposeView: BaseScrollView {
     renderBoundsChangeIfNeeded()
   }
 
-  /// Lays out the content for the view's bounds within the parent's render pass, if they changed since the last render.
-  ///
-  /// The parent's render pass calls this after inserting or resizing a nested `ComposeView`, so the nested content
-  /// follows the parent in the same render pass and, like prepared content, never animates more than the parent's
-  /// animation decision allows (see `render()`).
-  func layoutContent() {
-    guard !isRendering else {
-      // a parent's render pass cannot start while a nested view is rendering (see `canStartRenderPass`), so this is a
-      // programming error. render the new size on the next layout, under the view's own animation behavior.
-      ComposeUI.assertFailure("A parent's render pass laid out a nested ComposeView that is rendering.")
-      setNeedsLayout()
-      return
-    }
-
-    renderBoundsChangeIfNeeded()
-  }
-
   /// Performs a pending refresh, or renders the content for the current bounds if they changed since the last render.
+  ///
+  /// A parent's render pass calls this on a nested `ComposeView` it inserted or resized, so the nested content follows
+  /// the parent in the same render pass and, like prepared content, never animates more than the parent's animation
+  /// decision allows (see `render()`).
   private func renderBoundsChangeIfNeeded() {
     guard !isRendering else {
       // a layout during this view's own render pass has nothing to do: the pass reads the bounds itself, and checks them
@@ -1344,7 +1331,7 @@ open class ComposeView: BaseScrollView {
         // a nested `ComposeView` this pass resized renders its content for the new size within this render pass,
         // instead of on its own later, so its animations are capped by this pass's animation decision
         if oldFrame.size != newFrame.size {
-          (renderable.view as? ComposeView)?.layoutContent()
+          (renderable.view as? ComposeView)?.renderBoundsChangeIfNeeded()
         }
 
         #if DEBUG
@@ -1419,7 +1406,7 @@ open class ComposeView: BaseScrollView {
         renderableItem.update(renderable, renderableUpdateContext)
 
         // a nested `ComposeView` this pass inserted renders now, within this pass, for the same reasons as a resized one
-        (renderable.view as? ComposeView)?.layoutContent()
+        (renderable.view as? ComposeView)?.renderBoundsChangeIfNeeded()
 
         let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame, contentView: self)
         if let insertTransition {
