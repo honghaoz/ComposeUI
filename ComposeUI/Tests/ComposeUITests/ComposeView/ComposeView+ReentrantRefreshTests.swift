@@ -325,7 +325,7 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
   }
 
   func test_layout_ofTheRenderingView_duringItsRenderPass_hasNothingToDo() throws {
-    // given: a rendered view with a render handler that lays the view out once
+    // given: a rendered view with a did-render handler that lays the view out once, without changing its bounds
     var renderTypes: [ComposeView.RenderType] = []
     var laysOut = false
     let view = ComposeView {
@@ -333,10 +333,8 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
         .frame(width: 40, height: 40)
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-    view.onDidRender { _, context in
+    view.onDidRender { view, context in
       renderTypes.append(context.renderType)
-    }
-    view.onWillRender { view, _ in
       guard laysOut else {
         return
       }
@@ -359,7 +357,7 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
     RunLoop.main.perform { isDrained = true }
     expect(isDrained).toEventually(beTrue())
 
-    // then: no pass was scheduled either, the bounds have not changed
+    // then: no pass follows either, the bounds have not changed
     expect(renderTypes) == [.refresh(isAnimated: false)]
   }
 
@@ -933,6 +931,55 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
     expect(layerContexts.count) == 1
     expect(layerContexts.first?.animationTiming) == nil
     expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+  }
+
+  func test_render_heldByAnOverride_afterTheViewResized_rendersTheNewSizeAfterThePass() throws {
+    // given: a view holding a render pass prepared with new content, then resized and laid out while holding it
+    var color = Color.red
+    var layer: CALayer?
+    var renderTypes: [ComposeView.RenderType] = []
+    let view = RenderHoldingView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      ColorNode(color)
+        .frame(width: .flexible, height: 100)
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    view.refresh(animated: false)
+    let row = try unwrap(layer)
+    view.onDidRender { _, context in
+      renderTypes.append(context.renderType)
+    }
+    view.holdsRenderPass = true
+    color = .blue
+    view.refresh(animated: false)
+    view.frame.size.width = 160
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    expect(renderTypes) == []
+    expect(row.backgroundColor) == Color.red.cgColor
+
+    // when: the held pass is released
+    view.releaseRenderPass()
+
+    // then: the held pass renders its content for the bounds it was prepared with
+    expect(renderTypes) == [.refresh(isAnimated: false)]
+    expect(row.backgroundColor) == Color.blue.cgColor
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the run loop performs the follow-up layout
+    var isDrained = false
+    RunLoop.main.perform { isDrained = true }
+    expect(isDrained).toEventually(beTrue())
+
+    // then: the pass found the bounds changed when it ended, so the new size renders
+    expect(renderTypes) == [
+      .refresh(isAnimated: false),
+      .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 0, width: 160, height: 100)),
+    ]
+    expect(row.backgroundColor) == Color.blue.cgColor
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
   }
 }
 
