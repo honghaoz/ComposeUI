@@ -48,13 +48,16 @@ extension Playground.RenderPassLab {
     /// Color rows with an update animation and an insert transition, rendered by the container itself.
     case colorRows
 
-    /// The rows inside a nested `ComposeView` rendered by `ComposeViewNode`, filling the container.
+    /// The rows inside a nested `ComposeView` rendered by `ComposeViewNode`, filling the container. The container builds
+    /// the rows when it builds its own content, so the nested view's own refresh re-renders those rows: new data
+    /// reaches it through a container refresh.
     case nestedComposeView
 
     /// A SwiftUI text whose content is evaluated once per refresh.
     case swiftUI
 
-    /// The rows inside a nested `ComposeView` hosted by a `ViewNode`, filling the container.
+    /// The rows inside a nested `ComposeView` hosted by a `ViewNode`, filling the container. The hosted view builds
+    /// its own rows, so its own refresh picks up new data.
     case hostedComposeView
 
     /// All of the above stacked, taller than the container, so it scrolls.
@@ -174,6 +177,10 @@ extension Playground.RenderPassLab {
     /// How many times the container built its content. A refresh builds, a bounds change does not.
     private(set) var buildCount = 0
 
+    /// How many times the rows were built, per view rendering rows. Tells whose build read the data: the container's
+    /// build creates the nested view's rows, the hosted view builds its own.
+    private(set) var rowBuilds: [String: Int] = [:]
+
     /// The last update of the marker row, per view rendering rows.
     var rowUpdates: [String: RowUpdate] = [:]
 
@@ -223,6 +230,20 @@ extension Playground.RenderPassLab {
       }
     }
 
+    /// Who builds the current preset's nested content, for the status.
+    var currentNestedNote: String? {
+      switch preset {
+      case .colorRows,
+           .swiftUI:
+        return nil
+      case .nestedComposeView,
+           .mixed:
+        return "content built by the container"
+      case .hostedComposeView:
+        return "builds its own content"
+      }
+    }
+
     // MARK: - Content
 
     /// Builds the container's content for the current preset, counting the build.
@@ -254,11 +275,17 @@ extension Playground.RenderPassLab {
       }
     }
 
-    /// Color rows with an update animation and an insert transition. The first row records its updates.
+    /// Color rows with an update animation and an insert transition, built from the current data. The first row records
+    /// its updates.
     ///
-    /// - Parameter owner: The name of the view rendering the rows, for the recorded updates.
-    @ComposeContentBuilder
+    /// - Parameter owner: The name of the view rendering the rows, for the recorded builds and updates.
     func rows(owner: String) -> ComposeContent {
+      rowBuilds[owner, default: 0] += 1
+      return rowsContent(owner: owner)
+    }
+
+    @ComposeContentBuilder
+    private func rowsContent(owner: String) -> ComposeContent {
       VStack(spacing: Constants.rowSpacing) {
         for (index, color) in rowColors.enumerated() {
           ColorNode(color)
