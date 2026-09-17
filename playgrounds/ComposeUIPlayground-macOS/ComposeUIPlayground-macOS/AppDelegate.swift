@@ -35,6 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   private var window: NSWindow?
   private var additiveOpacityDemoWindow: AdditiveOpacityDemoWindow?
+  private var renderPassLabWindow: RenderPassLabWindow?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
 
@@ -68,6 +69,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     demoItem.target = self
     demosMenu.addItem(demoItem)
 
+    let labItem = NSMenuItem(title: "Render Pass Lab", action: #selector(showRenderPassLab), keyEquivalent: "")
+    labItem.target = self
+    demosMenu.addItem(labItem)
+
     let demosMenuItem = NSMenuItem()
     demosMenuItem.submenu = demosMenu
     NSApp.mainMenu?.addItem(demosMenuItem)
@@ -78,6 +83,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       additiveOpacityDemoWindow = AdditiveOpacityDemoWindow()
     }
     additiveOpacityDemoWindow?.window?.makeKeyAndOrderFront(nil)
+  }
+
+  @objc private func showRenderPassLab() {
+    if renderPassLabWindow == nil {
+      renderPassLabWindow = RenderPassLabWindow()
+    }
+    renderPassLabWindow?.window?.makeKeyAndOrderFront(nil)
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {

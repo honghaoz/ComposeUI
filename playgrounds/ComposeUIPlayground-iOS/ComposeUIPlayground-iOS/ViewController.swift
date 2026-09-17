@@ -75,6 +75,14 @@ class ViewController: UIViewController {
     ViewNode(state.subtitleLabel)
       .transition(.opacity(timing: .linear(duration: 2, delay: 1)))
 
+    Playground.button(title: "Open Render Pass Lab", fontSize: 14) { [weak self] in
+      let controller = RenderPassLabViewController()
+      controller.modalPresentationStyle = .fullScreen
+      self?.present(controller, animated: true)
+    }
+    .frame(width: 200, height: 36)
+    .padding(vertical: Constants.padding)
+
     VStack(spacing: 8) {
 
       ViewNode<Playground.TransitionView>()
