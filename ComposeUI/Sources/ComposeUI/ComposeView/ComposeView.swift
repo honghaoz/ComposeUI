@@ -141,13 +141,7 @@ open class ComposeView: BaseScrollView {
   /// The prepared content waiting to be applied by refresh.
   private var preparedContent: PreparedContent?
 
-  /// The parent's animation decision handed over with a resize this view could not render within the parent's render
-  /// pass, capping the pass that renders the new size. See `consumeInheritedAnimationDecision()`.
-  private var pendingInheritedAnimationDecision: AnimationDecision?
-
-  /// The animation decision of the render pass in progress, or nil between passes.
-  ///
-  /// A nested view rendering within this render pass inherits it as a cap. See `consumeInheritedAnimationDecision()`.
+  /// The animation decision of the render pass in progress.
   private var renderingAnimationDecision: AnimationDecision?
 
   /// The context of the current content update.
@@ -283,13 +277,7 @@ open class ComposeView: BaseScrollView {
   /// - Parameter content: A content builder with the host view as the parameter.
   open func setContent(@ComposeContentBuilder content: @escaping (ComposeView) throws -> ComposeContent) {
     makeContent = content
-
-    // the new content replaces a parent's prepared content and its animation decision. the refresh renders the current
-    // size as well, so an animation decision a parent's resize handed over for a later layout is dropped too. the
-    // refresh follows the view's own animation behavior.
     preparedContent = nil
-    pendingInheritedAnimationDecision = nil
-
     setNeedsRefresh()
   }
 
@@ -318,10 +306,6 @@ open class ComposeView: BaseScrollView {
       evaluation: contentEvaluation,
       animationDecision: animationDecision
     )
-
-    // the refresh below renders the current size as well, under the animation decision of this update, so an animation
-    // decision an earlier resize handed over for a later layout is dropped
-    pendingInheritedAnimationDecision = nil
 
     // trigger an immediate refresh
     // if the parent's render pass allows either transitions or update animations, this child view's content will be
@@ -392,6 +376,9 @@ open class ComposeView: BaseScrollView {
   ///
   /// This handler runs before the content size is updated.
   ///
+  /// This handler runs inside the render pass, so a refresh or layout it requests for this view, or for a view
+  /// containing it, waits until the pass ends (see `refresh(animated:)`).
+  ///
   /// Calling this replaces any previously set handler.
   ///
   /// - Parameter handler: The will-layout handler.
@@ -410,6 +397,9 @@ open class ComposeView: BaseScrollView {
   ///
   /// You should not change the view's bounds size in this handler, otherwise an additional layout pass will be scheduled.
   ///
+  /// This handler runs inside the render pass, so a refresh or layout it requests for this view, or for a view
+  /// containing it, waits until the pass ends (see `refresh(animated:)`).
+  ///
   /// Calling this replaces any previously set handler.
   ///
   /// - Parameter handler: The will-render handler.
@@ -422,7 +412,11 @@ open class ComposeView: BaseScrollView {
 
   /// Set a handler to be called after the render pass is completed.
   ///
-  /// At this point, all renderables have been placed with their new frames (model values updated), animations or transitions may still be running.
+  /// At this point, all renderables have been placed with their new frames (model values updated), animations or
+  /// transitions may still be running.
+  ///
+  /// This handler runs inside the render pass, so a refresh or layout it requests for this view, or for a view
+  /// containing it, waits until the pass ends (see `refresh(animated:)`).
   ///
   /// Calling this replaces any previously set handler.
   ///
@@ -720,17 +714,17 @@ open class ComposeView: BaseScrollView {
 
   /// Refreshes and re-renders the content.
   ///
-  /// This call will make a new content from the builder block and re-render the content immediately. A refresh
-  /// requested during a render pass, for example from a render handler, is performed after the pass on the next run
-  /// loop iteration.
+  /// This call will make a new content from the builder block and re-render the content immediately.
+  ///
+  /// A refresh requested during a render pass, for example from a render handler, is performed after the pass, on the
+  /// next run loop iteration. The exception is a view nested in the rendering view: it renders within that pass, capped
+  /// by the pass's animation decision, like the nested views a render pass updates.
   ///
   /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
   open func refresh(animated: Bool = true) {
     ComposeUI.assert(Thread.isMainThread, "refresh(animated:) must be called on the main thread")
 
-    guard !isRendering else {
-      // replacing the content while a render pass is applying it would render a second pass over a half-updated
-      // renderable map, so schedule the refresh for after the render pass instead
+    guard canStartRenderPass else {
       setNeedsRefresh(animated: animated)
       return
     }
@@ -750,7 +744,7 @@ open class ComposeView: BaseScrollView {
       updateType: .refresh(isAnimated: animated),
       previousRenderBounds: lastRenderBounds,
       renderBounds: renderBounds(),
-      inheritedAnimationDecision: (preparedContent?.animationDecision ?? .all).capped(by: consumeInheritedAnimationDecision())
+      preparedAnimationDecision: preparedContent?.animationDecision ?? .all
     )
 
     // cancel the pending refresh if there is any to avoid double rendering
@@ -808,68 +802,39 @@ open class ComposeView: BaseScrollView {
     renderBoundsChangeIfNeeded()
   }
 
-  /// Lays out the content of a nested `ComposeView` within this render pass, see `layoutContent(inheriting:)`.
-  ///
-  /// - Parameters:
-  ///   - renderable: A renderable this pass inserted or resized.
-  ///   - animationDecision: This render pass's animation decision.
-  private func layoutNestedContent(of renderable: Renderable, animationDecision: AnimationDecision) {
-    (renderable.view as? ComposeView)?.layoutContent(inheriting: animationDecision)
-  }
-
   /// Lays out the content for the view's bounds within the parent's render pass, if they changed since the last render.
   ///
   /// The parent's render pass calls this after inserting or resizing a nested `ComposeView`, so the nested content
   /// follows the parent in the same render pass and, like prepared content, never animates more than the parent's
-  /// animation decision allows.
-  ///
-  /// - Parameter animationDecision: The parent's animation decision for its render pass.
-  private func layoutContent(inheriting animationDecision: AnimationDecision) {
+  /// animation decision allows (see `render()`).
+  func layoutContent() {
     guard !isRendering else {
-      // this view is in the middle of its own render pass, and one of its render handlers made the parent resize it.
-      // the pass in progress cannot render the new size. a later layout will, but by then the parent is no longer
-      // rendering, so the parent's animation decision is handed over here for that layout to pick up.
-      //
-      // `contentUpdateContext.renderBounds.size` is the size the render pass in progress is rendering, captured when
-      // it started. `renderBounds().size` is the size the view has now, after the parent's resize. they differ in the
-      // normal case: the parent gave the view a size the pass in progress will not render, so a later layout has to.
-      //
-      // they are equal in one edge case: the same render handler resized the parent twice, first to a new size, then
-      // back to the original size. the first resize came through here and handed over a decision for a later layout.
-      // the second resize put the view back to the size the pass in progress is rendering anyway, so that later layout
-      // has nothing left to render. drop the handed-over decision, or the view's next unrelated pass (a scroll, a
-      // refresh the application requests) would pick it up and be capped for no reason. only the sizes are compared,
-      // since a resize can clamp the scroll offset, which the pass in progress adopts.
-      guard renderBounds().size != contentUpdateContext?.renderBounds.size else {
-        pendingInheritedAnimationDecision = nil
-        return
-      }
-
-      pendingInheritedAnimationDecision = animationDecision
-
-      // the layout that renders the new size must be scheduled here, because neither of the other two sources is
-      // reliable: the pass in progress only schedules one when it has a will-render handler, and AppKit does not set
-      // `needsLayout` on a frame change nor lay a view out at all outside a window. `setNeedsLayout()` marks the view
-      // dirty so `layoutIfNeeded()` actually runs. if a layout already happened by then, this one finds nothing to do.
-      onNextRunLoop { [weak self] in
-        self?.setNeedsLayout()
-        self?.layoutIfNeeded()
-      }
-
+      // a parent's render pass cannot start while a nested view is rendering (see `canStartRenderPass`), so this is a
+      // programming error. render the new size on the next layout, under the view's own animation behavior.
+      ComposeUI.assertFailure("A parent's render pass laid out a nested ComposeView that is rendering.")
+      setNeedsLayout()
       return
     }
-
-    // a handed-over animation decision is for a layout that runs on its own, after the parent's render pass ended (see
-    // above). this layout runs inside the parent's render pass and gets the parent's animation decision live, and it
-    // leaves the view rendered at its current size, so no layout on its own is coming that needs it.
-    // clear it, or the view's next unrelated pass, a scroll or refresh, would be capped by it.
-    pendingInheritedAnimationDecision = nil
 
     renderBoundsChangeIfNeeded()
   }
 
   /// Performs a pending refresh, or renders the content for the current bounds if they changed since the last render.
   private func renderBoundsChangeIfNeeded() {
+    guard !isRendering else {
+      // a layout during this view's own render pass has nothing to do, the pass reads the bounds itself
+      return
+    }
+
+    guard canStartRenderPass else {
+      // a layout during another view's render pass runs after that pass, on the next run loop iteration like a
+      // deferred refresh
+      onNextRunLoop { [weak self] in
+        self?.renderBoundsChangeIfNeeded()
+      }
+      return
+    }
+
     guard pendingRefresh == nil else {
       // pending refreshes could be scheduled from window change, for the layout call, just perform the pending refresh
       performPendingRefresh()
@@ -893,30 +858,40 @@ open class ComposeView: BaseScrollView {
         updateType: .boundsChange,
         previousRenderBounds: lastRenderBounds,
         renderBounds: renderBounds,
-        inheritedAnimationDecision: consumeInheritedAnimationDecision()
+        preparedAnimationDecision: .all
       )
     }
 
     render()
   }
 
-  /// Returns the parent's animation decision capping the render pass about to start, `.all` for the view's own updates,
-  /// and consumes a animation decision handed over for that render pass.
-  private func consumeInheritedAnimationDecision() -> AnimationDecision {
-    // two decisions cap the pass, and `.all` stands in for a missing one since it caps nothing:
-    // - the parent's `renderingAnimationDecision`, which is set only while the parent is in a render pass. a pass that
-    //   runs inside the parent's pass is capped by it, whatever triggered the pass (the parent resizing this view, an
-    //   AppKit layout during that frame change, a pending refresh). a pass the view runs on its own finds nil.
-    // - `pendingInheritedAnimationDecision`, which a parent's resize leaves behind when this view cannot render the new
-    //   size right away. the pass that renders it picks it up, once.
-    defer {
-      pendingInheritedAnimationDecision = nil
+  /// Whether a render pass of this view can start now.
+  ///
+  /// A pass can start when no pass is in progress. While a pass is in progress, only a view inside the rendering view
+  /// can start one, and only once the rendering view has made its animation decision, which caps the nested pass (see
+  /// `render()`). This is how a parent's pass renders the nested views it updates.
+  ///
+  /// Any other request waits and runs on the next run loop iteration. That covers the rendering view itself, whose
+  /// renderables are mid-update, an ancestor, whose pass would update the rendering view mid-update, and an unrelated
+  /// view. So a render handler never interrupts the pass that calls it.
+  private var canStartRenderPass: Bool {
+    guard !isRendering else {
+      return false
     }
-    return (parentComposeView?.renderingAnimationDecision ?? .all).capped(by: pendingInheritedAnimationDecision ?? .all)
+    guard let renderingView = ComposeView.renderingView else {
+      return true
+    }
+    return self.isDescendant(of: renderingView) && renderingView.renderingAnimationDecision != nil
   }
 
   /// Whether a render pass is in progress.
   private var isRendering = false
+
+  /// The view whose render pass is in progress. Main thread only.
+  ///
+  /// Render passes only nest downwards (see `canStartRenderPass`), so this is the innermost rendering view, and
+  /// `render()` restores the outer one when a nested render pass ends.
+  private static var renderingView: ComposeView?
 
   /// Performs a render pass.
   open func render() {
@@ -926,20 +901,39 @@ open class ComposeView: BaseScrollView {
       return
     }
 
+    guard canStartRenderPass else {
+      // a render pass that cannot start now keeps its prepared content and runs on the next run loop iteration.
+      onNextRunLoop { [weak self] in
+        self?.render()
+      }
+      return
+    }
+
+    let outerRenderingView = ComposeView.renderingView
+    let animationDecisionCap = contentUpdateContext.preparedAnimationDecision
+      .capped(by: outerRenderingView?.renderingAnimationDecision ?? .all)
+
     isRendering = true
+    ComposeView.renderingView = self
     defer {
       isRendering = false
+      ComposeView.renderingView = outerRenderingView
     }
 
     CATransaction.disableAnimations { // disable all implicit animations to have a clean environment for rendering
-      render(contentUpdateContext)
+      render(contentUpdateContext, animationDecisionCap: animationDecisionCap)
     }
 
     self.contentUpdateContext = nil
     renderingAnimationDecision = nil
   }
 
-  private func render(_ context: ContentUpdateContext) {
+  /// Performs the render pass for a content update.
+  ///
+  /// - Parameters:
+  ///   - context: The content update to render.
+  ///   - animationDecisionCap: The animation decision cap this render pass can run.
+  private func render(_ context: ContentUpdateContext, animationDecisionCap: AnimationDecision) {
     let contentNode = context.contentNode
     let contentEvaluation = context.contentEvaluation
 
@@ -1014,7 +1008,7 @@ open class ComposeView: BaseScrollView {
     let renderType = context.renderType(bounds: bounds)
     let animationDecision = animationBehavior
       .animationDecision(renderType: renderType, contentView: self)
-      .capped(by: context.inheritedAnimationDecision)
+      .capped(by: animationDecisionCap)
 
     renderingAnimationDecision = animationDecision
 
@@ -1348,7 +1342,7 @@ open class ComposeView: BaseScrollView {
         // a nested `ComposeView` this pass resized renders its content for the new size within this render pass,
         // instead of on its own later, so its animations are capped by this pass's animation decision
         if oldFrame.size != newFrame.size {
-          layoutNestedContent(of: renderable, animationDecision: animationDecision)
+          (renderable.view as? ComposeView)?.layoutContent()
         }
 
         #if DEBUG
@@ -1423,7 +1417,7 @@ open class ComposeView: BaseScrollView {
         renderableItem.update(renderable, renderableUpdateContext)
 
         // a nested `ComposeView` this pass inserted renders now, within this pass, for the same reasons as a resized one
-        layoutNestedContent(of: renderable, animationDecision: animationDecision)
+        (renderable.view as? ComposeView)?.layoutContent()
 
         let renderableInsertContext = RenderableInsertContext(oldFrame: frameAfterWillInsert, newFrame: newFrame, contentView: self)
         if let insertTransition {
