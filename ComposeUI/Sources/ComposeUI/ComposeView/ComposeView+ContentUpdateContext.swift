@@ -60,9 +60,9 @@ extension ComposeView {
     /// The viewport bounds proposed for this render pass's layout.
     let renderBounds: CGRect
 
-    /// The parent's decision capping this render pass, when it runs within the parent's pass or applies an update the
-    /// parent handed over. `.all` for the view's own updates.
-    let inheritedAnimationDecision: AnimationDecision
+    /// The parent's animation decision handed over with prepared content, capping the render pass that applies it.
+    /// `.all` for other updates, which caps nothing.
+    let preparedAnimationDecision: AnimationDecision
 
     // MARK: - Equatable
 
@@ -72,7 +72,7 @@ extension ComposeView {
         lhs.updateType == rhs.updateType &&
         lhs.previousRenderBounds == rhs.previousRenderBounds &&
         lhs.renderBounds == rhs.renderBounds &&
-        lhs.inheritedAnimationDecision == rhs.inheritedAnimationDecision
+        lhs.preparedAnimationDecision == rhs.preparedAnimationDecision
     }
 
     // MARK: - Render Type
