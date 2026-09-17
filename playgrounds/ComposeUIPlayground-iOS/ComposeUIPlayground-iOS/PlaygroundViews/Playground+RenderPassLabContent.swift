@@ -127,7 +127,7 @@ extension Playground.RenderPassLab {
     }
   }
 
-  /// The last update a marker row received, for showing whether reused renderables animated.
+  /// The last update a marker row received, for showing whether reused renderables animated and what they show.
   struct RowUpdate {
 
     /// The kind of update, in the words the pass descriptions use: `insert`, `refresh`, `resize`, `scroll`.
@@ -136,12 +136,19 @@ extension Playground.RenderPassLab {
     /// Whether the update applied an animation timing.
     let isAnimated: Bool
 
+    /// The background color the row's layer has after the update. The rendered output, so a check can tell whether
+    /// new data reached the layer instead of trusting that the content was built.
+    let color: CGColor?
+
     /// The update described like a pass, for example `refresh (animated)` or `resize (instant)`.
     var description: String {
       "\(kind) (\(isAnimated ? "animated" : "instant"))"
     }
 
-    init(_ context: RenderableUpdateContext) {
+    /// - Parameters:
+    ///   - renderable: The row's renderable, after the update was applied.
+    ///   - context: The update's context.
+    init(_ renderable: Renderable, _ context: RenderableUpdateContext) {
       switch context.updateType {
       case .insert:
         kind = "insert"
@@ -155,6 +162,8 @@ extension Playground.RenderPassLab {
         }
       }
       isAnimated = context.animationTiming != nil
+      // the node's own update ran before this, and an animated color change sets the model value synchronously
+      color = renderable.layer.backgroundColor
     }
   }
 
@@ -165,7 +174,7 @@ extension Playground.RenderPassLab {
     var containerBehavior: Behavior = .default
     var nestedBehavior: Behavior = .default
 
-    /// The row colors, randomized by "Mutate data".
+    /// The row colors, rotated by "Mutate data".
     var rowColors: [ComposeUI.Color] = Colors.RetroApple.all
 
     /// Whether an extra row is in the content, toggled by "Mutate data" so refreshes run transitions.
@@ -195,9 +204,12 @@ extension Playground.RenderPassLab {
     /// Called with the nested view a preset renders, so the lab can wire its handlers and behavior.
     var onNestedViewInserted: ((ComposeView) -> Void)?
 
-    /// Randomizes the data the content is built from. Takes effect on the next refresh.
+    /// Changes the data the content is built from. Takes effect on the next refresh.
+    ///
+    /// The colors rotate instead of shuffling, so every row's color changes for sure and a check can compare the
+    /// rendered color before and after.
     func mutate() {
-      rowColors = Colors.RetroApple.all.shuffled()
+      rowColors = Array(rowColors.dropFirst()) + rowColors.prefix(1)
       showsExtraRow.toggle()
       counter += 1
     }
@@ -266,9 +278,11 @@ extension Playground.RenderPassLab {
       case .hostedComposeView:
         hostedComposeViewNode(height: .flexible)
       case .mixed:
+        // the nested view goes first: the container only inserts what its bounds show, and the "Nested" controls
+        // need the view to exist at the default size, before any scrolling
         VStack(spacing: Constants.sectionSpacing) {
-          rows(owner: Owner.container)
           nestedComposeViewNode(height: .fixed(nestedHeight))
+          rows(owner: Owner.container)
           swiftUIText
           hostedComposeViewNode(height: .fixed(nestedHeight))
         }
@@ -293,11 +307,11 @@ extension Playground.RenderPassLab {
             .frame(width: .flexible, height: Constants.rowHeight)
             .animation(.spring())
             .transition(.opacity(timing: .linear(duration: 0.5)))
-            .onUpdate { [weak self] _, context in
+            .onUpdate { [weak self] renderable, context in
               guard index == 0 else {
                 return
               }
-              self?.rowUpdates[owner] = RowUpdate(context)
+              self?.rowUpdates[owner] = RowUpdate(renderable, context)
             }
             .id("\(owner)-row-\(index)")
         }
