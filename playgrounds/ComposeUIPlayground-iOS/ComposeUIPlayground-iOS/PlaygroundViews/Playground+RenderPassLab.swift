@@ -86,12 +86,16 @@ extension Playground {
     /// The last render pass of each view, by the view's name.
     private var lastPasses: [String: String] = [:]
 
-    /// The names of the views in the order their render passes completed, for checking which pass ran when.
+    /// The names of the views in the order their render passes completed during the running check, for checking which
+    /// pass ran when. Recorded only while a check runs, so scrolling for hours does not grow it.
     private var passSequence: [String] = []
 
     private var logLines: [LogLine] = []
 
     private var selectedCheck: Check = .resizeKeepsContent
+
+    /// The check in flight, from "Run check" until its result is in.
+    private var runningCheck: Check?
 
     /// The result of the last check run, shown in the status.
     private var checkResult: String?
@@ -176,21 +180,24 @@ extension Playground {
     }
 
     /// Sets the container's frame from its size or the window. A changed frame is a bounds change of the container.
+    ///
+    /// The container keeps its minimum size while the area allows it, and shrinks with the area below that (a landscape
+    /// phone, a small window), so it never draws over the controls and status.
     private func applyContainerFrame() {
       let handleSize = Constants.resizeHandleSize
       let frame: CGRect
       if Constants.isPanel {
         // a full-width panel at the bottom, leaving room above it for the grabber
-        let maxHeight = max(containerArea.height - handleSize.height - Constants.grabberSpacing, Constants.minContainerSize)
-        let height = min(max(containerSize.height, Constants.minContainerSize), maxHeight)
+        let maxHeight = max(containerArea.height - handleSize.height - Constants.grabberSpacing, 0)
+        let height = Self.clamp(containerSize.height, max: maxHeight)
         frame = CGRect(x: containerArea.minX, y: containerArea.maxY - height, width: containerArea.width, height: height)
         resizeHandle.frame = CGRect(x: frame.midX - handleSize.width / 2, y: frame.minY - handleSize.height - Constants.grabberSpacing, width: handleSize.width, height: handleSize.height)
       } else if followsWindow {
         frame = containerArea
       } else {
         let size = CGSize(
-          width: min(max(containerSize.width, Constants.minContainerSize), max(containerArea.width, Constants.minContainerSize)),
-          height: min(max(containerSize.height, Constants.minContainerSize), max(containerArea.height, Constants.minContainerSize))
+          width: Self.clamp(containerSize.width, max: containerArea.width),
+          height: Self.clamp(containerSize.height, max: containerArea.height)
         )
         frame = CGRect(origin: containerArea.origin, size: size)
         resizeHandle.frame = CGRect(x: frame.maxX - handleSize.width / 2, y: frame.maxY - handleSize.height / 2, width: handleSize.width, height: handleSize.height)
@@ -219,6 +226,12 @@ extension Playground {
 
     private static func size(_ size: CGSize, resizedBy step: CGFloat) -> CGSize {
       Constants.isPanel ? CGSize(width: size.width, height: size.height + step) : CGSize(width: size.width + step, height: size.height)
+    }
+
+    /// Clamps a container dimension to the minimum size and the available size, the available size winning when it
+    /// is the smaller one.
+    private static func clamp(_ value: CGFloat, max available: CGFloat) -> CGFloat {
+      min(max(value, Constants.minContainerSize), max(available, 0))
     }
 
     @objc private func handlePan(_ gesture: PanGestureRecognizer) {
@@ -301,7 +314,7 @@ extension Playground {
 
         HStack(spacing: Constants.controlSpacing) {
           button("Check: \(selectedCheck.title)") { [weak self] in
-            guard let self else {
+            guard let self, self.runningCheck == nil else {
               return
             }
             self.selectedCheck = self.selectedCheck.next
@@ -507,9 +520,9 @@ extension Playground {
       var expectation: String {
         switch self {
         case .resizeKeepsContent:
-          return "no content build, rows resize (instant)"
+          return "no build, rows resize (instant), color unchanged"
         case .refreshAppliesData:
-          return "one content build, rows refresh"
+          return "one build, rows refresh, color changed"
         case .resizeRowsSnap:
           return "rows resize (instant)"
         case .dynamicRowsAnimate:
@@ -558,6 +571,11 @@ extension Playground {
       func rowBuilds(of owner: String, since earlier: Snapshot) -> Int {
         (rowBuilds[owner] ?? 0) - (earlier.rowBuilds[owner] ?? 0)
       }
+
+      /// Whether the first row of a view shows a different color than in the earlier snapshot.
+      func rowColorChanged(of owner: String, since earlier: Snapshot) -> Bool {
+        rowUpdates[owner]?.color != earlier.rowUpdates[owner]?.color
+      }
     }
 
     private func snapshot() -> Snapshot {
@@ -571,8 +589,15 @@ extension Playground {
     }
 
     /// Runs the selected check: configure, let the setup settle, act, then verify once deferred passes had a turn.
+    ///
+    /// A run spans a few run loop turns. A second run in that window would share the recorded passes and the armed
+    /// scenario, so it is ignored.
     private func runCheck() {
+      guard runningCheck == nil else {
+        return
+      }
       let check = selectedCheck
+      runningCheck = check
       checkResult = "running"
       passSequence = []
       log("check: \(check.title)")
@@ -595,6 +620,7 @@ extension Playground {
             }
             let settled = self.snapshot()
             let result = self.verify(check, before: before, afterAction: afterAction, settled: settled)
+            self.runningCheck = nil
             self.checkResult = result
             self.log("check: \(result)")
           }
@@ -685,12 +711,16 @@ extension Playground {
       let during = afterAction.passes(since: before)
       let after = settled.passes(since: afterAction)
       let order = "during: \(Self.describe(during)), after: \(Self.describe(after))"
+      // the rendered output: whether the first row's layer shows a different color than before the action
+      let containerColorChanged = settled.rowColorChanged(of: Owner.container, since: before)
+      let nestedColorChanged = settled.rowColorChanged(of: Owner.nested, since: before)
+      let hostedColorChanged = settled.rowColorChanged(of: Owner.hosted, since: before)
 
       switch check {
       case .resizeKeepsContent:
-        return Self.result(builds == 0 && containerRows == "resize (instant)", "builds \(builds), rows \(containerRows)")
+        return Self.result(builds == 0 && containerRows == "resize (instant)" && !containerColorChanged, "builds \(builds), rows \(containerRows), color \(Self.describe(changed: containerColorChanged))")
       case .refreshAppliesData:
-        return Self.result(builds == 1 && settled.rowUpdates[Owner.container]?.kind == "refresh", "builds \(builds), rows \(containerRows)")
+        return Self.result(builds == 1 && settled.rowUpdates[Owner.container]?.kind == "refresh" && containerColorChanged, "builds \(builds), rows \(containerRows), color \(Self.describe(changed: containerColorChanged))")
       case .resizeRowsSnap:
         return Self.result(containerRows == "resize (instant)", "rows \(containerRows)")
       case .dynamicRowsAnimate:
@@ -698,15 +728,15 @@ extension Playground {
       case .containerCapsNested:
         let pass = settled.lastPasses[Owner.nested] ?? "-"
         let nestedBuilds = settled.rowBuilds(of: Owner.nested, since: before)
-        return Self.result(nestedBuilds == 1 && pass == "refresh (instant)" && nestedRows == "refresh (instant)", "nested rows built \(nestedBuilds), nested pass \(pass), rows \(nestedRows)")
+        return Self.result(nestedBuilds == 1 && pass == "refresh (instant)" && nestedRows == "refresh (instant)" && nestedColorChanged, "nested rows built \(nestedBuilds), nested pass \(pass), rows \(nestedRows), color \(Self.describe(changed: nestedColorChanged))")
       case .nestedAloneKeepsContent:
         // the container built the rows the nested view renders, so its own refresh re-renders them: the pass is
         // animated as its behavior asks, but no row changes, so nothing moves
         let nestedBuilds = settled.rowBuilds(of: Owner.nested, since: before)
-        return Self.result(nestedBuilds == 0 && nestedRows == "refresh (animated)", "nested rows built \(nestedBuilds), rows \(nestedRows), nothing to animate")
+        return Self.result(nestedBuilds == 0 && nestedRows == "refresh (animated)" && !nestedColorChanged, "nested rows built \(nestedBuilds), rows \(nestedRows), color \(Self.describe(changed: nestedColorChanged))")
       case .hostedAloneAnimates:
         let hostedBuilds = settled.rowBuilds(of: Owner.hosted, since: before)
-        return Self.result(hostedBuilds == 1 && hostedRows == "refresh (animated)", "hosted rows built \(hostedBuilds), rows \(hostedRows)")
+        return Self.result(hostedBuilds == 1 && hostedRows == "refresh (animated)" && hostedColorChanged, "hosted rows built \(hostedBuilds), rows \(hostedRows), color \(Self.describe(changed: hostedColorChanged))")
       case .hostedResizesInPass:
         // the hosted pass completes before the container's, so it ran inside the container's pass
         let pass = afterAction.lastPasses[Owner.hosted] ?? "-"
@@ -725,6 +755,10 @@ extension Playground {
       "\(passed ? "PASS" : "FAIL"): \(observed)"
     }
 
+    private static func describe(changed: Bool) -> String {
+      changed ? "changed" : "unchanged"
+    }
+
     private static func describe(_ passes: [String]) -> String {
       passes.isEmpty ? "none" : passes.joined(separator: " > ")
     }
@@ -741,15 +775,24 @@ extension Playground {
 
     // MARK: - Status
 
-    /// The state lines above a divider, the log below it in a dimmer color, both pinned to the top.
+    /// The state lines above a divider, the log below it in a dimmer color. The log fills the rest of the panel from
+    /// the bottom up, so when wrapped lines make it taller than the space, the oldest lines are the ones that do not
+    /// show. It sits in its own view, which clips them at the divider instead of letting them draw over the state.
     private var statusContent: ComposeContent {
       VStack(spacing: Constants.statusSpacing) {
         statusLabel(statusText, color: Self.labelColor)
         ColorNode(Colors.blueGray)
           .frame(width: .flexible, height: Constants.outlineWidth)
-        statusLabel(logText, color: Self.secondaryLabelColor)
+        ComposeViewNode {
+          statusLabel(logText, color: Self.secondaryLabelColor)
+            .frame(width: .flexible, height: .flexible, alignment: .bottomLeft)
+        }
+        .flexibleSize()
+        .willInsert { renderable, _ in
+          // the content is never larger than the view, so the default clipping would leave the overflow visible
+          (renderable.view as? ComposeView)?.clippingBehavior = .always
+        }
       }
-      .frame(width: .flexible, height: .flexible, alignment: .topLeft)
     }
 
     private var statusText: String {
@@ -798,7 +841,9 @@ extension Playground {
     private func recordPass(of name: String, _ renderType: ComposeView.RenderType) {
       let description = Self.describe(renderType)
       lastPasses[name] = description
-      passSequence.append(name)
+      if runningCheck != nil {
+        passSequence.append(name)
+      }
       log("\(name) \(description)", coalescing: Self.isScroll(renderType) ? "\(name) scroll" : nil)
     }
 
