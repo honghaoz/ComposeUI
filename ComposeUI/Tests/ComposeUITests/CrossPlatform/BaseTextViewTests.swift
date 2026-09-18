@@ -70,7 +70,7 @@ class BaseTextViewTests: XCTestCase {
 
     // then: it resigns first responder and leaves the window
     expect(window.firstResponder) !== textView
-    expect(textView.window == nil) == true
+    expect(textView.window) == nil
   }
   #endif
 
@@ -94,7 +94,7 @@ class BaseTextViewTests: XCTestCase {
 
     // then: it resigns first responder and leaves the window
     expect(textView.isFirstResponder) == false
-    expect(textView.window == nil) == true
+    expect(textView.window) == nil
   }
   #endif
 

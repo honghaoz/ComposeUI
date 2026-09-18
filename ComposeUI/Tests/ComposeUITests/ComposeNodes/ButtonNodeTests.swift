@@ -267,7 +267,7 @@ class ButtonNodeTests: XCTestCase {
     // then: the new content and handler replace the prior configuration
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
     expect(action) == "new double tap"
-    expect(button.contentView().layer().sublayers?.first === layer) == true
+    expect(button.contentView().layer().sublayers?.first) === layer
   }
 
   func test_boundsChange_preservesPressedContentAndNormalMeasurement() throws {
@@ -343,20 +343,20 @@ class ButtonNodeTests: XCTestCase {
     button.layoutIfNeeded()
 
     // then: pressed content and interaction identity survive while the frame reflows
-    expect(renderedButton === button) == true
-    expect(colorLayer === originalLayer) == true
-    expect(textView === originalTextView) == true
+    expect(renderedButton) === button
+    expect(colorLayer) === originalLayer
+    expect(textView) === originalTextView
     expect(button.buttonTest.buttonState) == .pressed
     expect(button.frame.size) == CGSize(width: 120, height: 50)
     expect(originalTextView.frame.size) == CGSize(width: 120, height: 50)
     expect(originalTextView.attributedString.string) == "Initial"
     expect(originalLayer.backgroundColor) == Color.blue.cgColor
     #if canImport(UIKit)
-    expect(button.buttonTest.pressGestureRecognizer === recognizer) == true
+    expect(button.buttonTest.pressGestureRecognizer) === recognizer
     expect(recognizer.state) == .began
     #endif
     #if canImport(AppKit)
-    expect(button.buttonTest.mouseEventView === mouseEventView) == true
+    expect(button.buttonTest.mouseEventView) === mouseEventView
     #endif
     let oldTap = try (DynamicLookup(button).property("onTap") as? (() -> Void)).unwrap()
     oldTap()
@@ -368,7 +368,7 @@ class ButtonNodeTests: XCTestCase {
     button.layoutIfNeeded()
 
     // then: refreshed content uses the current local state and preserves the button view
-    expect(renderedButton === button) == true
+    expect(renderedButton) === button
     expect(button.frame.size) == CGSize(width: 120, height: 50)
     expect(button.buttonTest.buttonState) == .pressed
     expect(originalTextView.attributedString.string) == "Updated"
@@ -435,7 +435,7 @@ class ButtonNodeTests: XCTestCase {
     // then: content and the double tap action update on the same button
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
     expect(tappedGeneration) == 2
-    expect(renderedButton === button) == true
+    expect(renderedButton) === button
     expect(button.frame.size) == CGSize(width: 200, height: 50)
   }
 

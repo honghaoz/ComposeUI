@@ -114,7 +114,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
 
     // then: the row is re-framed to the new width
     expect(tracked.frame) == CGRect(x: 0, y: 0, width: 200, height: 50)
-    expect(tracked.frameSetCount > 0) == true
+    expect(tracked.frameSetCount) > 0
   }
 
   // MARK: - transform reset

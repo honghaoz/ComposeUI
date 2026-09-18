@@ -254,7 +254,7 @@ class SwiftUI_View_SizeThatFits_PerformanceTests: XCTestCase {
     """)
 
     // sanity check: the pool should not be slower than per-call allocation.
-    expect(pooledMs <= freshMs) == true
+    expect(pooledMs) <= freshMs
   }
 
   func test_pool_vs_freshHostAllocation_complexView() {
@@ -321,6 +321,6 @@ class SwiftUI_View_SizeThatFits_PerformanceTests: XCTestCase {
     // • Fresh host: 37.66 ms (0.1883 ms/call)
     // • Speedup:    75.58x
 
-    expect(pooledMs <= freshMs) == true
+    expect(pooledMs) <= freshMs
   }
 }

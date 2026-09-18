@@ -48,17 +48,17 @@ final class UniversalTypesTests: XCTestCase {
 
   func test_appKit_typealiases() {
     // then: universal typealiases map to the AppKit types
-    expect(ComposeUI.Window.self == NSWindow.self) == true
-    expect(ComposeUI.View.self == NSView.self) == true
-    expect(ComposeUI.TextView.self == NSTextView.self) == true
-    expect(ComposeUI.Color.self == NSColor.self) == true
-    expect(ComposeUI.Font.self == NSFont.self) == true
-    expect(ComposeUI.FontDescriptor.self == NSFontDescriptor.self) == true
-    expect(ComposeUI.BezierPath.self == NSBezierPath.self) == true
-    expect(ComposeUI.GestureRecognizer.self == NSGestureRecognizer.self) == true
-    expect(ComposeUI.TapGestureRecognizer.self == NSClickGestureRecognizer.self) == true
-    expect(ComposeUI.PressGestureRecognizer.self == NSPressGestureRecognizer.self) == true
-    expect(ComposeUI.PanGestureRecognizer.self == NSPanGestureRecognizer.self) == true
+    expect(ObjectIdentifier(ComposeUI.Window.self)) == ObjectIdentifier(NSWindow.self)
+    expect(ObjectIdentifier(ComposeUI.View.self)) == ObjectIdentifier(NSView.self)
+    expect(ObjectIdentifier(ComposeUI.TextView.self)) == ObjectIdentifier(NSTextView.self)
+    expect(ObjectIdentifier(ComposeUI.Color.self)) == ObjectIdentifier(NSColor.self)
+    expect(ObjectIdentifier(ComposeUI.Font.self)) == ObjectIdentifier(NSFont.self)
+    expect(ObjectIdentifier(ComposeUI.FontDescriptor.self)) == ObjectIdentifier(NSFontDescriptor.self)
+    expect(ObjectIdentifier(ComposeUI.BezierPath.self)) == ObjectIdentifier(NSBezierPath.self)
+    expect(ObjectIdentifier(ComposeUI.GestureRecognizer.self)) == ObjectIdentifier(NSGestureRecognizer.self)
+    expect(ObjectIdentifier(ComposeUI.TapGestureRecognizer.self)) == ObjectIdentifier(NSClickGestureRecognizer.self)
+    expect(ObjectIdentifier(ComposeUI.PressGestureRecognizer.self)) == ObjectIdentifier(NSPressGestureRecognizer.self)
+    expect(ObjectIdentifier(ComposeUI.PanGestureRecognizer.self)) == ObjectIdentifier(NSPanGestureRecognizer.self)
   }
 
   func test_appKit_edgeInsets_isNSEdgeInsets() {
@@ -92,17 +92,17 @@ final class UniversalTypesTests: XCTestCase {
 
   func test_uiKit_typealiases() {
     // then: universal typealiases map to the UIKit types
-    expect(ComposeUI.Window.self == UIWindow.self) == true
-    expect(ComposeUI.View.self == UIView.self) == true
-    expect(ComposeUI.TextView.self == UITextView.self) == true
-    expect(ComposeUI.Color.self == UIColor.self) == true
-    expect(ComposeUI.Font.self == UIFont.self) == true
-    expect(ComposeUI.FontDescriptor.self == UIFontDescriptor.self) == true
-    expect(ComposeUI.BezierPath.self == UIBezierPath.self) == true
-    expect(ComposeUI.GestureRecognizer.self == UIGestureRecognizer.self) == true
-    expect(ComposeUI.TapGestureRecognizer.self == UITapGestureRecognizer.self) == true
-    expect(ComposeUI.PressGestureRecognizer.self == UILongPressGestureRecognizer.self) == true
-    expect(ComposeUI.PanGestureRecognizer.self == UIPanGestureRecognizer.self) == true
+    expect(ObjectIdentifier(ComposeUI.Window.self)) == ObjectIdentifier(UIWindow.self)
+    expect(ObjectIdentifier(ComposeUI.View.self)) == ObjectIdentifier(UIView.self)
+    expect(ObjectIdentifier(ComposeUI.TextView.self)) == ObjectIdentifier(UITextView.self)
+    expect(ObjectIdentifier(ComposeUI.Color.self)) == ObjectIdentifier(UIColor.self)
+    expect(ObjectIdentifier(ComposeUI.Font.self)) == ObjectIdentifier(UIFont.self)
+    expect(ObjectIdentifier(ComposeUI.FontDescriptor.self)) == ObjectIdentifier(UIFontDescriptor.self)
+    expect(ObjectIdentifier(ComposeUI.BezierPath.self)) == ObjectIdentifier(UIBezierPath.self)
+    expect(ObjectIdentifier(ComposeUI.GestureRecognizer.self)) == ObjectIdentifier(UIGestureRecognizer.self)
+    expect(ObjectIdentifier(ComposeUI.TapGestureRecognizer.self)) == ObjectIdentifier(UITapGestureRecognizer.self)
+    expect(ObjectIdentifier(ComposeUI.PressGestureRecognizer.self)) == ObjectIdentifier(UILongPressGestureRecognizer.self)
+    expect(ObjectIdentifier(ComposeUI.PanGestureRecognizer.self)) == ObjectIdentifier(UIPanGestureRecognizer.self)
   }
 
   func test_uiKit_edgeInsets_isUIEdgeInsets() {

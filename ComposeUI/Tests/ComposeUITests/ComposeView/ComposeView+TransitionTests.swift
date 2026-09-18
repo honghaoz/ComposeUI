@@ -585,8 +585,8 @@ class ComposeView_TransitionTests: XCTestCase {
 
     // then: the rendered position is continuous at the revival: the 10s linear motion drifts a few points between the
     // samples, far from the content-width jump a restart from the entry side would show
-    expect(abs(positionAfter.x - positionBefore.x) < 25) == true
-    expect(abs(positionAfter.y - positionBefore.y) < 5) == true
+    expect(abs(positionAfter.x - positionBefore.x)) < 25
+    expect(abs(positionAfter.y - positionBefore.y)) < 5
   }
 
   func test_reinsertRemovingRenderable_opacityTransition_insertRetargetsFromInFlightState() throws {

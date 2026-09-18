@@ -225,7 +225,7 @@ class TextNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: the same fixed-size view keeps its configured text and font
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.bounds.size) == CGSize(width: 100, height: 50)
     expect(textView.attributedString.string) == "Compact"
     expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
@@ -234,7 +234,7 @@ class TextNodeTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the same view receives the rebuilt text and font
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.attributedString.string) == "Expanded"
     expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
     #if canImport(AppKit)
@@ -272,7 +272,7 @@ class TextNodeTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the changed font is applied to the text storage
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
     #if canImport(AppKit)
     expect(textView.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
@@ -308,7 +308,7 @@ class TextNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: the empty configuration remains valid
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.attributedString.length) == 0
   }
 
@@ -367,7 +367,7 @@ class TextNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: resizing preserves editing and the configured text options
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.attributedString.string) == "Configured text"
     expect(textView.selectedRange) == selection
     expect(textView.numberOfLines) == 0
@@ -416,7 +416,7 @@ class TextNodeTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the reused text view applies the new interaction options
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.isSelectable) == false
     #if !os(tvOS)
     expect(textView.isEditable) == false
@@ -456,9 +456,9 @@ class TextNodeTests: XCTestCase {
     // then: the old configured text is measured and rendered at the new width
     var expectedNode = TextNode(originalText, font: font).fixedSize(width: false, height: true)
     _ = expectedNode.layout(containerSize: CGSize(width: 240, height: 500), context: ComposeNodeLayoutContext(scaleFactor: contentView.windowScaleFactor))
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.bounds.size) == expectedNode.size
-    expect(textView.bounds.height < narrowHeight) == true
+    expect(textView.bounds.height) < narrowHeight
     expect(textView.attributedString.string) == originalText
     #if canImport(AppKit)
     expect(textView.string) == originalText

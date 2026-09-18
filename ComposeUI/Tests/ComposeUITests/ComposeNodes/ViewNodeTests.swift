@@ -593,7 +593,7 @@ class ViewNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: the same view receives its new size-dependent configuration
-    expect(renderedView === view) == true
+    expect(renderedView) === view
     expect(view.bounds.size) == CGSize(width: 200, height: 200)
     expect(view.layer().cornerRadius) == 50
     expect(updateType) == .boundsChange
@@ -603,7 +603,7 @@ class ViewNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: custom updates can also apply scroll-dependent configuration
-    expect(renderedView === view) == true
+    expect(renderedView) === view
     expect(view.layer().backgroundColor) == Color.blue.cgColor
     expect(updateType) == .boundsChange
   }

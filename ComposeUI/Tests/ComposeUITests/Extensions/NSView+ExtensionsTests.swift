@@ -277,7 +277,7 @@ class NSView_ExtensionsTests: XCTestCase {
     view.addSubview(subview1)
     view.addSubview(subview2)
 
-    expect(subview1.layer?.superlayer === view.layer) == false
+    expect(subview1.layer?.superlayer) !== view.layer
 
     // when: inserting a subview below another subview
     view.insertSubview(subview2, belowSubview: subview1)

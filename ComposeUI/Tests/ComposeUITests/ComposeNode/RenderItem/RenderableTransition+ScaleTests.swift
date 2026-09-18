@@ -939,7 +939,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
 
     // then: the rendered scale is continuous at the revival: the 10s linear motion drifts a few percent between the
     // samples, far from the near-full-scale jump a restart from the configured `from` scale would show
-    expect(abs(scaleAfter - scaleBefore) < 0.15) == true
+    expect(abs(scaleAfter - scaleBefore)) < 0.15
   }
 
   func test_composeViewIntegration_scaleRemovalRevivedBySlideInsert_resetsScaleResidue() throws {
