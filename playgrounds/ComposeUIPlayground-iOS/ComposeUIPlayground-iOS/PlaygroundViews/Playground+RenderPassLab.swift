@@ -903,10 +903,13 @@ extension Playground {
 
     /// Whether the pass only moved the viewport, which happens on every scroll tick.
     private static func isScroll(_ renderType: ComposeView.RenderType) -> Bool {
-      guard case .boundsChange(let previousBounds?, let bounds) = renderType else {
+      switch renderType {
+      case .boundsChange(let previousBounds?, let bounds):
+        return previousBounds.size == bounds.size && previousBounds.origin != bounds.origin
+      case .refresh,
+           .boundsChange(nil, _):
         return false
       }
-      return previousBounds.size == bounds.size && previousBounds.origin != bounds.origin
     }
 
     private static func describe(_ size: CGSize) -> String {

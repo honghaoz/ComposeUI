@@ -58,9 +58,12 @@ class ComposeView_PreparedContentTests: XCTestCase {
     let child = ComposeView()
     child.frame = CGRect(origin: .zero, size: proposal)
     child.debug { child, event in
-      if case .renderWillBegin = event {
+      switch event {
+      case .renderWillBegin:
         renderedRoot = child.test.contentUpdateContext?.contentNode
         renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
+      default:
+        break
       }
     }
     width = 140
@@ -106,9 +109,12 @@ class ComposeView_PreparedContentTests: XCTestCase {
     let proposal = CGSize(width: 200, height: 100)
     child.frame = CGRect(origin: .zero, size: proposal)
     child.debug { child, event in
-      if case .renderWillBegin = event {
+      switch event {
+      case .renderWillBegin:
         renderedRoot = child.test.contentUpdateContext?.contentNode
         renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
+      default:
+        break
       }
     }
     let content = SwiftUIViewNode {
@@ -159,8 +165,11 @@ class ComposeView_PreparedContentTests: XCTestCase {
     let child = ComposeView()
     child.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     child.debug { child, event in
-      if case .renderWillBegin = event {
+      switch event {
+      case .renderWillBegin:
         renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
+      default:
+        break
       }
     }
 
@@ -194,8 +203,11 @@ class ComposeView_PreparedContentTests: XCTestCase {
     let child = ComposeView()
     child.frame = CGRect(x: 0, y: 0, width: 100, height: 80)
     child.debug { child, event in
-      if case .renderWillBegin = event {
+      switch event {
+      case .renderWillBegin:
         renderedRoot = child.test.contentUpdateContext?.contentNode
+      default:
+        break
       }
     }
     child.setPreparedContent(content, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
@@ -404,9 +416,12 @@ class ComposeView_PreparedContentTests: XCTestCase {
     let child = RefreshOverrideView()
     child.callsSuper = false
     child.debug { child, event in
-      if case .renderWillBegin = event {
+      switch event {
+      case .renderWillBegin:
         renderedRoot = child.test.contentUpdateContext?.contentNode
         renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
+      default:
+        break
       }
     }
 
@@ -578,8 +593,11 @@ class ComposeView_PreparedContentTests: XCTestCase {
     var renderedEvaluation: ContentEvaluation?
     let preparedEvaluation = ContentEvaluation()
     child.debug { child, event in
-      if case .renderWillBegin = event {
+      switch event {
+      case .renderWillBegin:
         renderedEvaluation = child.test.contentUpdateContext?.contentEvaluation
+      default:
+        break
       }
     }
     child.callsSuper = false
