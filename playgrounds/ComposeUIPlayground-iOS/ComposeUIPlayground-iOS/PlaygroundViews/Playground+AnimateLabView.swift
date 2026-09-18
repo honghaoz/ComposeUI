@@ -63,7 +63,7 @@ extension Playground {
 
     /// The stage view hosting the boxes. The boxes are positioned in the stage's coordinates once the stage has a size,
     /// and are otherwise fully owned by the animate calls. The stage is a view (not a layer) because the view box needs
-    /// a view parent. `BaseView` is flipped on macOS, so both platforms use identical geometry.
+    /// a view parent. `BaseView` is flipped on macOS, so both platforms use the same coordinate system.
     private let stageView = BaseView()
 
     /// The layer box, on the top lane.

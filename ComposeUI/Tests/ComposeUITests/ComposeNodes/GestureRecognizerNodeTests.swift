@@ -152,7 +152,7 @@ class GestureRecognizerNodeTests: XCTestCase {
             )
           )
 
-          // then: geometry updates do not install gesture recognizers
+          // then: bounds changes do not install gesture recognizers
           let resizedRecognizers: [GestureRecognizer]? = view.gestureRecognizers
           expect(resizedRecognizers?.isEmpty ?? true) == true
 
@@ -285,7 +285,7 @@ class GestureRecognizerNodeTests: XCTestCase {
 
   // MARK: - Integration Tests
 
-  func test_geometryUpdates_retainGestureRecognizers_untilRefresh() throws {
+  func test_boundsChanges_keepGestureRecognizers_untilRefresh() throws {
     // given: a fixed-size gesture node configured from the container width
     var additionalTapCount = 0
     var renderedGestureView: View?
@@ -346,7 +346,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: the same overlay retains its recognizers and configuration
+    // then: the same overlay keeps its recognizers and configuration
     let resizedRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
     expect(updateType) == .boundsChange
     expect(renderedGestureView === gestureView) == true
@@ -364,11 +364,11 @@ class GestureRecognizerNodeTests: XCTestCase {
     #endif
     expect(initialPress.minimumPressDuration) == 0.25
 
-    // when: dispatching the retained tap action after resize
+    // when: dispatching the existing tap action after resize
     gestureView.layer().backgroundColor = nil
     _ = gestureView.perform(NSSelectorFromString("handleGesture:"), with: initialTap)
 
-    // then: the handler still uses the retained configuration
+    // then: the handler still uses the existing configuration
     expect(gestureView.layer().backgroundColor) == Color.red.cgColor
 
     // when: scrolling with changed data but without an explicit refresh
@@ -377,7 +377,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: the visible overlay retains its installed recognizers
+    // then: the visible overlay keeps its installed recognizers
     let scrolledRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
     expect(updateType) == .boundsChange
     expect(renderedGestureView === gestureView) == true
@@ -386,7 +386,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     expect(scrolledRecognizers?.contains { $0 === initialTap }) == true
     expect(scrolledRecognizers?.contains { $0 === initialPress }) == true
 
-    // when: dispatching the retained tap action after scroll
+    // when: dispatching the existing tap action after scroll
     gestureView.layer().backgroundColor = nil
     _ = gestureView.perform(NSSelectorFromString("handleGesture:"), with: initialTap)
 
@@ -423,7 +423,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     expect(gestureView.layer().backgroundColor) == Color.blue.cgColor
   }
 
-  func test_boundsChange_retainsGestureIdentity_withUnchangedSettings() throws {
+  func test_boundsChange_keepsGestureIdentity_withUnchangedSettings() throws {
     // given: a flexible gesture node with constant settings
     var renderedGestureView: View?
     let contentView = ComposeView {
@@ -477,7 +477,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     #endif
     expect(press.minimumPressDuration) == 0.75
 
-    // when: dispatching the retained tap action
+    // when: dispatching the existing tap action
     _ = gestureView.perform(NSSelectorFromString("handleGesture:"), with: tap)
 
     // then: the handler still produces its configured output
@@ -486,10 +486,10 @@ class GestureRecognizerNodeTests: XCTestCase {
 
   #if canImport(AppKit)
   // this test drives a real pan with window-dispatched mouse events, which only AppKit allows, so the active gesture
-  // state across geometry updates is verified on AppKit only. UIKit cannot synthesize touches without private API, and
+  // state across bounds changes is verified on AppKit only. UIKit cannot synthesize touches without private API, and
   // a recognizer with a faked state would only assert the value the test supplied. The UIKit path is covered by the
   // recognizer identity tests above, which run on both platforms.
-  func test_geometryUpdates_preserveActivePan() throws {
+  func test_boundsChanges_preserveActivePan() throws {
     // given: a window-backed overlay with an installed native pan recognizer
     let testWindow = TestWindow()
     var renderedGestureView: View?
@@ -572,7 +572,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     expect(pan.state) == .began
     expect(gestureView.layer().backgroundColor) == Color.green.cgColor
 
-    // when: the mouse continues dragging after both geometry changes
+    // when: the mouse continues dragging after both bounds changes
     try testWindow.sendEvent(mouseEvent(.leftMouseDragged, x: 80, number: 3))
 
     // then: the original recognizer continues delivering its native action

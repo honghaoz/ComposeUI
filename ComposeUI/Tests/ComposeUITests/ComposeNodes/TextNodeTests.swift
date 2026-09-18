@@ -200,7 +200,7 @@ class TextNodeTests: XCTestCase {
     #endif
   }
 
-  func test_boundsChange_retainsTextUntilRefresh() throws {
+  func test_boundsChange_keepsTextUntilRefresh() throws {
     // given: fixed-size text whose configuration depends on the container width
     var renderedView: BaseTextView?
     let contentView = ComposeView { container in
@@ -224,7 +224,7 @@ class TextNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: the same fixed-size view retains its configured text and font
+    // then: the same fixed-size view keeps its configured text and font
     expect(renderedView === textView) == true
     expect(textView.bounds.size) == CGSize(width: 100, height: 50)
     expect(textView.attributedString.string) == "Compact"
@@ -265,7 +265,7 @@ class TextNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: resizing retains the configured font
+    // then: resizing keeps the configured font
     expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
 
     // when: an explicit refresh applies the changed attributes
@@ -287,7 +287,7 @@ class TextNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: resizing retains the previous text
+    // then: resizing keeps the previous text
     expect(textView.attributedString.string) == "Text"
 
     // when: an explicit refresh applies the empty text
@@ -345,7 +345,7 @@ class TextNodeTests: XCTestCase {
     textView.selectedRange = selection
     #endif
 
-    // when: the retained text view scrolls
+    // when: the reused text view scrolls
     contentView.setContentOffset(CGPoint(x: 0, y: 20))
     contentView.layoutIfNeeded()
 
@@ -406,7 +406,7 @@ class TextNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: resizing retains the interaction options
+    // then: resizing keeps the interaction options
     expect(textView.isSelectable) == true
     #if !os(tvOS)
     expect(textView.isEditable) == true
@@ -415,7 +415,7 @@ class TextNodeTests: XCTestCase {
     // when: an explicit refresh applies the interaction options
     contentView.refresh(animated: false)
 
-    // then: the retained text view applies the new interaction options
+    // then: the reused text view applies the new interaction options
     expect(renderedView === textView) == true
     expect(textView.isSelectable) == false
     #if !os(tvOS)
@@ -429,7 +429,7 @@ class TextNodeTests: XCTestCase {
     #endif
   }
 
-  func test_boundsChange_reflowsRetainedText() throws {
+  func test_boundsChange_reflowsExistingText() throws {
     // given: multiline text with configuration that can change on refresh
     let originalText = "A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container."
     var text = originalText
@@ -448,7 +448,7 @@ class TextNodeTests: XCTestCase {
     let narrowHeight = textView.bounds.height
     text = "Different content"
 
-    // when: the retained text is laid out with a wider proposal
+    // when: the existing text is laid out with a wider proposal
     contentView.frame.size.width = 240
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()

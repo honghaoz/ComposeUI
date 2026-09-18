@@ -35,7 +35,7 @@ import SwiftUI
 
 class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
 
-  func test_dynamic_preconstructedNode_retainsContentUntilRefresh() throws {
+  func test_dynamic_preconstructedNode_reusesContentUntilRefresh() throws {
     // given: a preconstructed node whose content has a captured intrinsic width
     var width: CGFloat = 80
     var providerCalls = 0
@@ -67,7 +67,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: geometry changes without replacing the supplied content
+    // then: the frame changes without replacing the supplied content
     expect(renderedView) === view
     expect(view.bounds.size) == CGSize(width: 80, height: 150)
     expect(view.content.sizeThatFits(contentView.bounds.size)) == CGSize(width: 80, height: 50)
@@ -126,7 +126,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     expect(view.content.sizeThatFits(view.bounds.size)) == CGSize(width: 90, height: 50)
     expect(providerCalls) == 1
 
-    // when: data changes and geometry updates retain the node
+    // when: data changes and bounds changes reuse the node
     suppliedWidth = 110
     contentView.frame.size.width = 160
     contentView.setNeedsLayout()
@@ -185,7 +185,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: resizing retains both the measured and hosted content
+    // then: resizing reuses both the measured and hosted content
     expect(renderedView) === view
     expect(view.bounds.size) == CGSize(width: 80, height: 50)
     expect(view.content.sizeThatFits(contentView.bounds.size)) == CGSize(width: 80, height: 50)
@@ -194,7 +194,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     // when: refreshing constructs a new node
     contentView.refresh(animated: false)
 
-    // then: the retained host and its layout receive the new supplied value
+    // then: the reused host and its layout receive the new supplied value
     expect(renderedView) === view
     expect(view.bounds.size) == suppliedSize
     expect(view.content.sizeThatFits(contentView.bounds.size)) == suppliedSize
@@ -245,7 +245,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     expect(providerCalls) == 1
   }
 
-  func test_dynamic_layout_repeatedProposals_retainsResolvedContent() {
+  func test_dynamic_layout_repeatedProposals_reuseResolvedContent() {
     // given: all fixed and flexible sizing combinations laid out with one context
     let proposals = [CGSize(width: 20, height: 10), CGSize(width: 400, height: 300), .zero, CGSize(width: 20, height: 10)]
     for (fixedWidth, fixedHeight) in [(true, true), (true, false), (false, true), (false, false)] {
@@ -260,7 +260,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
         // when: laying out the same node at small, large, zero, and repeated sizes with the same context
         let sizing = node.layout(containerSize: proposal, context: context)
 
-        // then: intrinsic dimensions retain the first resolved content and flexible dimensions use the proposal
+        // then: intrinsic dimensions reuse the first resolved content and flexible dimensions use the proposal
         expect(node.size) == CGSize(width: fixedWidth ? 80 : proposal.width, height: fixedHeight ? 50 : proposal.height)
         expect(sizing) == ComposeNodeSizing(width: fixedWidth ? .fixed(80) : .flexible, height: fixedHeight ? .fixed(50) : .flexible)
         suppliedSize = CGSize(width: 140, height: 70)
@@ -308,7 +308,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
   }
 
   func test_dynamic_measurement_doesNotReplaceMountedContent() throws {
-    // given: a preconstructed node with retained intrinsic content
+    // given: a preconstructed node with mounted intrinsic content
     var width: CGFloat = 80
     var providerCalls = 0
     let node = SwiftUIViewNode {
@@ -472,7 +472,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     let firstHost = try (firstRenderable.view as? MutableSwiftUIHostingView).unwrap()
     let secondHost = try (secondRenderable.view as? MutableSwiftUIHostingView).unwrap()
 
-    // then: each item retains the content that determined its own frame
+    // then: each item keeps the content that determined its own frame
     expect(firstHost.bounds.size) == CGSize(width: 80, height: 50)
     expect(firstHost.content.sizeThatFits(proposal)) == CGSize(width: 80, height: 50)
     expect(secondHost.bounds.size) == CGSize(width: 140, height: 50)
@@ -483,7 +483,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     width = 160
     _ = node.layout(containerSize: CGSize(width: 240, height: 100), context: refreshed)
 
-    // then: geometry updates keep that context's resolved value
+    // then: bounds changes keep that context's resolved value
     expect(node.size) == CGSize(width: 140, height: 50)
     expect(providerCalls) == 2
 

@@ -63,7 +63,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.frame.size = CGSize(width: 100, height: 7)
     view.layoutIfNeeded()
 
-    // then: resizing applies the retained layer's geometry without animation
+    // then: resizing applies the reused layer's frame without animation
     try expect(layer1Context.unwrap().animationTiming) == nil
     expect(layer2Context) == nil
 
@@ -71,7 +71,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 4))
     view.layoutIfNeeded()
 
-    // then: retained updates follow scrolling immediately, and insertion has no frame animation
+    // then: reused renderables follow scrolling immediately, and insertion has no frame animation
     try expect(layer1Context.unwrap().animationTiming) == nil
     try expect(layer2Context.unwrap().animationTiming) == nil // no animation for insertion
 
@@ -83,7 +83,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     try expect(layer2Context.unwrap().animationTiming) == .easeInEaseOut(duration: 1) // animation for refreshing
   }
 
-  func test_boundsChange_dynamicBehaviorAnimatesTransitionsAndRetainedFrames() throws {
+  func test_boundsChange_dynamicBehaviorAnimatesTransitionsAndReusedFrames() throws {
     // given: a view explicitly allowing resize animations for its configured rows
     var layers: [Int: CALayer] = [:]
     var contexts: [Int: RenderableUpdateContext] = [:]
@@ -105,24 +105,24 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.renderablePool = nil
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
     view.refresh(animated: false)
-    let retainedLayer = try unwrap(layers[0])
-    expect(retainedLayer.animationKeys()) == nil
+    let reusedLayer = try unwrap(layers[0])
+    expect(reusedLayer.animationKeys()) == nil
     expect(layers[1]) == nil
     view.animationBehavior = .dynamic { _, _ in true }
 
-    // when: resizing changes retained geometry and reveals another row
+    // when: resizing changes the reused row's frame and reveals another row
     view.frame.size = CGSize(width: 140, height: 100)
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: the retained row animates its frame and the new row runs its insert transition
+    // then: the reused row animates its frame and the new row runs its insert transition
     let insertedLayer = try unwrap(layers[1])
-    expect(layers[0]) === retainedLayer
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 140, height: 60)
-    expect(retainedLayer.backgroundColor) == Color.red.cgColor
+    expect(layers[0]) === reusedLayer
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 140, height: 60)
+    expect(reusedLayer.backgroundColor) == Color.red.cgColor
     expect(contexts[0]?.updateType) == .boundsChange
     expect(contexts[0]?.animationTiming) == timing
-    let frameAnimation = try unwrap(retainedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
+    let frameAnimation = try unwrap(reusedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
     expect(frameAnimation.fromValue as? CGSize) == CGSize(width: -40, height: 0)
     expect(frameAnimation.toValue as? CGSize) == .zero
     expect(frameAnimation.isAdditive) == true
@@ -137,7 +137,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(insertAnimation.toValue as? Float) == 0
     expect(insertAnimation.isAdditive) == true
     expect(insertAnimation.duration) == 10
-    retainedLayer.removeAllAnimations()
+    reusedLayer.removeAllAnimations()
     insertedLayer.removeAllAnimations()
 
     // when: shrinking the viewport removes that row
@@ -172,8 +172,8 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     }
   }
 
-  func test_refresh_dynamicBehaviorAnimatesTransitionsAndRetainedFrames() throws {
-    // given: a view whose dynamic behavior animates every pass, with a retained row and content taller than the viewport
+  func test_refresh_dynamicBehaviorAnimatesTransitionsAndReusedFrames() throws {
+    // given: a view whose dynamic behavior animates every pass, with a reused row and content taller than the viewport
     var rowCount = 1
     var firstRowHeight: CGFloat = 60
     var layers: [Int: CALayer] = [:]
@@ -197,25 +197,25 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.renderablePool = nil
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
     view.refresh(animated: false)
-    let retainedLayer = try unwrap(layers[0])
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
-    expect(retainedLayer.animationKeys()) == nil
+    let reusedLayer = try unwrap(layers[0])
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+    expect(reusedLayer.animationKeys()) == nil
     expect(layers[1]) == nil
     view.animationBehavior = .dynamic { _, _ in true }
 
-    // when: a non-animated refresh grows the retained row and adds a row
+    // when: a non-animated refresh grows the reused row and adds a row
     rowCount = 2
     firstRowHeight = 80
     view.refresh(animated: false)
 
-    // then: the dynamic behavior overrides the refresh flag, so the retained row animates its frame and the new row
+    // then: the dynamic behavior overrides the refresh flag, so the reused row animates its frame and the new row
     // runs its insert transition
     let insertedLayer = try unwrap(layers[1])
-    expect(layers[0]) === retainedLayer
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 80)
+    expect(layers[0]) === reusedLayer
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 80)
     expect(contexts[0]?.updateType) == .refresh
     expect(contexts[0]?.animationTiming) == timing
-    let frameAnimation = try unwrap(retainedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
+    let frameAnimation = try unwrap(reusedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
     expect(frameAnimation.fromValue as? CGSize) == CGSize(width: 0, height: -20)
     expect(frameAnimation.toValue as? CGSize) == .zero
     expect(frameAnimation.isAdditive) == true
@@ -230,7 +230,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(insertAnimation.toValue as? Float) == 0
     expect(insertAnimation.isAdditive) == true
     expect(insertAnimation.duration) == 10
-    retainedLayer.removeAllAnimations()
+    reusedLayer.removeAllAnimations()
     insertedLayer.removeAllAnimations()
   }
 
@@ -281,12 +281,12 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       expect(first.backgroundColor) == Color.red.cgColor
       first.removeAllAnimations()
 
-      // when: resizing changes the retained row and inserts another row
+      // when: resizing changes the reused row and inserts another row
       view.frame.size = CGSize(width: 140, height: 100)
       view.setNeedsLayout()
       view.layoutIfNeeded()
 
-      // then: the policy resolves insertion transitions independently from retained updates
+      // then: the policy resolves insertion transitions independently from the reused renderables' updates
       let second = try unwrap(layers[1])
       let secondView = try unwrap(views[1])
       expect(layers[0]) === first
@@ -545,11 +545,11 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       return callCount % 2 == 1
     }
 
-    // when: one scroll removes a row, retains a row, and reveals a row
+    // when: one scroll removes a row, reuses a row, and reveals a row
     view.setContentOffset(CGPoint(x: 0, y: 100))
     view.layoutIfNeeded()
 
-    // then: the behavior is asked once and its answer applies to the removal, the retained update, and the insertion
+    // then: the behavior is asked once and its answer applies to the removal, the reused row's update, and the insertion
     let thirdRow = try unwrap(layers[2])
     expect(callCount) == 1
     expect(firstRow.superlayer) != nil
@@ -562,7 +562,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(contexts[2]?.animationTiming) == nil
     expect(thirdRow.animation(forKey: "opacity")) != nil
 
-    // when: the next scroll removes, retains, and reveals again
+    // when: the next scroll removes, reuses, and reveals again
     view.setContentOffset(CGPoint(x: 0, y: 200))
     view.layoutIfNeeded()
 
@@ -582,7 +582,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
   }
 
   func test_animationDecision() {
-    // given: refreshes and bounds changes with missing, equal, and changing geometry
+    // given: refreshes and bounds changes with missing, equal, and changing bounds
     let view = ComposeView()
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let renderTypes: [ComposeView.RenderType] = [
@@ -715,7 +715,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 10))
     view.layoutIfNeeded()
 
-    // then: the bounds reflect the scroll while the retained update stays immediate
+    // then: the bounds reflect the scroll while the reused renderable's update stays immediate
     #if canImport(AppKit)
     // verify the scrollers does affect the bounds
     if #available(macOS 26.0, *) {
@@ -728,7 +728,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(view.bounds()) == CGRect(x: 0, y: 10, width: 120, height: 80)
     #endif
 
-    // the retained update does not animate
+    // the reused renderable's update does not animate
     try expect(calledContext.unwrap().animationTiming) == nil
 
     // when: scroll the view again, with the animation behavior set to dynamic so we can verify the render type

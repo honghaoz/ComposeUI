@@ -59,7 +59,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     }
   }
 
-  func test_renderPass_retainsContentAcrossBoundsUpdates() throws {
+  func test_renderPass_reusesContentAcrossBoundsUpdates() throws {
     // given: a layer whose configuration is captured when its builder runs
     var color = Color.red
     var layer: CALayer?
@@ -98,7 +98,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: resize reuses the content pair while updating geometry
+    // then: resize reuses the content pair while updating the frame
     expect(pass?.contentNode) === initial.contentNode
     expect(pass?.contentEvaluation) === initial.contentEvaluation
     expect(itemContext?.contentEvaluation) === initial.contentEvaluation
@@ -111,7 +111,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 20))
     view.layoutIfNeeded()
 
-    // then: scrolling also uses the retained pair and forwards its evaluation
+    // then: scrolling also reuses the pair and forwards its evaluation
     expect(pass?.contentNode) === initial.contentNode
     expect(pass?.contentEvaluation) === initial.contentEvaluation
     expect(itemContext?.contentEvaluation) === initial.contentEvaluation
@@ -142,7 +142,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let pass = ComposeView.ContentUpdateContext(contentNode: contentNode, contentEvaluation: contentEvaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: .all)
     let originalValue = pass.contentEvaluation.lazyValue(for: provider)
 
-    // when: a later refresh selects different content while the earlier pass is retained
+    // when: a later refresh selects different content while the earlier pass is kept
     contentNode = ComposeView.LayoutCacheNode(node: ColorNode(.blue))
     contentEvaluation = ContentEvaluation()
     _ = pass.contentNode.layout(containerSize: bounds.size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentEvaluation: pass.contentEvaluation))
@@ -199,7 +199,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 20))
     view.layoutIfNeeded()
 
-    // then: retained scroll updates are immediate by default
+    // then: scroll updates of reused renderables are immediate by default
     expect(itemContext?.updateType) == .boundsChange
     expect(itemContext?.animationTiming) == nil
 

@@ -123,7 +123,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     // when: the content is applied without an evaluation
     child.setPreparedContent(content, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
 
-    // then: a fresh evaluation resolves the content once with its current value and geometry
+    // then: a fresh evaluation resolves the content once with its current value and frame
     let host = try unwrap(hostedView)
     let firstRoot = try unwrap(renderedRoot)
     let firstEvaluation = try unwrap(renderedEvaluation)
@@ -135,7 +135,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     width = 160
     child.refresh(animated: false)
 
-    // then: the new evaluation updates the retained native view
+    // then: the new evaluation updates the reused native view
     expect(renderedRoot) !== firstRoot
     expect(renderedEvaluation) !== firstEvaluation
     expect(hostedView) === host
@@ -167,7 +167,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     // when: the first update is applied
     child.setPreparedContent(first, contentEvaluation: firstEvaluation, animationDecision: ComposeView.AnimationDecision.disabled)
 
-    // then: the first content and evaluation determine the displayed configuration and geometry
+    // then: the first content and evaluation determine the displayed configuration and frame
     let renderedLayer = try unwrap(layer)
     expect(renderedEvaluation) === firstEvaluation
     expect(renderedLayer.backgroundColor) == ComposeUI.Color.red.cgColor
@@ -176,7 +176,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     // when: the second update is applied
     child.setPreparedContent(second, contentEvaluation: secondEvaluation, animationDecision: ComposeView.AnimationDecision.disabled)
 
-    // then: the retained layer shows the latest content and the evaluation is replaced with it
+    // then: the reused layer shows the latest content and the evaluation is replaced with it
     expect(layer) === renderedLayer
     expect(renderedEvaluation) === secondEvaluation
     expect(renderedLayer.backgroundColor) == ComposeUI.Color.blue.cgColor
@@ -206,7 +206,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     // when: measurement uses a different proposal from the displayed view
     let measuredSize = child.sizeThatFits(CGSize(width: 200, height: 160))
 
-    // then: measurement leaves the prepared root's geometry and displayed layer unchanged
+    // then: measurement leaves the prepared root's size and displayed layer unchanged
     expect(measuredSize) == CGSize(width: 200, height: 160)
     expect(preparedRoot.size) == originalBounds.size
     expect(preparedRoot.renderableItems(in: originalBounds).first?.frame) == originalBounds
@@ -228,7 +228,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
 
   func test_preparedContent_rendersOnceWithSuppliedAnimationAndCancelsPendingRequest() throws {
     for (pendingAnimated, suppliedAnimated) in [(false, true), (true, false)] {
-      // given: a retained layer with animated geometry and a pending request with the opposite animation preference
+      // given: a reused layer with an animated frame and a pending request with the opposite animation preference
       var layer: CALayer?
       var animationTiming: AnimationTiming?
       var renderCount = 0
@@ -309,31 +309,31 @@ class ComposeView_PreparedContentTests: XCTestCase {
   func test_deferredPreparedContent_respectsCoalescedNonAnimatedRefresh() throws {
     for nonAnimatedFirst in [false, true] {
       for decision in [ComposeView.AnimationDecision.transitionsOnly, ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: true)] {
-        // given: a retained item and a prepared replacement requested during rendering
+        // given: a reused item and a prepared replacement requested during rendering
         let view = ComposeView()
         view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
         var layers: [String: CALayer] = [:]
         var contexts: [String: RenderableUpdateContext] = [:]
         view.setContent {
           ColorNode(.red)
-            .id("retained")
+            .id("reused")
             .frame(width: 40, height: 40)
             .animation(.linear(duration: 10))
             .onUpdate { renderable, context in
-              layers["retained"] = renderable.layer
-              contexts["retained"] = context
+              layers["reused"] = renderable.layer
+              contexts["reused"] = context
             }
         }
         view.refresh(animated: false)
-        let originalLayer = try unwrap(layers["retained"])
+        let originalLayer = try unwrap(layers["reused"])
         let prepared = ZStack {
           ColorNode(.blue)
-            .id("retained")
+            .id("reused")
             .frame(width: 80, height: 60)
             .animation(.linear(duration: 10))
             .onUpdate { renderable, context in
-              layers["retained"] = renderable.layer
-              contexts["retained"] = context
+              layers["reused"] = renderable.layer
+              contexts["reused"] = context
             }
           ColorNode(.green)
             .id("inserted")
@@ -371,7 +371,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
 
         // then: non-animated dominates in either order without losing the prepared content
         let inserted = try unwrap(layers["inserted"])
-        expect(layers["retained"]) === originalLayer
+        expect(layers["reused"]) === originalLayer
         expect(originalLayer.backgroundColor) == ComposeUI.Color.blue.cgColor
         expect(originalLayer.bounds.size) == CGSize(width: 80, height: 60)
         expect(originalLayer.animationKeys()) == nil

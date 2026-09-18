@@ -116,7 +116,7 @@ class SwiftUIViewNodeTests: XCTestCase {
       let context = RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: item.frame, previousRenderBounds: previousRenderBounds, renderBounds: renderBounds, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
       item.update(renderable, context)
 
-      // then: geometry-only updates retain the host's current content
+      // then: bounds changes keep the host's current content
       expect(view.content.sizeThatFits(containerSize)) == CGSize(width: 30, height: 20)
     }
   }
@@ -176,7 +176,7 @@ class SwiftUIViewNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
     view.layoutIfNeeded()
 
-    // then: the native appearance remains unchanged while geometry adapts
+    // then: the native appearance remains unchanged while the frame adapts
     expect(renderedView) === view
     expect(view.bounds.size) == CGSize(width: 160, height: 100)
     expect(nativeView.layer().backgroundColor) == ComposeUI.Color.red.cgColor
@@ -191,7 +191,7 @@ class SwiftUIViewNodeTests: XCTestCase {
     expect(nativeView.superview) != nil
   }
 
-  func test_static_refreshWithSameId_retainsMountedContent() throws {
+  func test_static_refreshWithSameId_keepsMountedContent() throws {
     // given: a static node displaying a native red view
     let window = TestWindow()
     let initialNativeView = BaseView()

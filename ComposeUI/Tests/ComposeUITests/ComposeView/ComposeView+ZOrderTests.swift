@@ -356,7 +356,7 @@ class ComposeView_ZOrderTests: XCTestCase {
 
   func test_refresh_placementWithInFlightRemovingViews() {
     // views being removed with an in-flight remove transition stay in the hierarchy but are not part of the
-    // new render pass. placing new views below retained siblings must stay correct even with these
+    // new render pass. placing new views below reused siblings must stay correct even with these
     // in-transition views interleaved in the subview list.
 
     // given: a hosted view with a render recorder, rendered with two never-completing removing views interleaved
@@ -398,7 +398,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     }
 
     // when: remove the "r" views (their remove transitions keep them in the hierarchy) and insert new views
-    // that belong below retained views
+    // that belong below reused views
     order = ["a", "n1", "b", "n2", "c"]
     view.refresh(animated: true)
 
@@ -407,7 +407,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     expect(view.test.removingRenderableMap.count) == 2
     expectHierarchyMatchesItemOrder(view, recorder)
 
-    // then: the in-transition removing views keep their z-positions relative to the retained views:
+    // then: the in-transition removing views keep their z-positions relative to the reused views:
     // "r1" stays at the back, "r2" stays above "b" and below "c"
     let subviews = view.contentView().subviews
     guard let removingIndex1 = subviews.firstIndex(of: removingView1),

@@ -34,7 +34,7 @@ import ChouTiTest
 
 class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
 
-  func test_geometryUpdates_reportViewportChangesForRetainedViewAndLayer() throws {
+  func test_boundsChanges_reportViewportChangesForReusedViewAndLayer() throws {
     // given: view and layer renderables whose appearance follows the viewport rather than their own fixed size
     var viewContext: RenderableUpdateContext?
     var layerContext: RenderableUpdateContext?
@@ -120,7 +120,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: both geometry changes are visible independently in the snapshots
+    // then: both the resize and the offset adjustment are visible in the snapshots
     for context in try [unwrap(viewContext), unwrap(layerContext)] {
       expect(context.updateType) == .boundsChange
       expect(context.previousRenderBounds) == resizedBounds
@@ -132,8 +132,8 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(builderCalls) == 1
   }
 
-  func test_refresh_reportsGeometryChangesAlongsideConfiguration() throws {
-    // given: a retained layer before application configuration and geometry change
+  func test_refresh_reportsBoundsChangesAlongsideConfiguration() throws {
+    // given: a reused layer before application configuration and bounds change
     var color = Color.red
     var context: RenderableUpdateContext?
     var layer: CALayer?
@@ -163,7 +163,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     view.layoutIfNeeded()
     let refreshedBounds = CGRect(x: 0, y: 30, width: 150, height: 100)
 
-    // then: refresh remains the update reason and geometry changes remain available
+    // then: refresh remains the update reason and the bounds change remains available
     expect(context?.updateType) == .refresh
     expect(context?.previousRenderBounds) == initialBounds
     expect(context?.renderBounds) == refreshedBounds
@@ -171,7 +171,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(originalLayer.backgroundColor) == Color.blue.cgColor
     expect(builderCalls) == 2
 
-    // when: an animated refresh runs with unchanged geometry
+    // when: an animated refresh runs with unchanged bounds
     color = .green
     view.refresh(animated: true)
 
@@ -372,7 +372,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     showsContent = true
     view.refresh(animated: true)
 
-    // then: the new insertion has previous bounds even though no renderables were retained
+    // then: the new insertion has previous bounds even though no renderables were reused
     let update = try unwrap(context)
     expect(update.updateType) == .insert
     expect(update.previousRenderBounds) == bounds

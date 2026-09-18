@@ -61,7 +61,7 @@ class ComposeView_EnvironmentUpdateContextTests: XCTestCase {
     // when: only the theme changes
     view.overrideTheme = .dark
 
-    // then: the retained layer resolves its themed color in an animated refresh with unchanged viewport snapshots
+    // then: the reused layer resolves its themed color in an animated refresh with unchanged viewport snapshots
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
     expect(renderedLayer) === layer
     expect(updateContext?.updateType) == .refresh
@@ -88,7 +88,7 @@ class ComposeView_EnvironmentUpdateContextTests: XCTestCase {
   }
 
   func test_windowChange_refreshesContentWithNonanimatedContext() throws {
-    // given: a retained layer whose color depends on its window
+    // given: a reused layer whose color depends on its window
     let firstWindow = TestWindow()
     let secondWindow = TestWindow()
     let bounds = CGRect(x: 0, y: 0, width: 120, height: 80)
@@ -114,7 +114,7 @@ class ComposeView_EnvironmentUpdateContextTests: XCTestCase {
     // when: the view moves to a different window without changing its viewport
     secondWindow.contentView().addSubview(view)
 
-    // then: the retained layer receives the new window's content without animation or a bounds change
+    // then: the reused layer receives the new window's content without animation or a bounds change
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
     expect(renderedLayer) === layer
     expect(updateContext?.updateType) == .refresh

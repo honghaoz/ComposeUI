@@ -1250,10 +1250,10 @@ open class ComposeView: BaseScrollView {
     // The plan here maintains the *view hierarchy* order for view items, which drives the hit-testing order, so the
     // hit-testing order matches the visual order among view items.
     //
-    // Each `moveToFront()` call costs O(N) work in the sibling list. With N retained items that compounds to O(N²) per
+    // Each `moveToFront()` call costs O(N) work in the sibling list. With N reused items that compounds to O(N²) per
     // render pass. The plan avoids the per-item `moveToFront()` calls when the hierarchy order can be maintained with cheaper moves:
     // - When the content is unchanged, no z-order maintenance is needed.
-    // - When the retained items keep their relative order, which is the common case for scrolling, the retained items
+    // - When the reused items keep their relative order, which is the common case for scrolling, the reused items
     //   need no moves at all:
     //   - New items at the front of the z-order (e.g. revealed by scrolling down) are appended at the front naturally.
     //   - Other new items (e.g. revealed by scrolling up) are placed below their next sibling after the update pass.
@@ -1451,8 +1451,8 @@ open class ComposeView: BaseScrollView {
       renderableMap[id] = renderable
     }
 
-    // the insertion pass above places new items at the front. for new view items that should be below reused/retained
-    // view items (e.g. items revealed by scrolling up), move them below their next view sibling, so the subview order
+    // the insertion pass above places new items at the front. for new view items that should be below reused view
+    // items (e.g. items revealed by scrolling up), move them below their next view sibling, so the subview order
     // (which drives the hit-testing order) matches the items order.
     switch zOrderPlan {
     case .minimal(let needsNewItemPlacement):

@@ -41,7 +41,7 @@ extension ComposeView {
       /// An application-requested or environment-triggered refresh with its animation preference.
       case refresh(isAnimated: Bool)
 
-      /// A bounds update using retained content.
+      /// A bounds update reusing the content of the last refresh.
       case boundsChange
     }
 

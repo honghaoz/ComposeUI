@@ -165,9 +165,9 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     layer.removeAllAnimations()
   }
 
-  func test_boundsRevival_preservesTransitionsWithoutAnimatingRetainedDescendants_atEveryDepth() throws {
+  func test_boundsRevival_preservesTransitionsWithoutAnimatingReusedDescendants_atEveryDepth() throws {
     for nestingDepth in 1 ... 3 {
-      // given: nested viewports retaining a row that shrinks when the available width grows
+      // given: nested viewports reusing a row that shrinks when the available width grows
       let timing = AnimationTiming.linear(duration: 10)
       var nestedViews: [Int: ComposeView] = [:]
       var nestedContexts: [Int: RenderableUpdateContext] = [:]
@@ -236,11 +236,11 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       parent.refresh(animated: false)
       let originalViews = try (0 ..< nestingDepth).map { try unwrap(nestedViews[$0]) }
       let outerView = try unwrap(originalViews.last)
-      let retainedLayer = try unwrap(layers[0])
-      expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
-      expect(retainedLayer.cornerRadius) == 10
-      expect(retainedLayer.backgroundColor) == Color.red.cgColor
-      expect(retainedLayer.animationKeys()) == nil
+      let reusedLayer = try unwrap(layers[0])
+      expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+      expect(reusedLayer.cornerRadius) == 10
+      expect(reusedLayer.backgroundColor) == Color.red.cgColor
+      expect(reusedLayer.animationKeys()) == nil
       expect(layers[1]) == nil
       defer {
         for view in originalViews {
@@ -263,15 +263,15 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       expect(removal.toValue as? Float) == 0
       expect(removal.duration) == 10
       expect(removal.isAdditive) == true
-      expect(retainedLayer.superlayer) === originalViews[0].contentView().layer()
+      expect(reusedLayer.superlayer) === originalViews[0].contentView().layer()
 
       // when: the parent resizes while the nested subtree is still offscreen
       parent.frame.size.width = 160
       parent.setNeedsLayout()
       parent.layoutIfNeeded()
 
-      // then: the retained subtree has not yet received the new geometry
-      expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+      // then: the reused subtree has not yet received its new frame
+      expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
       expect(layers[1]) == nil
       layerContexts.removeAll()
       nestedContexts.removeAll()
@@ -281,7 +281,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       parent.setContentOffset(.zero)
       parent.layoutIfNeeded()
 
-      // then: every nested view is retained and refreshes with the parent's separate decisions
+      // then: every nested view is reused and refreshes with the parent's separate decisions
       let transitionsOnly = ComposeView.AnimationDecision.transitionsOnly
       for level in 0 ..< nestingDepth {
         let child = originalViews[level]
@@ -295,18 +295,18 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       }
       expect(outerView.layer().opacity) == 1
       expect(outerView.layer().animation(forKey: "opacity")) != nil
-      expect(layers[0]) === retainedLayer
-      expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
-      expect(retainedLayer.cornerRadius) == 16
-      expect(retainedLayer.backgroundColor) == Color.red.cgColor
-      expect(retainedLayer.animationKeys()) == nil
+      expect(layers[0]) === reusedLayer
+      expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
+      expect(reusedLayer.cornerRadius) == 16
+      expect(reusedLayer.backgroundColor) == Color.red.cgColor
+      expect(reusedLayer.animationKeys()) == nil
       expect(layerContexts[0]?.updateType) == .refresh
       expect(layerContexts[0]?.animationTiming) == nil
       expect(layerContexts[0]?.animationDecision) == transitionsOnly
 
-      // then: the newly visible row still runs its insert transition inside the retained subtree
+      // then: the newly visible row still runs its insert transition inside the reused subtree
       let insertedLayer = try unwrap(layers[1])
-      expect(insertedLayer.superlayer) === retainedLayer.superlayer
+      expect(insertedLayer.superlayer) === reusedLayer.superlayer
       expect(insertedLayer.frame) == CGRect(x: 0, y: 60, width: 160, height: 40)
       expect(insertedLayer.backgroundColor) == Color.blue.cgColor
       expect(insertedLayer.opacity) == 1
@@ -323,7 +323,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
   }
 
   func test_boundsRevival_dynamicChildCannotExceedTheHostDecision() throws {
-    // given: a nested view whose dynamic behavior always animates, retaining a row that shrinks when the width grows
+    // given: a nested view whose dynamic behavior always animates, reusing a row that shrinks when the width grows
     let timing = AnimationTiming.linear(duration: 10)
     var childView: ComposeView?
     var childRenderType: ComposeView.RenderType?
@@ -375,9 +375,9 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     parent.refresh(animated: false)
     let child = try unwrap(childView)
-    let retainedLayer = try unwrap(layers[0])
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
-    expect(retainedLayer.animationKeys()) == nil
+    let reusedLayer = try unwrap(layers[0])
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+    expect(reusedLayer.animationKeys()) == nil
     expect(layers[1]) == nil
     defer {
       child.layer().removeAllAnimations()
@@ -399,8 +399,8 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     parent.setNeedsLayout()
     parent.layoutIfNeeded()
 
-    // then: the retained row has not received the new geometry yet
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+    // then: the reused row has not received its new frame yet
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
     layerContexts.removeAll()
     childRenderType = nil
 
@@ -408,14 +408,14 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     parent.setContentOffset(.zero)
     parent.layoutIfNeeded()
 
-    // then: the host's scroll decision caps the nested view's own behavior, so the retained row snaps to its new
-    // geometry while the newly visible row still runs its insert transition
+    // then: the host's scroll decision caps the nested view's own behavior, so the reused row snaps to its new
+    // frame while the newly visible row still runs its insert transition
     expect(childView) === child
     expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
     expect(childRenderType) == .refresh(isAnimated: true)
-    expect(layers[0]) === retainedLayer
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
-    expect(retainedLayer.animationKeys()) == nil
+    expect(layers[0]) === reusedLayer
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
+    expect(reusedLayer.animationKeys()) == nil
     expect(layerContexts[0]?.updateType) == .refresh
     expect(layerContexts[0]?.animationTiming) == nil
     let insertedLayer = try unwrap(layers[1])
@@ -431,9 +431,9 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     child.frame.size.width = 200
     child.refresh(animated: true)
 
-    // then: the nested view's own pass is not capped, so the retained row animates its frame
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 20)
-    expect(retainedLayer.animation(forKey: "bounds.size")) != nil
+    // then: the nested view's own pass is not capped, so the reused row animates its frame
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 20)
+    expect(reusedLayer.animation(forKey: "bounds.size")) != nil
     expect(layerContexts[0]?.updateType) == .refresh
     expect(layerContexts[0]?.animationTiming) == timing
   }
@@ -441,7 +441,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
   func test_applicationRefresh_controlsDescendantUpdates_atEveryDepth() throws {
     for nestingDepth in 1 ... 3 {
       for animated in [false, true] {
-        // given: a retained descendant with configured frame and attribute animations
+        // given: a reused descendant with configured frame and attribute animations
         var height: CGFloat = 40
         var radius: CGFloat = 4
         var color = Color.red
@@ -465,12 +465,12 @@ class ComposeViewNode_AnimationTests: XCTestCase {
         }
         parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
         parent.refresh(animated: false)
-        let retainedLayer = try unwrap(layer)
-        expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 40)
-        expect(retainedLayer.cornerRadius) == 4
-        expect(retainedLayer.backgroundColor) == Color.red.cgColor
-        expect(retainedLayer.animationKeys()) == nil
-        defer { retainedLayer.removeAllAnimations() }
+        let reusedLayer = try unwrap(layer)
+        expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 40)
+        expect(reusedLayer.cornerRadius) == 4
+        expect(reusedLayer.backgroundColor) == Color.red.cgColor
+        expect(reusedLayer.animationKeys()) == nil
+        defer { reusedLayer.removeAllAnimations() }
 
         // when: an application refresh changes the descendant's frame and attributes
         height = 60
@@ -478,24 +478,24 @@ class ComposeViewNode_AnimationTests: XCTestCase {
         color = .blue
         parent.refresh(animated: animated)
 
-        // then: the retained layer reaches its target with only the requested animations
-        expect(layer) === retainedLayer
-        expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
-        expect(retainedLayer.cornerRadius) == 12
-        expect(retainedLayer.backgroundColor) == Color.blue.cgColor
+        // then: the reused layer reaches its target with only the requested animations
+        expect(layer) === reusedLayer
+        expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+        expect(reusedLayer.cornerRadius) == 12
+        expect(reusedLayer.backgroundColor) == Color.blue.cgColor
         if animated {
-          let frameAnimation = try unwrap(retainedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
+          let frameAnimation = try unwrap(reusedLayer.animation(forKey: "bounds.size") as? CABasicAnimation)
           expect(frameAnimation.fromValue as? CGSize) == CGSize(width: 0, height: -20)
           expect(frameAnimation.toValue as? CGSize) == .zero
           expect(frameAnimation.duration) == 10
           expect(frameAnimation.isAdditive) == true
-          let radiusAnimation = try unwrap(retainedLayer.animation(forKey: "cornerRadius") as? CABasicAnimation)
+          let radiusAnimation = try unwrap(reusedLayer.animation(forKey: "cornerRadius") as? CABasicAnimation)
           expect(radiusAnimation.fromValue as? CGFloat) == -8
           expect(radiusAnimation.toValue as? CGFloat) == 0
           expect(radiusAnimation.duration) == 10
           expect(radiusAnimation.isAdditive) == true
         } else {
-          expect(retainedLayer.animationKeys()) == nil
+          expect(reusedLayer.animationKeys()) == nil
         }
       }
     }

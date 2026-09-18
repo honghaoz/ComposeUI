@@ -80,7 +80,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: size change relayouts and renders the retained content
+    // then: size change relayouts and renders the reused content
     expect(contentMakeCount) == 1
     expect(state.layoutCount) == 2 // size change should trigger layout
     expect(state.renderCount) == 4 // size change should trigger render
@@ -106,8 +106,8 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     expect(state.renderCount) == 6 // scroll should trigger render
   }
 
-  func test_resize_relayoutsRetainedContentAcrossZeroSize() throws {
-    // given: content with padding, an overlay, and a geometry-dependent shadow
+  func test_resize_relayoutsReusedContentAcrossZeroSize() throws {
+    // given: content with padding, an overlay, and a size-dependent shadow
     var color = Color.red
     var contentMakeCount = 0
     var layer: CALayer?
@@ -133,13 +133,13 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     let originalLayer = try unwrap(layer)
     color = .green
 
-    // when: the retained tree receives larger, smaller, and zero-size proposals
+    // when: the reused tree receives larger, smaller, and zero-size proposals
     for size in [CGSize(width: 200, height: 120), CGSize(width: 60, height: 40), .zero, CGSize(width: 100, height: 80)] {
       view.frame.size = size
       view.setNeedsLayout()
       view.layoutIfNeeded()
 
-      // then: root content remains unchanged while all layout geometry is recomputed
+      // then: root content remains unchanged while every frame is recomputed
       expect(contentMakeCount) == 1
       if size == .zero {
         expect(layer?.superlayer) == nil
@@ -160,7 +160,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: the builder is still retained
+    // then: the content is still reused without running the builder
     expect(contentMakeCount) == 1
     expect(layer?.backgroundColor) == Color.red.cgColor
 
@@ -197,7 +197,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: refresh takes precedence and applies both new configuration and geometry
+    // then: refresh takes precedence and applies both new configuration and frame
     expect(layer) === originalLayer
     expect(layer?.backgroundColor) == Color.blue.cgColor
     expect(layer?.frame) == CGRect(x: 0, y: 0, width: 200, height: 150)

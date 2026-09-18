@@ -42,7 +42,7 @@ import ChouTiTest
 
 /// Tests for the renderable recycle pool (`reuseId`).
 ///
-/// The list geometry is chosen so that exactly one row leaves and one row enters per scroll step (rows are 50pt tall in
+/// The row height and viewport are chosen so that exactly one row leaves and one row enters per scroll step (rows are 50pt tall in
 /// a 100pt viewport with no visible-bounds insets, scrolling by one row height). This makes the number of created
 /// renderables deterministic: with pooling, the leaving row is enqueued and immediately reused by the entering row, so no
 /// new renderable is created after the initial fill.
