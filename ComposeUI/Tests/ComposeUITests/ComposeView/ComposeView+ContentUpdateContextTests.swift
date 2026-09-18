@@ -286,7 +286,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(animatedRefresh.renderType(bounds: bounds)) == .refresh(isAnimated: true)
     expect(refresh.renderType(bounds: bounds)) == .refresh(isAnimated: false)
 
-    // then: a bounds change reports the render history and the callback's viewport, without inventing missing history
+    // then: a bounds change reports the render history and the viewport it is given, without inventing missing history
     expect(initial.renderType(bounds: bounds)) == .boundsChange(previousBounds: nil, bounds: bounds)
     expect(initial.renderType(bounds: .zero)) == .boundsChange(previousBounds: nil, bounds: .zero)
     expect(scroll.renderType(bounds: scrolledBounds)) == .boundsChange(previousBounds: bounds, bounds: scrolledBounds)

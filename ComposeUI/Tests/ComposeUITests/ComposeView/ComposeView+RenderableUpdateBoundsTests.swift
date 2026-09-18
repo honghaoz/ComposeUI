@@ -184,7 +184,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
   }
 
   func test_willRenderOffset_usesUninsetViewportForAllItems() throws {
-    // given: rendering extends beyond the viewport and a callback adjusts the offset before item selection
+    // given: rendering extends beyond the viewport and the will-render handler adjusts the offset before item selection
     var contexts: [RenderableUpdateContext] = []
     var layers: [CALayer] = []
     let view = ComposeView {
@@ -222,7 +222,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     contexts.removeAll()
     view.refresh(animated: false)
 
-    // then: the prior completed viewport includes the earlier callback adjustment
+    // then: the prior completed viewport includes the earlier handler adjustment
     for context in contexts {
       expect(context.previousRenderBounds) == CGRect(x: 0, y: 50, width: 100, height: 100)
       expect(context.renderBounds) == context.previousRenderBounds
@@ -600,7 +600,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     originalLayer.removeAllAnimations()
   }
 
-  func test_contentShrink_rendersTheClampedViewportWithoutAWillRenderCallback() throws {
+  func test_contentShrink_rendersTheClampedViewportWithoutAWillRenderHandler() throws {
     // given: long content is scrolled near its bottom
     var height: CGFloat = 500
     var context: RenderableUpdateContext?

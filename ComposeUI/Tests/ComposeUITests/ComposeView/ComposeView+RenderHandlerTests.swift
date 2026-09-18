@@ -246,7 +246,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
         .frame(width: 100, height: 200)
     }
 
-    // set up the will-render handler to track the callback arguments
+    // set up the will-render handler to track the handler arguments
     var eventOrder: [String] = []
 
     var willRenderCallCount = 0
@@ -337,7 +337,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     #endif
   }
 
-  func test_boundsChange_renderTypeMatchesEachCallbackViewport() throws {
+  func test_boundsChange_renderTypeMatchesTheViewportWhenReported() throws {
     // given: a view whose dynamic animation policy uses the bounds supplied with the render type
     var willLayoutType: ComposeView.RenderType?
     var willRenderContext: ComposeView.WillRenderContext?
@@ -384,7 +384,8 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: all callbacks report nil previous bounds and the actual viewport, without visibility insets
+    // then: the handlers, the dynamic closure, and the item all see nil previous bounds and the actual viewport, without
+    // visibility insets
     let initialBounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let initialType = ComposeView.RenderType.boundsChange(previousBounds: nil, bounds: initialBounds)
     let renderedLayer = try unwrap(layer)
@@ -404,7 +405,8 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: early callbacks use the proposed viewport, while animation and completion use the adjusted viewport
+    // then: the will-layout and will-render handlers use the proposed viewport, while the dynamic closure, the
+    // did-render handler, and the item use the adjusted viewport
     let proposedBounds = CGRect(x: 0, y: 0, width: 150, height: 100)
     let finalBounds = CGRect(x: 0, y: 40, width: 150, height: 100)
     let finalType = ComposeView.RenderType.boundsChange(previousBounds: initialBounds, bounds: finalBounds)

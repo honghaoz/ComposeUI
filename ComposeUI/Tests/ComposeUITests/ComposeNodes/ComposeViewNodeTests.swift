@@ -467,7 +467,7 @@ class ComposeViewNodeTests: XCTestCase {
     }
   }
 
-  func test_parentRefresh_fromNestedRenderCallback_isDeferredUntilThePassCompletes() throws {
+  func test_parentRefresh_fromNestedRenderHandler_isDeferredUntilThePassCompletes() throws {
     // given: a nested view whose first render refreshes the parent synchronously, and a handler capturing assertions
     var color = Color.red
     var nestedViews: [ComposeView] = []

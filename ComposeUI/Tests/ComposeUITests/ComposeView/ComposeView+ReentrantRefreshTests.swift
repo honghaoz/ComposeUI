@@ -59,7 +59,7 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
       var isArmed = false
       var reentrantRefreshes = 0
       var view: ComposeView?
-      let refreshFromCallback = {
+      let refreshFromHandler = {
         guard isArmed else {
           return
         }
@@ -74,13 +74,13 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
           .frame(width: 40, height: 40)
           .willUpdate { _, _ in
             if trigger == .itemWillUpdate {
-              refreshFromCallback()
+              refreshFromHandler()
             }
           }
           .onUpdate { renderable, _ in
             layer = renderable.layer
             if trigger == .itemUpdate {
-              refreshFromCallback()
+              refreshFromHandler()
             }
           }
       }
@@ -88,12 +88,12 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
       composeView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
       composeView.onWillLayout { _, _ in
         if trigger == .willLayout {
-          refreshFromCallback()
+          refreshFromHandler()
         }
       }
       composeView.onWillRender { _, _ in
         if trigger == .willRender {
-          refreshFromCallback()
+          refreshFromHandler()
         }
       }
       composeView.refresh(animated: false)
@@ -101,7 +101,7 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
       assertionMessages = []
       isArmed = true
 
-      // when: a refresh runs while the callback refreshes the view again from inside the pass
+      // when: a refresh runs while the handler refreshes the view again from inside the pass
       composeView.refresh(animated: false)
 
       // then: the pass completes with the content it started with, without a nested pass

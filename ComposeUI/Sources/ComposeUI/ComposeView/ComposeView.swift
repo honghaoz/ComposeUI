@@ -96,10 +96,10 @@ open class ComposeView: BaseScrollView {
     ///
     /// - Parameters:
     ///   - previousBounds: The viewport from the last completed render, or nil before the first render.
-    ///   - bounds: The viewport of the callback receiving this render type, without applying `visibleBoundsInsets`.
+    ///   - bounds: The viewport when this render type is reported, without applying `visibleBoundsInsets`.
     ///     The will-layout handler receives the proposed layout viewport, the will-render handler receives the viewport
-    ///     after the layout, when the content size was applied, and later callbacks receive the viewport after the
-    ///     will-render handler ran.
+    ///     after the layout, when the content size was applied, and the `AnimationBehavior.dynamic` closure and the
+    ///     did-render handler receive the viewport after the will-render handler ran.
     case boundsChange(previousBounds: CGRect?, bounds: CGRect)
   }
 
@@ -915,8 +915,8 @@ open class ComposeView: BaseScrollView {
     ComposeView.renderingView = outerRenderingView
     isRendering = false
 
-    // a handler or a renderable callback can change the bounds after the pass read them, so render the current bounds
-    // after the pass if they differ
+    // a render handler or a renderable lifecycle block can change the bounds after the pass read them, so render the
+    // current bounds after the pass if they differ
     if renderBounds() != lastRenderBounds {
       onNextRunLoop { [weak self] in
         self?.renderBoundsChangeIfNeeded()
