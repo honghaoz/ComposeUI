@@ -104,3 +104,11 @@ custom_rules:
     message: "Avoid passing `.init` as a function reference (e.g. map(Foo.init)). Use an explicit closure like map { Foo($0) } instead."
     regex: '\.init\b(?!\s*[({])'
     severity: warning
+
+  conditional_case_pattern:
+    name: "Conditional Case Pattern"
+    message: "Prefer an explicit switch over `if case` and `guard case`."
+    regex: '\b(if|guard)\s+case\b'
+    match_kinds:
+      - keyword
+    severity: error

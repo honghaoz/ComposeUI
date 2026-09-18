@@ -268,9 +268,12 @@ class ComposeView_RenderHandlerTests: XCTestCase {
 
     var requestedVisibleBounds: CGRect?
     view.debug { _, event in
-      if case .renderWillRequestRenderableItems(let visibleBounds) = event {
+      switch event {
+      case .renderWillRequestRenderableItems(let visibleBounds):
         requestedVisibleBounds = visibleBounds
         eventOrder.append("renderItems")
+      default:
+        break
       }
     }
 
@@ -368,10 +371,12 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     }
     view.animationBehavior = .dynamic { _, renderType in
       animationTypes.append(renderType)
-      if case .boundsChange(_, let bounds) = renderType {
+      switch renderType {
+      case .refresh:
+        return false
+      case .boundsChange(_, let bounds):
         return bounds.minY == 40
       }
-      return false
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 

@@ -74,8 +74,11 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
         }
     }
     view.debug { view, event in
-      if case .renderWillBegin = event {
+      switch event {
+      case .renderWillBegin:
         pass = view.test.contentUpdateContext
+      default:
+        break
       }
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -224,10 +227,12 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     var dynamicRenderTypes: [ComposeView.RenderType] = []
     view.animationBehavior = .dynamic { _, renderType in
       dynamicRenderTypes.append(renderType)
-      if case .boundsChange(let previousBounds, let bounds) = renderType {
+      switch renderType {
+      case .refresh:
+        return false
+      case .boundsChange(let previousBounds, let bounds):
         return previousBounds?.size == bounds.size
       }
-      return false
     }
     view.refresh(animated: true)
 

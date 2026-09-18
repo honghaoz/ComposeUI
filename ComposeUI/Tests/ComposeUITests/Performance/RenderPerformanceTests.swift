@@ -546,8 +546,11 @@ class RenderPerformanceTests: XCTestCase {
     var renderedItemsCount = 0
     #if DEBUG
     view.debug { _, event in
-      if case .renderDidFinish(let ids, _, _) = event {
+      switch event {
+      case .renderDidFinish(let ids, _, _):
         renderedItemsCount = ids.count
+      default:
+        break
       }
     }
     offset += Constants.scrollStep

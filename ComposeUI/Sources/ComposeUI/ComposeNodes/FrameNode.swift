@@ -169,10 +169,11 @@ public extension ComposeNode {
   ///   - height: The height of the node.
   ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(width: FrameSize, height: FrameSize, alignment: Layout.Alignment = .center) -> any ComposeNode {
-    if case .intrinsic = width, case .intrinsic = height {
+    switch (width, height) {
+    case (.intrinsic, .intrinsic):
       // intrinsic size has no effect on the layout
       return self
-    } else {
+    default:
       return FrameNode(node: self, width: width, height: height, alignment: alignment)
     }
   }
@@ -231,10 +232,12 @@ public extension ComposeNode {
   ///   - size: The size of the node.
   ///   - alignment: The alignment of the node. Default to `.center`.
   func frame(_ size: FrameSize, alignment: Layout.Alignment = .center) -> any ComposeNode {
-    if case .intrinsic = size {
+    switch size {
+    case .intrinsic:
       // intrinsic size has no effect on the layout
       return self
-    } else {
+    case .fixed,
+         .flexible:
       return FrameNode(node: self, width: size, height: size, alignment: alignment)
     }
   }

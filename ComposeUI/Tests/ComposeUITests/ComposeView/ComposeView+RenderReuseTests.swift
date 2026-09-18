@@ -149,8 +149,11 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     var renderedIds: [String] = []
     view.debug { _, event in
-      if case .renderDidFinish(let ids, _, _) = event {
+      switch event {
+      case .renderDidFinish(let ids, _, _):
         renderedIds = ids.map(\.id)
+      default:
+        break
       }
     }
 
@@ -1072,8 +1075,11 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     var pooledLayer: CALayer?
     contentView.debug { _, event in
-      if case .renderDidRemoveRenderable(_, let renderable) = event {
+      switch event {
+      case .renderDidRemoveRenderable(_, let renderable):
         pooledLayer = renderable.layer
+      default:
+        break
       }
     }
 
@@ -1105,8 +1111,11 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     var pooledLayer: CALayer?
     contentView.debug { _, event in
-      if case .renderDidRemoveRenderable(_, let renderable) = event {
+      switch event {
+      case .renderDidRemoveRenderable(_, let renderable):
         pooledLayer = renderable.layer
+      default:
+        break
       }
     }
 
