@@ -398,7 +398,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("backgroundColor")) == true
     }
 
-    // bounds changes retain configuration
+    // bounds changes keep configuration
     do {
       // given: a layer node with a captured background color
       var layer: CALayer?
@@ -425,7 +425,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the frame changes but the configured color is retained
+      // then: the frame changes but the configured color is kept
       expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.backgroundColor) == Color.red.cgColor
       expect(layer?.animation(forKey: "backgroundColor")) == nil
@@ -536,7 +536,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("opacity")) == true
     }
 
-    // bounds changes retain configuration
+    // bounds changes keep configuration
     do {
       // given: a layer node with a captured opacity
       var layer: CALayer?
@@ -563,7 +563,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the frame changes but the configured opacity is retained
+      // then: the frame changes but the configured opacity is kept
       expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.opacity) == 0.5
       expect(layer?.animation(forKey: "opacity")) == nil
@@ -681,7 +681,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("borderWidth")) == true
     }
 
-    // bounds changes retain configuration
+    // bounds changes keep configuration
     do {
       // given: a layer node with a captured border
       var layer: CALayer?
@@ -711,7 +711,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the frame changes but the configured border is retained
+      // then: the frame changes but the configured border is kept
       expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.borderColor) == Color.red.cgColor
       expect(layer?.borderWidth) == 2
@@ -797,7 +797,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.animationKeys()?.contains("cornerRadius")) == true
     }
 
-    // bounds changes retain configuration
+    // bounds changes keep configuration
     do {
       // given: a layer node with a captured corner radius and curve
       var layer: CALayer?
@@ -827,7 +827,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the frame changes but the configured corner radius and curve are retained
+      // then: the frame changes but the configured corner radius and curve are kept
       expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.cornerRadius) == 10
       expect(layer?.cornerCurve) == .continuous
@@ -961,7 +961,7 @@ class ModifierNodeTests: XCTestCase {
       expect(layer?.masksToBounds) == false
     }
 
-    // bounds changes retain configuration
+    // bounds changes keep configuration
     do {
       // given: a layer node with a captured masksToBounds
       var layer: CALayer?
@@ -988,7 +988,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the frame changes but the configured mask is retained
+      // then: the frame changes but the configured mask is kept
       expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.masksToBounds) == true
 
@@ -998,7 +998,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: another bounds change retains the configured mask
+      // then: another bounds change keeps the configured mask
       expect(layer?.masksToBounds) == true
 
       // when: the view is refreshed with a new masksToBounds set
@@ -1208,7 +1208,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the shadow geometry updates while its configuration is retained
+      // then: the shadow frame and path update while its configuration is kept
       expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 60), transform: nil)
       expect(layer?.shadowColor) == Color.red.cgColor
@@ -1273,7 +1273,7 @@ class ModifierNodeTests: XCTestCase {
       layer.disableActions { layer.frame = movedFrame }
       item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: frame, newFrame: movedFrame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
-      // then: local geometry remains unchanged during position-only updates
+      // then: the shadow path remains unchanged during position-only updates
       expect(layer.shadowPath) == initialPath
       expect(layer.animationKeys()) == nil
 
@@ -1370,7 +1370,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: flexible shadows update, while fixed-size shadows retain their old paths
+      // then: flexible shadows update, while fixed-size shadows keep their old paths
       expect(directContext?.updateType) == .boundsChange
       expect(directLayer) === layers[0]
       expect(viewLayer) === layers[1]
@@ -1493,7 +1493,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the bounds change retains the configured z-index
+      // then: the bounds change keeps the configured z-index
       expect(layer.map { floor($0.zPosition) }) == 5
 
       // when: the view is refreshed with a new z-index set
@@ -1558,7 +1558,7 @@ class ModifierNodeTests: XCTestCase {
       #endif
     }
 
-    // bounds changes retain configuration
+    // bounds changes keep configuration
     do {
       // given: a view node with a captured interactive state
       var view: View?
@@ -1607,7 +1607,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: another bounds change retains the configured interaction state
+      // then: another bounds change keeps the configured interaction state
       #if canImport(AppKit)
       expect(view?.ignoreHitTest) == false
       #endif
@@ -1666,7 +1666,7 @@ class ModifierNodeTests: XCTestCase {
     expect(layer?.shouldRasterize) == true
     expect(layer?.rasterizationScale) == 3
 
-    // bounds changes retain configuration
+    // bounds changes keep configuration
     do {
       // given: a layer node with a captured rasterization scale
       var layer: CALayer?
@@ -1694,7 +1694,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: the frame changes but the configured rasterization is retained
+      // then: the frame changes but the configured rasterization is kept
       expect(layer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
       expect(layer?.shouldRasterize) == true
       expect(layer?.rasterizationScale) == 2
@@ -1705,7 +1705,7 @@ class ModifierNodeTests: XCTestCase {
       contentView.setNeedsLayout()
       contentView.layoutIfNeeded()
 
-      // then: another bounds change retains the configured rasterization
+      // then: another bounds change keeps the configured rasterization
       expect(layer?.shouldRasterize) == true
       expect(layer?.rasterizationScale) == 2
 
@@ -1721,7 +1721,7 @@ class ModifierNodeTests: XCTestCase {
 
   // MARK: - Update types
 
-  func test_layerModifiers_geometryUpdates_retainProperties() throws {
+  func test_layerModifiers_boundsChanges_keepProperties() throws {
     for isEnabled in [true, false] {
       // given: a layer with properties that differ from the modifier configuration
       let contentView = ComposeView()
@@ -1747,7 +1747,7 @@ class ModifierNodeTests: XCTestCase {
 
       let previousRenderBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
       for renderBounds in [previousRenderBounds.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
-        // when: a geometry update provides an animation timing
+        // when: a bounds change provides an animation timing
         item.update(.layer(layer), RenderableUpdateContext(
           updateType: .boundsChange,
           oldFrame: item.frame,
@@ -1760,7 +1760,7 @@ class ModifierNodeTests: XCTestCase {
           animationDecision: ComposeView.AnimationDecision.all
         ))
 
-        // then: every property is retained without adding animations
+        // then: every property is kept without adding animations
         expect(layer.backgroundColor) == Color.red.cgColor
         expect(layer.opacity) == 0.25
         expect(layer.borderColor) == Color.green.cgColor
@@ -1870,7 +1870,7 @@ class ModifierNodeTests: XCTestCase {
     }
   }
 
-  func test_interactive_geometryUpdates_retainState() throws {
+  func test_interactive_boundsChanges_keepState() throws {
     for isEnabled in [true, false] {
       // given: a view whose interaction state differs from the modifier configuration
       let contentView = ComposeView()
@@ -1885,7 +1885,7 @@ class ModifierNodeTests: XCTestCase {
 
       let previousRenderBounds = CGRect(x: 0, y: 0, width: 100, height: 50)
       for renderBounds in [previousRenderBounds.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
-        // when: the modifier receives a geometry update
+        // when: the modifier receives a bounds change
         item.update(.view(view), RenderableUpdateContext(
           updateType: .boundsChange,
           oldFrame: item.frame,
@@ -1898,7 +1898,7 @@ class ModifierNodeTests: XCTestCase {
           animationDecision: ComposeView.AnimationDecision.disabled
         ))
 
-        // then: the existing interaction state is retained
+        // then: the existing interaction state is kept
         #if canImport(AppKit)
         expect(view.ignoreHitTest) == !isEnabled
         #endif
@@ -1960,7 +1960,7 @@ class ModifierNodeTests: XCTestCase {
           animationDecision: ComposeView.AnimationDecision.disabled
         ))
 
-        // then: the non-view renderable retains its properties
+        // then: the non-view renderable keeps its properties
         expect(layer.opacity) == 0.5
         expect(layer.backgroundColor) == Color.red.cgColor
       }

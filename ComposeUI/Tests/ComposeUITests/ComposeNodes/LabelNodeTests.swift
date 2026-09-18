@@ -73,7 +73,7 @@ class LabelNodeTests: XCTestCase {
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
-  func test_boundsChange_retainsLabelUntilRefresh() throws {
+  func test_boundsChange_keepsLabelConfigurationUntilRefresh() throws {
     // given: a label whose text and font depend on the container width
     var renderedView: BaseTextView?
     let contentView = ComposeView { container in
@@ -97,7 +97,7 @@ class LabelNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: measurement and rendering retain the narrow configuration
+    // then: measurement and rendering keep the narrow configuration
     expect(renderedView === textView) == true
     expect(textView.attributedString.string) == "Compact"
     expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
@@ -108,7 +108,7 @@ class LabelNodeTests: XCTestCase {
     // when: an explicit refresh reevaluates the label
     contentView.refresh(animated: false)
 
-    // then: the retained label displays the new configuration
+    // then: the reused label displays the new configuration
     expect(renderedView === textView) == true
     expect(textView.attributedString.string) == "Expanded"
     expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)

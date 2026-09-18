@@ -92,7 +92,7 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(state.renderCount) == 1
   }
 
-  func test_scaleFactorChange_recomputesCachedGeometry() throws {
+  func test_scaleFactorChange_recomputesCachedLayout() throws {
     // given: a node whose layout depends on display scale
     let state = TestNode.State()
     let node = ScaleDependentNode(state: state)

@@ -105,9 +105,9 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
       parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
       parent.refresh(animated: false)
       let originalViews = try (0 ..< nestingDepth).map { try unwrap(nestedViews[$0]) }
-      let retainedLayer = try unwrap(layers[0])
-      expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
-      expect(retainedLayer.cornerRadius) == 10
+      let reusedLayer = try unwrap(layers[0])
+      expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+      expect(reusedLayer.cornerRadius) == 10
       expect(layers[1]) == nil
       defer {
         for view in originalViews {
@@ -141,10 +141,10 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
           bounds: CGRect(x: 0, y: 0, width: 160, height: 100)
         )
       }
-      expect(layers[0]) === retainedLayer
-      expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
-      expect(retainedLayer.cornerRadius) == 16
-      expect(retainedLayer.animationKeys()) == nil
+      expect(layers[0]) === reusedLayer
+      expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
+      expect(reusedLayer.cornerRadius) == 16
+      expect(reusedLayer.animationKeys()) == nil
       expect(layerContexts[0]?.updateType) == .boundsChange
       expect(layerContexts[0]?.animationTiming) == nil
       expect(layerContexts[0]?.animationDecision) == transitionsOnly
@@ -182,7 +182,7 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
       }
       expect(renderTypes.isEmpty) == true
       expect(layerContexts.isEmpty) == true
-      expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
+      expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
     }
   }
 
@@ -235,8 +235,8 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     parent.refresh(animated: false)
     let child = try unwrap(childView)
-    let retainedLayer = try unwrap(layers[0])
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+    let reusedLayer = try unwrap(layers[0])
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
     expect(layers[1]) == nil
     defer {
       for layer in layers.values {
@@ -257,8 +257,8 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
       previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100),
       bounds: CGRect(x: 0, y: 0, width: 160, height: 100)
     )
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
-    expect(retainedLayer.animationKeys()) == nil
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 160, height: 60)
+    expect(reusedLayer.animationKeys()) == nil
     expect(layerContexts[0]?.animationDecision) == ComposeView.AnimationDecision.disabled
     let insertedLayer = try unwrap(layers[1])
     expect(insertedLayer.frame) == CGRect(x: 0, y: 60, width: 160, height: 40)
@@ -803,7 +803,7 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     parent.setNeedsLayout()
     parent.layoutIfNeeded()
 
-    // then: the renderer caps the direct host just like a compose-view node and updates the retained row synchronously
+    // then: the renderer caps the direct host just like a compose-view node and updates the reused row synchronously
     expect(embeddedView) === child
     expect(layer) === row
     expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
@@ -827,7 +827,7 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     child.frame.size.width = 200
     child.refresh(animated: true)
 
-    // then: the parent's completed resize no longer caps the child's own geometry and attribute animations
+    // then: the parent's completed resize no longer caps the child's own frame and attribute animations
     expect(embeddedView) === child
     expect(layer) === row
     expect(row.frame) == CGRect(x: 0, y: 0, width: 200, height: 100)

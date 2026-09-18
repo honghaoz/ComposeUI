@@ -48,7 +48,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   public var isFixedWidth: Bool = false
   public var isFixedHeight: Bool = false
 
-  /// The retained content closure, identified consistently across copies of this node.
+  /// The content closure, identified consistently across copies of this node.
   private let contentProvider: ContentEvaluation.Provider<Content>
 
   /// Whether the SwiftUI content is static. Static content is not reevaluated on refresh.

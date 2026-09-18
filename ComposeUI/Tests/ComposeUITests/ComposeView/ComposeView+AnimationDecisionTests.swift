@@ -34,7 +34,7 @@ import ChouTiTest
 
 class ComposeView_AnimationDecisionTests: XCTestCase {
 
-  func test_scroll_runsTransitionsWithoutAnimatingRetainedItems() throws {
+  func test_scroll_runsTransitionsWithoutAnimatingReusedItems() throws {
     // given: rows with both transitions and update animations
     let timing = AnimationTiming.linear(duration: 10)
     var layers: [Int: CALayer] = [:]
@@ -57,13 +57,13 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
     view.refresh(animated: false)
     let leaving = try unwrap(layers[0])
-    let retained = try unwrap(layers[1])
+    let reused = try unwrap(layers[1])
 
-    // when: scrolling removes a row, retains a row, and inserts another
+    // when: scrolling removes a row, reuses a row, and inserts another
     view.setContentOffset(CGPoint(x: 0, y: 100))
     view.layoutIfNeeded()
 
-    // then: the leaving and entering rows transition while the retained row updates immediately
+    // then: the leaving and entering rows transition while the reused row updates immediately
     let entering = try unwrap(layers[2])
     expect(leaving.superlayer) != nil
     expect(leaving.opacity) == 0
@@ -71,10 +71,10 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     expect(removal.isAdditive) == true
     expect(removal.fromValue as? Float) == 1
     expect(removal.toValue as? Float) == 0
-    expect(layers[1]) === retained
-    expect(retained.frame) == CGRect(x: 0, y: 100, width: 100, height: 100)
-    expect(retained.opacity) == 1
-    expect(retained.animationKeys()) == nil
+    expect(layers[1]) === reused
+    expect(reused.frame) == CGRect(x: 0, y: 100, width: 100, height: 100)
+    expect(reused.opacity) == 1
+    expect(reused.animationKeys()) == nil
     expect(contexts[1]?.animationTiming) == nil
     expect(entering.opacity) == 1
     let insertion = try unwrap(entering.animation(forKey: "opacity") as? CABasicAnimation)
@@ -82,7 +82,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     expect(insertion.toValue as? Float) == 0
     expect(contexts[2]?.animationTiming) == nil
 
-    // when: another scroll retains the entering row during its insertion transition
+    // when: another scroll reuses the entering row during its insertion transition
     let insertionBeginTime = insertion.beginTime
     let insertionKeys = entering.animationKeys()
     view.setContentOffset(CGPoint(x: 0, y: 110))
@@ -168,7 +168,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
             expect(layer.animation(forKey: "opacity") != nil) == transitions
             layer.removeAllAnimations()
 
-            // when: a refresh changes the properties while retaining the same renderable
+            // when: a refresh changes the properties while reusing the same renderable
             cornerRadius = 12
             borderWidth = 4
             child.setPreparedContent(content, contentEvaluation: nil, animationDecision: decision)
@@ -252,7 +252,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     }
   }
 
-  func test_scrollDependentGeometry_updatesImmediatelyDespiteConfiguredAnimation() throws {
+  func test_scrollDependentFrame_updatesImmediatelyDespiteConfiguredAnimation() throws {
     // given: a renderable whose frame follows the viewport during scrolling
     var layer: CALayer?
     var updateContext: RenderableUpdateContext?
@@ -272,7 +272,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
       view.setContentOffset(CGPoint(x: 0, y: offset))
       view.layoutIfNeeded()
 
-      // then: geometry follows the offset without creating additive frame animations
+      // then: the frame follows the offset without creating additive frame animations
       expect(layer) === renderable
       expect(renderable.frame) == CGRect(x: 0, y: offset, width: 100, height: 30)
       expect(renderable.backgroundColor) == Color.red.cgColor
@@ -294,7 +294,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
   func test_refreshFlag_controlsTransitionsAndUpdatesTogether() throws {
     for animated in [false, true] {
       for disablesAnimations in [false, true] {
-        // given: initial content and a retained item that will change size on refresh
+        // given: initial content and a reused item that will change size on refresh
         let timing = AnimationTiming.linear(duration: 10)
         var replacement = false
         var height: CGFloat = 40
@@ -303,12 +303,12 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
         let view = ComposeView {
           ZStack {
             ColorNode(.red)
-              .id("retained")
+              .id("reused")
               .frame(width: 40, height: height)
               .animation(timing)
               .onUpdate { renderable, context in
-                layers["retained"] = renderable.layer
-                contexts["retained"] = context
+                layers["reused"] = renderable.layer
+                contexts["reused"] = context
               }
             ColorNode(.blue)
               .id(replacement ? "entering" : "leaving")
@@ -323,7 +323,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
         view.renderablePool = nil
         view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
         view.refresh(animated: false)
-        let retained = try unwrap(layers["retained"])
+        let reused = try unwrap(layers["reused"])
         let leaving = try unwrap(layers["leaving"])
         view.animationBehavior = disablesAnimations ? .disabled : .default
         replacement = true
@@ -335,11 +335,11 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
         // then: its flag controls both types of animation unless the view disables them
         let allowed = animated && !disablesAnimations
         let entering = try unwrap(layers["entering"])
-        expect(layers["retained"]) === retained
-        expect(retained.bounds.size) == CGSize(width: 40, height: 60)
-        expect(retained.backgroundColor) == Color.red.cgColor
-        expect(contexts["retained"]?.animationTiming) == (allowed ? timing : nil)
-        expect(retained.animation(forKey: "bounds.size") != nil) == allowed
+        expect(layers["reused"]) === reused
+        expect(reused.bounds.size) == CGSize(width: 40, height: 60)
+        expect(reused.backgroundColor) == Color.red.cgColor
+        expect(contexts["reused"]?.animationTiming) == (allowed ? timing : nil)
+        expect(reused.animation(forKey: "bounds.size") != nil) == allowed
         expect(entering.opacity) == 1
         expect(entering.backgroundColor) == Color.blue.cgColor
         expect(contexts["entering"]?.animationTiming) == nil
@@ -354,7 +354,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
   }
 
   func test_preparedDecision_isConsumedBeforeIndependentRefresh() throws {
-    // given: a mounted item and a prepared update that permits transitions but not retained animations
+    // given: a mounted item and a prepared update that permits transitions but not update animations
     var height: CGFloat = 70
     var layers: [Int: CALayer] = [:]
     var contexts: [Int: RenderableUpdateContext] = [:]
@@ -379,7 +379,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     let child = ComposeView { content() }
     child.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
     child.refresh(animated: false)
-    let retained = try unwrap(layers[0])
+    let reused = try unwrap(layers[0])
     for layer in layers.values {
       layer.removeAllAnimations()
     }
@@ -389,9 +389,9 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     child.setPreparedContent(content(), contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.transitionsOnly)
 
     // then: the two inherited decisions apply separately in the child
-    expect(layers[0]) === retained
-    expect(retained.bounds.size) == CGSize(width: 100, height: 20)
-    expect(retained.animationKeys()) == nil
+    expect(layers[0]) === reused
+    expect(reused.bounds.size) == CGSize(width: 100, height: 20)
+    expect(reused.animationKeys()) == nil
     expect(contexts[0]?.animationTiming) == nil
     expect(layers[1]?.animation(forKey: "opacity")) != nil
     for layer in layers.values {
@@ -405,9 +405,9 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     // then: consuming the prepared decision restores ordinary animated refresh behavior
     expect(contexts[0]?.animationDecision) == ComposeView.AnimationDecision.all
     expect(contexts[0]?.animationTiming) == .linear(duration: 10)
-    expect(layers[0]) === retained
-    expect(retained.bounds.size) == CGSize(width: 140, height: 20)
-    expect(retained.animation(forKey: "bounds.size")) != nil
+    expect(layers[0]) === reused
+    expect(reused.bounds.size) == CGSize(width: 140, height: 20)
+    expect(reused.animation(forKey: "bounds.size")) != nil
     for layer in layers.values {
       layer.removeAllAnimations()
     }
@@ -491,7 +491,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     renderable.add(custom, forKey: "customOpacity")
     let originalKeys = renderable.animationKeys()?.sorted()
 
-    // when: successive viewport sizes change the model geometry without new update animations
+    // when: successive viewport sizes change the model frame without new update animations
     for width: CGFloat in [150, 180, 120] {
       view.frame.size.width = width
       view.setNeedsLayout()
@@ -514,7 +514,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
       expect(renderable.animation(forKey: "customOpacity")?.duration) == 10
     }
 
-    // when: the same retained item scrolls
+    // when: the same reused item scrolls
     view.setContentOffset(CGPoint(x: 0, y: 20))
     view.layoutIfNeeded()
 

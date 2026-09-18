@@ -75,7 +75,7 @@
        frame: frame,
        make: { <#MyView#>(frame: $0.initialFrame ?? .zero) },
        update: { view, context in
-         // NOTE: this skips geometry-only updates because the view content doesn't depend on the bounds change.
+         // NOTE: this skips bounds-change updates because the view content doesn't depend on the bounds change.
          // adjust the cases if the content depends on the bounds or the scroll position.
          switch context.updateType {
          case .insert,

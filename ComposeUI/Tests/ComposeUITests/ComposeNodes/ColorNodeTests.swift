@@ -166,7 +166,7 @@ class ColorNodeTests: XCTestCase {
         // when: updating for a viewport resize
         item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds.offsetBy(dx: 0, dy: 20), renderBounds: CGRect(x: 0, y: 20, width: 100, height: 60), animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
 
-        // then: geometry updates do not initialize configuration
+        // then: bounds changes do not initialize configuration
         expect(renderable.layer.backgroundColor) == nil
 
         // when: inserting the renderable
@@ -181,7 +181,7 @@ class ColorNodeTests: XCTestCase {
           // when: scrolling or resizing with an animation timing
           item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: .zero, newFrame: .zero, previousRenderBounds: visibleBounds, renderBounds: renderBounds, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all))
 
-          // then: geometry updates retain the applied color without animation
+          // then: bounds changes keep the applied color without animation
           expect(renderable.layer.backgroundColor) == Color.red.cgColor
           expect(renderable.layer.animation(forKey: "backgroundColor")) == nil
         }
@@ -209,7 +209,7 @@ class ColorNodeTests: XCTestCase {
     }
   }
 
-  func test_boundsChange_retainsColor_withUnchangedItemFrame() throws {
+  func test_boundsChange_keepsColor_withUnchangedItemFrame() throws {
     // given: a fixed-size color node configured from the container width
     var renderedLayer: CALayer?
     var updateType: RenderableUpdateType?
@@ -241,7 +241,7 @@ class ColorNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: the same layer retains its configured color and frame
+    // then: the same layer keeps its configured color and frame
     expect(updateType) == .boundsChange
     expect(renderedLayer === layer) == true
     expect(layer.frame) == itemFrame
@@ -257,7 +257,7 @@ class ColorNodeTests: XCTestCase {
     expect(layer.backgroundColor) == Color.blue.cgColor
   }
 
-  func test_boundsChange_retainsColor_andInitializesNewlyVisibleItem() throws {
+  func test_boundsChange_keepsColor_andInitializesNewlyVisibleItem() throws {
     // given: two flexible-width rows sharing a configured color
     var color = Color.red
     var firstLayer: CALayer?
@@ -285,9 +285,9 @@ class ColorNodeTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the first row has the configured color and size
-    let retainedLayer = try firstLayer.unwrap()
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
-    expect(retainedLayer.backgroundColor) == Color.red.cgColor
+    let reusedLayer = try firstLayer.unwrap()
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+    expect(reusedLayer.backgroundColor) == Color.red.cgColor
     expect(secondLayer) == nil
 
     // when: resizing to reveal the second row without refreshing changed data
@@ -296,28 +296,28 @@ class ColorNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: both rows use the retained configuration at the new width
+    // then: both rows use the existing configuration at the new width
     let insertedLayer = try secondLayer.unwrap()
-    expect(firstLayer === retainedLayer) == true
-    expect(insertedLayer === retainedLayer) == false
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 120)
+    expect(firstLayer === reusedLayer) == true
+    expect(insertedLayer === reusedLayer) == false
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 120)
     expect(insertedLayer.frame) == CGRect(x: 0, y: 120, width: 200, height: 120)
-    expect(retainedLayer.backgroundColor) == Color.red.cgColor
+    expect(reusedLayer.backgroundColor) == Color.red.cgColor
     expect(insertedLayer.backgroundColor) == Color.red.cgColor
 
     // when: refreshing the changed data with both rows visible
     contentView.refresh(animated: false)
 
-    // then: both retained layers receive the new color consistently
-    expect(firstLayer === retainedLayer) == true
+    // then: both reused layers receive the new color consistently
+    expect(firstLayer === reusedLayer) == true
     expect(secondLayer === insertedLayer) == true
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 120)
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 120)
     expect(insertedLayer.frame) == CGRect(x: 0, y: 120, width: 200, height: 120)
-    expect(retainedLayer.backgroundColor) == Color.blue.cgColor
+    expect(reusedLayer.backgroundColor) == Color.blue.cgColor
     expect(insertedLayer.backgroundColor) == Color.blue.cgColor
   }
 
-  func test_scroll_retainsColor_andInitializesNewlyVisibleItem() throws {
+  func test_scroll_keepsColor_andInitializesNewlyVisibleItem() throws {
     // given: two color rows with only the first row visible
     var firstColor = Color.red
     var secondColor = Color.blue
@@ -350,9 +350,9 @@ class ColorNodeTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: only the first color is inserted and initialized
-    let retainedLayer = try firstLayer.unwrap()
+    let reusedLayer = try firstLayer.unwrap()
     expect(firstUpdateType) == .insert
-    expect(retainedLayer.backgroundColor) == Color.red.cgColor
+    expect(reusedLayer.backgroundColor) == Color.red.cgColor
     expect(secondLayer) == nil
 
     // when: scrolling to reveal the second row without refreshing changed data
@@ -362,14 +362,14 @@ class ColorNodeTests: XCTestCase {
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
-    // then: the retained layer keeps its color and the newly visible layer is initialized
+    // then: the reused layer keeps its color and the newly visible layer is initialized
     let insertedLayer = try secondLayer.unwrap()
     expect(firstUpdateType) == .boundsChange
-    expect(firstLayer === retainedLayer) == true
-    expect(retainedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
-    expect(retainedLayer.backgroundColor) == Color.red.cgColor
+    expect(firstLayer === reusedLayer) == true
+    expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
+    expect(reusedLayer.backgroundColor) == Color.red.cgColor
     expect(secondUpdateType) == .insert
-    expect(insertedLayer === retainedLayer) == false
+    expect(insertedLayer === reusedLayer) == false
     expect(insertedLayer.frame) == CGRect(x: 0, y: 120, width: 100, height: 120)
     expect(insertedLayer.backgroundColor) == Color.blue.cgColor
 
@@ -379,9 +379,9 @@ class ColorNodeTests: XCTestCase {
     // then: both existing layers receive the refreshed colors
     expect(firstUpdateType) == .refresh
     expect(secondUpdateType) == .refresh
-    expect(firstLayer === retainedLayer) == true
+    expect(firstLayer === reusedLayer) == true
     expect(secondLayer === insertedLayer) == true
-    expect(retainedLayer.backgroundColor) == Color.green.cgColor
+    expect(reusedLayer.backgroundColor) == Color.green.cgColor
     expect(insertedLayer.backgroundColor) == Color.yellow.cgColor
   }
 

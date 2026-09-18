@@ -194,7 +194,7 @@ class ButtonNodeTests: XCTestCase {
             let view = try (renderable.view as? ButtonView).unwrap()
             let viewLookup = DynamicLookup(view)
 
-            // then: geometry updates do not configure the button
+            // then: bounds changes do not configure the button
             expect(viewLookup.property("onTap")) == nil
           }
         }
@@ -216,7 +216,7 @@ class ButtonNodeTests: XCTestCase {
     }
   }
 
-  func test_update_skipsGeometryChanges() throws {
+  func test_update_skipsBoundsChanges() throws {
     // given: a configured button and a replacement configuration
     let frame = CGRect(x: 0, y: 0, width: 100, height: 50)
     let button = ButtonView(frame: frame)
@@ -342,7 +342,7 @@ class ButtonNodeTests: XCTestCase {
     button.setNeedsLayout()
     button.layoutIfNeeded()
 
-    // then: pressed content and interaction identity survive while geometry reflows
+    // then: pressed content and interaction identity survive while the frame reflows
     expect(renderedButton === button) == true
     expect(colorLayer === originalLayer) == true
     expect(textView === originalTextView) == true
@@ -424,7 +424,7 @@ class ButtonNodeTests: XCTestCase {
     button.layoutIfNeeded()
     button.onDoubleTap?()
 
-    // then: content and the existing double tap action are retained
+    // then: content and the existing double tap action are kept
     expect(layer.backgroundColor) == Color.red.cgColor
     expect(tappedGeneration) == 1
 

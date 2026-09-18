@@ -162,7 +162,7 @@ class ComposeViewTests: XCTestCase {
     expect(contentView.sizeThatFits(CGSize(width: 50, height: 50))) == CGSize(width: 50, height: 30)
   }
 
-  func test_sizeThatFits_doesNotReplaceRetainedContent() throws {
+  func test_sizeThatFits_doesNotReplaceReusedContent() throws {
     // given: rendered content whose next configuration has a different color and height
     var color = Color.red
     var height: CGFloat = 300
@@ -197,7 +197,7 @@ class ComposeViewTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: the retained tree still uses its original configuration and fresh geometry
+    // then: the reused tree still uses its original configuration with new frames
     expect(contentMakeCount) == 2
     expect(layer) === originalLayer
     expect(layer?.frame) == CGRect(x: 0, y: 0, width: 150, height: 300)
@@ -258,7 +258,7 @@ class ComposeViewTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: the same renderable receives the replacement configuration and geometry
+    // then: the same renderable receives the replacement configuration and frame
     expect(layer) === originalLayer
     expect(layer?.backgroundColor) == Color.blue.cgColor
     expect(layer?.bounds.size) == CGSize(width: 100, height: 80)
@@ -290,7 +290,7 @@ class ComposeViewTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: the retained view adapts to its own new proposal
+    // then: the reused view adapts to its own new proposal
     expect(renderedView) === originalView
     expect(originalView.bounds.size) == CGSize(width: 160, height: 80)
   }
@@ -334,7 +334,7 @@ class ComposeViewTests: XCTestCase {
     view.setContentOffset(CGPoint(x: 0, y: 20))
     view.layoutIfNeeded()
 
-    // then: the nested geometry remains consistent
+    // then: the nested frames remain consistent
     expect(layer?.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
     expect(nested.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
   }

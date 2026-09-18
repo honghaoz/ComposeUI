@@ -326,7 +326,7 @@ class ComposeViewNodeTests: XCTestCase {
     }
   }
 
-  func test_update_skipsGeometryChanges() throws {
+  func test_update_skipsBoundsChanges() throws {
     // given: a nested view rendering red content and a new blue configuration
     var node = ComposeViewNode {
       ColorNode(.blue)
@@ -529,7 +529,7 @@ class ComposeViewNodeTests: XCTestCase {
     expect(colorLayer?.backgroundColor) == Color.blue.cgColor
   }
 
-  func test_boundsChange_reflowsRetainedContentAfterMeasurement() throws {
+  func test_boundsChange_reflowsReusedContentAfterMeasurement() throws {
     // given: multiline nested content
     let originalText = "Nested content wraps onto several lines when the available width becomes narrow."
     let font = Font.systemFont(ofSize: 14)
@@ -570,14 +570,14 @@ class ComposeViewNodeTests: XCTestCase {
       child.setNeedsLayout()
       child.layoutIfNeeded()
 
-      // then: measurement is fresh while the mounted label reflows its retained text
+      // then: measurement is fresh while the mounted label reflows its original text
       expect(measuredSize) == freshLabel.size
-      var retainedLabel = LabelNode(originalText).font(font).numberOfLines(0)
-      _ = retainedLabel.layout(containerSize: CGSize(width: width, height: 300), context: context)
+      var originalLabel = LabelNode(originalText).font(font).numberOfLines(0)
+      _ = originalLabel.layout(containerSize: CGSize(width: width, height: 300), context: context)
       expect(nestedView) === child
       expect(textView) === labelView
-      expect(child.frame.size) == retainedLabel.size
-      expect(labelView.frame.size) == retainedLabel.size
+      expect(child.frame.size) == originalLabel.size
+      expect(labelView.frame.size) == originalLabel.size
       expect(labelView.attributedString.string) == originalText
       expect(labelView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == font
       if width == 80 {
@@ -643,7 +643,7 @@ class ComposeViewNodeTests: XCTestCase {
       child.setNeedsLayout()
       child.layoutIfNeeded()
 
-      // then: the retained content keeps the nested view's geometry, not the parent's measurement geometry
+      // then: the reused content keeps the nested view's frame, not the parent's measurement size
       expect(colorUpdateType) == .boundsChange
       expect(child.contentOffset().y) == 10
       expect(colorLayer) === layer
@@ -652,10 +652,10 @@ class ComposeViewNodeTests: XCTestCase {
     }
   }
 
-  func test_delayedInsertionAndReinsertion_useRetainedContent() throws {
+  func test_delayedInsertionAndReinsertion_useReusedContent() throws {
     // given: nested content laid out offscreen before application data changes
     var color = Color.red
-    var text = "Retained"
+    var text = "Reused"
     var nestedView: ComposeView?
     var colorLayer: CALayer?
     var textView: BaseTextView?
@@ -694,8 +694,8 @@ class ComposeViewNodeTests: XCTestCase {
     contentView.setContentOffset(CGPoint(x: 0, y: 125))
     contentView.layoutIfNeeded()
 
-    // then: delayed insertion renders the retained configuration within the scroll pass
-    expect(textView?.attributedString.string) == "Retained"
+    // then: delayed insertion renders the reused content within the scroll pass
+    expect(textView?.attributedString.string) == "Reused"
     let firstChild = try nestedView.unwrap()
     expect(firstChild.frame.size) == CGSize(width: 80, height: 50)
     expect(colorLayer?.backgroundColor) == Color.red.cgColor
@@ -707,7 +707,7 @@ class ComposeViewNodeTests: XCTestCase {
     // then: the first nested view is detached
     expect(firstChild.superview) == nil
 
-    // when: the retained node is inserted again
+    // when: the reused node is inserted again
     nestedView = nil
     textView = nil
     colorLayer = nil
@@ -715,7 +715,7 @@ class ComposeViewNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: reinsertion initializes the nested content without reevaluating application data
-    expect(textView?.attributedString.string) == "Retained"
+    expect(textView?.attributedString.string) == "Reused"
     expect(nestedView?.superview) != nil
     expect(nestedView?.frame.size) == CGSize(width: 80, height: 50)
     expect(colorLayer?.backgroundColor) == Color.red.cgColor

@@ -47,9 +47,9 @@ extension ComposeView {
   /// which is assigned per item in the render pass and needs no plan.
   enum ZOrderPlan {
 
-    /// The retained items keep their relative order and need no moves.
+    /// The reused items keep their relative order and need no moves.
     /// New items at the front of the z-order are placed correctly by the natural insertion order, e.g. new items revealed by scrolling down.
-    /// If `needsNewItemPlacement` is true, some new items are below retained items in the z-order and need to be placed after the update pass.
+    /// If `needsNewItemPlacement` is true, some new items are below reused items in the z-order and need to be placed after the update pass.
     case minimal(needsNewItemPlacement: Bool)
 
     /// Move every view item to the front in the items order.
@@ -79,62 +79,62 @@ extension ComposeView {
       return .minimal(needsNewItemPlacement: false)
     }
 
-    // `reusingIds` (items present in both the old and new render passes) are the "retained" items here.
+    // `reusingIds` (items present in both the old and new render passes) are the reused items.
     // In z-order terms they stay in the hierarchy and keep their existing positions, so we never move them.
     //
-    // The update pass leaves retained renderables where they already are and inserts new renderables at
+    // The update pass leaves reused renderables where they already are and inserts new renderables at
     // the front (top) of the z-order. This function decides whether that is enough, or a full re-stack
     // is needed.
     //
-    // Retained items are never moved in the cheap plan, so their relative order stays locked to `oldIds`.
+    // Reused items are never moved in the cheap plan, so their relative order stays locked to `oldIds`.
     // Therefore:
-    // - If the retained items appear in a different relative order in `newIds`, the cheap plan cannot
+    // - If the reused items appear in a different relative order in `newIds`, the cheap plan cannot
     //   reproduce it, so we re-stack everything -> `.full`.
-    // - Otherwise the retained items are already correct. New items were stacked at the front, which is
-    //   only correct for items that belong at the front. A new item that should sit *below* a retained
+    // - Otherwise the reused items are already correct. New items were stacked at the front, which is
+    //   only correct for items that belong at the front. A new item that should sit *below* a reused
     //   item got placed too high and must be nudged back down afterwards -> `needsNewItemPlacement = true`.
     //
-    // To compare the relative order, we walk `newIds` and match each retained id against the next retained
+    // To compare the relative order, we walk `newIds` and match each reused id against the next reused
     // id in `oldIds` (skipping ids removed this pass). They must line up one-for-one.
 
-    var oldIndex = 0 // cursor into `oldIds`, advanced in lockstep with the retained ids seen in `newIds`
+    var oldIndex = 0 // cursor into `oldIds`, advanced in lockstep with the reused ids seen in `newIds`
     let oldCount = oldIds.count
-    var seenNewItem = false // whether a new (non-retained) item has been passed in `newIds` so far
-    var needsNewItemPlacement = false // whether a new item ended up above a retained item
+    var seenNewItem = false // whether a new (not reused) item has been passed in `newIds` so far
+    var needsNewItemPlacement = false // whether a new item ended up above a reused item
 
     for id in newIds {
       if reusingIds.contains(id) {
-        // Case A: a retained item. It must match the next retained id in the old order.
+        // Case A: a reused item. It must match the next reused id in the old order.
 
-        // skip over old ids that were removed this pass (not retained) to reach the next retained id.
+        // skip over old ids that were removed this pass (not reused) to reach the next reused id.
         while oldIndex < oldCount, !reusingIds.contains(oldIds[oldIndex]) {
           oldIndex += 1
         }
         guard oldIndex < oldCount, oldIds[oldIndex] == id else {
-          // mismatch: the retained items were reordered, which the cheap plan can't reproduce.
+          // mismatch: the reused items were reordered, which the cheap plan can't reproduce.
           return .full
         }
         oldIndex += 1
 
         if seenNewItem {
-          // this retained item sits above a new item in `newIds`, but the update pass placed new items at
+          // this reused item sits above a new item in `newIds`, but the update pass placed new items at
           // the very front, so that new item ended up too high and must be moved back down below this one.
           needsNewItemPlacement = true
         }
       } else {
-        // Case B: a brand-new item. Remember it so any retained item that comes after (above) it in
+        // Case B: a brand-new item. Remember it so any reused item that comes after (above) it in
         // `newIds` flags that this new item was placed too high.
         seenNewItem = true
       }
     }
 
-    // the retained items matched their previous relative order, so the cheap plan applies.
+    // the reused items matched their previous relative order, so the cheap plan applies.
     return .minimal(needsNewItemPlacement: needsNewItemPlacement)
   }
 
   /// Places the new view renderables that are not at the front of the subview order to their correct positions.
   ///
-  /// The render update pass inserts new renderables at the front. For new view renderables that should be below retained
+  /// The render update pass inserts new renderables at the front. For new view renderables that should be below reused
   /// view renderables, this method moves them below their next view sibling, walking the items from the front to the
   /// back so that each move's anchor is already placed correctly.
   ///
@@ -143,7 +143,7 @@ extension ComposeView {
   /// so layer items need no placement.
   ///
   /// - Parameters:
-  ///   - reusingIds: The ids of the retained renderables.
+  ///   - reusingIds: The ids of the reused renderables.
   ///   - renderableItemIds: The ids of the renderables being rendered, in z-order (back to front).
   ///   - renderableMap: The map of the renderables being rendered, keyed by id.
   func placeNewRenderables(reusingIds: Set<ComposeNodeId>, renderableItemIds: [ComposeNodeId], renderableMap: [ComposeNodeId: Renderable]) {
@@ -152,9 +152,9 @@ extension ComposeView {
     // the next view sibling (already placed correctly), while walking from front to back
     var nextViewSibling: View?
 
-    // whether a retained view item exists above the current position;
-    // new items with no retained item above are already placed correctly by the natural insertion order
-    var hasRetainedViewAbove = false
+    // whether a reused view item exists above the current position;
+    // new items with no reused item above are already placed correctly by the natural insertion order
+    var hasReusedViewAbove = false
 
     for id in renderableItemIds.reversed() {
       guard let view = renderableMap[id]?.view else {
@@ -162,8 +162,8 @@ extension ComposeView {
       }
 
       if reusingIds.contains(id) {
-        hasRetainedViewAbove = true
-      } else if hasRetainedViewAbove, let sibling = nextViewSibling {
+        hasReusedViewAbove = true
+      } else if hasReusedViewAbove, let sibling = nextViewSibling {
         // a positioned insertion for each move, instead of a single sort pass over the subviews, because the subview
         // list can contain views that are not part of this render pass (e.g. views with an in-flight remove transition).
         // a sort pass with a partial order can move those unmanaged views or miss moves when they interleave with the

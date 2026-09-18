@@ -392,7 +392,7 @@ class DropShadowNodeTests: XCTestCase {
         layer.disableActions { layer.frame.size = size }
         item.update(renderable, RenderableUpdateContext(updateType: .boundsChange, oldFrame: oldFrame, newFrame: layer.frame, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: animationTiming != nil, allowsAnimations: animationTiming != nil)))
 
-        // then: the new local geometry and external path input are applied
+        // then: the new size and external path input are applied
         let expectedPath = CGPath(rect: layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
         expect(layer.shadowPath) == expectedPath
         expect(mask.frame) == layer.bounds
