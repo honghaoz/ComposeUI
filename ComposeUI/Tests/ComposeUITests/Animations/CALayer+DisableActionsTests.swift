@@ -220,7 +220,7 @@ class CALayer_DisableActionsTests: XCTestCase {
       }
 
       // then: the class is restored and the delegate is untouched
-      expect(object_getClass(layer) === CALayer.self) == true
+      try expect(ObjectIdentifier(unwrap(object_getClass(layer)))) == ObjectIdentifier(CALayer.self)
       expect(layer.delegate) === delegate
     }
   }

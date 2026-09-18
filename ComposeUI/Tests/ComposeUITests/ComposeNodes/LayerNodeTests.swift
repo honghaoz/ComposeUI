@@ -428,7 +428,7 @@ class LayerNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: the same layer receives its new size-dependent configuration
-    expect(renderedLayer === layer) == true
+    expect(renderedLayer) === layer
     expect(layer.frame) == CGRect(x: 0, y: 0, width: 200, height: 200)
     expect(layer.cornerRadius) == 50
     expect(layer.backgroundColor) == Color.red.cgColor
@@ -439,7 +439,7 @@ class LayerNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: custom updates can also apply scroll-dependent configuration without changing the content-space frame
-    expect(renderedLayer === layer) == true
+    expect(renderedLayer) === layer
     expect(layer.frame) == CGRect(x: 0, y: 0, width: 200, height: 200)
     expect(layer.cornerRadius) == 50
     expect(layer.backgroundColor) == Color.blue.cgColor

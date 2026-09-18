@@ -243,7 +243,7 @@ class ColorNodeTests: XCTestCase {
 
     // then: the same layer keeps its configured color and frame
     expect(updateType) == .boundsChange
-    expect(renderedLayer === layer) == true
+    expect(renderedLayer) === layer
     expect(layer.frame) == itemFrame
     expect(layer.backgroundColor) == Color.red.cgColor
 
@@ -252,7 +252,7 @@ class ColorNodeTests: XCTestCase {
 
     // then: refresh applies the new color to the same layer
     expect(updateType) == .refresh
-    expect(renderedLayer === layer) == true
+    expect(renderedLayer) === layer
     expect(layer.frame) == itemFrame
     expect(layer.backgroundColor) == Color.blue.cgColor
   }
@@ -298,8 +298,8 @@ class ColorNodeTests: XCTestCase {
 
     // then: both rows use the existing configuration at the new width
     let insertedLayer = try secondLayer.unwrap()
-    expect(firstLayer === reusedLayer) == true
-    expect(insertedLayer === reusedLayer) == false
+    expect(firstLayer) === reusedLayer
+    expect(insertedLayer) !== reusedLayer
     expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 120)
     expect(insertedLayer.frame) == CGRect(x: 0, y: 120, width: 200, height: 120)
     expect(reusedLayer.backgroundColor) == Color.red.cgColor
@@ -309,8 +309,8 @@ class ColorNodeTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: both reused layers receive the new color consistently
-    expect(firstLayer === reusedLayer) == true
-    expect(secondLayer === insertedLayer) == true
+    expect(firstLayer) === reusedLayer
+    expect(secondLayer) === insertedLayer
     expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 200, height: 120)
     expect(insertedLayer.frame) == CGRect(x: 0, y: 120, width: 200, height: 120)
     expect(reusedLayer.backgroundColor) == Color.blue.cgColor
@@ -365,11 +365,11 @@ class ColorNodeTests: XCTestCase {
     // then: the reused layer keeps its color and the newly visible layer is initialized
     let insertedLayer = try secondLayer.unwrap()
     expect(firstUpdateType) == .boundsChange
-    expect(firstLayer === reusedLayer) == true
+    expect(firstLayer) === reusedLayer
     expect(reusedLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 120)
     expect(reusedLayer.backgroundColor) == Color.red.cgColor
     expect(secondUpdateType) == .insert
-    expect(insertedLayer === reusedLayer) == false
+    expect(insertedLayer) !== reusedLayer
     expect(insertedLayer.frame) == CGRect(x: 0, y: 120, width: 100, height: 120)
     expect(insertedLayer.backgroundColor) == Color.blue.cgColor
 
@@ -379,8 +379,8 @@ class ColorNodeTests: XCTestCase {
     // then: both existing layers receive the refreshed colors
     expect(firstUpdateType) == .refresh
     expect(secondUpdateType) == .refresh
-    expect(firstLayer === reusedLayer) == true
-    expect(secondLayer === insertedLayer) == true
+    expect(firstLayer) === reusedLayer
+    expect(secondLayer) === insertedLayer
     expect(reusedLayer.backgroundColor) == Color.green.cgColor
     expect(insertedLayer.backgroundColor) == Color.yellow.cgColor
   }

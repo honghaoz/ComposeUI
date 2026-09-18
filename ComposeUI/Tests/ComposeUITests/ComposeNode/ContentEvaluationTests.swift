@@ -161,8 +161,8 @@ class ContentEvaluationTests: XCTestCase {
 
     // then: the value preserves its provider and result without retaining the evaluation
     expect(weakEvaluation) == nil
-    expect(weakProvider != nil) == true
-    expect(weakValue != nil) == true
+    expect(weakProvider) != nil
+    expect(weakValue) != nil
     expect(retainedValue?.value) === weakValue
 
     // when: the last lazy-value reference is released

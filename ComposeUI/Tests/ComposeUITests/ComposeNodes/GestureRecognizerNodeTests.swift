@@ -176,7 +176,7 @@ class GestureRecognizerNodeTests: XCTestCase {
           let recognizers: [GestureRecognizer]? = view.gestureRecognizers
           expect(recognizers?.count) == 1
           let tapRecognizer = try (recognizers?.first as? TapGestureRecognizer).unwrap()
-          expect(tapRecognizer.view === view) == true
+          expect(tapRecognizer.view) === view
           #if canImport(AppKit)
           expect(tapRecognizer.numberOfClicksRequired) == 1
           #endif
@@ -325,8 +325,8 @@ class GestureRecognizerNodeTests: XCTestCase {
     expect(updateType) == .insert
     expect(gestureView.frame) == itemFrame
     expect(initialRecognizers?.count) == 2
-    expect(initialTap.view === gestureView) == true
-    expect(initialPress.view === gestureView) == true
+    expect(initialTap.view) === gestureView
+    expect(initialPress.view) === gestureView
     #if canImport(AppKit)
     expect(initialTap.numberOfClicksRequired) == 1
     #endif
@@ -349,13 +349,13 @@ class GestureRecognizerNodeTests: XCTestCase {
     // then: the same overlay keeps its recognizers and configuration
     let resizedRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
     expect(updateType) == .boundsChange
-    expect(renderedGestureView === gestureView) == true
+    expect(renderedGestureView) === gestureView
     expect(gestureView.frame) == itemFrame
     expect(resizedRecognizers?.count) == 2
     expect(resizedRecognizers?.contains { $0 === initialTap }) == true
     expect(resizedRecognizers?.contains { $0 === initialPress }) == true
-    expect(initialTap.view === gestureView) == true
-    expect(initialPress.view === gestureView) == true
+    expect(initialTap.view) === gestureView
+    expect(initialPress.view) === gestureView
     #if canImport(AppKit)
     expect(initialTap.numberOfClicksRequired) == 1
     #endif
@@ -380,7 +380,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     // then: the visible overlay keeps its installed recognizers
     let scrolledRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
     expect(updateType) == .boundsChange
-    expect(renderedGestureView === gestureView) == true
+    expect(renderedGestureView) === gestureView
     expect(gestureView.frame) == itemFrame
     expect(scrolledRecognizers?.count) == 2
     expect(scrolledRecognizers?.contains { $0 === initialTap }) == true
@@ -401,13 +401,13 @@ class GestureRecognizerNodeTests: XCTestCase {
     let refreshedTap = try (refreshedRecognizers?.compactMap { $0 as? TapGestureRecognizer }.first).unwrap()
     let refreshedPress = try (refreshedRecognizers?.compactMap { $0 as? PressGestureRecognizer }.first).unwrap()
     expect(updateType) == .refresh
-    expect(renderedGestureView === gestureView) == true
+    expect(renderedGestureView) === gestureView
     expect(gestureView.frame) == itemFrame
     expect(refreshedRecognizers?.count) == 2
     expect(initialTap.view) == nil
     expect(initialPress.view) == nil
-    expect(refreshedTap.view === gestureView) == true
-    expect(refreshedPress.view === gestureView) == true
+    expect(refreshedTap.view) === gestureView
+    expect(refreshedPress.view) === gestureView
     #if canImport(AppKit)
     expect(refreshedTap.numberOfClicksRequired) == 3
     #endif
@@ -457,15 +457,15 @@ class GestureRecognizerNodeTests: XCTestCase {
 
     // then: the overlay resizes without replacing any recognizer
     let resizedRecognizers: [GestureRecognizer]? = gestureView.gestureRecognizers
-    expect(renderedGestureView === gestureView) == true
+    expect(renderedGestureView) === gestureView
     expect(gestureView.frame) == CGRect(x: 0, y: 0, width: 200, height: 150)
     expect(resizedRecognizers?.count) == 3
     expect(resizedRecognizers?.contains { $0 === tap }) == true
     expect(resizedRecognizers?.contains { $0 === press }) == true
     expect(resizedRecognizers?.contains { $0 === pan }) == true
-    expect(tap.view === gestureView) == true
-    expect(press.view === gestureView) == true
-    expect(pan.view === gestureView) == true
+    expect(tap.view) === gestureView
+    expect(press.view) === gestureView
+    expect(pan.view) === gestureView
     expect(tap.state) == .possible
     expect(press.state) == .possible
     expect(pan.state) == .possible
@@ -554,10 +554,10 @@ class GestureRecognizerNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: resizing preserves the original active recognizer and its output
-    expect(renderedGestureView === gestureView) == true
+    expect(renderedGestureView) === gestureView
     expect(gestureView.frame) == CGRect(x: 0, y: 0, width: 200, height: 300)
     expect(gestureView.gestureRecognizers.contains { $0 === pan }) == true
-    expect(pan.view === gestureView) == true
+    expect(pan.view) === gestureView
     expect(pan.state) == .began
     expect(gestureView.layer().backgroundColor) == Color.green.cgColor
 
@@ -567,8 +567,8 @@ class GestureRecognizerNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: scrolling also preserves the recognizer state and output
-    expect(renderedGestureView === gestureView) == true
-    expect(pan.view === gestureView) == true
+    expect(renderedGestureView) === gestureView
+    expect(pan.view) === gestureView
     expect(pan.state) == .began
     expect(gestureView.layer().backgroundColor) == Color.green.cgColor
 
@@ -584,7 +584,7 @@ class GestureRecognizerNodeTests: XCTestCase {
 
     // then: the original gesture completes on the same view
     expect(gestureView.layer().backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
-    expect(pan.view === gestureView) == true
+    expect(pan.view) === gestureView
   }
   #endif
 

@@ -293,7 +293,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(textView.text) == ""
     expect(textView.textContainerInset) == .zero
     expect(textView.isUserInteractionEnabled) == true
-    expect(textView.backgroundColor == nil) == true
+    expect(textView.backgroundColor) == nil
     expect(textView.contentInset) == .zero
     expect(textView.horizontalScrollIndicatorInsets) == .zero
     expect(textView.verticalScrollIndicatorInsets) == .zero
@@ -564,7 +564,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
 
     // then: by default a view uses the process-wide shared pool, so reuse is amortized across views
-    expect(view.renderablePool === RenderablePool.shared) == true
+    expect(view.renderablePool as? RenderablePool) === RenderablePool.shared
   }
 
   func test_renderablePool_disabled_doesNotRecycle() {

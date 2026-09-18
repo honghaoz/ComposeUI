@@ -367,7 +367,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
         expect(layers["inserted"]) == nil
 
         // when: the run loop applies the coalesced refresh
-        expect(layers["inserted"] != nil).toEventually(beTrue())
+        expect(layers["inserted"]).toEventuallyNot(beNil())
 
         // then: non-animated dominates in either order without losing the prepared content
         let inserted = try unwrap(layers["inserted"])
@@ -424,7 +424,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     child.setNeedsRefresh(animated: false)
 
     // then: the child applies the original prepared evaluation rather than reevaluating its content
-    expect(hostedView != nil).toEventually(beEqual(to: true))
+    expect(hostedView).toEventuallyNot(beNil())
     let host = try unwrap(hostedView)
     let preparedRoot = try unwrap(renderedRoot)
     expect(child.refreshCount) == 2

@@ -111,9 +111,9 @@ class ComposeView_ZOrderTests: XCTestCase {
       }
       switch renderable {
       case .view(let renderableView):
-        expect(renderableView.superview === contentView, "renderable view should be in content view, id: \(id)", file: file, line: line) == true
+        expect(renderableView.superview, "renderable view should be in content view, id: \(id)", file: file, line: line) === contentView
       case .layer(let renderableLayer):
-        expect(renderableLayer.superlayer === contentView.layer(), "renderable layer should be in content view, id: \(id)", file: file, line: line) == true
+        expect(renderableLayer.superlayer, "renderable layer should be in content view, id: \(id)", file: file, line: line) === contentView.layer()
       }
     }
 

@@ -98,7 +98,7 @@ class LabelNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: measurement and rendering keep the narrow configuration
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.attributedString.string) == "Compact"
     expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
     var expectedNode = LabelNode("Compact").font(.systemFont(ofSize: 12))
@@ -109,7 +109,7 @@ class LabelNodeTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the reused label displays the new configuration
-    expect(renderedView === textView) == true
+    expect(renderedView) === textView
     expect(textView.attributedString.string) == "Expanded"
     expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
     #if canImport(AppKit)
