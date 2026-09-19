@@ -62,9 +62,9 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   /// - Parameters:
   ///   - layer: The external layer.
   ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size. If nil (default), the layer's `bounds.size` is used.
-  ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
+  ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy. It must not change the transform, see `Renderable`.
   ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
-  ///   - willUpdate: A closure to be called when the layer is about to be updated.
+  ///   - willUpdate: A closure to be called when the layer is about to be updated. It must not change the transform, see `Renderable`.
   ///   - update: A closure to update the layer.
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
@@ -100,9 +100,9 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - make: A closure to create a layer. To avoid incorrect transition animation, the layer should be created with frame set to `context.initialFrame` if it's provided.
   ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
   ///     Required for fixed sizing (when using `fixedSize(width:height:)`).
-  ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
+  ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy. It must not change the transform, see `Renderable`.
   ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
-  ///   - willUpdate: A closure to be called when the layer is about to be updated.
+  ///   - willUpdate: A closure to be called when the layer is about to be updated. It must not change the transform, see `Renderable`.
   ///   - update: A closure to update the layer.
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.

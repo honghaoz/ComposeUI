@@ -51,11 +51,40 @@ extension CALayer {
   /// - Returns: The layer's position.
   @_spi(Private)
   public func position(from frame: CGRect) -> CGPoint {
+    // a layer's `frame` is undefined under a non-identity transform, so a frame read from such a layer is meaningless
     ComposeUI.assert(CATransform3DEqualToTransform(transform, CATransform3DIdentity), "CALayer.position(from:frame:) only works with identity transform.")
-    return CGPoint(
-      x: frame.origin.x + anchorPoint.x * frame.width,
-      y: frame.origin.y + anchorPoint.y * frame.height
+    return anchoredPosition(in: frame)
+  }
+
+  /// The position the layer has when its bounds fill the frame, based on its `anchorPoint`.
+  ///
+  /// Unlike `position(from:)`, the frame is a layout-space target, not the layer's own frame, so the transform doesn't
+  /// matter: the model `position` is the layout position the transform is applied around.
+  private func anchoredPosition(in frame: CGRect) -> CGPoint {
+    // `origin + anchorPoint * size` rounds twice and can differ by an ulp from Core Animation's fused result for
+    // anchor points other than 0, 0.5, and 1, so a fused multiply-add is used to match it
+    CGPoint(
+      x: frame.origin.x.addingProduct(anchorPoint.x, frame.width),
+      y: frame.origin.y.addingProduct(anchorPoint.y, frame.height)
     )
+  }
+
+  /// Whether the layer's model geometry already matches the frame, within `Constants.geometryTolerance`.
+  ///
+  /// - Parameter frame: The frame to compare with.
+  /// - Returns: `true` if the layer's position and size match the frame's.
+  func hasFrame(_ frame: CGRect) -> Bool {
+    // the model `position` and `bounds.size` are compared instead of `frame`, because `frame` is derived from them and
+    // does not round-trip exactly for third-pixel values (frames rounded for a 3x display), which would report an
+    // unchanged frame as changed. they are also independent of the transform, so no identity precondition here.
+    // the tolerance covers geometry written by other arithmetic than `anchoredPosition(in:)`, for example by AppKit
+    // deriving a layer-backed view's geometry from its frame.
+    let targetPosition = anchoredPosition(in: frame)
+    let tolerance = Constants.geometryTolerance
+    return position.x.isApproximatelyEqual(to: targetPosition.x, absoluteTolerance: tolerance)
+      && position.y.isApproximatelyEqual(to: targetPosition.y, absoluteTolerance: tolerance)
+      && bounds.width.isApproximatelyEqual(to: frame.width, absoluteTolerance: tolerance)
+      && bounds.height.isApproximatelyEqual(to: frame.height, absoluteTolerance: tolerance)
   }
 
   /// Restores the layer's model transform to identity.

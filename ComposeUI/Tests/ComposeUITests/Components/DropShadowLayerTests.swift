@@ -82,4 +82,47 @@ final class DropShadowLayerTests: XCTestCase {
     expect(layer.mask) == nil
     expect(mask.animationKeys() ?? []) == []
   }
+
+  func test_update_withAnimation_animatesMaskFrame_onlyWhenBoundsChange() throws {
+    // given: a layer updated with a cutout, with the mask laid out for its bounds
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    func update(animationTiming: AnimationTiming?) {
+      layer.update(
+        color: .black,
+        opacity: 0.5,
+        radius: 4,
+        offset: .zero,
+        path: { CGPath(rect: $0.bounds, transform: nil) },
+        cutoutPath: { CGPath(rect: $0.bounds.insetBy(dx: 10, dy: 10), transform: nil) },
+        animationTiming: animationTiming
+      )
+    }
+
+    update(animationTiming: nil)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    expect(mask.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: updating with animation timing at the same size
+    update(animationTiming: .easeInEaseOut())
+
+    // then: the mask's frame is unchanged, so only its path animates
+    expect(mask.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(mask.animation(forKey: "position")) == nil
+    expect(mask.animation(forKey: "bounds.size")) == nil
+    expect(mask.animation(forKey: "path")) != nil
+
+    // when: updating with animation timing after a resize
+    layer.frame = CGRect(x: 0, y: 0, width: 150, height: 80)
+    update(animationTiming: .easeInEaseOut())
+
+    // then: the mask follows the new bounds, animating its size and the position its center moved to
+    expect(mask.frame) == CGRect(x: 0, y: 0, width: 150, height: 80)
+    expect(mask.animation(forKey: "position")) != nil
+    expect(mask.animation(forKey: "bounds.size")) != nil
+  }
 }

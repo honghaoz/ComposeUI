@@ -195,6 +195,7 @@ public extension ComposeNode {
   /// Execute a block when the renderables provided by the node are about to be inserted into the renderable hierarchy.
   ///
   /// - Note: All renderables provided by the node will have the block executed.
+  /// - Note: The block must not change the renderable's transform, see `Renderable`.
   /// - Parameter willInsert: The block to execute.
   /// - Returns: A new node with the block added.
   func willInsert(_ willInsert: @escaping (_ renderable: Renderable, _ context: RenderableInsertContext) -> Void) -> some ComposeNode {
@@ -214,6 +215,7 @@ public extension ComposeNode {
   /// Execute a block when the renderables provided by the node are about to be updated.
   ///
   /// - Note: All renderables provided by the node will have the block executed.
+  /// - Note: The block must not change the renderable's transform, see `Renderable`.
   ///
   /// - Parameter willUpdate: The block to execute.
   /// - Returns: A new node with the block added.

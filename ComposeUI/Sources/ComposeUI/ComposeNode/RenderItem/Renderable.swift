@@ -37,6 +37,12 @@ import UIKit
 #endif
 
 /// A renderable that is either a view or a layer.
+///
+/// The render pass owns the renderable's frame and transform: it resets the transform to identity at the start of the
+/// pass, applies the frame after the `willInsert` or `willUpdate` block, and calls the `update` block last. A layer's
+/// frame is undefined under a non-identity transform, so the transform must still be identity when the frame is
+/// applied: `willInsert` and `willUpdate` must not change it. Set a transform in `update`, it is reset and re-applied
+/// on every pass.
 public enum Renderable {
 
   case view(View)
@@ -92,6 +98,67 @@ public enum Renderable {
     case .layer(let layer):
       layer.frame = frame
     }
+  }
+
+  /// Whether every copy of the renderable's geometry already matches the frame, within `Constants.geometryTolerance`.
+  ///
+  /// - Parameter frame: The frame to compare with.
+  /// - Returns: `true` if the renderable is already at the frame.
+  func hasFrame(_ frame: CGRect) -> Bool {
+    switch self {
+    case .view(let view):
+      #if canImport(AppKit)
+      // an AppKit view stores its own frame, which follows the layer only through `CALayer.setKeyPathValue`, so the
+      // view must agree too, otherwise a view left behind by a direct layer write would never be re-synced. the
+      // tolerance covers AppKit's own arithmetic, which derives the layer geometry from the view's frame exactly on
+      // the 1x and 2x pixel grids but not on a third-pixel grid.
+      // a UIKit view's frame is the layer's, so comparing it would be redundant.
+      let viewFrame = view.frame
+      let tolerance = Constants.geometryTolerance
+      guard viewFrame.origin.x.isApproximatelyEqual(to: frame.origin.x, absoluteTolerance: tolerance),
+            viewFrame.origin.y.isApproximatelyEqual(to: frame.origin.y, absoluteTolerance: tolerance),
+            viewFrame.width.isApproximatelyEqual(to: frame.width, absoluteTolerance: tolerance),
+            viewFrame.height.isApproximatelyEqual(to: frame.height, absoluteTolerance: tolerance)
+      else {
+        return false
+      }
+      #endif
+      return view.layer().hasFrame(frame)
+    case .layer(let layer):
+      return layer.hasFrame(frame)
+    }
+  }
+
+  /// Applies the frame unless the renderable already has it, animating the change with the timing if given.
+  ///
+  /// - Precondition: The renderable layer's transform must be identity, see `Renderable`.
+  ///
+  /// - Parameters:
+  ///   - frame: The frame to apply.
+  ///   - animationTiming: The timing to animate the change with, or `nil` to apply it immediately.
+  func updateFrame(_ frame: CGRect, animationTiming: AnimationTiming?) {
+    assertIdentityTransform()
+
+    // re-applying an unchanged frame is wasteful: without a timing it dirties the renderable and on AppKit posts a
+    // frame-change notification that forces a layout pass, with a timing it adds zero-delta animations that live for
+    // the timing's duration and pile up under repeated passes.
+    guard !hasFrame(frame) else {
+      return
+    }
+
+    // the layer is animated only when it moves. when it already has the frame and only an AppKit view's own frame
+    // copy is out of sync, setting the frame re-syncs the copy without adding zero-delta animations.
+    if let animationTiming, !layer.hasFrame(frame) {
+      layer.animateFrame(to: frame, timing: animationTiming)
+    } else {
+      setFrame(frame)
+    }
+  }
+
+  /// Asserts, in debug builds, that the renderable's transform is identity, as the render pass requires when it applies
+  /// the frame, see `Renderable`.
+  func assertIdentityTransform() {
+    ComposeUI.assert(CATransform3DIsIdentity(layer.transform), "the renderable's transform must be identity when its frame is applied, set a transform in `update` instead of `willInsert` or `willUpdate`")
   }
 
   /// Add the renderable as a sublayer to the parent view.

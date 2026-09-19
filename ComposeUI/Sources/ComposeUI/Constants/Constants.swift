@@ -56,4 +56,12 @@ public enum Constants {
 
   /// The default scale factor for the UI.
   static let defaultScaleFactor: CGFloat = 2.0
+
+  /// The tolerance for comparing geometry values that went through different floating-point arithmetic.
+  ///
+  /// A layer's model geometry is computed by Core Animation and, for a layer-backed AppKit view, by AppKit, each with
+  /// its own arithmetic, so values describing the same geometry can differ by a few ulps. The tolerance is far above
+  /// that noise and far below the pixel grid frames are rounded to before they are applied, so it never hides a real
+  /// change.
+  static let geometryTolerance: CGFloat = 1e-6
 }
