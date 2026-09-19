@@ -29,6 +29,8 @@
 - The insert transition context gains `revivalPosition` and `revivalTransform` for taking-over transitions.
 - `ComposeView` now re-renders on display scale changes on iOS/tvOS, matching the existing macOS handling.
 - `ComposeView.setNeedsRefresh(animated:)` now merges coalesced requests to non-animated when any request was non-animated.
+- A render pass no longer animates the frame of a reused renderable whose frame is unchanged, and it recognizes unchanged frames on 3x displays too, where the frame derived from the layer does not round-trip and used to be re-applied on every pass. `DropShadowLayer` and `InnerShadowLayer` skip their mask's frame animations the same way.
+- The render pass now asserts, in debug builds, that a renderable's transform is identity when it applies the frame, so a `willInsert` or `willUpdate` block that sets a transform is reported consistently instead of misrendering or asserting only on animated passes. Set transforms in `update`, where they are reset and re-applied on every pass. See `Renderable`.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

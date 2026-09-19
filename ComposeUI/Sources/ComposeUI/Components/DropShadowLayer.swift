@@ -163,7 +163,9 @@ open class DropShadowLayer: CALayer {
     let maskPath = maskLayerPath(cutoutPath: cutoutPath(self), radius: radius, offset: offset)
 
     if let animationTiming {
-      maskLayer.animateFrame(to: bounds, timing: animationTiming)
+      if !maskLayer.hasFrame(bounds) {
+        maskLayer.animateFrame(to: bounds, timing: animationTiming)
+      }
       maskLayer.animate(
         keyPath: "path",
         timing: animationTiming,

@@ -230,11 +230,12 @@ class InnerShadowNodeTests: XCTestCase {
             expect(layer.animation(forKey: "shadowOffset")) != nil
             expect(layer.animation(forKey: "shadowPath")) != nil
 
+            // the mask layer's frame is unchanged, so only its path animates
             let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
             expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 3, height: 4)
             expect(maskLayer.path) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
-            expect(maskLayer.animation(forKey: "position")) != nil
-            expect(maskLayer.animation(forKey: "bounds.size")) != nil
+            expect(maskLayer.animation(forKey: "position")) == nil
+            expect(maskLayer.animation(forKey: "bounds.size")) == nil
             expect(maskLayer.animation(forKey: "path")) != nil
 
             ComposeUI.Assert.resetTestAssertionFailureHandler()
@@ -295,11 +296,12 @@ class InnerShadowNodeTests: XCTestCase {
             expect(layer.animation(forKey: "shadowOffset")) != nil
             expect(layer.animation(forKey: "shadowPath")) != nil
 
+            // the mask layer's frame is unchanged, so only its path animates
             let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
             expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 3, height: 4)
             expect(maskLayer.path) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
-            expect(maskLayer.animation(forKey: "position")) != nil
-            expect(maskLayer.animation(forKey: "bounds.size")) != nil
+            expect(maskLayer.animation(forKey: "position")) == nil
+            expect(maskLayer.animation(forKey: "bounds.size")) == nil
             expect(maskLayer.animation(forKey: "path")) != nil
 
             ComposeUI.Assert.resetTestAssertionFailureHandler()

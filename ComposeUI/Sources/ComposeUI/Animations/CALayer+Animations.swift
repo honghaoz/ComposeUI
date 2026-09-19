@@ -242,7 +242,7 @@ public extension CALayer {
   }
 
   internal func setKeyPathValue(_ keyPath: String, _ value: Any) {
-    #if os(macOS)
+    #if canImport(AppKit)
     if keyPath.hasPrefix("position"), let backedView {
       CATransaction.disableAnimations {
         /**

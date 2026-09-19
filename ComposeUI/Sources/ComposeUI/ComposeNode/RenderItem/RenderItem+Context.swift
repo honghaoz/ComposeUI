@@ -78,6 +78,9 @@ public struct RenderableUpdateContext: Equatable {
   public let updateType: RenderableUpdateType
 
   /// The old frame of the renderable before the update.
+  ///
+  /// The frame is read from the renderable, so it can differ from the frame the previous update applied by
+  /// floating-point noise, for example on a 3x display. Compare it with `newFrame` with a tolerance rather than exactly.
   public let oldFrame: CGRect
 
   /// The new frame that the renderable should be set to after the update.

@@ -86,9 +86,9 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   /// - Parameters:
   ///   - view: The external view.
   ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size. If nil (default), the view's `bounds.size` is used.
-  ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
+  ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy. It must not change the transform, see `Renderable`.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
-  ///   - willUpdate: A closure to be called when the view is about to be updated.
+  ///   - willUpdate: A closure to be called when the view is about to be updated. It must not change the transform, see `Renderable`.
   ///   - update: A closure to update the view.
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
@@ -128,9 +128,9 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
   ///     **Important** when using fixed sizing (via `fixedSize(width:height:)`). If `nil`, the node falls back to creating a measurement view via `make` (without `update` configuration),
   ///     which is inefficient and may produce wrong sizes for views whose size depends on configuration applied via `update` (e.g., a label with text).
-  ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
+  ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy. It must not change the transform, see `Renderable`.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
-  ///   - willUpdate: A closure to be called when the view is about to be updated.
+  ///   - willUpdate: A closure to be called when the view is about to be updated. It must not change the transform, see `Renderable`.
   ///   - update: A closure to update the view.
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.

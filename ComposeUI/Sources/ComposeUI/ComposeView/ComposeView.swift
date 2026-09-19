@@ -1315,14 +1315,7 @@ open class ComposeView: BaseScrollView {
 
         updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
-        if let animationTiming {
-          renderable.layer.animateFrame(to: newFrame, timing: animationTiming)
-        } else if newFrame != oldFrame {
-          // a reused renderable keeps the same content-space frame while scrolling (the common case),
-          // so re-applying an unchanged frame is wasteful: it dirties the renderable and on AppKit, posts a
-          // frame-change notification that forces a layout pass. Skip it unless the frame actually changed.
-          renderable.setFrame(newFrame)
-        }
+        renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
         renderableItem.update(renderable, renderableUpdateContext)
 
@@ -1397,6 +1390,7 @@ open class ComposeView: BaseScrollView {
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
 
         renderable.addToParent(contentView())
+        renderable.assertIdentityTransform()
         renderable.setFrame(newFrame)
 
         updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
