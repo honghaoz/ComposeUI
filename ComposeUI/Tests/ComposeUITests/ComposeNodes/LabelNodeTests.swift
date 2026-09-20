@@ -42,6 +42,9 @@ class LabelNodeTests: XCTestCase {
       expect(message) == "layout(containerSize:context:) should be called before calling size"
       assertionCount += 1
     }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let labelNode = LabelNode("Test")
 
@@ -50,8 +53,6 @@ class LabelNodeTests: XCTestCase {
 
     // then: it should trigger the assertion
     expect(assertionCount) == 1
-
-    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
   func test_renderableItems_assertion() throws {
@@ -61,6 +62,9 @@ class LabelNodeTests: XCTestCase {
       expect(message) == "layout(containerSize:context:) should be called before calling renderableItems(in:)"
       assertionCount += 1
     }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let labelNode = LabelNode("Test")
 
@@ -69,8 +73,6 @@ class LabelNodeTests: XCTestCase {
 
     // then: it should trigger the assertion
     expect(assertionCount) == 1
-
-    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
   func test_boundsChange_keepsLabelConfigurationUntilRefresh() throws {

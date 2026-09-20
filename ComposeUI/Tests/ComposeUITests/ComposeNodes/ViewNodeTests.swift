@@ -625,6 +625,9 @@ class ViewNodeTests: XCTestCase {
       expect(message) == "\(view) should be layer backed. Please set `wantsLayer == true`."
       assertionCount += 1
     }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
 
     // when: refreshing the compose view
     container.refresh(animated: false)

@@ -111,6 +111,9 @@ class NSAttributedString_ThemeTests: XCTestCase {
       }
       assertionCount += 1
     }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
 
     let attributedString = NSAttributedString(
       string: "Hello, world!",

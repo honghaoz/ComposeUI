@@ -238,6 +238,9 @@ class LayeredStackNodeTests: XCTestCase {
       expect(message) == "renderableItems(in:) requires layout(containerSize:context:) to be called first"
       assertionCount += 1
     }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     // when: calling renderableItems without calling layout first
     let node = ZStack {
@@ -247,8 +250,6 @@ class LayeredStackNodeTests: XCTestCase {
     // then: it should trigger the assertion and provide no items
     expect(node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).isEmpty) == true
     expect(assertionCount) == 1
-
-    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
   func test_renderableItemsBoundingRect() {
