@@ -99,12 +99,12 @@ open class InnerShadowLayer: CALayer {
   ///   - offset: The offset of the shadow.
   ///   - holePath: The path of the "punch hole".
   ///   - clipPath: The path to clip the shadow. If `nil`, the shadow will be clipped by the `holePath`.
-  ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
+  ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are animated. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     holePath: @escaping (InnerShadowLayer) -> CGPath,
+                     holePath: (InnerShadowLayer) -> CGPath,
                      clipPath: ((InnerShadowLayer) -> CGPath)?,
                      animationTiming: AnimationTiming? = nil)
   {
@@ -140,31 +140,46 @@ open class InnerShadowLayer: CALayer {
     }
 
     if let animationTiming {
+      // only the properties whose model value differs from the target are animated: an unchanged additive one would
+      // add a zero-delta animation that lives for the timing's duration and piles up on repeated passes, and an
+      // unchanged non-additive one would replace an in-flight animation to the same target and restart its easing.
       if !maskLayer.hasFrame(bounds) {
         maskLayer.animateFrame(to: bounds, timing: animationTiming)
       }
-      maskLayer.animate(
-        keyPath: "path",
-        timing: animationTiming,
-        from: { $0.presentation().assertNotNil()?.path },
-        to: { _ in clipPath }
-      )
+      if maskLayer.path != clipPath {
+        maskLayer.animate(
+          keyPath: "path",
+          timing: animationTiming,
+          from: { $0.presentation().assertNotNil()?.path },
+          to: { _ in clipPath }
+        )
+      }
 
-      animate(
-        keyPath: "shadowColor",
-        timing: animationTiming,
-        from: { $0.presentation()?.shadowColor },
-        to: { _ in color }
-      )
-      animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
-      animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
-      animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
-      animate(
-        keyPath: "shadowPath",
-        timing: animationTiming,
-        from: { $0.presentation()?.shadowPath },
-        to: { _ in innerShadowPath }
-      )
+      if shadowColor != color {
+        animate(
+          keyPath: "shadowColor",
+          timing: animationTiming,
+          from: { $0.presentation()?.shadowColor },
+          to: { _ in color }
+        )
+      }
+      if shadowOpacity != opacity {
+        animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
+      }
+      if shadowRadius != radius {
+        animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
+      }
+      if shadowOffset != offset {
+        animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
+      }
+      if shadowPath != innerShadowPath {
+        animate(
+          keyPath: "shadowPath",
+          timing: animationTiming,
+          from: { $0.presentation()?.shadowPath },
+          to: { _ in innerShadowPath }
+        )
+      }
     } else {
       maskLayer.disableActions(for: "position", "bounds", "path") {
         maskLayer.frame = bounds

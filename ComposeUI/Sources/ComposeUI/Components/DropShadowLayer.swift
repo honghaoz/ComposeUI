@@ -91,12 +91,12 @@ open class DropShadowLayer: CALayer {
   ///   - offset: The offset of the shadow.
   ///   - path: The path of the shadow.
   ///   - cutoutPath: The path of the cutout. If provided, the shadow will be clipped for the cutout path. Default to `nil`.
-  ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
+  ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are animated. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     path: @escaping (DropShadowLayer) -> CGPath,
+                     path: (DropShadowLayer) -> CGPath,
                      cutoutPath: ((DropShadowLayer) -> CGPath)? = nil,
                      animationTiming: AnimationTiming? = nil)
   {
@@ -104,21 +104,36 @@ open class DropShadowLayer: CALayer {
     let opacity = Float(opacity)
 
     if let animationTiming {
-      animate(
-        keyPath: "shadowColor",
-        timing: animationTiming,
-        from: { $0.presentation()?.shadowColor },
-        to: { _ in color }
-      )
-      animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
-      animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
-      animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
-      animate(
-        keyPath: "shadowPath",
-        timing: animationTiming,
-        from: { $0.presentation()?.shadowPath },
-        to: { path($0) }
-      )
+      // only the properties whose model value differs from the target are animated: an unchanged additive one would
+      // add a zero-delta animation that lives for the timing's duration and piles up on repeated passes, and an
+      // unchanged non-additive one would replace an in-flight animation to the same target and restart its easing.
+      if shadowColor != color {
+        animate(
+          keyPath: "shadowColor",
+          timing: animationTiming,
+          from: { $0.presentation()?.shadowColor },
+          to: { _ in color }
+        )
+      }
+      if shadowOpacity != opacity {
+        animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
+      }
+      if shadowRadius != radius {
+        animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
+      }
+      if shadowOffset != offset {
+        animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
+      }
+      // the path is requested after the other properties are applied, so a provider can derive it from them
+      let newShadowPath = path(self)
+      if shadowPath != newShadowPath {
+        animate(
+          keyPath: "shadowPath",
+          timing: animationTiming,
+          from: { $0.presentation()?.shadowPath },
+          to: { _ in newShadowPath }
+        )
+      }
     } else {
       disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
         shadowColor = color
@@ -166,12 +181,14 @@ open class DropShadowLayer: CALayer {
       if !maskLayer.hasFrame(bounds) {
         maskLayer.animateFrame(to: bounds, timing: animationTiming)
       }
-      maskLayer.animate(
-        keyPath: "path",
-        timing: animationTiming,
-        from: { $0.presentation().assertNotNil()?.path },
-        to: { _ in maskPath }
-      )
+      if maskLayer.path != maskPath {
+        maskLayer.animate(
+          keyPath: "path",
+          timing: animationTiming,
+          from: { $0.presentation().assertNotNil()?.path },
+          to: { _ in maskPath }
+        )
+      }
     } else {
       maskLayer.disableActions(for: "position", "bounds", "path") {
         maskLayer.frame = bounds

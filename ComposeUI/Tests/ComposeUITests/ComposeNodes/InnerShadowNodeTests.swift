@@ -168,26 +168,29 @@ class InnerShadowNodeTests: XCTestCase {
       expect(item.id.id) == "IS"
       expect(item.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
 
-      // make
+      // when: making a renderable
       do {
         let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: nil))
+
+        // then: the layer starts at the initial frame
         expect(renderable.layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
       }
 
-      // update
+      // updates
       do {
-        // when with light theme
+        // given: a renderable in a content view with the light theme
         do {
           let contentView = ComposeView()
           contentView.overrideTheme = .light
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          // without animations
+          // when: updating without animation
           do {
             let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
             item.update(renderable, context)
             let layer = renderable.layer
 
+            // then: the light shadow and its mask are applied without animations
             expect(layer.invertsShadow) == true
             expect(layer.shadowColor) == Color.red.cgColor
             expect(layer.shadowOpacity) == 0.5
@@ -209,14 +212,37 @@ class InnerShadowNodeTests: XCTestCase {
             expect(maskLayer.animation(forKey: "path")) == nil
           }
 
-          // with animations
+          // when: updating with animation timing and the same values
           do {
-            ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-
             let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all)
             item.update(renderable, context)
             let layer = renderable.layer
 
+            // then: nothing changed since the update above, so nothing animates
+            expect(layer.shadowColor) == Color.red.cgColor
+            expect(layer.shadowOpacity) == 0.5
+            expect(layer.shadowRadius) == 10
+            expect(layer.shadowOffset) == CGSize(width: 2, height: 5)
+            expect(layer.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
+            expect(layer.animationKeys()) == nil
+
+            let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+            expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 3, height: 4)
+            expect(maskLayer.path) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
+            expect(maskLayer.animationKeys()) == nil
+          }
+
+          // given: a fresh renderable, with the assertion for a missing presentation layer disabled
+          do {
+            ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+            let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+
+            // when: updating with animation timing
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all)
+            item.update(renderable, context)
+            let layer = renderable.layer
+
+            // then: every property animates from the layer's defaults
             expect(layer.invertsShadow) == true
             expect(layer.shadowColor) == Color.red.cgColor
             expect(layer.shadowOpacity) == 0.5
@@ -230,7 +256,7 @@ class InnerShadowNodeTests: XCTestCase {
             expect(layer.animation(forKey: "shadowOffset")) != nil
             expect(layer.animation(forKey: "shadowPath")) != nil
 
-            // the mask layer's frame is unchanged, so only its path animates
+            // then: the mask layer's frame was laid out when the mask was installed, so only its path animates
             let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
             expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 3, height: 4)
             expect(maskLayer.path) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
@@ -242,18 +268,19 @@ class InnerShadowNodeTests: XCTestCase {
           }
         }
 
-        // when with dark theme
+        // given: a renderable in a content view with the dark theme
         do {
           let contentView = ComposeView()
           contentView.overrideTheme = .dark
           let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
-          // without animations
+          // when: updating without animation
           do {
             let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
             item.update(renderable, context)
             let layer = renderable.layer
 
+            // then: the dark shadow and its mask are applied without animations
             expect(layer.invertsShadow) == true
             expect(layer.shadowColor) == Color.blue.cgColor
             expect(layer.shadowOpacity) == 0.7
@@ -275,14 +302,37 @@ class InnerShadowNodeTests: XCTestCase {
             expect(maskLayer.animation(forKey: "path")) == nil
           }
 
-          // with animations
+          // when: updating with animation timing and the same values
           do {
-            ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-
             let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all)
             item.update(renderable, context)
             let layer = renderable.layer
 
+            // then: nothing changed since the update above, so nothing animates
+            expect(layer.shadowColor) == Color.blue.cgColor
+            expect(layer.shadowOpacity) == 0.7
+            expect(layer.shadowRadius) == 15
+            expect(layer.shadowOffset) == CGSize(width: 3, height: 6)
+            expect(layer.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
+            expect(layer.animationKeys()) == nil
+
+            let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+            expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 3, height: 4)
+            expect(maskLayer.path) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
+            expect(maskLayer.animationKeys()) == nil
+          }
+
+          // given: a fresh renderable, with the assertion for a missing presentation layer disabled
+          do {
+            ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+            let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
+
+            // when: updating with animation timing
+            let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all)
+            item.update(renderable, context)
+            let layer = renderable.layer
+
+            // then: every property animates from the layer's defaults
             expect(layer.invertsShadow) == true
             expect(layer.shadowColor) == Color.blue.cgColor
             expect(layer.shadowOpacity) == 0.7
@@ -296,7 +346,7 @@ class InnerShadowNodeTests: XCTestCase {
             expect(layer.animation(forKey: "shadowOffset")) != nil
             expect(layer.animation(forKey: "shadowPath")) != nil
 
-            // the mask layer's frame is unchanged, so only its path animates
+            // then: the mask layer's frame was laid out when the mask was installed, so only its path animates
             let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
             expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 3, height: 4)
             expect(maskLayer.path) == CGPath(rect: CGRect(x: 0, y: 0, width: 3, height: 4), transform: nil)
@@ -308,7 +358,7 @@ class InnerShadowNodeTests: XCTestCase {
           }
         }
 
-        // conditional update
+        // given: a renderable in a content view with the light theme, updated by bounds changes
         do {
           let contentView = ComposeView()
           contentView.overrideTheme = .light

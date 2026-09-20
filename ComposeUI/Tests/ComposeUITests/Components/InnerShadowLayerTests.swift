@@ -167,7 +167,7 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(maskLayer.animation(forKey: "path")) != nil
   }
 
-  func test_update_withAnimation_animatesMaskFrame_onlyWhenBoundsChange() throws {
+  func test_update_withAnimation_animatesMask_onResize() throws {
     // given: an inner shadow layer with a mask laid out for its bounds
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
     defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
@@ -194,20 +194,162 @@ final class InnerShadowLayerTests: XCTestCase {
     // when: updating with animation timing at the same size
     update(animationTiming: .easeInEaseOut())
 
-    // then: the mask's frame is unchanged, so only its path animates
+    // then: the mask's frame and path are unchanged, so nothing animates
     expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
-    expect(maskLayer.animation(forKey: "position")) == nil
-    expect(maskLayer.animation(forKey: "bounds.size")) == nil
-    expect(maskLayer.animation(forKey: "path")) != nil
+    expect(maskLayer.animationKeys()) == nil
 
     // when: updating with animation timing after a resize
     layer.frame = CGRect(x: 0, y: 0, width: 150, height: 80)
     update(animationTiming: .easeInEaseOut())
 
-    // then: the mask follows the new bounds, animating its size and the position its center moved to
+    // then: the mask follows the new bounds, animating its size, the position its center moved to, and its path
     expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 150, height: 80)
     expect(maskLayer.animation(forKey: "position")) != nil
     expect(maskLayer.animation(forKey: "bounds.size")) != nil
+    expect(maskLayer.animation(forKey: "path")) != nil
+  }
+
+  func test_update_withAnimation_animatesOnlyChangedProperties() throws {
+    // given: an inner shadow layer updated without animation
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+
+    let layer = InnerShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // the inputs persist across the stages below, so each stage changes exactly one of them
+    var color: Color = .red
+    var opacity: CGFloat = 0.5
+    var radius: CGFloat = 10
+    var offset = CGSize(width: 2, height: 5)
+    var holeInset: CGFloat = 0
+    var clipInset: CGFloat?
+    func update(animationTiming: AnimationTiming?) {
+      layer.update(
+        color: color,
+        opacity: opacity,
+        radius: radius,
+        offset: offset,
+        holePath: { CGPath(rect: $0.bounds.insetBy(dx: holeInset, dy: holeInset), transform: nil) },
+        clipPath: clipInset.map { inset in { CGPath(rect: $0.bounds.insetBy(dx: inset, dy: inset), transform: nil) } },
+        animationTiming: animationTiming
+      )
+    }
+
+    update(animationTiming: nil)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+
+    // when: updating with animation timing and the same inputs
+    update(animationTiming: .easeInEaseOut())
+
+    // then: nothing changed, so no animation is added
+    expect(layer.animationKeys()) == nil
+    expect(maskLayer.animationKeys()) == nil
+
+    // when: updating with animation timing and only a new opacity
+    opacity = 0.8
+    update(animationTiming: .easeInEaseOut())
+
+    // then: only the opacity animates, to the new value
+    expect(layer.animationKeys()) == ["shadowOpacity"]
+    expect(layer.shadowOpacity) == 0.8
+    expect(maskLayer.animationKeys()) == nil
+
+    // when: updating with animation timing and only a new color
+    color = .blue
+    update(animationTiming: .easeInEaseOut())
+
+    // then: only the color animates, next to the in-flight opacity animation
+    expect(layer.animationKeys()) == ["shadowOpacity", "shadowColor"]
+    expect(layer.shadowColor) == Color.blue.cgColor
+    expect(maskLayer.animationKeys()) == nil
+
+    // when: updating with animation timing and only a new radius
+    radius = 15
+    update(animationTiming: .easeInEaseOut())
+
+    // then: only the radius animates, the inverted shadow's path doesn't depend on it
+    expect(layer.animationKeys()) == ["shadowOpacity", "shadowColor", "shadowRadius"]
+    expect(layer.shadowRadius) == 15
+    expect(maskLayer.animationKeys()) == nil
+
+    // when: updating with animation timing and only a new offset
+    offset = CGSize(width: 3, height: 6)
+    update(animationTiming: .easeInEaseOut())
+
+    // then: only the offset animates
+    expect(layer.animationKeys()) == ["shadowOpacity", "shadowColor", "shadowRadius", "shadowOffset"]
+    expect(layer.shadowOffset) == CGSize(width: 3, height: 6)
+    expect(maskLayer.animationKeys()) == nil
+
+    // when: updating with animation timing and only a new hole path
+    holeInset = 5
+    update(animationTiming: .easeInEaseOut())
+
+    // then: the shadow path animates, and so does the mask path, which follows the hole when there is no clip path
+    expect(layer.animationKeys()) == ["shadowOpacity", "shadowColor", "shadowRadius", "shadowOffset", "shadowPath"]
+    expect(layer.shadowPath) == CGPath(rect: CGRect(x: 5, y: 5, width: 90, height: 90), transform: nil)
+    expect(maskLayer.animationKeys()) == ["path"]
+
+    // when: updating with animation timing and only a new clip path, with the mask's animations cleared to observe it alone
+    maskLayer.removeAllAnimations()
+    clipInset = 2
+    update(animationTiming: .easeInEaseOut())
+
+    // then: only the mask path animates
+    expect(layer.animationKeys()) == ["shadowOpacity", "shadowColor", "shadowRadius", "shadowOffset", "shadowPath"]
+    expect(maskLayer.animationKeys()) == ["path"]
+    expect(maskLayer.path) == CGPath(rect: CGRect(x: 2, y: 2, width: 96, height: 96), transform: nil)
+  }
+
+  func test_update_withAnimation_keepsInFlightAnimation_toUnchangedTarget() throws {
+    // given: an inner shadow layer updated without animation, with in-flight color and mask path animations of a
+    // distinctive duration
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+
+    let layer = InnerShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    func update(color: Color = .red, holeInset: CGFloat = 0, animationTiming: AnimationTiming?) {
+      layer.update(
+        color: color,
+        opacity: 0.5,
+        radius: 10,
+        offset: .zero,
+        holePath: { CGPath(rect: $0.bounds.insetBy(dx: holeInset, dy: holeInset), transform: nil) },
+        clipPath: nil,
+        animationTiming: animationTiming
+      )
+    }
+
+    update(animationTiming: nil)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+
+    let inFlightColorAnimation = CABasicAnimation(keyPath: "shadowColor")
+    inFlightColorAnimation.duration = 10
+    layer.add(inFlightColorAnimation, forKey: "shadowColor")
+    let inFlightPathAnimation = CABasicAnimation(keyPath: "path")
+    inFlightPathAnimation.duration = 10
+    maskLayer.add(inFlightPathAnimation, forKey: "path")
+
+    // when: updating with animation timing and the same inputs
+    update(animationTiming: .easeInEaseOut(duration: 2))
+
+    // then: the in-flight animations are kept instead of being replaced by ones towards the same target
+    let keptColorAnimation = try layer.animation(forKey: "shadowColor").unwrap()
+    expect(keptColorAnimation.duration) == 10
+    let keptPathAnimation = try maskLayer.animation(forKey: "path").unwrap()
+    expect(keptPathAnimation.duration) == 10
+
+    // when: updating with animation timing and a new color and hole path
+    update(color: .blue, holeInset: 5, animationTiming: .easeInEaseOut(duration: 2))
+
+    // then: the in-flight animations are replaced by the ones towards the new targets
+    let replacedColorAnimation = try layer.animation(forKey: "shadowColor").unwrap()
+    expect(replacedColorAnimation.duration) == 2
+    let replacedPathAnimation = try maskLayer.animation(forKey: "path").unwrap()
+    expect(replacedPathAnimation.duration) == 2
   }
 
   // MARK: - Fallback path (manual punched bigger rect)
