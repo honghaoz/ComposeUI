@@ -166,6 +166,9 @@ class NSView_ExtensionsTests: XCTestCase {
       expect(message.hasSuffix("is not a subview")) == true
       assertionCount += 1
     }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let view = BaseView()
     let subview = BaseView()
@@ -178,8 +181,6 @@ class NSView_ExtensionsTests: XCTestCase {
     // then: an assertion is triggered and the subviews are unchanged
     expect(assertionCount) == 1
     expect(view.subviews) == [subview] // unchanged
-
-    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
   // MARK: - insertSubview(_:belowSubview:)
@@ -293,6 +294,9 @@ class NSView_ExtensionsTests: XCTestCase {
       expect(message.hasSuffix("is not a subview")) == true
       assertionCount += 1
     }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let view = BaseView()
     let subview = BaseView()
@@ -305,8 +309,6 @@ class NSView_ExtensionsTests: XCTestCase {
     // then: an assertion is triggered and the subviews are unchanged
     expect(assertionCount) == 1
     expect(view.subviews) == [subview] // unchanged
-
-    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
   // MARK: - ignoreHitTest

@@ -265,6 +265,9 @@ class RenderableTransition_OpacityTests: XCTestCase {
     Assert.setTestAssertionFailureHandler { message, _, _, _ in
       assertionMessage = message
     }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
 
     // when: a remove transition retargets
     let transition = RenderableTransition.opacity(from: 0, to: 1, timing: .linear(duration: 5))
@@ -273,8 +276,6 @@ class RenderableTransition_OpacityTests: XCTestCase {
       context: RenderableTransition.RemoveTransition.Context(contentView: nil),
       completion: {}
     )
-
-    Assert.resetTestAssertionFailureHandler()
 
     // then: the unsupported animation is flagged and skipped, the retarget starts from the model value
     expect(assertionMessage?.hasPrefix("unsupported in-flight opacity animation")) == true

@@ -43,6 +43,9 @@ class StackLayoutCacheTests: XCTestCase {
       expect(message) == "mismatched child origins and bounding rects count"
       assertionCount += 1
     }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     // when: updating a cache with mismatched child origins and bounding rects counts
     var cache = StackLayoutCache()
@@ -54,8 +57,6 @@ class StackLayoutCacheTests: XCTestCase {
 
     // then: the assertion is triggered
     expect(assertionCount) == 1
-
-    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 
   func test_update_withoutMainAxis_collectsBoundingRectOnly() {
@@ -111,12 +112,13 @@ class StackLayoutCacheTests: XCTestCase {
       expect(message) == "visibleChildRange(minPosition:maxPosition:) requires the cache built with a main axis"
       assertionCount += 1
     }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     // then: the assertion is triggered and all children are returned
     // without the search structures, all children are treated as potentially visible
     expect(cache.visibleChildRange(minPosition: 0, maxPosition: 5)) == 0 ..< 2
     expect(assertionCount) == 1
-
-    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
   }
 }
