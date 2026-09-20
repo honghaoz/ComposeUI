@@ -134,7 +134,9 @@ final class InnerShadowLayerTests: XCTestCase {
   func test_update_default_withAnimation() throws {
     // given: an inner shadow layer with a hole path
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let layer = InnerShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -170,7 +172,9 @@ final class InnerShadowLayerTests: XCTestCase {
   func test_update_withAnimation_animatesMask_onResize() throws {
     // given: an inner shadow layer with a mask laid out for its bounds
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let layer = InnerShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -212,7 +216,9 @@ final class InnerShadowLayerTests: XCTestCase {
   func test_update_withAnimation_animatesOnlyChangedProperties() throws {
     // given: an inner shadow layer updated without animation
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let layer = InnerShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -306,7 +312,9 @@ final class InnerShadowLayerTests: XCTestCase {
     // given: an inner shadow layer updated without animation, with in-flight color and mask path animations of a
     // distinctive duration
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let layer = InnerShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -402,7 +410,9 @@ final class InnerShadowLayerTests: XCTestCase {
   func test_update_fallback_withAnimation() throws {
     // given: a layer forced to the fallback path, with a hole path
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let layer = InnerShadowLayer()
     layer.test.supportsInvertsShadowOverride = false

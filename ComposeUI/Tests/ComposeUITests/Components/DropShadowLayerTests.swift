@@ -86,7 +86,9 @@ final class DropShadowLayerTests: XCTestCase {
   func test_update_withAnimation_animatesMask_onResize() throws {
     // given: a layer updated with a cutout, with the mask laid out for its bounds
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let layer = DropShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -128,7 +130,9 @@ final class DropShadowLayerTests: XCTestCase {
   func test_update_withAnimation_animatesOnlyChangedProperties() throws {
     // given: a layer updated with a cutout, without animation
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let layer = DropShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -251,7 +255,9 @@ final class DropShadowLayerTests: XCTestCase {
   func test_update_withAnimation_keepsInFlightAnimation_toUnchangedTarget() throws {
     // given: a layer updated with a cutout, with in-flight color and mask path animations of a distinctive duration
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let layer = DropShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)

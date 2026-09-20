@@ -235,6 +235,10 @@ class InnerShadowNodeTests: XCTestCase {
           // given: a fresh renderable, with the assertion for a missing presentation layer disabled
           do {
             ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+            defer {
+              ComposeUI.Assert.resetTestAssertionFailureHandler()
+            }
+
             let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
             // when: updating with animation timing
@@ -263,8 +267,6 @@ class InnerShadowNodeTests: XCTestCase {
             expect(maskLayer.animation(forKey: "position")) == nil
             expect(maskLayer.animation(forKey: "bounds.size")) == nil
             expect(maskLayer.animation(forKey: "path")) != nil
-
-            ComposeUI.Assert.resetTestAssertionFailureHandler()
           }
         }
 
@@ -325,6 +327,10 @@ class InnerShadowNodeTests: XCTestCase {
           // given: a fresh renderable, with the assertion for a missing presentation layer disabled
           do {
             ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+            defer {
+              ComposeUI.Assert.resetTestAssertionFailureHandler()
+            }
+
             let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: contentView))
 
             // when: updating with animation timing
@@ -353,8 +359,6 @@ class InnerShadowNodeTests: XCTestCase {
             expect(maskLayer.animation(forKey: "position")) == nil
             expect(maskLayer.animation(forKey: "bounds.size")) == nil
             expect(maskLayer.animation(forKey: "path")) != nil
-
-            ComposeUI.Assert.resetTestAssertionFailureHandler()
           }
         }
 
