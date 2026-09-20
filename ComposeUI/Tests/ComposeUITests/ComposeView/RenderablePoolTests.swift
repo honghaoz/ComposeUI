@@ -382,7 +382,9 @@ class RenderablePoolTests: XCTestCase {
       expect(message) == "Renderable must be detached from its parent"
       assertionCount += 1
     }
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let pool = makePool()
     let key = viewKey("row")
@@ -404,7 +406,9 @@ class RenderablePoolTests: XCTestCase {
       expect(message) == "Renderable must be detached from its parent"
       assertionCount += 1
     }
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     let pool = makePool()
     let key = layerKey("row")
@@ -428,7 +432,9 @@ class RenderablePoolTests: XCTestCase {
       expect(message) == "maxCountPerKey must be positive"
       assertionCount += 1
     }
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     // when: a pool is made with a non-positive per-key cap
     let pool = makePool(maxCountPerKey: 0)
@@ -452,7 +458,9 @@ class RenderablePoolTests: XCTestCase {
       expect(message) == "maxKeyCount must be positive"
       assertionCount += 1
     }
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     // when: a pool is made with a non-positive key cap
     let pool = makePool(maxKeyCount: -1)
@@ -475,7 +483,9 @@ class RenderablePoolTests: XCTestCase {
       expect(message.hasSuffix("must be positive")) == true
       assertionCount += 1
     }
-    defer { ComposeUI.Assert.resetTestAssertionFailureHandler() }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
 
     // when: a pool is made with both caps non-positive
     _ = makePool(maxCountPerKey: 0, maxKeyCount: 0)
