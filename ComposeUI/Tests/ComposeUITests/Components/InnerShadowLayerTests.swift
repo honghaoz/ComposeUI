@@ -444,22 +444,45 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(maskLayer.frame) == referenceMask.frame
     expect(maskLayer.path) == referenceMaskPath
 
-    // then: the additive animations are kept, so they glide to the new values on their own, the non-additive ones are
-    // retargeted to the new values over their remaining time, and the other properties' animations are left alone.
-    // the fallback's shadow path depends on the radius, so its in-flight animation is the delayed update's, and the
-    // retarget lands when that one would have, after its delay and duration
-    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowOffset", "shadowPath", "opacity", "position"]
-    for key in ["shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowOffset"] {
+    // then: the additive radius and offset animations are kept, with a decaying delta from the old values stacked on
+    // them so nothing jumps, the non-additive color, opacity and path animations are replaced by ones towards the new
+    // values over their remaining time, and the other properties' animations are left alone. the radius delta and the
+    // fallback's shadow path depend on the radius, so their time is the delayed update's remaining time, and they land
+    // when that one would have, after its delay and duration
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
+    for key in ["shadowRadius", "shadowRadius-1", "shadowOffset"] {
       let keptAnimation = try (layer.animation(forKey: key) as? CABasicAnimation).unwrap()
       expect(keptAnimation.isAdditive) == true
       expect(keptAnimation.duration) == 10
       expect(keptAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
     }
+
+    let radiusDeltaAnimation = try (layer.animation(forKey: "shadowRadius-2") as? CABasicAnimation).unwrap()
+    expect(radiusDeltaAnimation.isAdditive) == true
+    expect(radiusDeltaAnimation.fromValue as? CGFloat) == 20 // 30 - 10
+    expect(radiusDeltaAnimation.toValue as? CGFloat) == 0
+    expect(radiusDeltaAnimation.duration).to(beApproximatelyEqual(to: 11, within: 0.05))
+    expect(radiusDeltaAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+
+    let offsetDeltaAnimation = try (layer.animation(forKey: "shadowOffset-1") as? CABasicAnimation).unwrap()
+    expect(offsetDeltaAnimation.isAdditive) == true
+    expect(offsetDeltaAnimation.fromValue as? CGSize) == CGSize(width: 2, height: 3)
+    expect(offsetDeltaAnimation.toValue as? CGSize) == .zero
+    expect(offsetDeltaAnimation.duration) == 10
+    expect(offsetDeltaAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+
     let retargetedColorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
     expect(retargetedColorAnimation.duration) == 10
     expect(retargetedColorAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     // a Core Foundation type can't be checked at runtime, so the cast is forced
     expect(retargetedColorAnimation.toValue as! CGColor) == Color.red.cgColor // swiftlint:disable:this force_cast
+
+    let retargetedOpacityAnimation = try (layer.animation(forKey: "shadowOpacity") as? CABasicAnimation).unwrap()
+    expect(retargetedOpacityAnimation.isAdditive) == false
+    expect(retargetedOpacityAnimation.toValue as? Float) == 0.5
+    expect(retargetedOpacityAnimation.duration) == 10
+    expect(retargetedOpacityAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+
     let retargetedPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
     expect(retargetedPathAnimation.duration).to(beApproximatelyEqual(to: supportsInvertsShadow ? 10 : 11, within: 0.05))
     expect(retargetedPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
@@ -484,7 +507,7 @@ final class InnerShadowLayerTests: XCTestCase {
     update(layer, red, animationTiming: .linear(duration: 2))
 
     // then: every in-flight animation already lands on the values, so none is added or replaced
-    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowOffset", "shadowPath", "opacity", "position"]
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
     expect(layer.animation(forKey: "shadowColor")?.duration) == 10
     expect(layer.animation(forKey: "shadowColor")?.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
@@ -498,8 +521,12 @@ final class InnerShadowLayerTests: XCTestCase {
     let colorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
     expect(colorAnimation.duration) == 2
     expect(colorAnimation.toValue as! CGColor) == Color.blue.cgColor // swiftlint:disable:this force_cast
+    let shadowOpacityAnimation = try (layer.animation(forKey: "shadowOpacity") as? CABasicAnimation).unwrap()
+    expect(shadowOpacityAnimation.duration) == 2
+    expect(shadowOpacityAnimation.isAdditive) == false
+    expect(shadowOpacityAnimation.toValue as? Float) == 0.8
     expect(layer.animation(forKey: "shadowPath")?.duration) == 2
-    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowOpacity-1", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowRadius-3", "shadowOffset", "shadowOffset-1", "shadowOffset-2", "shadowPath", "opacity", "position"]
     expect(maskLayer.animation(forKey: "path")?.duration) == 2
     expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
   }

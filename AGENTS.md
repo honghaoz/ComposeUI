@@ -136,6 +136,10 @@ Hard-won rules from past corrections, grouped by theme.
 - On few-core CI runners, do not overlap simulator boot with compilation. Both are CPU-heavy, and contention makes the total slower than running them serially (build first, then boot).
 - To get CI telemetry without log access, emit `::notice::` workflow commands. They become check-run annotations readable via the public Checks API (capped at 10 annotations per step, so emit before noisy output).
 
+## Core Animation
+
+- Additive animations compose on screen only for properties the render server doesn't clamp between animations. It clamps opacities (`opacity`, `shadowOpacity`) to [0, 1] after applying each animation, so opposing additive animations of an opacity don't compose even though `presentation()` reports the unclamped sum: animate opacities non-additively or with a single replacing animation. Other bounded properties compose as a sum where verified (`shadowRadius`, `CAShapeLayer`'s `strokeStart` and `strokeEnd`). Verify any other property with a `CARenderer` probe (render the layer tree into a Metal texture and read the pixels) before relying on either behavior, since only the compositor's output tells.
+
 ## Cross-platform
 
 - Do not ship platform-dependent rendered output with a doc note. When a platform primitive differs (for example AppKit anchors view-backing layers at the bottom left corner while everything else anchors at the center), compensate in the implementation so the visual result matches across platforms, instead of documenting the difference.

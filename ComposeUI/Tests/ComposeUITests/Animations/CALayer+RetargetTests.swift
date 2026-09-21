@@ -321,6 +321,169 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.backgroundColor) == Color.yellow.cgColor
   }
 
+  // MARK: - Retarget, additive animations in flight
+
+  func test_retarget_additiveAnimationInFlight_number_keepsItAndStacksDelta() throws {
+    // given: a layer whose corner radius is animating additively from 0 to 20
+    let layer = CALayer()
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 10))
+    expect(layer.cornerRadius) == 20
+    expect(layer.animationKeys()) == ["cornerRadius"]
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+    // then: the model has the new value, the in-flight animation is kept as it is, and a delta from the old model value
+    // decays to zero on top of it over the in-flight animation's remaining time
+    expect(layer.cornerRadius) == 5
+    expect(layer.animationKeys()) == ["cornerRadius", "cornerRadius-1"]
+    let keptAnimation = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+    expect(keptAnimation.isAdditive) == true
+    expect(keptAnimation.fromValue as? CGFloat) == -20
+    expect(keptAnimation.duration) == 10
+    expect(keptAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
+    let deltaAnimation = try (layer.animation(forKey: "cornerRadius-1") as? CABasicAnimation).unwrap()
+    expect(deltaAnimation.isAdditive) == true
+    expect(deltaAnimation.fromValue as? CGFloat) == 15 // 20 - 5
+    expect(deltaAnimation.toValue as? CGFloat) == 0
+    expect(deltaAnimation.duration) == 10
+    expect(deltaAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(deltaAnimation.fillMode) == .both
+    expect(deltaAnimation.isRemovedOnCompletion) == true
+  }
+
+  func test_retarget_additiveAnimationInFlight_size_stacksDelta() throws {
+    // given: a layer whose shadow offset is animating additively to (10, 10)
+    let layer = CALayer()
+    layer.animate(keyPath: "shadowOffset", to: CGSize(width: 10, height: 10), timing: .linear(duration: 10))
+
+    // when: retargeting the shadow offset to (4, 2)
+    layer.retarget(keyPath: "shadowOffset", to: CGSize(width: 4, height: 2))
+
+    // then: a size delta from the old model value decays to zero on top of the kept animation
+    expect(layer.shadowOffset) == CGSize(width: 4, height: 2)
+    expect(layer.animationKeys()) == ["shadowOffset", "shadowOffset-1"]
+    let deltaAnimation = try (layer.animation(forKey: "shadowOffset-1") as? CABasicAnimation).unwrap()
+    expect(deltaAnimation.isAdditive) == true
+    expect(deltaAnimation.fromValue as? CGSize) == CGSize(width: 6, height: 8)
+    expect(deltaAnimation.toValue as? CGSize) == .zero
+    expect(deltaAnimation.duration) == 10
+  }
+
+  func test_retarget_additiveAnimationInFlight_point_stacksDelta() throws {
+    // given: a layer whose position is animating additively to (100, 100)
+    let layer = CALayer()
+    layer.position = CGPoint(x: 10, y: 20)
+    layer.animate(keyPath: "position", to: CGPoint(x: 100, y: 100), timing: .linear(duration: 10))
+
+    // when: retargeting the position to (40, 60)
+    layer.retarget(keyPath: "position", to: CGPoint(x: 40, y: 60))
+
+    // then: a point delta from the old model value decays to zero on top of the kept animation
+    expect(layer.position) == CGPoint(x: 40, y: 60)
+    expect(layer.animationKeys()) == ["position", "position-1"]
+    let deltaAnimation = try (layer.animation(forKey: "position-1") as? CABasicAnimation).unwrap()
+    expect(deltaAnimation.isAdditive) == true
+    expect(deltaAnimation.fromValue as? CGPoint) == CGPoint(x: 60, y: 40)
+    expect(deltaAnimation.toValue as? CGPoint) == .zero
+    expect(deltaAnimation.duration) == 10
+  }
+
+  func test_retarget_additiveAnimationInFlight_toSameValue_isKept() throws {
+    // given: a layer whose corner radius is animating additively to 20
+    let layer = CALayer()
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 10))
+
+    // when: retargeting the corner radius to the value the animation lands on
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(20))
+
+    // then: the animation already lands on the value, so nothing is stacked on it
+    expect(layer.animationKeys()) == ["cornerRadius"]
+    expect(layer.cornerRadius) == 20
+  }
+
+  func test_retarget_additiveAnimationInFlight_unsupportedKind_replaces() throws {
+    // given: a layer with an additive animation of a color, a kind without an additive delta
+    let layer = CALayer()
+    layer.backgroundColor = Color.blue.cgColor
+    let colorAnimation = CABasicAnimation(keyPath: "backgroundColor")
+    colorAnimation.duration = 10
+    colorAnimation.isAdditive = true
+    layer.add(colorAnimation, forKey: "additive-color")
+
+    // when: retargeting the background color
+    layer.retarget(keyPath: "backgroundColor", to: Color.green.cgColor)
+
+    // then: the additive animation is replaced by a non-additive one to the new color, as a non-additive one would be
+    expect(layer.animationKeys()) == ["backgroundColor"]
+    let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
+    expect(animation.isAdditive) == false
+    expect(animation.duration) == 10
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(animation.toValue as! CGColor) == Color.green.cgColor // swiftlint:disable:this force_cast
+    expect(layer.backgroundColor) == Color.green.cgColor
+  }
+
+  func test_retarget_mixedAnimationsInFlight_replaces() throws {
+    // given: a layer whose corner radius has an additive and a non-additive animation in flight
+    let layer = CALayer()
+    layer.cornerRadius = 20
+    let additiveAnimation = CABasicAnimation(keyPath: "cornerRadius")
+    additiveAnimation.duration = 10
+    additiveAnimation.isAdditive = true
+    layer.add(additiveAnimation, forKey: "additive")
+    let replacingAnimation = CABasicAnimation(keyPath: "cornerRadius")
+    replacingAnimation.duration = 3
+    layer.add(replacingAnimation, forKey: "replacing")
+
+    // when: retargeting the corner radius
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+    // then: the mix is replaced by a single non-additive animation to the new value over the longest remaining time
+    expect(layer.animationKeys()) == ["cornerRadius"]
+    let animation = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+    expect(animation.isAdditive) == false
+    expect(animation.toValue as? CGFloat) == 5
+    expect(animation.duration) == 10
+    expect(layer.cornerRadius) == 5
+  }
+
+  func test_retarget_hosted_additiveAnimationInFlight_showsNoJump() throws {
+    // given: a hosted layer whose corner radius is animating additively from 0 to 20
+    let testWindow = TestWindow()
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    testWindow.layer.addSublayer(layer)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    func shownRadius() throws -> CGFloat {
+      try layer.presentation().unwrap().cornerRadius
+    }
+
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 0.5))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+    let radiusBeforeRetarget = try shownRadius()
+    expect(radiusBeforeRetarget) > 2
+
+    // when: retargeting the corner radius back to zero
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(0))
+
+    // then: once committed, the shown radius is about where it was, since the delta cancels the model change, where a
+    // plain model change would have dropped it below zero
+    expect(layer.cornerRadius) == 0
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    expect(try shownRadius()).to(beApproximatelyEqual(to: radiusBeforeRetarget, within: 1.5))
+
+    // then: it heads back to zero without dropping below it, and lands when the interrupted animation would have
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+    let radiusMidRetarget = try shownRadius()
+    expect(radiusMidRetarget) > 0.1
+    expect(radiusMidRetarget) < radiusBeforeRetarget
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.4))
+    expect(try shownRadius()).to(beApproximatelyEqual(to: 0, within: 0.1))
+  }
+
   /// The blue component of the color in the sRGB color space.
   private func blueComponent(of color: CGColor) throws -> CGFloat {
     try sRGBComponents(of: color)[2]

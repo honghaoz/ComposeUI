@@ -34,18 +34,23 @@ public extension CALayer {
 
   /// Sets a key path's value, retargeting the key path's in-flight animations to it.
   ///
-  /// This is useful for setting a non-additive property, such as a color or a path, without animating the change while
-  /// existing animations of it are in flight.
+  /// This is useful for setting a property without animating the change while existing animations of it are in flight:
+  /// the motion continues from where it is and lands on the new value when it would have.
   ///
   /// If no in-flight animations are found, the value is set without an implicit action. An in-flight animation already
-  /// heading to the value is left alone. Otherwise the in-flight animations are replaced by one animation from the
-  /// value the layer currently shows to `value`, easing out over the time the longest of them had left, so the motion
-  /// continues from where it is and lands when it would have. With several animations in flight, the layer shows what
-  /// Core Animation composes from them (the last non-additive one added wins), and the retarget starts from that. The
-  /// retarget carries neither the interrupted animation's curve nor its velocity.
+  /// heading to the value is left alone.
   ///
-  /// An additive property needs no retarget: an additive animation is a delta on the model value, so setting the model
-  /// value lands it on the new value while its motion continues.
+  /// Additive in-flight animations are deltas that land on the model value on their own, so they are kept, and one more
+  /// additive animation is added on top of them: a delta from the old value to the new one, decaying to zero over the
+  /// time the longest of them has left. It cancels the jump the model change would show and fades out as they
+  /// land, and later animated updates keep stacking on them. The delta is computed for numbers, `CGSize` and `CGPoint`.
+  ///
+  /// Otherwise the in-flight animations are replaced by one animation from the value the layer currently shows to
+  /// `value`, easing out over the time the longest of them had left. With several animations in flight, the layer shows
+  /// what Core Animation composes from them (the last non-additive one added wins), and the retarget starts from that.
+  /// Additive animations of a kind without a delta, or mixed with non-additive ones, are replaced the same way.
+  ///
+  /// The retarget carries neither the interrupted animation's curve nor its velocity.
   ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
@@ -53,25 +58,46 @@ public extension CALayer {
   ///   - keyPath: The key path to set.
   ///   - value: The value to set.
   func retarget(keyPath: String, to value: Any) {
-    guard let remainingTime = remainingAnimationTime(forKeyPath: keyPath) else {
+    let inFlightAnimations = inFlightAnimations(forKeyPath: keyPath)
+    guard let remainingTime = inFlightAnimations.map(\.remainingTime).max() else {
       // no in-flight animations, set the value directly
       setKeyPathValue(keyPath, value)
       return
     }
 
     // an in-flight animation already heading to the value keeps its easing, skipping the retarget
-    if let currentValue = self.value(forKeyPath: keyPath), (currentValue as AnyObject).isEqual(value) {
+    let currentValue = self.value(forKeyPath: keyPath)
+    if let currentValue, (currentValue as AnyObject).isEqual(value) {
       return
     }
 
-    // remove the in-flight animations and replace them with a new one from the current value to the new value
-    removeAnimations(forKeyPath: keyPath)
-    animate(
-      keyPath: keyPath,
-      timing: .easeOut(duration: remainingTime), // uses the basic easing curve for simplicity, no interrupted velocity to carry
-      from: { $0.presentation()?.value(forKeyPath: keyPath) },
-      to: { _ -> Any? in value }
-    )
+    // uses the basic easing curve for simplicity, no interrupted velocity to carry
+    let timing = AnimationTiming.easeOut(duration: remainingTime)
+
+    if inFlightAnimations.allSatisfy(\.animation.isAdditive),
+       let currentValue,
+       let delta = AdditiveDelta(from: currentValue, to: value)
+    {
+      // keep the additive animations and stack a decaying delta from the old value on top, so the shown value doesn't
+      // jump when the model changes and the animations land on the new model value as they finish
+      animate(
+        keyPath: keyPath,
+        timing: timing,
+        from: { _ in delta.value },
+        to: { _ in delta.zero },
+        model: { _ in value },
+        updateAnimation: { $0.isAdditive = true }
+      )
+    } else {
+      // remove the in-flight animations and replace them with a new one from the current value to the new value
+      removeAnimations(forKeyPath: keyPath)
+      animate(
+        keyPath: keyPath,
+        timing: timing,
+        from: { $0.presentation()?.value(forKeyPath: keyPath) },
+        to: { _ -> Any? in value }
+      )
+    }
   }
 
   /// The time the layer's in-flight animations of the given key path have left, in seconds of the layer's time space.
@@ -83,18 +109,52 @@ public extension CALayer {
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The remaining time, or `nil` when no animation of the key path is in flight.
   internal func remainingAnimationTime(forKeyPath keyPath: String) -> TimeInterval? {
+    inFlightAnimations(forKeyPath: keyPath).map(\.remainingTime).max()
+  }
+
+  /// The layer's property animations of the given key path that haven't ended, each with the time it has left.
+  private func inFlightAnimations(forKeyPath keyPath: String) -> [(animation: CAPropertyAnimation, remainingTime: TimeInterval)] {
     let now = currentTime
-    var remainingTime: TimeInterval?
-    for key in animationKeys() ?? [] {
+    return (animationKeys() ?? []).compactMap { key in
       guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
-        continue
+        return nil
       }
+
       let scaledDuration = animation.speed > 0 ? animation.duration / TimeInterval(animation.speed) : animation.duration
-      let animationRemainingTime = animation.beginTime == 0 ? scaledDuration : animation.beginTime + scaledDuration - now
-      if animationRemainingTime > 0 {
-        remainingTime = max(remainingTime ?? 0, animationRemainingTime)
+      let remainingTime = animation.beginTime == 0 ? scaledDuration : animation.beginTime + scaledDuration - now
+      guard remainingTime > 0 else {
+        return nil
       }
+
+      return (animation, remainingTime)
     }
-    return remainingTime
+  }
+}
+
+/// The additive delta from an old value to a new one, for the value kinds that animate additively.
+private struct AdditiveDelta {
+
+  /// The delta, `old - new`.
+  let value: Any
+
+  /// The zero of the delta's kind, the value the delta decays to.
+  let zero: Any
+
+  /// Creates the delta for numbers, `CGSize` and `CGPoint` values, as Core Animation boxes them.
+  ///
+  /// - Returns: `nil` when the values are of another kind or of different kinds.
+  init?(from oldValue: Any, to newValue: Any) {
+    if let oldSize = oldValue as? CGSize, let newSize = newValue as? CGSize {
+      value = CGSize(width: oldSize.width - newSize.width, height: oldSize.height - newSize.height)
+      zero = CGSize.zero
+    } else if let oldPoint = oldValue as? CGPoint, let newPoint = newValue as? CGPoint {
+      value = CGPoint(x: oldPoint.x - newPoint.x, y: oldPoint.y - newPoint.y)
+      zero = CGPoint.zero
+    } else if let oldNumber = oldValue as? NSNumber, let newNumber = newValue as? NSNumber {
+      value = oldNumber.doubleValue - newNumber.doubleValue
+      zero = 0.0
+    } else {
+      return nil
+    }
   }
 }

@@ -166,7 +166,15 @@ open class InnerShadowLayer: CALayer {
         )
       }
       if shadowOpacity != opacity {
-        animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
+        // the render server clamps the shadow opacity after each animation, so opposing additive animations wouldn't
+        // compose on screen (see `animate(keyPath:to:timing:updateAnimation:)`): the opacity animates non-additively
+        // from the shown value, like the color
+        animate(
+          keyPath: "shadowOpacity",
+          timing: animationTiming,
+          from: { $0.presentation()?.shadowOpacity },
+          to: { _ in opacity }
+        )
       }
       if shadowRadius != radius {
         animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
@@ -183,19 +191,19 @@ open class InnerShadowLayer: CALayer {
         )
       }
     } else {
-      // no animation timing: continue the in-flight motion
-      maskLayer.disableActions(for: "position", "bounds") { // additive properties don't need retarget
+      // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
+      // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
+      // being retargeted, and the mask stays aligned with the layer
+      maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
       }
-      maskLayer.retarget(keyPath: "path", to: clipPath) // non-additive property needs retarget
+      maskLayer.retarget(keyPath: "path", to: clipPath)
 
       retarget(keyPath: "shadowColor", to: color)
-      disableActions(for: "shadowOpacity", "shadowRadius", "shadowOffset") { // additive properties don't need retarget
-        shadowOpacity = opacity
-        shadowRadius = radius
-        shadowOffset = offset
-      }
-      retarget(keyPath: "shadowPath", to: innerShadowPath) // non-additive property needs retarget
+      retarget(keyPath: "shadowOpacity", to: opacity)
+      retarget(keyPath: "shadowRadius", to: radius)
+      retarget(keyPath: "shadowOffset", to: offset)
+      retarget(keyPath: "shadowPath", to: innerShadowPath)
     }
   }
 
