@@ -47,7 +47,7 @@ open class InnerShadowLayer: CALayer {
 
   private lazy var maskLayer = CAShapeLayer()
 
-  override init() {
+  override public init() {
     super.init()
 
     #if canImport(AppKit)
@@ -99,7 +99,9 @@ open class InnerShadowLayer: CALayer {
   ///   - offset: The offset of the shadow.
   ///   - holePath: The path of the "punch hole".
   ///   - clipPath: The path to clip the shadow. If `nil`, the shadow will be clipped by the `holePath`.
-  ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are animated. Default to `nil`.
+  ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
+  ///     animated, from the state the layer currently shows. `nil` shows the new shadow on the next frame, stopping
+  ///     the in-flight animations of the shadow properties and the mask. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
@@ -181,12 +183,15 @@ open class InnerShadowLayer: CALayer {
         )
       }
     } else {
+      // a nil timing shows the new values on the next frame, so the in-flight animations are removed first
+      maskLayer.removeAllAnimations()
       maskLayer.disableActions(for: "position", "bounds", "path") {
         maskLayer.frame = bounds
         maskLayer.path = clipPath
       }
 
-      disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
+      removeAnimations(forKeyPaths: Self.shadowKeyPaths)
+      disableActions(for: Array(Self.shadowKeyPaths)) {
         shadowColor = color
         shadowOpacity = opacity
         shadowRadius = radius
@@ -195,6 +200,9 @@ open class InnerShadowLayer: CALayer {
       }
     }
   }
+
+  /// The key paths of the shadow properties `update` sets.
+  private static let shadowKeyPaths: Set<String> = ["shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath"]
 
   /// Reset the layer so it can be reused as if freshly made.
   func resetForReuse() {

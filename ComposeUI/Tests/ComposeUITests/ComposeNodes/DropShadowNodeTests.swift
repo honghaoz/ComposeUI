@@ -377,6 +377,47 @@ class DropShadowNodeTests: XCTestCase {
     }
   }
 
+  func test_update_withoutAnimation_stopsInFlightAnimations() throws {
+    // given: a themed drop shadow node rendered in the light theme, then animated towards the dark theme
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    var node = DropShadowNode(
+      color: ThemedColor(light: Color.red, dark: Color.blue),
+      opacity: Themed<CGFloat>(0.5),
+      radius: Themed<CGFloat>(light: 10, dark: 20),
+      offset: Themed<CGSize>(.zero),
+      paths: { renderable in
+        DropShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil), cutoutPath: nil)
+      }
+    )
+    let viewport = CGRect(x: 0, y: 0, width: 100, height: 100)
+    _ = node.layout(containerSize: viewport.size, context: context)
+    let item = try node.renderableItems(in: viewport).first.unwrap()
+
+    let contentView = ComposeView()
+    contentView.overrideTheme = .light
+    let renderable = item.make(RenderableMakeContext(initialFrame: viewport, contentView: contentView))
+    let layer = renderable.layer
+
+    func update(animationTiming: AnimationTiming?) {
+      let animationDecision = animationTiming == nil ? ComposeView.AnimationDecision.disabled : ComposeView.AnimationDecision.all
+      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: viewport, newFrame: viewport, previousRenderBounds: viewport, renderBounds: viewport, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: animationDecision))
+    }
+
+    update(animationTiming: nil)
+    contentView.overrideTheme = .dark
+    update(animationTiming: .linear(duration: 10))
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowRadius"]
+
+    // when: the theme flips back and the node is refreshed without animation
+    contentView.overrideTheme = .light
+    update(animationTiming: nil)
+
+    // then: the light shadow shows on the next frame, with no animation left to finish towards the dark one
+    expect(layer.shadowColor) == Color.red.cgColor
+    expect(layer.shadowRadius) == 10
+    expect(layer.animationKeys()) == nil
+  }
+
   func test_boundsChange_updatesPathsOnlyForRenderableResize() throws {
     for animationTiming in [nil, AnimationTiming.easeInEaseOut()] {
       // given: a shadow with local paths and an external path input that requires refresh

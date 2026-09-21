@@ -302,4 +302,131 @@ final class DropShadowLayerTests: XCTestCase {
     let replacedPathAnimation = try mask.animation(forKey: "path").unwrap()
     expect(replacedPathAnimation.duration) == 2
   }
+
+  func test_update_withoutAnimation_stopsInFlightShadowAnimations() throws {
+    // given: a layer with a cutout, animated towards a new color, radius and paths, plus animations of other
+    // properties standing in for a transition and for the render pass's frame animation
+    ComposeUI.Assert.setTestAssertionFailureHandler(nil)
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    func update(color: Color, radius: CGFloat, inset: CGFloat, animationTiming: AnimationTiming?) {
+      layer.update(
+        color: color,
+        opacity: 0.5,
+        radius: radius,
+        offset: .zero,
+        path: { CGPath(rect: $0.bounds.insetBy(dx: inset, dy: inset), transform: nil) },
+        cutoutPath: { CGPath(rect: $0.bounds.insetBy(dx: inset * 2, dy: inset * 2), transform: nil) },
+        animationTiming: animationTiming
+      )
+    }
+
+    update(color: .red, radius: 4, inset: 5, animationTiming: nil)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    let redShadowPath = try layer.shadowPath.unwrap()
+    let redMaskPath = try mask.path.unwrap()
+
+    update(color: .blue, radius: 20, inset: 10, animationTiming: .linear(duration: 10))
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowRadius", "shadowPath"]
+    expect(mask.animationKeys()) == ["path"]
+
+    let opacityAnimation = CABasicAnimation(keyPath: "opacity")
+    opacityAnimation.duration = 10
+    layer.add(opacityAnimation, forKey: "opacity")
+    let positionAnimation = CABasicAnimation(keyPath: "position")
+    positionAnimation.duration = 10
+    positionAnimation.isAdditive = true
+    layer.add(positionAnimation, forKey: "position")
+
+    // when: updating without animation timing back to the old values
+    update(color: .red, radius: 4, inset: 5, animationTiming: nil)
+
+    // then: the shadow and mask animations are gone and the model has the new values, so the layer renders them on the
+    // next frame, while the other properties' animations are left alone
+    expect(layer.shadowColor) == Color.red.cgColor
+    expect(layer.shadowRadius) == 4
+    expect(layer.shadowPath) == redShadowPath
+    expect(mask.path) == redMaskPath
+    expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position"]
+    expect(mask.animationKeys()) == nil
+
+    // when: updating with animation timing and the same values
+    update(color: .red, radius: 4, inset: 5, animationTiming: .linear(duration: 2))
+
+    // then: nothing is left to animate
+    expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position"]
+    expect(mask.animationKeys()) == nil
+
+    // when: updating with animation timing and the new values again
+    update(color: .blue, radius: 20, inset: 10, animationTiming: .linear(duration: 2))
+
+    // then: the changed properties animate towards the new values
+    let colorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
+    expect(colorAnimation.duration) == 2
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(colorAnimation.toValue as! CGColor) == Color.blue.cgColor // swiftlint:disable:this force_cast
+    expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position", "shadowColor", "shadowRadius", "shadowPath"]
+    expect(mask.animationKeys()) == ["path"]
+  }
+
+  func test_update_withoutAnimation_sameValues_stopsInFlightShadowAnimations() throws {
+    // given: a layer animated towards a new color and radius
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    func update(color: Color, radius: CGFloat, animationTiming: AnimationTiming?) {
+      layer.update(color: color, opacity: 0.5, radius: radius, offset: .zero, path: { CGPath(rect: $0.bounds, transform: nil) }, animationTiming: animationTiming)
+    }
+
+    update(color: .red, radius: 4, animationTiming: nil)
+    update(color: .blue, radius: 20, animationTiming: .linear(duration: 10))
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowRadius"]
+
+    // when: updating without animation timing with the values the animations head to
+    update(color: .blue, radius: 20, animationTiming: nil)
+
+    // then: the animations are removed all the same, so the layer shows the values on the next frame
+    expect(layer.animationKeys()) == nil
+    expect(layer.shadowColor) == Color.blue.cgColor
+    expect(layer.shadowRadius) == 20
+  }
+
+  func test_update_withoutAnimation_rendersNewValuesNow() throws {
+    // given: a hosted layer whose shadow color is animating from red to blue
+    let testWindow = TestWindow()
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    testWindow.layer.addSublayer(layer)
+
+    func update(color: Color, animationTiming: AnimationTiming?) {
+      layer.update(color: color, opacity: 0.5, radius: 4, offset: .zero, path: { CGPath(rect: $0.bounds, transform: nil) }, animationTiming: animationTiming)
+    }
+
+    func renderedBlue() throws -> CGFloat {
+      let color = try layer.presentation().unwrap().shadowColor.unwrap()
+      let sRGB = try CGColorSpace(name: CGColorSpace.sRGB).unwrap()
+      return try color.converted(to: sRGB, intent: .defaultIntent, options: nil).unwrap().components.unwrap()[2]
+    }
+
+    update(color: .red, animationTiming: nil)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    update(color: .blue, animationTiming: .linear(duration: 2))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    expect(try renderedBlue()) > 0
+
+    // when: updating without animation timing back to red
+    update(color: .red, animationTiming: nil)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+    // then: the shadow renders red right away instead of finishing the animation towards blue
+    expect(try renderedBlue()).to(beApproximatelyEqual(to: 0, within: 0.01))
+    expect(layer.animation(forKey: "shadowColor")) == nil
+  }
 }
