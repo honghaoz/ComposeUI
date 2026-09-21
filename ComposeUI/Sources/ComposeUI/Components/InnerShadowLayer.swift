@@ -69,7 +69,7 @@ open class InnerShadowLayer: CALayer {
     fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
   }
 
-  override init(layer: Any) {
+  override public init(layer: Any) {
     guard let layer = layer as? InnerShadowLayer else {
       // swiftlint:disable:next fatal_error
       fatalError("expect the `layer` to be the same type during an animation.")

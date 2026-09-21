@@ -361,36 +361,66 @@ final class InnerShadowLayerTests: XCTestCase {
   }
 
   func test_update_withoutAnimation_stopsInFlightShadowAnimations() throws {
-    // given: an inner shadow layer animated towards a new color, radius and hole path, plus animations of other
-    // properties standing in for a transition and for the render pass's frame animation
+    // the inverted shadow and the fallback compute the shadow path differently, the interruption must work for both
+    for supportsInvertsShadow in [true, false] {
+      try verifyUpdateWithoutAnimationStopsInFlightShadowAnimations(supportsInvertsShadow: supportsInvertsShadow)
+    }
+  }
+
+  private func verifyUpdateWithoutAnimationStopsInFlightShadowAnimations(supportsInvertsShadow: Bool) throws {
+    // given: an inner shadow layer resized and animated towards new values of every shadow property, with a second,
+    // delayed animated update stacked on the radius, plus animations of other properties standing in for a transition
+    // and for the render pass's frame animation
     ComposeUI.Assert.setTestAssertionFailureHandler(nil)
     defer {
       ComposeUI.Assert.resetTestAssertionFailureHandler()
     }
 
-    let layer = InnerShadowLayer()
-    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    struct Shadow {
+      let color: Color
+      let opacity: CGFloat
+      let radius: CGFloat
+      let offset: CGSize
+      let holeInset: CGFloat
+    }
 
-    func update(color: Color, radius: CGFloat, holeInset: CGFloat, animationTiming: AnimationTiming?) {
+    let red = Shadow(color: .red, opacity: 0.5, radius: 10, offset: .zero, holeInset: 0)
+    let blue = Shadow(color: .blue, opacity: 0.8, radius: 20, offset: CGSize(width: 2, height: 3), holeInset: 5)
+    let blueWiderRadius = Shadow(color: .blue, opacity: 0.8, radius: 30, offset: CGSize(width: 2, height: 3), holeInset: 5)
+
+    func update(_ layer: InnerShadowLayer, _ shadow: Shadow, animationTiming: AnimationTiming?) {
       layer.update(
-        color: color,
-        opacity: 0.5,
-        radius: radius,
-        offset: .zero,
-        holePath: { CGPath(rect: $0.bounds.insetBy(dx: holeInset, dy: holeInset), transform: nil) },
+        color: shadow.color,
+        opacity: shadow.opacity,
+        radius: shadow.radius,
+        offset: shadow.offset,
+        holePath: { CGPath(rect: $0.bounds.insetBy(dx: shadow.holeInset, dy: shadow.holeInset), transform: nil) },
         clipPath: nil,
         animationTiming: animationTiming
       )
     }
 
-    update(color: .red, radius: 10, holeInset: 0, animationTiming: nil)
+    let layer = InnerShadowLayer()
+    layer.test.supportsInvertsShadowOverride = supportsInvertsShadow
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    update(layer, red, animationTiming: nil)
     let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
-    let redShadowPath = try layer.shadowPath.unwrap()
-    let redMaskPath = try maskLayer.path.unwrap()
 
-    update(color: .blue, radius: 20, holeInset: 5, animationTiming: .linear(duration: 10))
-    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowRadius", "shadowPath"]
-    expect(maskLayer.animationKeys()) == ["path"]
+    // a layer given the final inputs without animation provides the expected model values, including the paths
+    let resizedBounds = CGRect(x: 0, y: 0, width: 120, height: 120)
+    let reference = InnerShadowLayer()
+    reference.test.supportsInvertsShadowOverride = supportsInvertsShadow
+    reference.frame = resizedBounds
+    update(reference, red, animationTiming: nil)
+    let referenceMask = try (reference.mask as? CAShapeLayer).unwrap()
+
+    layer.disableActions {
+      layer.frame = resizedBounds
+    }
+    update(layer, blue, animationTiming: .linear(duration: 10))
+    update(layer, blueWiderRadius, animationTiming: .linear(duration: 10, delay: 1))
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowOffset", "shadowPath"]
+    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
 
     let opacityAnimation = CABasicAnimation(keyPath: "opacity")
     opacityAnimation.duration = 10
@@ -401,33 +431,36 @@ final class InnerShadowLayerTests: XCTestCase {
     layer.add(positionAnimation, forKey: "position")
 
     // when: updating without animation timing back to the old values
-    update(color: .red, radius: 10, holeInset: 0, animationTiming: nil)
+    update(layer, red, animationTiming: nil)
 
     // then: the shadow and mask animations are gone and the model has the new values, so the layer renders them on the
     // next frame, while the other properties' animations are left alone
     expect(layer.shadowColor) == Color.red.cgColor
+    expect(layer.shadowOpacity) == 0.5
     expect(layer.shadowRadius) == 10
-    expect(layer.shadowPath) == redShadowPath
-    expect(maskLayer.path) == redMaskPath
+    expect(layer.shadowOffset) == .zero
+    expect(layer.shadowPath) == reference.shadowPath
+    expect(maskLayer.frame) == referenceMask.frame
+    expect(maskLayer.path) == referenceMask.path
     expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position"]
     expect(maskLayer.animationKeys()) == nil
 
     // when: updating with animation timing and the same values
-    update(color: .red, radius: 10, holeInset: 0, animationTiming: .linear(duration: 2))
+    update(layer, red, animationTiming: .linear(duration: 2))
 
     // then: nothing is left to animate
     expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position"]
     expect(maskLayer.animationKeys()) == nil
 
     // when: updating with animation timing and the new values again
-    update(color: .blue, radius: 20, holeInset: 5, animationTiming: .linear(duration: 2))
+    update(layer, blue, animationTiming: .linear(duration: 2))
 
-    // then: the changed properties animate towards the new values
+    // then: every changed property animates towards its new value
     let colorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
     expect(colorAnimation.duration) == 2
     // a Core Foundation type can't be checked at runtime, so the cast is forced
     expect(colorAnimation.toValue as! CGColor) == Color.blue.cgColor // swiftlint:disable:this force_cast
-    expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position", "shadowColor", "shadowRadius", "shadowPath"]
+    expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position", "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath"]
     expect(maskLayer.animationKeys()) == ["path"]
   }
 
