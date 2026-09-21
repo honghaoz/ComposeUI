@@ -111,9 +111,7 @@ public struct ColorNode: ComposeNode {
               to: { _ in color }
             )
           } else {
-            layer.disableActions(for: "backgroundColor") {
-              layer.backgroundColor = color
-            }
+            layer.retarget(keyPath: "backgroundColor", to: color)
           }
         },
         reuseId: ReuseId(namespace: .framework, id: "CALayer"),

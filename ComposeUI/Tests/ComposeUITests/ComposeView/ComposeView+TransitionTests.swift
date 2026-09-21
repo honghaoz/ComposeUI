@@ -574,7 +574,7 @@ class ComposeView_TransitionTests: XCTestCase {
 
     // let the removal render, so the presentation is mid-flight
     expect(layer.presentation()).toEventuallyNot(beNil())
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
     let positionBefore = try unwrap(layer.presentation()).position
 
     // revive mid-flight and let the revival commit

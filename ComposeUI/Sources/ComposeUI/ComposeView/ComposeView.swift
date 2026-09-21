@@ -720,7 +720,8 @@ open class ComposeView: BaseScrollView {
   /// view's next layout or on the next run loop iteration, whichever comes first. A view nested in the rendering view
   /// renders within that pass instead.
   ///
-  /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
+  /// - Parameter animated: Whether the refresh is animated. A non-animated refresh starts no animation and does not
+  ///   stop the in-flight ones. Default value is `true`.
   open func refresh(animated: Bool = true) {
     ComposeUI.assert(Thread.isMainThread, "refresh(animated:) must be called on the main thread")
 
@@ -771,7 +772,7 @@ open class ComposeView: BaseScrollView {
   /// if any request was non-animated. To bypass the merging, call `refresh(animated:)` directly, which cancels any
   /// pending request and refreshes with its own animation flag.
   ///
-  /// - Parameter animated: Whether the refresh is animated. Default value is `true`.
+  /// - Parameter animated: Whether the refresh is animated, see `refresh(animated:)`. Default value is `true`.
   open func setNeedsRefresh(animated: Bool = true) {
     ComposeUI.assert(Thread.isMainThread, "setNeedsRefresh(animated:) must be called on the main thread")
 

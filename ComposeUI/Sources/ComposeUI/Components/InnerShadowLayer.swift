@@ -100,8 +100,8 @@ open class InnerShadowLayer: CALayer {
   ///   - holePath: The path of the "punch hole".
   ///   - clipPath: The path to clip the shadow. If `nil`, the shadow will be clipped by the `holePath`.
   ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
-  ///     animated, from the state the layer currently shows. `nil` shows the new shadow on the next frame, stopping
-  ///     the in-flight animations of the shadow properties and the mask. Default to `nil`.
+  ///     animated, from the state the layer currently shows. `nil` starts no animation and continues the in-flight
+  ///     ones toward the new values, landing when they would have. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
@@ -183,26 +183,21 @@ open class InnerShadowLayer: CALayer {
         )
       }
     } else {
-      // a nil timing shows the new values on the next frame, so the in-flight animations are removed first
-      maskLayer.removeAllAnimations()
-      maskLayer.disableActions(for: "position", "bounds", "path") {
+      // no animation timing: continue the in-flight motion
+      maskLayer.disableActions(for: "position", "bounds") { // additive properties don't need retarget
         maskLayer.frame = bounds
-        maskLayer.path = clipPath
       }
+      maskLayer.retarget(keyPath: "path", to: clipPath) // non-additive property needs retarget
 
-      removeAnimations(forKeyPaths: Self.shadowKeyPaths)
-      disableActions(for: Array(Self.shadowKeyPaths)) {
-        shadowColor = color
+      retarget(keyPath: "shadowColor", to: color)
+      disableActions(for: "shadowOpacity", "shadowRadius", "shadowOffset") { // additive properties don't need retarget
         shadowOpacity = opacity
         shadowRadius = radius
         shadowOffset = offset
-        self.shadowPath = innerShadowPath
       }
+      retarget(keyPath: "shadowPath", to: innerShadowPath) // non-additive property needs retarget
     }
   }
-
-  /// The key paths of the shadow properties `update` sets.
-  private static let shadowKeyPaths: Set<String> = ["shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath"]
 
   /// Reset the layer so it can be reused as if freshly made.
   func resetForReuse() {

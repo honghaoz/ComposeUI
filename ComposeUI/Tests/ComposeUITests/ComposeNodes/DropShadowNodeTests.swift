@@ -377,7 +377,7 @@ class DropShadowNodeTests: XCTestCase {
     }
   }
 
-  func test_update_withoutAnimation_stopsInFlightAnimations() throws {
+  func test_update_withoutAnimation_continuesInFlightAnimations() throws {
     // given: a themed drop shadow node rendered in the light theme, then animated towards the dark theme
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = DropShadowNode(
@@ -412,10 +412,22 @@ class DropShadowNodeTests: XCTestCase {
     contentView.overrideTheme = .light
     update(animationTiming: nil)
 
-    // then: the light shadow shows on the next frame, with no animation left to finish towards the dark one
+    // then: the model has the light shadow, the additive radius animation glides to it on its own, and the color
+    // animation is retargeted to it over its remaining time instead of finishing towards the dark one
     expect(layer.shadowColor) == Color.red.cgColor
     expect(layer.shadowRadius) == 10
-    expect(layer.animationKeys()) == nil
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowRadius"]
+
+    let radiusAnimation = try (layer.animation(forKey: "shadowRadius") as? CABasicAnimation).unwrap()
+    expect(radiusAnimation.isAdditive) == true
+    expect(radiusAnimation.duration) == 10
+    expect(radiusAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
+
+    let colorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
+    expect(colorAnimation.duration) == 10
+    expect(colorAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(colorAnimation.toValue as! CGColor) == Color.red.cgColor // swiftlint:disable:this force_cast
   }
 
   func test_boundsChange_updatesPathsOnlyForRenderableResize() throws {

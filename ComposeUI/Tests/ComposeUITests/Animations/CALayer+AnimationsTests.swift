@@ -772,42 +772,4 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(layer.animation(forKey: "keyframe-fade")) == nil
     expect(layer.animation(forKey: "spin")) != nil
   }
-
-  func test_removeAnimations_forKeyPaths() {
-    // given: a layer with animations of several key paths, and an animation group without a key path
-    let layer = CALayer()
-
-    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
-    fadeAnimation.duration = 60
-    layer.add(fadeAnimation, forKey: "fade")
-
-    // a keyframe animation on a listed key path is also removed
-    let keyframeFadeAnimation = CAKeyframeAnimation(keyPath: "opacity")
-    keyframeFadeAnimation.duration = 60
-    layer.add(keyframeFadeAnimation, forKey: "keyframe-fade")
-
-    let colorAnimation = CABasicAnimation(keyPath: "shadowColor")
-    colorAnimation.duration = 60
-    layer.add(colorAnimation, forKey: "shadowColor")
-
-    // an animation on a key path that is not listed survives
-    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
-    spinAnimation.duration = 60
-    layer.add(spinAnimation, forKey: "spin")
-
-    // an animation group has no key path of its own and survives
-    let groupAnimation = CAAnimationGroup()
-    groupAnimation.duration = 60
-    layer.add(groupAnimation, forKey: "group")
-
-    // when: removing animations for two key paths
-    layer.removeAnimations(forKeyPaths: ["opacity", "shadowColor"])
-
-    // then: the animations of the listed key paths are removed and the others survive
-    expect(layer.animation(forKey: "fade")) == nil
-    expect(layer.animation(forKey: "keyframe-fade")) == nil
-    expect(layer.animation(forKey: "shadowColor")) == nil
-    expect(layer.animation(forKey: "spin")) != nil
-    expect(layer.animation(forKey: "group")) != nil
-  }
 }
