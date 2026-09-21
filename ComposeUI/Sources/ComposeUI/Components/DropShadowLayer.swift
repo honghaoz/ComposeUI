@@ -50,7 +50,7 @@ open class DropShadowLayer: CALayer {
   /// The mask layer to clip the drop shadow out of the main shape.
   private lazy var maskLayer = CAShapeLayer()
 
-  override init() {
+  override public init() {
     super.init()
 
     #if canImport(AppKit)
@@ -91,7 +91,9 @@ open class DropShadowLayer: CALayer {
   ///   - offset: The offset of the shadow.
   ///   - path: The path of the shadow.
   ///   - cutoutPath: The path of the cutout. If provided, the shadow will be clipped for the cutout path. Default to `nil`.
-  ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are animated. Default to `nil`.
+  ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
+  ///     animated, from the state the layer currently shows. `nil` shows the new shadow on the next frame, stopping
+  ///     the in-flight animations of the shadow properties and the mask. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
@@ -135,7 +137,9 @@ open class DropShadowLayer: CALayer {
         )
       }
     } else {
-      disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
+      // a nil timing shows the new values on the next frame, so the in-flight animations are removed first
+      removeAnimations(forKeyPaths: Self.shadowKeyPaths)
+      disableActions(for: Array(Self.shadowKeyPaths)) {
         shadowColor = color
         shadowOpacity = opacity
         shadowRadius = radius
@@ -190,6 +194,7 @@ open class DropShadowLayer: CALayer {
         )
       }
     } else {
+      maskLayer.removeAllAnimations()
       maskLayer.disableActions(for: "position", "bounds", "path") {
         maskLayer.frame = bounds
         maskLayer.path = maskPath
@@ -220,4 +225,7 @@ open class DropShadowLayer: CALayer {
       self.maskLayer.path = nil
     }
   }
+
+  /// The key paths of the shadow properties `update` sets.
+  private static let shadowKeyPaths: Set<String> = ["shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath"]
 }

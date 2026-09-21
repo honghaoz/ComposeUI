@@ -396,4 +396,15 @@ public extension CALayer {
       removeAnimation(forKey: key)
     }
   }
+
+  /// Removes the layer's animations animating any of the given key paths, leaving other animations alone.
+  ///
+  /// - Parameter keyPaths: The animated key paths.
+  internal func removeAnimations(forKeyPaths keyPaths: Set<String>) {
+    for key in animationKeys() ?? [] {
+      if let keyPath = (animation(forKey: key) as? CAPropertyAnimation)?.keyPath, keyPaths.contains(keyPath) {
+        removeAnimation(forKey: key)
+      }
+    }
+  }
 }
