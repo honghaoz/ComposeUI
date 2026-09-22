@@ -79,14 +79,8 @@ extension CALayer {
         return nil
       }
 
-      // a move without a resize leaves a size animation with no delta
-      guard from != to else {
-        continue
-      }
-
-      let scaledDuration = basicAnimation.speed > 0 ? basicAnimation.duration / TimeInterval(basicAnimation.speed) : basicAnimation.duration
-      let animationRemainingTime = basicAnimation.beginTime == 0 ? scaledDuration : basicAnimation.beginTime + scaledDuration - now
-      guard animationRemainingTime > 0 else {
+      // a move without a resize leaves a size animation with no delta, and an ended animation has nothing to follow
+      guard from != to, let animationRemainingTime = basicAnimation.remainingTime(at: now) else {
         continue
       }
 
@@ -133,9 +127,10 @@ extension CALayer {
   ///   - modelValue: The model value to set, the value at the model size.
   ///   - value: The value at a rendered size.
   func animateFollowingSize(_ animations: InFlightSizeAnimations, keyPath: String, to modelValue: Any, value: (CGSize) -> Any) {
-    // a value derived from the size can't be animated additively like the size, so it is sampled at the display rate
-    // instead, capped since a long animation moves slowly enough for sparser samples to interpolate well
-    let sampleCount = max(2, min(Constants.maxSampleCount, Int((animations.remainingTime * Constants.samplesPerSecond).rounded(.up)) + 1))
+    // a value derived from the size can't be animated additively like the size, so the size's motion is sampled into
+    // keyframes instead, at the display rate.
+    let sampledDuration = min(Constants.maxSampledDuration, animations.remainingTime)
+    let sampleCount = max(2, Int((sampledDuration * Constants.samplesPerSecond).rounded(.up)) + 1)
 
     var values: [Any] = []
     var keyTimes: [NSNumber] = []
@@ -173,7 +168,10 @@ extension CALayer {
     /// The sampling rate of a value following the animating size.
     static let samplesPerSecond: TimeInterval = 60
 
-    /// The most samples of a value following the animating size.
-    static let maxSampleCount = 120
+    /// The most motion sampled at the sampling rate. A longer animation gets this much motion's worth of samples.
+    ///
+    /// For example, a 10s animation with 60 samples per second would get 600 samples. An animation longer than 10s
+    /// would get fewer than 60 samples per second. This is to prevent an absurd duration from building millions of samples.
+    static let maxSampledDuration: TimeInterval = 10
   }
 }

@@ -346,8 +346,8 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     expect(animation.duration).to(beApproximatelyEqual(to: 1.5, within: 0.01))
   }
 
-  func test_animateFollowingSize_capsSampleCount() throws {
-    // given: a layer whose frame animates over ten seconds
+  func test_animateFollowingSize_longAnimation_keepsTheSamplingRate() throws {
+    // given: a layer whose frame animates over ten seconds, as a long spring does
     let layer = makeLayer()
     layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 10))
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
@@ -359,9 +359,33 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
       return CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
     }
 
-    // then: the samples are capped, a slow animation interpolates well between sparser samples
-    expect(sampleCount) == 120
-    expect((layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation)?.values?.count) == 120
+    // then: the size is still sampled at the display rate, since a long spring oscillates at its own period and
+    // sparser samples would alias it
+    expect(sampleCount) == 601 // 10s at 60 per second, plus the end
+    expect((layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation)?.values?.count) == 601
+  }
+
+  func test_animateFollowingSize_unreasonableDuration_boundsTheSampleCount() throws {
+    // given: a layer with a size animation of an absurd duration, as a tiny speed on a public timing gives
+    let layer = makeLayer()
+    let sizeAnimation = CABasicAnimation(keyPath: "bounds.size")
+    sizeAnimation.fromValue = CGSize(width: -100, height: 0)
+    sizeAnimation.toValue = CGSize.zero
+    sizeAnimation.isAdditive = true
+    sizeAnimation.duration = 1e300
+    layer.add(sizeAnimation, forKey: "resize")
+    let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
+
+    // when: animating the shadow path to follow the animating size
+    var sampleCount = 0
+    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil)) { size in
+      sampleCount += 1
+      return CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
+    }
+
+    // then: the samples are bounded to ten seconds' worth, instead of an unbounded animation or a trapped conversion
+    expect(sampleCount) == 601
+    expect((layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation)?.values?.count) == 601
   }
 
   func test_animateFollowingSize_replacesInFlightAnimationOfKeyPath() throws {

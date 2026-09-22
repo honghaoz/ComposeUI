@@ -116,9 +116,6 @@ open class InnerShadowLayer: CALayer {
                      clipPath: ((CGSize) -> CGPath)?,
                      animationTiming: AnimationTiming? = nil)
   {
-    let color = color.cgColor
-    let opacity = Float(opacity)
-
     // initialize mask layer if not initialized
     if mask !== maskLayer {
       mask = maskLayer
@@ -141,50 +138,18 @@ open class InnerShadowLayer: CALayer {
     }
 
     if let animationTiming {
-      // only the properties whose model value differs from the target are animated: an unchanged additive one would
-      // add a zero-delta animation that lives for the timing's duration and piles up on repeated passes, and an
-      // unchanged non-additive one would replace an in-flight animation to the same target and restart its easing.
       if !maskLayer.hasFrame(bounds) {
         maskLayer.animateFrame(to: bounds, timing: animationTiming)
       }
-
-      if shadowColor != color {
-        animate(
-          keyPath: "shadowColor",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowColor },
-          to: { _ in color }
-        )
-      }
-      if shadowOpacity != opacity {
-        // the render server clamps the opacity for each animation, so additive animations wouldn't compose correctly,
-        // so use non-additive animation instead
-        animate(
-          keyPath: "shadowOpacity",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowOpacity },
-          to: { _ in opacity }
-        )
-      }
-      if shadowRadius != radius {
-        animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
-      }
-      if shadowOffset != offset {
-        animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
-      }
     } else {
-      // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
-      // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
-      // being retargeted, and the mask stays aligned with the layer
+      // the mask's frame animations mirror the layer's own, which the render pass leaves as they are on a non-animated
+      // frame update, so they are left as they are too instead of being retargeted, and the mask stays aligned
       maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
       }
-
-      retarget(keyPath: "shadowColor", to: color)
-      retarget(keyPath: "shadowOpacity", to: opacity)
-      retarget(keyPath: "shadowRadius", to: radius)
-      retarget(keyPath: "shadowOffset", to: offset)
     }
+
+    updateShadow(color: color.cgColor, opacity: Float(opacity), radius: radius, offset: offset, animationTiming: animationTiming)
 
     let sizeAnimations = inFlightSizeAnimations()
     updatePath(

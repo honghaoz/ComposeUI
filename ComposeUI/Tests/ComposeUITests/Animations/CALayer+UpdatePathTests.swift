@@ -36,26 +36,33 @@ import ChouTiTest
 
 class CALayer_UpdatePathTests: XCTestCase {
 
-  func test_updatePath_unchangedPath_doesNothing() {
-    // given: a layer with a shadow path and an animating frame
+  func test_updatePath_unchangedPath_doesNothing() throws {
+    // given: a layer with a shadow path, an animating frame, and a shadow path animation following it
     let layer = makeLayer()
-    let path = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 50), transform: nil)
+    let path = CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil)
     layer.shadowPath = path
     layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+    let followingAnimation = CAKeyframeAnimation(keyPath: "shadowPath")
+    followingAnimation.values = [path]
+    followingAnimation.duration = 12.34
+    layer.add(followingAnimation, forKey: "shadowPath")
 
-    // when: updating the shadow path to the same path
-    layer.updatePath(
-      keyPath: "shadowPath",
-      from: layer.shadowPath,
-      madeFor: layer.bounds.size,
-      to: path,
-      followingSizeAnimations: layer.inFlightSizeAnimations(),
-      animationTiming: nil,
-      path: { _ in path }
-    )
+    // when: updating the shadow path to the same path, with and without animation
+    for animationTiming in [nil, AnimationTiming.linear(duration: 1)] {
+      layer.updatePath(
+        keyPath: "shadowPath",
+        from: layer.shadowPath,
+        madeFor: layer.bounds.size,
+        to: path,
+        followingSizeAnimations: layer.inFlightSizeAnimations(),
+        animationTiming: animationTiming,
+        path: { _ in path }
+      )
+    }
 
-    // then: nothing is animated
-    expect(layer.animationKeys()) == ["position", "bounds.size"]
+    // then: the in-flight animation is left alone, it already lands on the path
+    expect(layer.animationKeys()) == ["position", "bounds.size", "shadowPath"]
+    expect(try layer.animation(forKey: "shadowPath").unwrap().duration) == 12.34
   }
 
   func test_updatePath_withSizeAnimations_followsTheFrame() throws {
@@ -76,11 +83,39 @@ class CALayer_UpdatePathTests: XCTestCase {
         path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
       )
 
-      // then: the path follows the frame either way
-      expect(layer.animation(forKey: "shadowPath") is CAKeyframeAnimation) == true
+      // then: the path follows the frame either way, from the shown size to the model size
+      let animation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+      // a Core Foundation type can't be checked at runtime, so the cast is forced
+      expect(animation.values?.first as! CGPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 50), transform: nil) // swiftlint:disable:this force_cast
+      expect(animation.values?.last as! CGPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil) // swiftlint:disable:this force_cast
+      expect(layer.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil)
       layer.removeAnimation(forKey: "shadowPath")
       layer.shadowPath = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 50), transform: nil)
     }
+  }
+
+  func test_updatePath_noCurrentPath_withSizeAnimations_followsTheFrame() throws {
+    // given: a layer without a shadow path yet, whose frame animates
+    let layer = makeLayer()
+    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+
+    // when: an animated update sets the first path
+    layer.updatePath(
+      keyPath: "shadowPath",
+      from: layer.shadowPath,
+      madeFor: nil,
+      to: CGPath(rect: layer.bounds, transform: nil),
+      followingSizeAnimations: layer.inFlightSizeAnimations(),
+      animationTiming: .linear(duration: 1),
+      path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+    )
+
+    // then: there is no shape to morph from, so the path follows the frame with the new shape from the start
+    let animation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(animation.values?.first as! CGPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 50), transform: nil) // swiftlint:disable:this force_cast
+    expect(animation.values?.last as! CGPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil) // swiftlint:disable:this force_cast
+    expect(layer.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil)
   }
 
   func test_updatePath_withSizeAnimations_animatedShapeChange_animatesOnItsOwn() throws {
@@ -121,8 +156,11 @@ class CALayer_UpdatePathTests: XCTestCase {
       path: moreInsetRect
     )
 
-    // then: the new shape applies at once and follows the frame
-    expect(layer.animation(forKey: "shadowPath") is CAKeyframeAnimation) == true
+    // then: the new shape applies at once, at the shown size, and follows the frame to the model size
+    let followingAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    expect(followingAnimation.values?.first as! CGPath) == moreInsetRect(CGSize(width: 100, height: 50)) // swiftlint:disable:this force_cast
+    expect(followingAnimation.values?.last as! CGPath) == moreInsetRect(CGSize(width: 200, height: 50)) // swiftlint:disable:this force_cast
+    expect(layer.shadowPath) == moreInsetRect(CGSize(width: 200, height: 50))
   }
 
   func test_updatePath_withSizeAnimations_unknownLastSize_animatesOnItsOwn() throws {
@@ -142,8 +180,12 @@ class CALayer_UpdatePathTests: XCTestCase {
       path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
     )
 
-    // then: the shape change can't be ruled out, so the path animates on its own
-    expect(layer.animation(forKey: "shadowPath") is CABasicAnimation) == true
+    // then: the shape change can't be ruled out, so the path animates on its own to the new path
+    let animation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expect(animation.duration) == 1
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(animation.toValue as! CGPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil) // swiftlint:disable:this force_cast
+    expect(layer.shadowPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil)
   }
 
   func test_updatePath_withoutSizeAnimations() throws {

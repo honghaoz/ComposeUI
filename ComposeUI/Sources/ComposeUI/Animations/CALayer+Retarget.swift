@@ -47,6 +47,8 @@ public extension CALayer {
   ///
   /// A folded or replaced animation is removed, so its delegate is told it stopped before finishing.
   ///
+  /// The in-flight animations are expected to head to the key path's model value, as the ones `animate(keyPath:...)` adds do.
+  ///
   /// - Important: The value's type must match the key path's, or Core Animation crashes.
   ///
   /// - Parameters:
@@ -54,7 +56,7 @@ public extension CALayer {
   ///   - value: The value to set.
   func retarget(keyPath: String, to value: Any) {
     let now = currentTime
-    let inFlightAnimations = inFlightAnimations(forKeyPath: keyPath, at: now, removingEnded: true)
+    let inFlightAnimations = removeEndedAnimations(forKeyPath: keyPath, at: now)
     guard let remainingTime = inFlightAnimations.max(by: { $0.remainingTime < $1.remainingTime })?.remainingTime else {
       // no in-flight animations, set the value directly
       setKeyPathValue(keyPath, value)
@@ -102,50 +104,25 @@ public extension CALayer {
     }
   }
 
-  /// The time the layer's in-flight animations of the given key path have left, in seconds of the layer's time space.
+  /// Removes the layer's ended animations of the given key path, and returns the ones in flight at `now`, see
+  /// `CAAnimation.remainingTime(at:)`.
   ///
-  /// The time is the longest animation's: a delayed animation that hasn't begun counts its remaining delay, and an
-  /// animation whose `beginTime` is still unset (zero) begins when the transaction commits, so it counts its full
-  /// duration. A paused animation (zero speed) counts its duration, as it has no end to measure to.
-  ///
-  /// - Parameter keyPath: The animated key path.
-  /// - Returns: The remaining time, or `nil` when no animation of the key path is in flight.
-  internal func remainingAnimationTime(forKeyPath keyPath: String) -> TimeInterval? {
-    inFlightAnimations(forKeyPath: keyPath, at: currentTime, removingEnded: false)
-      .max(by: { $0.remainingTime < $1.remainingTime })?
-      .remainingTime
-  }
-
-  /// The layer's property animations of the given key path that haven't ended at `now`.
-  ///
-  /// - Parameter removingEnded: Whether to remove the key path's ended animations on the way. Core Animation removes an
-  ///   ended animation itself, unless it is kept with `isRemovedOnCompletion` off, and with a forwards fill it then shows
-  ///   its end value over the model value, so a new model value only shows once it is gone.
-  private func inFlightAnimations(forKeyPath keyPath: String, at now: TimeInterval, removingEnded: Bool) -> [InFlightAnimation] {
+  /// Core Animation removes an ended animation itself, unless it is kept with `isRemovedOnCompletion` off, and with a
+  /// forwards fill it then shows its end value over the model value, so a new model value only shows once it is gone.
+  private func removeEndedAnimations(forKeyPath keyPath: String, at now: TimeInterval) -> [InFlightAnimation] {
     var inFlightAnimations: [InFlightAnimation] = []
     for key in animationKeys() ?? [] {
       guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
         continue
       }
 
-      if let remainingTime = remainingTime(of: animation, at: now) {
+      if let remainingTime = animation.remainingTime(at: now) {
         inFlightAnimations.append(InFlightAnimation(key: key, animation: animation, remainingTime: remainingTime))
-      } else if removingEnded {
+      } else {
         removeAnimation(forKey: key)
       }
     }
     return inFlightAnimations
-  }
-
-  /// The time an animation has left at `now`, or `nil` when it has ended.
-  private func remainingTime(of animation: CAAnimation, at now: TimeInterval) -> TimeInterval? {
-    // a paused animation (zero speed) has no end to measure to, so it counts its duration however long ago it began
-    guard animation.speed > 0 else {
-      return animation.duration
-    }
-    let scaledDuration = animation.duration / TimeInterval(animation.speed)
-    let remainingTime = animation.beginTime == 0 ? scaledDuration : animation.beginTime + scaledDuration - now
-    return remainingTime > 0 ? remainingTime : nil
   }
 
   /// The in-flight additive animations to fold into one glide to the new value, and the offset of the shown value from

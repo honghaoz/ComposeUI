@@ -59,7 +59,9 @@ extension CALayer {
     }
 
     guard currentPath != newPath else {
-      // an in-flight animation of an unchanged path already lands on it
+      // the path didn't change, so there is nothing to do.
+      // example: a refresh changed only the shadow color while the size animates. the path animation from the earlier
+      // update keeps following the size and lands on this path.
       return
     }
 
@@ -88,7 +90,10 @@ extension CALayer {
   /// At the size `currentPath` was made for, the same shape gives the same path, so a different path there can only
   /// come from a changed shape.
   private func isShapeChanged(of currentPath: CGPath?, madeFor lastSize: CGSize?, path: (CGSize) -> CGPath) -> Bool {
-    guard let currentPath, let lastSize else {
+    guard let currentPath else {
+      return false // no path yet, so there is no shape to morph from, and following the size shows the new one at once
+    }
+    guard let lastSize else {
       return true // unknown, so a shape change can't be ruled out: the caller takes the branch that can't jump
     }
     return path(lastSize) != currentPath

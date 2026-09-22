@@ -109,41 +109,7 @@ open class DropShadowLayer: CALayer {
                      cutoutPath: ((CGSize) -> CGPath)? = nil,
                      animationTiming: AnimationTiming? = nil)
   {
-    let color = color.cgColor
-    let opacity = Float(opacity)
-
-    if let animationTiming {
-      if shadowColor != color {
-        animate(
-          keyPath: "shadowColor",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowColor },
-          to: { _ in color }
-        )
-      }
-      if shadowOpacity != opacity {
-        // the render server clamps the opacity for each animation, so additive animations wouldn't compose correctly,
-        // so use non-additive animation instead
-        animate(
-          keyPath: "shadowOpacity",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowOpacity },
-          to: { _ in opacity }
-        )
-      }
-      if shadowRadius != radius {
-        animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
-      }
-      if shadowOffset != offset {
-        animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
-      }
-    } else {
-      // no animation timing: continue the in-flight motion
-      retarget(keyPath: "shadowColor", to: color)
-      retarget(keyPath: "shadowOpacity", to: opacity)
-      retarget(keyPath: "shadowRadius", to: radius)
-      retarget(keyPath: "shadowOffset", to: offset)
-    }
+    updateShadow(color: color.cgColor, opacity: Float(opacity), radius: radius, offset: offset, animationTiming: animationTiming)
 
     let sizeAnimations = inFlightSizeAnimations()
     updatePath(
