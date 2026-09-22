@@ -70,12 +70,10 @@ extension CABasicAnimation {
     guard duration > 0 else {
       return 1
     }
-
     let fraction = max(0, min(elapsed, duration)) / duration
     if let spring = self as? CASpringAnimation {
       return spring.solveForInput(fraction)
     }
-
     // a nil timing function is linear, matching Core Animation's default for basic animations
     return timingFunction?.solveForInput(fraction) ?? fraction
   }

@@ -82,6 +82,9 @@ open class InnerShadowLayer: CALayer {
     super.init(layer: layer)
   }
 
+  /// The size the paths were last evaluated at, to tell a change of a path's shape from a change of the size.
+  private var lastPathsSize: CGSize?
+
   /// Update the inner shadow layer with a new shadow.
   ///
   /// The inner shadow is rendered by a drop shadow from a "punch hole":
@@ -92,13 +95,16 @@ open class InnerShadowLayer: CALayer {
   /// - For a shadow without "spread" effect, the `holePath` and `clipPath` are the same.
   /// - For a shadow with "spread" effect, the `clipPath` is bigger than the `holePath`.
   ///
+  /// While the layer's frame animates, the paths follow the size it renders: the providers are called with the sizes
+  /// it passes through.
+  ///
   /// - Parameters:
   ///   - color: The color of the shadow.
   ///   - opacity: The opacity of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
-  ///   - holePath: The path of the "punch hole".
-  ///   - clipPath: The path to clip the shadow. If `nil`, the shadow will be clipped by the `holePath`.
+  ///   - holePath: The path of the "punch hole", for the layer's size.
+  ///   - clipPath: The path to clip the shadow, for the layer's size. If `nil`, the shadow will be clipped by the `holePath`.
   ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
   ///     animated, from the state the layer currently shows. `nil` starts no animation and continues the in-flight
   ///     ones toward the new values, landing when they would have. Default to `nil`.
@@ -106,8 +112,8 @@ open class InnerShadowLayer: CALayer {
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     holePath: (InnerShadowLayer) -> CGPath,
-                     clipPath: ((InnerShadowLayer) -> CGPath)?,
+                     holePath: (CGSize) -> CGPath,
+                     clipPath: ((CGSize) -> CGPath)?,
                      animationTiming: AnimationTiming? = nil)
   {
     let color = color.cgColor
@@ -121,24 +127,17 @@ open class InnerShadowLayer: CALayer {
       }
     }
 
-    let holePath = holePath(self)
-    let clipPath = clipPath?(self) ?? holePath
-
-    let innerShadowPath: CGPath
     #if DEBUG
     let useInvertsShadow: Bool = self.supportsInvertsShadowOverride ?? self.supportsInvertsShadow
     #else
     let useInvertsShadow: Bool = self.supportsInvertsShadow
     #endif
     if useInvertsShadow {
-      innerShadowPath = holePath
       self.disableActions {
         if !self.invertsShadow {
           self.invertsShadow = true // use the invertsShadow API
         }
       }
-    } else {
-      innerShadowPath = makeInnerShadowPath(holePath: holePath, clipPath: clipPath, radius: radius, offset: offset)
     }
 
     if let animationTiming {
@@ -147,14 +146,6 @@ open class InnerShadowLayer: CALayer {
       // unchanged non-additive one would replace an in-flight animation to the same target and restart its easing.
       if !maskLayer.hasFrame(bounds) {
         maskLayer.animateFrame(to: bounds, timing: animationTiming)
-      }
-      if maskLayer.path != clipPath {
-        maskLayer.animate(
-          keyPath: "path",
-          timing: animationTiming,
-          from: { $0.presentation().assertNotNil()?.path },
-          to: { _ in clipPath }
-        )
       }
 
       if shadowColor != color {
@@ -166,9 +157,8 @@ open class InnerShadowLayer: CALayer {
         )
       }
       if shadowOpacity != opacity {
-        // the render server clamps the shadow opacity after each animation, so opposing additive animations wouldn't
-        // compose on screen (see `animate(keyPath:to:timing:updateAnimation:)`): the opacity animates non-additively
-        // from the shown value, like the color
+        // the render server clamps the opacity for each animation, so additive animations wouldn't compose correctly,
+        // so use non-additive animation instead
         animate(
           keyPath: "shadowOpacity",
           timing: animationTiming,
@@ -182,14 +172,6 @@ open class InnerShadowLayer: CALayer {
       if shadowOffset != offset {
         animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
       }
-      if shadowPath != innerShadowPath {
-        animate(
-          keyPath: "shadowPath",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowPath },
-          to: { _ in innerShadowPath }
-        )
-      }
     } else {
       // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
       // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
@@ -197,14 +179,35 @@ open class InnerShadowLayer: CALayer {
       maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
       }
-      maskLayer.retarget(keyPath: "path", to: clipPath)
 
       retarget(keyPath: "shadowColor", to: color)
       retarget(keyPath: "shadowOpacity", to: opacity)
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
-      retarget(keyPath: "shadowPath", to: innerShadowPath)
     }
+
+    let sizeAnimations = inFlightSizeAnimations()
+    updatePath(
+      keyPath: "shadowPath",
+      from: shadowPath,
+      madeFor: lastPathsSize,
+      to: innerShadowPath(for: bounds.size, holePath: holePath, clipPath: clipPath, radius: radius, offset: offset, useInvertsShadow: useInvertsShadow),
+      followingSizeAnimations: sizeAnimations,
+      animationTiming: animationTiming,
+      path: { innerShadowPath(for: $0, holePath: holePath, clipPath: clipPath, radius: radius, offset: offset, useInvertsShadow: useInvertsShadow) }
+    )
+
+    maskLayer.updatePath(
+      keyPath: "path",
+      from: maskLayer.path,
+      madeFor: lastPathsSize,
+      to: clipPath?(bounds.size) ?? holePath(bounds.size),
+      followingSizeAnimations: sizeAnimations,
+      animationTiming: animationTiming,
+      path: { clipPath?($0) ?? holePath($0) }
+    )
+
+    lastPathsSize = bounds.size
   }
 
   /// Reset the layer so it can be reused as if freshly made.
@@ -213,6 +216,23 @@ open class InnerShadowLayer: CALayer {
     removeAllAnimations()
 
     // doesn't clear shadow properties since they are set by `update`
+    lastPathsSize = nil
+  }
+
+  /// The inner shadow path for a size: the hole for an inverted shadow, the clip's bigger rect punched by the hole otherwise.
+  private func innerShadowPath(for size: CGSize,
+                               holePath: (CGSize) -> CGPath,
+                               clipPath: ((CGSize) -> CGPath)?,
+                               radius: CGFloat,
+                               offset: CGSize,
+                               useInvertsShadow: Bool) -> CGPath
+  {
+    let holePath = holePath(size)
+    if useInvertsShadow {
+      return holePath
+    } else {
+      return makeInnerShadowPath(holePath: holePath, clipPath: clipPath?(size) ?? holePath, radius: radius, offset: offset)
+    }
   }
 
   private func makeInnerShadowPath(holePath: CGPath, clipPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {

@@ -40,7 +40,7 @@ import QuartzCore
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 final class InnerShadowLayerTests: XCTestCase {
 
@@ -185,7 +185,7 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: 0.5,
         radius: 10,
         offset: .zero,
-        holePath: { CGPath(rect: $0.bounds, transform: nil) },
+        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
         clipPath: nil,
         animationTiming: animationTiming
       )
@@ -236,8 +236,8 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: opacity,
         radius: radius,
         offset: offset,
-        holePath: { CGPath(rect: $0.bounds.insetBy(dx: holeInset, dy: holeInset), transform: nil) },
-        clipPath: clipInset.map { inset in { CGPath(rect: $0.bounds.insetBy(dx: inset, dy: inset), transform: nil) } },
+        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: holeInset, dy: holeInset), transform: nil) },
+        clipPath: clipInset.map { inset in { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: inset, dy: inset), transform: nil) } },
         animationTiming: animationTiming
       )
     }
@@ -325,7 +325,7 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: 0.5,
         radius: 10,
         offset: .zero,
-        holePath: { CGPath(rect: $0.bounds.insetBy(dx: holeInset, dy: holeInset), transform: nil) },
+        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: holeInset, dy: holeInset), transform: nil) },
         clipPath: nil,
         animationTiming: animationTiming
       )
@@ -395,7 +395,7 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: shadow.opacity,
         radius: shadow.radius,
         offset: shadow.offset,
-        holePath: { CGPath(rect: $0.bounds.insetBy(dx: shadow.holeInset, dy: shadow.holeInset), transform: nil) },
+        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: shadow.holeInset, dy: shadow.holeInset), transform: nil) },
         clipPath: nil,
         animationTiming: animationTiming
       )
@@ -531,13 +531,92 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
   }
 
+  func test_update_pathsFollowAnimatingSize() throws {
+    // the inverted shadow and the fallback compute the shadow path differently, both must follow the frame
+    for supportsInvertsShadow in [true, false] {
+      try verifyUpdatePathsFollowAnimatingSize(supportsInvertsShadow: supportsInvertsShadow)
+    }
+  }
+
+  private func verifyUpdatePathsFollowAnimatingSize(supportsInvertsShadow: Bool) throws {
+    // given: an inner shadow layer with a clip path, and reference layers giving the paths at the sizes it passes through
+    func makeLayer(width: CGFloat) -> InnerShadowLayer {
+      let layer = InnerShadowLayer()
+      layer.test.supportsInvertsShadowOverride = supportsInvertsShadow
+      layer.frame = CGRect(x: 0, y: 0, width: width, height: 100)
+      return layer
+    }
+    func update(_ layer: InnerShadowLayer, animationTiming: AnimationTiming?) {
+      layer.update(
+        color: .black,
+        opacity: 0.5,
+        radius: 10,
+        offset: .zero,
+        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: 5, dy: 5), transform: nil) },
+        clipPath: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
+        animationTiming: animationTiming
+      )
+    }
+    func referencePaths(width: CGFloat) throws -> (shadow: CGPath, clip: CGPath) {
+      let reference = makeLayer(width: width)
+      update(reference, animationTiming: nil)
+      return try (reference.shadowPath.unwrap(), (reference.mask as? CAShapeLayer).unwrap().path.unwrap())
+    }
+
+    let paths50 = try referencePaths(width: 50)
+    let paths100 = try referencePaths(width: 100)
+    let paths150 = try referencePaths(width: 150)
+    let paths200 = try referencePaths(width: 200)
+
+    let layer = makeLayer(width: 100)
+    update(layer, animationTiming: nil)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+
+    // when: the frame animates to 200 wide, as the render pass animates it, and the layer is updated with the same timing
+    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100), timing: .linear(duration: 2))
+    update(layer, animationTiming: .linear(duration: 2))
+
+    // then: the shadow path and the clip path follow the frame from the paths at the shown size to the paths at the
+    // model size, while the mask's frame animates alongside
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    expect(shadowPathAnimation.duration) == 2
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(shadowPathAnimation.values?.first as! CGPath) == paths100.shadow // swiftlint:disable:this force_cast
+    expect(shadowPathAnimation.values?.last as! CGPath) == paths200.shadow // swiftlint:disable:this force_cast
+    expect(layer.shadowPath) == paths200.shadow
+
+    let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(clipPathAnimation.duration) == 2
+    expect(clipPathAnimation.values?.first as! CGPath) == paths100.clip // swiftlint:disable:this force_cast
+    expect(clipPathAnimation.values?.last as! CGPath) == paths200.clip // swiftlint:disable:this force_cast
+    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
+
+    // when: a non-animated frame update sets the layer 150 wide while the size animation runs, and the layer is updated
+    layer.disableActions {
+      layer.frame = CGRect(x: 0, y: 0, width: 150, height: 100)
+    }
+    update(layer, animationTiming: nil)
+
+    // then: the paths are sampled again from the size the layer shows now to the new model size
+    let resampledShadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    expect(resampledShadowPathAnimation.values?.first as! CGPath) == paths50.shadow // swiftlint:disable:this force_cast
+    expect(resampledShadowPathAnimation.values?.last as! CGPath) == paths150.shadow // swiftlint:disable:this force_cast
+    expect(layer.shadowPath) == paths150.shadow
+
+    let resampledClipPathAnimation = try (maskLayer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(resampledClipPathAnimation.values?.first as! CGPath) == paths50.clip // swiftlint:disable:this force_cast
+    expect(resampledClipPathAnimation.values?.last as! CGPath) == paths150.clip // swiftlint:disable:this force_cast
+    expect(maskLayer.path) == paths150.clip
+    expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 150, height: 100)
+  }
+
   func test_update_withoutAnimation_sameValues_keepsInFlightShadowAnimations() throws {
     // given: an inner shadow layer animated towards a new color and radius
     let layer = InnerShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
     func update(color: Color, radius: CGFloat, animationTiming: AnimationTiming?) {
-      layer.update(color: color, opacity: 0.5, radius: radius, offset: .zero, holePath: { CGPath(rect: $0.bounds, transform: nil) }, clipPath: nil, animationTiming: animationTiming)
+      layer.update(color: color, opacity: 0.5, radius: radius, offset: .zero, holePath: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }, clipPath: nil, animationTiming: animationTiming)
     }
 
     update(color: .red, radius: 10, animationTiming: nil)
@@ -566,7 +645,7 @@ final class InnerShadowLayerTests: XCTestCase {
     testWindow.layer.addSublayer(layer)
 
     func update(color: Color, animationTiming: AnimationTiming?) {
-      layer.update(color: color, opacity: 0.5, radius: 10, offset: .zero, holePath: { CGPath(rect: $0.bounds, transform: nil) }, clipPath: nil, animationTiming: animationTiming)
+      layer.update(color: color, opacity: 0.5, radius: 10, offset: .zero, holePath: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }, clipPath: nil, animationTiming: animationTiming)
     }
 
     func renderedBlue() throws -> CGFloat {

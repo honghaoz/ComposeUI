@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class DropShadowNodeTests: XCTestCase {
 
@@ -42,8 +42,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
       radius: Themed<CGFloat>(light: 10, dark: 15),
       offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-      path: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      path: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return CGPath(rect: rect, transform: nil)
       }
     )
@@ -54,8 +54,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
       radius: Themed<CGFloat>(light: 10, dark: 15),
       offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
@@ -66,8 +66,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      path: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      path: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return CGPath(rect: rect, transform: nil)
       }
     )
@@ -78,8 +78,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
@@ -92,8 +92,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
@@ -109,8 +109,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
@@ -127,8 +127,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
@@ -149,8 +149,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
       radius: Themed<CGFloat>(light: 10, dark: 15),
       offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
       }
     )
@@ -385,8 +385,8 @@ class DropShadowNodeTests: XCTestCase {
       opacity: Themed<CGFloat>(0.5),
       radius: Themed<CGFloat>(light: 10, dark: 20),
       offset: Themed<CGSize>(.zero),
-      paths: { renderable in
-        DropShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil), cutoutPath: nil)
+      paths: { size in
+        DropShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: size), transform: nil), cutoutPath: nil)
       }
     )
     let viewport = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -426,6 +426,88 @@ class DropShadowNodeTests: XCTestCase {
     expect(colorAnimation.toValue as! CGColor) == Color.red.cgColor // swiftlint:disable:this force_cast
   }
 
+  func test_update_cutoutDroppedAtOtherSizes_fallsBackToCutoutAtLayerSize() throws {
+    // given: a drop shadow node whose paths provide a cutout only at the layer's own size, rendered on a layer whose
+    // frame animates
+    let frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    var node = DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { size in
+      let bounds = CGRect(origin: .zero, size: size)
+      let cutoutPath = size.width == frame.width ? CGPath(rect: bounds.insetBy(dx: 10, dy: 10), transform: nil) : nil
+      return DropShadowPaths(shadowPath: CGPath(rect: bounds, transform: nil), cutoutPath: cutoutPath)
+    })
+    _ = node.layout(containerSize: frame.size, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let item = try node.renderableItems(in: frame).first.unwrap()
+    let contentView = ComposeView()
+    let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 0, y: 0, width: 100, height: 100), contentView: contentView))
+    let layer = renderable.layer
+    layer.animateFrame(to: frame, timing: .linear(duration: 1))
+
+    // when: the node updates the layer while the frame animates
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
+
+    // then: the cutout at the layer's size stands in at the sampled sizes, so the mask follows the frame like the shadow
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(maskPathAnimation.values?.count) == shadowPathAnimation.values?.count
+    expect(mask.path?.contains(CGPoint(x: 5, y: 50), using: .evenOdd)) == true
+    expect(mask.path?.contains(CGPoint(x: 100, y: 50), using: .evenOdd)) == false
+  }
+
+  func test_render_shadowPathFollowsFrame_acrossInterruptedResizes() throws {
+    // given: a hosted compose view showing a drop shadow whose width animates
+    let window = TestWindow()
+    var width: CGFloat = 100
+    var layer: CALayer?
+    let view = ComposeView {
+      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) })
+        .frame(width: width, height: 100)
+        .animation(.linear(duration: 0.6))
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    let shadowLayer = try unwrap(layer)
+    CATransaction.flush()
+    expect(shadowLayer.presentation()).toEventuallyNot(beNil())
+
+    func shownWidths() throws -> (bounds: CGFloat, path: CGFloat) {
+      let presentation = try unwrap(shadowLayer.presentation())
+      return try (presentation.bounds.width, unwrap(presentation.shadowPath).boundingBoxOfPath.width)
+    }
+
+    // when: an animated refresh widens the shadow
+    width = 200
+    view.refresh(animated: true)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+
+    // then: mid-flight, the shown shadow path is as wide as the shown bounds
+    let shownDuringResize = try shownWidths()
+    expect(shownDuringResize.bounds) > 105
+    expect(shownDuringResize.bounds) < 195
+    expect(shownDuringResize.path).to(beApproximatelyEqual(to: shownDuringResize.bounds, within: 1))
+
+    // when: a non-animated refresh sets another width while the resize is in flight
+    width = 150
+    view.refresh(animated: false)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+
+    // then: the bounds keep gliding, now toward the new width, and the shown shadow path still matches them
+    let shownAfterInterruption = try shownWidths()
+    expect(shownAfterInterruption.bounds) > 75
+    expect(shownAfterInterruption.bounds) < 150
+    expect(shownAfterInterruption.path).to(beApproximatelyEqual(to: shownAfterInterruption.bounds, within: 1))
+
+    // then: both land on the new width when the resize would have ended
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5))
+    let shownAtEnd = try shownWidths()
+    expect(shownAtEnd.bounds).to(beApproximatelyEqual(to: 150, within: 0.5))
+    expect(shownAtEnd.path).to(beApproximatelyEqual(to: 150, within: 0.5))
+  }
+
   func test_boundsChange_updatesPathsOnlyForRenderableResize() throws {
     for animationTiming in [nil, AnimationTiming.easeInEaseOut()] {
       // given: a shadow with local paths and an external path input that requires refresh
@@ -434,8 +516,8 @@ class DropShadowNodeTests: XCTestCase {
       let viewport = CGRect(x: 0, y: 0, width: 200, height: 200)
       let frame = CGRect(x: 0, y: 0, width: 40, height: 40)
       var inset: CGFloat = 0
-      var node = DropShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, paths: { renderable in
-        let path = CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+      var node = DropShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, paths: { size in
+        let path = CGPath(rect: CGRect(origin: .zero, size: size).insetBy(dx: inset, dy: inset), transform: nil)
         return DropShadowPaths(shadowPath: path, cutoutPath: path)
       })
       _ = node.layout(containerSize: frame.size, context: ComposeNodeLayoutContext(scaleFactor: 1))
@@ -531,8 +613,8 @@ class DropShadowNodeTests: XCTestCase {
           opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
           radius: Themed<CGFloat>(light: 10, dark: 15),
           offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-          path: { renderable in
-            let rect = CGRect(origin: .zero, size: renderable.frame.size)
+          path: { size in
+            let rect = CGRect(origin: .zero, size: size)
             return CGPath(rect: rect, transform: nil)
           }
         )
@@ -562,8 +644,8 @@ class DropShadowNodeTests: XCTestCase {
           opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
           radius: Themed<CGFloat>(light: 10, dark: 15),
           offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-          paths: { renderable in
-            let rect = CGRect(origin: .zero, size: renderable.frame.size)
+          paths: { size in
+            let rect = CGRect(origin: .zero, size: size)
             return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
           }
         )
@@ -593,8 +675,8 @@ class DropShadowNodeTests: XCTestCase {
           opacity: 0.5,
           radius: 10,
           offset: CGSize(width: 2, height: 5),
-          path: { renderable in
-            let rect = CGRect(origin: .zero, size: renderable.frame.size)
+          path: { size in
+            let rect = CGRect(origin: .zero, size: size)
             return CGPath(rect: rect, transform: nil)
           }
         )
@@ -624,8 +706,8 @@ class DropShadowNodeTests: XCTestCase {
           opacity: 0.5,
           radius: 10,
           offset: CGSize(width: 2, height: 5),
-          paths: { renderable in
-            let rect = CGRect(origin: .zero, size: renderable.frame.size)
+          paths: { size in
+            let rect = CGRect(origin: .zero, size: size)
             return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: nil)
           }
         )
@@ -651,17 +733,13 @@ class DropShadowNodeTests: XCTestCase {
     // given: a compose view with two drop shadow nodes in a vstack
     let view = ComposeView {
       VStack {
-        DropShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), path: { renderItem in
-          let size = renderItem.frame.size
-          let cornerRadius = renderItem.layer.cornerRadius
-          return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+        DropShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), path: { size in
+          CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 4, cornerHeight: 4, transform: nil)
         })
 
-        DropShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), paths: { renderItem in
-          let size = renderItem.frame.size
-          let cornerRadius = renderItem.layer.cornerRadius
-          let shadowPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-          let cutoutPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 10, dy: 10), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+        DropShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), paths: { size in
+          let shadowPath = CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 4, cornerHeight: 4, transform: nil)
+          let cutoutPath = CGPath(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: 10, dy: 10), cornerWidth: 4, cornerHeight: 4, transform: nil)
           return DropShadowPaths(shadowPath: shadowPath, cutoutPath: cutoutPath)
         })
       }
@@ -684,7 +762,7 @@ class DropShadowNodeTests: XCTestCase {
     expect(shadowLayer1.shadowOpacity) == 0.5
     expect(shadowLayer1.shadowRadius) == 10
     expect(shadowLayer1.shadowOffset) == CGSize(width: 2, height: 5)
-    expect(shadowLayer1.shadowPath) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 0, cornerHeight: 0, transform: nil)
+    expect(shadowLayer1.shadowPath) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 4, cornerHeight: 4, transform: nil)
 
     // then: the second shadow layer is configured with a cutout mask
     #if canImport(AppKit)
@@ -698,12 +776,12 @@ class DropShadowNodeTests: XCTestCase {
     expect(shadowLayer2.shadowOpacity) == 0.5
     expect(shadowLayer2.shadowRadius) == 10
     expect(shadowLayer2.shadowOffset) == CGSize(width: 2, height: 5)
-    expect(shadowLayer2.shadowPath) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 0, cornerHeight: 0, transform: nil)
+    expect(shadowLayer2.shadowPath) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 4, cornerHeight: 4, transform: nil)
 
     let maskLayer = try unwrap(shadowLayer2.mask as? CAShapeLayer)
     expect(maskLayer.fillRule) == .evenOdd
 
-    let cutoutPath = CGPath(roundedRect: CGRect(x: 10, y: 10, width: 80, height: 30), cornerWidth: 0, cornerHeight: 0, transform: nil)
+    let cutoutPath = CGPath(roundedRect: CGRect(x: 10, y: 10, width: 80, height: 30), cornerWidth: 4, cornerHeight: 4, transform: nil)
 
     let radius: CGFloat = 10
     let offset = CGSize(width: 2, height: 5)
@@ -727,9 +805,9 @@ class DropShadowNodeTests: XCTestCase {
     do {
       let probe = NSObject()
       weakProbe = probe
-      var node: any ComposeNode = DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+      var node: any ComposeNode = DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { size in
         _ = probe // captured by the node's path closure; only reachable from the cached update closure if it captures `self`
-        return CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+        return CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
       })
 
       // when: laying out and populating the item cache, and the node goes out of scope

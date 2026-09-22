@@ -461,8 +461,8 @@ class RenderPerformanceTests: XCTestCase {
   /// A drop-shadow row. The `DropShadowLayer` is non-trivial to create (mask shape layer + content scaling setup),
   /// so this sizes the recycle pool's payoff. DropShadowNode pools by default; pooling is toggled at the view level.
   private static func makeDropShadowRow() -> some ComposeNode {
-    DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), path: { renderable in
-      CGPath(roundedRect: CGRect(origin: .zero, size: renderable.frame.size), cornerWidth: 8, cornerHeight: 8, transform: nil)
+    DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), path: { size in
+      CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 8, cornerHeight: 8, transform: nil)
     })
     .frame(width: .flexible, height: Constants.rowHeight)
   }
@@ -471,8 +471,8 @@ class RenderPerformanceTests: XCTestCase {
   /// pays the mask allocation per scrolled-in row (unlike the plain drop-shadow row). This sizes the pooling payoff for
   /// the masked case and exercises the cutout-mask reset on the recycle path.
   private static func makeDropShadowCutoutRow() -> some ComposeNode {
-    DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), paths: { renderable in
-      let rect = CGRect(origin: .zero, size: renderable.frame.size)
+    DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), paths: { size in
+      let rect = CGRect(origin: .zero, size: size)
       let shadowPath = CGPath(roundedRect: rect, cornerWidth: 8, cornerHeight: 8, transform: nil)
       let cutoutPath = CGPath(roundedRect: rect.insetBy(dx: 8, dy: 8), cornerWidth: 8, cornerHeight: 8, transform: nil)
       return DropShadowPaths(shadowPath: shadowPath, cutoutPath: cutoutPath)
@@ -490,8 +490,8 @@ class RenderPerformanceTests: XCTestCase {
 
   /// An inner-shadow row. Like the drop-shadow row, the `InnerShadowLayer` is non-trivial to create.
   private static func makeInnerShadowRow() -> some ComposeNode {
-    InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), path: { renderable in
-      CGPath(roundedRect: CGRect(origin: .zero, size: renderable.frame.size), cornerWidth: 8, cornerHeight: 8, transform: nil)
+    InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), path: { size in
+      CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 8, cornerHeight: 8, transform: nil)
     })
     .frame(width: .flexible, height: Constants.rowHeight)
   }

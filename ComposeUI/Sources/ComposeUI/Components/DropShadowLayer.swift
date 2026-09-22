@@ -82,15 +82,22 @@ open class DropShadowLayer: CALayer {
     super.init(layer: layer)
   }
 
+  /// The size the paths were last evaluated at, to tell a change of a path's shape from a change of the size.
+  private var lastPathsSize: CGSize?
+
   /// Update the drop shadow layer with a new shadow.
+  ///
+  /// While the layer's frame animates, the paths follow the size it renders: the providers are called with the sizes
+  /// it passes through.
   ///
   /// - Parameters:
   ///   - color: The color of the shadow.
   ///   - opacity: The opacity of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
-  ///   - path: The path of the shadow.
-  ///   - cutoutPath: The path of the cutout. If provided, the shadow will be clipped for the cutout path. Default to `nil`.
+  ///   - path: The path of the shadow, for the layer's size.
+  ///   - cutoutPath: The path of the cutout, for the layer's size. If provided, the shadow will be clipped for the
+  ///     cutout path. Default to `nil`.
   ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
   ///     animated, from the state the layer currently shows. `nil` starts no animation and continues the in-flight
   ///     ones toward the new values, landing when they would have. Default to `nil`.
@@ -98,17 +105,14 @@ open class DropShadowLayer: CALayer {
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     path: (DropShadowLayer) -> CGPath,
-                     cutoutPath: ((DropShadowLayer) -> CGPath)? = nil,
+                     path: (CGSize) -> CGPath,
+                     cutoutPath: ((CGSize) -> CGPath)? = nil,
                      animationTiming: AnimationTiming? = nil)
   {
     let color = color.cgColor
     let opacity = Float(opacity)
 
     if let animationTiming {
-      // only the properties whose model value differs from the target are animated: an unchanged additive one would
-      // add a zero-delta animation that lives for the timing's duration and piles up on repeated passes, and an
-      // unchanged non-additive one would replace an in-flight animation to the same target and restart its easing.
       if shadowColor != color {
         animate(
           keyPath: "shadowColor",
@@ -118,9 +122,8 @@ open class DropShadowLayer: CALayer {
         )
       }
       if shadowOpacity != opacity {
-        // the render server clamps the shadow opacity after each animation, so opposing additive animations wouldn't
-        // compose on screen (see `animate(keyPath:to:timing:updateAnimation:)`): the opacity animates non-additively
-        // from the shown value, like the color
+        // the render server clamps the opacity for each animation, so additive animations wouldn't compose correctly,
+        // so use non-additive animation instead
         animate(
           keyPath: "shadowOpacity",
           timing: animationTiming,
@@ -134,33 +137,39 @@ open class DropShadowLayer: CALayer {
       if shadowOffset != offset {
         animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
       }
-      // the path is requested after the other properties are applied, so a provider can derive it from them
-      let newShadowPath = path(self)
-      if shadowPath != newShadowPath {
-        animate(
-          keyPath: "shadowPath",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowPath },
-          to: { _ in newShadowPath }
-        )
-      }
     } else {
       // no animation timing: continue the in-flight motion
       retarget(keyPath: "shadowColor", to: color)
       retarget(keyPath: "shadowOpacity", to: opacity)
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
-
-      // the path is requested after the other properties are applied, so a provider can derive it from them
-      retarget(keyPath: "shadowPath", to: path(self))
     }
 
+    let sizeAnimations = inFlightSizeAnimations()
+    updatePath(
+      keyPath: "shadowPath",
+      from: shadowPath,
+      madeFor: lastPathsSize,
+      to: path(bounds.size),
+      followingSizeAnimations: sizeAnimations,
+      animationTiming: animationTiming,
+      path: path
+    )
+
     if let cutoutPath {
-      updateMaskLayer(cutoutPath: cutoutPath, radius: radius, offset: offset, animationTiming: animationTiming)
+      updateMaskLayer(
+        cutoutPath: cutoutPath,
+        radius: radius,
+        offset: offset,
+        sizeAnimations: sizeAnimations,
+        animationTiming: animationTiming
+      )
     } else {
       // no cutout: clear any mask a previous update installed, so the rendered state always matches the inputs.
       clearMaskLayer()
     }
+
+    lastPathsSize = bounds.size
   }
 
   /// Reset the layer so it can be reused as if freshly made.
@@ -168,13 +177,15 @@ open class DropShadowLayer: CALayer {
     removeAllAnimations()
 
     // doesn't clear shadow properties since they are set by `update`
+    lastPathsSize = nil
 
     clearMaskLayer()
   }
 
-  private func updateMaskLayer(cutoutPath: (DropShadowLayer) -> CGPath,
+  private func updateMaskLayer(cutoutPath: (CGSize) -> CGPath,
                                radius: CGFloat,
                                offset: CGSize,
+                               sizeAnimations: InFlightSizeAnimations?,
                                animationTiming: AnimationTiming?)
   {
     // initialize mask layer if not initialized
@@ -186,29 +197,28 @@ open class DropShadowLayer: CALayer {
       maskLayer.fillRule = .evenOdd // to match the clip out path
     }
 
-    let maskPath = maskLayerPath(cutoutPath: cutoutPath(self), radius: radius, offset: offset)
-
     if let animationTiming {
       if !maskLayer.hasFrame(bounds) {
         maskLayer.animateFrame(to: bounds, timing: animationTiming)
       }
-      if maskLayer.path != maskPath {
-        maskLayer.animate(
-          keyPath: "path",
-          timing: animationTiming,
-          from: { $0.presentation().assertNotNil()?.path },
-          to: { _ in maskPath }
-        )
-      }
     } else {
-      // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
-      // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
-      // being retargeted, and the mask stays aligned with the layer
+      // the mask's frame animations mirror the layer's own, which the render pass leaves as they are on a non-animated
+      // frame update, so they are left as they are too instead of being retargeted, and the mask stays aligned
       maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
       }
-      maskLayer.retarget(keyPath: "path", to: maskPath)
     }
+
+    // the mask path is derived from the layer's size like the shadow path, and follows the frame the same way
+    maskLayer.updatePath(
+      keyPath: "path",
+      from: maskLayer.path,
+      madeFor: lastPathsSize,
+      to: maskLayerPath(cutoutPath: cutoutPath(bounds.size), radius: radius, offset: offset),
+      followingSizeAnimations: sizeAnimations,
+      animationTiming: animationTiming,
+      path: { maskLayerPath(cutoutPath: cutoutPath($0), radius: radius, offset: offset) }
+    )
   }
 
   private func maskLayerPath(cutoutPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {

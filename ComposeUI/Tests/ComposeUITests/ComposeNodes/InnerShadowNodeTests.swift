@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class InnerShadowNodeTests: XCTestCase {
 
@@ -42,8 +42,8 @@ class InnerShadowNodeTests: XCTestCase {
       opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
       radius: Themed<CGFloat>(light: 10, dark: 15),
       offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-      path: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      path: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return CGPath(rect: rect, transform: nil)
       }
     )
@@ -54,8 +54,8 @@ class InnerShadowNodeTests: XCTestCase {
       opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
       radius: Themed<CGFloat>(light: 10, dark: 15),
       offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return InnerShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), clipPath: nil)
       }
     )
@@ -66,8 +66,8 @@ class InnerShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      path: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      path: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return CGPath(rect: rect, transform: nil)
       }
     )
@@ -78,8 +78,8 @@ class InnerShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return InnerShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), clipPath: nil)
       }
     )
@@ -92,8 +92,8 @@ class InnerShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      path: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      path: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return CGPath(rect: rect, transform: nil)
       }
     )
@@ -109,8 +109,8 @@ class InnerShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      path: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      path: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return CGPath(rect: rect, transform: nil)
       }
     )
@@ -126,8 +126,8 @@ class InnerShadowNodeTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      path: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      path: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return CGPath(rect: rect, transform: nil)
       }
     )
@@ -149,8 +149,8 @@ class InnerShadowNodeTests: XCTestCase {
       opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
       radius: Themed<CGFloat>(light: 10, dark: 15),
       offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-      paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return InnerShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), clipPath: nil)
       }
     )
@@ -431,6 +431,34 @@ class InnerShadowNodeTests: XCTestCase {
     }
   }
 
+  func test_update_clipPathDroppedAtOtherSizes_fallsBackToClipPathAtLayerSize() throws {
+    // given: an inner shadow node whose paths provide a clip path only at the layer's own size, rendered on a layer
+    // whose frame animates
+    let frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    var node = InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { size in
+      let bounds = CGRect(origin: .zero, size: size)
+      let clipPath = size.width == frame.width ? CGPath(rect: bounds.insetBy(dx: -10, dy: -10), transform: nil) : nil
+      return InnerShadowPaths(shadowPath: CGPath(rect: bounds, transform: nil), clipPath: clipPath)
+    })
+    _ = node.layout(containerSize: frame.size, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let item = try node.renderableItems(in: frame).first.unwrap()
+    let contentView = ComposeView()
+    let renderable = item.make(RenderableMakeContext(initialFrame: CGRect(x: 0, y: 0, width: 100, height: 100), contentView: contentView))
+    let layer = renderable.layer
+    layer.animateFrame(to: frame, timing: .linear(duration: 1))
+
+    // when: the node updates the layer while the frame animates
+    item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
+
+    // then: the clip path at the layer's size stands in at the sampled sizes, so the mask follows the frame like the
+    // shadow and ends on the clip path at the layer's size
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(maskPathAnimation.values?.count) == shadowPathAnimation.values?.count
+    expect(mask.path) == CGPath(rect: CGRect(x: -10, y: -10, width: 220, height: 120), transform: nil)
+  }
+
   func test_boundsChange_updatesPathsOnlyForRenderableResize() throws {
     for animationTiming in [nil, AnimationTiming.easeInEaseOut()] {
       // given: local shadow and clip paths with an external input that requires refresh
@@ -439,8 +467,8 @@ class InnerShadowNodeTests: XCTestCase {
       let viewport = CGRect(x: 0, y: 0, width: 200, height: 200)
       let frame = CGRect(x: 0, y: 0, width: 40, height: 40)
       var inset: CGFloat = 0
-      var node = InnerShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, paths: { renderable in
-        let bounds = renderable.layer.bounds
+      var node = InnerShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, paths: { size in
+        let bounds = CGRect(origin: .zero, size: size)
         return InnerShadowPaths(
           shadowPath: CGPath(rect: bounds.insetBy(dx: inset, dy: inset), transform: nil),
           clipPath: CGPath(rect: bounds.insetBy(dx: inset / 2, dy: inset / 2), transform: nil)
@@ -536,8 +564,8 @@ class InnerShadowNodeTests: XCTestCase {
           opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
           radius: Themed<CGFloat>(light: 10, dark: 15),
           offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-          path: { renderable in
-            let rect = CGRect(origin: .zero, size: renderable.frame.size)
+          path: { size in
+            let rect = CGRect(origin: .zero, size: size)
             return CGPath(rect: rect, transform: nil)
           }
         )
@@ -567,8 +595,8 @@ class InnerShadowNodeTests: XCTestCase {
           opacity: Themed<CGFloat>(light: 0.5, dark: 0.7),
           radius: Themed<CGFloat>(light: 10, dark: 15),
           offset: Themed<CGSize>(light: CGSize(width: 2, height: 5), dark: CGSize(width: 3, height: 6)),
-          paths: { renderable in
-            let rect = CGRect(origin: .zero, size: renderable.frame.size)
+          paths: { size in
+            let rect = CGRect(origin: .zero, size: size)
             return InnerShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), clipPath: nil)
           }
         )
@@ -598,8 +626,8 @@ class InnerShadowNodeTests: XCTestCase {
           opacity: 0.5,
           radius: 10,
           offset: CGSize(width: 2, height: 5),
-          path: { renderable in
-            let rect = CGRect(origin: .zero, size: renderable.frame.size)
+          path: { size in
+            let rect = CGRect(origin: .zero, size: size)
             return CGPath(rect: rect, transform: nil)
           }
         )
@@ -629,8 +657,8 @@ class InnerShadowNodeTests: XCTestCase {
           opacity: 0.5,
           radius: 10,
           offset: CGSize(width: 2, height: 5),
-          paths: { renderable in
-            let rect = CGRect(origin: .zero, size: renderable.frame.size)
+          paths: { size in
+            let rect = CGRect(origin: .zero, size: size)
             return InnerShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), clipPath: nil)
           }
         )
@@ -656,17 +684,13 @@ class InnerShadowNodeTests: XCTestCase {
     // given: a compose view with two inner shadow nodes in a vstack
     let view = ComposeView {
       VStack {
-        InnerShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), path: { renderItem in
-          let size = renderItem.frame.size
-          let cornerRadius = renderItem.layer.cornerRadius
-          return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+        InnerShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), path: { size in
+          CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 4, cornerHeight: 4, transform: nil)
         })
 
-        InnerShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), paths: { renderItem in
-          let size = renderItem.frame.size
-          let cornerRadius = renderItem.layer.cornerRadius
-          let shadowPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-          let clipPath = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: 10, dy: 10), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+        InnerShadowNode(color: .black, opacity: 0.5, radius: 10, offset: CGSize(width: 2, height: 5), paths: { size in
+          let shadowPath = CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 4, cornerHeight: 4, transform: nil)
+          let clipPath = CGPath(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: 10, dy: 10), cornerWidth: 4, cornerHeight: 4, transform: nil)
           return InnerShadowPaths(shadowPath: shadowPath, clipPath: clipPath)
         })
       }
@@ -693,7 +717,7 @@ class InnerShadowNodeTests: XCTestCase {
     expect(shadowLayer1.invertsShadow) == true
 
     let maskLayer1 = try unwrap(shadowLayer1.mask as? CAShapeLayer)
-    expect(maskLayer1.path) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 0, cornerHeight: 0, transform: nil)
+    expect(maskLayer1.path) == CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: 4, cornerHeight: 4, transform: nil)
 
     // then: the second inner shadow layer is configured with an inset clip mask
     #if canImport(AppKit)
@@ -711,7 +735,7 @@ class InnerShadowNodeTests: XCTestCase {
     expect(shadowLayer1.invertsShadow) == true
 
     let maskLayer2 = try unwrap(shadowLayer2.mask as? CAShapeLayer)
-    expect(maskLayer2.path) == CGPath(roundedRect: CGRect(x: 10, y: 10, width: 80, height: 30), cornerWidth: 0, cornerHeight: 0, transform: nil)
+    expect(maskLayer2.path) == CGPath(roundedRect: CGRect(x: 10, y: 10, width: 80, height: 30), cornerWidth: 4, cornerHeight: 4, transform: nil)
   }
 
   func test_renderableItems_doesNotRetainNodeThroughItemCache() {
@@ -724,9 +748,9 @@ class InnerShadowNodeTests: XCTestCase {
     do {
       let probe = NSObject()
       weakProbe = probe
-      var node: any ComposeNode = InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
+      var node: any ComposeNode = InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { size in
         _ = probe // captured by the node's path closure; only reachable from the cached update closure if it captures `self`
-        return CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+        return CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
       })
 
       // when: laying out and populating the item cache, and the node goes out of scope

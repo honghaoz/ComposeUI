@@ -208,8 +208,7 @@ extension Playground {
               opacity: isPressed ? 0 : ButtonStyle.bevelOpacity,
               radius: 0,
               offset: CGSize(width: 0, height: 1),
-              path: { renderable in
-                let size = renderable.frame.size
+              path: { size in
                 let cornerRadius = ButtonStyle.cornerRadius - 1
                 return CGPath(
                   roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
@@ -226,9 +225,8 @@ extension Playground {
             opacity: isPressed ? 0 : ButtonStyle.shadowOpacity,
             radius: ButtonStyle.shadowRadius,
             offset: ButtonStyle.shadowOffset,
-            path: { renderable in
-              let size = renderable.frame.size
-              return CGPath(
+            path: { size in
+              CGPath(
                 roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
                 cornerWidth: ButtonStyle.cornerRadius,
                 cornerHeight: ButtonStyle.cornerRadius,

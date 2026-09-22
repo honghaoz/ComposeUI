@@ -57,7 +57,8 @@ public struct DropShadowPaths {
 
 /// A node that renders a drop shadow.
 ///
-/// The node has a flexible size. The path providers run when the renderable is inserted, refreshed, or changes size.
+/// The node has a flexible size. The path providers are given the shadow's size, and run when the renderable is
+/// inserted, refreshed, or changes size, and for the sizes it passes through while its frame animates.
 /// Request a refresh when other inputs of a path change.
 public struct DropShadowNode: ComposeNode {
 
@@ -65,7 +66,7 @@ public struct DropShadowNode: ComposeNode {
   private let opacity: Themed<CGFloat>
   private let radius: Themed<CGFloat>
   private let offset: Themed<CGSize>
-  private let paths: (Renderable) -> DropShadowPaths
+  private let paths: (CGSize) -> DropShadowPaths
 
   /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
   private let itemCache = RenderableItemCache()
@@ -77,8 +78,8 @@ public struct DropShadowNode: ComposeNode {
   ///   - opacity: The themed opacity of the drop shadow.
   ///   - radius: The themed radius of the drop shadow.
   ///   - offset: The themed offset of the drop shadow.
-  ///   - path: The path of the drop shadow.
-  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: @escaping (Renderable) -> CGPath) {
+  ///   - path: The path of the drop shadow, for the shadow's size.
+  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: @escaping (CGSize) -> CGPath) {
     self.color = color
     self.opacity = opacity
     self.radius = radius
@@ -93,8 +94,8 @@ public struct DropShadowNode: ComposeNode {
   ///   - opacity: The themed opacity of the drop shadow.
   ///   - radius: The themed radius of the drop shadow.
   ///   - offset: The themed offset of the drop shadow.
-  ///   - paths: The paths of the drop shadow. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
-  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, paths: @escaping (Renderable) -> DropShadowPaths) {
+  ///   - paths: The paths of the drop shadow, for the shadow's size. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
+  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, paths: @escaping (CGSize) -> DropShadowPaths) {
     self.color = color
     self.opacity = opacity
     self.radius = radius
@@ -109,8 +110,8 @@ public struct DropShadowNode: ComposeNode {
   ///   - opacity: The opacity of the drop shadow.
   ///   - radius: The radius of the drop shadow.
   ///   - offset: The offset of the drop shadow.
-  ///   - path: The shadow path provider.
-  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (Renderable) -> CGPath) {
+  ///   - path: The path of the drop shadow, for the shadow's size.
+  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (CGSize) -> CGPath) {
     self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
   }
 
@@ -121,8 +122,8 @@ public struct DropShadowNode: ComposeNode {
   ///   - opacity: The opacity of the drop shadow.
   ///   - radius: The radius of the drop shadow.
   ///   - offset: The offset of the drop shadow.
-  ///   - paths: The paths of the drop shadow. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
-  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, paths: @escaping (Renderable) -> DropShadowPaths) {
+  ///   - paths: The paths of the drop shadow, for the shadow's size. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
+  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, paths: @escaping (CGSize) -> DropShadowPaths) {
     self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), paths: paths)
   }
 
@@ -176,15 +177,32 @@ public struct DropShadowNode: ComposeNode {
           }
 
           let theme = context.contentView.theme
-          let paths = paths(.layer(layer))
+
+          // the layer calls the providers for other sizes while its frame animates, memoized per size since it asks
+          // for the shadow path and the cutout path separately
+          var lastPaths: (size: CGSize, paths: DropShadowPaths)?
+          func shadowPaths(for size: CGSize) -> DropShadowPaths {
+            if let lastPaths, lastPaths.size == size {
+              return lastPaths.paths
+            }
+            let shadowPaths = paths(size)
+            lastPaths = (size, shadowPaths)
+            return shadowPaths
+          }
+
+          // whether there is a cutout is decided at the layer's own size, a provider that drops it at another size
+          // falls back to the cutout at the layer's size
+          let cutoutPath: ((CGSize) -> CGPath)? = shadowPaths(for: layer.bounds.size).cutoutPath.map { modelCutoutPath in
+            { shadowPaths(for: $0).cutoutPath ?? modelCutoutPath }
+          }
 
           layer.update(
             color: color.resolve(for: theme),
             opacity: opacity.resolve(for: theme),
             radius: radius.resolve(for: theme),
             offset: offset.resolve(for: theme),
-            path: { _ in paths.shadowPath },
-            cutoutPath: paths.cutoutPath.map { cutoutPath in { _ in cutoutPath } },
+            path: { shadowPaths(for: $0).shadowPath },
+            cutoutPath: cutoutPath,
             animationTiming: context.animationTiming
           )
         },
@@ -210,13 +228,13 @@ public extension ComposeNode {
   ///   - opacity: The themed opacity of the drop shadow.
   ///   - radius: The themed radius of the drop shadow.
   ///   - offset: The themed offset of the drop shadow.
-  ///   - path: The path of the drop shadow. The block provides the renderable that the shadow is applied to.
+  ///   - path: The path of the drop shadow. The block is given the size of the shadow, the node's size.
   /// - Returns: A new node with the drop shadow underlay set.
   func dropShadow(color: ThemedColor,
                   opacity: Themed<CGFloat>,
                   radius: Themed<CGFloat>,
                   offset: Themed<CGSize>,
-                  path: @escaping (Renderable) -> CGPath) -> some ComposeNode
+                  path: @escaping (CGSize) -> CGPath) -> some ComposeNode
   {
     underlay {
       DropShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, path: path)
@@ -233,13 +251,13 @@ public extension ComposeNode {
   ///   - opacity: The opacity of the drop shadow.
   ///   - radius: The radius of the drop shadow.
   ///   - offset: The offset of the drop shadow.
-  ///   - path: The path of the drop shadow. The block provides the renderable that the shadow is applied to.
+  ///   - path: The path of the drop shadow. The block is given the size of the shadow, the node's size.
   /// - Returns: A new node with the drop shadow underlay set.
   func dropShadow(color: Color,
                   opacity: CGFloat,
                   radius: CGFloat,
                   offset: CGSize,
-                  path: @escaping (Renderable) -> CGPath) -> some ComposeNode
+                  path: @escaping (CGSize) -> CGPath) -> some ComposeNode
   {
     underlay {
       DropShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, path: path)
@@ -256,13 +274,13 @@ public extension ComposeNode {
   ///   - opacity: The themed opacity of the drop shadow.
   ///   - radius: The themed radius of the drop shadow.
   ///   - offset: The themed offset of the drop shadow.
-  ///   - paths: The paths of the drop shadow. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
+  ///   - paths: The paths of the drop shadow. The block is given the size of the shadow, the node's size. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
   /// - Returns: A new node with the drop shadow underlay set.
   func dropShadow(color: ThemedColor,
                   opacity: Themed<CGFloat>,
                   radius: Themed<CGFloat>,
                   offset: Themed<CGSize>,
-                  paths: @escaping (Renderable) -> DropShadowPaths) -> some ComposeNode
+                  paths: @escaping (CGSize) -> DropShadowPaths) -> some ComposeNode
   {
     underlay {
       DropShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, paths: paths)
@@ -279,13 +297,13 @@ public extension ComposeNode {
   ///   - opacity: The opacity of the drop shadow.
   ///   - radius: The radius of the drop shadow.
   ///   - offset: The offset of the drop shadow.
-  ///   - paths: The paths of the drop shadow. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
+  ///   - paths: The paths of the drop shadow. The block is given the size of the shadow, the node's size. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
   /// - Returns: A new node with the drop shadow underlay set.
   func dropShadow(color: Color,
                   opacity: CGFloat,
                   radius: CGFloat,
                   offset: CGSize,
-                  paths: @escaping (Renderable) -> DropShadowPaths) -> some ComposeNode
+                  paths: @escaping (CGSize) -> DropShadowPaths) -> some ComposeNode
   {
     underlay {
       DropShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, paths: paths)

@@ -70,7 +70,8 @@ public struct InnerShadowPaths {
 
 /// A node that renders an inner shadow.
 ///
-/// The node has a flexible size. The path providers run when the renderable is inserted, refreshed, or changes size.
+/// The node has a flexible size. The path providers are given the shadow's size, and run when the renderable is
+/// inserted, refreshed, or changes size, and for the sizes it passes through while its frame animates.
 /// Request a refresh when other inputs of a path change.
 public struct InnerShadowNode: ComposeNode {
 
@@ -78,7 +79,7 @@ public struct InnerShadowNode: ComposeNode {
   private let opacity: Themed<CGFloat>
   private let radius: Themed<CGFloat>
   private let offset: Themed<CGSize>
-  private let paths: (Renderable) -> InnerShadowPaths
+  private let paths: (CGSize) -> InnerShadowPaths
 
   /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
   private let itemCache = RenderableItemCache()
@@ -90,8 +91,8 @@ public struct InnerShadowNode: ComposeNode {
   ///   - opacity: The themed opacity of the inner shadow.
   ///   - radius: The themed radius of the inner shadow.
   ///   - offset: The themed offset of the inner shadow.
-  ///   - path: The path of the inner shadow.
-  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: @escaping (Renderable) -> CGPath) {
+  ///   - path: The path of the inner shadow, for the shadow's size.
+  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: @escaping (CGSize) -> CGPath) {
     self.color = color
     self.opacity = opacity
     self.radius = radius
@@ -106,8 +107,8 @@ public struct InnerShadowNode: ComposeNode {
   ///   - opacity: The themed opacity of the inner shadow.
   ///   - radius: The themed radius of the inner shadow.
   ///   - offset: The themed offset of the inner shadow.
-  ///   - paths: The paths of the inner shadow.
-  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, paths: @escaping (Renderable) -> InnerShadowPaths) {
+  ///   - paths: The paths of the inner shadow, for the shadow's size.
+  public init(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, paths: @escaping (CGSize) -> InnerShadowPaths) {
     self.color = color
     self.opacity = opacity
     self.radius = radius
@@ -122,8 +123,8 @@ public struct InnerShadowNode: ComposeNode {
   ///   - opacity: The opacity of the inner shadow.
   ///   - radius: The radius of the inner shadow.
   ///   - offset: The offset of the inner shadow.
-  ///   - path: The path of the inner shadow.
-  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (Renderable) -> CGPath) {
+  ///   - path: The path of the inner shadow, for the shadow's size.
+  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: @escaping (CGSize) -> CGPath) {
     self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
   }
 
@@ -134,8 +135,8 @@ public struct InnerShadowNode: ComposeNode {
   ///   - opacity: The opacity of the inner shadow.
   ///   - radius: The radius of the inner shadow.
   ///   - offset: The offset of the inner shadow.
-  ///   - paths: The paths of the inner shadow.
-  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, paths: @escaping (Renderable) -> InnerShadowPaths) {
+  ///   - paths: The paths of the inner shadow, for the shadow's size.
+  public init(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, paths: @escaping (CGSize) -> InnerShadowPaths) {
     self.init(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), paths: paths)
   }
 
@@ -189,15 +190,32 @@ public struct InnerShadowNode: ComposeNode {
           }
 
           let theme = context.contentView.theme
-          let paths = paths(.layer(layer))
+
+          // the layer calls the providers for other sizes while its frame animates, memoized per size since it asks
+          // for the hole path and the clip path separately
+          var lastPaths: (size: CGSize, paths: InnerShadowPaths)?
+          func shadowPaths(for size: CGSize) -> InnerShadowPaths {
+            if let lastPaths, lastPaths.size == size {
+              return lastPaths.paths
+            }
+            let shadowPaths = paths(size)
+            lastPaths = (size, shadowPaths)
+            return shadowPaths
+          }
+
+          // whether there is a clip path is decided at the layer's own size, a provider that drops it at another size
+          // falls back to the clip path at the layer's size
+          let clipPath: ((CGSize) -> CGPath)? = shadowPaths(for: layer.bounds.size).clipPath.map { modelClipPath in
+            { shadowPaths(for: $0).clipPath ?? modelClipPath }
+          }
 
           layer.update(
             color: color.resolve(for: theme),
             opacity: opacity.resolve(for: theme),
             radius: radius.resolve(for: theme),
             offset: offset.resolve(for: theme),
-            holePath: { _ in paths.shadowPath },
-            clipPath: paths.clipPath.map { clipPath in { _ in clipPath } },
+            holePath: { shadowPaths(for: $0).shadowPath },
+            clipPath: clipPath,
             animationTiming: context.animationTiming
           )
         },
@@ -219,13 +237,13 @@ public extension ComposeNode {
   ///   - opacity: The themed opacity of the inner shadow.
   ///   - radius: The themed radius of the inner shadow.
   ///   - offset: The themed offset of the inner shadow.
-  ///   - path: The path of the inner shadow. The block provides the renderable that the shadow is applied to.
+  ///   - path: The path of the inner shadow. The block is given the size of the shadow, the node's size.
   /// - Returns: A new node with the inner shadow overlay set.
   func innerShadow(color: ThemedColor,
                    opacity: Themed<CGFloat>,
                    radius: Themed<CGFloat>,
                    offset: Themed<CGSize>,
-                   path: @escaping (Renderable) -> CGPath) -> some ComposeNode
+                   path: @escaping (CGSize) -> CGPath) -> some ComposeNode
   {
     overlay {
       InnerShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, path: path)
@@ -238,13 +256,13 @@ public extension ComposeNode {
   ///   - opacity: The opacity of the inner shadow.
   ///   - radius: The radius of the inner shadow.
   ///   - offset: The offset of the inner shadow.
-  ///   - path: The path of the inner shadow. The block provides the renderable that the shadow is applied to.
+  ///   - path: The path of the inner shadow. The block is given the size of the shadow, the node's size.
   /// - Returns: A new node with the inner shadow overlay set.
   func innerShadow(color: Color,
                    opacity: CGFloat,
                    radius: CGFloat,
                    offset: CGSize,
-                   path: @escaping (Renderable) -> CGPath) -> some ComposeNode
+                   path: @escaping (CGSize) -> CGPath) -> some ComposeNode
   {
     overlay {
       InnerShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, path: path)
@@ -257,12 +275,12 @@ public extension ComposeNode {
   ///   - opacity: The themed opacity of the inner shadow.
   ///   - radius: The themed radius of the inner shadow.
   ///   - offset: The themed offset of the inner shadow.
-  ///   - paths: The paths of the inner shadow.
+  ///   - paths: The paths of the inner shadow. The block is given the size of the shadow, the node's size.
   func innerShadow(color: ThemedColor,
                    opacity: Themed<CGFloat>,
                    radius: Themed<CGFloat>,
                    offset: Themed<CGSize>,
-                   paths: @escaping (Renderable) -> InnerShadowPaths) -> some ComposeNode
+                   paths: @escaping (CGSize) -> InnerShadowPaths) -> some ComposeNode
   {
     overlay {
       InnerShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, paths: paths)
@@ -275,12 +293,12 @@ public extension ComposeNode {
   ///   - opacity: The opacity of the inner shadow.
   ///   - radius: The radius of the inner shadow.
   ///   - offset: The offset of the inner shadow.
-  ///   - paths: The paths of the inner shadow.
+  ///   - paths: The paths of the inner shadow. The block is given the size of the shadow, the node's size.
   func innerShadow(color: Color,
                    opacity: CGFloat,
                    radius: CGFloat,
                    offset: CGSize,
-                   paths: @escaping (Renderable) -> InnerShadowPaths) -> some ComposeNode
+                   paths: @escaping (CGSize) -> InnerShadowPaths) -> some ComposeNode
   {
     overlay {
       InnerShadowNode(color: color, opacity: opacity, radius: radius, offset: offset, paths: paths)

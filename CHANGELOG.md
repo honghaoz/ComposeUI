@@ -7,6 +7,7 @@
 - With the default animation behavior, bounds changes no longer animate reused renderables' updates (scrolling used to), and now run the configured insert and remove transitions of entering and leaving renderables on resizes and the first layout as well as scrolls. Refreshes still control both with their `animated` flag, and running animations are left to finish.
 - Replaced `ComposeView.RenderType.scroll` with `.boundsChange(previousBounds:bounds:)`. A scroll is a bounds change whose size is unchanged: `case .boundsChange(let previousBounds, let bounds) where previousBounds?.size == bounds.size`.
 - Shadow paths now follow renderable size instead of viewport size. Request a refresh when other path inputs change.
+- The path providers of `DropShadowNode`, `InnerShadowNode`, `dropShadow(...)`, `innerShadow(...)`, `DropShadowLayer.update(...)` and `InnerShadowLayer.update(...)` now receive the size to make the path for, a `CGSize`, instead of the renderable or layer.
 - Merged `RenderableUpdateType.scroll` into `.boundsChange`. Compare `RenderableUpdateContext.previousRenderBounds` and `renderBounds` to distinguish scrolling from resizing.
 - Removed `RenderableUpdateType.requiresFullUpdate`. Handle update types explicitly according to the renderable's dependencies, including bounds-dependent drawing and scroll effects.
 - Resizing `ComposeView` now lays out its existing content without reevaluating the content builder. Request `refresh()` or `setNeedsRefresh()` to apply changed configuration.
@@ -33,6 +34,7 @@
 - `DropShadowLayer` and `InnerShadowLayer` now animate only the shadow properties, and the mask path, that changed. An animated update that changes one input, for example the shadow color on a theme change, no longer adds a no-op animation for every other property. Their `update` path closures are no longer `@escaping`, since they are called synchronously.
 - A non-animated `DropShadowLayer`, `InnerShadowLayer` or `ColorNode` update now continues in-flight animations toward the new values instead of letting them finish toward the old ones and then snapping. The shadow opacity animates non-additively, since opposing additive opacity animations don't compose on screen.
 - Added `CALayer.retarget(keyPath:to:)`, which sets a property and continues its in-flight animations toward the new value.
+- `DropShadowLayer`, `InnerShadowLayer`, `DropShadowNode` and `InnerShadowNode` now keep the shadow paths on the layer's shape while its frame animates, including through interrupted resizes and springs.
 - `DropShadowLayer` and `InnerShadowLayer` can now be created and subclassed outside the framework: their initializers are public.
 - The render pass now asserts, in debug builds, that a renderable's transform is identity when it applies the frame, so a `willInsert` or `willUpdate` block that sets a transform is reported consistently instead of misrendering or asserting only on animated passes. Set transforms in `update`, where they are reset and re-applied on every pass. See `Renderable`.
 
