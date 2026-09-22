@@ -56,8 +56,7 @@ final class DropShadowLayerTests: XCTestCase {
       opacity: 0.5,
       radius: 4,
       offset: .zero,
-      path: { _ in CGPath(rect: rect, transform: nil) },
-      cutoutPath: { _ in CGPath(rect: rect.insetBy(dx: 10, dy: 10), transform: nil) },
+      paths: { _ in DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: CGPath(rect: rect.insetBy(dx: 10, dy: 10), transform: nil)) },
       animationTiming: nil
     )
     expect(layer.mask) != nil
@@ -74,7 +73,6 @@ final class DropShadowLayerTests: XCTestCase {
       radius: 4,
       offset: .zero,
       path: { _ in CGPath(rect: rect, transform: nil) },
-      cutoutPath: nil,
       animationTiming: nil
     )
 
@@ -99,8 +97,7 @@ final class DropShadowLayerTests: XCTestCase {
         opacity: 0.5,
         radius: 4,
         offset: .zero,
-        path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
-        cutoutPath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: 10, dy: 10), transform: nil) },
+        paths: { DropShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil), cutoutPath: CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: 10, dy: 10), transform: nil)) },
         animationTiming: animationTiming
       )
     }
@@ -150,8 +147,7 @@ final class DropShadowLayerTests: XCTestCase {
         opacity: opacity,
         radius: radius,
         offset: offset,
-        path: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: pathInset, dy: pathInset), transform: nil) },
-        cutoutPath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: cutoutInset, dy: cutoutInset), transform: nil) },
+        paths: { DropShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: pathInset, dy: pathInset), transform: nil), cutoutPath: CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: cutoutInset, dy: cutoutInset), transform: nil)) },
         animationTiming: animationTiming
       )
     }
@@ -237,8 +233,7 @@ final class DropShadowLayerTests: XCTestCase {
         opacity: 0.5,
         radius: 4,
         offset: .zero,
-        path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
-        cutoutPath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: cutoutInset, dy: cutoutInset), transform: nil) },
+        paths: { DropShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil), cutoutPath: CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: cutoutInset, dy: cutoutInset), transform: nil)) },
         animationTiming: animationTiming
       )
     }
@@ -300,8 +295,7 @@ final class DropShadowLayerTests: XCTestCase {
         opacity: shadow.opacity,
         radius: shadow.radius,
         offset: shadow.offset,
-        path: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: shadow.inset, dy: shadow.inset), transform: nil) },
-        cutoutPath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: shadow.inset * 2, dy: shadow.inset * 2), transform: nil) },
+        paths: { DropShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: shadow.inset, dy: shadow.inset), transform: nil), cutoutPath: CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: shadow.inset * 2, dy: shadow.inset * 2), transform: nil)) },
         animationTiming: animationTiming
       )
     }
@@ -530,8 +524,7 @@ final class DropShadowLayerTests: XCTestCase {
         opacity: 0.5,
         radius: 4,
         offset: .zero,
-        path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
-        cutoutPath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: 10, dy: 10), transform: nil) },
+        paths: { DropShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil), cutoutPath: CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: 10, dy: 10), transform: nil)) },
         animationTiming: animationTiming
       )
     }

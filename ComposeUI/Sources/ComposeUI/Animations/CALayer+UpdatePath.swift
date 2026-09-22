@@ -32,32 +32,54 @@ import QuartzCore
 
 extension CALayer {
 
-  /// Sets a path property, derived from the layer's size, animating the change as the update asks.
-  ///
-  /// While the size animates, the path follows it. Otherwise an animated update animates the path from the shown one
-  /// and a non-animated one retargets it. An unchanged path is left alone.
+  /// Sets the shadow path following the in-flight size animations if any.
   ///
   /// - Parameters:
-  ///   - keyPath: The key path of a `CGPath` property: `shadowPath`, or `path` on a `CAShapeLayer`.
-  ///   - currentPath: The key path's current model value.
-  ///   - lastSize: The size `currentPath` was made for, `nil` when unknown.
-  ///   - newPath: The new path, the provider's path for the layer's model size.
+  ///   - newPath: The new path, for the layer's model size.
   ///   - sizeAnimations: The in-flight size animations to follow, see `inFlightSizeAnimations()`.
+  ///   - isShapeChanged: Whether the path's shape changed, see `isShapeChanged(current:previous:)`.
+  ///   - sampledPaths: The paths for `sizeAnimations.sampledSizes()`, called only to follow the size.
   ///   - animationTiming: The update's animation timing, `nil` for a non-animated update.
-  ///   - path: The provider, the path for a size of the layer.
-  func updatePath(keyPath: String,
-                  from currentPath: CGPath?,
-                  madeFor lastSize: CGSize?,
-                  to newPath: CGPath,
-                  followingSizeAnimations sizeAnimations: InFlightSizeAnimations?,
-                  animationTiming: AnimationTiming?,
-                  path: (CGSize) -> CGPath)
+  func updateShadowPath(to newPath: CGPath,
+                        followingSizeAnimations sizeAnimations: InFlightSizeAnimations?,
+                        isShapeChanged: Bool,
+                        sampledPaths: () -> [CGPath],
+                        animationTiming: AnimationTiming?)
   {
-    guard keyPath == "shadowPath" || (keyPath == "path" && self is CAShapeLayer) else {
-      ComposeUI.assertFailure("\"\(keyPath)\" isn't a path key path, expected \"shadowPath\" or a CAShapeLayer's \"path\"")
-      return
-    }
+    updatePath(
+      keyPath: "shadowPath",
+      from: shadowPath,
+      to: newPath,
+      followingSizeAnimations: sizeAnimations,
+      isShapeChanged: isShapeChanged,
+      sampledPaths: sampledPaths,
+      animationTiming: animationTiming
+    )
+  }
 
+  /// Whether the path's shape changed.
+  ///
+  /// - Parameters:
+  ///   - currentPath: The current model path, `nil` when there is none yet.
+  ///   - previousPath: The path the provider gives now for the size `currentPath` was made for, `nil` when that size is unknown.
+  static func isShapeChanged(current currentPath: CGPath?, previous previousPath: CGPath?) -> Bool {
+    guard let currentPath else {
+      return false // no path yet, so there is no shape to morph from, and following the size shows the new one at once
+    }
+    guard let previousPath else {
+      return true // unknown, so a shape change can't be ruled out: the caller takes the branch that can't jump
+    }
+    return previousPath != currentPath
+  }
+
+  fileprivate func updatePath(keyPath: String,
+                              from currentPath: CGPath?,
+                              to newPath: CGPath,
+                              followingSizeAnimations sizeAnimations: InFlightSizeAnimations?,
+                              isShapeChanged: Bool,
+                              sampledPaths: () -> [CGPath],
+                              animationTiming: AnimationTiming?)
+  {
     guard currentPath != newPath else {
       // the path didn't change, so there is nothing to do.
       // example: a refresh changed only the shadow color while the size animates. the path animation from the earlier
@@ -65,14 +87,14 @@ extension CALayer {
       return
     }
 
-    // while the size animates, the path can follow it: the provider is called at the sizes the animation passes through
-    // and the results become keyframes. the provider already makes the new shape, so if the shape changed too (say the
-    // corner radius went from 8 to 20), the first keyframe already has it: the size glides, the shape jumps.
+    // while the size animates, the path can follow it: the paths at the sizes the animation passes through become
+    // keyframes. those paths already have the new shape, so if the shape changed too (say the corner radius went from
+    // 8 to 20), the first keyframe already has it: the size glides, the shape jumps.
     // a non-animated update wants the new shape at once, so that is right for it. an animated update wants the shape
     // change to animate as well, so when the shape changed, the path is animated the ordinary way instead, from the
     // shown path to the new one: the shape morphs, but the path only stays close to the animating size, not exactly on it
-    if let sizeAnimations, animationTiming == nil || !isShapeChanged(of: currentPath, madeFor: lastSize, path: path) {
-      animateFollowingSize(sizeAnimations, keyPath: keyPath, to: newPath, value: { path($0) })
+    if let sizeAnimations, animationTiming == nil || !isShapeChanged {
+      animateFollowingSize(sizeAnimations, keyPath: keyPath, to: newPath, values: sampledPaths())
     } else if let animationTiming {
       animate(
         keyPath: keyPath,
@@ -84,18 +106,25 @@ extension CALayer {
       retarget(keyPath: keyPath, to: newPath)
     }
   }
+}
 
-  /// Whether the provider changed the shape of `currentPath`, as opposed to only the size having changed.
-  ///
-  /// At the size `currentPath` was made for, the same shape gives the same path, so a different path there can only
-  /// come from a changed shape.
-  private func isShapeChanged(of currentPath: CGPath?, madeFor lastSize: CGSize?, path: (CGSize) -> CGPath) -> Bool {
-    guard let currentPath else {
-      return false // no path yet, so there is no shape to morph from, and following the size shows the new one at once
-    }
-    guard let lastSize else {
-      return true // unknown, so a shape change can't be ruled out: the caller takes the branch that can't jump
-    }
-    return path(lastSize) != currentPath
+extension CAShapeLayer {
+
+  /// Sets the path following the in-flight size animations if any.
+  func updatePath(to newPath: CGPath,
+                  followingSizeAnimations sizeAnimations: InFlightSizeAnimations?,
+                  isShapeChanged: Bool,
+                  sampledPaths: () -> [CGPath],
+                  animationTiming: AnimationTiming?)
+  {
+    updatePath(
+      keyPath: "path",
+      from: path,
+      to: newPath,
+      followingSizeAnimations: sizeAnimations,
+      isShapeChanged: isShapeChanged,
+      sampledPaths: sampledPaths,
+      animationTiming: animationTiming
+    )
   }
 }

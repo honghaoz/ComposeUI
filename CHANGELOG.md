@@ -8,6 +8,7 @@
 - Replaced `ComposeView.RenderType.scroll` with `.boundsChange(previousBounds:bounds:)`. A scroll is a bounds change whose size is unchanged: `case .boundsChange(let previousBounds, let bounds) where previousBounds?.size == bounds.size`.
 - Shadow paths now follow renderable size instead of viewport size. Request a refresh when other path inputs change.
 - The path providers of `DropShadowNode`, `InnerShadowNode`, `dropShadow(...)`, `innerShadow(...)`, `DropShadowLayer.update(...)` and `InnerShadowLayer.update(...)` now receive the size to make the path for, a `CGSize`, instead of the renderable or layer.
+- `DropShadowLayer.update(...)` and `InnerShadowLayer.update(...)` take the paths as the nodes do.
 - Merged `RenderableUpdateType.scroll` into `.boundsChange`. Compare `RenderableUpdateContext.previousRenderBounds` and `renderBounds` to distinguish scrolling from resizing.
 - Removed `RenderableUpdateType.requiresFullUpdate`. Handle update types explicitly according to the renderable's dependencies, including bounds-dependent drawing and scroll effects.
 - Resizing `ComposeView` now lays out its existing content without reevaluating the content builder. Request `refresh()` or `setNeedsRefresh()` to apply changed configuration.

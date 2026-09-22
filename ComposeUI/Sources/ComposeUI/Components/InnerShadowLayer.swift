@@ -38,6 +38,38 @@ import UIKit
 
 import QuartzCore
 
+/// A model contains the shadow path and clip path for an inner shadow.
+public struct InnerShadowPaths {
+
+  /// The shadow path.
+  ///
+  /// The inner shadow is rendered by a drop shadow from a "punch hole".
+  /// This is the "punch hole" path.
+  ///
+  /// - For inner shadow without "spread" effect, the shadow path is the same as the clip path.
+  /// - For inner shadow with "spread" effect, the shadow path is the "punch hole" path, which is smaller than the clip path.
+  public let shadowPath: CGPath
+
+  /// The clip path.
+  ///
+  /// The clip path is the path that encloses the "punch hole" path to clip the shadow.
+  /// Generally, the clip path is the shape of the object that the shadow is applied to.
+  ///
+  /// - For inner shadow without "spread" effect, the clip path is the same as the shadow path.
+  /// - For inner shadow with "spread" effect, the clip path is bigger than the shadow path.
+  public let clipPath: CGPath?
+
+  /// Initialize a shadow paths model.
+  ///
+  /// - Parameters:
+  ///   - shadowPath: The shadow path.
+  ///   - clipPath: The clip path. If `nil`, the shadow will be clipped by the `shadowPath`.
+  public init(shadowPath: CGPath, clipPath: CGPath?) {
+    self.shadowPath = shadowPath
+    self.clipPath = clipPath
+  }
+}
+
 /// A layer that renders an inner shadow.
 open class InnerShadowLayer: CALayer {
 
@@ -87,24 +119,18 @@ open class InnerShadowLayer: CALayer {
 
   /// Update the inner shadow layer with a new shadow.
   ///
-  /// The inner shadow is rendered by a drop shadow from a "punch hole":
-  /// The `holePath` is the "punch hole" path.
-  /// The `clipPath` is the path that encloses the "punch hole" path to clip the shadow.
+  /// The inner shadow is rendered by a drop shadow from a "punch hole", the paths' shadow path, clipped by the paths'
+  /// clip path, see `InnerShadowPaths`.
   ///
-  /// By separating the "punch hole" and the "clip path", we can achieve an inner shadow with "spread" effect:
-  /// - For a shadow without "spread" effect, the `holePath` and `clipPath` are the same.
-  /// - For a shadow with "spread" effect, the `clipPath` is bigger than the `holePath`.
-  ///
-  /// While the layer's frame animates, the paths follow the size it renders: the providers are called with the sizes
-  /// it passes through.
+  /// While the layer's frame animates, the paths follow the size it renders: `paths` is called with the sizes it passes
+  /// through.
   ///
   /// - Parameters:
   ///   - color: The color of the shadow.
   ///   - opacity: The opacity of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
-  ///   - holePath: The path of the "punch hole", for the layer's size.
-  ///   - clipPath: The path to clip the shadow, for the layer's size. If `nil`, the shadow will be clipped by the `holePath`.
+  ///   - paths: The paths of the shadow, for the layer's size.
   ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
   ///     animated, from the state the layer currently shows. `nil` starts no animation and continues the in-flight
   ///     ones toward the new values, landing when they would have. Default to `nil`.
@@ -112,8 +138,7 @@ open class InnerShadowLayer: CALayer {
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     holePath: (CGSize) -> CGPath,
-                     clipPath: ((CGSize) -> CGPath)?,
+                     paths: (CGSize) -> InnerShadowPaths,
                      animationTiming: AnimationTiming? = nil)
   {
     // initialize mask layer if not initialized
@@ -151,28 +176,72 @@ open class InnerShadowLayer: CALayer {
 
     updateShadow(color: color.cgColor, opacity: Float(opacity), radius: radius, offset: offset, animationTiming: animationTiming)
 
+    let modelPaths = paths(bounds.size)
+
+    // the paths for the size the current paths were made for, to tell a change of a path's shape from a change of the
+    // size, see `CALayer.isShapeChanged(current:previous:)`
+    let previousPaths = lastPathsSize.map(paths)
+
+    // while the frame animates, the paths follow the size it renders.
+    // the paths for the sampled sizes are made once, when the shadow path or the mask path first follows, and shared by both.
     let sizeAnimations = inFlightSizeAnimations()
-    updatePath(
-      keyPath: "shadowPath",
-      from: shadowPath,
-      madeFor: lastPathsSize,
-      to: innerShadowPath(for: bounds.size, holePath: holePath, clipPath: clipPath, radius: radius, offset: offset, useInvertsShadow: useInvertsShadow),
+    var sampledPaths: [InnerShadowPaths]?
+    func pathsForSampledSizes() -> [InnerShadowPaths] {
+      if let sampledPaths {
+        return sampledPaths
+      }
+      let paths = sizeAnimations?.sampledSizes().map(paths) ?? []
+      sampledPaths = paths
+      return paths
+    }
+
+    func makeShadowPath(for paths: InnerShadowPaths) -> CGPath {
+      innerShadowPath(for: paths, radius: radius, offset: offset, useInvertsShadow: useInvertsShadow)
+    }
+
+    updateShadowPath(
+      to: makeShadowPath(for: modelPaths),
       followingSizeAnimations: sizeAnimations,
-      animationTiming: animationTiming,
-      path: { innerShadowPath(for: $0, holePath: holePath, clipPath: clipPath, radius: radius, offset: offset, useInvertsShadow: useInvertsShadow) }
+      isShapeChanged: CALayer.isShapeChanged(current: shadowPath, previous: previousPaths.map(makeShadowPath(for:))),
+      sampledPaths: { pathsForSampledSizes().map(makeShadowPath(for:)) },
+      animationTiming: animationTiming
     )
 
     maskLayer.updatePath(
-      keyPath: "path",
-      from: maskLayer.path,
-      madeFor: lastPathsSize,
-      to: clipPath?(bounds.size) ?? holePath(bounds.size),
+      to: modelPaths.clipPath ?? modelPaths.shadowPath,
       followingSizeAnimations: sizeAnimations,
-      animationTiming: animationTiming,
-      path: { clipPath?($0) ?? holePath($0) }
+      isShapeChanged: CALayer.isShapeChanged(current: maskLayer.path, previous: previousPaths.map { $0.clipPath ?? $0.shadowPath }),
+      sampledPaths: { pathsForSampledSizes().map { $0.clipPath ?? $0.shadowPath } },
+      animationTiming: animationTiming
     )
 
     lastPathsSize = bounds.size
+  }
+
+  /// Update the inner shadow layer with a new shadow clipped by its own path, see `update(color:opacity:radius:offset:paths:animationTiming:)`.
+  ///
+  /// - Parameters:
+  ///   - color: The color of the shadow.
+  ///   - opacity: The opacity of the shadow.
+  ///   - radius: The radius of the shadow.
+  ///   - offset: The offset of the shadow.
+  ///   - path: The path of the shadow, for the layer's size.
+  ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
+  public func update(color: Color,
+                     opacity: CGFloat,
+                     radius: CGFloat,
+                     offset: CGSize,
+                     path: (CGSize) -> CGPath,
+                     animationTiming: AnimationTiming? = nil)
+  {
+    update(
+      color: color,
+      opacity: opacity,
+      radius: radius,
+      offset: offset,
+      paths: { InnerShadowPaths(shadowPath: path($0), clipPath: nil) },
+      animationTiming: animationTiming
+    )
   }
 
   /// Reset the layer so it can be reused as if freshly made.
@@ -184,19 +253,11 @@ open class InnerShadowLayer: CALayer {
     lastPathsSize = nil
   }
 
-  /// The inner shadow path for a size: the hole for an inverted shadow, the clip's bigger rect punched by the hole otherwise.
-  private func innerShadowPath(for size: CGSize,
-                               holePath: (CGSize) -> CGPath,
-                               clipPath: ((CGSize) -> CGPath)?,
-                               radius: CGFloat,
-                               offset: CGSize,
-                               useInvertsShadow: Bool) -> CGPath
-  {
-    let holePath = holePath(size)
+  private func innerShadowPath(for paths: InnerShadowPaths, radius: CGFloat, offset: CGSize, useInvertsShadow: Bool) -> CGPath {
     if useInvertsShadow {
-      return holePath
+      return paths.shadowPath
     } else {
-      return makeInnerShadowPath(holePath: holePath, clipPath: clipPath?(size) ?? holePath, radius: radius, offset: offset)
+      return makeInnerShadowPath(holePath: paths.shadowPath, clipPath: paths.clipPath ?? paths.shadowPath, radius: radius, offset: offset)
     }
   }
 

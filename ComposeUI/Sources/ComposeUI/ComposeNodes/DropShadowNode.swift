@@ -35,26 +35,6 @@ import AppKit
 import UIKit
 #endif
 
-/// A model contains the shadow path and cutout path for a drop shadow.
-public struct DropShadowPaths {
-
-  /// The shadow path.
-  public let shadowPath: CGPath
-
-  /// The cutout path. If provided, the shadow will be clipped for the cutout path.
-  public let cutoutPath: CGPath?
-
-  /// Initialize a shadow paths model.
-  ///
-  /// - Parameters:
-  ///   - shadowPath: The shadow path.
-  ///   - cutoutPath: The cutout path.
-  public init(shadowPath: CGPath, cutoutPath: CGPath?) {
-    self.shadowPath = shadowPath
-    self.cutoutPath = cutoutPath
-  }
-}
-
 /// A node that renders a drop shadow.
 ///
 /// The node has a flexible size. The path providers are given the shadow's size, and run when the renderable is
@@ -177,32 +157,12 @@ public struct DropShadowNode: ComposeNode {
           }
 
           let theme = context.contentView.theme
-
-          // the layer calls the providers for other sizes while its frame animates, memoized per size since it asks
-          // for the shadow path and the cutout path separately
-          var lastPaths: (size: CGSize, paths: DropShadowPaths)?
-          func shadowPaths(for size: CGSize) -> DropShadowPaths {
-            if let lastPaths, lastPaths.size == size {
-              return lastPaths.paths
-            }
-            let shadowPaths = paths(size)
-            lastPaths = (size, shadowPaths)
-            return shadowPaths
-          }
-
-          // whether there is a cutout is decided at the layer's own size, a provider that drops it at another size
-          // falls back to the cutout at the layer's size
-          let cutoutPath: ((CGSize) -> CGPath)? = shadowPaths(for: layer.bounds.size).cutoutPath.map { modelCutoutPath in
-            { shadowPaths(for: $0).cutoutPath ?? modelCutoutPath }
-          }
-
           layer.update(
             color: color.resolve(for: theme),
             opacity: opacity.resolve(for: theme),
             radius: radius.resolve(for: theme),
             offset: offset.resolve(for: theme),
-            path: { shadowPaths(for: $0).shadowPath },
-            cutoutPath: cutoutPath,
+            paths: paths,
             animationTiming: context.animationTiming
           )
         },

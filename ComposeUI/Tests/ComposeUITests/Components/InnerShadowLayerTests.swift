@@ -107,8 +107,7 @@ final class InnerShadowLayerTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      holePath: { _ in holePath },
-      clipPath: nil,
+      path: { _ in holePath },
       animationTiming: nil
     )
 
@@ -149,8 +148,7 @@ final class InnerShadowLayerTests: XCTestCase {
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 5),
-      holePath: { _ in holePath },
-      clipPath: nil,
+      path: { _ in holePath },
       animationTiming: .easeInEaseOut()
     )
 
@@ -185,8 +183,7 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: 0.5,
         radius: 10,
         offset: .zero,
-        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
-        clipPath: nil,
+        path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
         animationTiming: animationTiming
       )
     }
@@ -236,8 +233,12 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: opacity,
         radius: radius,
         offset: offset,
-        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: holeInset, dy: holeInset), transform: nil) },
-        clipPath: clipInset.map { inset in { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: inset, dy: inset), transform: nil) } },
+        paths: { size in
+          InnerShadowPaths(
+            shadowPath: CGPath(rect: CGRect(origin: .zero, size: size).insetBy(dx: holeInset, dy: holeInset), transform: nil),
+            clipPath: clipInset.map { CGPath(rect: CGRect(origin: .zero, size: size).insetBy(dx: $0, dy: $0), transform: nil) }
+          )
+        },
         animationTiming: animationTiming
       )
     }
@@ -325,8 +326,7 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: 0.5,
         radius: 10,
         offset: .zero,
-        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: holeInset, dy: holeInset), transform: nil) },
-        clipPath: nil,
+        path: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: holeInset, dy: holeInset), transform: nil) },
         animationTiming: animationTiming
       )
     }
@@ -395,8 +395,7 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: shadow.opacity,
         radius: shadow.radius,
         offset: shadow.offset,
-        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: shadow.holeInset, dy: shadow.holeInset), transform: nil) },
-        clipPath: nil,
+        path: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: shadow.holeInset, dy: shadow.holeInset), transform: nil) },
         animationTiming: animationTiming
       )
     }
@@ -552,8 +551,7 @@ final class InnerShadowLayerTests: XCTestCase {
         opacity: 0.5,
         radius: 10,
         offset: .zero,
-        holePath: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: 5, dy: 5), transform: nil) },
-        clipPath: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
+        paths: { InnerShadowPaths(shadowPath: CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: 5, dy: 5), transform: nil), clipPath: CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil)) },
         animationTiming: animationTiming
       )
     }
@@ -616,7 +614,7 @@ final class InnerShadowLayerTests: XCTestCase {
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
     func update(color: Color, radius: CGFloat, animationTiming: AnimationTiming?) {
-      layer.update(color: color, opacity: 0.5, radius: radius, offset: .zero, holePath: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }, clipPath: nil, animationTiming: animationTiming)
+      layer.update(color: color, opacity: 0.5, radius: radius, offset: .zero, path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }, animationTiming: animationTiming)
     }
 
     update(color: .red, radius: 10, animationTiming: nil)
@@ -645,7 +643,7 @@ final class InnerShadowLayerTests: XCTestCase {
     testWindow.layer.addSublayer(layer)
 
     func update(color: Color, animationTiming: AnimationTiming?) {
-      layer.update(color: color, opacity: 0.5, radius: 10, offset: .zero, holePath: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }, clipPath: nil, animationTiming: animationTiming)
+      layer.update(color: color, opacity: 0.5, radius: 10, offset: .zero, path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }, animationTiming: animationTiming)
     }
 
     func renderedBlue() throws -> CGFloat {
@@ -711,8 +709,7 @@ final class InnerShadowLayerTests: XCTestCase {
       opacity: 0.5,
       radius: radius,
       offset: offset,
-      holePath: { _ in holePath },
-      clipPath: nil,
+      path: { _ in holePath },
       animationTiming: nil
     )
 
@@ -761,8 +758,7 @@ final class InnerShadowLayerTests: XCTestCase {
       opacity: 0.5,
       radius: radius,
       offset: offset,
-      holePath: { _ in holePath },
-      clipPath: nil,
+      path: { _ in holePath },
       animationTiming: .easeInEaseOut()
     )
 
@@ -806,8 +802,7 @@ final class InnerShadowLayerTests: XCTestCase {
       opacity: 0.5,
       radius: radius,
       offset: offset,
-      holePath: { _ in holePath },
-      clipPath: { _ in clipPath },
+      paths: { _ in InnerShadowPaths(shadowPath: holePath, clipPath: clipPath) },
       animationTiming: nil
     )
 

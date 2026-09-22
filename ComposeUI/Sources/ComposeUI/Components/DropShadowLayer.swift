@@ -38,6 +38,26 @@ import UIKit
 
 import QuartzCore
 
+/// A model contains the shadow path and cutout path for a drop shadow.
+public struct DropShadowPaths {
+
+  /// The shadow path.
+  public let shadowPath: CGPath
+
+  /// The cutout path. If provided, the shadow will be clipped for the cutout path.
+  public let cutoutPath: CGPath?
+
+  /// Initialize a shadow paths model.
+  ///
+  /// - Parameters:
+  ///   - shadowPath: The shadow path.
+  ///   - cutoutPath: The cutout path.
+  public init(shadowPath: CGPath, cutoutPath: CGPath?) {
+    self.shadowPath = shadowPath
+    self.cutoutPath = cutoutPath
+  }
+}
+
 /// A layer that renders a drop shadow.
 open class DropShadowLayer: CALayer {
 
@@ -87,17 +107,15 @@ open class DropShadowLayer: CALayer {
 
   /// Update the drop shadow layer with a new shadow.
   ///
-  /// While the layer's frame animates, the paths follow the size it renders: the providers are called with the sizes
-  /// it passes through.
+  /// While the layer's frame animates, the paths follow the size it renders: `paths` is called with the sizes it passes
+  /// through.
   ///
   /// - Parameters:
   ///   - color: The color of the shadow.
   ///   - opacity: The opacity of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
-  ///   - path: The path of the shadow, for the layer's size.
-  ///   - cutoutPath: The path of the cutout, for the layer's size. If provided, the shadow will be clipped for the
-  ///     cutout path. Default to `nil`.
+  ///   - paths: The paths of the shadow, for the layer's size.
   ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
   ///     animated, from the state the layer currently shows. `nil` starts no animation and continues the in-flight
   ///     ones toward the new values, landing when they would have. Default to `nil`.
@@ -105,29 +123,48 @@ open class DropShadowLayer: CALayer {
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     path: (CGSize) -> CGPath,
-                     cutoutPath: ((CGSize) -> CGPath)? = nil,
+                     paths: (CGSize) -> DropShadowPaths,
                      animationTiming: AnimationTiming? = nil)
   {
     updateShadow(color: color.cgColor, opacity: Float(opacity), radius: radius, offset: offset, animationTiming: animationTiming)
 
+    let modelPaths = paths(bounds.size)
+
+    // the paths for the size the current paths were made for, to tell a change of a path's shape from a change of the
+    // size, see `CALayer.isShapeChanged(current:previous:)`
+    let previousPaths = lastPathsSize.map(paths)
+
+    // while the frame animates, the paths follow the size it renders.
+    // the paths for the sampled sizes are made once, when the shadow path or the mask path first follows, and shared by both.
     let sizeAnimations = inFlightSizeAnimations()
-    updatePath(
-      keyPath: "shadowPath",
-      from: shadowPath,
-      madeFor: lastPathsSize,
-      to: path(bounds.size),
+    var sampledPaths: [DropShadowPaths]?
+    func pathsForSampledSizes() -> [DropShadowPaths] {
+      if let sampledPaths {
+        return sampledPaths
+      }
+      let paths = sizeAnimations?.sampledSizes().map(paths) ?? []
+      sampledPaths = paths
+      return paths
+    }
+
+    updateShadowPath(
+      to: modelPaths.shadowPath,
       followingSizeAnimations: sizeAnimations,
-      animationTiming: animationTiming,
-      path: path
+      isShapeChanged: CALayer.isShapeChanged(current: shadowPath, previous: previousPaths?.shadowPath),
+      sampledPaths: { pathsForSampledSizes().map(\.shadowPath) },
+      animationTiming: animationTiming
     )
 
-    if let cutoutPath {
+    if let cutoutPath = modelPaths.cutoutPath {
       updateMaskLayer(
         cutoutPath: cutoutPath,
+        previousCutoutPath: previousPaths?.cutoutPath,
         radius: radius,
         offset: offset,
         sizeAnimations: sizeAnimations,
+        // if the paths have no cutout path at a sampled size, use the cutout path at the layer's size instead, so the
+        // shadow is still clipped at that size
+        sampledCutoutPaths: { pathsForSampledSizes().map { $0.cutoutPath ?? cutoutPath } },
         animationTiming: animationTiming
       )
     } else {
@@ -136,6 +173,32 @@ open class DropShadowLayer: CALayer {
     }
 
     lastPathsSize = bounds.size
+  }
+
+  /// Update the drop shadow layer with a new shadow without a cutout, see `update(color:opacity:radius:offset:paths:animationTiming:)`.
+  ///
+  /// - Parameters:
+  ///   - color: The color of the shadow.
+  ///   - opacity: The opacity of the shadow.
+  ///   - radius: The radius of the shadow.
+  ///   - offset: The offset of the shadow.
+  ///   - path: The path of the shadow, for the layer's size.
+  ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
+  public func update(color: Color,
+                     opacity: CGFloat,
+                     radius: CGFloat,
+                     offset: CGSize,
+                     path: (CGSize) -> CGPath,
+                     animationTiming: AnimationTiming? = nil)
+  {
+    update(
+      color: color,
+      opacity: opacity,
+      radius: radius,
+      offset: offset,
+      paths: { DropShadowPaths(shadowPath: path($0), cutoutPath: nil) },
+      animationTiming: animationTiming
+    )
   }
 
   /// Reset the layer so it can be reused as if freshly made.
@@ -148,10 +211,12 @@ open class DropShadowLayer: CALayer {
     clearMaskLayer()
   }
 
-  private func updateMaskLayer(cutoutPath: (CGSize) -> CGPath,
+  private func updateMaskLayer(cutoutPath: CGPath,
+                               previousCutoutPath: CGPath?,
                                radius: CGFloat,
                                offset: CGSize,
                                sizeAnimations: InFlightSizeAnimations?,
+                               sampledCutoutPaths: () -> [CGPath],
                                animationTiming: AnimationTiming?)
   {
     // initialize mask layer if not initialized
@@ -177,13 +242,14 @@ open class DropShadowLayer: CALayer {
 
     // the mask path is derived from the layer's size like the shadow path, and follows the frame the same way
     maskLayer.updatePath(
-      keyPath: "path",
-      from: maskLayer.path,
-      madeFor: lastPathsSize,
-      to: maskLayerPath(cutoutPath: cutoutPath(bounds.size), radius: radius, offset: offset),
+      to: maskLayerPath(cutoutPath: cutoutPath, radius: radius, offset: offset),
       followingSizeAnimations: sizeAnimations,
-      animationTiming: animationTiming,
-      path: { maskLayerPath(cutoutPath: cutoutPath($0), radius: radius, offset: offset) }
+      isShapeChanged: CALayer.isShapeChanged(
+        current: maskLayer.path,
+        previous: previousCutoutPath.map { maskLayerPath(cutoutPath: $0, radius: radius, offset: offset) }
+      ),
+      sampledPaths: { sampledCutoutPaths().map { maskLayerPath(cutoutPath: $0, radius: radius, offset: offset) } },
+      animationTiming: animationTiming
     )
   }
 

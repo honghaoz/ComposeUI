@@ -57,10 +57,12 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     // when: asking for the in-flight size animations
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
-    // then: the size animation is found with its sizes, and the whole duration remains since it isn't committed yet
+    // then: the size animation is found with its sizes and the layer's model size, and the whole duration remains since
+    // it isn't committed yet
     expect(sizeAnimations.animations.count) == 1
     expect(sizeAnimations.animations[0].from) == CGSize(width: -100, height: -50)
     expect(sizeAnimations.animations[0].to) == .zero
+    expect(sizeAnimations.modelSize) == CGSize(width: 200, height: 100)
     expect(sizeAnimations.remainingTime) == 2
     expect(sizeAnimations.now).to(beApproximatelyEqual(to: layer.currentTime, within: 0.05))
   }
@@ -198,11 +200,11 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
     // then: the rendered size runs from the old size to the model size
-    expect(layer.renderedSize(after: 0, with: sizeAnimations)) == CGSize(width: 100, height: 50)
-    expect(layer.renderedSize(after: 1, with: sizeAnimations).width).to(beApproximatelyEqual(to: 150, within: 0.001))
-    expect(layer.renderedSize(after: 1, with: sizeAnimations).height).to(beApproximatelyEqual(to: 75, within: 0.001))
-    expect(layer.renderedSize(after: 2, with: sizeAnimations)) == CGSize(width: 200, height: 100)
-    expect(layer.renderedSize(after: 3, with: sizeAnimations)) == CGSize(width: 200, height: 100)
+    expect(sizeAnimations.renderedSize(after: 0)) == CGSize(width: 100, height: 50)
+    expect(sizeAnimations.renderedSize(after: 1).width).to(beApproximatelyEqual(to: 150, within: 0.001))
+    expect(sizeAnimations.renderedSize(after: 1).height).to(beApproximatelyEqual(to: 75, within: 0.001))
+    expect(sizeAnimations.renderedSize(after: 2)) == CGSize(width: 200, height: 100)
+    expect(sizeAnimations.renderedSize(after: 3)) == CGSize(width: 200, height: 100)
   }
 
   func test_renderedSize_stackedAnimations() throws {
@@ -213,10 +215,10 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
     // then: the rendered size is the model size plus both animations, the way Core Animation composes them
-    expect(layer.renderedSize(after: 0, with: sizeAnimations).width) == 100
-    expect(layer.renderedSize(after: 0.5, with: sizeAnimations).width).to(beApproximatelyEqual(to: 175, within: 0.001)) // 300 - 75 - 50
-    expect(layer.renderedSize(after: 1, with: sizeAnimations).width).to(beApproximatelyEqual(to: 250, within: 0.001)) // 300 - 50
-    expect(layer.renderedSize(after: 2, with: sizeAnimations).width) == 300
+    expect(sizeAnimations.renderedSize(after: 0).width) == 100
+    expect(sizeAnimations.renderedSize(after: 0.5).width).to(beApproximatelyEqual(to: 175, within: 0.001)) // 300 - 75 - 50
+    expect(sizeAnimations.renderedSize(after: 1).width).to(beApproximatelyEqual(to: 250, within: 0.001)) // 300 - 50
+    expect(sizeAnimations.renderedSize(after: 2).width) == 300
   }
 
   func test_renderedSize_easeInEaseOutAnimation() throws {
@@ -226,11 +228,11 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
     // then: the rendered size follows the curve: behind linear early on, at the midpoint half way, ahead later
-    expect(layer.renderedSize(after: 0.5, with: sizeAnimations).width) < 125
-    expect(layer.renderedSize(after: 0.5, with: sizeAnimations).width) > 100
-    expect(layer.renderedSize(after: 1, with: sizeAnimations).width).to(beApproximatelyEqual(to: 150, within: 0.01))
-    expect(layer.renderedSize(after: 1.5, with: sizeAnimations).width) > 175
-    expect(layer.renderedSize(after: 1.5, with: sizeAnimations).width) < 200
+    expect(sizeAnimations.renderedSize(after: 0.5).width) < 125
+    expect(sizeAnimations.renderedSize(after: 0.5).width) > 100
+    expect(sizeAnimations.renderedSize(after: 1).width).to(beApproximatelyEqual(to: 150, within: 0.01))
+    expect(sizeAnimations.renderedSize(after: 1.5).width) > 175
+    expect(sizeAnimations.renderedSize(after: 1.5).width) < 200
   }
 
   func test_renderedSize_springAnimation_overshoots() throws {
@@ -241,7 +243,7 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
 
     // then: the rendered size overshoots the model size at some point and settles on it
     let sampleCount = 100
-    let widths = (0 ... sampleCount).map { layer.renderedSize(after: sizeAnimations.remainingTime * TimeInterval($0) / TimeInterval(sampleCount), with: sizeAnimations).width }
+    let widths = (0 ... sampleCount).map { sizeAnimations.renderedSize(after: sizeAnimations.remainingTime * TimeInterval($0) / TimeInterval(sampleCount)).width }
     expect(try widths.max().unwrap()) > 200
     expect(try widths.last.unwrap()).to(beApproximatelyEqual(to: 200, within: 1))
   }
@@ -262,10 +264,10 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
     // then: the animation contributes its start value until it begins, then runs out over its duration
-    expect(layer.renderedSize(after: 0, with: sizeAnimations).width) == 0
-    expect(layer.renderedSize(after: 1, with: sizeAnimations).width).to(beApproximatelyEqual(to: 0, within: 0.5))
-    expect(layer.renderedSize(after: 2, with: sizeAnimations).width).to(beApproximatelyEqual(to: 50, within: 0.5))
-    expect(layer.renderedSize(after: 3, with: sizeAnimations).width).to(beApproximatelyEqual(to: 100, within: 0.5))
+    expect(sizeAnimations.renderedSize(after: 0).width) == 0
+    expect(sizeAnimations.renderedSize(after: 1).width).to(beApproximatelyEqual(to: 0, within: 0.5))
+    expect(sizeAnimations.renderedSize(after: 2).width).to(beApproximatelyEqual(to: 50, within: 0.5))
+    expect(sizeAnimations.renderedSize(after: 3).width).to(beApproximatelyEqual(to: 100, within: 0.5))
   }
 
   func test_renderedSize_committedAnimation() throws {
@@ -282,32 +284,67 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
 
     // then: the animation's begin time is resolved, so the remaining time and the rendered size account for the time run
     expect(sizeAnimations.remainingTime).to(beApproximatelyEqual(to: 0.7, within: 0.1))
-    expect(layer.renderedSize(after: 0, with: sizeAnimations).width).to(beApproximatelyEqual(to: 130, within: 10))
-    expect(layer.renderedSize(after: sizeAnimations.remainingTime, with: sizeAnimations).width).to(beApproximatelyEqual(to: 200, within: 0.01))
+    expect(sizeAnimations.renderedSize(after: 0).width).to(beApproximatelyEqual(to: 130, within: 10))
+    expect(sizeAnimations.renderedSize(after: sizeAnimations.remainingTime).width).to(beApproximatelyEqual(to: 200, within: 0.01))
   }
 
-  // MARK: - Animate Following
+  // MARK: - Sampled Sizes
 
-  func test_animateFollowingSize_addsKeyframeAnimationOfSamples() throws {
+  func test_sampledSizes_samplesAtTheDisplayRate() throws {
     // given: a layer whose frame animates from 100 to 200 wide over half a second
     let layer = makeLayer()
     layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 0.5))
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
-    // when: animating the shadow path to follow the animating size, with a rect of the rendered size
-    var sampledSizes: [CGSize] = []
-    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil)) { size in
-      sampledSizes.append(size)
-      return CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
-    }
+    // when: sampling the sizes
+    let sampledSizes = sizeAnimations.sampledSizes()
 
     // then: the size is sampled at the display rate from the shown size to the model size
     expect(sampledSizes.count) == 31 // 0.5s at 60 per second, plus the end
     expect(sampledSizes.first) == CGSize(width: 100, height: 50)
     expect(sampledSizes.last) == CGSize(width: 200, height: 50)
     expect(sampledSizes[15].width).to(beApproximatelyEqual(to: 150, within: 0.01))
+  }
 
-    // then: the samples are a linear keyframe animation over the remaining time, and the model has the final path
+  func test_sampledSizes_longAnimation_keepsTheSamplingRate() throws {
+    // given: a layer whose frame animates over ten seconds, as a long spring does
+    let layer = makeLayer()
+    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 10))
+    let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
+
+    // then: the size is still sampled at the display rate, since a long spring keeps bouncing and sparser samples would
+    // cut across its bounces
+    expect(sizeAnimations.sampledSizes().count) == 601 // 10s at 60 per second, plus the end
+  }
+
+  func test_sampledSizes_unreasonableDuration_boundsTheSampleCount() throws {
+    // given: a layer with a size animation of an absurd duration, as a tiny speed on a public timing gives
+    let layer = makeLayer()
+    let sizeAnimation = CABasicAnimation(keyPath: "bounds.size")
+    sizeAnimation.fromValue = CGSize(width: -100, height: 0)
+    sizeAnimation.toValue = CGSize.zero
+    sizeAnimation.isAdditive = true
+    sizeAnimation.duration = 1e300
+    layer.add(sizeAnimation, forKey: "resize")
+    let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
+
+    // then: the samples are bounded to ten seconds' worth, instead of an unbounded animation or a trapped conversion
+    expect(sizeAnimations.sampledSizes().count) == 601
+  }
+
+  // MARK: - Animate Following
+
+  func test_animateFollowingSize_addsKeyframeAnimationOfValues() throws {
+    // given: a layer whose frame animates from 100 to 200 wide over half a second, and rects of the sampled sizes
+    let layer = makeLayer()
+    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 0.5))
+    let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
+    let paths = sizeAnimations.sampledSizes().map { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+
+    // when: animating the shadow path to follow the animating size with the rects
+    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 50), transform: nil), values: paths)
+
+    // then: the values are a linear keyframe animation over the remaining time, and the model has the final path
     let animation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
     expect(animation.values?.count) == 31
     expect(animation.keyTimes?.first) == 0
@@ -337,55 +374,14 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
     // when: animating the shadow path to follow it
-    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil)) { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+    let paths = sizeAnimations.sampledSizes().map { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil), values: paths)
 
     // then: the animation begins at the sampling time rather than at the next commit, so it doesn't lag the size by the
     // time until the commit
     let animation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
     expect(animation.beginTime) == sizeAnimations.now
     expect(animation.duration).to(beApproximatelyEqual(to: 1.5, within: 0.01))
-  }
-
-  func test_animateFollowingSize_longAnimation_keepsTheSamplingRate() throws {
-    // given: a layer whose frame animates over ten seconds, as a long spring does
-    let layer = makeLayer()
-    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 10))
-    let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
-
-    // when: animating the shadow path to follow the animating size
-    var sampleCount = 0
-    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil)) { size in
-      sampleCount += 1
-      return CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
-    }
-
-    // then: the size is still sampled at the display rate, since a long spring oscillates at its own period and
-    // sparser samples would alias it
-    expect(sampleCount) == 601 // 10s at 60 per second, plus the end
-    expect((layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation)?.values?.count) == 601
-  }
-
-  func test_animateFollowingSize_unreasonableDuration_boundsTheSampleCount() throws {
-    // given: a layer with a size animation of an absurd duration, as a tiny speed on a public timing gives
-    let layer = makeLayer()
-    let sizeAnimation = CABasicAnimation(keyPath: "bounds.size")
-    sizeAnimation.fromValue = CGSize(width: -100, height: 0)
-    sizeAnimation.toValue = CGSize.zero
-    sizeAnimation.isAdditive = true
-    sizeAnimation.duration = 1e300
-    layer.add(sizeAnimation, forKey: "resize")
-    let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
-
-    // when: animating the shadow path to follow the animating size
-    var sampleCount = 0
-    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil)) { size in
-      sampleCount += 1
-      return CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
-    }
-
-    // then: the samples are bounded to ten seconds' worth, instead of an unbounded animation or a trapped conversion
-    expect(sampleCount) == 601
-    expect((layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation)?.values?.count) == 601
   }
 
   func test_animateFollowingSize_pausedSizeAnimation_keepsTheAnimation() throws {
@@ -395,7 +391,8 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
     // when: animating the shadow path to follow the size
-    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil)) { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+    let paths = sizeAnimations.sampledSizes().map { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil), values: paths)
 
     // then: every sample is the frozen size's path, and the animation is kept after its duration, so the path stays
     // with the frozen size instead of exposing the model path
@@ -419,11 +416,36 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
 
     // when: animating the shadow path to follow the animating size
-    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil)) { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+    let paths = sizeAnimations.sampledSizes().map { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil), values: paths)
 
     // then: the in-flight animation is replaced, the frame animations are left alone
     expect(layer.animationKeys()) == ["position", "bounds.size", "shadowPath"]
     expect(layer.animation(forKey: "shadowPath") is CAKeyframeAnimation) == true
+  }
+
+  func test_animateFollowingSize_fewerThanTwoValues_assertsAndSetsTheModelValue() throws {
+    // given: a layer whose frame animates
+    let layer = makeLayer()
+    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+    let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
+    let path = CGPath(rect: layer.bounds, transform: nil)
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: animating the shadow path with a single value
+    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: path, values: [path])
+
+    // then: it asserts, and the model value is set without an animation
+    expect(assertionMessages) == ["expected a value per sampled size, got 1"]
+    expect(layer.shadowPath) == path
+    expect(layer.animation(forKey: "shadowPath")) == nil
   }
 
   // MARK: - Helpers

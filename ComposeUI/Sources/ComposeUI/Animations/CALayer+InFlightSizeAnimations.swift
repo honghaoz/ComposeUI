@@ -51,11 +51,54 @@ extension CALayer {
     /// The in-flight animations.
     let animations: [Animation]
 
+    /// The layer's model size, which the animations add their values to.
+    let modelSize: CGSize
+
     /// The time the longest animation has left, in seconds of the layer's time space.
     let remainingTime: TimeInterval
 
-    /// The layer's current time, which `remainingTime` and `renderedSize(after:with:)` are measured from.
+    /// The layer's current time.
     let now: TimeInterval
+
+    /// The size the layer renders the given time from now.
+    ///
+    /// - Parameter time: The time from `now`, in seconds of the layer's time space.
+    /// - Returns: The rendered size.
+    func renderedSize(after time: TimeInterval) -> CGSize {
+      var size = modelSize
+      for sizeAnimation in animations {
+        let animation = sizeAnimation.animation
+
+        // an unset begin time resolves to the next commit, so the animation is evaluated from its start
+        let started = animation.beginTime == 0 ? 0 : now - animation.beginTime
+
+        let progress = CGFloat(animation.progress(forElapsedTime: (started + time) * TimeInterval(animation.speed)))
+        size.width += sizeAnimation.from.width + (sizeAnimation.to.width - sizeAnimation.from.width) * progress
+        size.height += sizeAnimation.from.height + (sizeAnimation.to.height - sizeAnimation.from.height) * progress
+      }
+      return size
+    }
+
+    /// The sizes the layer renders over the remaining time.
+    func sampledSizes() -> [CGSize] {
+      let sampledDuration = min(Constants.maxSampledDuration, remainingTime)
+      let sampleCount = max(2, Int((sampledDuration * Constants.samplesPerSecond).rounded(.up)) + 1)
+      return (0 ..< sampleCount).map { index in
+        renderedSize(after: remainingTime * TimeInterval(index) / TimeInterval(sampleCount - 1))
+      }
+    }
+
+    private enum Constants {
+
+      /// The sampling rate of a value following the animating size.
+      static let samplesPerSecond: TimeInterval = 60
+
+      /// The most motion sampled at the sampling rate. A longer animation gets this much motion's worth of samples.
+      ///
+      /// For example, a 10s animation with 60 samples per second would get 600 samples. An animation longer than 10s
+      /// would get fewer than 60 samples per second. This is to prevent an absurd duration from building millions of samples.
+      static let maxSampledDuration: TimeInterval = 10
+    }
   }
 
   /// The layer's in-flight size animations.
@@ -94,58 +137,32 @@ extension CALayer {
       return nil
     }
 
-    return InFlightSizeAnimations(animations: animations, remainingTime: remainingTime, now: now)
-  }
-
-  /// The size the layer renders the given time from now: the model size plus each in-flight animation's value.
-  ///
-  /// - Parameters:
-  ///   - time: The time from `animations.now`, in seconds of the layer's time space.
-  ///   - animations: The layer's in-flight size animations.
-  /// - Returns: The rendered size.
-  func renderedSize(after time: TimeInterval, with animations: InFlightSizeAnimations) -> CGSize {
-    var size = bounds.size
-    for sizeAnimation in animations.animations {
-      let animation = sizeAnimation.animation
-      // an unset begin time resolves to the next commit, so the animation is evaluated from its start
-      let started = animation.beginTime == 0 ? 0 : animations.now - animation.beginTime
-      let progress = CGFloat(animation.progress(forElapsedTime: (started + time) * TimeInterval(animation.speed)))
-      size.width += sizeAnimation.from.width + (sizeAnimation.to.width - sizeAnimation.from.width) * progress
-      size.height += sizeAnimation.from.height + (sizeAnimation.to.height - sizeAnimation.from.height) * progress
-    }
-    return size
+    return InFlightSizeAnimations(animations: animations, modelSize: bounds.size, remainingTime: remainingTime, now: now)
   }
 
   /// Animates a key path so it follows the layer's animating size, and sets its model value.
   ///
-  /// The size the layer renders is sampled over the animations' remaining time, the value is evaluated at each sample,
-  /// and the samples become a keyframe animation that lands with the size, replacing the key path's in-flight animation.
+  /// A value derived from the size can't be animated additively like the size, so it is given as the values at the
+  /// animations' sampled sizes, which become a keyframe animation that lands with the size, replacing the key path's
+  /// in-flight animation.
   ///
   /// - Parameters:
   ///   - animations: The layer's in-flight size animations, see `inFlightSizeAnimations()`.
   ///   - keyPath: The key path to animate.
   ///   - modelValue: The model value to set, the value at the model size.
-  ///   - value: The value at a rendered size.
-  func animateFollowingSize(_ animations: InFlightSizeAnimations, keyPath: String, to modelValue: Any, value: (CGSize) -> Any) {
-    // a value derived from the size can't be animated additively like the size, so the size's motion is sampled into
-    // keyframes instead, at the display rate.
-    let sampledDuration = min(Constants.maxSampledDuration, animations.remainingTime)
-    let sampleCount = max(2, Int((sampledDuration * Constants.samplesPerSecond).rounded(.up)) + 1)
-
-    var values: [Any] = []
-    var keyTimes: [NSNumber] = []
-    values.reserveCapacity(sampleCount)
-    keyTimes.reserveCapacity(sampleCount)
-
-    for index in 0 ..< sampleCount {
-      let fraction = TimeInterval(index) / TimeInterval(sampleCount - 1)
-      values.append(value(renderedSize(after: animations.remainingTime * fraction, with: animations)))
-      keyTimes.append(NSNumber(value: fraction))
+  ///   - values: The values at `animations.sampledSizes()`, one per size and in the same order.
+  func animateFollowingSize(_ animations: InFlightSizeAnimations, keyPath: String, to modelValue: Any, values: [Any]) {
+    guard values.count >= 2 else {
+      ComposeUI.assertFailure("expected a value per sampled size, got \(values.count)")
+      setKeyPathValue(keyPath, modelValue)
+      return
     }
 
     let animation = CAKeyframeAnimation(keyPath: keyPath)
     animation.values = values
-    animation.keyTimes = keyTimes
+    animation.keyTimes = (0 ..< values.count).map {
+      NSNumber(value: TimeInterval($0) / TimeInterval(values.count - 1))
+    }
     animation.calculationMode = .linear
     animation.duration = animations.remainingTime
     animation.fillMode = .both
@@ -165,19 +182,5 @@ extension CALayer {
     add(animation, forKey: keyPath)
 
     setKeyPathValue(keyPath, modelValue)
-  }
-
-  // MARK: - Constants
-
-  private enum Constants {
-
-    /// The sampling rate of a value following the animating size.
-    static let samplesPerSecond: TimeInterval = 60
-
-    /// The most motion sampled at the sampling rate. A longer animation gets this much motion's worth of samples.
-    ///
-    /// For example, a 10s animation with 60 samples per second would get 600 samples. An animation longer than 10s
-    /// would get fewer than 60 samples per second. This is to prevent an absurd duration from building millions of samples.
-    static let maxSampledDuration: TimeInterval = 10
   }
 }

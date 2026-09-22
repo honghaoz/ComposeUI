@@ -495,11 +495,14 @@ class DropShadowNodeTests: XCTestCase {
     view.refresh(animated: false)
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
 
-    // then: the bounds keep gliding, now toward the new width, and the shown shadow path still matches them
+    // then: the bounds keep gliding, now toward the new width, and the shown shadow path still matches them. in a hosted
+    // view hierarchy, the frame animation starts a few milliseconds after the begin time recorded on its copy, and the
+    // path re-sampled from that begin time leads by as much (up to 11 ms seen): at 167 pt/s that is under 2 pt, so the
+    // tolerance is one frame of motion, far below the drift this test guards against
     let shownAfterInterruption = try shownWidths()
     expect(shownAfterInterruption.bounds) > 75
     expect(shownAfterInterruption.bounds) < 150
-    expect(shownAfterInterruption.path).to(beApproximatelyEqual(to: shownAfterInterruption.bounds, within: 1))
+    expect(shownAfterInterruption.path).to(beApproximatelyEqual(to: shownAfterInterruption.bounds, within: 3))
 
     // then: both land on the new width when the resize would have ended
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.5))

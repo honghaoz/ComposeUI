@@ -36,38 +36,6 @@ import AppKit
 import UIKit
 #endif
 
-/// A model contains the shadow path and clip path for an inner shadow.
-public struct InnerShadowPaths {
-
-  /// The shadow path.
-  ///
-  /// The inner shadow is rendered by a drop shadow from a "punch hole".
-  /// This is the "punch hole" path.
-  ///
-  /// - For inner shadow without "spread" effect, the shadow path is the same as the clip path.
-  /// - For inner shadow with "spread" effect, the shadow path is the "punch hole" path, which is smaller than the clip path.
-  public let shadowPath: CGPath
-
-  /// The clip path.
-  ///
-  /// The clip path is the path that encloses the "punch hole" path to clip the shadow.
-  /// Generally, the clip path is the shape of the object that the shadow is applied to.
-  ///
-  /// - For inner shadow without "spread" effect, the clip path is the same as the shadow path.
-  /// - For inner shadow with "spread" effect, the clip path is bigger than the shadow path.
-  public let clipPath: CGPath?
-
-  /// Initialize a shadow paths model.
-  ///
-  /// - Parameters:
-  ///   - shadowPath: The shadow path.
-  ///   - clipPath: The clip path. If `nil`, the shadow will be clipped by the `shadowPath`.
-  public init(shadowPath: CGPath, clipPath: CGPath?) {
-    self.shadowPath = shadowPath
-    self.clipPath = clipPath
-  }
-}
-
 /// A node that renders an inner shadow.
 ///
 /// The node has a flexible size. The path providers are given the shadow's size, and run when the renderable is
@@ -190,30 +158,12 @@ public struct InnerShadowNode: ComposeNode {
           }
 
           let theme = context.contentView.theme
-
-          // the layer calls the providers for other sizes while its frame animates, memoized per size since it asks
-          // for the hole path and the clip path separately
-          var lastPaths: (size: CGSize, paths: InnerShadowPaths)?
-          func shadowPaths(for size: CGSize) -> InnerShadowPaths {
-            if let lastPaths, lastPaths.size == size {
-              return lastPaths.paths
-            }
-            let shadowPaths = paths(size)
-            lastPaths = (size, shadowPaths)
-            return shadowPaths
-          }
-
           layer.update(
             color: color.resolve(for: theme),
             opacity: opacity.resolve(for: theme),
             radius: radius.resolve(for: theme),
             offset: offset.resolve(for: theme),
-            holePath: { shadowPaths(for: $0).shadowPath },
-            clipPath: { size in
-              // a `nil` clip path means clipping by the shadow path, at each size the layer asks for
-              let shadowPaths = shadowPaths(for: size)
-              return shadowPaths.clipPath ?? shadowPaths.shadowPath
-            },
+            paths: paths,
             animationTiming: context.animationTiming
           )
         },

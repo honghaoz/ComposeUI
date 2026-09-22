@@ -156,6 +156,8 @@ Hard-won rules from past corrections, grouped by theme.
 ## Docs
 
 - Match content to the section's altitude: overview sections get a couple of high-level sentences, mechanics and specifics go in the section that owns them.
+- A doc comment says in one line what the call does that its name doesn't, and lets the parameter docs cover the inputs. Don't narrate the implementation's branches in it, and don't repeat a rationale that an inline comment at the branch already gives.
+- Write comments as plain sentences in the order a reader thinks: "if X, do Y, so Z". No noun phrases with embedded clauses ("a size the paths give no cutout for uses..."), no inverted word order to save a line.
 
 ## Design decisions
 
