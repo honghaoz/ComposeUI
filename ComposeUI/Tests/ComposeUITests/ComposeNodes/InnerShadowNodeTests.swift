@@ -431,7 +431,7 @@ class InnerShadowNodeTests: XCTestCase {
     }
   }
 
-  func test_update_clipPathDroppedAtOtherSizes_fallsBackToClipPathAtLayerSize() throws {
+  func test_update_clipPathDroppedAtOtherSizes_clipsByShadowPathThere() throws {
     // given: an inner shadow node whose paths provide a clip path only at the layer's own size, rendered on a layer
     // whose frame animates
     let frame = CGRect(x: 0, y: 0, width: 200, height: 100)
@@ -450,12 +450,15 @@ class InnerShadowNodeTests: XCTestCase {
     // when: the node updates the layer while the frame animates
     item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: nil, contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
 
-    // then: the clip path at the layer's size stands in at the sampled sizes, so the mask follows the frame like the
-    // shadow and ends on the clip path at the layer's size
+    // then: at the sampled sizes without a clip path the mask is the shadow path there, as a `nil` clip path means, so
+    // the mask follows the frame like the shadow and ends on the clip path at the layer's size
     let mask = try (layer.mask as? CAShapeLayer).unwrap()
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
     let maskPathAnimation = try (mask.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
     expect(maskPathAnimation.values?.count) == shadowPathAnimation.values?.count
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(maskPathAnimation.values?.first as! CGPath) == CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil) // swiftlint:disable:this force_cast
+    expect(maskPathAnimation.values?.last as! CGPath) == CGPath(rect: CGRect(x: -10, y: -10, width: 220, height: 120), transform: nil) // swiftlint:disable:this force_cast
     expect(mask.path) == CGPath(rect: CGRect(x: -10, y: -10, width: 220, height: 120), transform: nil)
   }
 

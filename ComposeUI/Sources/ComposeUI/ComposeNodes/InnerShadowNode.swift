@@ -203,19 +203,17 @@ public struct InnerShadowNode: ComposeNode {
             return shadowPaths
           }
 
-          // whether there is a clip path is decided at the layer's own size, a provider that drops it at another size
-          // falls back to the clip path at the layer's size
-          let clipPath: ((CGSize) -> CGPath)? = shadowPaths(for: layer.bounds.size).clipPath.map { modelClipPath in
-            { shadowPaths(for: $0).clipPath ?? modelClipPath }
-          }
-
           layer.update(
             color: color.resolve(for: theme),
             opacity: opacity.resolve(for: theme),
             radius: radius.resolve(for: theme),
             offset: offset.resolve(for: theme),
             holePath: { shadowPaths(for: $0).shadowPath },
-            clipPath: clipPath,
+            clipPath: { size in
+              // a `nil` clip path means clipping by the shadow path, at each size the layer asks for
+              let shadowPaths = shadowPaths(for: size)
+              return shadowPaths.clipPath ?? shadowPaths.shadowPath
+            },
             animationTiming: context.animationTiming
           )
         },
