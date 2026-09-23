@@ -655,29 +655,38 @@ class CALayer_RetargetTests: XCTestCase {
   }
 
   func test_retarget_pausedAdditiveAnimationInFlight_foldsItIntoARunningGlide() throws {
-    // given: a layer whose corner radius has a paused additive animation, frozen at its offset of -20, so it shows 0
-    let layer = CALayer()
-    layer.cornerRadius = 20
-    let pausedAnimation = CABasicAnimation(keyPath: "cornerRadius")
-    pausedAnimation.fromValue = CGFloat(-20)
-    pausedAnimation.toValue = CGFloat(0)
-    pausedAnimation.isAdditive = true
-    pausedAnimation.duration = 10
-    pausedAnimation.speed = 0
-    layer.add(pausedAnimation, forKey: "paused")
+    // given: layers whose corner radius has a paused additive animation, a basic one or a spring, frozen at its offset
+    // of -20, so it shows 0
+    let kinds: [(String, () -> CABasicAnimation)] = [
+      ("basic", { CABasicAnimation(keyPath: "cornerRadius") }),
+      ("spring", { CASpringAnimation(keyPath: "cornerRadius") }),
+    ]
+    for (kind, makeAnimation) in kinds {
+      let layer = CALayer()
+      layer.cornerRadius = 20
+      let pausedAnimation = makeAnimation()
+      pausedAnimation.fromValue = CGFloat(-20)
+      pausedAnimation.toValue = CGFloat(0)
+      pausedAnimation.isAdditive = true
+      pausedAnimation.duration = 10
+      pausedAnimation.speed = 0
+      layer.add(pausedAnimation, forKey: "paused")
 
-    // when: retargeting the corner radius to 5
-    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+      // when: retargeting the corner radius to 5
+      layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
 
-    // then: the paused animation is folded like any other, as a paused non-additive one is replaced: a running glide
-    // starts from the shown radius, 5 below the new one, and lands on it over the paused animation's duration
-    expect(layer.animationKeys()) == ["cornerRadius"]
-    let glide = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
-    expect(glide.speed) == 1
-    expect(glide.fromValue as? CGFloat) == -5
-    expect(glide.toValue as? CGFloat) == 0
-    expect(glide.duration) == 10
-    expect(layer.cornerRadius) == 5
+      // then: the paused animation is folded like any other, as a paused non-additive one is replaced, and a paused
+      // spring has no momentum to keep: a running glide starts from the shown radius, 5 below the new one, and lands on
+      // it over the paused animation's duration
+      expect(layer.animationKeys(), kind) == ["cornerRadius"]
+      let glide = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+      expect(glide is CASpringAnimation, kind) == false
+      expect(glide.speed, kind) == 1
+      expect(glide.fromValue as? CGFloat, kind) == -5
+      expect(glide.toValue as? CGFloat, kind) == 0
+      expect(glide.duration, kind) == 10
+      expect(layer.cornerRadius, kind) == 5
+    }
   }
 
   func test_retarget_additiveAnimationInFlight_unevaluableShape_replaces() throws {
