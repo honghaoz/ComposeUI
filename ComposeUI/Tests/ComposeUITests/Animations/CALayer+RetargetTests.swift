@@ -169,6 +169,48 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.animationKeys()) == ["spin"]
   }
 
+  func test_retarget_endedAnimationKeptOnTheLayer_isRemoved() throws {
+    // given: a layer whose corner radius animation ended but stays on the layer, holding its end value with a forwards fill
+    let layer = CALayer()
+    let endedAnimation = CABasicAnimation(keyPath: "cornerRadius")
+    endedAnimation.fromValue = CGFloat(0)
+    endedAnimation.toValue = CGFloat(20)
+    endedAnimation.duration = 10
+    endedAnimation.beginTime = layer.currentTime - 20
+    endedAnimation.isRemovedOnCompletion = false
+    endedAnimation.fillMode = .forwards
+    layer.add(endedAnimation, forKey: "ended")
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+    // then: the ended animation is removed, or it would keep showing 20 over the new value, which is set directly
+    expect(layer.animationKeys()) == nil
+    expect(layer.cornerRadius) == 5
+  }
+
+  func test_retarget_endedAnimationKeptOnTheLayer_isRemovedNextToAnInFlightOne() throws {
+    // given: a layer whose corner radius has an ended animation kept on it and an additive one in flight
+    let layer = CALayer()
+    let endedAnimation = CABasicAnimation(keyPath: "cornerRadius")
+    endedAnimation.fromValue = CGFloat(0)
+    endedAnimation.toValue = CGFloat(20)
+    endedAnimation.duration = 10
+    endedAnimation.beginTime = layer.currentTime - 20
+    endedAnimation.isRemovedOnCompletion = false
+    endedAnimation.fillMode = .forwards
+    layer.add(endedAnimation, forKey: "ended")
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 10))
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+    // then: the ended animation is removed, and the in-flight one is retargeted as if it were alone
+    expect(layer.animationKeys()) == ["cornerRadius", "cornerRadius-1"]
+    expect((layer.animation(forKey: "cornerRadius-1") as? CABasicAnimation)?.fromValue as? CGFloat) == 15
+    expect(layer.cornerRadius) == 5
+  }
+
   func test_retarget_inFlightAnimationToSameValue_isKept() throws {
     // given: a layer with a linear background color animation heading to the model color
     let layer = CALayer()

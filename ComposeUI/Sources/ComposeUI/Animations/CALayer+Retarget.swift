@@ -36,6 +36,7 @@ public extension CALayer {
   /// and lands on the new value when it would have.
   ///
   /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone.
+  ///   An ended animation still on the layer is removed, since a forwards fill would show its end value over the new one.
   /// - Additive animations of numbers, `CGSize` and `CGPoint` are kept, with a scaled copy of each stacked on top that
   ///   cancels the jump and fades along the animation's own curve. When the remaining motion can't be scaled, one
   ///   ease-out correction is stacked instead.
@@ -50,6 +51,7 @@ public extension CALayer {
   ///   - value: The value to set.
   func retarget(keyPath: String, to value: Any) {
     let now = currentTime
+    removeEndedAnimations(forKeyPath: keyPath, at: now)
     let inFlightAnimations = inFlightAnimations(forKeyPath: keyPath, at: now)
     guard let remainingTime = inFlightAnimations.map(\.remainingTime).max() else {
       // no in-flight animations, set the value directly
@@ -120,18 +122,37 @@ public extension CALayer {
   /// The layer's property animations of the given key path that haven't ended at `now`, each with the time it has left.
   private func inFlightAnimations(forKeyPath keyPath: String, at now: TimeInterval) -> [(animation: CAPropertyAnimation, remainingTime: TimeInterval)] {
     (animationKeys() ?? []).compactMap { key in
-      guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
+      guard let animation = animation(forKey: key) as? CAPropertyAnimation,
+            animation.keyPath == keyPath,
+            let remainingTime = remainingTime(of: animation, at: now)
+      else {
         return nil
       }
-
-      let scaledDuration = animation.speed > 0 ? animation.duration / TimeInterval(animation.speed) : animation.duration
-      let remainingTime = animation.beginTime == 0 ? scaledDuration : animation.beginTime + scaledDuration - now
-      guard remainingTime > 0 else {
-        return nil
-      }
-
       return (animation, remainingTime)
     }
+  }
+
+  /// Removes the layer's property animations of the given key path that have ended at `now`.
+  ///
+  /// An ended animation is normally removed by Core Animation. One kept with `isRemovedOnCompletion` off and a forwards
+  /// fill still shows its end value over the model value, so it has to go for a new model value to show.
+  private func removeEndedAnimations(forKeyPath keyPath: String, at now: TimeInterval) {
+    for key in animationKeys() ?? [] {
+      guard let animation = animation(forKey: key) as? CAPropertyAnimation,
+            animation.keyPath == keyPath,
+            remainingTime(of: animation, at: now) == nil
+      else {
+        continue
+      }
+      removeAnimation(forKey: key)
+    }
+  }
+
+  /// The time an animation has left at `now`, or `nil` when it has ended.
+  private func remainingTime(of animation: CAAnimation, at now: TimeInterval) -> TimeInterval? {
+    let scaledDuration = animation.speed > 0 ? animation.duration / TimeInterval(animation.speed) : animation.duration
+    let remainingTime = animation.beginTime == 0 ? scaledDuration : animation.beginTime + scaledDuration - now
+    return remainingTime > 0 ? remainingTime : nil
   }
 
   /// An additive in-flight animation and its offset, an animation whose remaining motion can be computed.
