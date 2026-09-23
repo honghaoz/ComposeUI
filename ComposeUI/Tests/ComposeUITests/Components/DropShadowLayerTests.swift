@@ -368,6 +368,7 @@ final class DropShadowLayerTests: XCTestCase {
 
     // when: updating without animation timing back to the old values
     update(layer, red, animationTiming: nil)
+    let retargetTime = layer.currentTime
 
     // then: the model has the new values
     expect(layer.shadowColor) == Color.red.cgColor
@@ -442,7 +443,8 @@ final class DropShadowLayerTests: XCTestCase {
       expect(keptAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
     }
     let retargetedMaskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expect(retargetedMaskPathAnimation.duration).to(beApproximatelyEqual(to: 11, within: 0.05))
+    let delayedRadiusAnimation = try layer.animation(forKey: "shadowRadius-1").unwrap()
+    expect(retargetedMaskPathAnimation.duration).to(beApproximatelyEqual(to: delayedRadiusAnimation.beginTime + 10 - retargetTime, within: 0.02))
     expect(retargetedMaskPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     expect(retargetedMaskPathAnimation.toValue as! CGPath) == referenceMaskPath // swiftlint:disable:this force_cast
 
@@ -527,15 +529,17 @@ final class DropShadowLayerTests: XCTestCase {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
     let blueBeforeUpdate = try renderedBlue()
     expect(blueBeforeUpdate) > 0.1
+    let interruptedBeginTime = try layer.animation(forKey: "shadowColor").unwrap().beginTime
 
     // when: updating without animation timing back to red
     update(color: .red, animationTiming: nil)
+    let retargetTime = layer.currentTime
 
     // then: the shadow heads back to red from where it is over the time the interrupted animation had left, neither
     // snapping nor finishing the animation towards blue: whenever the run loop lets the test look, the shown color is
     // where the retargeting animation puts it, until it lands on red. the run loop's timing isn't reliable, so the test
     // checks each look against the animation's own value for that time instead of expecting a value at a fixed delay
-    expect(try layer.animation(forKey: "shadowColor").unwrap().duration).to(beApproximatelyEqual(to: 0.35, within: 0.1))
+    expect(try layer.animation(forKey: "shadowColor").unwrap().duration).to(beApproximatelyEqual(to: interruptedBeginTime + 0.5 - retargetTime, within: 0.02))
     var landed = false
     for _ in 0 ..< 40 where !landed {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))

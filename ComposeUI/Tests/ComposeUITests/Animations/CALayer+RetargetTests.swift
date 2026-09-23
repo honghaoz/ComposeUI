@@ -140,10 +140,13 @@ class CALayer_RetargetTests: XCTestCase {
     layer.add(fadeAnimation, forKey: "fade")
     CATransaction.flush()
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
-    expect(try layer.animation(forKey: "fade").unwrap().beginTime) > 0
+    let beginTime = try layer.animation(forKey: "fade").unwrap().beginTime
+    expect(beginTime) > 0
 
-    // then: the time to the animation's end remains
-    expect(try layer.remainingAnimationTime(forKeyPath: "opacity").unwrap()).to(beApproximatelyEqual(to: 1.9, within: 0.1))
+    // then: the time to the animation's end remains, measured from its begin time since the run loop's wait isn't exact
+    let remainingTime = try layer.remainingAnimationTime(forKeyPath: "opacity").unwrap()
+    expect(remainingTime).to(beApproximatelyEqual(to: beginTime + 2 - layer.currentTime, within: 0.02))
+    expect(remainingTime) < 2
   }
 
   // MARK: - Retarget
@@ -291,15 +294,17 @@ class CALayer_RetargetTests: XCTestCase {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
     let blueBeforeRetarget = try shownBlue()
     expect(blueBeforeRetarget) > 0.1
+    let interruptedBeginTime = try layer.animation(forKey: "backgroundColor").unwrap().beginTime
 
     // when: retargeting the background color back to red
     layer.retarget(keyPath: "backgroundColor", to: Color.red.cgColor)
+    let retargetTime = layer.currentTime
 
     // then: the retargeting animation starts from the shown color and lands when the interrupted one would have
     let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
     // a Core Foundation type can't be checked at runtime, so the cast is forced
     expect(try blueComponent(of: animation.fromValue as! CGColor)).to(beApproximatelyEqual(to: blueBeforeRetarget, within: 0.1)) // swiftlint:disable:this force_cast
-    expect(animation.duration).to(beApproximatelyEqual(to: 0.35, within: 0.1))
+    expect(animation.duration).to(beApproximatelyEqual(to: interruptedBeginTime + 0.5 - retargetTime, within: 0.02))
     expect(layer.backgroundColor) == Color.red.cgColor
 
     // then: the shown color continues towards red instead of snapping or heading on to blue
@@ -346,9 +351,11 @@ class CALayer_RetargetTests: XCTestCase {
     let shownBeforeRetarget = try shownColor()
     expect(shownBeforeRetarget.green) > 0.1
     expect(shownBeforeRetarget.blue) < 0.1
+    let toBlueBeginTime = try layer.animation(forKey: "to-blue").unwrap().beginTime
 
     // when: retargeting the background color to yellow
     layer.retarget(keyPath: "backgroundColor", to: Color.yellow.cgColor)
+    let retargetTime = layer.currentTime
 
     // then: both animations are replaced by one starting from the composed shown color, the later animation's, and
     // landing when the longer one would have
@@ -358,7 +365,7 @@ class CALayer_RetargetTests: XCTestCase {
     let fromColor = animation.fromValue as! CGColor // swiftlint:disable:this force_cast
     expect(try greenComponent(of: fromColor)).to(beApproximatelyEqual(to: shownBeforeRetarget.green, within: 0.1))
     expect(try blueComponent(of: fromColor)) < 0.1
-    expect(animation.duration).to(beApproximatelyEqual(to: 0.85, within: 0.1))
+    expect(animation.duration).to(beApproximatelyEqual(to: toBlueBeginTime + 1 - retargetTime, within: 0.02))
     expect(animation.toValue as! CGColor) == Color.yellow.cgColor // swiftlint:disable:this force_cast
     expect(layer.backgroundColor) == Color.yellow.cgColor
   }

@@ -434,6 +434,7 @@ final class InnerShadowLayerTests: XCTestCase {
 
     // when: updating without animation timing back to the old values
     update(layer, red, animationTiming: nil)
+    let retargetTime = layer.currentTime
 
     // then: the model has the new values
     expect(layer.shadowColor) == Color.red.cgColor
@@ -494,7 +495,9 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(retargetedOpacityAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
 
     let retargetedPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-    expect(retargetedPathAnimation.duration).to(beApproximatelyEqual(to: supportsInvertsShadow ? 10 : 11, within: 0.05))
+    let delayedRadiusAnimation = try layer.animation(forKey: "shadowRadius-1").unwrap()
+    let expectedPathDuration = supportsInvertsShadow ? 10 : delayedRadiusAnimation.beginTime + 10 - retargetTime
+    expect(retargetedPathAnimation.duration).to(beApproximatelyEqual(to: expectedPathDuration, within: 0.02))
     expect(retargetedPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     expect(retargetedPathAnimation.toValue as! CGPath) == referenceShadowPath // swiftlint:disable:this force_cast
     expect(layer.animation(forKey: "opacity")?.duration) == 10
@@ -593,15 +596,17 @@ final class InnerShadowLayerTests: XCTestCase {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
     let blueBeforeUpdate = try renderedBlue()
     expect(blueBeforeUpdate) > 0.1
+    let interruptedBeginTime = try layer.animation(forKey: "shadowColor").unwrap().beginTime
 
     // when: updating without animation timing back to red
     update(color: .red, animationTiming: nil)
+    let retargetTime = layer.currentTime
 
     // then: the shadow heads back to red from where it is over the time the interrupted animation had left, neither
     // snapping nor finishing the animation towards blue: whenever the run loop lets the test look, the shown color is
     // where the retargeting animation puts it, until it lands on red. the run loop's timing isn't reliable, so the test
     // checks each look against the animation's own value for that time instead of expecting a value at a fixed delay
-    expect(try layer.animation(forKey: "shadowColor").unwrap().duration).to(beApproximatelyEqual(to: 0.35, within: 0.1))
+    expect(try layer.animation(forKey: "shadowColor").unwrap().duration).to(beApproximatelyEqual(to: interruptedBeginTime + 0.5 - retargetTime, within: 0.02))
     var landed = false
     for _ in 0 ..< 40 where !landed {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
