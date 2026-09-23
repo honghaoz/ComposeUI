@@ -38,8 +38,7 @@ public extension CALayer {
   /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone.
   ///   An ended animation still on the layer is removed, since a forwards fill would show its end value over the new one.
   /// - Additive animations of numbers, `CGSize` and `CGPoint` are folded into one additive ease-out from the value they
-  ///   show, so later additive animations keep stacking on it. A spring keeps going instead, so its momentum carries on,
-  ///   and a paused animation stays frozen.
+  ///   show, so later additive animations keep stacking on it. A spring keeps going instead, so its momentum carries on.
   /// - Other animations are replaced by one ease-out animation from the shown value. Note that additive animations of
   ///   `opacity` and `shadowOpacity` are replaced too, since the render server clamps them after each animation and
   ///   stacked animations wouldn't compose on screen.
@@ -151,7 +150,7 @@ public extension CALayer {
   /// the new value, which the glide starts from.
   ///
   /// A spring that lands on the model value isn't folded: it keeps going, so its momentum carries on, and lands on the
-  /// new model value on its own. Neither is a paused one, which stays frozen as its owner asked.
+  /// new model value on its own.
   ///
   /// - Returns: The fold, or `nil` when the animations can't be folded: the render server clamps the key path after each
   ///   animation, the values aren't numbers, sizes or points of one kind, or an animation isn't an additive basic
@@ -181,7 +180,7 @@ public extension CALayer {
         return nil
       }
 
-      if to.isZero, animation is CASpringAnimation || animation.speed == 0 {
+      if to.isZero, animation is CASpringAnimation {
         continue
       }
 

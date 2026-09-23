@@ -654,8 +654,8 @@ class CALayer_RetargetTests: XCTestCase {
     }
   }
 
-  func test_retarget_pausedAdditiveAnimationInFlight_keepsItFrozenAndGlidesTheJump() throws {
-    // given: a layer whose corner radius has a paused additive animation, frozen at its offset of -20
+  func test_retarget_pausedAdditiveAnimationInFlight_foldsItIntoARunningGlide() throws {
+    // given: a layer whose corner radius has a paused additive animation, frozen at its offset of -20, so it shows 0
     let layer = CALayer()
     layer.cornerRadius = 20
     let pausedAnimation = CABasicAnimation(keyPath: "cornerRadius")
@@ -669,11 +669,13 @@ class CALayer_RetargetTests: XCTestCase {
     // when: retargeting the corner radius to 5
     layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
 
-    // then: the paused animation stays frozen as its owner asked, and a glide stacked on it covers the jump, 20 - 5
-    expect(layer.animationKeys()) == ["paused", "cornerRadius"]
-    expect(layer.animation(forKey: "paused")?.speed) == 0
+    // then: the paused animation is folded like any other, as a paused non-additive one is replaced: a running glide
+    // starts from the shown radius, 5 below the new one, and lands on it over the paused animation's duration
+    expect(layer.animationKeys()) == ["cornerRadius"]
     let glide = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
-    expect(glide.fromValue as? CGFloat) == 15
+    expect(glide.speed) == 1
+    expect(glide.fromValue as? CGFloat) == -5
+    expect(glide.toValue as? CGFloat) == 0
     expect(glide.duration) == 10
     expect(layer.cornerRadius) == 5
   }
