@@ -38,7 +38,9 @@ public extension CALayer {
   /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone.
   ///   An ended animation still on the layer is removed, since a forwards fill would show its end value over the new one.
   /// - Additive animations of numbers, `CGSize` and `CGPoint` are folded into one additive ease-out from the value they
-  ///   show, so later additive animations keep stacking on it. A spring keeps going instead, so its momentum carries on.
+  ///   show, so later additive animations keep stacking on it. A spring keeps going instead, so its momentum carries on,
+  ///   with the ease-out stacked on it. Stacked additive animations show their sum only for properties the render server
+  ///   doesn't clamp between animations, see `animate(keyPath:to:timing:)`.
   /// - Other animations are replaced by one ease-out animation from the shown value. Note that additive animations of
   ///   `opacity` and `shadowOpacity` are replaced too, since the render server clamps them after each animation and
   ///   stacked animations wouldn't compose on screen.
