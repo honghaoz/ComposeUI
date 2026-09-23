@@ -132,7 +132,11 @@ public extension CALayer {
 
   /// The time an animation has left at `now`, or `nil` when it has ended.
   private func remainingTime(of animation: CAAnimation, at now: TimeInterval) -> TimeInterval? {
-    let scaledDuration = animation.speed > 0 ? animation.duration / TimeInterval(animation.speed) : animation.duration
+    // a paused animation (zero speed) has no end to measure to, so it counts its duration however long ago it began
+    guard animation.speed > 0 else {
+      return animation.duration
+    }
+    let scaledDuration = animation.duration / TimeInterval(animation.speed)
     let remainingTime = animation.beginTime == 0 ? scaledDuration : animation.beginTime + scaledDuration - now
     return remainingTime > 0 ? remainingTime : nil
   }

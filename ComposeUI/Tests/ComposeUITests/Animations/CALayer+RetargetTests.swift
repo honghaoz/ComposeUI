@@ -125,6 +125,30 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == nil
   }
 
+  func test_remainingAnimationTime_pausedAnimation_pastItsDuration() throws {
+    // given: a layer with a paused opacity animation that began longer ago than its duration
+    let layer = CALayer()
+    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
+    fadeAnimation.fromValue = Float(1)
+    fadeAnimation.toValue = Float(0)
+    fadeAnimation.duration = 2
+    fadeAnimation.speed = 0
+    fadeAnimation.beginTime = layer.currentTime - 5
+    layer.add(fadeAnimation, forKey: "fade")
+
+    // then: it hasn't ended, its time is frozen, so it still counts its duration
+    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == 2
+
+    // when: retargeting the opacity
+    layer.retarget(keyPath: "opacity", to: Float(0.5))
+
+    // then: the frozen animation isn't taken for an ended one and removed, it is replaced like any in-flight animation
+    expect(layer.animationKeys()) == ["opacity"]
+    let animation = try (layer.animation(forKey: "opacity") as? CABasicAnimation).unwrap()
+    expect(animation.toValue as? Float) == 0.5
+    expect(animation.duration) == 2
+  }
+
   func test_remainingAnimationTime_committedAnimation() throws {
     // given: a hosted layer with a committed opacity animation that has run for a while
     let testWindow = TestWindow()
