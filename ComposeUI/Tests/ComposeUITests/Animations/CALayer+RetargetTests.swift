@@ -677,6 +677,24 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.cornerRadius) == 5
   }
 
+  func test_retarget_additiveAnimationInFlight_longerThanTheSamplingHorizon_easesOutTheJump() throws {
+    // given: layers whose corner radius is animating additively for 20 seconds, the longest motion the check samples,
+    // and for 21
+    for (duration, isSampled) in [(20.0, true), (21.0, false)] {
+      let layer = CALayer()
+      layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: duration))
+
+      // when: retargeting the corner radius to 5
+      layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+      // then: the motion within the horizon is scaled, the longer one can't be checked closely enough and eases out instead
+      let correction = try (layer.animation(forKey: "cornerRadius-1") as? CABasicAnimation).unwrap()
+      expect(correction.fromValue as? CGFloat, "\(duration)") == 15
+      expect(correction.duration, "\(duration)") == duration
+      expect(correction.timingFunction, "\(duration)") == CAMediaTimingFunction(name: isSampled ? .linear : .easeOut)
+    }
+  }
+
   func test_retarget_additiveSpringAnimationInFlight_aboutToSwingBack_easesOutTheJump() throws {
     // given: a layer whose corner radius is animating additively with a lightly damped spring that is passing through
     // its target: little motion is left now, but the swing back is bigger

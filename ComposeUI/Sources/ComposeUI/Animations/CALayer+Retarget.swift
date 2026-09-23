@@ -216,13 +216,19 @@ public extension CALayer {
   ///   - now: The layer's current time.
   ///   - remainingTime: The time the animations have left.
   /// - Returns: The factors, or `nil` when the animations' remaining motion can't be scaled to the jump: a component of
-  ///   the jump has no motion left to scale, or the motion grows again before it ends (a spring about to swing back),
-  ///   which the scaling would amplify.
+  ///   the jump has no motion left to scale, the motion grows again before it ends (a spring about to swing back), which
+  ///   the scaling would amplify, or it lasts longer than the check can sample.
   private func correctionFactors(for animations: [InFlightAdditiveAnimation],
                                  cancelling jump: AdditiveValue,
                                  at now: TimeInterval,
                                  over remainingTime: TimeInterval) -> [CGFloat]?
   {
+    // the check below samples the motion at a fixed rate, so a motion lasting longer than it can sample at that rate
+    // isn't scaled: sparser samples could miss a swing that the scaling would then amplify
+    guard remainingTime <= Constants.maxSampledRemainingTime else {
+      return nil
+    }
+
     // the motion the animations have left at a time: what they still add to the model value
     func remainingMotion(at time: TimeInterval) -> AdditiveValue {
       animations.reduce(jump.zero) { motion, additiveAnimation in
@@ -237,8 +243,7 @@ public extension CALayer {
     // a copy scaled to the jump also scales everything the motion does later, so the motion has to shrink from here:
     // it is sampled to its end to check, since a spring can swing back out
     let motionNow = remainingMotion(at: now)
-    let sampledDuration = min(remainingTime, TimeInterval(Constants.maxMotionSamples) / Constants.motionSamplesPerSecond)
-    let sampleCount = max(2, Int((sampledDuration * Constants.motionSamplesPerSecond).rounded(.up)))
+    let sampleCount = max(2, Int((remainingTime * Constants.motionSamplesPerSecond).rounded(.up)))
     var peakMotion = motionNow.magnitudes
     for index in 1 ... sampleCount {
       let motion = remainingMotion(at: now + remainingTime * TimeInterval(index) / TimeInterval(sampleCount))
@@ -312,8 +317,8 @@ public extension CALayer {
     /// The rate the remaining motion is sampled at to check that it shrinks, twice the display rate to catch a fast spring's swings.
     static let motionSamplesPerSecond: TimeInterval = 120
 
-    /// The most samples of the remaining motion, which bounds the work an absurd duration could ask for.
-    static let maxMotionSamples = 2400
+    /// The longest remaining motion the check samples, 2400 samples at the rate. A longer motion isn't scaled.
+    static let maxSampledRemainingTime: TimeInterval = 20
 
     /// The share the remaining motion may exceed its current magnitude by and still count as shrinking, which covers
     /// the rounding of the sample at `now` itself.
