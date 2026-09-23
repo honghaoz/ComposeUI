@@ -71,12 +71,13 @@ public extension CALayer {
        let currentValue,
        let oldValue = AdditiveValue(currentValue),
        let newValue = AdditiveValue(value),
-       oldValue.isSameKind(as: newValue)
+       oldValue.isSameKind(as: newValue),
+       let tails = additiveTails(of: inFlightAnimations.map(\.animation), ofKind: oldValue, at: now)
     {
       // the additive animations keep going and land on the new model value on their own. the model change would show as
       // a jump of `old - new`, so correction animations that add up to it now and fade with the animations are stacked on top
       let jump = oldValue - newValue
-      if let correctionAnimations = scaledCorrectionAnimations(of: inFlightAnimations.map(\.animation), cancelling: jump, at: now, over: remainingTime) {
+      if let correctionAnimations = scaledCorrectionAnimations(of: tails, cancelling: jump, at: now, over: remainingTime) {
         for correctionAnimation in correctionAnimations {
           add(correctionAnimation, forKey: uniqueAnimationKey(key: keyPath))
         }
@@ -133,29 +134,23 @@ public extension CALayer {
     }
   }
 
-  /// Copies of additive animations, scaled so that they add up to `jump` at `now` and to zero when the animations end.
+  /// An additive in-flight animation and its offset, an animation whose remaining motion can be computed.
+  private typealias AdditiveTail = (animation: CABasicAnimation, offset: AdditiveValue)
+
+  /// The in-flight additive animations of one key path as tails: basic animations from an offset of `kind` to zero.
   ///
-  /// Each copy keeps its animation's curve and timeline, so the copies fade exactly as the animations deliver the
-  /// motion they have left. Stacked on the animations, they turn the jump into a glide along that motion.
+  /// The remaining motion is computed the way `progress(forElapsedTime:)` evaluates an animation, which doesn't cover
+  /// repeats and time offsets. A scheduled animation is taken to hold its offset until it begins, which takes a
+  /// backwards fill. An animation landing on a non-zero offset doesn't land on the model value.
   ///
   /// - Parameters:
-  ///   - animations: The in-flight additive animations of one key path.
-  ///   - jump: The value the copies add up to at `now`, of the animations' kind.
+  ///   - animations: The in-flight additive animations.
+  ///   - kind: A value of the key path's kind.
   ///   - now: The layer's current time.
-  ///   - remainingTime: The time the animations have left.
-  /// - Returns: The copies, or `nil` when the animations' remaining motion can't be scaled to the jump: an animation
-  ///   isn't a basic animation from an offset to zero, a component of the jump has no motion left to scale, or the
-  ///   motion grows again before it ends (a spring about to swing back), which the scaling would amplify.
-  private func scaledCorrectionAnimations(of animations: [CAPropertyAnimation],
-                                          cancelling jump: AdditiveValue,
-                                          at now: TimeInterval,
-                                          over remainingTime: TimeInterval) -> [CABasicAnimation]?
-  {
-    var tails: [(animation: CABasicAnimation, offset: AdditiveValue)] = []
+  /// - Returns: The tails, or `nil` when an animation isn't such a tail.
+  private func additiveTails(of animations: [CAPropertyAnimation], ofKind kind: AdditiveValue, at now: TimeInterval) -> [AdditiveTail]? {
+    var tails: [AdditiveTail] = []
     for animation in animations {
-      // the remaining motion is computed the way `progress(forElapsedTime:)` evaluates an animation, which doesn't
-      // cover repeats and time offsets, a scheduled animation is taken to hold its offset until it begins, which takes
-      // a backwards fill, and an animation that lands on a non-zero offset would leave the copy's share of it behind
       guard let animation = animation as? CABasicAnimation,
             animation.byValue == nil,
             animation.repeatCount == 0,
@@ -164,17 +159,37 @@ public extension CALayer {
             animation.timeOffset == 0,
             animation.beginTime <= now || animation.fillMode == .backwards || animation.fillMode == .both,
             let offset = animation.fromValue.flatMap({ AdditiveValue($0) }),
-            offset.isSameKind(as: jump),
+            offset.isSameKind(as: kind),
             let landing = animation.toValue.flatMap({ AdditiveValue($0) }),
-            landing.isSameKind(as: jump),
+            landing.isSameKind(as: kind),
             landing.isZero
       else {
         return nil
       }
       tails.append((animation, offset))
     }
+    return tails
+  }
 
-    // the motion the animations have left at a time: what they still add to the model value
+  /// Copies of additive tails, scaled so that they add up to `jump` at `now` and to zero when the tails end.
+  ///
+  /// Each copy keeps its tail's curve and timeline, so the copies fade exactly as the tails deliver the motion they
+  /// have left. Stacked on the tails, they turn the jump into a glide along that motion.
+  ///
+  /// - Parameters:
+  ///   - tails: The in-flight additive tails of one key path, see `additiveTails(of:ofKind:at:)`.
+  ///   - jump: The value the copies add up to at `now`, of the tails' kind.
+  ///   - now: The layer's current time.
+  ///   - remainingTime: The time the tails have left.
+  /// - Returns: The copies, or `nil` when the tails' remaining motion can't be scaled to the jump: a component of the
+  ///   jump has no motion left to scale, or the motion grows again before it ends (a spring about to swing back), which
+  ///   the scaling would amplify.
+  private func scaledCorrectionAnimations(of tails: [AdditiveTail],
+                                          cancelling jump: AdditiveValue,
+                                          at now: TimeInterval,
+                                          over remainingTime: TimeInterval) -> [CABasicAnimation]?
+  {
+    // the motion the tails have left at a time: what they still add to the model value
     func remainingMotion(at time: TimeInterval) -> AdditiveValue {
       tails.reduce(jump.zero) { motion, tail in
         // an unset begin time resolves to the next commit, so the animation is taken to begin now

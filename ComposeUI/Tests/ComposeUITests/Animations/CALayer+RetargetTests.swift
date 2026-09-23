@@ -576,7 +576,7 @@ class CALayer_RetargetTests: XCTestCase {
     expect(correction.timingFunction) == CAMediaTimingFunction(name: .easeOut)
   }
 
-  func test_retarget_additiveAnimationInFlight_shapeWithoutMotionLeft_easesOutTheJump() throws {
+  func test_retarget_additiveAnimationInFlight_shapeWithoutMotionLeft_replaces() throws {
     // given: additive animations whose remaining motion can't be computed or doesn't end at zero
     let shapes: [(String, (CALayer) -> CAPropertyAnimation)] = [
       ("keyframe", { _ in CAKeyframeAnimation(keyPath: "cornerRadius") }),
@@ -661,12 +661,13 @@ class CALayer_RetargetTests: XCTestCase {
       // when: retargeting the corner radius to 5
       layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
 
-      // then: the animation is kept and the jump eases out on its own on top of it
-      expect(Set(layer.animationKeys() ?? []), shape) == ["tail", "cornerRadius"]
-      let correction = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
-      expect(correction.isAdditive, shape) == true
-      expect(correction.fromValue as? CGFloat, shape) == 15
-      expect(correction.timingFunction, shape) == CAMediaTimingFunction(name: .easeOut)
+      // then: the animation can't be trusted to land on the model value, so it is replaced by one non-additive
+      // animation to the new value, as a mix with non-additive animations is
+      expect(layer.animationKeys(), shape) == ["cornerRadius"]
+      let animation = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+      expect(animation.isAdditive, shape) == false
+      expect(animation.toValue as? CGFloat, shape) == 5
+      expect(animation.timingFunction, shape) == CAMediaTimingFunction(name: .easeOut)
       expect(layer.cornerRadius, shape) == 5
     }
   }
