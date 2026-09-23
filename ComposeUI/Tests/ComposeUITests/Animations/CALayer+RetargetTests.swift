@@ -553,28 +553,7 @@ class CALayer_RetargetTests: XCTestCase {
     expect((layer.animation(forKey: "cornerRadius-1") as? CABasicAnimation)?.fromValue as? CGFloat) == 5
   }
 
-  func test_retarget_additiveAnimationsInFlight_sameTimeline_getOneCorrection() throws {
-    // given: a layer whose corner radius has two additive animations in flight on the same timeline
-    let layer = CALayer()
-    layer.cornerRadius = 20
-    for offset in [CGFloat(-20), CGFloat(-10)] {
-      let inFlightAnimation = CABasicAnimation(keyPath: "cornerRadius")
-      inFlightAnimation.fromValue = offset
-      inFlightAnimation.toValue = CGFloat(0)
-      inFlightAnimation.isAdditive = true
-      inFlightAnimation.duration = 10
-      layer.add(inFlightAnimation, forKey: "in-flight-\(offset)")
-    }
-
-    // when: retargeting the corner radius to 5, a jump of 15 against 30 of motion left
-    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
-
-    // then: the animations add up like one, so one copy corrects both, worth the jump
-    expect(layer.animationKeys()) == ["in-flight--20.0", "in-flight--10.0", "cornerRadius"]
-    expect((layer.animation(forKey: "cornerRadius") as? CABasicAnimation)?.fromValue as? CGFloat) == 15
-  }
-
-  func test_retarget_additiveAnimationInFlight_repeatedly_keepsOneCorrectionPerTimeline() throws {
+  func test_retarget_additiveAnimationInFlight_repeatedly_keepsOneCorrection() throws {
     // given: a layer whose corner radius is animating additively from 0 to 20
     let layer = CALayer()
     layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 10))
@@ -613,10 +592,12 @@ class CALayer_RetargetTests: XCTestCase {
     layer.add(inFlightAnimation, forKey: "in-flight")
     layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
     let firstCorrection = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
-    let shownRadius = try layer.predictedValue(forKeyPath: "cornerRadius", at: layer.currentTime, scalar: numberScalar)
+    let timeBefore = layer.currentTime
+    let shownRadius = try layer.predictedValue(forKeyPath: "cornerRadius", at: timeBefore, scalar: numberScalar)
 
     // when: retargeting the corner radius again, to 12
     layer.retarget(keyPath: "cornerRadius", to: CGFloat(12))
+    let timeAfter = layer.currentTime
 
     // then: the earlier correction is folded into the new one, so the animation still carries one correction. the
     // timeline has 70% of its motion left, so cancelling the jump of -7 takes -10 of offset on top of what the earlier
@@ -626,8 +607,27 @@ class CALayer_RetargetTests: XCTestCase {
     expect(correction.beginTime) == inFlightAnimation.beginTime
     let firstOffset = try (firstCorrection.fromValue as? CGFloat).unwrap()
     expect(try (correction.fromValue as? CGFloat).unwrap()).to(beApproximatelyEqual(to: firstOffset - 10, within: 0.05))
-    expect(try layer.predictedValue(forKeyPath: "cornerRadius", at: layer.currentTime, scalar: numberScalar))
-      .to(beApproximatelyEqual(to: shownRadius, within: 0.01))
+    // the radius is unchanged at the retarget, then glides toward 12 at about one point per second, so the time the
+    // retarget took on this machine is allowed for
+    expect(try layer.predictedValue(forKeyPath: "cornerRadius", at: timeAfter, scalar: numberScalar))
+      .to(beApproximatelyEqual(to: shownRadius, within: 0.01 + (timeAfter - timeBefore) * 2))
+  }
+
+  func test_retarget_additiveAnimationInFlight_correctionWithoutItsAnimation_isCorrectedItself() throws {
+    // given: a layer whose corner radius animation was retargeted once, then removed by its owner, leaving the correction
+    let layer = CALayer()
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 10))
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+    layer.removeAnimation(forKey: "cornerRadius")
+    expect(layer.animationKeys()) == ["cornerRadius-1"]
+
+    // when: retargeting the corner radius again, to 8
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(8))
+
+    // then: the correction is an animation of its own now, 15 of motion left, and gets a correction worth the jump of -3
+    expect(layer.animationKeys()) == ["cornerRadius-1", "cornerRadius"]
+    expect((layer.animation(forKey: "cornerRadius") as? CABasicAnimation)?.fromValue as? CGFloat) == -3
+    expect(layer.cornerRadius) == 8
   }
 
   func test_retarget_additiveSpringAnimationInFlight_stacksAScaledSpring() throws {
@@ -677,21 +677,73 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.cornerRadius) == 5
   }
 
-  func test_retarget_additiveAnimationInFlight_longerThanTheSamplingHorizon_easesOutTheJump() throws {
-    // given: layers whose corner radius is animating additively for 20 seconds, the longest motion the check samples,
-    // and for 21
+  func test_retarget_additiveAnimationsInFlight_longerThanTheSamplingHorizon_easeOutTheJump() throws {
+    // given: layers whose corner radius has two additive animations in flight pulling opposite ways, so their motion has
+    // to be sampled, both lasting 20 seconds, the longest motion the check samples, and both lasting 21
     for (duration, isSampled) in [(20.0, true), (21.0, false)] {
       let layer = CALayer()
-      layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: duration))
+      layer.cornerRadius = 20
+      for offset in [CGFloat(-15), CGFloat(5)] {
+        let inFlightAnimation = CABasicAnimation(keyPath: "cornerRadius")
+        inFlightAnimation.fromValue = offset
+        inFlightAnimation.toValue = CGFloat(0)
+        inFlightAnimation.isAdditive = true
+        inFlightAnimation.duration = duration
+        layer.add(inFlightAnimation, forKey: "in-flight-\(offset)")
+      }
 
       // when: retargeting the corner radius to 5
       layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
 
       // then: the motion within the horizon is scaled, the longer one can't be checked closely enough and eases out instead
-      let correction = try (layer.animation(forKey: "cornerRadius-1") as? CABasicAnimation).unwrap()
-      expect(correction.fromValue as? CGFloat, "\(duration)") == 15
+      let keys = layer.animationKeys() ?? []
+      expect(keys.count, "\(duration)") == (isSampled ? 4 : 3)
+      let correction = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
       expect(correction.duration, "\(duration)") == duration
-      expect(correction.timingFunction, "\(duration)") == CAMediaTimingFunction(name: isSampled ? .linear : .easeOut)
+      expect(correction.timingFunction, "\(duration)") == (isSampled ? nil : CAMediaTimingFunction(name: .easeOut))
+    }
+  }
+
+  func test_retarget_additiveAnimationInFlight_longWithoutOvershoot_isScaledUnsampled() throws {
+    // given: a layer whose corner radius is animating additively for a minute on a linear curve
+    let layer = CALayer()
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 60))
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+    // then: a lone animation on a curve that never overshoots shrinks all the way, so it is scaled without sampling,
+    // however long it lasts
+    let correction = try (layer.animation(forKey: "cornerRadius-1") as? CABasicAnimation).unwrap()
+    expect(correction.fromValue as? CGFloat) == 15
+    expect(correction.timingFunction) == CAMediaTimingFunction(name: .linear)
+  }
+
+  func test_retarget_additiveAnimationInFlight_overshootingCurve_isSampled() throws {
+    // given: layers whose corner radius is animating additively on curves that overshoot: one past the end, one below the
+    // start
+    let overshootingEnd = CAMediaTimingFunction(controlPoints: 0.2, 0, 0.5, 1.5)
+    let dippingStart = CAMediaTimingFunction(controlPoints: 0.5, -0.5, 0.5, 1)
+    for (timingFunction, isScaled) in [(overshootingEnd, true), (dippingStart, false)] {
+      let layer = CALayer()
+      layer.cornerRadius = 20
+
+      let inFlightAnimation = CABasicAnimation(keyPath: "cornerRadius")
+      inFlightAnimation.fromValue = CGFloat(-20)
+      inFlightAnimation.toValue = CGFloat(0)
+      inFlightAnimation.isAdditive = true
+      inFlightAnimation.duration = 10
+      inFlightAnimation.timingFunction = timingFunction
+      layer.add(inFlightAnimation, forKey: "in-flight")
+
+      // when: retargeting the corner radius to 5
+      layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+      // then: the motion is sampled. past the end it only shrinks from here, so it is scaled. below the start it grows
+      // first, which the scaling would amplify, so the jump eases out instead
+      let correction = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+      expect(correction.fromValue as? CGFloat, "\(isScaled)") == 15
+      expect(correction.timingFunction, "\(isScaled)") == (isScaled ? timingFunction : CAMediaTimingFunction(name: .easeOut))
     }
   }
 

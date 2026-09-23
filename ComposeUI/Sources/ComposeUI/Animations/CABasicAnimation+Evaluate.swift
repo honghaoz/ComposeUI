@@ -107,6 +107,11 @@ extension CAMediaTimingFunction {
     getControlPoint(at: 1, values: &controlPoint1)
     getControlPoint(at: 2, values: &controlPoint2)
 
+    // control points on the diagonal make the curve the identity, the linear curve, so there is nothing to solve
+    if controlPoint1[0] == controlPoint1[1], controlPoint2[0] == controlPoint2[1] {
+      return fraction
+    }
+
     func bezier(_ t: Double, _ value1: Double, _ value2: Double) -> Double {
       // cubic bezier with anchors 0 and 1: 3(1-t)²t·p1 + 3(1-t)t²·p2 + t³
       let oneMinusT = 1 - t

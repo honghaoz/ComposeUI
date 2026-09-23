@@ -129,6 +129,11 @@ Hard-won rules from past corrections, grouped by theme.
 
 - In hot paths (layout/render), order computations so work is only done when needed: check early-exit conditions (for example `.isNull`) before computing values used after the check.
 - Do not recommend a performance optimization from first principles alone. Measure the delta first (a local A/B is often enough), because plausible-sounding savings can be ~0 (for example `-xctestrun` vs `-workspace`/`-scheme` for `test-without-building` in this repo).
+- Anything that can run per frame is a hot path, including animation and update code, not only layout and render.
+- No per-call heap allocations in a hot path: fixed-size data is a value type, not an array, and a chain of collection operations allocates at every step, so use one pass.
+- Read an external collection once per call and do everything that needs it in that pass. Framework accessors often copy on each read.
+- A fast path has to fire in the steady state, not just on the first call. Measure in the state the code itself creates, inside the context it runs in, with a warm-up. Otherwise the harness dominates the numbers.
+- Give the common case an exact shortcut when it is trivially exact, and keep the general path for the rest.
 
 ## CI
 
