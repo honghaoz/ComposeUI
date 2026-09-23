@@ -40,17 +40,18 @@ public extension CALayer {
   /// If no in-flight animations are found, the value is set without an implicit action. An in-flight animation already
   /// heading to the value is left alone.
   ///
-  /// Additive in-flight animations are deltas that land on the model value on their own, so they are kept, and one more
-  /// additive animation is added on top of them: a delta from the old value to the new one, decaying to zero over the
-  /// time the longest of them has left. It cancels the jump the model change would show and fades out as they
-  /// land, and later animated updates keep stacking on them. The delta is computed for numbers, `CGSize` and `CGPoint`.
+  /// Additive in-flight animations are offsets that land on the model value on their own, so they are kept, and the
+  /// jump the model change would show is cancelled by a correction stacked on each of them: a copy of the animation with
+  /// the same curve and timeline, scaled so the corrections add up to the jump now and fade to zero as the animations
+  /// land. The shown value keeps the animations' motion and glides to the new value. If the animations' remaining motion
+  /// can't be scaled (none is left, or a spring is about to swing back), one correction eases out over the remaining time
+  /// instead. Works for numbers, `CGSize` and `CGPoint`.
   ///
   /// Otherwise the in-flight animations are replaced by one animation from the value the layer currently shows to
   /// `value`, easing out over the time the longest of them had left. With several animations in flight, the layer shows
   /// what Core Animation composes from them (the last non-additive one added wins), and the retarget starts from that.
-  /// Additive animations of a kind without a delta, or mixed with non-additive ones, are replaced the same way.
-  ///
-  /// The retarget carries neither the interrupted animation's curve nor its velocity.
+  /// Additive animations of a kind without a delta, or mixed with non-additive ones, are replaced the same way. The
+  /// replacement carries neither the interrupted animation's curve nor its velocity.
   ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
@@ -58,7 +59,8 @@ public extension CALayer {
   ///   - keyPath: The key path to set.
   ///   - value: The value to set.
   func retarget(keyPath: String, to value: Any) {
-    let inFlightAnimations = inFlightAnimations(forKeyPath: keyPath)
+    let now = currentTime
+    let inFlightAnimations = inFlightAnimations(forKeyPath: keyPath, at: now)
     guard let remainingTime = inFlightAnimations.map(\.remainingTime).max() else {
       // no in-flight animations, set the value directly
       setKeyPathValue(keyPath, value)
@@ -76,18 +78,29 @@ public extension CALayer {
 
     if inFlightAnimations.allSatisfy(\.animation.isAdditive),
        let currentValue,
-       let delta = AdditiveDelta(from: currentValue, to: value)
+       let oldValue = AdditiveValue(currentValue),
+       let newValue = AdditiveValue(value),
+       oldValue.isSameKind(as: newValue)
     {
-      // keep the additive animations and stack a decaying delta from the old value on top, so the shown value doesn't
-      // jump when the model changes and the animations land on the new model value as they finish
-      animate(
-        keyPath: keyPath,
-        timing: timing,
-        from: { _ in delta.value },
-        to: { _ in delta.zero },
-        model: { _ in value },
-        updateAnimation: { $0.isAdditive = true }
-      )
+      // the additive animations keep going and land on the new model value on their own. the model change would show as
+      // a jump of `old - new`, so correction animations that add up to it now and fade with the animations are stacked on top
+      let jump = oldValue - newValue
+      if let correctionAnimations = scaledCorrectionAnimations(of: inFlightAnimations.map(\.animation), cancelling: jump, at: now, over: remainingTime) {
+        for correctionAnimation in correctionAnimations {
+          add(correctionAnimation, forKey: uniqueAnimationKey(key: keyPath))
+        }
+        setKeyPathValue(keyPath, value)
+      } else {
+        // no motion to scale, so one correction animation eases out on its own
+        animate(
+          keyPath: keyPath,
+          timing: timing,
+          from: { _ in jump.value },
+          to: { _ in jump.zero.value },
+          model: { _ in value },
+          updateAnimation: { $0.isAdditive = true }
+        )
+      }
     } else {
       // remove the in-flight animations and replace them with a new one from the current value to the new value
       removeAnimations(forKeyPath: keyPath)
@@ -109,13 +122,12 @@ public extension CALayer {
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The remaining time, or `nil` when no animation of the key path is in flight.
   internal func remainingAnimationTime(forKeyPath keyPath: String) -> TimeInterval? {
-    inFlightAnimations(forKeyPath: keyPath).map(\.remainingTime).max()
+    inFlightAnimations(forKeyPath: keyPath, at: currentTime).map(\.remainingTime).max()
   }
 
-  /// The layer's property animations of the given key path that haven't ended, each with the time it has left.
-  private func inFlightAnimations(forKeyPath keyPath: String) -> [(animation: CAPropertyAnimation, remainingTime: TimeInterval)] {
-    let now = currentTime
-    return (animationKeys() ?? []).compactMap { key in
+  /// The layer's property animations of the given key path that haven't ended at `now`, each with the time it has left.
+  private func inFlightAnimations(forKeyPath keyPath: String, at now: TimeInterval) -> [(animation: CAPropertyAnimation, remainingTime: TimeInterval)] {
+    (animationKeys() ?? []).compactMap { key in
       guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
         return nil
       }
@@ -129,32 +141,193 @@ public extension CALayer {
       return (animation, remainingTime)
     }
   }
+
+  /// Copies of additive animations, scaled so that they add up to `jump` at `now` and to zero when the animations end.
+  ///
+  /// Each copy keeps its animation's curve and timeline, so the copies fade exactly as the animations deliver the
+  /// motion they have left. Stacked on the animations, they turn the jump into a glide along that motion.
+  ///
+  /// - Parameters:
+  ///   - animations: The in-flight additive animations of one key path.
+  ///   - jump: The value the copies add up to at `now`, of the animations' kind.
+  ///   - now: The layer's current time.
+  ///   - remainingTime: The time the animations have left.
+  /// - Returns: The copies, or `nil` when the animations' remaining motion can't be scaled to the jump: an animation
+  ///   isn't a basic animation from an offset to zero, a component of the jump has no motion left to scale, or the
+  ///   motion grows again before it ends (a spring about to swing back), which the scaling would amplify.
+  private func scaledCorrectionAnimations(of animations: [CAPropertyAnimation],
+                                          cancelling jump: AdditiveValue,
+                                          at now: TimeInterval,
+                                          over remainingTime: TimeInterval) -> [CABasicAnimation]?
+  {
+    var tails: [(animation: CABasicAnimation, offset: AdditiveValue)] = []
+    for animation in animations {
+      // the remaining motion is computed the way `progress(forElapsedTime:)` evaluates an animation, which doesn't
+      // cover repeats and time offsets, a scheduled animation is taken to hold its offset until it begins, which takes
+      // a backwards fill, and an animation that lands on a non-zero offset would leave the copy's share of it behind
+      guard let animation = animation as? CABasicAnimation,
+            animation.byValue == nil,
+            animation.repeatCount == 0,
+            animation.repeatDuration == 0,
+            !animation.autoreverses,
+            animation.timeOffset == 0,
+            animation.beginTime <= now || animation.fillMode == .backwards || animation.fillMode == .both,
+            let offset = animation.fromValue.flatMap({ AdditiveValue($0) }),
+            offset.isSameKind(as: jump),
+            let landing = animation.toValue.flatMap({ AdditiveValue($0) }),
+            landing.isSameKind(as: jump),
+            landing.isZero
+      else {
+        return nil
+      }
+      tails.append((animation, offset))
+    }
+
+    // the motion the animations have left at a time: what they still add to the model value
+    func remainingMotion(at time: TimeInterval) -> AdditiveValue {
+      tails.reduce(jump.zero) { motion, tail in
+        // an unset begin time resolves to the next commit, so the animation is taken to begin now
+        let beginTime = tail.animation.beginTime == 0 ? now : tail.animation.beginTime
+        let progress = tail.animation.progress(forElapsedTime: (time - beginTime) * TimeInterval(tail.animation.speed))
+        return motion + tail.offset.scaled(by: 1 - CGFloat(progress))
+      }
+    }
+
+    // a copy scaled to the jump also scales everything the motion does later, so the motion has to shrink from here:
+    // it is sampled to its end to check, since a spring can swing back out
+    let motionNow = remainingMotion(at: now)
+    let sampledDuration = min(remainingTime, TimeInterval(Constants.maxMotionSamples) / Constants.motionSamplesPerSecond)
+    let sampleCount = max(2, Int((sampledDuration * Constants.motionSamplesPerSecond).rounded(.up)))
+    var peakMotion = motionNow.magnitudes
+    for index in 1 ... sampleCount {
+      let motion = remainingMotion(at: now + remainingTime * TimeInterval(index) / TimeInterval(sampleCount))
+      peakMotion = zip(peakMotion, motion.magnitudes).map { max($0, $1) }
+    }
+
+    var factors: [CGFloat] = []
+    for (component, jumpComponent) in jump.components.enumerated() {
+      guard jumpComponent != 0 else {
+        factors.append(0) // nothing to cancel for this component
+        continue
+      }
+      let motionComponent = motionNow.components[component]
+      guard motionComponent != 0, peakMotion[component] <= abs(motionComponent) * (1 + Constants.peakMotionTolerance) else {
+        return nil
+      }
+      factors.append(jumpComponent / motionComponent)
+    }
+
+    return tails.map { tail in
+      // a copy of a basic animation is a basic animation, so the cast is forced
+      let correctionAnimation = tail.animation.copy() as! CABasicAnimation // swiftlint:disable:this force_cast
+      correctionAnimation.fromValue = tail.offset.scaled(by: factors).value
+      correctionAnimation.toValue = jump.zero.value
+      correctionAnimation.delegate = nil // the copy must not report the animation's start and end a second time
+      return correctionAnimation
+    }
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The rate the remaining motion is sampled at to check that it shrinks, twice the display rate to catch a fast spring's swings.
+    static let motionSamplesPerSecond: TimeInterval = 120
+
+    /// The most samples of the remaining motion, which bounds the work an absurd duration could ask for.
+    static let maxMotionSamples = 2400
+
+    /// The share the remaining motion may exceed its current magnitude by and still count as shrinking, which covers
+    /// the rounding of the sample at `now` itself.
+    static let peakMotionTolerance: CGFloat = 1e-6
+  }
 }
 
-/// The additive delta from an old value to a new one, for the value kinds that animate additively.
-private struct AdditiveDelta {
+/// A value of a kind that animates additively, as its components: numbers, `CGSize` and `CGPoint`.
+private struct AdditiveValue {
 
-  /// The delta, `old - new`.
-  let value: Any
+  private enum Kind {
+    case number
+    case size
+    case point
+  }
 
-  /// The zero of the delta's kind, the value the delta decays to.
-  let zero: Any
+  private let kind: Kind
 
-  /// Creates the delta for numbers, `CGSize` and `CGPoint` values, as Core Animation boxes them.
+  /// The components: one for a number, width and height for a size, x and y for a point.
+  let components: [CGFloat]
+
+  /// Creates the value from a number, `CGSize` or `CGPoint`, as Core Animation boxes them.
   ///
-  /// - Returns: `nil` when the values are of another kind or of different kinds.
-  init?(from oldValue: Any, to newValue: Any) {
-    if let oldSize = oldValue as? CGSize, let newSize = newValue as? CGSize {
-      value = CGSize(width: oldSize.width - newSize.width, height: oldSize.height - newSize.height)
-      zero = CGSize.zero
-    } else if let oldPoint = oldValue as? CGPoint, let newPoint = newValue as? CGPoint {
-      value = CGPoint(x: oldPoint.x - newPoint.x, y: oldPoint.y - newPoint.y)
-      zero = CGPoint.zero
-    } else if let oldNumber = oldValue as? NSNumber, let newNumber = newValue as? NSNumber {
-      value = oldNumber.doubleValue - newNumber.doubleValue
-      zero = 0.0
+  /// - Returns: `nil` for a value of another kind.
+  init?(_ value: Any) {
+    if let size = value as? CGSize {
+      kind = .size
+      components = [size.width, size.height]
+    } else if let point = value as? CGPoint {
+      kind = .point
+      components = [point.x, point.y]
+    } else if let number = value as? NSNumber {
+      kind = .number
+      components = [CGFloat(number.doubleValue)]
     } else {
       return nil
     }
+  }
+
+  private init(kind: Kind, components: [CGFloat]) {
+    self.kind = kind
+    self.components = components
+  }
+
+  /// The value as Core Animation boxes it.
+  var value: Any {
+    switch kind {
+    case .number:
+      return Double(components[0])
+    case .size:
+      return CGSize(width: components[0], height: components[1])
+    case .point:
+      return CGPoint(x: components[0], y: components[1])
+    }
+  }
+
+  /// The zero of the value's kind.
+  var zero: AdditiveValue {
+    AdditiveValue(kind: kind, components: components.map { _ in 0 })
+  }
+
+  /// Whether every component is zero.
+  var isZero: Bool {
+    components.allSatisfy { $0 == 0 }
+  }
+
+  /// The components' magnitudes.
+  var magnitudes: [CGFloat] {
+    components.map(abs)
+  }
+
+  func isSameKind(as other: AdditiveValue) -> Bool {
+    kind == other.kind
+  }
+
+  /// The value with every component multiplied by `factor`.
+  func scaled(by factor: CGFloat) -> AdditiveValue {
+    AdditiveValue(kind: kind, components: components.map { $0 * factor })
+  }
+
+  /// The value with each component multiplied by its factor.
+  func scaled(by factors: [CGFloat]) -> AdditiveValue {
+    AdditiveValue(kind: kind, components: zip(components, factors).map { $0 * $1 })
+  }
+
+  /// The component-wise sum of two values of the same kind.
+  static func + (lhs: AdditiveValue, rhs: AdditiveValue) -> AdditiveValue {
+    AdditiveValue(kind: lhs.kind, components: zip(lhs.components, rhs.components).map { $0 + $1 })
+  }
+
+  /// The component-wise difference of two values of the same kind.
+  static func - (lhs: AdditiveValue, rhs: AdditiveValue) -> AdditiveValue {
+    AdditiveValue(kind: lhs.kind, components: zip(lhs.components, rhs.components).map { $0 - $1 })
   }
 }

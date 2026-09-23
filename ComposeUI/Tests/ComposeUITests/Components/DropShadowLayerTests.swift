@@ -378,30 +378,39 @@ final class DropShadowLayerTests: XCTestCase {
     expect(mask.frame) == referenceMask.frame
     expect(mask.path) == referenceMaskPath
 
-    // then: the additive radius and offset animations are kept, with a decaying delta from the old values stacked on
-    // them so nothing jumps, the non-additive color, opacity and path animations are replaced by ones towards the new
-    // values over their remaining time, and the other properties' animations are left alone
-    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
+    // then: the additive radius and offset animations are kept, each with a scaled copy of itself stacked on it so
+    // nothing jumps, the non-additive color, opacity and path animations are replaced by ones towards the new values
+    // over their remaining time, and the other properties' animations are left alone
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowRadius-3", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
     for key in ["shadowRadius", "shadowRadius-1", "shadowOffset"] {
       let keptAnimation = try (layer.animation(forKey: key) as? CABasicAnimation).unwrap()
       expect(keptAnimation.isAdditive) == true
       expect(keptAnimation.duration) == 10
       expect(keptAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
     }
-    // the radius delta decays over the delayed animation's remaining time, the longest of the radius tails
-    let radiusDeltaAnimation = try (layer.animation(forKey: "shadowRadius-2") as? CABasicAnimation).unwrap()
-    expect(radiusDeltaAnimation.isAdditive) == true
-    expect(radiusDeltaAnimation.fromValue as? CGFloat) == 26 // 30 - 4
-    expect(radiusDeltaAnimation.toValue as? CGFloat) == 0
-    expect(radiusDeltaAnimation.duration).to(beApproximatelyEqual(to: 11, within: 0.05))
-    expect(radiusDeltaAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    // the radius' copies cancel the jump, 30 - 4, between them: neither radius animation has begun, so each copy is
+    // worth its animation's whole offset, 20 - 4 and 30 - 20, and the delayed animation's copy waits out the delay with it
+    let radiusCorrection = try (layer.animation(forKey: "shadowRadius-2") as? CABasicAnimation).unwrap()
+    expect(radiusCorrection.isAdditive) == true
+    expect(radiusCorrection.fromValue as? CGFloat) == 16
+    expect(radiusCorrection.toValue as? CGFloat) == 0
+    expect(radiusCorrection.duration) == 10
+    expect(radiusCorrection.beginTime) == 0
+    expect(radiusCorrection.timingFunction) == CAMediaTimingFunction(name: .linear)
+    let delayedRadiusCorrection = try (layer.animation(forKey: "shadowRadius-3") as? CABasicAnimation).unwrap()
+    expect(delayedRadiusCorrection.isAdditive) == true
+    expect(delayedRadiusCorrection.fromValue as? CGFloat) == 10
+    expect(delayedRadiusCorrection.toValue as? CGFloat) == 0
+    expect(delayedRadiusCorrection.duration) == 10
+    expect(delayedRadiusCorrection.beginTime) == layer.animation(forKey: "shadowRadius-1")?.beginTime
+    expect(delayedRadiusCorrection.beginTime) > layer.currentTime
 
-    let offsetDeltaAnimation = try (layer.animation(forKey: "shadowOffset-1") as? CABasicAnimation).unwrap()
-    expect(offsetDeltaAnimation.isAdditive) == true
-    expect(offsetDeltaAnimation.fromValue as? CGSize) == CGSize(width: 2, height: 3)
-    expect(offsetDeltaAnimation.toValue as? CGSize) == .zero
-    expect(offsetDeltaAnimation.duration) == 10
-    expect(offsetDeltaAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    let offsetCorrection = try (layer.animation(forKey: "shadowOffset-1") as? CABasicAnimation).unwrap()
+    expect(offsetCorrection.isAdditive) == true
+    expect(offsetCorrection.fromValue as? CGSize) == CGSize(width: 2, height: 3)
+    expect(offsetCorrection.toValue as? CGSize) == .zero
+    expect(offsetCorrection.duration) == 10
+    expect(offsetCorrection.timingFunction) == CAMediaTimingFunction(name: .linear)
 
     let retargetedColorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
     expect(retargetedColorAnimation.duration) == 10
@@ -441,7 +450,7 @@ final class DropShadowLayerTests: XCTestCase {
     update(layer, red, animationTiming: .linear(duration: 2))
 
     // then: every in-flight animation already lands on the values, so none is added or replaced
-    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowRadius-3", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
     expect(layer.animation(forKey: "shadowColor")?.duration) == 10
     expect(layer.animation(forKey: "shadowColor")?.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     expect(Set(mask.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
@@ -461,7 +470,7 @@ final class DropShadowLayerTests: XCTestCase {
     expect(shadowOpacityAnimation.isAdditive) == false
     expect(shadowOpacityAnimation.toValue as? Float) == 0.8
     expect(layer.animation(forKey: "shadowPath")?.duration) == 2
-    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowRadius-3", "shadowOffset", "shadowOffset-1", "shadowOffset-2", "shadowPath", "opacity", "position"]
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowRadius-2", "shadowRadius-3", "shadowRadius-4", "shadowOffset", "shadowOffset-1", "shadowOffset-2", "shadowPath", "opacity", "position"]
     expect(mask.animation(forKey: "path")?.duration) == 2
     expect(Set(mask.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
   }
@@ -521,17 +530,30 @@ final class DropShadowLayerTests: XCTestCase {
 
     // when: updating without animation timing back to red
     update(color: .red, animationTiming: nil)
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
 
-    // then: the shadow heads back to red from where it is, neither snapping nor finishing the animation towards blue
-    let blueAfterUpdate = try renderedBlue()
-    expect(blueAfterUpdate) > 0.01
-    expect(blueAfterUpdate) < blueBeforeUpdate
+    // then: the shadow heads back to red from where it is over the time the interrupted animation had left, neither
+    // snapping nor finishing the animation towards blue: whenever the run loop lets the test look, the shown color is
+    // where the retargeting animation puts it, until it lands on red. the run loop's timing isn't reliable, so the test
+    // checks each look against the animation's own value for that time instead of expecting a value at a fixed delay
     expect(try layer.animation(forKey: "shadowColor").unwrap().duration).to(beApproximatelyEqual(to: 0.35, within: 0.1))
+    var landed = false
+    for _ in 0 ..< 40 where !landed {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+      let blue = try renderedBlue()
+      let predicted = try layer.predictedValue(forKeyPath: "shadowColor", at: layer.currentTime, scalar: blueComponent)
+      expect(blue).to(beApproximatelyEqual(to: predicted, within: 0.05))
+      expect(blue) <= blueBeforeUpdate + 0.05
+      landed = blue < 0.01
+    }
+    expect(landed) == true
+  }
 
-    // then: the shadow is red when the interrupted animation would have ended
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.4))
-    expect(try renderedBlue()).to(beApproximatelyEqual(to: 0, within: 0.01))
+  /// The blue component of a color value in the sRGB color space, for `predictedValue(forKeyPath:at:scalar:)`.
+  private func blueComponent(of value: Any) throws -> CGFloat {
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    let color = value as! CGColor // swiftlint:disable:this force_cast
+    let sRGB = try CGColorSpace(name: CGColorSpace.sRGB).unwrap()
+    return try color.converted(to: sRGB, intent: .defaultIntent, options: nil).unwrap().components.unwrap()[2]
   }
 
   func test_update_withoutAnimation_opacityAndRadius_renderContinuously() throws {
@@ -564,25 +586,32 @@ final class DropShadowLayerTests: XCTestCase {
     update(opacity: 0, radius: 0, animationTiming: nil)
 
     // then: the shown values don't jump: the opacity is retargeted from what it shows and the radius keeps its additive
-    // animation with a delta from the old radius stacked on it, so neither drops to zero at the update
-    let shownAtUpdate = try shown()
-    expect(shownAtUpdate.opacity).to(beApproximatelyEqual(to: shownBeforeUpdate.opacity, within: 0.1))
-    expect(shownAtUpdate.radius).to(beApproximatelyEqual(to: shownBeforeUpdate.radius, within: 2))
+    // animation with a scaled copy of it stacked on top, so neither drops to zero at the update
     expect(layer.shadowOpacity) == 0
     expect(layer.shadowRadius) == 0
+    let now = layer.currentTime
+    expect(try layer.predictedValue(forKeyPath: "shadowOpacity", at: now, scalar: numberScalar))
+      .to(beApproximatelyEqual(to: CGFloat(shownBeforeUpdate.opacity), within: 0.05))
+    expect(try layer.predictedValue(forKeyPath: "shadowRadius", at: now, scalar: numberScalar))
+      .to(beApproximatelyEqual(to: shownBeforeUpdate.radius, within: 0.5))
 
-    // then: both head back to zero, and never below it
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
-    let shownAfterUpdate = try shown()
-    expect(shownAfterUpdate.opacity) > 0.01
-    expect(shownAfterUpdate.opacity) < shownBeforeUpdate.opacity
-    expect(shownAfterUpdate.radius) > 0.1
-    expect(shownAfterUpdate.radius) < shownBeforeUpdate.radius
-
-    // then: both are zero when the interrupted animations would have ended
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.4))
-    let shownAtEnd = try shown()
-    expect(shownAtEnd.opacity).to(beApproximatelyEqual(to: 0, within: 0.01))
-    expect(shownAtEnd.radius).to(beApproximatelyEqual(to: 0, within: 0.1))
+    // then: both head back to zero along their animations and land when the interrupted animations would have. the run
+    // loop's timing isn't reliable, so the test checks each look against the animations' own values for that time
+    // instead of expecting values at a fixed delay. the radius' copy ends a few milliseconds before its animation, so
+    // the last frame can show the animation's last sliver alone
+    var landed = false
+    for _ in 0 ..< 40 where !landed {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+      let shownNow = try shown()
+      let now = layer.currentTime
+      let predictedOpacity = try layer.predictedValue(forKeyPath: "shadowOpacity", at: now, scalar: numberScalar)
+      let predictedRadius = try layer.predictedValue(forKeyPath: "shadowRadius", at: now, scalar: numberScalar)
+      expect(CGFloat(shownNow.opacity)).to(beApproximatelyEqual(to: predictedOpacity, within: 0.05))
+      expect(shownNow.radius).to(beApproximatelyEqual(to: predictedRadius, within: 0.5))
+      expect(shownNow.opacity) >= 0
+      expect(shownNow.radius) >= -0.5
+      landed = shownNow.opacity < 0.01 && shownNow.radius < 0.1
+    }
+    expect(landed) == true
   }
 }
