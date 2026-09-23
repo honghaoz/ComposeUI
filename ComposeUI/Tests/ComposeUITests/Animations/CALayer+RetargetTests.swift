@@ -706,6 +706,32 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.backgroundColor) == Color.green.cgColor
   }
 
+  func test_retarget_additiveAnimationInFlight_clampedOpacity_replaces() throws {
+    // given: layers whose opacity and shadow opacity are fading in additively, as an opacity transition does
+    for keyPath in ["opacity", "shadowOpacity"] {
+      let layer = CALayer()
+      layer.setValue(Float(1), forKeyPath: keyPath)
+      let tail = CABasicAnimation(keyPath: keyPath)
+      tail.fromValue = Float(-1)
+      tail.toValue = Float(0)
+      tail.isAdditive = true
+      tail.duration = 10
+      layer.add(tail, forKey: "fade")
+
+      // when: retargeting the opacity back to zero
+      layer.retarget(keyPath: keyPath, to: Float(0))
+
+      // then: the render server clamps the opacity after each animation, so a correction stacked on the fade wouldn't
+      // compose on screen: the fade is replaced by one non-additive animation to zero instead
+      expect(layer.animationKeys(), keyPath) == [keyPath]
+      let animation = try (layer.animation(forKey: keyPath) as? CABasicAnimation).unwrap()
+      expect(animation.isAdditive, keyPath) == false
+      expect(animation.toValue as? Float, keyPath) == 0
+      expect(animation.duration, keyPath) == 10
+      expect(layer.value(forKeyPath: keyPath) as? Float, keyPath) == 0
+    }
+  }
+
   func test_retarget_mixedAnimationsInFlight_replaces() throws {
     // given: a layer whose corner radius has an additive and a non-additive animation in flight
     let layer = CALayer()

@@ -32,28 +32,18 @@ import QuartzCore
 
 public extension CALayer {
 
-  /// Sets a key path's value, retargeting the key path's in-flight animations to it.
+  /// Sets a key path's value and retargets its in-flight animations to it, so the motion continues from where it is
+  /// and lands on the new value when it would have.
   ///
-  /// This is useful for setting a property without animating the change while existing animations of it are in flight:
-  /// the motion continues from where it is and lands on the new value when it would have.
+  /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone.
+  /// - Additive animations of numbers, `CGSize` and `CGPoint` are kept, with a scaled copy of each stacked on top that
+  ///   cancels the jump and fades along the animation's own curve. When the remaining motion can't be scaled, one
+  ///   ease-out correction is stacked instead.
+  /// - Non-additive animations are replaced by one ease-out animation from the shown value over the remaining time.
+  ///   Note that additive animations of `opacity` and `shadowOpacity` are also treated as non-additive, since the
+  ///   render server clamps them after each animation and stacked animations wouldn't compose on screen.
   ///
-  /// If no in-flight animations are found, the value is set without an implicit action. An in-flight animation already
-  /// heading to the value is left alone.
-  ///
-  /// Additive in-flight animations are offsets that land on the model value on their own, so they are kept, and the
-  /// jump the model change would show is cancelled by a correction stacked on each of them: a copy of the animation with
-  /// the same curve and timeline, scaled so the corrections add up to the jump now and fade to zero as the animations
-  /// land. The shown value keeps the animations' motion and glides to the new value. If the animations' remaining motion
-  /// can't be scaled (none is left, or a spring is about to swing back), one correction eases out over the remaining time
-  /// instead. Works for numbers, `CGSize` and `CGPoint`.
-  ///
-  /// Otherwise the in-flight animations are replaced by one animation from the value the layer currently shows to
-  /// `value`, easing out over the time the longest of them had left. With several animations in flight, the layer shows
-  /// what Core Animation composes from them (the last non-additive one added wins), and the retarget starts from that.
-  /// Additive animations of a kind without a delta, or mixed with non-additive ones, are replaced the same way. The
-  /// replacement carries neither the interrupted animation's curve nor its velocity.
-  ///
-  /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
+  /// - Important: The value's type must match the key path's, or Core Animation crashes.
   ///
   /// - Parameters:
   ///   - keyPath: The key path to set.
@@ -76,7 +66,8 @@ public extension CALayer {
     // uses the basic easing curve for simplicity, no interrupted velocity to carry
     let timing = AnimationTiming.easeOut(duration: remainingTime)
 
-    if inFlightAnimations.allSatisfy(\.animation.isAdditive),
+    if !Constants.clampedKeyPaths.contains(keyPath),
+       inFlightAnimations.allSatisfy(\.animation.isAdditive),
        let currentValue,
        let oldValue = AdditiveValue(currentValue),
        let newValue = AdditiveValue(value),
@@ -230,6 +221,10 @@ public extension CALayer {
   // MARK: - Constants
 
   private enum Constants {
+
+    /// The key paths the render server clamps to [0, 1] after each animation, so additive animations of them don't
+    /// compose on screen, see `animate(keyPath:to:timing:)`.
+    static let clampedKeyPaths: Set<String> = ["opacity", "shadowOpacity"]
 
     /// The rate the remaining motion is sampled at to check that it shrinks, twice the display rate to catch a fast spring's swings.
     static let motionSamplesPerSecond: TimeInterval = 120
