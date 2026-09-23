@@ -388,6 +388,27 @@ class CALayer_InFlightSizeAnimationsTests: XCTestCase {
     expect((layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation)?.values?.count) == 601
   }
 
+  func test_animateFollowingSize_pausedSizeAnimation_keepsTheAnimation() throws {
+    // given: a layer whose frame animation is paused, so its size is frozen where the animation started
+    let layer = makeLayer()
+    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1, speed: 0))
+    let sizeAnimations = try layer.inFlightSizeAnimations().unwrap()
+
+    // when: animating the shadow path to follow the size
+    layer.animateFollowingSize(sizeAnimations, keyPath: "shadowPath", to: CGPath(rect: layer.bounds, transform: nil)) { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+
+    // then: every sample is the frozen size's path, and the animation is kept after its duration, so the path stays
+    // with the frozen size instead of exposing the model path
+    let animation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    expect(animation.isRemovedOnCompletion) == false
+    expect(animation.fillMode) == .both
+    let frozenPath = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 50), transform: nil)
+    for value in try animation.values.unwrap() {
+      // a Core Foundation type can't be checked at runtime, so the cast is forced
+      expect(value as! CGPath) == frozenPath // swiftlint:disable:this force_cast
+    }
+  }
+
   func test_animateFollowingSize_replacesInFlightAnimationOfKeyPath() throws {
     // given: a layer with a shadow path animation in flight and an animating frame
     let layer = makeLayer()

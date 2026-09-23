@@ -150,6 +150,12 @@ extension CALayer {
     animation.duration = animations.remainingTime
     animation.fillMode = .both
 
+    // a paused size animation never lands, so the follower is kept after its duration, holding its last path until the
+    // next update replaces it, instead of running out and exposing the model path under a frozen size
+    if animations.animations.contains(where: { $0.animation.speed == 0 }) {
+      animation.isRemovedOnCompletion = false
+    }
+
     // the samples are measured from the layer's current time, so a running size animation needs the animation to begin
     // there too, or it lags the size by the time until the commit. when every size animation was added in this
     // transaction, they all begin at the next commit and so does the animation
