@@ -412,24 +412,12 @@ class DropShadowNodeTests: XCTestCase {
     contentView.overrideTheme = .light
     update(animationTiming: nil)
 
-    // then: the model has the light shadow, the additive radius animation is kept with a scaled copy of itself stacked
-    // on it so the radius glides instead of jumping, and the color animation is retargeted over its remaining time
+    // then: the model has the light shadow. the radius animation hasn't begun, so the radius still shows the light
+    // value: the animation is removed and nothing glides. the color animation is retargeted over its remaining time
     // instead of finishing towards the dark one
     expect(layer.shadowColor) == Color.red.cgColor
     expect(layer.shadowRadius) == 10
-    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowRadius", "shadowRadius-1"]
-
-    let radiusAnimation = try (layer.animation(forKey: "shadowRadius") as? CABasicAnimation).unwrap()
-    expect(radiusAnimation.isAdditive) == true
-    expect(radiusAnimation.duration) == 10
-    expect(radiusAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
-
-    let radiusCorrection = try (layer.animation(forKey: "shadowRadius-1") as? CABasicAnimation).unwrap()
-    expect(radiusCorrection.isAdditive) == true
-    expect(radiusCorrection.fromValue as? CGFloat) == 10 // 20 - 10
-    expect(radiusCorrection.toValue as? CGFloat) == 0
-    expect(radiusCorrection.duration) == 10
-    expect(radiusCorrection.timingFunction) == CAMediaTimingFunction(name: .linear)
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor"]
 
     let colorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
     expect(colorAnimation.duration) == 10

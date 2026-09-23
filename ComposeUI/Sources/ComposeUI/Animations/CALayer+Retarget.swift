@@ -32,17 +32,19 @@ import QuartzCore
 
 public extension CALayer {
 
-  /// Sets a key path's value and retargets its in-flight animations to it, so the motion continues from where it is
-  /// and lands on the new value when it would have.
+  /// Sets a key path's value and retargets its in-flight animations to it, so the shown value glides from where it is
+  /// to the new value and lands when the in-flight animations would have.
   ///
   /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone.
   ///   An ended animation still on the layer is removed, since a forwards fill would show its end value over the new one.
-  /// - Additive animations of numbers, `CGSize` and `CGPoint` are kept, with a scaled copy of each stacked on top that
-  ///   cancels the jump and fades along the animation's own curve. When the remaining motion can't be scaled, one
-  ///   ease-out correction is stacked instead.
-  /// - Non-additive animations are replaced by one ease-out animation from the shown value over the remaining time.
-  ///   Note that additive animations of `opacity` and `shadowOpacity` are also treated as non-additive, since the
-  ///   render server clamps them after each animation and stacked animations wouldn't compose on screen.
+  /// - Additive animations of numbers, `CGSize` and `CGPoint` are folded into one additive ease-out from the value they
+  ///   show, so later additive animations keep stacking on it. A spring keeps going instead, so its momentum carries on,
+  ///   and a paused animation stays frozen.
+  /// - Other animations are replaced by one ease-out animation from the shown value. Note that additive animations of
+  ///   `opacity` and `shadowOpacity` are replaced too, since the render server clamps them after each animation and
+  ///   stacked animations wouldn't compose on screen.
+  ///
+  /// A folded or replaced animation is removed, so its delegate is told it stopped before finishing.
   ///
   /// - Important: The value's type must match the key path's, or Core Animation crashes.
   ///
@@ -64,31 +66,35 @@ public extension CALayer {
       return
     }
 
-    if let currentValue,
-       let additiveRetarget = AdditiveRetarget(keyPath: keyPath, animations: inFlightAnimations, from: currentValue, to: value, at: now)
-    {
-      if let factors = additiveRetarget.correctionFactors(over: remainingTime) {
-        additiveRetarget.stackCorrectionAnimations(on: self, scaledBy: factors, forKeyPath: keyPath)
-        setKeyPathValue(keyPath, value)
-      } else {
-        // no motion to scale, so one correction animation eases out on its own
-        let jump = additiveRetarget.jump
-        animate(
-          keyPath: keyPath,
-          timing: .easeOut(duration: remainingTime),
-          from: { _ in jump.value },
-          to: { _ in jump.zero.value },
-          model: { _ in value },
-          updateAnimation: { $0.isAdditive = true }
-        )
+    // uses the basic easing curve for simplicity, no interrupted velocity to carry
+    let timing = AnimationTiming.easeOut(duration: remainingTime)
+
+    if let currentValue, let fold = additiveFold(of: inFlightAnimations, keyPath: keyPath, from: currentValue, to: value, at: now) {
+      for key in fold.keys {
+        removeAnimation(forKey: key)
       }
+
+      guard !fold.offset.isZero else {
+        // the shown value already is the new value, so there is nothing to glide
+        setKeyPathValue(keyPath, value)
+        return
+      }
+
+      // the glide is additive, so the animations kept alongside it and later animated updates stack on it
+      animate(
+        keyPath: keyPath,
+        timing: timing,
+        from: { _ in fold.offset.value },
+        to: { _ in fold.offset.zero.value },
+        model: { _ in value },
+        updateAnimation: { $0.isAdditive = true }
+      )
     } else {
-      // remove the in-flight animations and replace them with a new one from the current value to the new value.
-      // uses the basic easing curve for simplicity, no interrupted velocity to carry
+      // remove the in-flight animations and replace them with a new one from the current value to the new value
       removeAnimations(forKeyPath: keyPath)
       animate(
         keyPath: keyPath,
-        timing: .easeOut(duration: remainingTime),
+        timing: timing,
         from: { $0.presentation()?.value(forKeyPath: keyPath) },
         to: { _ -> Any? in value }
       )
@@ -140,10 +146,65 @@ public extension CALayer {
     let remainingTime = animation.beginTime == 0 ? scaledDuration : animation.beginTime + scaledDuration - now
     return remainingTime > 0 ? remainingTime : nil
   }
+
+  /// The in-flight additive animations to fold into one glide to the new value, and the offset of the shown value from
+  /// the new value, which the glide starts from.
+  ///
+  /// A spring that lands on the model value isn't folded: it keeps going, so its momentum carries on, and lands on the
+  /// new model value on its own. Neither is a paused one, which stays frozen as its owner asked.
+  ///
+  /// - Returns: The fold, or `nil` when the animations can't be folded: the render server clamps the key path after each
+  ///   animation, the values aren't numbers, sizes or points of one kind, or an animation isn't an additive basic
+  ///   animation whose value can be computed.
+  private func additiveFold(of animations: [InFlightAnimation],
+                            keyPath: String,
+                            from oldValue: Any,
+                            to newValue: Any,
+                            at now: TimeInterval) -> (keys: [String], offset: AdditiveValue)?
+  {
+    guard !Constants.clampedKeyPaths.contains(keyPath),
+          let oldValue = AdditiveValue(oldValue),
+          let newValue = AdditiveValue(newValue),
+          oldValue.isSameKind(as: newValue)
+    else {
+      return nil
+    }
+
+    // the model change alone would show as a jump of `old - new`, and each folded animation adds its value on top
+    var offset = oldValue - newValue
+    var keys: [String] = []
+    for inFlightAnimation in animations {
+      guard let animation = inFlightAnimation.animation as? CABasicAnimation,
+            animation.isAdditive,
+            let (from, to) = animation.additiveValues(ofKind: oldValue, at: now)
+      else {
+        return nil
+      }
+
+      if to.isZero, animation is CASpringAnimation || animation.speed == 0 {
+        continue
+      }
+
+      // an unset begin time resolves to the next commit, so the animation hasn't moved yet
+      let elapsed = animation.beginTime == 0 ? 0 : (now - animation.beginTime) * TimeInterval(animation.speed)
+      offset += from + (to - from).scaled(by: animation.progress(forElapsedTime: elapsed))
+      keys.append(inFlightAnimation.key)
+    }
+    return (keys, offset)
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The key paths the render server clamps to [0, 1] after each animation, so the sum of their additive animations
+    /// isn't what shows, see `animate(keyPath:to:timing:)`.
+    static let clampedKeyPaths: Set<String> = ["opacity", "shadowOpacity"]
+  }
 }
 
 /// An in-flight property animation of a layer.
-struct InFlightAnimation {
+private struct InFlightAnimation {
 
   /// The key the animation is on the layer.
   let key: String
@@ -153,4 +214,115 @@ struct InFlightAnimation {
 
   /// The time the animation has left, in seconds of the layer's time space.
   let remainingTime: TimeInterval
+}
+
+private extension CABasicAnimation {
+
+  /// The animation's from and to values, when both are of `kind` and the animation's value at a time can be computed
+  /// the way `progress(forElapsedTime:)` evaluates it, otherwise `nil`.
+  ///
+  /// The evaluation doesn't cover a by value, repeats and time offsets, and a scheduled animation without a backwards
+  /// fill doesn't show its from value until it begins.
+  func additiveValues(ofKind kind: AdditiveValue, at now: TimeInterval) -> (from: AdditiveValue, to: AdditiveValue)? {
+    guard byValue == nil,
+          repeatCount == 0,
+          repeatDuration == 0,
+          !autoreverses,
+          timeOffset == 0,
+          beginTime <= now || fillMode == .backwards || fillMode == .both,
+          let from = fromValue.flatMap({ AdditiveValue($0) }),
+          from.isSameKind(as: kind),
+          let to = toValue.flatMap({ AdditiveValue($0) }),
+          to.isSameKind(as: kind)
+    else {
+      return nil
+    }
+    return (from, to)
+  }
+}
+
+/// A value of a kind that animates additively, a number, `CGSize` or `CGPoint`, as two components.
+///
+/// A number uses the first component and leaves the second at zero, so the component-wise math is the same for every
+/// kind.
+private struct AdditiveValue {
+
+  private enum Kind {
+    case number
+    case size
+    case point
+  }
+
+  private let kind: Kind
+
+  /// The components: the number and zero, width and height, or x and y.
+  private let components: SIMD2<Double>
+
+  /// Creates the value from a number, `CGSize` or `CGPoint`, as Core Animation boxes them.
+  ///
+  /// - Returns: `nil` for a value of another kind.
+  init?(_ value: Any) {
+    if let size = value as? CGSize {
+      kind = .size
+      components = SIMD2(size.width, size.height)
+    } else if let point = value as? CGPoint {
+      kind = .point
+      components = SIMD2(point.x, point.y)
+    } else if let number = value as? NSNumber {
+      kind = .number
+      components = SIMD2(number.doubleValue, 0)
+    } else {
+      return nil
+    }
+  }
+
+  private init(kind: Kind, components: SIMD2<Double>) {
+    self.kind = kind
+    self.components = components
+  }
+
+  /// The value as Core Animation boxes it.
+  var value: Any {
+    switch kind {
+    case .number:
+      return components.x
+    case .size:
+      return CGSize(width: components.x, height: components.y)
+    case .point:
+      return CGPoint(x: components.x, y: components.y)
+    }
+  }
+
+  /// The zero of the value's kind.
+  var zero: AdditiveValue {
+    AdditiveValue(kind: kind, components: .zero)
+  }
+
+  /// Whether every component is zero.
+  var isZero: Bool {
+    components == .zero
+  }
+
+  func isSameKind(as other: AdditiveValue) -> Bool {
+    kind == other.kind
+  }
+
+  /// The value with every component multiplied by `factor`.
+  func scaled(by factor: Double) -> AdditiveValue {
+    AdditiveValue(kind: kind, components: components * factor)
+  }
+
+  /// The component-wise sum of two values of the same kind.
+  static func + (lhs: AdditiveValue, rhs: AdditiveValue) -> AdditiveValue {
+    AdditiveValue(kind: lhs.kind, components: lhs.components + rhs.components)
+  }
+
+  static func += (lhs: inout AdditiveValue, rhs: AdditiveValue) {
+    lhs = lhs + rhs
+  }
+
+  /// The component-wise difference of two values of the same kind.
+  static func - (lhs: AdditiveValue, rhs: AdditiveValue) -> AdditiveValue {
+    AdditiveValue(kind: lhs.kind, components: lhs.components - rhs.components)
+  }
 }
