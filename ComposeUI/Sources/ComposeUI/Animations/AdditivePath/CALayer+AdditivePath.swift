@@ -44,7 +44,8 @@ public extension CALayer {
   /// and shows at once. A layer without a path at the key path has nothing to animate from, so the path shows at once
   /// too.
   ///
-  /// - Important: The key path must hold a `CGPath`, such as `shadowPath` or `CAShapeLayer`'s `path`.
+  /// - Important: The key path must hold a `CGPath`, such as `shadowPath` or `CAShapeLayer`'s `path`. A key path that
+  ///   holds another value asserts, and the layer is left alone.
   ///
   /// - Parameters:
   ///   - keyPath: The key path of the path.
@@ -52,17 +53,23 @@ public extension CALayer {
   ///   - timing: The animation timing.
   @_spi(Private)
   func animatePath(keyPath: String, to path: CGPath, timing: AnimationTiming) {
-    // TODO: needs to guard check the keyPath is a path
-
     let now = currentTime
     var changes = pathChanges(forKeyPath: keyPath, at: now)
-    if let currentPath = modelPath(forKeyPath: keyPath) {
+    var points: PathPoints?
+    switch modelPath(forKeyPath: keyPath) {
+    case .path(let currentPath):
       guard currentPath != path else {
         return
       }
-      changes.record(from: currentPath, to: path, timing: timing, at: now)
+      let newPoints = PathPoints(path)
+      changes.record(from: PathPoints(currentPath), to: newPoints, timing: timing, at: now)
+      points = newPoints
+    case .noValue:
+      break
+    case .notAPath:
+      return
     }
-    showPath(path, forKeyPath: keyPath, changes: changes, at: now)
+    showPath(path, points: points, forKeyPath: keyPath, changes: changes, at: now)
   }
 
   /// Set a path of the layer without animation.
@@ -70,18 +77,26 @@ public extension CALayer {
   /// The path's changes in flight keep adding to the new path, the way additive animations keep adding to a model value
   /// that changes, so the path shown moves by the change of the model path, see `animatePath(keyPath:to:timing:)`.
   ///
+  /// - Important: The key path must hold a `CGPath`, such as `shadowPath` or `CAShapeLayer`'s `path`. A key path that
+  ///   holds another value asserts, and the layer is left alone.
+  ///
   /// - Parameters:
   ///   - keyPath: The key path of the path.
   ///   - path: The path to set.
   @_spi(Private)
   func setPath(keyPath: String, to path: CGPath) {
-    // TODO: needs to guard check the keyPath is a path
-
-    guard modelPath(forKeyPath: keyPath) != path else {
+    switch modelPath(forKeyPath: keyPath) {
+    case .path(let currentPath):
+      guard currentPath != path else {
+        return
+      }
+    case .noValue:
+      break
+    case .notAPath:
       return
     }
     let now = currentTime
-    showPath(path, forKeyPath: keyPath, changes: pathChanges(forKeyPath: keyPath, at: now), at: now)
+    showPath(path, points: nil, forKeyPath: keyPath, changes: pathChanges(forKeyPath: keyPath, at: now), at: now)
   }
 }
 
@@ -98,13 +113,20 @@ private extension CALayer {
   }
 
   /// Sets the model path, and shows it with the changes in flight.
-  func showPath(_ path: CGPath, forKeyPath keyPath: String, changes: PathChanges, at now: TimeInterval) {
+  ///
+  /// - Parameters:
+  ///   - path: The path.
+  ///   - points: The points of the path, when the caller has them already.
+  ///   - keyPath: The key path of the path.
+  ///   - changes: The changes in flight.
+  ///   - now: The layer's current time.
+  func showPath(_ path: CGPath, points: PathPoints?, forKeyPath keyPath: String, changes: PathChanges, at now: TimeInterval) {
     guard !changes.isEmpty else {
       showPathAtOnce(path, forKeyPath: keyPath)
       return
     }
 
-    let points = PathPoints(path)
+    let points = points ?? PathPoints(path)
     guard changes.hasSameSegments(as: points), points.isFinite else {
       showPathAtOnce(path, forKeyPath: keyPath)
       return
@@ -119,14 +141,14 @@ private extension CALayer {
       basicAnimation.keyPath = keyPath
       basicAnimation.fromValue = points.adding(change.offset).path
       basicAnimation.toValue = path
+      basicAnimation.beginTime = change.beginTime
       animation = basicAnimation
     } else {
       // the samples are measured from now once a change has begun, so the keyframes begin now too. otherwise every
-      // change begins at the next commit, and so do the keyframes
-      let times = changes.sampleTimes(at: now)
+      // change begins at the next commit, and so do the keyframes. the keyframes are spread evenly, as Core Animation
+      // spreads them without key times
       let keyframeAnimation = CAKeyframeAnimation(keyPath: keyPath)
-      keyframeAnimation.values = times.map { changes.points(adding: points, at: $0, now: now)?.path ?? path }
-      keyframeAnimation.keyTimes = times.indices.map { NSNumber(value: TimeInterval($0) / TimeInterval(times.count - 1)) }
+      keyframeAnimation.values = changes.sampledPaths(adding: path, points: points, at: now)
       keyframeAnimation.calculationMode = .linear
       keyframeAnimation.duration = changes.remainingTime(at: now)
       keyframeAnimation.fillMode = .both
@@ -149,19 +171,32 @@ private extension CALayer {
     setKeyPathValue(keyPath, path)
   }
 
-  /// The model path at a key path.
-  func modelPath(forKeyPath keyPath: String) -> CGPath? {
+  /// The model value at a key path, which should hold a path.
+  func modelPath(forKeyPath keyPath: String) -> ModelPath {
     guard let value = value(forKeyPath: keyPath) else {
-      return nil
+      return .noValue
     }
 
     let object = value as AnyObject
     guard CFGetTypeID(object) == CGPath.typeID else {
       ComposeUI.assertFailure("expected a path at \"\(keyPath)\", got \(value)")
-      return nil
+      return .notAPath
     }
-    return unsafeDowncast(object, to: CGPath.self)
+    return .path(unsafeDowncast(object, to: CGPath.self))
   }
+}
+
+/// The model value at a key path that should hold a path.
+private enum ModelPath {
+
+  /// The key path holds a path.
+  case path(CGPath)
+
+  /// The key path holds no value yet, as a shape layer without a path.
+  case noValue
+
+  /// The key path holds a value that isn't a path.
+  case notAPath
 }
 
 /// The changes of a path in flight, kept on the animation that shows them, so they end with it.

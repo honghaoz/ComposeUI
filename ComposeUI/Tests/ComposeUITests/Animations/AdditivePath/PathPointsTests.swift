@@ -154,11 +154,15 @@ class PathPointsTests: XCTestCase {
       Assert.resetTestAssertionFailureHandler()
     }
 
-    // when: adding paths with other segments
-    _ = rect.adding(roundedRect)
+    // when: adding paths with other segments, either way round
+    let sum = rect.adding(roundedRect)
+    let otherSum = roundedRect.adding(rect)
 
-    // then: it asserts, as their points don't line up
-    expect(assertionMessages) == ["expected paths with the same segments"]
+    // then: it asserts, as their points don't line up, and each path is kept as it is, which still makes a path
+    expect(assertionMessages) == ["expected paths with the same segments", "expected paths with the same segments"]
+    expect(sum) == rect
+    expect(otherSum) == roundedRect
+    expect(PathPoints(otherSum.path)) == roundedRect
   }
 
   // MARK: - Helpers

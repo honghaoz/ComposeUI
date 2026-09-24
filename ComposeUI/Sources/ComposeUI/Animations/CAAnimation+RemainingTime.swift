@@ -43,12 +43,24 @@ extension CAAnimation {
   /// - Parameter now: The layer's current time, see `CALayer.currentTime`.
   /// - Returns: The remaining time, or `nil` when the animation has ended.
   func remainingTime(at now: TimeInterval) -> TimeInterval? {
+    Self.remainingTime(beginTime: beginTime, duration: duration, speed: TimeInterval(speed), at: now)
+  }
+
+  /// The time an animation of the given timing has left at a moment.
+  ///
+  /// - Parameters:
+  ///   - beginTime: The animation's begin time, zero when it is still unset.
+  ///   - duration: The animation's duration.
+  ///   - speed: The animation's speed.
+  ///   - now: The layer's current time, see `CALayer.currentTime`.
+  /// - Returns: The remaining time, or `nil` when the animation has ended.
+  static func remainingTime(beginTime: TimeInterval, duration: TimeInterval, speed: TimeInterval, at now: TimeInterval) -> TimeInterval? {
     // a paused animation's time is frozen, so measuring its end from its begin time would count it as ended once its
     // nominal duration had passed
     guard speed > 0 else {
       return duration
     }
-    let scaledDuration = duration / TimeInterval(speed)
+    let scaledDuration = duration / speed
     let remainingTime = beginTime == 0 ? scaledDuration : beginTime + scaledDuration - now
     return remainingTime > 0 ? remainingTime : nil
   }

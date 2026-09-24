@@ -63,6 +63,16 @@ struct PathPoints: Equatable {
 
   /// The path of the segments.
   var path: CGPath {
+    Self.path(kinds: kinds, points: points)
+  }
+
+  /// The path of segments of the given kinds through the given points.
+  ///
+  /// - Parameters:
+  ///   - kinds: The kinds of the segments, in order.
+  ///   - points: The points of the segments, in order, as many as the kinds take, see `points`.
+  /// - Returns: The path.
+  static func path(kinds: [CGPathElementType], points: [CGPoint]) -> CGPath {
     let path = CGMutablePath()
     var index = 0
     for kind in kinds {
@@ -108,9 +118,14 @@ struct PathPoints: Equatable {
   /// - Parameters:
   ///   - other: The path to add. It must have the same segments, see `hasSameSegments(as:)`.
   ///   - factor: The factor to multiply the other path's points by. Default to `1`.
-  /// - Returns: The sum.
+  /// - Returns: The sum, or the path itself when the other path has other segments.
   func adding(_ other: PathPoints, multipliedBy factor: CGFloat = 1) -> PathPoints {
-    ComposeUI.assert(hasSameSegments(as: other), "expected paths with the same segments") // TODO: if the predicate doesn't hold, what would happen?
+    guard hasSameSegments(as: other) else {
+      // the points of other segments don't line up, and a sum short of points would leave `path` reading past them, so
+      // the path is kept as it is
+      ComposeUI.assertFailure("expected paths with the same segments")
+      return self
+    }
     return PathPoints(
       kinds: kinds,
       points: zip(points, other.points).map { CGPoint(x: $0.x + $1.x * factor, y: $0.y + $1.y * factor) }
@@ -120,7 +135,7 @@ struct PathPoints: Equatable {
   /// Subtracts the points of a path with the same segments, point by point.
   ///
   /// - Parameter other: The path to subtract. It must have the same segments, see `hasSameSegments(as:)`.
-  /// - Returns: The difference.
+  /// - Returns: The difference, or the path itself when the other path has other segments.
   func subtracting(_ other: PathPoints) -> PathPoints {
     adding(other, multipliedBy: -1)
   }

@@ -90,14 +90,12 @@ class CALayer_AdditivePathTests: XCTestCase {
     // when: animating to a more inset rect over two seconds
     layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2))
 
-    // then: the path animates with keyframes of both changes added up, from the path shown to the new path, until the
-    // longer change lands. no change has begun, so the keyframes begin at the next commit with them
+    // then: the path animates with keyframes of both changes added up, spread evenly from the path shown to the new
+    // path, until the longer change lands. no change has begun, so the keyframes begin at the next commit with them
     let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
     let values = try paths(of: animation)
     expect(values.count) == 121
-    expect(animation.keyTimes?.first) == 0
-    expect(animation.keyTimes?[60]) == 0.5
-    expect(animation.keyTimes?.last) == 1
+    expect(animation.keyTimes) == nil
     expect(animation.calculationMode) == .linear
     expect(animation.duration) == 2
     expect(animation.fillMode) == .both
@@ -154,6 +152,38 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(elapsedTime) > 0
     let shownInset = 10 * elapsedTime / 2
     expect(try paths(of: animation).first.unwrap().maxPointDistance(to: rect(inset: shownInset))) < 1e-3
+  }
+
+  func test_animatePath_changesInFlight_showTheirSum() throws {
+    // given: a hosted shape layer with a rect path
+    let testWindow = TestWindow()
+    let layer = makeLayer()
+    testWindow.layer.addSublayer(layer)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    // when: the path changes to an inset rect over one second, and on to a more inset rect over three seconds
+    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 1))
+    layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 3))
+    CATransaction.flush()
+
+    // then: whenever the run loop lets the test look, the path shown is the rect inset by the sum of the changes left
+    // at that time. a sample only shows at its time if Core Animation spreads the keyframes evenly
+    for _ in 0 ..< 6 {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+      let beginTime = try layer.animation(forKey: "path").unwrap().beginTime
+      expect(beginTime) > 0
+      let elapsedTime = layer.currentTime - beginTime
+      let expectedInset = 20 - 10 * max(0, 1 - elapsedTime) - 10 * max(0, 1 - elapsedTime / 3)
+      let expectedBounds = CGRect(x: 0, y: 0, width: 100, height: 50).insetBy(dx: expectedInset, dy: expectedInset)
+
+      // Core Animation turns the lines of a path it interpolates into curves, so the shape shown is compared by its bounds
+      let shownBounds = try layer.presentation().unwrap().path.unwrap().boundingBoxOfPath
+      expect(shownBounds.minX).to(beApproximatelyEqual(to: expectedBounds.minX, within: 0.5))
+      expect(shownBounds.minY).to(beApproximatelyEqual(to: expectedBounds.minY, within: 0.5))
+      expect(shownBounds.maxX).to(beApproximatelyEqual(to: expectedBounds.maxX, within: 0.5))
+      expect(shownBounds.maxY).to(beApproximatelyEqual(to: expectedBounds.maxY, within: 0.5))
+    }
   }
 
   func test_animatePath_otherSegments_setsThePathAtOnce() {
@@ -291,8 +321,10 @@ class CALayer_AdditivePathTests: XCTestCase {
     // when: animating a path at the key path
     layer.animatePath(keyPath: "custom", to: rect(), timing: .linear(duration: 1))
 
-    // then: it asserts, as the key path doesn't hold a path
+    // then: it asserts, as the key path doesn't hold a path, and leaves the layer alone
     expect(assertionMessages) == ["expected a path at \"custom\", got 1"]
+    expect(layer.value(forKey: "custom") as? NSNumber) == 1
+    expect(layer.animationKeys()) == nil
   }
 
   // MARK: - Set Path
@@ -368,6 +400,27 @@ class CALayer_AdditivePathTests: XCTestCase {
     // then: the change can't blend with it, so it is dropped and the path shows at once
     expect(layer.path) == nullRect
     expect(layer.animation(forKey: "path")) == nil
+  }
+
+  func test_setPath_keyPathWithoutPath_asserts() {
+    // given: a layer with a number at a key path
+    let layer = CALayer()
+    layer.setValue(NSNumber(value: 1), forKey: "custom")
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: setting a path at the key path
+    layer.setPath(keyPath: "custom", to: rect())
+
+    // then: it asserts, as the key path doesn't hold a path, and leaves the layer alone
+    expect(assertionMessages) == ["expected a path at \"custom\", got 1"]
+    expect(layer.value(forKey: "custom") as? NSNumber) == 1
   }
 
   func test_setPath_landedChanges_removesTheirAnimation() throws {
