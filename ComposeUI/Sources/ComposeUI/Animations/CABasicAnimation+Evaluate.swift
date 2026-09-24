@@ -58,22 +58,26 @@ extension CABasicAnimation {
       return nil
     }
 
-    let elapsed = beginTime == 0 ? 0 : max(0, min((time - beginTime) * TimeInterval(speed), duration))
+    let elapsed = beginTime == 0 ? 0 : (time - beginTime) * TimeInterval(speed)
+    return from + (to - from) * progress(forElapsedTime: elapsed)
+  }
 
-    let progress: Double
-    if duration > 0 {
-      let fraction = elapsed / duration
-      if let spring = self as? CASpringAnimation {
-        progress = spring.solveForInput(fraction)
-      } else {
-        // a nil timing function is linear, matching Core Animation's default for basic animations
-        progress = timingFunction?.solveForInput(fraction) ?? fraction
-      }
-    } else {
-      progress = 1
+  /// The animation's progress from `fromValue` (0) to `toValue` (1) after the given elapsed time.
+  ///
+  /// - Parameter elapsed: The elapsed time in the animation's timeline, in seconds.
+  /// - Returns: The progress, 1 for a zero-duration animation.
+  func progress(forElapsedTime elapsed: TimeInterval) -> Double {
+    guard duration > 0 else {
+      return 1
     }
 
-    return from + (to - from) * progress
+    let fraction = max(0, min(elapsed, duration)) / duration
+    if let spring = self as? CASpringAnimation {
+      return spring.solveForInput(fraction)
+    }
+
+    // a nil timing function is linear, matching Core Animation's default for basic animations
+    return timingFunction?.solveForInput(fraction) ?? fraction
   }
 }
 
@@ -102,6 +106,11 @@ extension CAMediaTimingFunction {
     var controlPoint2: [Float] = [0, 0]
     getControlPoint(at: 1, values: &controlPoint1)
     getControlPoint(at: 2, values: &controlPoint2)
+
+    // control points on the diagonal make the curve the identity, the linear curve, so there is nothing to solve
+    if controlPoint1[0] == controlPoint1[1], controlPoint2[0] == controlPoint2[1] {
+      return fraction
+    }
 
     func bezier(_ t: Double, _ value1: Double, _ value2: Double) -> Double {
       // cubic bezier with anchors 0 and 1: 3(1-t)²t·p1 + 3(1-t)t²·p2 + t³

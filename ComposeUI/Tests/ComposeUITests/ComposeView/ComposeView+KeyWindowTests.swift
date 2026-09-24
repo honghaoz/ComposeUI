@@ -139,6 +139,54 @@ class ComposeView_KeyWindowTests: XCTestCase {
     expect(isAnimated) == nil
     isAnimated = nil
   }
+
+  func test_keyWindowDidChange_keepsInFlightAnimations() throws {
+    // given: a compose view in a key window, with a themed color row grown and recolored by an animated refresh
+    let window = TestWindow()
+    window.makeKey()
+
+    var renderCount = 0
+    var height: CGFloat = 40
+    var layer: CALayer?
+    let view = ComposeView {
+      renderCount += 1
+      ColorNode(ThemedColor(light: .red, dark: .blue))
+        .frame(width: .flexible, height: height)
+        .animation(.linear(duration: 10))
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.overrideTheme = .light
+    window.contentView?.addSubview(view)
+    view.refresh(animated: false)
+    expect(renderCount) == 1
+    let renderable = try unwrap(layer)
+
+    view.overrideTheme = .dark
+    height = 200
+    view.refresh(animated: true)
+    expect(renderCount) == 2
+    expect(renderable.animationKeys()?.sorted()) == ["backgroundColor", "bounds.size", "position"]
+    let sizeAnimation = try unwrap(renderable.animation(forKey: "bounds.size") as? CABasicAnimation)
+
+    // when: the window resigns key, which refreshes the view without animation
+    window.resignKey()
+
+    // then: the refresh keeps the in-flight animations as they are, since they already land on the rendered values
+    expect(renderCount).toEventually(beEqual(to: 3))
+    expect(renderable.animationKeys()?.sorted()) == ["backgroundColor", "bounds.size", "position"]
+    let continuedSizeAnimation = try unwrap(renderable.animation(forKey: "bounds.size") as? CABasicAnimation)
+    expect(continuedSizeAnimation.fromValue as? CGSize) == sizeAnimation.fromValue as? CGSize
+    expect(continuedSizeAnimation.duration) == sizeAnimation.duration
+    let colorAnimation = try unwrap(renderable.animation(forKey: "backgroundColor") as? CABasicAnimation)
+    expect(colorAnimation.duration) == 10
+    expect(colorAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
+    expect(renderable.backgroundColor) == Color.blue.cgColor
+    expect(renderable.bounds.size) == CGSize(width: 100, height: 200)
+    renderable.removeAllAnimations()
+  }
 }
 
 #endif

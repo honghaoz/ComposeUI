@@ -100,8 +100,8 @@ open class InnerShadowLayer: CALayer {
   ///   - holePath: The path of the "punch hole".
   ///   - clipPath: The path to clip the shadow. If `nil`, the shadow will be clipped by the `holePath`.
   ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
-  ///     animated, from the state the layer currently shows. `nil` shows the new shadow on the next frame, stopping
-  ///     the in-flight animations of the shadow properties and the mask. Default to `nil`.
+  ///     animated, from the state the layer currently shows. `nil` starts no animation and continues the in-flight
+  ///     ones toward the new values, landing when they would have. Default to `nil`.
   public func update(color: Color,
                      opacity: CGFloat,
                      radius: CGFloat,
@@ -166,7 +166,15 @@ open class InnerShadowLayer: CALayer {
         )
       }
       if shadowOpacity != opacity {
-        animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
+        // the render server clamps the shadow opacity after each animation, so opposing additive animations wouldn't
+        // compose on screen (see `animate(keyPath:to:timing:updateAnimation:)`): the opacity animates non-additively
+        // from the shown value, like the color
+        animate(
+          keyPath: "shadowOpacity",
+          timing: animationTiming,
+          from: { $0.presentation()?.shadowOpacity },
+          to: { _ in opacity }
+        )
       }
       if shadowRadius != radius {
         animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
@@ -183,26 +191,21 @@ open class InnerShadowLayer: CALayer {
         )
       }
     } else {
-      // a nil timing shows the new values on the next frame, so the in-flight animations are removed first
-      maskLayer.removeAllAnimations()
-      maskLayer.disableActions(for: "position", "bounds", "path") {
+      // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
+      // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
+      // being retargeted, and the mask stays aligned with the layer
+      maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
-        maskLayer.path = clipPath
       }
+      maskLayer.retarget(keyPath: "path", to: clipPath)
 
-      removeAnimations(forKeyPaths: Self.shadowKeyPaths)
-      disableActions(for: Array(Self.shadowKeyPaths)) {
-        shadowColor = color
-        shadowOpacity = opacity
-        shadowRadius = radius
-        shadowOffset = offset
-        self.shadowPath = innerShadowPath
-      }
+      retarget(keyPath: "shadowColor", to: color)
+      retarget(keyPath: "shadowOpacity", to: opacity)
+      retarget(keyPath: "shadowRadius", to: radius)
+      retarget(keyPath: "shadowOffset", to: offset)
+      retarget(keyPath: "shadowPath", to: innerShadowPath)
     }
   }
-
-  /// The key paths of the shadow properties `update` sets.
-  private static let shadowKeyPaths: Set<String> = ["shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath"]
 
   /// Reset the layer so it can be reused as if freshly made.
   func resetForReuse() {

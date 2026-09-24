@@ -682,12 +682,12 @@ class RenderableTransition_ScaleTests: XCTestCase {
 
     let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
     expect(layer.presentation()).toEventuallyNot(beNil())
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
 
     // then: the rendered frame stays anchored at the visual top while it shrinks: the top edge and the horizontal
     // center hold still on both platforms, pinning the anchor's top-left-origin unit space
     let frameBefore = try unwrap(layer.presentation()).frame
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
     let frameAfter = try unwrap(layer.presentation()).frame
 
     expect(frameAfter.height) < frameBefore.height
@@ -719,11 +719,11 @@ class RenderableTransition_ScaleTests: XCTestCase {
 
     let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
     expect(layer.presentation()).toEventuallyNot(beNil())
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
 
     // then: the rendered frame stays anchored at the visual bottom right corner while it shrinks
     let frameBefore = try unwrap(layer.presentation()).frame
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
     let frameAfter = try unwrap(layer.presentation()).frame
 
     expect(frameAfter.height) < frameBefore.height
@@ -756,12 +756,12 @@ class RenderableTransition_ScaleTests: XCTestCase {
 
     let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
     expect(layer.presentation()).toEventuallyNot(beNil())
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
 
     // then: the rendered frame stays anchored at the visual top while it shrinks: the top edge and the horizontal
     // center hold still
     let frameBefore = try unwrap(layer.presentation()).frame
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
     let frameAfter = try unwrap(layer.presentation()).frame
 
     expect(frameAfter.height) < frameBefore.height
@@ -928,7 +928,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
 
     // let the removal render, so the presentation is mid-flight
     expect(layer.presentation()).toEventuallyNot(beNil())
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
     let scaleBefore = try unwrap(unwrap(layer.presentation()).value(forKeyPath: "transform.scale") as? CGFloat)
 
     // revive mid-flight and let the revival commit
@@ -1042,7 +1042,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
     contentView.refresh(animated: true)
 
     expect(layer.presentation()).toEventuallyNot(beNil())
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
 
     // then: at any mid-flight moment, the rendered translation offsets the rendered scale about the visual center:
     // translation == (0.5 - anchor) * size * (1 - scale), here (50, 50) * (1 - scale)
@@ -1057,7 +1057,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
     try assertCenterInvariant()
 
     // then: the invariant still holds later in the animation
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
     try assertCenterInvariant()
   }
 

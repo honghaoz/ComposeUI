@@ -360,14 +360,14 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(replacedPathAnimation.duration) == 2
   }
 
-  func test_update_withoutAnimation_stopsInFlightShadowAnimations() throws {
+  func test_update_withoutAnimation_continuesInFlightShadowAnimations() throws {
     // the inverted shadow and the fallback compute the shadow path differently, the interruption must work for both
     for supportsInvertsShadow in [true, false] {
-      try verifyUpdateWithoutAnimationStopsInFlightShadowAnimations(supportsInvertsShadow: supportsInvertsShadow)
+      try verifyUpdateWithoutAnimationContinuesInFlightShadowAnimations(supportsInvertsShadow: supportsInvertsShadow)
     }
   }
 
-  private func verifyUpdateWithoutAnimationStopsInFlightShadowAnimations(supportsInvertsShadow: Bool) throws {
+  private func verifyUpdateWithoutAnimationContinuesInFlightShadowAnimations(supportsInvertsShadow: Bool) throws {
     // given: an inner shadow layer resized and animated towards new values of every shadow property, with a second,
     // delayed animated update stacked on the radius, plus animations of other properties standing in for a transition
     // and for the render pass's frame animation
@@ -387,6 +387,7 @@ final class InnerShadowLayerTests: XCTestCase {
     let red = Shadow(color: .red, opacity: 0.5, radius: 10, offset: .zero, holeInset: 0)
     let blue = Shadow(color: .blue, opacity: 0.8, radius: 20, offset: CGSize(width: 2, height: 3), holeInset: 5)
     let blueWiderRadius = Shadow(color: .blue, opacity: 0.8, radius: 30, offset: CGSize(width: 2, height: 3), holeInset: 5)
+    let green = Shadow(color: .green, opacity: 0.6, radius: 14, offset: CGSize(width: 1, height: 1), holeInset: 3)
 
     func update(_ layer: InnerShadowLayer, _ shadow: Shadow, animationTiming: AnimationTiming?) {
       layer.update(
@@ -411,8 +412,10 @@ final class InnerShadowLayerTests: XCTestCase {
     let reference = InnerShadowLayer()
     reference.test.supportsInvertsShadowOverride = supportsInvertsShadow
     reference.frame = resizedBounds
-    update(reference, red, animationTiming: nil)
+    update(reference, green, animationTiming: nil)
     let referenceMask = try (reference.mask as? CAShapeLayer).unwrap()
+    let referenceShadowPath = try reference.shadowPath.unwrap()
+    let referenceMaskPath = try referenceMask.path.unwrap()
 
     layer.disableActions {
       layer.frame = resizedBounds
@@ -421,6 +424,7 @@ final class InnerShadowLayerTests: XCTestCase {
     update(layer, blueWiderRadius, animationTiming: .linear(duration: 10, delay: 1))
     expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowOffset", "shadowPath"]
     expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
+    let delayedRadiusBeginTime = try layer.animation(forKey: "shadowRadius-1").unwrap().beginTime
 
     let opacityAnimation = CABasicAnimation(keyPath: "opacity")
     opacityAnimation.duration = 10
@@ -430,41 +434,104 @@ final class InnerShadowLayerTests: XCTestCase {
     positionAnimation.isAdditive = true
     layer.add(positionAnimation, forKey: "position")
 
-    // when: updating without animation timing back to the old values
-    update(layer, red, animationTiming: nil)
+    // when: updating without animation timing to new values
+    update(layer, green, animationTiming: nil)
+    let retargetTime = layer.currentTime
 
-    // then: the shadow and mask animations are gone and the model has the new values, so the layer renders them on the
-    // next frame, while the other properties' animations are left alone
-    expect(layer.shadowColor) == Color.red.cgColor
-    expect(layer.shadowOpacity) == 0.5
-    expect(layer.shadowRadius) == 10
-    expect(layer.shadowOffset) == .zero
-    expect(layer.shadowPath) == reference.shadowPath
+    // then: the model has the new values
+    expect(layer.shadowColor) == Color.green.cgColor
+    expect(layer.shadowOpacity) == 0.6
+    expect(layer.shadowRadius) == 14
+    expect(layer.shadowOffset) == CGSize(width: 1, height: 1)
+    expect(layer.shadowPath) == referenceShadowPath
     expect(maskLayer.frame) == referenceMask.frame
-    expect(maskLayer.path) == referenceMask.path
-    expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position"]
-    expect(maskLayer.animationKeys()) == nil
+    expect(maskLayer.path) == referenceMaskPath
+
+    // then: the additive radius and offset animations are folded into one glide each, from the value shown to the new
+    // value, the non-additive color, opacity and path animations are replaced by ones towards the new values over their
+    // remaining time, and the other properties' animations are left alone
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath", "opacity", "position"]
+
+    // no radius or offset animation has begun, so the radius shows 10 and the offset zero. the radius glide lands when
+    // the delayed update would have, after its delay and duration
+    let radiusGlide = try (layer.animation(forKey: "shadowRadius") as? CABasicAnimation).unwrap()
+    expect(radiusGlide.isAdditive) == true
+    expect(radiusGlide.fromValue as? CGFloat) == -4
+    expect(radiusGlide.toValue as? CGFloat) == 0
+    expect(radiusGlide.duration).to(beApproximatelyEqual(to: delayedRadiusBeginTime + 10 - retargetTime, within: 0.02))
+    expect(radiusGlide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+
+    let offsetGlide = try (layer.animation(forKey: "shadowOffset") as? CABasicAnimation).unwrap()
+    expect(offsetGlide.isAdditive) == true
+    expect(offsetGlide.fromValue as? CGSize) == CGSize(width: -1, height: -1)
+    expect(offsetGlide.toValue as? CGSize) == .zero
+    expect(offsetGlide.duration) == 10
+    expect(offsetGlide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+
+    let retargetedColorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
+    expect(retargetedColorAnimation.duration) == 10
+    expect(retargetedColorAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(retargetedColorAnimation.toValue as! CGColor) == Color.green.cgColor // swiftlint:disable:this force_cast
+
+    let retargetedOpacityAnimation = try (layer.animation(forKey: "shadowOpacity") as? CABasicAnimation).unwrap()
+    expect(retargetedOpacityAnimation.isAdditive) == false
+    expect(retargetedOpacityAnimation.toValue as? Float) == 0.6
+    expect(retargetedOpacityAnimation.duration) == 10
+    expect(retargetedOpacityAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+
+    // the fallback's shadow path depends on the radius, so its time is the delayed update's remaining time, and it lands
+    // when that one would have, after its delay and duration
+    let retargetedPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    let expectedPathDuration = supportsInvertsShadow ? 10 : delayedRadiusBeginTime + 10 - retargetTime
+    expect(retargetedPathAnimation.duration).to(beApproximatelyEqual(to: expectedPathDuration, within: 0.02))
+    expect(retargetedPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(retargetedPathAnimation.toValue as! CGPath) == referenceShadowPath // swiftlint:disable:this force_cast
+    expect(layer.animation(forKey: "opacity")?.duration) == 10
+    expect(layer.animation(forKey: "position")?.duration) == 10
+
+    // then: the mask keeps its frame animations, which mirror the layer's, and its path is retargeted
+    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
+    for key in ["position", "bounds.size"] {
+      let keptAnimation = try (maskLayer.animation(forKey: key) as? CABasicAnimation).unwrap()
+      expect(keptAnimation.isAdditive) == true
+      expect(keptAnimation.duration) == 10
+      expect(keptAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
+    }
+    let retargetedMaskPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(retargetedMaskPathAnimation.duration) == 10
+    expect(retargetedMaskPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(retargetedMaskPathAnimation.toValue as! CGPath) == referenceMaskPath // swiftlint:disable:this force_cast
 
     // when: updating with animation timing and the same values
-    update(layer, red, animationTiming: .linear(duration: 2))
+    update(layer, green, animationTiming: .linear(duration: 2))
 
-    // then: nothing is left to animate
-    expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position"]
-    expect(maskLayer.animationKeys()) == nil
+    // then: every in-flight animation already lands on the values, so none is added or replaced
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath", "opacity", "position"]
+    expect(layer.animation(forKey: "shadowColor")?.duration) == 10
+    expect(layer.animation(forKey: "shadowColor")?.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
+    expect(maskLayer.animation(forKey: "path")?.duration) == 10
 
-    // when: updating with animation timing and the new values again
+    // when: updating with animation timing and the blue values again
     update(layer, blue, animationTiming: .linear(duration: 2))
 
-    // then: every changed property animates towards its new value
+    // then: every changed property animates towards its new value: the non-additive animations are replaced and the
+    // additive ones stack on the glides
     let colorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
     expect(colorAnimation.duration) == 2
-    // a Core Foundation type can't be checked at runtime, so the cast is forced
     expect(colorAnimation.toValue as! CGColor) == Color.blue.cgColor // swiftlint:disable:this force_cast
-    expect(Set(layer.animationKeys() ?? [])) == ["opacity", "position", "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath"]
-    expect(maskLayer.animationKeys()) == ["path"]
+    let shadowOpacityAnimation = try (layer.animation(forKey: "shadowOpacity") as? CABasicAnimation).unwrap()
+    expect(shadowOpacityAnimation.duration) == 2
+    expect(shadowOpacityAnimation.isAdditive) == false
+    expect(shadowOpacityAnimation.toValue as? Float) == 0.8
+    expect(layer.animation(forKey: "shadowPath")?.duration) == 2
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
+    expect(maskLayer.animation(forKey: "path")?.duration) == 2
+    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
   }
 
-  func test_update_withoutAnimation_sameValues_stopsInFlightShadowAnimations() throws {
+  func test_update_withoutAnimation_sameValues_keepsInFlightShadowAnimations() throws {
     // given: an inner shadow layer animated towards a new color and radius
     let layer = InnerShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -480,10 +547,71 @@ final class InnerShadowLayerTests: XCTestCase {
     // when: updating without animation timing with the values the animations head to
     update(color: .blue, radius: 20, animationTiming: nil)
 
-    // then: the animations are removed all the same, so the layer shows the values on the next frame
-    expect(layer.animationKeys()) == nil
+    // then: the animations already land on the values, so they keep going as they are
+    expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowRadius"]
+    for key in ["shadowColor", "shadowRadius"] {
+      let keptAnimation = try (layer.animation(forKey: key) as? CABasicAnimation).unwrap()
+      expect(keptAnimation.duration) == 10
+      expect(keptAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
+    }
     expect(layer.shadowColor) == Color.blue.cgColor
     expect(layer.shadowRadius) == 20
+  }
+
+  func test_update_withoutAnimation_rendersContinuously() throws {
+    // given: a hosted inner shadow layer whose shadow color is animating from red to blue
+    let testWindow = TestWindow()
+    let layer = InnerShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    testWindow.layer.addSublayer(layer)
+
+    func update(color: Color, animationTiming: AnimationTiming?) {
+      layer.update(color: color, opacity: 0.5, radius: 10, offset: .zero, holePath: { CGPath(rect: $0.bounds, transform: nil) }, clipPath: nil, animationTiming: animationTiming)
+    }
+
+    func renderedBlue() throws -> CGFloat {
+      let color = try layer.presentation().unwrap().shadowColor.unwrap()
+      let sRGB = try CGColorSpace(name: CGColorSpace.sRGB).unwrap()
+      return try color.converted(to: sRGB, intent: .defaultIntent, options: nil).unwrap().components.unwrap()[2]
+    }
+
+    update(color: .red, animationTiming: nil)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    update(color: .blue, animationTiming: .linear(duration: 0.5))
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+    let blueBeforeUpdate = try renderedBlue()
+    expect(blueBeforeUpdate) > 0.1
+    let interruptedBeginTime = try layer.animation(forKey: "shadowColor").unwrap().beginTime
+
+    // when: updating without animation timing back to red
+    update(color: .red, animationTiming: nil)
+    let retargetTime = layer.currentTime
+
+    // then: the shadow heads back to red from where it is over the time the interrupted animation had left, neither
+    // snapping nor finishing the animation towards blue: whenever the run loop lets the test look, the shown color is
+    // where the retargeting animation puts it, until it lands on red. the run loop's timing isn't reliable, so the test
+    // checks each look against the animation's own value for that time instead of expecting a value at a fixed delay
+    expect(try layer.animation(forKey: "shadowColor").unwrap().duration).to(beApproximatelyEqual(to: interruptedBeginTime + 0.5 - retargetTime, within: 0.02))
+    var landed = false
+    for _ in 0 ..< 40 where !landed {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+      let blue = try renderedBlue()
+      let predicted = try layer.predictedValue(forKeyPath: "shadowColor", at: layer.currentTime, scalar: blueComponent)
+      expect(blue).to(beApproximatelyEqual(to: predicted, within: 0.05))
+      expect(blue) <= blueBeforeUpdate + 0.05
+      landed = blue < 0.01
+    }
+    expect(landed) == true
+  }
+
+  /// The blue component of a color value in the sRGB color space, for `predictedValue(forKeyPath:at:scalar:)`.
+  private func blueComponent(of value: Any) throws -> CGFloat {
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    let color = value as! CGColor // swiftlint:disable:this force_cast
+    let sRGB = try CGColorSpace(name: CGColorSpace.sRGB).unwrap()
+    return try color.converted(to: sRGB, intent: .defaultIntent, options: nil).unwrap().components.unwrap()[2]
   }
 
   // MARK: - Fallback path (manual punched bigger rect)

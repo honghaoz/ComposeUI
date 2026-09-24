@@ -40,15 +40,19 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     // given: a linear animation from 1 to 0
     let animation = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 100, timingFunction: CAMediaTimingFunction(name: .linear))
 
-    // then: values interpolate linearly over the active duration
+    // then: values interpolate linearly over the active duration, exactly, since a linear curve isn't solved
     expect(animation.scalarValue(at: 100)) == 1
-    expect(try unwrap(animation.scalarValue(at: 101))).to(beApproximatelyEqual(to: 0.75, within: 1e-9))
-    expect(try unwrap(animation.scalarValue(at: 102))).to(beApproximatelyEqual(to: 0.5, within: 1e-9))
+    expect(animation.scalarValue(at: 101)) == 0.75
+    expect(animation.scalarValue(at: 102)) == 0.5
     expect(animation.scalarValue(at: 104)) == 0
 
     // then: values are clamped outside of the active duration
     expect(animation.scalarValue(at: 99)) == 1
     expect(animation.scalarValue(at: 106)) == 0
+
+    // then: a custom curve with its control points on the diagonal is linear too
+    let diagonal = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 100, timingFunction: CAMediaTimingFunction(controlPoints: 0.3, 0.3, 0.8, 0.8))
+    expect(diagonal.scalarValue(at: 101)) == 0.75
   }
 
   func test_scalarValue_nilTimingFunction_isLinear() throws {

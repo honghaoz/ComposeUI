@@ -69,6 +69,13 @@ public extension CALayer {
   ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
+  /// - Important: Additive animations compose on screen only for properties the render server doesn't clamp between
+  ///   animations. It clamps opacities (`opacity`, `shadowOpacity`) to [0, 1] after applying each animation, so
+  ///   opposing additive animations of an opacity don't compose: the shown value diverges from the sum `presentation()`
+  ///   reports. Animate opacities non-additively, or with a single animation that replaces the in-flight one as
+  ///   `RenderableTransition.opacity` does. Other bounded properties compose as a sum where verified (`shadowRadius`,
+  ///   `CAShapeLayer`'s `strokeStart` and `strokeEnd`).
+  ///
   /// - Parameters:
   ///   - keyPath: The key path to animate.
   ///   - to: The value to animate to.
@@ -394,17 +401,6 @@ public extension CALayer {
   internal func removeAnimations(forKeyPath keyPath: String) {
     for key in animationKeys() ?? [] where (animation(forKey: key) as? CAPropertyAnimation)?.keyPath == keyPath {
       removeAnimation(forKey: key)
-    }
-  }
-
-  /// Removes the layer's animations animating any of the given key paths, leaving other animations alone.
-  ///
-  /// - Parameter keyPaths: The animated key paths.
-  internal func removeAnimations(forKeyPaths keyPaths: Set<String>) {
-    for key in animationKeys() ?? [] {
-      if let keyPath = (animation(forKey: key) as? CAPropertyAnimation)?.keyPath, keyPaths.contains(keyPath) {
-        removeAnimation(forKey: key)
-      }
     }
   }
 }

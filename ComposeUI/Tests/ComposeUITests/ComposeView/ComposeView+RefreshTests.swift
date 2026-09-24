@@ -106,6 +106,61 @@ class ComposeView_RefreshTests: XCTestCase {
     expect(isAnimated) == false // a non-animated request pins the merged refresh to non-animated
   }
 
+  func test_refresh_nonAnimated_continuesInFlightAnimations() throws {
+    // given: a themed color row rendered in the light theme, then grown and recolored by an animated refresh
+    var height: CGFloat = 40
+    var layer: CALayer?
+    let view = ComposeView {
+      ColorNode(ThemedColor(light: .red, dark: .blue))
+        .frame(width: .flexible, height: height)
+        .animation(.linear(duration: 10))
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.overrideTheme = .light
+    view.refresh(animated: false)
+    let renderable = try unwrap(layer)
+    expect(renderable.backgroundColor) == Color.red.cgColor
+
+    view.overrideTheme = .dark
+    height = 200
+    view.refresh(animated: true)
+    expect(renderable.animationKeys()?.sorted()) == ["backgroundColor", "bounds.size", "position"]
+    let sizeAnimation = try unwrap(renderable.animation(forKey: "bounds.size") as? CABasicAnimation)
+    let positionAnimation = try unwrap(renderable.animation(forKey: "position") as? CABasicAnimation)
+
+    // when: a non-animated refresh changes the height and the theme back while the animations are in flight
+    view.overrideTheme = .light
+    height = 120
+    view.refresh(animated: false)
+
+    // then: the model has the new frame and color
+    expect(renderable.bounds.size) == CGSize(width: 100, height: 120)
+    expect(renderable.backgroundColor) == Color.red.cgColor
+
+    // then: the frame animations keep going and land on the new frame, and the color animation is retargeted to the
+    // new color over its remaining time instead of finishing towards the dark one
+    expect(renderable.animationKeys()?.sorted()) == ["backgroundColor", "bounds.size", "position"]
+    let continuedSizeAnimation = try unwrap(renderable.animation(forKey: "bounds.size") as? CABasicAnimation)
+    expect(continuedSizeAnimation.fromValue as? CGSize) == sizeAnimation.fromValue as? CGSize
+    expect(continuedSizeAnimation.toValue as? CGSize) == .zero
+    expect(continuedSizeAnimation.duration) == sizeAnimation.duration
+    expect(continuedSizeAnimation.isAdditive) == true
+
+    let continuedPositionAnimation = try unwrap(renderable.animation(forKey: "position") as? CABasicAnimation)
+    expect(continuedPositionAnimation.fromValue as? CGPoint) == positionAnimation.fromValue as? CGPoint
+    expect(continuedPositionAnimation.duration) == positionAnimation.duration
+
+    let colorAnimation = try unwrap(renderable.animation(forKey: "backgroundColor") as? CABasicAnimation)
+    expect(colorAnimation.duration) == 10
+    expect(colorAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    // a Core Foundation type can't be checked at runtime, so the cast is forced
+    expect(colorAnimation.toValue as! CGColor) == Color.red.cgColor // swiftlint:disable:this force_cast
+    renderable.removeAllAnimations()
+  }
+
   func test_setNeedsRefresh_merging() {
     // given: a compose view that has done its initial render
     var renderCount = 0

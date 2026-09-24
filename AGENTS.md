@@ -129,12 +129,21 @@ Hard-won rules from past corrections, grouped by theme.
 
 - In hot paths (layout/render), order computations so work is only done when needed: check early-exit conditions (for example `.isNull`) before computing values used after the check.
 - Do not recommend a performance optimization from first principles alone. Measure the delta first (a local A/B is often enough), because plausible-sounding savings can be ~0 (for example `-xctestrun` vs `-workspace`/`-scheme` for `test-without-building` in this repo).
+- Anything that can run per frame is a hot path, including animation and update code, not only layout and render.
+- No per-call heap allocations in a hot path: fixed-size data is a value type, not an array, and a chain of collection operations allocates at every step, so use one pass.
+- Read an external collection once per call and do everything that needs it in that pass. Framework accessors often copy on each read.
+- A fast path has to fire in the steady state, not just on the first call. Measure in the state the code itself creates, inside the context it runs in, with a warm-up. Otherwise the harness dominates the numbers.
+- Give the common case an exact shortcut when it is trivially exact, and keep the general path for the rest.
 
 ## CI
 
 - Do not run a standalone `swift package resolve` before xcodebuild tests. xcodebuild resolves pinned packages into DerivedData/SourcePackages itself, so the standalone resolve only duplicates work.
 - On few-core CI runners, do not overlap simulator boot with compilation. Both are CPU-heavy, and contention makes the total slower than running them serially (build first, then boot).
 - To get CI telemetry without log access, emit `::notice::` workflow commands. They become check-run annotations readable via the public Checks API (capped at 10 annotations per step, so emit before noisy output).
+
+## Core Animation
+
+- Additive animations compose on screen only for properties the render server doesn't clamp between animations. It clamps opacities (`opacity`, `shadowOpacity`) to [0, 1] after applying each animation, so opposing additive animations of an opacity don't compose even though `presentation()` reports the unclamped sum: animate opacities non-additively or with a single replacing animation. Other bounded properties compose as a sum where verified (`shadowRadius`, `CAShapeLayer`'s `strokeStart` and `strokeEnd`). Verify any other property with a `CARenderer` probe (render the layer tree into a Metal texture and read the pixels) before relying on either behavior, since only the compositor's output tells.
 
 ## Cross-platform
 
