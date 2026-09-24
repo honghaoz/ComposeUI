@@ -33,7 +33,7 @@ import QuartzCore
 /// The duration of a scheduled snap: a zero-duration timing with a delay renders as an instant change after the delay
 /// window. Core Animation substitutes its default duration for a zero duration, so the snap uses a sub-frame duration
 /// instead.
-private let scheduledSnapDuration: TimeInterval = 0.001
+let scheduledSnapDuration: TimeInterval = 0.001 // TODO: make this a Constant under CALayer, also why this is called "scheduled"?
 
 public extension CALayer {
 

@@ -128,24 +128,13 @@ public extension CALayer {
         continue
       }
 
-      if let remainingTime = remainingTime(of: animation, at: now) {
+      if let remainingTime = animation.remainingTime(at: now) {
         inFlightAnimations.append(InFlightAnimation(key: key, animation: animation, remainingTime: remainingTime))
       } else if removingEnded {
         removeAnimation(forKey: key)
       }
     }
     return inFlightAnimations
-  }
-
-  /// The time an animation has left at `now`, or `nil` when it has ended.
-  private func remainingTime(of animation: CAAnimation, at now: TimeInterval) -> TimeInterval? {
-    // a paused animation (zero speed) has no end to measure to, so it counts its duration however long ago it began
-    guard animation.speed > 0 else {
-      return animation.duration
-    }
-    let scaledDuration = animation.duration / TimeInterval(animation.speed)
-    let remainingTime = animation.beginTime == 0 ? scaledDuration : animation.beginTime + scaledDuration - now
-    return remainingTime > 0 ? remainingTime : nil
   }
 
   /// The in-flight additive animations to fold into one glide to the new value, and the offset of the shown value from
