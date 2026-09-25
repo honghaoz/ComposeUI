@@ -99,7 +99,9 @@ public extension CALayer {
       )
     } else {
       // remove the in-flight animations and replace them with a new one from the current value to the new value
-      removeAnimations(forKeyPath: keyPath)
+      for inFlightAnimation in inFlightAnimations {
+        removeAnimation(forKey: inFlightAnimation.key)
+      }
       animate(
         keyPath: keyPath,
         timing: timing,
