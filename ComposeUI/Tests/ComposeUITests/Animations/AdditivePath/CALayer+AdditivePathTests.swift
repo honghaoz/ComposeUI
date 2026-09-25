@@ -278,25 +278,41 @@ class CALayer_AdditivePathTests: XCTestCase {
   }
 
   func test_animatePath_truncatedSpring_jumpsWhenItLands() throws {
-    // given: a shape layer whose rect path grows from 100 to 200 points wide over two seconds
+    // given: a hosted shape layer on a paused timeline, whose rect path grows from 100 to 200 points wide over two
+    // seconds. the timeline is paused at a time that isn't zero, as a zero begin time means an unset one
+    let testWindow = TestWindow()
+    let timeline = CALayer()
+    timeline.speed = 0
+    timeline.timeOffset = 1000
+    testWindow.layer.addSublayer(timeline)
     let layer = makeLayer()
+    timeline.addSublayer(layer)
+    CATransaction.flush()
     layer.animatePath(keyPath: "path", to: rect(width: 200), timing: .linear(duration: 2))
 
     // when: the path grows on to 300 points wide with a spring cut short by a duration of 0.1s, before it settles
     let springTiming = AnimationTiming.spring(dampingRatio: 1, response: 0.5, duration: 0.1)
     layer.animatePath(keyPath: "path", to: rect(width: 300), timing: springTiming)
+    CATransaction.flush()
 
-    // then: until the spring lands, the path shown follows the spring's curve, as Core Animation shows a spring cut short,
-    // instead of heading to where the spring lands, and right after, the spring has landed
-    let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    // then: moving the paused timeline to each time, the path Core Animation shows follows the spring's curve until the
+    // spring lands, as it shows a spring cut short, instead of heading to where the spring lands, and shows the spring
+    // landed from its landing time on
+    let beginTime = try layer.animation(forKey: "path").unwrap().beginTime
+    func shownWidth(at time: TimeInterval) throws -> CGFloat {
+      timeline.timeOffset = beginTime + time
+      CATransaction.flush()
+      // Core Animation turns the lines of a path it interpolates into curves, so the shape shown is compared by its bounds
+      return try layer.presentation().unwrap().path.unwrap().boundingBoxOfPath.width
+    }
     let springCurve = AnimationCurve(CABasicAnimation.makeAnimation(springTiming))
     for time in [0.09, 0.095, 0.099] {
       let expectedWidth = 300 - 100 * (1 - time / 2) - 100 * (1 - springCurve.progress(forElapsedTime: time))
-      let shownWidth = try interpolatedPoints(of: animation, at: time).path.boundingBoxOfPath.width
-      expect(shownWidth, "time: \(time)").to(beApproximatelyEqual(to: expectedWidth, within: 0.5))
+      expect(try shownWidth(at: time), "time: \(time)").to(beApproximatelyEqual(to: expectedWidth, within: 0.5))
     }
-    let shownWidthAfterLanding = try interpolatedPoints(of: animation, at: 0.101).path.boundingBoxOfPath.width
-    expect(shownWidthAfterLanding).to(beApproximatelyEqual(to: 300 - 100 * (1 - 0.101 / 2), within: 1e-6))
+    for time in [0.1, 0.101] {
+      expect(try shownWidth(at: time), "time: \(time)").to(beApproximatelyEqual(to: 300 - 100 * (1 - time / 2), within: 0.5))
+    }
   }
 
   func test_animatePath_otherSegments_setsThePathAtOnce() {
