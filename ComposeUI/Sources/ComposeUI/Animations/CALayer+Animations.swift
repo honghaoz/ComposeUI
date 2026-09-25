@@ -243,13 +243,17 @@ public extension CALayer {
   internal func setKeyPathValue(_ keyPath: String, _ value: Any) {
     #if canImport(AppKit)
     // an NSView's frame doesn't follow its layer's geometry: after `layer.position = CGPoint(200, 320)`, `layer.frame`
-    // has moved but `backedView.frame` keeps the old origin, while UIKit keeps the two in sync. so the view's frame is
-    // set from the layer's after the change. the value goes through key-value coding, so a component key path such as
-    // `position.x` or `bounds.size.width` works like the whole property
+    // has moved but `backedView.frame` keeps the old origin, while UIKit keeps the two in sync. AppKit also rebuilds
+    // the layer's bounds from the view's, which drops a bounds origin set only on the layer. so the view's frame and
+    // bounds origin are set from the layer's after the change
     if Self.isViewGeometryKeyPath(keyPath), let backedView {
       CATransaction.disableAnimations {
         setValue(value, forKeyPath: keyPath)
+        let boundsOrigin = bounds.origin
         backedView.frame = frame
+        if backedView.bounds.origin != boundsOrigin {
+          backedView.setBoundsOrigin(boundsOrigin)
+        }
       }
       return
     }
@@ -274,8 +278,8 @@ public extension CALayer {
   }
 
   #if canImport(AppKit)
-  /// Whether a key path is a layer property a view's frame is derived from, whole or by component, such as `position`
-  /// or `bounds.size.width`.
+  /// Whether a key path is a layer property a view's frame or bounds is derived from, whole or by component, such as
+  /// `position` or `bounds.size.width`.
   private static func isViewGeometryKeyPath(_ keyPath: String) -> Bool {
     switch keyPath.prefix(while: { $0 != "." }) {
     case "position",
