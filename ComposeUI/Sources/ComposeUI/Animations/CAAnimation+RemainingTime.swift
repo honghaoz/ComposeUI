@@ -64,4 +64,14 @@ extension CAAnimation {
     let remainingTime = beginTime == 0 ? scaledDuration : beginTime + scaledDuration - now
     return remainingTime > 0 ? remainingTime : nil
   }
+
+  /// Whether an animation of the given duration never finishes.
+  ///
+  /// Core Animation uses `Float.greatestFiniteMagnitude` for forever, for example as the duration of a spring without damping.
+  ///
+  /// - Parameter duration: The animation's duration.
+  /// - Returns: `true` if the duration is forever.
+  static func neverFinishes(duration: TimeInterval) -> Bool {
+    duration >= TimeInterval(Float.greatestFiniteMagnitude)
+  }
 }

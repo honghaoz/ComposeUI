@@ -160,13 +160,45 @@ public struct AnimationTiming: Hashable {
 
   /// Creates an animation timing.
   ///
+  /// Invalid values assert in debug builds and fall back:
+  /// - A speed of 0 or less, or NaN, becomes 1.
+  /// - An infinite or NaN delay becomes 0.
+  /// - An infinite or NaN duration becomes `Animations.defaultAnimationDuration`, or `nil` for a spring, so the spring descriptor determines it.
+  ///
   /// - Parameters:
   ///   - timing: The timing type.
   ///   - delay: The delay of the animation. Defaults to `0`.
   ///   - speed: The speed of the animation. Defaults to `1`.
   public init(timing: Timing, delay: TimeInterval = 0, speed: CGFloat = 1) {
-    self.timing = timing
-    self.delay = delay
-    self.speed = speed
+    switch timing {
+    case .spring(let springDescriptor, let duration):
+      if let duration, duration.isNaN || duration == .infinity {
+        ComposeUI.assertFailure("the spring's duration must be finite, got \(duration)")
+        self.timing = .spring(springDescriptor, duration: nil)
+      } else {
+        self.timing = timing
+      }
+    case .timingFunction(let duration, let timingFunction):
+      if duration.isNaN || duration == .infinity {
+        ComposeUI.assertFailure("the timing function's duration must be finite, got \(duration)")
+        self.timing = .timingFunction(Animations.defaultAnimationDuration, timingFunction)
+      } else {
+        self.timing = timing
+      }
+    }
+
+    if delay.isNaN || delay == .infinity {
+      ComposeUI.assertFailure("the delay must be finite, got \(delay)")
+      self.delay = 0
+    } else {
+      self.delay = delay
+    }
+
+    if speed > 0 {
+      self.speed = speed
+    } else {
+      ComposeUI.assertFailure("the speed must be positive, got \(speed)")
+      self.speed = 1
+    }
   }
 }

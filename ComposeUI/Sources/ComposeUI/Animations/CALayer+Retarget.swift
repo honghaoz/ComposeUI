@@ -33,7 +33,8 @@ import QuartzCore
 public extension CALayer {
 
   /// Sets a key path's value and retargets its in-flight animations to it, so the shown value glides from where it is
-  /// to the new value and lands when the in-flight animations would have.
+  /// to the new value and lands when the in-flight animations would have. With an in-flight animation that never
+  /// finishes, such as a spring without damping, the glide takes `Animations.defaultAnimationDuration` instead.
   ///
   /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone,
   ///   and an ended one is skipped, as Core Animation removes it.
@@ -74,8 +75,11 @@ public extension CALayer {
       return
     }
 
+    // an animation that never finishes has no landing to glide to, so the glide takes the default duration instead of forever
+    let neverFinishes = inFlightAnimations.contains(where: { CAAnimation.neverFinishes(duration: $0.animation.duration) })
+
     // uses the basic easing curve for simplicity, no interrupted velocity to carry
-    let timing = AnimationTiming.easeOut(duration: remainingTime)
+    let timing = AnimationTiming.easeOut(duration: neverFinishes ? Animations.defaultAnimationDuration : remainingTime)
 
     if let currentValue, let fold = additiveFold(of: inFlightAnimations, keyPath: keyPath, from: currentValue, to: value, at: now) {
       for key in fold.keys {
@@ -135,7 +139,11 @@ public extension CALayer {
         continue
       }
 
-      ComposeUI.assert(animation.isRemovedOnCompletion, "animation \"\(key)\" of \"\(keyPath)\" is kept with isRemovedOnCompletion off, which isn't supported")
+      ComposeUI.assert(
+        animation.isRemovedOnCompletion,
+        "animation \"\(key)\" of \"\(keyPath)\" is kept with isRemovedOnCompletion off, which isn't supported"
+      )
+
       if let remainingTime = animation.remainingTime(at: now) {
         inFlightAnimations.append(InFlightAnimation(key: key, animation: animation, remainingTime: remainingTime))
       } else if !animation.isRemovedOnCompletion {

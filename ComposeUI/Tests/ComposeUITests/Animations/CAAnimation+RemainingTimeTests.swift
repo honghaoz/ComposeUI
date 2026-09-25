@@ -32,7 +32,7 @@ import QuartzCore
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class CAAnimation_RemainingTimeTests: XCTestCase {
 
@@ -138,5 +138,24 @@ class CAAnimation_RemainingTimeTests: XCTestCase {
     let remainingTime = try committedAnimation.remainingTime(at: now).unwrap()
     expect(remainingTime).to(beApproximatelyEqual(to: committedAnimation.beginTime + 2 - now, within: 0.02))
     expect(remainingTime) < 2
+  }
+
+  func test_neverFinishes() {
+    // then: Core Animation's forever and longer never finish
+    expect(CAAnimation.neverFinishes(duration: TimeInterval(Float.greatestFiniteMagnitude))) == true
+    expect(CAAnimation.neverFinishes(duration: .infinity)) == true
+
+    // then: a shorter duration, or one that isn't a number, isn't forever
+    expect(CAAnimation.neverFinishes(duration: TimeInterval(Float.greatestFiniteMagnitude).nextDown)) == false
+    expect(CAAnimation.neverFinishes(duration: 2)) == false
+    expect(CAAnimation.neverFinishes(duration: .nan)) == false
+  }
+
+  func test_neverFinishes_springWithoutDamping() {
+    // given: a spring without damping, which never settles
+    let animation = CABasicAnimation.makeAnimation(.spring(dampingRatio: 0, response: 0.5))
+
+    // then: its duration is Core Animation's forever
+    expect(CAAnimation.neverFinishes(duration: animation.duration)) == true
   }
 }

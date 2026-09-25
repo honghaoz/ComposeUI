@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class AnimationTimingTests: XCTestCase {
 
@@ -153,5 +153,116 @@ class AnimationTimingTests: XCTestCase {
       expect(timing.delay) == 2
       expect(timing.speed) == 2
     }
+  }
+
+  func test_init_speedNotPositive_assertsAndFallsBackToOne() {
+    // given: an assertion handler that records the messages
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    for speed in [0, -1, CGFloat.nan] {
+      // when: creating a timing with a speed that never moves the animation forward
+      assertionMessages = []
+      let timing = AnimationTiming(timing: .timingFunction(1), speed: speed)
+
+      // then: it asserts and falls back to a speed of 1
+      expect(assertionMessages) == ["the speed must be positive, got \(speed)"]
+      expect(timing.speed) == 1
+    }
+  }
+
+  func test_init_delayNotFinite_assertsAndFallsBackToNoDelay() {
+    // given: an assertion handler that records the messages
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    for delay in [TimeInterval.infinity, .nan] {
+      // when: creating a timing with a delay that never starts the animation
+      assertionMessages = []
+      let timing = AnimationTiming(timing: .timingFunction(1), delay: delay)
+
+      // then: it asserts and falls back to no delay
+      expect(assertionMessages) == ["the delay must be finite, got \(delay)"]
+      expect(timing.delay) == 0
+    }
+  }
+
+  func test_init_timingFunctionDurationNotFinite_assertsAndFallsBackToDefaultDuration() {
+    // given: an assertion handler that records the messages
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    for duration in [TimeInterval.infinity, .nan] {
+      // when: creating a linear timing with a duration that never moves the animation past its start
+      assertionMessages = []
+      let timing = AnimationTiming.linear(duration: duration)
+
+      // then: it asserts and falls back to the default duration, keeping the timing function
+      expect(assertionMessages) == ["the timing function's duration must be finite, got \(duration)"]
+      expect(timing.timing) == .timingFunction(Animations.defaultAnimationDuration, CAMediaTimingFunction(name: .linear))
+    }
+  }
+
+  func test_init_springDurationNotFinite_assertsAndFallsBackToSpringDuration() {
+    // given: an assertion handler that records the messages
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    for duration in [TimeInterval.infinity, .nan] {
+      // when: creating a spring timing with a duration that isn't finite, over which Core Animation holds the start
+      assertionMessages = []
+      let timing = AnimationTiming.spring(dampingRatio: 0.5, response: 0.5, duration: duration)
+
+      // then: it asserts and falls back to the spring's own duration
+      expect(assertionMessages) == ["the spring's duration must be finite, got \(duration)"]
+      expect(timing.timing) == .spring(SpringDescriptor(dampingRatio: 0.5, response: 0.5, initialVelocity: 0), duration: nil)
+    }
+  }
+
+  func test_init_edgeValues_areKept() {
+    // given: an assertion handler that records the messages
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+    let undampedSpring = SpringDescriptor(dampingRatio: 0, response: 0.5, initialVelocity: 0)
+
+    // when: creating timings that snap, have a delay that is ignored, run at an instant speed, or never settle
+    let timings = [
+      AnimationTiming(timing: .timingFunction(0)),
+      AnimationTiming(timing: .timingFunction(-.infinity)),
+      AnimationTiming(timing: .timingFunction(1), delay: -.infinity),
+      AnimationTiming(timing: .timingFunction(1), speed: .infinity),
+      AnimationTiming(timing: .spring(undampedSpring, duration: nil)),
+    ]
+
+    // then: they are kept without asserting
+    expect(assertionMessages) == []
+    expect(timings.map(\.timing)) == [.timingFunction(0), .timingFunction(-.infinity), .timingFunction(1), .timingFunction(1), .spring(undampedSpring, duration: nil)]
+    expect(timings.map(\.delay)) == [0, 0, -.infinity, 0, 0]
+    expect(timings.map(\.speed)) == [1, 1, 1, .infinity, 1]
   }
 }
