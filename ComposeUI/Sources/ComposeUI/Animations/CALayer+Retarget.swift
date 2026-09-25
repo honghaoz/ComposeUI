@@ -35,8 +35,8 @@ public extension CALayer {
   /// Sets a key path's value and retargets its in-flight animations to it, so the shown value glides from where it is
   /// to the new value and lands when the in-flight animations would have.
   ///
-  /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone.
-  ///   An ended animation still on the layer is removed, since a forwards fill would show its end value over the new one.
+  /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone,
+  ///   and an ended one is skipped, as Core Animation removes it.
   /// - Additive animations of numbers, `CGSize` and `CGPoint` are folded into one additive ease-out from the value they
   ///   show, so later additive animations keep stacking on it. A running spring keeps going instead, so its momentum
   ///   carries on, with the ease-out stacked on it. Stacked additive animations show their sum only for properties the
@@ -48,13 +48,20 @@ public extension CALayer {
   /// A folded or replaced animation is removed, so its delegate is told it stopped before finishing.
   ///
   /// - Important: The value's type must match the key path's, or Core Animation crashes.
+  /// - Important: Animations kept with `isRemovedOnCompletion` off aren't supported. A kept one that has ended is removed.
   ///
   /// - Parameters:
   ///   - keyPath: The key path to set.
   ///   - value: The value to set.
   func retarget(keyPath: String, to value: Any) {
     let now = currentTime
-    let inFlightAnimations = inFlightAnimations(forKeyPath: keyPath, at: now, removingEnded: true)
+    let (inFlightAnimations, endedKeptKeys) = inFlightAnimations(forKeyPath: keyPath, at: now)
+
+    // a kept animation that has ended would cover the new value
+    for key in endedKeptKeys {
+      removeAnimation(forKey: key)
+    }
+
     guard let remainingTime = inFlightAnimations.max(by: { $0.remainingTime < $1.remainingTime })?.remainingTime else {
       // no in-flight animations, set the value directly
       setKeyPathValue(keyPath, value)
@@ -111,30 +118,29 @@ public extension CALayer {
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The remaining time, or `nil` when no animation of the key path is in flight.
   internal func remainingAnimationTime(forKeyPath keyPath: String) -> TimeInterval? {
-    inFlightAnimations(forKeyPath: keyPath, at: currentTime, removingEnded: false)
+    inFlightAnimations(forKeyPath: keyPath, at: currentTime).animations
       .max(by: { $0.remainingTime < $1.remainingTime })?
       .remainingTime
   }
 
-  /// The layer's property animations of the given key path that haven't ended at `now`.
-  ///
-  /// - Parameter removingEnded: Whether to remove the key path's ended animations on the way. Core Animation removes an
-  ///   ended animation itself, unless it is kept with `isRemovedOnCompletion` off, and with a forwards fill it then shows
-  ///   its end value over the model value, so a new model value only shows once it is gone.
-  private func inFlightAnimations(forKeyPath keyPath: String, at now: TimeInterval, removingEnded: Bool) -> [InFlightAnimation] {
+  /// The layer's property animations of the given key path that haven't ended at `now`, and the keys of the kept ones
+  /// that have ended.
+  private func inFlightAnimations(forKeyPath keyPath: String, at now: TimeInterval) -> (animations: [InFlightAnimation], endedKeptKeys: [String]) {
     var inFlightAnimations: [InFlightAnimation] = []
+    var endedKeptKeys: [String] = []
     for key in animationKeys() ?? [] {
       guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
         continue
       }
 
+      ComposeUI.assert(animation.isRemovedOnCompletion, "animation \"\(key)\" of \"\(keyPath)\" is kept with isRemovedOnCompletion off, which isn't supported")
       if let remainingTime = animation.remainingTime(at: now) {
         inFlightAnimations.append(InFlightAnimation(key: key, animation: animation, remainingTime: remainingTime))
-      } else if removingEnded {
-        removeAnimation(forKey: key)
+      } else if !animation.isRemovedOnCompletion {
+        endedKeptKeys.append(key)
       }
     }
-    return inFlightAnimations
+    return (inFlightAnimations, endedKeptKeys)
   }
 
   /// The in-flight additive animations to fold into one glide to the new value, and the offset of the shown value from
