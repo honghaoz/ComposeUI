@@ -87,8 +87,7 @@ extension Playground {
             .transition(.none)
             .border(color: .black, width: 1)
             .cornerRadius(cornerRadius)
-            .dropShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
-              let size = renderItem.frame.size
+            .dropShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] size in // swiftlint:disable:this unowned_variable_capture
               let cornerRadius = self.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
             })
@@ -125,8 +124,7 @@ extension Playground {
                 opacity: shadowOpacity,
                 radius: shadowRadius,
                 offset: shadowOffset,
-                path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
-                  let size = renderItem.frame.size
+                path: { [unowned self] size in // swiftlint:disable:this unowned_variable_capture
                   let cornerRadius = self.cornerRadius
                   return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
                 }
@@ -157,8 +155,7 @@ extension Playground {
               opacity: shadowOpacity,
               radius: shadowRadius,
               offset: shadowOffset,
-              paths: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
-                let size = renderItem.frame.size
+              paths: { [unowned self] size in // swiftlint:disable:this unowned_variable_capture
                 let cornerRadius = self.cornerRadius
                 let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
                 return DropShadowPaths(shadowPath: path, cutoutPath: path)
@@ -190,8 +187,7 @@ extension Playground {
           LayerNode()
             .transition(.none)
             .cornerRadius(cornerRadius)
-            .innerShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] renderItem in // swiftlint:disable:this unowned_variable_capture
-              let size = renderItem.frame.size
+            .innerShadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { [unowned self] size in // swiftlint:disable:this unowned_variable_capture
               let cornerRadius = self.cornerRadius
               return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
             })
@@ -250,8 +246,7 @@ extension Playground {
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 8, dark: 16),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
-              path: { renderItem in
-                let size = renderItem.frame.size
+              path: { size in
                 let cornerRadius: CGFloat = 16
                 return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
               }
@@ -274,8 +269,7 @@ extension Playground {
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 8, dark: 16),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 10, height: 10)),
-              paths: { renderItem in
-                let size = renderItem.frame.size
+              paths: { size in
                 let cornerRadius: CGFloat = 16
                 let path = CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
                 return DropShadowPaths(shadowPath: path, cutoutPath: path)
@@ -304,9 +298,8 @@ extension Playground {
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 4, dark: 8),
               offset: Themed<CGSize>(.zero),
-              paths: { renderItem in
+              paths: { size in
                 let spread: CGFloat = 8
-                let size = renderItem.frame.size
                 let cornerRadius: CGFloat = 16
 
                 let shadowPathRect = CGRect(x: 0, y: 0, width: size.width, height: size.height).insetBy(dx: -spread * 2, dy: -spread * 2)
@@ -343,8 +336,7 @@ extension Playground {
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 8, dark: 4),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
-              path: { renderItem in
-                let size = renderItem.frame.size
+              path: { size in
                 let cornerRadius: CGFloat = 16
                 return CGPath(roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
               }
@@ -369,8 +361,7 @@ extension Playground {
               opacity: Themed<CGFloat>(light: 0.5, dark: 0.8),
               radius: Themed<CGFloat>(light: 2, dark: 4),
               offset: Themed<CGSize>(light: CGSize(width: 5, height: 5), dark: CGSize(width: 2, height: 2)),
-              paths: { renderItem in
-                let size = renderItem.frame.size
+              paths: { size in
                 let spread: CGFloat = 4
                 let cornerRadius: CGFloat = 16
                 let shadowCornerRadius: CGFloat = cornerRadius - spread

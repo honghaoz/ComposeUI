@@ -228,6 +228,54 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(tracked.layer().animationKeys()) == ["position", "bounds.size"]
   }
 
+  func test_reusedRenderable_nonAnimatedResize_keepsInFlightMove() throws {
+    // given: a hosted content view with a frame-tracking row below a spacer, animating linearly over 1.5 seconds
+    let window = TestWindow()
+    var spacerHeight: CGFloat = 10
+    var rowHeight: CGFloat = 50
+    var trackingView: FrameTrackingView?
+    let view = makeContentView(
+      spacerHeight: { spacerHeight },
+      rowHeight: { rowHeight },
+      animationTiming: .linear(duration: 1.5),
+      captureView: { trackingView = $0 }
+    )
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    let layer = try unwrap(trackingView).layer()
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    // when: an animated refresh moves the row down, and the move is part way
+    spacerHeight = 60
+    view.refresh(animated: true)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+
+    // then: the shown row is between the two positions
+    let shownDuringMove = try unwrap(layer.presentation()).frame
+    expect(shownDuringMove.minY) > 12
+    expect(shownDuringMove.minY) < 58
+
+    // when: a non-animated refresh grows the row while the move is in flight
+    rowHeight = 80
+    view.refresh(animated: false)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+
+    // then: the new height applies at once and the move keeps going, with no animation added for the resize
+    let shownAfterResize = try unwrap(layer.presentation()).frame
+    expect(shownAfterResize.height).to(beApproximatelyEqual(to: 80, within: 0.5))
+    expect(shownAfterResize.minY) > shownDuringMove.minY
+    expect(shownAfterResize.minY) < 58
+    expect(layer.animationKeys()) == ["position", "bounds.size"]
+
+    // then: the row lands at the new position with the new height when the move would have ended
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1.0))
+    let shownAtEnd = try unwrap(layer.presentation()).frame
+    expect(shownAtEnd.minY).to(beApproximatelyEqual(to: 60, within: 0.5))
+    expect(shownAtEnd.height).to(beApproximatelyEqual(to: 80, within: 0.5))
+    expect(try unwrap(trackingView).frame) == CGRect(x: 0, y: 60, width: 100, height: 80)
+  }
+
   func test_reusedRenderable_skipsFrameAnimation_whenFrameUnchanged_onAnimatedScroll() {
     // given: a content view animating every render pass, with an animated frame-tracking row, rendered
     var trackingView: FrameTrackingView?

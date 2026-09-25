@@ -38,6 +38,38 @@ import UIKit
 
 import QuartzCore
 
+/// A model contains the shadow path and clip path for an inner shadow.
+public struct InnerShadowPaths {
+
+  /// The shadow path.
+  ///
+  /// The inner shadow is rendered by a drop shadow from a "punch hole".
+  /// This is the "punch hole" path.
+  ///
+  /// - For inner shadow without "spread" effect, the shadow path is the same as the clip path.
+  /// - For inner shadow with "spread" effect, the shadow path is the "punch hole" path, which is smaller than the clip path.
+  public let shadowPath: CGPath
+
+  /// The clip path.
+  ///
+  /// The clip path is the path that encloses the "punch hole" path to clip the shadow.
+  /// Generally, the clip path is the shape of the object that the shadow is applied to.
+  ///
+  /// - For inner shadow without "spread" effect, the clip path is the same as the shadow path.
+  /// - For inner shadow with "spread" effect, the clip path is bigger than the shadow path.
+  public let clipPath: CGPath?
+
+  /// Initialize a shadow paths model.
+  ///
+  /// - Parameters:
+  ///   - shadowPath: The shadow path.
+  ///   - clipPath: The clip path. If `nil`, the shadow will be clipped by the `shadowPath`.
+  public init(shadowPath: CGPath, clipPath: CGPath?) {
+    self.shadowPath = shadowPath
+    self.clipPath = clipPath
+  }
+}
+
 /// A layer that renders an inner shadow.
 open class InnerShadowLayer: CALayer {
 
@@ -84,21 +116,15 @@ open class InnerShadowLayer: CALayer {
 
   /// Update the inner shadow layer with a new shadow.
   ///
-  /// The inner shadow is rendered by a drop shadow from a "punch hole":
-  /// The `holePath` is the "punch hole" path.
-  /// The `clipPath` is the path that encloses the "punch hole" path to clip the shadow.
-  ///
-  /// By separating the "punch hole" and the "clip path", we can achieve an inner shadow with "spread" effect:
-  /// - For a shadow without "spread" effect, the `holePath` and `clipPath` are the same.
-  /// - For a shadow with "spread" effect, the `clipPath` is bigger than the `holePath`.
+  /// The inner shadow is rendered by a drop shadow from a "punch hole", the paths' shadow path, clipped by the paths'
+  /// clip path, see `InnerShadowPaths`.
   ///
   /// - Parameters:
   ///   - color: The color of the shadow.
   ///   - opacity: The opacity of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
-  ///   - holePath: The path of the "punch hole".
-  ///   - clipPath: The path to clip the shadow. If `nil`, the shadow will be clipped by the `holePath`.
+  ///   - paths: The paths of the shadow, for the layer's size.
   ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
   ///     animated, from the state the layer currently shows. `nil` starts no animation and continues the in-flight
   ///     ones toward the new values, landing when they would have. Default to `nil`.
@@ -106,8 +132,7 @@ open class InnerShadowLayer: CALayer {
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     holePath: (InnerShadowLayer) -> CGPath,
-                     clipPath: ((InnerShadowLayer) -> CGPath)?,
+                     paths: (CGSize) -> InnerShadowPaths,
                      animationTiming: AnimationTiming? = nil)
   {
     let color = color.cgColor
@@ -121,8 +146,9 @@ open class InnerShadowLayer: CALayer {
       }
     }
 
-    let holePath = holePath(self)
-    let clipPath = clipPath?(self) ?? holePath
+    let paths = paths(bounds.size)
+    let holePath = paths.shadowPath
+    let clipPath = paths.clipPath ?? holePath
 
     let innerShadowPath: CGPath
     #if DEBUG
@@ -148,14 +174,8 @@ open class InnerShadowLayer: CALayer {
       if !maskLayer.hasFrame(bounds) {
         maskLayer.animateFrame(to: bounds, timing: animationTiming)
       }
-      if maskLayer.path != clipPath {
-        maskLayer.animate(
-          keyPath: "path",
-          timing: animationTiming,
-          from: { $0.presentation().assertNotNil()?.path },
-          to: { _ in clipPath }
-        )
-      }
+
+      maskLayer.animatePath(keyPath: "path", to: clipPath, timing: animationTiming)
 
       if shadowColor != color {
         animate(
@@ -182,14 +202,7 @@ open class InnerShadowLayer: CALayer {
       if shadowOffset != offset {
         animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
       }
-      if shadowPath != innerShadowPath {
-        animate(
-          keyPath: "shadowPath",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowPath },
-          to: { _ in innerShadowPath }
-        )
-      }
+      animatePath(keyPath: "shadowPath", to: innerShadowPath, timing: animationTiming)
     } else {
       // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
       // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
@@ -197,14 +210,40 @@ open class InnerShadowLayer: CALayer {
       maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
       }
-      maskLayer.retarget(keyPath: "path", to: clipPath)
+      maskLayer.setPath(keyPath: "path", to: clipPath)
 
       retarget(keyPath: "shadowColor", to: color)
       retarget(keyPath: "shadowOpacity", to: opacity)
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
-      retarget(keyPath: "shadowPath", to: innerShadowPath)
+      setPath(keyPath: "shadowPath", to: innerShadowPath)
     }
+  }
+
+  /// Update the inner shadow layer with a new shadow clipped by its own path.
+  ///
+  /// - Parameters:
+  ///   - color: The color of the shadow.
+  ///   - opacity: The opacity of the shadow.
+  ///   - radius: The radius of the shadow.
+  ///   - offset: The offset of the shadow.
+  ///   - path: The path of the shadow, for the layer's size.
+  ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
+  public func update(color: Color,
+                     opacity: CGFloat,
+                     radius: CGFloat,
+                     offset: CGSize,
+                     path: (CGSize) -> CGPath,
+                     animationTiming: AnimationTiming? = nil)
+  {
+    update(
+      color: color,
+      opacity: opacity,
+      radius: radius,
+      offset: offset,
+      paths: { InnerShadowPaths(shadowPath: path($0), clipPath: nil) },
+      animationTiming: animationTiming
+    )
   }
 
   /// Reset the layer so it can be reused as if freshly made.

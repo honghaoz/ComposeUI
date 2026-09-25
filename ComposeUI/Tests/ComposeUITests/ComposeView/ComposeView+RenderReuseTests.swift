@@ -361,8 +361,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
       VStack {
         for _ in 0 ..< Constants.rowCount {
           // no explicit reuse id: InnerShadowNode pools by default.
-          InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
-            CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+          InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { size in
+            CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
           })
           .frame(width: .flexible, height: Constants.rowHeight)
         }
@@ -389,8 +389,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
       VStack {
         for _ in 0 ..< Constants.rowCount {
           // no explicit reuse id: DropShadowNode pools by default.
-          DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
-            CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+          DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { size in
+            CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
           })
           .frame(width: .flexible, height: Constants.rowHeight)
         }
@@ -419,8 +419,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     view.renderablePool = pool
 
     view.setContent {
-      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: CGPath(rect: rect.insetBy(dx: 10, dy: 10), transform: nil))
       })
       .frame(width: 100, height: 100)
@@ -442,8 +442,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     // when: a plain (no cutout) drop shadow node reuses the pooled layer
     view.setContent {
-      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
-        CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { size in
+        CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
       })
       .frame(width: 100, height: 100)
     }
@@ -499,8 +499,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     view.renderablePool = pool
 
     view.setContent {
-      InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
-        CGPath(rect: CGRect(origin: .zero, size: renderable.frame.size), transform: nil)
+      InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, path: { size in
+        CGPath(rect: CGRect(origin: .zero, size: size), transform: nil)
       })
       .frame(width: 100, height: 100)
     }
@@ -534,8 +534,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     view.renderablePool = pool
 
     view.setContent {
-      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { renderable in
-        let rect = CGRect(origin: .zero, size: renderable.frame.size)
+      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { size in
+        let rect = CGRect(origin: .zero, size: size)
         return DropShadowPaths(shadowPath: CGPath(rect: rect, transform: nil), cutoutPath: CGPath(rect: rect.insetBy(dx: 10, dy: 10), transform: nil))
       })
       .frame(width: 100, height: 100)
