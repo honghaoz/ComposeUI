@@ -271,6 +271,30 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.cornerRadius) == 5
   }
 
+  func test_retarget_endedAnimation_isSkippedNextToAReplacedOne() throws {
+    // given: a layer whose corner radius has an ended animation, still on the layer as nothing has committed since, and
+    // a non-additive one in flight
+    let layer = CALayer()
+    let endedAnimation = CABasicAnimation(keyPath: "cornerRadius")
+    endedAnimation.fromValue = CGFloat(0)
+    endedAnimation.toValue = CGFloat(20)
+    endedAnimation.duration = 10
+    endedAnimation.beginTime = layer.currentTime - 20
+    layer.add(endedAnimation, forKey: "ended")
+    layer.animate(keyPath: "cornerRadius", timing: .linear(duration: 10), from: { _ in CGFloat(0) }, to: { _ in CGFloat(20) })
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+    // then: the in-flight animation is replaced by one heading to 5, and the ended one is left for Core Animation to
+    // remove
+    expect(Set(layer.animationKeys() ?? [])) == ["ended", "cornerRadius"]
+    let animation = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+    expect(animation.isAdditive) == false
+    expect(animation.toValue as? CGFloat) == 5
+    expect(layer.cornerRadius) == 5
+  }
+
   func test_retarget_endedAnimation_isSkippedNextToAnInFlightOne() {
     // given: a layer whose corner radius has an ended animation, still on the layer as nothing has committed since, and
     // an additive one in flight
