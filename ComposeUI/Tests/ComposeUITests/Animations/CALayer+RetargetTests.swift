@@ -538,6 +538,32 @@ class CALayer_RetargetTests: XCTestCase {
     expect(glide.duration) == 10
   }
 
+  func test_retarget_componentKeyPath_viewBackedLayer() throws {
+    // given: a view-backed layer in a test window, whose position's x is animating additively to 250, which hasn't begun
+    let testWindow = TestWindow()
+    let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+    #if os(macOS)
+    view.wantsLayer = true
+    #endif
+    testWindow.contentView().addSubview(view)
+    let layer = view.layer()
+    let shownX = layer.position.x
+    layer.animate(keyPath: "position.x", to: CGFloat(250), timing: .linear(duration: 10))
+
+    // when: retargeting the position's x to 180
+    layer.retarget(keyPath: "position.x", to: CGFloat(180))
+
+    // then: the component is set, the view's frame follows the layer's, and the animation folds into one glide from the
+    // shown x
+    expect(layer.position.x) == 180
+    expect(view.frame) == layer.frame
+    expect(layer.animationKeys()) == ["position.x"]
+    let glide = try (layer.animation(forKey: "position.x") as? CABasicAnimation).unwrap()
+    expect(glide.isAdditive) == true
+    expect(glide.fromValue as? CGFloat) == shownX - 180
+    expect(glide.toValue as? CGFloat) == 0
+  }
+
   func test_retarget_additiveAnimationInFlight_committedAnimation_foldsTheValueItAddsNow() throws {
     // given: a layer whose corner radius has animated additively from 0 to 20 for 3 of 10 seconds, so it shows 6
     let layer = CALayer()

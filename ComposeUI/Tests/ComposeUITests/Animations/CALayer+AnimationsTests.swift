@@ -623,6 +623,106 @@ class CALayer_AnimationsTests: XCTestCase {
     #endif
   }
 
+  func test_setKeyPathValue_bounds() throws {
+    // given: a test window with a container view
+    let testWindow = TestWindow()
+    let containerView = testWindow.contentView()
+
+    #if os(macOS)
+    // given: a layer-backed view
+    do {
+      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+      view.wantsLayer = true
+      containerView.addSubview(view)
+      let layer = view.layer()
+      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
+      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
+
+      // when: setting the bounds key path value
+      layer.setKeyPathValue("bounds", CGRect(x: 0, y: 0, width: 150, height: 80))
+
+      // then: the layer bounds and frame are updated and the view follows
+      expect(layer.bounds) == CGRect(x: 0, y: 0, width: 150, height: 80)
+      expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
+      expect(view.frame) == layer.frame
+    }
+
+    // given: a layer-hosted view
+    do {
+      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+      view.wantsLayer = true
+      containerView.addSubview(view)
+      let layer = CALayer()
+      view.layer = layer
+      layer.delegate = view as? CALayerDelegate
+      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
+      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
+
+      // when: setting the bounds key path value
+      layer.setKeyPathValue("bounds", CGRect(x: 0, y: 0, width: 150, height: 80))
+
+      // then: the layer bounds and frame are updated and the view follows
+      expect(layer.bounds) == CGRect(x: 0, y: 0, width: 150, height: 80)
+      expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
+      expect(view.frame) == layer.frame
+    }
+    #endif
+
+    #if canImport(UIKit)
+    // given: a view in the container view
+    let view = UIView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+    containerView.addSubview(view)
+    let layer = view.layer
+
+    // when: setting the bounds key path value
+    layer.setKeyPathValue("bounds", CGRect(x: 0, y: 0, width: 150, height: 80))
+
+    // then: the layer bounds and frame are updated around the centered anchor point and the view follows
+    expect(layer.bounds) == CGRect(x: 0, y: 0, width: 150, height: 80)
+    expect(view.frame) == CGRect(x: 75, y: 185, width: 150, height: 80)
+    expect(view.frame) == layer.frame
+    #endif
+  }
+
+  func test_setKeyPathValue_geometryComponent() throws {
+    // given: three views in a test window
+    let testWindow = TestWindow()
+    let containerView = testWindow.contentView()
+    func makeView() -> View {
+      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+      #if os(macOS)
+      view.wantsLayer = true
+      #endif
+      containerView.addSubview(view)
+      return view
+    }
+    let movedView = makeView()
+    let resizedView = makeView()
+    let anchoredView = makeView()
+
+    // when: setting a component of the position on one, of the bounds size on another, and of the anchor point on the last
+    movedView.layer().setKeyPathValue("position.x", CGFloat(180))
+    resizedView.layer().setKeyPathValue("bounds.size.width", CGFloat(120))
+    anchoredView.layer().setKeyPathValue("anchorPoint.y", CGFloat(1))
+
+    // then: the components are set, the layer frames follow, and so do the view frames. the anchor point is the origin
+    // on macOS and the center on iOS
+    expect(movedView.layer().position.x) == 180
+    expect(resizedView.layer().bounds.size) == CGSize(width: 120, height: 50)
+    #if os(macOS)
+    expect(movedView.layer().frame) == CGRect(x: 180, y: 200, width: 100, height: 50)
+    expect(resizedView.layer().frame) == CGRect(x: 100, y: 200, width: 120, height: 50)
+    expect(anchoredView.layer().frame) == CGRect(x: 100, y: 150, width: 100, height: 50)
+    #else
+    expect(movedView.layer().frame) == CGRect(x: 130, y: 200, width: 100, height: 50)
+    expect(resizedView.layer().frame) == CGRect(x: 90, y: 200, width: 120, height: 50)
+    expect(anchoredView.layer().frame) == CGRect(x: 100, y: 175, width: 100, height: 50)
+    #endif
+    expect(movedView.frame) == movedView.layer().frame
+    expect(resizedView.frame) == resizedView.layer().frame
+    expect(anchoredView.frame) == anchoredView.layer().frame
+  }
+
   func test_setKeyPathValue_opacity() throws {
     // given: a test window with a container view
     let testWindow = TestWindow()
