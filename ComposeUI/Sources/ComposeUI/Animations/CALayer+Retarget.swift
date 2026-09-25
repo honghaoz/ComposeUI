@@ -157,7 +157,8 @@ public extension CALayer {
   /// the new value, which the glide starts from.
   ///
   /// A running spring that lands on the model value isn't folded: it keeps going, so its momentum carries on, and lands
-  /// on the new model value on its own.
+  /// on the new model value on its own. A spring scheduled to begin later is folded, since it has no momentum yet and
+  /// holds its from value until it begins, which would pull the shown value away once the glide lands.
   ///
   /// - Returns: The fold, or `nil` when the animations can't be folded: the render server clamps the key path after each
   ///   animation, the values aren't numbers, sizes or points of one kind, or an animation isn't an additive basic
@@ -187,7 +188,7 @@ public extension CALayer {
         return nil
       }
 
-      if to.isZero, animation is CASpringAnimation, animation.speed > 0 {
+      if to.isZero, animation is CASpringAnimation, animation.speed > 0, animation.beginTime <= now {
         continue
       }
 

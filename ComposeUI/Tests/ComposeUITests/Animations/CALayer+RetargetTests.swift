@@ -343,6 +343,80 @@ class CALayer_RetargetTests: XCTestCase {
     }
   }
 
+  func test_retarget_scheduledAdditiveSpring_isFoldedIntoTheGlide() throws {
+    // given: a hosted layer on a paused timeline, whose corner radius springs additively to 20, scheduled a second
+    // ahead, 0.2s into the delay, where the spring still holds its from offset, so it shows 0
+    let testWindow = TestWindow()
+    let timeline = CALayer()
+    timeline.speed = 0
+    timeline.timeOffset = 1000
+    testWindow.layer.addSublayer(timeline)
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    timeline.addSublayer(layer)
+    CATransaction.flush()
+
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .spring(dampingRatio: 1, response: 0.5, delay: 1))
+    CATransaction.flush()
+    func shownRadius(at time: TimeInterval) throws -> CGFloat {
+      timeline.timeOffset = 1000 + time
+      CATransaction.flush()
+      return try layer.presentation().unwrap().cornerRadius
+    }
+    expect(try shownRadius(at: 0.2)) == 0
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+    CATransaction.flush()
+
+    // then: the scheduled spring, which has no momentum yet, is folded into the glide, so the radius rises from 0 to 5
+    // without dipping below where it was, and lands when the spring would have
+    var previousRadius: CGFloat = 0
+    for time in [0.35, 0.7, 0.99, 1.3] {
+      let radius = try shownRadius(at: time)
+      expect(radius) > previousRadius
+      expect(radius) < 5
+      previousRadius = radius
+    }
+    expect(try shownRadius(at: 1.6)).to(beApproximatelyEqual(to: 5, within: 1e-4))
+  }
+
+  func test_retarget_scheduledAdditiveSpringThatNeverSettles_isFoldedIntoTheGlide() throws {
+    // given: a hosted layer on a paused timeline, whose corner radius springs additively to 20 without damping,
+    // scheduled a second ahead, 0.2s into the delay, where the spring still holds its from offset, so it shows 0
+    let testWindow = TestWindow()
+    let timeline = CALayer()
+    timeline.speed = 0
+    timeline.timeOffset = 1000
+    testWindow.layer.addSublayer(timeline)
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    timeline.addSublayer(layer)
+    CATransaction.flush()
+
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .spring(dampingRatio: 0, response: 0.5, delay: 1))
+    CATransaction.flush()
+    func shownRadius(at time: TimeInterval) throws -> CGFloat {
+      timeline.timeOffset = 1000 + time
+      CATransaction.flush()
+      return try layer.presentation().unwrap().cornerRadius
+    }
+    expect(try shownRadius(at: 0.2)) == 0
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+    CATransaction.flush()
+
+    // then: the scheduled spring is folded, so the radius glides from 0 to 5 over the default duration and stays at 5,
+    // without the bounce the spring would have begun at 1s
+    let midGlideRadius = try shownRadius(at: 0.35)
+    expect(midGlideRadius) > 0
+    expect(midGlideRadius) < 5
+    for time in [0.5, 0.99, 1.125, 1.25, 10.25] {
+      expect(try shownRadius(at: time)).to(beApproximatelyEqual(to: 5, within: 1e-4))
+    }
+  }
+
   func test_retarget_endedAnimation_isSkippedNextToAReplacedOne() throws {
     // given: a layer whose corner radius has an ended animation, still on the layer as nothing has committed since, and
     // a non-additive one in flight
