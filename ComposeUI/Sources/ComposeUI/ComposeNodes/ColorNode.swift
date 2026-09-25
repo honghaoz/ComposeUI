@@ -104,12 +104,14 @@ public struct ColorNode: ComposeNode {
 
           let color = themedColor.resolve(for: context.contentView.theme).cgColor
           if let animationTiming = context.animationTiming {
-            layer.animate(
-              keyPath: "backgroundColor",
-              timing: animationTiming,
-              from: { $0.presentation()?.backgroundColor },
-              to: { _ in color }
-            )
+            if layer.backgroundColor != color {
+              layer.animate(
+                keyPath: "backgroundColor",
+                timing: animationTiming,
+                from: { $0.presentation()?.backgroundColor },
+                to: { _ in color }
+              )
+            }
           } else {
             layer.retarget(keyPath: "backgroundColor", to: color)
           }

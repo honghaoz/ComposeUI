@@ -338,16 +338,16 @@ public extension ComposeNode {
         let layer = item.layer
         let color = color.resolve(for: context.contentView.theme).cgColor
         if let animationTiming = context.animationTiming {
-          layer.animate(
-            keyPath: "backgroundColor",
-            timing: animationTiming,
-            from: { $0.presentation()?.backgroundColor ?? $0.backgroundColor ?? Color.clear.cgColor },
-            to: { _ in color }
-          )
-        } else {
-          layer.disableActions(for: "backgroundColor") {
-            layer.backgroundColor = color
+          if layer.backgroundColor != color {
+            layer.animate(
+              keyPath: "backgroundColor",
+              timing: animationTiming,
+              from: { $0.presentation()?.backgroundColor ?? $0.backgroundColor ?? Color.clear.cgColor },
+              to: { _ in color }
+            )
           }
+        } else {
+          layer.retarget(keyPath: "backgroundColor", to: color)
         }
       },
       resetForReuse: { renderable in
@@ -391,11 +391,11 @@ public extension ComposeNode {
         let layer = item.layer
         let opacity = Float(opacity.resolve(for: context.contentView.theme))
         if let animationTiming = context.animationTiming {
-          layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
-        } else {
-          layer.disableActions(for: "opacity") {
-            layer.opacity = opacity
+          if layer.opacity != opacity {
+            layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
           }
+        } else {
+          layer.retarget(keyPath: "opacity", to: opacity)
         }
       },
       resetForReuse: { renderable in
@@ -445,18 +445,20 @@ public extension ComposeNode {
         let color = color.resolve(for: context.contentView.theme).cgColor
         let width: CGFloat = width.resolve(for: context.contentView.theme)
         if let animationTiming = context.animationTiming {
-          layer.animate(
-            keyPath: "borderColor",
-            timing: animationTiming,
-            from: { $0.presentation()?.borderColor ?? $0.borderColor ?? Color.clear.cgColor },
-            to: { _ in color }
-          )
-          layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
-        } else {
-          layer.disableActions(for: "borderColor", "borderWidth") {
-            layer.borderColor = color
-            layer.borderWidth = width
+          if layer.borderColor != color {
+            layer.animate(
+              keyPath: "borderColor",
+              timing: animationTiming,
+              from: { $0.presentation()?.borderColor ?? $0.borderColor ?? Color.clear.cgColor },
+              to: { _ in color }
+            )
           }
+          if layer.borderWidth != width {
+            layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
+          }
+        } else {
+          layer.retarget(keyPath: "borderColor", to: color)
+          layer.retarget(keyPath: "borderWidth", to: width)
         }
       },
       resetForReuse: { renderable in
@@ -496,11 +498,11 @@ public extension ComposeNode {
         layer.cornerCurve = cornerCurve
 
         if let animationTiming = context.animationTiming {
-          layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
-        } else {
-          layer.disableActions(for: "cornerRadius") {
-            layer.cornerRadius = radius
+          if layer.cornerRadius != radius {
+            layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
           }
+        } else {
+          layer.retarget(keyPath: "cornerRadius", to: radius)
         }
       },
       resetForReuse: { renderable in
@@ -606,29 +608,49 @@ public extension ComposeNode {
         layer.masksToBounds = false
 
         if let animationTiming = context.animationTiming {
-          layer.animate(
-            keyPath: "shadowColor",
-            timing: animationTiming,
-            from: { $0.presentation()?.shadowColor ?? $0.shadowColor ?? Color.clear.cgColor },
-            to: { _ in color }
-          )
-          layer.animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
-          layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
-          layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
+          if layer.shadowColor != color {
+            layer.animate(
+              keyPath: "shadowColor",
+              timing: animationTiming,
+              from: { $0.presentation()?.shadowColor ?? $0.shadowColor ?? Color.clear.cgColor },
+              to: { _ in color }
+            )
+          }
+          if layer.shadowOpacity != opacity {
+            layer.animate(
+              keyPath: "shadowOpacity",
+              timing: animationTiming,
+              from: { $0.presentation()?.shadowOpacity ?? $0.shadowOpacity },
+              to: { _ in opacity }
+            )
+          }
+          if layer.shadowRadius != radius {
+            layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
+          }
+          if layer.shadowOffset != offset {
+            layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
+          }
           let path = path?(item)
-          layer.animate(
-            keyPath: "shadowPath",
-            timing: animationTiming,
-            from: { $0.presentation()?.shadowPath ?? $0.shadowPath },
-            to: { _ in path }
-          )
+          if layer.shadowPath != path {
+            layer.animate(
+              keyPath: "shadowPath",
+              timing: animationTiming,
+              from: { $0.presentation()?.shadowPath ?? $0.shadowPath },
+              to: { _ in path }
+            )
+          }
         } else {
-          layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
-            layer.shadowColor = color
-            layer.shadowOpacity = opacity
-            layer.shadowRadius = radius
-            layer.shadowOffset = offset
-            layer.shadowPath = path?(item)
+          layer.retarget(keyPath: "shadowColor", to: color)
+          layer.retarget(keyPath: "shadowOpacity", to: opacity)
+          layer.retarget(keyPath: "shadowRadius", to: radius)
+          layer.retarget(keyPath: "shadowOffset", to: offset)
+          if let path = path?(item) {
+            layer.retarget(keyPath: "shadowPath", to: path)
+          } else {
+            // without a path, Core Animation derives the shadow from the layer's content, so there is no path to continue toward
+            layer.disableActions(for: "shadowPath") {
+              layer.shadowPath = nil
+            }
           }
         }
       },

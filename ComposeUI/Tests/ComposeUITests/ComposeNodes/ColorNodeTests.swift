@@ -108,16 +108,13 @@ class ColorNodeTests: XCTestCase {
             expect(layer.animation(forKey: "backgroundColor")) == nil
           }
 
-          // with animations
+          // with animations, the color unchanged
           do {
             let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all)
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.backgroundColor) == Color.red.cgColor
-
-            let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
-            expect(animation.duration) == Animations.defaultAnimationDuration
-            expect(animation.toValue as! CGColor) == Color.red.cgColor // swiftlint:disable:this force_cast
+            expect(layer.animation(forKey: "backgroundColor")) == nil
           }
         }
 
@@ -136,16 +133,13 @@ class ColorNodeTests: XCTestCase {
             expect(layer.animation(forKey: "backgroundColor")) == nil
           }
 
-          // with animations
+          // with animations, the color unchanged
           do {
             let context = RenderableUpdateContext(updateType: .refresh, oldFrame: .zero, newFrame: .zero, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: .easeInEaseOut(), contentView: contentView, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.all)
             item.update(renderable, context)
             let layer = renderable.layer
             expect(layer.backgroundColor) == Color.blue.cgColor
-
-            let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
-            expect(animation.duration) == Animations.defaultAnimationDuration
-            expect(animation.toValue as! CGColor) == Color.blue.cgColor // swiftlint:disable:this force_cast
+            expect(layer.animation(forKey: "backgroundColor")) == nil
           }
         }
       }
@@ -254,6 +248,47 @@ class ColorNodeTests: XCTestCase {
     expect(retargetedAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     // a Core Foundation type can't be checked at runtime, so the cast is forced
     expect(retargetedAnimation.toValue as! CGColor) == Color.red.cgColor // swiftlint:disable:this force_cast
+  }
+
+  func test_update_withAnimation_animatesOnlyAChangedColor() throws {
+    // given: a themed color node rendered in the light theme without animation
+    var node = ColorNode(ThemedColor(light: .red, dark: .blue))
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let item = try node.renderableItems(in: frame).first.unwrap()
+
+    let contentView = ComposeView()
+    contentView.overrideTheme = .light
+    let renderable = item.make(RenderableMakeContext(initialFrame: frame, contentView: contentView))
+    let layer = renderable.layer
+
+    func update(animationTiming: AnimationTiming?) {
+      let animationDecision = animationTiming == nil ? ComposeView.AnimationDecision.disabled : ComposeView.AnimationDecision.all
+      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: animationDecision))
+    }
+    update(animationTiming: nil)
+
+    // when: the node is refreshed with animation and the color unchanged
+    update(animationTiming: .linear(duration: 10))
+
+    // then: nothing animates
+    expect(layer.animationKeys()) == nil
+
+    // when: the node is refreshed with animation in the dark theme
+    contentView.overrideTheme = .dark
+    update(animationTiming: .linear(duration: 10))
+
+    // then: the color animates to the dark theme's on the timing
+    let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
+    expect(animation.duration) == 10
+    expect(animation.toValue as! CGColor) == Color.blue.cgColor // swiftlint:disable:this force_cast
+
+    // when: the node is refreshed with animation again while the color animates, the color unchanged
+    update(animationTiming: .linear(duration: 2))
+
+    // then: the in-flight animation is kept instead of being replaced and restarting its easing
+    expect(layer.animationKeys()) == ["backgroundColor"]
+    expect(layer.animation(forKey: "backgroundColor")) === animation
   }
 
   func test_boundsChange_keepsColor_withUnchangedItemFrame() throws {
