@@ -165,13 +165,14 @@ class AnimationTimingTests: XCTestCase {
       Assert.resetTestAssertionFailureHandler()
     }
 
-    for speed in [0, -1, CGFloat.nan] {
-      // when: creating a timing with a speed that never moves the animation forward
+    for speed in [0, -1, CGFloat.nan, 1e-50] {
+      // when: creating a timing with a speed that never moves the animation forward, including one too small for Core
+      // Animation's `Float` speed, which rounds it to 0
       assertionMessages = []
       let timing = AnimationTiming(timing: .timingFunction(1), speed: speed)
 
       // then: it asserts and falls back to a speed of 1
-      expect(assertionMessages) == ["the speed must be positive, got \(speed)"]
+      expect(assertionMessages) == ["the speed must be positive as a Float, got \(speed)"]
       expect(timing.speed) == 1
     }
   }
@@ -250,19 +251,23 @@ class AnimationTimingTests: XCTestCase {
     }
     let undampedSpring = SpringDescriptor(dampingRatio: 0, response: 0.5, initialVelocity: 0)
 
-    // when: creating timings that snap, have a delay that is ignored, run at an instant speed, or never settle
+    let slowestSpeed = CGFloat(Float.leastNonzeroMagnitude)
+
+    // when: creating timings that snap, have a delay that is ignored, run at an instant speed or the slowest speed Core
+    // Animation can store, or never settle
     let timings = [
       AnimationTiming(timing: .timingFunction(0)),
       AnimationTiming(timing: .timingFunction(-.infinity)),
       AnimationTiming(timing: .timingFunction(1), delay: -.infinity),
       AnimationTiming(timing: .timingFunction(1), speed: .infinity),
+      AnimationTiming(timing: .timingFunction(1), speed: slowestSpeed),
       AnimationTiming(timing: .spring(undampedSpring, duration: nil)),
     ]
 
     // then: they are kept without asserting
     expect(assertionMessages) == []
-    expect(timings.map(\.timing)) == [.timingFunction(0), .timingFunction(-.infinity), .timingFunction(1), .timingFunction(1), .spring(undampedSpring, duration: nil)]
-    expect(timings.map(\.delay)) == [0, 0, -.infinity, 0, 0]
-    expect(timings.map(\.speed)) == [1, 1, 1, .infinity, 1]
+    expect(timings.map(\.timing)) == [.timingFunction(0), .timingFunction(-.infinity), .timingFunction(1), .timingFunction(1), .timingFunction(1), .spring(undampedSpring, duration: nil)]
+    expect(timings.map(\.delay)) == [0, 0, -.infinity, 0, 0, 0]
+    expect(timings.map(\.speed)) == [1, 1, 1, .infinity, slowestSpeed, 1]
   }
 }
