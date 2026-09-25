@@ -336,19 +336,22 @@ class PathChangesTests: XCTestCase {
   // MARK: - Landing Factor
 
   func test_landingFactor() {
-    // given: a linear change, an eased change, and a spring change cut short by a duration of 0.1s, before it settles
+    // given: a linear change, an eased change, a spring change cut short by a duration of 0.1s, before it settles, and a
+    // spring change of an infinite duration
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 5), timing: .linear(duration: 1), at: 100)
     changes.record(from: rect(inset: 5), to: rect(inset: 10), timing: .easeInEaseOut(duration: 1), at: 100)
     changes.record(from: rect(inset: 10), to: rect(inset: 15), timing: .spring(dampingRatio: 1, response: 0.5, duration: 0.1), at: 100)
-    expect(changes.changes.count) == 3
+    changes.record(from: rect(inset: 15), to: rect(inset: 20), timing: .spring(dampingRatio: 0.5, response: 0.5, duration: .infinity), at: 100)
+    expect(changes.changes.count) == 4
 
-    // then: the curves that reach their end land without a jump, and the spring jumps from what its curve leaves at the
-    // end of its duration
+    // then: the curves that reach their end land without a jump, the cut-short spring jumps from what its curve leaves
+    // at the end of its duration, and the spring of an infinite duration never lands, so it has no jump
     expect(changes.changes[0].landingFactor) == 0
     expect(changes.changes[1].landingFactor) == 0
     expect(changes.changes[2].landingFactor) == CGFloat(1 - changes.changes[2].curve.progress(forElapsedTime: 0.1))
     expect(changes.changes[2].landingFactor) > 0.5
+    expect(changes.changes[3].landingFactor) == 0
   }
 
   // MARK: - Keyframes
@@ -589,6 +592,21 @@ class PathChangesTests: XCTestCase {
     expect(keyframes.duration) == 0.1
     expect(Array(times.suffix(2))) == [0.1, 0.1]
     expect(keyframes.paths[keyframes.paths.count - 2].maxPointDistance(to: rect(inset: 20 - 10 * landingFactor))) < 1e-9
+    expect(keyframes.paths.last) === path
+  }
+
+  func test_keyframes_springOfInfiniteDuration_addsNoJump() {
+    // given: a linear change over two seconds, and a spring change of an infinite duration, which never lands
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .spring(dampingRatio: 0.5, response: 0.5, duration: .infinity), at: 100)
+    let path = rect(inset: 20)
+
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
+
+    // then: the spring gets no keyframe before a jump at its infinite landing time, which would trap, so the keyframes
+    // still end with the path itself
     expect(keyframes.paths.last) === path
   }
 
