@@ -161,7 +161,7 @@ public struct AnimationTiming: Hashable {
   /// Creates an animation timing.
   ///
   /// Invalid values assert in debug builds and fall back:
-  /// - A speed of 0 or less, or NaN, becomes 1.
+  /// - A speed of 0 or less, or NaN, becomes 1. Core Animation stores the speed as a `Float`, so a speed too small for it counts as 0.
   /// - An infinite or NaN delay becomes 0.
   /// - An infinite or NaN duration becomes `Animations.defaultAnimationDuration`, or `nil` for a spring, so the spring descriptor determines it.
   ///
@@ -194,10 +194,10 @@ public struct AnimationTiming: Hashable {
       self.delay = delay
     }
 
-    if speed > 0 {
+    if Float(speed) > 0 {
       self.speed = speed
     } else {
-      ComposeUI.assertFailure("the speed must be positive, got \(speed)")
+      ComposeUI.assertFailure("the speed must be positive as a Float, got \(speed)")
       self.speed = 1
     }
   }
