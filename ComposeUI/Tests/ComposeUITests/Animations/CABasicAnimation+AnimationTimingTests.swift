@@ -67,16 +67,22 @@ class CABasicAnimation_AnimationTimingTests: XCTestCase {
   }
 
   func test_makeAnimation_zeroDuration_snaps() {
-    // when: making animations of a timing function and of a spring with a zero duration
-    let animation = CABasicAnimation.makeAnimation(.linear(duration: 0))
-    let springAnimation = CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(SpringDescriptor(dampingRatio: 1, response: 0.4), duration: 0)))
+    // when: making animations of a timing function and of a spring with a zero duration, at normal and at a slow speed
+    let spring = AnimationTiming.Timing.spring(SpringDescriptor(dampingRatio: 1, response: 0.4), duration: 0)
+    let animations = [
+      CABasicAnimation.makeAnimation(.linear(duration: 0)),
+      CABasicAnimation.makeAnimation(.linear(duration: 0, speed: 0.01)),
+      CABasicAnimation.makeAnimation(AnimationTiming(timing: spring)),
+      CABasicAnimation.makeAnimation(AnimationTiming(timing: spring, speed: 0.01)),
+    ]
 
-    // then: each lasts less than a frame, so it lands at once, as Core Animation would run a zero duration for its
-    // default duration instead
-    for animation in [animation, springAnimation] {
+    // then: each lasts less than a frame at normal speed, so it lands at once, as Core Animation would run a zero
+    // duration for its default duration instead, and a zero duration has no timeline for the speed to scale
+    for animation in animations {
       expect(animation.duration) > 0
       expect(animation.duration) < 1.0 / 60
+      expect(animation.speed) == 1
     }
-    expect(springAnimation is CASpringAnimation) == true
+    expect(animations[2] is CASpringAnimation) == true
   }
 }

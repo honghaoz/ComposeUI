@@ -438,21 +438,21 @@ class PathChangesTests: XCTestCase {
     expect(keyframes.paths[beginIndex + 1].maxPointDistance(to: rect(inset: 20 - 10 * (1 - times[beginIndex + 1] / 2)))) < 1e-9
   }
 
-  func test_keyframes_fastSnap_landsAtItsSpeed() throws {
-    // given: a linear change over two seconds, and a snap at double speed after a delay
+  func test_keyframes_slowSnap_stillLandsAtOnce() throws {
+    // given: a linear change over two seconds, and a snap at a hundredth of the speed after a delay
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
-    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 0, delay: 0.508, speed: 2), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 0, delay: 0.508, speed: 0.01), at: 100)
     let snapDuration = changes.changes[1].curve.duration
     let path = rect(inset: 20)
 
     // when: sampling the keyframes
     let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
 
-    // then: the snap lands half its duration after it begins
+    // then: the snap lands a snap's duration after it begins, as a zero duration has no timeline for the speed to scale
     let times = try keyframes.keyTimes.unwrap().map { $0.doubleValue * keyframes.duration }
     let beginIndex = try times.firstIndex { abs($0 - 0.508) < 1e-9 }.unwrap()
-    expect(times[beginIndex + 1] - times[beginIndex]).to(beApproximatelyEqual(to: snapDuration / 2, within: 1e-9))
+    expect(times[beginIndex + 1] - times[beginIndex]).to(beApproximatelyEqual(to: snapDuration, within: 1e-9))
   }
 
   func test_keyframes_delayedChange_getsKeyframesWhereItBeginsAndLands() throws {
