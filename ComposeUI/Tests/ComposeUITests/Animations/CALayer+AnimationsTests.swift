@@ -629,25 +629,38 @@ class CALayer_AnimationsTests: XCTestCase {
     let containerView = testWindow.contentView()
 
     #if os(macOS)
-    // given: a layer-backed view
+    // given: a layer-backed view with a child view
     do {
       let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
       view.wantsLayer = true
       containerView.addSubview(view)
+      let childView = View(frame: CGRect(x: 30, y: 30, width: 10, height: 10))
+      view.addSubview(childView)
       let layer = view.layer()
       layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
       view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
 
-      // when: setting the bounds key path value
-      layer.setKeyPathValue("bounds", CGRect(x: 0, y: 0, width: 150, height: 80))
+      // when: setting the bounds key path value with a new origin and size, and committing
+      layer.setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
+      CATransaction.flush()
 
-      // then: the layer bounds and frame are updated and the view follows
-      expect(layer.bounds) == CGRect(x: 0, y: 0, width: 150, height: 80)
+      // then: the layer bounds and frame are updated, the view follows, and the child shows shifted by the bounds origin
+      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
       expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
       expect(view.frame) == layer.frame
+      expect(view.bounds) == layer.bounds
+      expect(try layer.convert(childView.layer().frame, to: layer.superlayer.unwrap())) == CGRect(x: 120, y: 210, width: 10, height: 10)
+
+      // when: moving the view
+      view.frame.origin = CGPoint(x: 110, y: 200)
+      CATransaction.flush()
+
+      // then: the bounds are kept
+      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
+      expect(view.bounds) == layer.bounds
     }
 
-    // given: a layer-hosted view
+    // given: a layer-hosted view with a child view
     do {
       let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
       view.wantsLayer = true
@@ -655,37 +668,88 @@ class CALayer_AnimationsTests: XCTestCase {
       let layer = CALayer()
       view.layer = layer
       layer.delegate = view as? CALayerDelegate
+      let childView = View(frame: CGRect(x: 30, y: 30, width: 10, height: 10))
+      view.addSubview(childView)
       layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
       view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
 
-      // when: setting the bounds key path value
-      layer.setKeyPathValue("bounds", CGRect(x: 0, y: 0, width: 150, height: 80))
+      // when: setting the bounds key path value with a new origin and size, and committing
+      layer.setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
+      CATransaction.flush()
 
-      // then: the layer bounds and frame are updated and the view follows
-      expect(layer.bounds) == CGRect(x: 0, y: 0, width: 150, height: 80)
+      // then: the layer bounds and frame are updated, the view follows, and the child shows shifted by the bounds origin
+      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
       expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
       expect(view.frame) == layer.frame
+      expect(view.bounds) == layer.bounds
+      expect(try layer.convert(childView.layer().frame, to: layer.superlayer.unwrap())) == CGRect(x: 120, y: 210, width: 10, height: 10)
+
+      // when: moving the view
+      view.frame.origin = CGPoint(x: 110, y: 200)
+      CATransaction.flush()
+
+      // then: the bounds are kept
+      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
+      expect(view.bounds) == layer.bounds
+    }
+
+    // given: a flipped layer-backed view with a child view
+    do {
+      let view = BaseView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+      view.wantsLayer = true
+      containerView.addSubview(view)
+      let childView = View(frame: CGRect(x: 30, y: 30, width: 10, height: 10))
+      view.addSubview(childView)
+      let layer = view.layer()
+      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
+      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
+
+      // when: setting the bounds key path value with a new origin and size, and committing
+      layer.setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
+      CATransaction.flush()
+
+      // then: the layer bounds and frame are updated, the view follows, and the child shows shifted by the bounds origin.
+      // the flipped view measures y down from its top edge at 280, so the child spans 10 to 20 points below it
+      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
+      expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
+      expect(view.frame) == layer.frame
+      expect(view.bounds) == layer.bounds
+      expect(try layer.convert(childView.layer().frame, to: layer.superlayer.unwrap())) == CGRect(x: 120, y: 260, width: 10, height: 10)
+
+      // when: moving the view
+      view.frame.origin = CGPoint(x: 110, y: 200)
+      CATransaction.flush()
+
+      // then: the bounds are kept
+      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
+      expect(view.bounds) == layer.bounds
     }
     #endif
 
     #if canImport(UIKit)
-    // given: a view in the container view
+    // given: a view with a child view in the container view
     let view = UIView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
     containerView.addSubview(view)
+    let childView = UIView(frame: CGRect(x: 30, y: 30, width: 10, height: 10))
+    view.addSubview(childView)
     let layer = view.layer
 
-    // when: setting the bounds key path value
-    layer.setKeyPathValue("bounds", CGRect(x: 0, y: 0, width: 150, height: 80))
+    // when: setting the bounds key path value with a new origin and size, and committing
+    layer.setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
+    CATransaction.flush()
 
-    // then: the layer bounds and frame are updated around the centered anchor point and the view follows
-    expect(layer.bounds) == CGRect(x: 0, y: 0, width: 150, height: 80)
+    // then: the layer bounds and frame are updated around the centered anchor point, the view follows, and the child
+    // shows shifted by the bounds origin
+    expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
     expect(view.frame) == CGRect(x: 75, y: 185, width: 150, height: 80)
     expect(view.frame) == layer.frame
+    expect(view.bounds) == layer.bounds
+    expect(layer.convert(childView.layer.frame, to: containerView.layer)) == CGRect(x: 95, y: 195, width: 10, height: 10)
     #endif
   }
 
   func test_setKeyPathValue_geometryComponent() throws {
-    // given: three views in a test window
+    // given: four views in a test window
     let testWindow = TestWindow()
     let containerView = testWindow.contentView()
     func makeView() -> View {
@@ -699,16 +763,21 @@ class CALayer_AnimationsTests: XCTestCase {
     let movedView = makeView()
     let resizedView = makeView()
     let anchoredView = makeView()
+    let shiftedView = makeView()
 
-    // when: setting a component of the position on one, of the bounds size on another, and of the anchor point on the last
+    // when: setting one component per view, of the position, the bounds size, the anchor point and the bounds origin,
+    // and committing
     movedView.layer().setKeyPathValue("position.x", CGFloat(180))
     resizedView.layer().setKeyPathValue("bounds.size.width", CGFloat(120))
     anchoredView.layer().setKeyPathValue("anchorPoint.y", CGFloat(1))
+    shiftedView.layer().setKeyPathValue("bounds.origin.x", CGFloat(10))
+    CATransaction.flush()
 
-    // then: the components are set, the layer frames follow, and so do the view frames. the anchor point is the origin
-    // on macOS and the center on iOS
+    // then: the components are set, the layer frames follow, and so do the view frames and bounds. the anchor point is
+    // the origin on macOS and the center on iOS
     expect(movedView.layer().position.x) == 180
     expect(resizedView.layer().bounds.size) == CGSize(width: 120, height: 50)
+    expect(shiftedView.layer().bounds.origin) == CGPoint(x: 10, y: 0)
     #if os(macOS)
     expect(movedView.layer().frame) == CGRect(x: 180, y: 200, width: 100, height: 50)
     expect(resizedView.layer().frame) == CGRect(x: 100, y: 200, width: 120, height: 50)
@@ -718,9 +787,12 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(resizedView.layer().frame) == CGRect(x: 90, y: 200, width: 120, height: 50)
     expect(anchoredView.layer().frame) == CGRect(x: 100, y: 175, width: 100, height: 50)
     #endif
+    expect(shiftedView.layer().frame) == CGRect(x: 100, y: 200, width: 100, height: 50)
     expect(movedView.frame) == movedView.layer().frame
     expect(resizedView.frame) == resizedView.layer().frame
     expect(anchoredView.frame) == anchoredView.layer().frame
+    expect(shiftedView.frame) == shiftedView.layer().frame
+    expect(shiftedView.bounds) == shiftedView.layer().bounds
   }
 
   func test_setKeyPathValue_opacity() throws {
