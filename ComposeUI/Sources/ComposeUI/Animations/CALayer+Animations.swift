@@ -245,14 +245,30 @@ public extension CALayer {
     // an NSView's frame doesn't follow its layer's geometry: after `layer.position = CGPoint(200, 320)`, `layer.frame`
     // has moved but `backedView.frame` keeps the old origin, while UIKit keeps the two in sync. AppKit also rebuilds
     // the layer's bounds from the view's, which drops a bounds origin set only on the layer. so the view's frame and
-    // bounds origin are set from the layer's after the change
+    // bounds origin are set from the layer's after the change.
+    // the frame comes from the position, bounds size and anchor point, since `frame` is undefined under a transform.
+    // AppKit resets the transform and the anchor point whenever the view's geometry changes, so the transform is put
+    // back. the anchor point isn't: AppKit would reset it on the view's next geometry change anyway, so transforms
+    // pivot with a translation from the actual anchor point instead, see `RenderableTransition.scale`
     if Self.isViewGeometryKeyPath(keyPath), let backedView {
       CATransaction.disableAnimations {
+        let modelTransform = transform
+
         setValue(value, forKeyPath: keyPath)
+
+        let size = bounds.size
         let boundsOrigin = bounds.origin
-        backedView.frame = frame
+        backedView.frame = CGRect(
+          x: position.x.addingProduct(-anchorPoint.x, size.width),
+          y: position.y.addingProduct(-anchorPoint.y, size.height),
+          width: size.width,
+          height: size.height
+        )
         if backedView.bounds.origin != boundsOrigin {
           backedView.setBoundsOrigin(boundsOrigin)
+        }
+        if !CATransform3DEqualToTransform(transform, modelTransform) {
+          transform = modelTransform
         }
       }
       return

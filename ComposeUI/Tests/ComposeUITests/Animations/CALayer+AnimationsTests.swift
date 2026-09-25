@@ -795,6 +795,56 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(shiftedView.bounds) == shiftedView.layer().bounds
   }
 
+  func test_setKeyPathValue_geometry_keepsTransform() throws {
+    // given: three views in a test window, rotated by 30 degrees after their first commit
+    let testWindow = TestWindow()
+    let containerView = testWindow.contentView()
+    func makeView() -> View {
+      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+      #if os(macOS)
+      view.wantsLayer = true
+      #endif
+      containerView.addSubview(view)
+      return view
+    }
+    let movedView = makeView()
+    let resizedView = makeView()
+    let shiftedView = makeView()
+    CATransaction.flush()
+    let rotation = CATransform3DMakeRotation(.pi / 6, 0, 0, 1)
+    CATransaction.disableAnimations {
+      for view in [movedView, resizedView, shiftedView] {
+        view.layer().transform = rotation
+      }
+    }
+    CATransaction.flush()
+
+    // when: setting a component of the position on one, the whole bounds on another and a component of the bounds
+    // origin on the last, and committing
+    movedView.layer().setKeyPathValue("position.x", CGFloat(180))
+    resizedView.layer().setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
+    shiftedView.layer().setKeyPathValue("bounds.origin.x", CGFloat(10))
+    CATransaction.flush()
+
+    // then: the layers take the new geometry and keep their rotation. on macOS, the view frames are the frames without
+    // the rotation, and the view bounds match the layers'
+    expect(movedView.layer().position.x) == 180
+    expect(movedView.layer().bounds) == CGRect(x: 0, y: 0, width: 100, height: 50)
+    expect(resizedView.layer().bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
+    expect(shiftedView.layer().bounds) == CGRect(x: 10, y: 0, width: 100, height: 50)
+    for view in [movedView, resizedView, shiftedView] {
+      expect(CATransform3DEqualToTransform(view.layer().transform, rotation)) == true
+    }
+    #if os(macOS)
+    expect(movedView.frame) == CGRect(x: 180, y: 200, width: 100, height: 50)
+    expect(resizedView.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
+    expect(shiftedView.frame) == CGRect(x: 100, y: 200, width: 100, height: 50)
+    for view in [movedView, resizedView, shiftedView] {
+      expect(view.bounds) == view.layer().bounds
+    }
+    #endif
+  }
+
   func test_setKeyPathValue_opacity() throws {
     // given: a test window with a container view
     let testWindow = TestWindow()
