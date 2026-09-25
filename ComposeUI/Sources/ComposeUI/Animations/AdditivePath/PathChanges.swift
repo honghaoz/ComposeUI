@@ -55,7 +55,7 @@ struct PathChanges {
     let speed: TimeInterval
 
     /// The time the change begins, in the layer's time space, or zero until the animation that shows it is committed,
-    /// see `update(beginTime:at:)`.
+    /// see `update(beginTime:sampledBeginTime:at:)`.
     var beginTime: TimeInterval
 
     /// The time the change has left, see `CAAnimation.remainingTime(at:)`.
@@ -69,7 +69,7 @@ struct PathChanges {
     /// The part of the offset left at a time.
     ///
     /// - Parameters:
-    ///   - time: The time from now, see `PathChanges.sampledPaths(adding:points:at:)`.
+    ///   - time: The time from now, see `PathChanges.keyframes(adding:points:at:)`.
     ///   - now: The layer's current time.
     /// - Returns: One until the change begins, zero once it has landed.
     func remainingFactor(at time: TimeInterval, now: TimeInterval) -> CGFloat {
@@ -93,9 +93,26 @@ struct PathChanges {
     changes.isEmpty
   }
 
-  /// Whether a change has a begin time. The others begin when the animation that shows them is committed.
-  var hasResolvedBeginTime: Bool {
-    changes.contains { $0.beginTime != 0 }
+  /// Whether the keyframes of the changes begin at the next commit, instead of now.
+  ///
+  /// A change without a delay begins at the commit, as an animation without a delay does, while a change with a delay
+  /// begins its delay after it was recorded. The keyframes have one begin time, so they begin at the commit when a
+  /// change begins there and no change moves yet, and a transaction held open delays the other changes by the hold.
+  /// Once a change moves, the keyframes begin now to keep it where it is shown, and a change that begins at the commit
+  /// begins now with them.
+  ///
+  /// - Parameter now: The layer's current time.
+  /// - Returns: `true` if a change begins at the commit and no change moves yet.
+  func beginsAtCommit(at now: TimeInterval) -> Bool {
+    var hasChangeBeginningAtCommit = false
+    for change in changes {
+      if change.beginTime == 0 {
+        hasChangeBeginningAtCommit = true
+      } else if change.beginTime <= now {
+        return false
+      }
+    }
+    return hasChangeBeginningAtCommit
   }
 
   /// The time the longest change has left.
@@ -116,15 +133,26 @@ struct PathChanges {
 
   /// Prepares the changes for an update of the path.
   ///
-  /// The changes recorded before the last commit take the begin time Core Animation gave the animation that shows them,
-  /// and the changes that have landed are removed.
+  /// Once the animation that shows the changes is committed, the changes that begin at the commit take the begin time
+  /// Core Animation gave the animation, and the other changes move by as much as that begin time differs from the one
+  /// the animation was sampled for, so every change stays where the animation showed it. The changes that have landed
+  /// are removed.
   ///
   /// - Parameters:
   ///   - beginTime: The begin time of the animation that shows the changes, zero until it is committed.
+  ///   - sampledBeginTime: The begin time the animation was sampled for: the time it was made at when it begins at the
+  ///     commit, otherwise its begin time.
   ///   - now: The layer's current time.
-  mutating func update(beginTime: TimeInterval, at now: TimeInterval) {
-    for index in changes.indices where changes[index].beginTime == 0 {
-      changes[index].beginTime = beginTime
+  mutating func update(beginTime: TimeInterval, sampledBeginTime: TimeInterval, at now: TimeInterval) {
+    if beginTime != 0 {
+      let shift = beginTime - sampledBeginTime
+      for index in changes.indices {
+        if changes[index].beginTime == 0 {
+          changes[index].beginTime = beginTime
+        } else {
+          changes[index].beginTime += shift
+        }
+      }
     }
     changes.removeAll { $0.remainingTime(at: now) == nil }
   }
@@ -169,19 +197,37 @@ struct PathChanges {
     )
   }
 
-  /// A path plus the part of each change's offset that is left, at times spread evenly from zero until every change has
-  /// landed, for keyframes.
+  /// The keyframes of a path with the changes in flight.
+  struct Keyframes {
+
+    /// The path plus the part of each change's offset that is left, at the keyframes' times.
+    let paths: [CGPath]
+
+    /// The keyframes' times as fractions of the duration, or `nil` when the keyframes are spread evenly.
+    let keyTimes: [NSNumber]?
+
+    /// The keyframes' duration, see `remainingTime(at:)`.
+    let duration: TimeInterval
+  }
+
+  /// The keyframes of a path plus the part of each change's offset that is left, from zero until every change has landed.
+  ///
+  /// The keyframes are spread evenly at the sampling rate. A change too short for the spacing, as a snap is, would show
+  /// spread across the spacing, so the times it begins and lands get keyframes of their own, which hold it until it
+  /// begins and land it when it lands.
   ///
   /// - Parameters:
   ///   - path: The path.
   ///   - points: The points of the path, with the segments of the changes, see `hasSameSegments(as:)`.
   ///   - now: The layer's current time.
-  /// - Returns: A path per time, from now, or from the next commit when no change has a begin time, see
-  ///   `hasResolvedBeginTime`. The path itself where every change has landed.
-  func sampledPaths(adding path: CGPath, points: PathPoints, at now: TimeInterval) -> [CGPath] {
+  /// - Returns: The keyframes, from now, or from the next commit, see `beginsAtCommit(at:)`. A keyframe where every
+  ///   change has landed is the path itself.
+  func keyframes(adding path: CGPath, points: PathPoints, at now: TimeInterval) -> Keyframes {
     let duration = remainingTime(at: now)
     let sampledDuration = min(Constants.maxSampledDuration, duration)
-    let sampleCount = max(2, Int((sampledDuration * Constants.samplesPerSecond).rounded(.up)) + 1)
+    let evenSampleCount = max(2, Int((sampledDuration * Constants.samplesPerSecond).rounded(.up)) + 1)
+    let times = sampleTimes(evenSampleCount: evenSampleCount, duration: duration, at: now)
+    let sampleCount = times?.count ?? evenSampleCount
 
     // every sample reuses the factors and the sum, so sampling allocates only the paths
     var factors = [CGFloat](repeating: 0, count: changes.count)
@@ -190,7 +236,7 @@ struct PathChanges {
     var paths: [CGPath] = []
     paths.reserveCapacity(sampleCount)
     for sampleIndex in 0 ..< sampleCount {
-      let time = duration * (TimeInterval(sampleIndex) / TimeInterval(sampleCount - 1))
+      let time = times?[sampleIndex] ?? duration * (TimeInterval(sampleIndex) / TimeInterval(sampleCount - 1))
 
       var hasOffset = false
       for changeIndex in changes.indices {
@@ -218,7 +264,40 @@ struct PathChanges {
       }
       paths.append(PathPoints.path(kinds: points.kinds, points: sum))
     }
-    return paths
+    return Keyframes(paths: paths, keyTimes: times?.map { NSNumber(value: $0 / duration) }, duration: duration)
+  }
+
+  /// The times of the keyframes when a change is too short for evenly spread keyframes: the evenly spread times, and
+  /// the times the short changes begin and land.
+  ///
+  /// - Parameters:
+  ///   - evenSampleCount: The number of evenly spread keyframes.
+  ///   - duration: The keyframes' duration.
+  ///   - now: The layer's current time.
+  /// - Returns: The times from now, in order, or `nil` when no change is too short.
+  private func sampleTimes(evenSampleCount: Int, duration: TimeInterval, at now: TimeInterval) -> [TimeInterval]? {
+    let spacing = duration / TimeInterval(evenSampleCount - 1)
+    var boundaries: [TimeInterval] = []
+    for change in changes {
+      guard let landing = change.remainingTime(at: now) else {
+        continue
+      }
+
+      // a change shorter than two spacings has one evenly spread keyframe within it at most
+      let begin = change.beginTime == 0 ? 0 : change.beginTime - now
+      guard landing - begin < 2 * spacing else {
+        continue
+      }
+      for time in [begin, landing] where time > 0 && time < duration {
+        boundaries.append(time)
+      }
+    }
+    guard !boundaries.isEmpty else {
+      return nil
+    }
+
+    let evenTimes = (0 ..< evenSampleCount).map { duration * (TimeInterval($0) / TimeInterval(evenSampleCount - 1)) }
+    return (evenTimes + boundaries).sorted()
   }
 
   // MARK: - Constants

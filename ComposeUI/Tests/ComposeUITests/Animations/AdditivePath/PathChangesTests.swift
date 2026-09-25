@@ -150,16 +150,29 @@ class PathChangesTests: XCTestCase {
     changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 2, delay: 1), at: 100)
 
     // when: updating before the animation that shows the changes is committed
-    changes.update(beginTime: 0, at: 100)
+    changes.update(beginTime: 0, sampledBeginTime: 100, at: 100)
 
     // then: the first change still begins at the next commit
     expect(changes.changes.map(\.beginTime)) == [0, 101]
 
-    // when: updating after the commit gave the animation a begin time
-    changes.update(beginTime: 100.02, at: 100.5)
+    // when: updating after the commit gave the animation the begin time it was sampled for
+    changes.update(beginTime: 100, sampledBeginTime: 100, at: 100.5)
 
     // then: the first change begins when the animation began, and the delayed change keeps its own begin time
-    expect(changes.changes.map(\.beginTime)) == [100.02, 101]
+    expect(changes.changes.map(\.beginTime)) == [100, 101]
+  }
+
+  func test_update_laterCommit_movesTheOtherChanges() {
+    // given: a change recorded before the commit, and a delayed change with its own begin time
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 2, delay: 1), at: 100)
+
+    // when: updating after the animation that shows them, sampled for a commit at 100, was committed at 100.3
+    changes.update(beginTime: 100.3, sampledBeginTime: 100, at: 100.5)
+
+    // then: the first change begins at the commit, and the delayed change moves with the animation, where it showed it
+    expect(changes.changes.map(\.beginTime)) == [100.3, 101.3]
   }
 
   func test_update_removesLandedChanges() {
@@ -169,7 +182,7 @@ class PathChangesTests: XCTestCase {
     changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 3), at: 100)
 
     // when: updating two seconds after the animation that shows them began
-    changes.update(beginTime: 98, at: 100)
+    changes.update(beginTime: 98, sampledBeginTime: 98, at: 100)
 
     // then: the change of one second has landed and is removed, the other is kept
     expect(changes.changes.map(\.curve.duration)) == [3]
@@ -198,19 +211,27 @@ class PathChangesTests: XCTestCase {
     expect(changes.remainingTime(at: 100)) == 2.5
   }
 
-  func test_hasResolvedBeginTime() {
-    // given: a change beginning at the next commit
+  func test_beginsAtCommit() {
+    // given: no changes in flight
     var changes = PathChanges()
-    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 100)
 
-    // then: no change has a begin time
-    expect(changes.hasResolvedBeginTime) == false
+    // then: no change begins at the commit
+    expect(changes.beginsAtCommit(at: 100)) == false
 
-    // when: a delayed change
-    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 1, delay: 1), at: 100)
+    // when: a change with a delay of a second
+    changes.record(from: rect(inset: 0), to: rect(inset: 5), timing: .linear(duration: 1, delay: 1), at: 100)
 
-    // then: a change has a begin time
-    expect(changes.hasResolvedBeginTime) == true
+    // then: it begins after its delay, so the keyframes begin now
+    expect(changes.beginsAtCommit(at: 100)) == false
+
+    // when: a change without a delay
+    changes.record(from: rect(inset: 5), to: rect(inset: 10), timing: .linear(duration: 1), at: 100)
+
+    // then: the keyframes begin at the commit with it, as no change moves yet
+    expect(changes.beginsAtCommit(at: 100)) == true
+
+    // then: once the delayed change moves, the keyframes begin now, to keep it where it is shown
+    expect(changes.beginsAtCommit(at: 101)) == false
   }
 
   func test_hasSameSegments() {
@@ -248,7 +269,7 @@ class PathChangesTests: XCTestCase {
     // given: a linear change over one second that began a quarter second ago
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 99.75)
-    changes.update(beginTime: 99.75, at: 100)
+    changes.update(beginTime: 99.75, sampledBeginTime: 99.75, at: 100)
     let change = try changes.changes.first.unwrap()
 
     // then: three quarters of the offset are left now, a quarter half a second later, and none once the change lands
@@ -297,96 +318,184 @@ class PathChangesTests: XCTestCase {
     expect(change.remainingFactor(at: duration, now: 100)) == 0
   }
 
-  // MARK: - Sampled Paths
+  // MARK: - Keyframes
 
-  func test_sampledPaths_samplesAtTheDisplayRate() {
+  func test_keyframes_samplesAtTheDisplayRate() {
     // given: a linear change from a rect to an inset rect over half a second, beginning at the next commit
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 0.5), at: 100)
     let path = rect(inset: 10)
 
-    // when: sampling the paths
-    let paths = changes.sampledPaths(adding: path, points: PathPoints(path), at: 100)
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
 
-    // then: the paths are spread at the display rate until the change lands, from the old path to the path itself
-    expect(paths.count) == 31 // 0.5s at 60 per second, plus the end
-    expect(paths[0].maxPointDistance(to: rect(inset: 0))) < 1e-9
-    expect(paths[15].maxPointDistance(to: rect(inset: 5))) < 1e-9
-    expect(paths[30]) === path
+    // then: the keyframes are spread evenly at the display rate until the change lands, from the old path to the path
+    // itself
+    expect(keyframes.duration) == 0.5
+    expect(keyframes.keyTimes) == nil
+    expect(keyframes.paths.count) == 31 // 0.5s at 60 per second, plus the end
+    expect(keyframes.paths[0].maxPointDistance(to: rect(inset: 0))) < 1e-9
+    expect(keyframes.paths[15].maxPointDistance(to: rect(inset: 5))) < 1e-9
+    expect(keyframes.paths[30]) === path
   }
 
-  func test_sampledPaths_begunChange_samplesFromNow() {
+  func test_keyframes_begunChange_samplesFromNow() {
     // given: a linear change over one second that began half a second ago
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 99.5)
-    changes.update(beginTime: 99.5, at: 100)
+    changes.update(beginTime: 99.5, sampledBeginTime: 99.5, at: 100)
     let path = rect(inset: 10)
 
-    // when: sampling the paths
-    let paths = changes.sampledPaths(adding: path, points: PathPoints(path), at: 100)
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
 
-    // then: the paths cover the half second left, from half of the offset
-    expect(paths.count) == 31
-    expect(paths[0].maxPointDistance(to: rect(inset: 5))) < 1e-9
-    expect(paths[30]) === path
+    // then: the keyframes cover the half second left, from half of the offset
+    expect(keyframes.paths.count) == 31
+    expect(keyframes.paths[0].maxPointDistance(to: rect(inset: 5))) < 1e-9
+    expect(keyframes.paths[30]) === path
   }
 
-  func test_sampledPaths_twoChanges_addBoth() {
+  func test_keyframes_twoChanges_addBoth() {
     // given: a change to an inset rect over one second, and a change to a more inset rect over two seconds
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 100)
     changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 2), at: 100)
     let path = rect(inset: 20)
 
-    // when: sampling the paths
-    let paths = changes.sampledPaths(adding: path, points: PathPoints(path), at: 100)
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
 
     // then: both offsets are left at the start, half of the second one after a second, once the first has landed, and
     // the path itself at the end
-    expect(paths.count) == 121
-    expect(paths[0].maxPointDistance(to: rect(inset: 0))) < 1e-9
-    expect(paths[60].maxPointDistance(to: rect(inset: 15))) < 1e-9
-    expect(paths[120]) === path
+    expect(keyframes.paths.count) == 121
+    expect(keyframes.paths[0].maxPointDistance(to: rect(inset: 0))) < 1e-9
+    expect(keyframes.paths[60].maxPointDistance(to: rect(inset: 15))) < 1e-9
+    expect(keyframes.paths[120]) === path
   }
 
-  func test_sampledPaths_longChanges_keepTheSamplingRate() {
+  func test_keyframes_longChanges_keepTheSamplingRate() {
     // given: a change of ten seconds, as a long spring has
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 10), at: 100)
     let path = rect(inset: 10)
 
-    // then: the paths are still spread at the display rate, since a long spring keeps bouncing and sparser samples
-    // would cut across its bounces
-    expect(changes.sampledPaths(adding: path, points: PathPoints(path), at: 100).count) == 601 // 10s at 60 per second, plus the end
+    // then: the keyframes are still spread at the display rate, since a long spring keeps bouncing and sparser
+    // keyframes would cut across its bounces
+    expect(changes.keyframes(adding: path, points: PathPoints(path), at: 100).paths.count) == 601 // 10s at 60 per second, plus the end
   }
 
-  func test_sampledPaths_unreasonableDuration_boundsTheSampleCount() {
+  func test_keyframes_unreasonableDuration_boundsTheSampleCount() {
     // given: a change of an absurd duration, as a tiny speed on a timing gives
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1e300), at: 100)
     let path = rect(inset: 10)
 
-    // when: sampling the paths
-    let paths = changes.sampledPaths(adding: path, points: PathPoints(path), at: 100)
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
 
-    // then: the paths are bounded to ten seconds' worth, instead of an unbounded count or a trapped conversion, and
+    // then: the keyframes are bounded to ten seconds' worth, instead of an unbounded count or a trapped conversion, and
     // still reach the path itself at the end
-    expect(paths.count) == 601
-    expect(paths.last) === path
+    expect(keyframes.paths.count) == 601
+    expect(keyframes.paths.last) === path
   }
 
-  func test_sampledPaths_noChanges_givesThePathItself() {
+  func test_keyframes_noChanges_givesThePathItself() {
     // given: no changes in flight
     let changes = PathChanges()
     let path = rect(inset: 10)
 
-    // when: sampling the paths
-    let paths = changes.sampledPaths(adding: path, points: PathPoints(path), at: 100)
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
 
     // then: the path itself starts and ends the keyframes
-    expect(paths.count) == 2
-    expect(paths[0]) === path
-    expect(paths[1]) === path
+    expect(keyframes.paths.count) == 2
+    expect(keyframes.paths[0]) === path
+    expect(keyframes.paths[1]) === path
+  }
+
+  func test_keyframes_delayedSnap_getsKeyframesWhereItBeginsAndLands() throws {
+    // given: a linear change over two seconds, and a snap after a delay that ends between two evenly spread keyframes
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 0, delay: 0.508), at: 100)
+    let snapDuration = changes.changes[1].curve.duration
+    let path = rect(inset: 20)
+
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
+
+    // then: the snap gets a keyframe where it begins, which still holds it, and one where it lands, with key times for
+    // the keyframes that aren't evenly spread
+    let times = try keyframes.keyTimes.unwrap().map { $0.doubleValue * keyframes.duration }
+    expect(keyframes.paths.count) == 123 // 2s at 60 per second, plus the end, the snap's begin and its landing
+    expect(times.count) == 123
+    let beginIndex = try times.firstIndex { abs($0 - 0.508) < 1e-9 }.unwrap()
+    expect(times[beginIndex + 1]).to(beApproximatelyEqual(to: 0.508 + snapDuration, within: 1e-9))
+    expect(keyframes.paths[beginIndex].maxPointDistance(to: rect(inset: 10 - 10 * (1 - 0.508 / 2)))) < 1e-9
+    expect(keyframes.paths[beginIndex + 1].maxPointDistance(to: rect(inset: 20 - 10 * (1 - times[beginIndex + 1] / 2)))) < 1e-9
+  }
+
+  func test_keyframes_fastSnap_landsAtItsSpeed() throws {
+    // given: a linear change over two seconds, and a snap at double speed after a delay
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 0, delay: 0.508, speed: 2), at: 100)
+    let snapDuration = changes.changes[1].curve.duration
+    let path = rect(inset: 20)
+
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
+
+    // then: the snap lands half its duration after it begins
+    let times = try keyframes.keyTimes.unwrap().map { $0.doubleValue * keyframes.duration }
+    let beginIndex = try times.firstIndex { abs($0 - 0.508) < 1e-9 }.unwrap()
+    expect(times[beginIndex + 1] - times[beginIndex]).to(beApproximatelyEqual(to: snapDuration / 2, within: 1e-9))
+  }
+
+  func test_keyframes_shortChangeWithoutDelay_getsAKeyframeWhereItLands() throws {
+    // given: a change of a hundredth of a second without a delay, and a change of a second
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 0.01), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 1), at: 100)
+    let path = rect(inset: 20)
+
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
+
+    // then: the short change begins with the keyframes, so it only gets a keyframe where it lands
+    let times = try keyframes.keyTimes.unwrap().map { $0.doubleValue * keyframes.duration }
+    expect(times.count) == 62 // 1s at 60 per second, plus the end and the short change's landing
+    expect(times.contains { abs($0 - 0.01) < 1e-9 }) == true
+  }
+
+  func test_keyframes_landedChange_addsNothing() {
+    // given: a short change that landed two seconds ago, which no update has removed yet, and a change over a second
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 0.01, delay: 1), at: 97)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 1), at: 100)
+    let path = rect(inset: 20)
+
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
+
+    // then: the landed change adds no offset and no keyframes of its own
+    expect(keyframes.keyTimes) == nil
+    expect(keyframes.paths.count) == 61
+    expect(keyframes.paths[0].maxPointDistance(to: rect(inset: 10))) < 1e-9
+  }
+
+  func test_keyframes_shortChangeAlone_isSpreadEvenly() {
+    // given: a change of a hundredth of a second, alone
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 0.01), at: 100)
+    let path = rect(inset: 10)
+
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
+
+    // then: the short change begins and lands with the keyframes, so it needs no keyframes of its own
+    expect(keyframes.duration) == 0.01
+    expect(keyframes.keyTimes) == nil
   }
 
   // MARK: - Helpers

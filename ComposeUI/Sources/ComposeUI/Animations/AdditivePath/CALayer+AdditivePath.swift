@@ -108,7 +108,7 @@ private extension CALayer {
       return PathChanges()
     }
     var changes = box.changes
-    changes.update(beginTime: animation.beginTime, at: now)
+    changes.update(beginTime: animation.beginTime, sampledBeginTime: box.sampledBeginTime, at: now)
     return changes
   }
 
@@ -144,21 +144,25 @@ private extension CALayer {
       basicAnimation.beginTime = change.beginTime
       animation = basicAnimation
     } else {
-      // the samples are measured from now once a change has begun, so the keyframes begin now too. otherwise every
-      // change begins at the next commit, and so do the keyframes. the keyframes are spread evenly, as Core Animation
-      // spreads them without key times
+      // the keyframes come with key times only when a change is too short for evenly spread keyframes, as Core Animation
+      // spreads keyframes without key times evenly
+      let keyframes = changes.keyframes(adding: path, points: points, at: now)
       let keyframeAnimation = CAKeyframeAnimation(keyPath: keyPath)
-      keyframeAnimation.values = changes.sampledPaths(adding: path, points: points, at: now)
+      keyframeAnimation.values = keyframes.paths
+      keyframeAnimation.keyTimes = keyframes.keyTimes
       keyframeAnimation.calculationMode = .linear
-      keyframeAnimation.duration = changes.remainingTime(at: now)
+      keyframeAnimation.duration = keyframes.duration
       keyframeAnimation.fillMode = .both
-      if changes.hasResolvedBeginTime {
+      if !changes.beginsAtCommit(at: now) {
         keyframeAnimation.beginTime = now
       }
       animation = keyframeAnimation
     }
 
-    animation.setValue(PathChangesBox(changes), forKey: PathChangesBox.key)
+    // an animation that begins at the commit is made as if the commit were now, so a later commit moves the changes it
+    // shows, see `PathChanges.update(beginTime:sampledBeginTime:at:)`
+    let sampledBeginTime = animation.beginTime == 0 ? now : animation.beginTime
+    animation.setValue(PathChangesBox(changes, sampledBeginTime: sampledBeginTime), forKey: PathChangesBox.key)
     add(animation, forKey: keyPath)
     setKeyPathValue(keyPath, path)
   }
@@ -208,7 +212,11 @@ private final class PathChangesBox {
   /// The changes.
   let changes: PathChanges
 
-  init(_ changes: PathChanges) {
+  /// The begin time the animation was sampled for, see `PathChanges.update(beginTime:sampledBeginTime:at:)`.
+  let sampledBeginTime: TimeInterval
+
+  init(_ changes: PathChanges, sampledBeginTime: TimeInterval) {
     self.changes = changes
+    self.sampledBeginTime = sampledBeginTime
   }
 }

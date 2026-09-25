@@ -186,6 +186,65 @@ class CALayer_AdditivePathTests: XCTestCase {
     }
   }
 
+  func test_animatePath_delayedChange_leavesTheOtherChangeOnTheCommit() throws {
+    // given: a shape layer with a rect path
+    let layer = makeLayer()
+
+    // when: in one transaction, the path changes to an inset rect over two seconds, and on to a more inset rect over
+    // two seconds after a delay of a second
+    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2, delay: 1))
+
+    // then: the keyframes begin at the commit, where the change without a delay begins, as an animation without a delay
+    // does
+    let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(animation.beginTime) == 0
+  }
+
+  func test_animatePath_heldTransaction_followsTheFrame() throws {
+    // given: a hosted shape layer with the path of its size, and a hosted layer of the same size
+    let testWindow = TestWindow()
+    let layer = makeLayer()
+    let frameLayer = CALayer()
+    frameLayer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    testWindow.layer.addSublayer(layer)
+    testWindow.layer.addSublayer(frameLayer)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    // when: in a transaction held open for 0.3s, both grow 200 wide over two seconds, and 300 wide over two seconds
+    // after a delay of a second
+    for (width, timing) in [(CGFloat(200), AnimationTiming.linear(duration: 2)), (300, .linear(duration: 2, delay: 1))] {
+      frameLayer.animateFrame(to: CGRect(x: 0, y: 0, width: width, height: 50), timing: timing)
+      layer.animatePath(keyPath: "path", to: rect(width: width), timing: timing)
+    }
+    Thread.sleep(forTimeInterval: 0.3)
+    CATransaction.flush()
+
+    // then: while only the change without a delay moves, the path keeps the frame's width, as both begin at the commit
+    for _ in 0 ..< 4 {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+      let shownWidth = try layer.presentation().unwrap().path.unwrap().boundingBoxOfPath.width
+      let frameWidth = try frameLayer.presentation().unwrap().bounds.width
+      expect(shownWidth).to(beApproximatelyEqual(to: frameWidth, within: 1))
+    }
+  }
+
+  func test_animatePath_delayedSnap_holdsUntilItsDelayEnds() throws {
+    // given: a shape layer whose rect path changes to an inset rect over two seconds
+    let layer = makeLayer()
+    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+
+    // when: the path snaps on to a more inset rect after a delay that ends between two samples
+    layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 0, delay: 0.508))
+
+    // then: right before the delay ends, the path shown is the first change's alone, and right after, the snap has
+    // landed, as the keyframes hold the snap until its delay ends
+    let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(try interpolatedPoints(of: animation, at: 0.507).path.maxPointDistance(to: rect(inset: 10 - 10 * (1 - 0.507 / 2)))) < 1e-6
+    expect(try interpolatedPoints(of: animation, at: 0.51).path.maxPointDistance(to: rect(inset: 20 - 10 * (1 - 0.51 / 2)))) < 1e-6
+  }
+
   func test_animatePath_otherSegments_setsThePathAtOnce() {
     // given: a shape layer whose rect path changes to an inset rect
     let layer = makeLayer()
@@ -468,6 +527,20 @@ class CALayer_AdditivePathTests: XCTestCase {
   /// The paths of a keyframe animation.
   private func paths(of animation: CAKeyframeAnimation) throws -> [CGPath] {
     try animation.values.unwrap().map { try path($0) }
+  }
+
+  /// The points a keyframe animation of paths shows at a time from its begin, interpolated the way Core Animation
+  /// interpolates linear keyframes: at the key times, or spread evenly without them.
+  private func interpolatedPoints(of animation: CAKeyframeAnimation, at time: TimeInterval) throws -> PathPoints {
+    let values = try paths(of: animation).map { PathPoints($0) }
+    let times = animation.keyTimes?.map { $0.doubleValue * animation.duration }
+      ?? values.indices.map { animation.duration * TimeInterval($0) / TimeInterval(values.count - 1) }
+    let index = try times.lastIndex { $0 <= time }.unwrap()
+    guard index < values.count - 1 else {
+      return values[index]
+    }
+    let fraction = (time - times[index]) / (times[index + 1] - times[index])
+    return values[index].adding(values[index + 1].subtracting(values[index]), multipliedBy: fraction)
   }
 
   /// A path given as an animation value.
