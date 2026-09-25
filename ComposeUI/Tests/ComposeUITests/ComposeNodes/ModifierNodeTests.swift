@@ -1337,15 +1337,15 @@ class ModifierNodeTests: XCTestCase {
             .onUpdate { renderable, _ in
               viewLayer = renderable.layer
             }
-          DropShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
-            CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+          DropShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { size in
+            CGPath(rect: CGRect(origin: .zero, size: size).insetBy(dx: inset, dy: inset), transform: nil)
           })
           .frame(width: width, height: 40)
           .onUpdate { renderable, _ in
             dropLayer = renderable.layer
           }
-          InnerShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { renderable in
-            CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+          InnerShadowNode(color: .red, opacity: 0.5, radius: 4, offset: .zero, path: { size in
+            CGPath(rect: CGRect(origin: .zero, size: size).insetBy(dx: inset, dy: inset), transform: nil)
           })
           .frame(width: width, height: 40)
           .onUpdate { renderable, _ in

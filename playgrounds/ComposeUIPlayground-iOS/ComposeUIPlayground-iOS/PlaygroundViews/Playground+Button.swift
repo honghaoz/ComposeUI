@@ -93,8 +93,7 @@ func DownloadButton(hasDoubleTap: Bool) -> ComposeNode {
         .border(color: Constants.borderColor, width: 1)
         .overlay {
           ZStack {
-            InnerShadowNode(color: .white, opacity: 0.3, radius: 0, offset: CGSize(width: 0, height: 1)) { renderable in
-              let size = renderable.frame.size
+            InnerShadowNode(color: .white, opacity: 0.3, radius: 0, offset: CGSize(width: 0, height: 1)) { size in
               let cornerRadius: CGFloat = Constants.cornerRadius - 1
               return CGPath(
                 roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
@@ -104,8 +103,7 @@ func DownloadButton(hasDoubleTap: Bool) -> ComposeNode {
               )
             }
 
-            InnerShadowNode(color: .white, opacity: 0.1, radius: 0, offset: CGSize(width: 0, height: -1)) { renderable in
-              let size = renderable.frame.size
+            InnerShadowNode(color: .white, opacity: 0.1, radius: 0, offset: CGSize(width: 0, height: -1)) { size in
               let cornerRadius: CGFloat = Constants.cornerRadius - 1
               return CGPath(
                 roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
@@ -115,8 +113,7 @@ func DownloadButton(hasDoubleTap: Bool) -> ComposeNode {
               )
             }
 
-            InnerShadowNode(color: .white, opacity: 0.1, radius: 1, offset: CGSize(width: 0, height: 0)) { renderable in
-              let size = renderable.frame.size
+            InnerShadowNode(color: .white, opacity: 0.1, radius: 1, offset: CGSize(width: 0, height: 0)) { size in
               let cornerRadius: CGFloat = Constants.cornerRadius - 1
               return CGPath(
                 roundedRect: CGRect(x: 0, y: 0, width: size.width, height: size.height),

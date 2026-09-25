@@ -38,6 +38,26 @@ import UIKit
 
 import QuartzCore
 
+/// A model contains the shadow path and cutout path for a drop shadow.
+public struct DropShadowPaths {
+
+  /// The shadow path.
+  public let shadowPath: CGPath
+
+  /// The cutout path. If provided, the shadow will be clipped for the cutout path.
+  public let cutoutPath: CGPath?
+
+  /// Initialize a shadow paths model.
+  ///
+  /// - Parameters:
+  ///   - shadowPath: The shadow path.
+  ///   - cutoutPath: The cutout path.
+  public init(shadowPath: CGPath, cutoutPath: CGPath?) {
+    self.shadowPath = shadowPath
+    self.cutoutPath = cutoutPath
+  }
+}
+
 /// A layer that renders a drop shadow.
 open class DropShadowLayer: CALayer {
 
@@ -54,12 +74,12 @@ open class DropShadowLayer: CALayer {
     super.init()
 
     #if canImport(AppKit)
-    contentsScale = NSScreen.main?.backingScaleFactor ?? Constants.defaultScaleFactor
+    contentsScale = NSScreen.main?.backingScaleFactor ?? ComposeUI.Constants.defaultScaleFactor
     #endif
 
     #if canImport(UIKit)
     #if os(visionOS)
-    contentsScale = Constants.defaultScaleFactor
+    contentsScale = ComposeUI.Constants.defaultScaleFactor
     wantsDynamicContentScaling = true
     #else
     contentsScale = UIScreen.main.scale
@@ -89,8 +109,7 @@ open class DropShadowLayer: CALayer {
   ///   - opacity: The opacity of the shadow.
   ///   - radius: The radius of the shadow.
   ///   - offset: The offset of the shadow.
-  ///   - path: The path of the shadow.
-  ///   - cutoutPath: The path of the cutout. If provided, the shadow will be clipped for the cutout path. Default to `nil`.
+  ///   - paths: The paths of the shadow, for the layer's size.
   ///   - animationTiming: The animation timing applied to the shadow change. Only the properties that changed are
   ///     animated, from the state the layer currently shows. `nil` starts no animation and continues the in-flight
   ///     ones toward the new values, landing when they would have. Default to `nil`.
@@ -98,12 +117,12 @@ open class DropShadowLayer: CALayer {
                      opacity: CGFloat,
                      radius: CGFloat,
                      offset: CGSize,
-                     path: (DropShadowLayer) -> CGPath,
-                     cutoutPath: ((DropShadowLayer) -> CGPath)? = nil,
+                     paths: (CGSize) -> DropShadowPaths,
                      animationTiming: AnimationTiming? = nil)
   {
     let color = color.cgColor
     let opacity = Float(opacity)
+    let paths = paths(bounds.size)
 
     if let animationTiming {
       // only the properties whose model value differs from the target are animated: an unchanged additive one would
@@ -134,16 +153,7 @@ open class DropShadowLayer: CALayer {
       if shadowOffset != offset {
         animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
       }
-      // the path is requested after the other properties are applied, so a provider can derive it from them
-      let newShadowPath = path(self)
-      if shadowPath != newShadowPath {
-        animate(
-          keyPath: "shadowPath",
-          timing: animationTiming,
-          from: { $0.presentation()?.shadowPath },
-          to: { _ in newShadowPath }
-        )
-      }
+      animatePath(keyPath: "shadowPath", to: paths.shadowPath, timing: animationTiming)
     } else {
       // no animation timing: continue the in-flight motion
       retarget(keyPath: "shadowColor", to: color)
@@ -151,16 +161,41 @@ open class DropShadowLayer: CALayer {
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
 
-      // the path is requested after the other properties are applied, so a provider can derive it from them
-      retarget(keyPath: "shadowPath", to: path(self))
+      setPath(keyPath: "shadowPath", to: paths.shadowPath)
     }
 
-    if let cutoutPath {
-      updateMaskLayer(cutoutPath: cutoutPath, radius: radius, offset: offset, animationTiming: animationTiming)
+    if let cutoutPath = paths.cutoutPath {
+      updateMaskLayer(cutoutPath: cutoutPath, animationTiming: animationTiming)
     } else {
       // no cutout: clear any mask a previous update installed, so the rendered state always matches the inputs.
       clearMaskLayer()
     }
+  }
+
+  /// Update the drop shadow layer with a new shadow without a cutout.
+  ///
+  /// - Parameters:
+  ///   - color: The color of the shadow.
+  ///   - opacity: The opacity of the shadow.
+  ///   - radius: The radius of the shadow.
+  ///   - offset: The offset of the shadow.
+  ///   - path: The path of the shadow, for the layer's size.
+  ///   - animationTiming: The animation timing applied to the shadow change. Default to `nil`.
+  public func update(color: Color,
+                     opacity: CGFloat,
+                     radius: CGFloat,
+                     offset: CGSize,
+                     path: (CGSize) -> CGPath,
+                     animationTiming: AnimationTiming? = nil)
+  {
+    update(
+      color: color,
+      opacity: opacity,
+      radius: radius,
+      offset: offset,
+      paths: { DropShadowPaths(shadowPath: path($0), cutoutPath: nil) },
+      animationTiming: animationTiming
+    )
   }
 
   /// Reset the layer so it can be reused as if freshly made.
@@ -172,11 +207,7 @@ open class DropShadowLayer: CALayer {
     clearMaskLayer()
   }
 
-  private func updateMaskLayer(cutoutPath: (DropShadowLayer) -> CGPath,
-                               radius: CGFloat,
-                               offset: CGSize,
-                               animationTiming: AnimationTiming?)
-  {
+  private func updateMaskLayer(cutoutPath: CGPath, animationTiming: AnimationTiming?) {
     // initialize mask layer if not initialized
     if mask !== maskLayer {
       mask = maskLayer
@@ -186,20 +217,13 @@ open class DropShadowLayer: CALayer {
       maskLayer.fillRule = .evenOdd // to match the clip out path
     }
 
-    let maskPath = maskLayerPath(cutoutPath: cutoutPath(self), radius: radius, offset: offset)
+    let maskPath = maskLayerPath(cutoutPath: cutoutPath)
 
     if let animationTiming {
       if !maskLayer.hasFrame(bounds) {
         maskLayer.animateFrame(to: bounds, timing: animationTiming)
       }
-      if maskLayer.path != maskPath {
-        maskLayer.animate(
-          keyPath: "path",
-          timing: animationTiming,
-          from: { $0.presentation().assertNotNil()?.path },
-          to: { _ in maskPath }
-        )
-      }
+      maskLayer.animatePath(keyPath: "path", to: maskPath, timing: animationTiming)
     } else {
       // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
       // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
@@ -207,15 +231,13 @@ open class DropShadowLayer: CALayer {
       maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
       }
-      maskLayer.retarget(keyPath: "path", to: maskPath)
+      maskLayer.setPath(keyPath: "path", to: maskPath)
     }
   }
 
-  private func maskLayerPath(cutoutPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
-    let hExtraSize = radius + abs(offset.width) + 1000
-    let vExtraSize = radius + abs(offset.height) + 1000
+  private func maskLayerPath(cutoutPath: CGPath) -> CGPath {
     ComposeUI.assert(bounds.origin == .zero, "check if boundingBoxOfPath works for non zero origin bounds")
-    let biggerBounds = cutoutPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
+    let biggerBounds = cutoutPath.boundingBoxOfPath.insetBy(dx: -Constants.maskMargin, dy: -Constants.maskMargin)
 
     let biggerPath = CGMutablePath()
     biggerPath.addPath(CGPath(rect: biggerBounds, transform: nil))
@@ -233,5 +255,14 @@ open class DropShadowLayer: CALayer {
       self.mask = nil
       self.maskLayer.path = nil
     }
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// How far the mask's rect reaches past the cutout, far beyond any shadow's blur. Core Animation only draws the
+    /// mask where the shadow is, so the margin costs nothing.
+    static let maskMargin: CGFloat = 1000000
   }
 }
