@@ -112,7 +112,20 @@ class CALayer_RetargetTests: XCTestCase {
   }
 
   func test_remainingAnimationTime_endedAnimation() {
-    // given: a layer with an opacity animation that ended but stays on the layer
+    // given: a layer with an opacity animation that ended, still on the layer as nothing has committed since
+    let layer = CALayer()
+
+    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
+    fadeAnimation.duration = 2
+    fadeAnimation.beginTime = layer.currentTime - 5
+    layer.add(fadeAnimation, forKey: "fade")
+
+    // then: nothing is in flight
+    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == nil
+  }
+
+  func test_remainingAnimationTime_endedAnimationKeptOnCompletion_assertsAndIsLeftAlone() {
+    // given: a layer with a kept opacity animation that ended
     let layer = CALayer()
 
     let fadeAnimation = CABasicAnimation(keyPath: "opacity")
@@ -121,8 +134,21 @@ class CALayer_RetargetTests: XCTestCase {
     fadeAnimation.isRemovedOnCompletion = false
     layer.add(fadeAnimation, forKey: "fade")
 
-    // then: nothing is in flight
-    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == nil
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: reading the remaining animation time
+    let remainingTime = layer.remainingAnimationTime(forKeyPath: "opacity")
+
+    // then: nothing is in flight, and it asserts but leaves the animation alone
+    expect(remainingTime) == nil
+    expect(assertionMessages) == ["animation \"fade\" of \"opacity\" is kept with isRemovedOnCompletion off, which isn't supported"]
+    expect(layer.animationKeys()) == ["fade"]
   }
 
   func test_remainingAnimationTime_pausedAnimation_pastItsDuration() throws {
@@ -142,7 +168,8 @@ class CALayer_RetargetTests: XCTestCase {
     // when: retargeting the opacity
     layer.retarget(keyPath: "opacity", to: Float(0.5))
 
-    // then: the frozen animation isn't taken for an ended one and removed, it is replaced like any in-flight animation
+    // then: the frozen animation isn't taken for an ended one, which would be skipped, it is replaced like any in-flight
+    // animation
     expect(layer.animationKeys()) == ["opacity"]
     let animation = try (layer.animation(forKey: "opacity") as? CABasicAnimation).unwrap()
     expect(animation.toValue as? Float) == 0.5
@@ -196,44 +223,72 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.animationKeys()) == ["spin"]
   }
 
-  func test_retarget_endedAnimationKeptOnTheLayer_isRemoved() throws {
-    // given: a layer whose corner radius animation ended but stays on the layer, holding its end value with a forwards fill
+  func test_retarget_endedAnimation_isSkipped() {
+    // given: a layer whose corner radius animation ended, still on the layer as nothing has committed since
     let layer = CALayer()
     let endedAnimation = CABasicAnimation(keyPath: "cornerRadius")
     endedAnimation.fromValue = CGFloat(0)
     endedAnimation.toValue = CGFloat(20)
     endedAnimation.duration = 10
     endedAnimation.beginTime = layer.currentTime - 20
-    endedAnimation.isRemovedOnCompletion = false
-    endedAnimation.fillMode = .forwards
     layer.add(endedAnimation, forKey: "ended")
 
     // when: retargeting the corner radius to 5
     layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
 
-    // then: the ended animation is removed, or it would keep showing 20 over the new value, which is set directly
+    // then: the ended animation isn't in flight, so the value is set directly, and the animation is left for Core
+    // Animation to remove
+    expect(layer.animationKeys()) == ["ended"]
+    expect(layer.cornerRadius) == 5
+  }
+
+  func test_retarget_endedAnimationKeptOnCompletion_assertsAndIsRemoved() {
+    // given: a layer with a kept corner radius animation that ended, holding its end value with a forwards fill
+    let layer = CALayer()
+    let keptAnimation = CABasicAnimation(keyPath: "cornerRadius")
+    keptAnimation.fromValue = CGFloat(0)
+    keptAnimation.toValue = CGFloat(20)
+    keptAnimation.duration = 10
+    keptAnimation.beginTime = layer.currentTime - 20
+    keptAnimation.isRemovedOnCompletion = false
+    keptAnimation.fillMode = .forwards
+    layer.add(keptAnimation, forKey: "kept")
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+
+    // then: it asserts, and removes the kept animation so the new value shows
+    expect(assertionMessages) == ["animation \"kept\" of \"cornerRadius\" is kept with isRemovedOnCompletion off, which isn't supported"]
     expect(layer.animationKeys()) == nil
     expect(layer.cornerRadius) == 5
   }
 
-  func test_retarget_endedAnimationKeptOnTheLayer_isRemovedNextToAnInFlightOne() throws {
-    // given: a layer whose corner radius has an ended animation kept on it and an additive one in flight
+  func test_retarget_endedAnimation_isSkippedNextToAnInFlightOne() {
+    // given: a layer whose corner radius has an ended animation, still on the layer as nothing has committed since, and
+    // an additive one in flight
     let layer = CALayer()
     let endedAnimation = CABasicAnimation(keyPath: "cornerRadius")
     endedAnimation.fromValue = CGFloat(0)
     endedAnimation.toValue = CGFloat(20)
     endedAnimation.duration = 10
     endedAnimation.beginTime = layer.currentTime - 20
-    endedAnimation.isRemovedOnCompletion = false
-    endedAnimation.fillMode = .forwards
     layer.add(endedAnimation, forKey: "ended")
     layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 10))
 
     // when: retargeting the corner radius to 5
     layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
 
-    // then: the ended animation is removed, and the in-flight one is folded into a glide as if it were alone
-    expect(layer.animationKeys()) == ["cornerRadius"]
+    // then: the in-flight animation is folded into a glide as if it were alone, and the ended one is left for Core
+    // Animation to remove
+    expect(Set(layer.animationKeys() ?? [])) == ["ended", "cornerRadius"]
     expect((layer.animation(forKey: "cornerRadius") as? CABasicAnimation)?.fromValue as? CGFloat) == -5
     expect(layer.cornerRadius) == 5
   }
