@@ -30,11 +30,6 @@
 
 import QuartzCore
 
-/// The duration of a scheduled snap: a zero-duration timing with a delay renders as an instant change after the delay
-/// window. Core Animation substitutes its default duration for a zero duration, so the snap uses a sub-frame duration
-/// instead.
-let scheduledSnapDuration: TimeInterval = 0.001 // TODO: make this a Constant under CALayer, also why this is called "scheduled"?
-
 public extension CALayer {
 
   /// Animate the layer's frame additively.
@@ -220,9 +215,6 @@ public extension CALayer {
     }
 
     let animation = CABasicAnimation.makeAnimation(timing)
-    if timing.timing.duration <= 0 {
-      animation.duration = scheduledSnapDuration
-    }
     animation.keyPath = keyPath
     animation.fromValue = from(layer)
     let toValue = to(layer)

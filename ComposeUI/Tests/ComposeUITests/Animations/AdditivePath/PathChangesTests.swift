@@ -83,10 +83,11 @@ class PathChangesTests: XCTestCase {
     // when: recording a change with a zero duration and a delay
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 0, delay: 1), at: 100)
 
-    // then: the change snaps after the delay
+    // then: the change snaps after the delay, in less than a frame
     let change = try changes.changes.first.unwrap()
-    expect(change.animation.duration) == scheduledSnapDuration
-    expect(change.curve.duration) == scheduledSnapDuration
+    expect(change.animation.duration) > 0
+    expect(change.animation.duration) < 1.0 / 60
+    expect(change.curve.duration) == change.animation.duration
     expect(change.beginTime) == 101
   }
 

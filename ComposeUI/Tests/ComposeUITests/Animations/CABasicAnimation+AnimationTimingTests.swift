@@ -65,4 +65,18 @@ class CABasicAnimation_AnimationTimingTests: XCTestCase {
       fail("error: \(error)")
     }
   }
+
+  func test_makeAnimation_zeroDuration_snaps() {
+    // when: making animations of a timing function and of a spring with a zero duration
+    let animation = CABasicAnimation.makeAnimation(.linear(duration: 0))
+    let springAnimation = CABasicAnimation.makeAnimation(AnimationTiming(timing: .spring(SpringDescriptor(dampingRatio: 1, response: 0.4), duration: 0)))
+
+    // then: each lasts less than a frame, so it lands at once, as Core Animation would run a zero duration for its
+    // default duration instead
+    for animation in [animation, springAnimation] {
+      expect(animation.duration) > 0
+      expect(animation.duration) < 1.0 / 60
+    }
+    expect(springAnimation is CASpringAnimation) == true
+  }
 }

@@ -152,16 +152,12 @@ struct PathChanges {
       return
     }
 
-    // a change without a duration shows at once, unless it is scheduled
+    // a change without a duration shows at once, unless it has a delay
     guard timing.timing.duration > 0 || timing.delay > 0 else {
       return
     }
 
     let animation = CABasicAnimation.makeAnimation(timing)
-    if timing.timing.duration <= 0 {
-      animation.duration = scheduledSnapDuration
-    }
-
     changes.append(
       Change(
         offset: offset,
