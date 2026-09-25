@@ -92,7 +92,7 @@ final class InnerShadowLayerTests: XCTestCase {
     }
   }
 
-  // MARK: - Default path (uses `invertsShadow` private API)
+  // MARK: - Update
 
   func test_update_default_noAnimation() throws {
     // given: an inner shadow layer with a hole path
@@ -352,13 +352,6 @@ final class InnerShadowLayerTests: XCTestCase {
   }
 
   func test_update_withoutAnimation_continuesInFlightShadowAnimations() throws {
-    // the inverted shadow and the fallback compute the shadow path differently, the interruption must work for both
-    for supportsInvertsShadow in [true, false] {
-      try verifyUpdateWithoutAnimationContinuesInFlightShadowAnimations(supportsInvertsShadow: supportsInvertsShadow)
-    }
-  }
-
-  private func verifyUpdateWithoutAnimationContinuesInFlightShadowAnimations(supportsInvertsShadow: Bool) throws {
     // given: an inner shadow layer resized and animated towards new values of every shadow property, with a second,
     // delayed animated update stacked on the radius, plus animations of other properties standing in for a transition
     // and for the render pass's frame animation
@@ -387,26 +380,18 @@ final class InnerShadowLayerTests: XCTestCase {
     }
 
     let layer = InnerShadowLayer()
-    layer.test.supportsInvertsShadowOverride = supportsInvertsShadow
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     update(layer, red, animationTiming: nil)
     let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
 
-    // a layer given the final inputs without animation provides the expected model values, including the paths. the
-    // fallback's rect keeps the margin of the widest radius and offset while they glide, blue's wider ones
+    // a layer given the final inputs without animation provides the expected model values, including the paths
     let resizedBounds = CGRect(x: 0, y: 0, width: 120, height: 120)
-    func makeReference(radius: CGFloat, offset: CGSize, holePath: (CGSize) -> CGPath) -> InnerShadowLayer {
-      let reference = InnerShadowLayer()
-      reference.test.supportsInvertsShadowOverride = supportsInvertsShadow
-      reference.frame = resizedBounds
-      reference.update(color: green.color, opacity: green.opacity, radius: radius, offset: offset, path: holePath, animationTiming: nil)
-      return reference
-    }
-    let greenHole = { (size: CGSize) in CGPath(rect: CGRect(origin: .zero, size: size).insetBy(dx: green.holeInset, dy: green.holeInset), transform: nil) }
-    let reference = makeReference(radius: green.radius, offset: green.offset, holePath: greenHole)
+    let reference = InnerShadowLayer()
+    reference.frame = resizedBounds
+    update(reference, green, animationTiming: nil)
     let referenceMask = try (reference.mask as? CAShapeLayer).unwrap()
     let referenceMaskPath = try referenceMask.path.unwrap()
-    let referenceShadowPath = try makeReference(radius: blueWiderRadius.radius, offset: blueWiderRadius.offset, holePath: greenHole).shadowPath.unwrap()
+    let referenceShadowPath = try reference.shadowPath.unwrap()
 
     layer.disableActions {
       layer.frame = resizedBounds
@@ -474,13 +459,12 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(layer.animation(forKey: "position")?.duration) == 10
 
     // then: the shadow path changes at once and keeps its change in flight, the hole's, shown on top of the new path,
-    // so it shows the hole the frame shows. the fallback's rect around it keeps the widest margin
+    // so it shows the hole the frame shows
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
     let shownHolePath = CGPath(rect: CGRect(x: -2, y: -2, width: 104, height: 104), transform: nil)
-    let shownShadowPath = try makeReference(radius: blueWiderRadius.radius, offset: blueWiderRadius.offset, holePath: { _ in shownHolePath }).shadowPath.unwrap()
     expect(shadowPathAnimation.duration) == 10
     expect(shadowPathAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
-    expect(try PathPoints(path(shadowPathAnimation.fromValue))) == PathPoints(shownShadowPath)
+    expect(try PathPoints(path(shadowPathAnimation.fromValue))) == PathPoints(shownHolePath)
     expect(try path(shadowPathAnimation.toValue)) == referenceShadowPath
 
     // then: the mask keeps its frame animations, and its path, the hole, does as the shadow path
@@ -611,391 +595,169 @@ final class InnerShadowLayerTests: XCTestCase {
     return try color.converted(to: sRGB, intent: .defaultIntent, options: nil).unwrap().components.unwrap()[2]
   }
 
-  // MARK: - Fallback path (manual punched bigger rect)
+  // MARK: - Missing invertsShadow
 
-  func test_update_fallback_noAnimation() throws {
-    // given: a layer forced to the fallback path, with a hole path
+  func test_update_withoutInvertsShadow_assertsAndDrawsNothing() {
+    // given: an inner shadow layer where Core Animation's invertsShadow is missing
     let layer = InnerShadowLayer()
     layer.test.supportsInvertsShadowOverride = false
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
-    let holePath = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil)
-    let radius: CGFloat = 10
-    let offset = CGSize(width: 2, height: -5)
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
 
-    // when: updating without animation timing
-    layer.update(
-      color: .red,
-      opacity: 0.5,
-      radius: radius,
-      offset: offset,
-      path: { _ in holePath },
-      animationTiming: nil
-    )
-
-    // then: shadow properties are set without animation, using the fallback shadow path
-    // fallback never sets `invertsShadow`
-    expect(layer.invertsShadow) == false
-
-    expect(layer.shadowColor) == Color.red.cgColor
-    expect(layer.shadowOpacity) == 0.5
-    expect(layer.shadowRadius) == radius
-    expect(layer.shadowOffset) == offset
-
-    // shadowPath is the bigger rect punched by holePath, its bounding box equals the bigger rect
-    let expectedHExtra = radius + abs(offset.width) + 20
-    let expectedVExtra = radius + abs(offset.height) + 20
-    let expectedBiggerBounds = holePath.boundingBoxOfPath.insetBy(dx: -expectedHExtra, dy: -expectedVExtra)
-    let shadowPath = try layer.shadowPath.unwrap()
-    expect(shadowPath.boundingBoxOfPath) == expectedBiggerBounds
-
-    // mask still clips to the clipPath (which defaults to holePath)
-    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
-    expect(maskLayer.frame) == layer.bounds
-    expect(maskLayer.path) == holePath
-
-    expect(layer.animation(forKey: "shadowPath")) == nil
-  }
-
-  func test_update_fallback_withAnimation() throws {
-    // given: a new layer forced to the fallback path
-    let layer = InnerShadowLayer()
-    layer.test.supportsInvertsShadowOverride = false
-    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-
-    let radius: CGFloat = 10
-    let offset = CGSize(width: 2, height: 5)
-    func update(holeInset: CGFloat) {
+    // when: updating the layer without and with animation
+    for animationTiming in [nil, AnimationTiming.easeInEaseOut()] {
       layer.update(
         color: .red,
         opacity: 0.5,
-        radius: radius,
-        offset: offset,
-        path: { CGPath(rect: CGRect(origin: .zero, size: $0).insetBy(dx: holeInset, dy: holeInset), transform: nil) },
-        animationTiming: .easeInEaseOut()
+        radius: 10,
+        offset: CGSize(width: 2, height: 3),
+        path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) },
+        animationTiming: animationTiming
       )
     }
 
-    // when: updating with animation timing
-    update(holeInset: 0)
-
-    // then: the fallback shadow path is used, the shadow properties animate, and the paths show at once
+    // then: each update asserts and leaves the layer as it was, with no shadow opacity, so it draws no shadow
+    let message = "Core Animation's invertsShadow is missing, so the inner shadow draws nothing"
+    expect(assertionMessages) == [message, message]
+    expect(layer.shadowOpacity) == 0
+    expect(layer.shadowPath) == nil
+    expect(layer.mask) == nil
     expect(layer.invertsShadow) == false
-
-    let expectedBiggerBounds = CGRect(x: 0, y: 0, width: 100, height: 100).insetBy(
-      dx: -(radius + abs(offset.width) + 20),
-      dy: -(radius + abs(offset.height) + 20)
-    )
-    let shadowPath = try layer.shadowPath.unwrap()
-    expect(shadowPath.boundingBoxOfPath) == expectedBiggerBounds
-
-    expect(layer.animation(forKey: "shadowColor")) != nil
-    expect(layer.animation(forKey: "shadowOpacity")) != nil
-    expect(layer.animation(forKey: "shadowRadius")) != nil
-    expect(layer.animation(forKey: "shadowOffset")) != nil
-    expect(layer.animation(forKey: "shadowPath")) == nil
-
-    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
-    expect(maskLayer.path) == CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil)
-    expect(maskLayer.animation(forKey: "path")) == nil
-
-    // when: updating with animation timing and a new hole path
-    update(holeInset: 5)
-
-    // then: the fallback shadow path, around the clip that follows the hole, and the mask animate
-    let insetBiggerBounds = CGRect(x: 5, y: 5, width: 90, height: 90).insetBy(
-      dx: -(radius + abs(offset.width) + 20),
-      dy: -(radius + abs(offset.height) + 20)
-    )
-    expect(try layer.shadowPath.unwrap().boundingBoxOfPath) == insetBiggerBounds
-    expect(layer.animation(forKey: "shadowPath")) != nil
-    expect(maskLayer.path) == CGPath(rect: CGRect(x: 5, y: 5, width: 90, height: 90), transform: nil)
-    expect(maskLayer.animation(forKey: "path")) != nil
-  }
-
-  /// The fallback's bigger rect must be computed from `clipPath` (not `holePath`), so the
-  /// "spread" case where the clip region is larger than the hole still fully contains the shadow.
-  func test_update_fallback_withSpread() throws {
-    // given: a layer forced to the fallback path, with a clip path larger than the hole path
-    let layer = InnerShadowLayer()
-    layer.test.supportsInvertsShadowOverride = false
-    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-
-    let holePath = CGPath(rect: CGRect(x: 30, y: 30, width: 40, height: 40), transform: nil)
-    let clipPath = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil)
-    let radius: CGFloat = 10
-    let offset = CGSize(width: 2, height: 5)
-
-    // when: updating with both a hole path and a clip path
-    layer.update(
-      color: .black,
-      opacity: 0.5,
-      radius: radius,
-      offset: offset,
-      paths: { _ in InnerShadowPaths(shadowPath: holePath, clipPath: clipPath) },
-      animationTiming: nil
-    )
-
-    // then: the bigger rect is computed from the clip path and the mask clips to the clip path
-    let expectedBiggerBounds = clipPath.boundingBoxOfPath.insetBy(
-      dx: -(radius + abs(offset.width) + 20),
-      dy: -(radius + abs(offset.height) + 20)
-    )
-    let shadowPath = try layer.shadowPath.unwrap()
-    expect(shadowPath.boundingBoxOfPath) == expectedBiggerBounds
-
-    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
-    expect(maskLayer.path) == clipPath
+    expect(layer.animationKeys()) == nil
   }
 
   // MARK: - Paths Following the Frame
 
   func test_update_withAnimation_pathsAnimateOnTheFrameTiming() throws {
-    // the inverted shadow and the fallback make the shadow path differently, both must follow the frame
-    for supportsInvertsShadow in [true, false] {
-      for timing in [AnimationTiming.easeInEaseOut(duration: 2), .spring(dampingRatio: 0.8, response: 0.5)] {
-        let scenario = "supportsInvertsShadow: \(supportsInvertsShadow), timing: \(timing)"
+    for timing in [AnimationTiming.easeInEaseOut(duration: 2), .spring(dampingRatio: 0.8, response: 0.5)] {
+      let scenario = "timing: \(timing)"
 
-        // given: an inner shadow layer whose frame animates from 100 to 200 points wide
-        let layer = makeLayer(width: 100, supportsInvertsShadow: supportsInvertsShadow)
-        let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
-        let paths100 = try referencePaths(width: 100, supportsInvertsShadow: supportsInvertsShadow)
-        let paths200 = try referencePaths(width: 200, supportsInvertsShadow: supportsInvertsShadow)
-        layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100), timing: timing)
+      // given: an inner shadow layer whose frame animates from 100 to 200 points wide
+      let layer = makeLayer(width: 100)
+      let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+      let paths100 = try referencePaths(width: 100)
+      let paths200 = try referencePaths(width: 200)
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100), timing: timing)
 
-        // when: updating the layer with the frame's timing
-        updateRounded(layer, animationTiming: timing)
+      // when: updating the layer with the frame's timing
+      updateRounded(layer, animationTiming: timing)
 
-        // then: the shadow path animates from the old size's path to the new size's path on the frame's timing
-        let sizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
-        let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-        expectSameTiming(shadowPathAnimation, as: sizeAnimation)
-        expect(try isPath(path(shadowPathAnimation.fromValue), closeTo: paths100.shadow), scenario) == true
-        expect(try path(shadowPathAnimation.toValue), scenario) == paths200.shadow
+      // then: the shadow path animates from the old size's path to the new size's path on the frame's timing
+      let sizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+      let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+      expectSameTiming(shadowPathAnimation, as: sizeAnimation)
+      expect(try isPath(path(shadowPathAnimation.fromValue), closeTo: paths100.shadow), scenario) == true
+      expect(try path(shadowPathAnimation.toValue), scenario) == paths200.shadow
 
-        // then: so does the clip path, with the mask's frame
-        let maskSizeAnimation = try (maskLayer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
-        let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-        expectSameTiming(clipPathAnimation, as: maskSizeAnimation)
-        expect(try isPath(path(clipPathAnimation.fromValue), closeTo: paths100.clip), scenario) == true
-        expect(try path(clipPathAnimation.toValue), scenario) == paths200.clip
-      }
+      // then: so does the clip path, with the mask's frame
+      let maskSizeAnimation = try (maskLayer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+      let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+      expectSameTiming(clipPathAnimation, as: maskSizeAnimation)
+      expect(try isPath(path(clipPathAnimation.fromValue), closeTo: paths100.clip), scenario) == true
+      expect(try path(clipPathAnimation.toValue), scenario) == paths200.clip
     }
   }
 
   func test_update_withAnimation_interruptedResize_pathsStayOnTheFrame() throws {
-    // the inverted shadow and the fallback make the shadow path differently, both must follow the frame
-    for supportsInvertsShadow in [true, false] {
-      // given: an inner shadow layer whose frame and paths animate linearly from 100 to 200 points wide over 2 seconds
-      let layer = makeLayer(width: 100, supportsInvertsShadow: supportsInvertsShadow)
-      let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
-      resize(layer, toWidth: 200, timing: .linear(duration: 2))
+    // given: an inner shadow layer whose frame and paths animate linearly from 100 to 200 points wide over 2 seconds
+    let layer = makeLayer(width: 100)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+    resize(layer, toWidth: 200, timing: .linear(duration: 2))
 
-      // when: resizing to 150 points wide over 1 second while the first resize is in flight
-      resize(layer, toWidth: 150, timing: .linear(duration: 1))
+    // when: resizing to 150 points wide over 1 second while the first resize is in flight
+    resize(layer, toWidth: 150, timing: .linear(duration: 1))
 
-      // then: each keyframe has the paths for the width the frame shows at its time
-      let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
-      let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
-      expect(shadowPathAnimation.duration) == 2
-      expect(clipPathAnimation.duration) == 2
-      expect(shadowPathAnimation.keyTimes) == nil
-      expect(clipPathAnimation.keyTimes) == nil
+    // then: each keyframe has the paths for the width the frame shows at its time
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(shadowPathAnimation.duration) == 2
+    expect(clipPathAnimation.duration) == 2
+    expect(shadowPathAnimation.keyTimes) == nil
+    expect(clipPathAnimation.keyTimes) == nil
 
-      let shadowPaths = try paths(of: shadowPathAnimation)
-      let clipPaths = try paths(of: clipPathAnimation)
-      expect(shadowPaths.count) == clipPaths.count
-      for index in shadowPaths.indices {
-        let time = 2 * CGFloat(index) / CGFloat(shadowPaths.count - 1)
-        let shownWidth = 150 + (100 - 200) * (1 - time / 2) + (200 - 150) * (1 - min(time, 1))
-        let expectedPaths = try referencePaths(width: shownWidth, supportsInvertsShadow: supportsInvertsShadow)
-        let scenario = "supportsInvertsShadow: \(supportsInvertsShadow), keyframe \(index)"
-        expect(isPath(shadowPaths[index], closeTo: expectedPaths.shadow), scenario) == true
-        expect(isPath(clipPaths[index], closeTo: expectedPaths.clip), scenario) == true
-      }
+    let shadowPaths = try paths(of: shadowPathAnimation)
+    let clipPaths = try paths(of: clipPathAnimation)
+    expect(shadowPaths.count) == clipPaths.count
+    for index in shadowPaths.indices {
+      let time = 2 * CGFloat(index) / CGFloat(shadowPaths.count - 1)
+      let shownWidth = 150 + (100 - 200) * (1 - time / 2) + (200 - 150) * (1 - min(time, 1))
+      let expectedPaths = try referencePaths(width: shownWidth)
+      let scenario = "keyframe \(index)"
+      expect(isPath(shadowPaths[index], closeTo: expectedPaths.shadow), scenario) == true
+      expect(isPath(clipPaths[index], closeTo: expectedPaths.clip), scenario) == true
     }
   }
 
   func test_update_withoutAnimation_whileFrameAnimates_pathsKeepFollowingTheFrame() throws {
-    // the inverted shadow and the fallback make the shadow path differently, both must follow the frame
-    for supportsInvertsShadow in [true, false] {
-      // given: an inner shadow layer whose frame and paths animate linearly from 100 to 200 points wide over 2 seconds
-      let layer = makeLayer(width: 100, supportsInvertsShadow: supportsInvertsShadow)
-      let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
-      resize(layer, toWidth: 200, timing: .linear(duration: 2))
+    // given: an inner shadow layer whose frame and paths animate linearly from 100 to 200 points wide over 2 seconds
+    let layer = makeLayer(width: 100)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+    resize(layer, toWidth: 200, timing: .linear(duration: 2))
 
-      // when: a non-animated update sets the frame 250 points wide while the resize is in flight
-      layer.disableActions {
-        layer.frame = CGRect(x: 0, y: 0, width: 250, height: 100)
-      }
-      updateRounded(layer, animationTiming: nil)
-
-      // then: the shadow path changes at once like the frame and keeps the resize going from the 150 points shown
-      let scenario = "supportsInvertsShadow: \(supportsInvertsShadow)"
-      let paths150 = try referencePaths(width: 150, supportsInvertsShadow: supportsInvertsShadow)
-      let paths250 = try referencePaths(width: 250, supportsInvertsShadow: supportsInvertsShadow)
-      let sizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
-      let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-      expectSameTiming(shadowPathAnimation, as: sizeAnimation)
-      expect(try isPath(path(shadowPathAnimation.fromValue), closeTo: paths150.shadow), scenario) == true
-      expect(try path(shadowPathAnimation.toValue), scenario) == paths250.shadow
-      expect(layer.shadowPath, scenario) == paths250.shadow
-
-      // then: so does the clip path, and the mask's frame changes at once too, keeping its animations
-      expect(maskLayer.frame, scenario) == CGRect(x: 0, y: 0, width: 250, height: 100)
-      let maskSizeAnimation = try (maskLayer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
-      let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-      expectSameTiming(clipPathAnimation, as: maskSizeAnimation)
-      expect(try isPath(path(clipPathAnimation.fromValue), closeTo: paths150.clip), scenario) == true
-      expect(try path(clipPathAnimation.toValue), scenario) == paths250.clip
+    // when: a non-animated update sets the frame 250 points wide while the resize is in flight
+    layer.disableActions {
+      layer.frame = CGRect(x: 0, y: 0, width: 250, height: 100)
     }
-  }
+    updateRounded(layer, animationTiming: nil)
 
-  // MARK: - Fallback Margin
-
-  func test_update_fallback_withAnimation_marginChangesAtOnce() throws {
-    // given: a fallback inner shadow layer 100 points wide with a radius of 10
-    let layer = makeLayer(width: 100, supportsInvertsShadow: false)
-
-    // when: resizing to 200 points wide with a radius of 30, over 2 seconds
-    resize(layer, toWidth: 200, radius: 30, timing: .linear(duration: 2))
-
-    // then: the rect's margin changes to the new radius's at once, and only the frame's change animates, so the shadow
-    // path animates from the old size's path with the new margin
-    let paths100 = try referencePaths(width: 100, supportsInvertsShadow: false, radius: 30)
-    let paths200 = try referencePaths(width: 200, supportsInvertsShadow: false, radius: 30)
+    // then: the shadow path changes at once like the frame and keeps the resize going from the 150 points shown
+    let paths150 = try referencePaths(width: 150)
+    let paths250 = try referencePaths(width: 250)
     let sizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
     expectSameTiming(shadowPathAnimation, as: sizeAnimation)
-    expect(try isPath(path(shadowPathAnimation.fromValue), closeTo: paths100.shadow)) == true
-    expect(try path(shadowPathAnimation.toValue)) == paths200.shadow
-    expect(layer.shadowPath) == paths200.shadow
-  }
+    expect(try isPath(path(shadowPathAnimation.fromValue), closeTo: paths150.shadow)) == true
+    expect(try path(shadowPathAnimation.toValue)) == paths250.shadow
+    expect(layer.shadowPath) == paths250.shadow
 
-  func test_update_fallback_radiusChangeWhileRadiusAnimates_marginKeepsTheWidestRadius() throws {
-    // a non-animated update glides the radius and an animated one stacks on it, the rect must stay outside the clip
-    // for both
-    for interruptionTiming in [nil, AnimationTiming.linear(duration: 0.5)] {
-      let scenario = "interruption timing: \(String(describing: interruptionTiming))"
-
-      // given: a fallback inner shadow layer 100 points wide with a radius of 4 and no offset, whose radius animates to
-      // 60 over 2 seconds after a delay of 1 second
-      let layer = makeLayer(width: 100, supportsInvertsShadow: false, radius: 4, offset: .zero)
-      updateRounded(layer, radius: 60, offset: .zero, animationTiming: .linear(duration: 2, delay: 1))
-
-      // then: the rect's margin grows to the new radius's at once
-      expect(try shadowRect(of: layer), scenario) == CGRect(x: 0, y: 0, width: 100, height: 100).insetBy(dx: -80, dy: -80)
-      expect(layer.animation(forKey: "shadowPath"), scenario) == nil
-
-      // when: updating the radius to 0 while the radius animation waits out its delay
-      updateRounded(layer, radius: 0, offset: .zero, animationTiming: interruptionTiming)
-
-      // then: the radius animates on, and the rect keeps the margin of the widest radius without animation, instead of
-      // moving by a margin change that outlasts its radius, so it stays outside the clip
-      expect(layer.animation(forKey: "shadowRadius"), scenario) != nil
-      expect(try shadowRect(of: layer), scenario) == CGRect(x: 0, y: 0, width: 100, height: 100).insetBy(dx: -80, dy: -80)
-      expect(layer.animation(forKey: "shadowPath"), scenario) == nil
-    }
-  }
-
-  func test_update_fallback_afterRadiusAnimationEnds_marginFitsTheRadius() throws {
-    // given: a fallback inner shadow layer 100 points wide with a radius of 150 and no offset, whose radius springs to 4
-    let layer = makeLayer(width: 100, supportsInvertsShadow: false, radius: 150, offset: .zero)
-    updateRounded(layer, radius: 4, offset: .zero, animationTiming: .spring(dampingRatio: 0.3, response: 0.5))
-
-    // then: the rect keeps the margin of the radius of 150 without animation, so it can't bounce into the clip with the
-    // spring
-    expect(try shadowRect(of: layer)) == CGRect(x: 0, y: 0, width: 100, height: 100).insetBy(dx: -170, dy: -170)
-    expect(layer.animation(forKey: "shadowPath")) == nil
-
-    // when: resizing to 200 points wide over 2 seconds after the radius animation ends, as Core Animation removes it
-    layer.removeAllAnimations()
-    resize(layer, toWidth: 200, radius: 4, offset: .zero, timing: .linear(duration: 2))
-
-    // then: the margin fits the radius of 4 at once, and only the frame's change animates
-    let paths100 = try referencePaths(width: 100, supportsInvertsShadow: false, radius: 4, offset: .zero)
-    let paths200 = try referencePaths(width: 200, supportsInvertsShadow: false, radius: 4, offset: .zero)
-    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-    expect(try isPath(path(shadowPathAnimation.fromValue), closeTo: paths100.shadow)) == true
-    expect(try path(shadowPathAnimation.toValue)) == paths200.shadow
-    expect(layer.shadowPath) == paths200.shadow
-  }
-
-  func test_update_fallback_offsetChange_marginGrowsPerAxis() throws {
-    // given: a fallback inner shadow layer 100 points wide with a radius of 10 and an offset of 2 by 3 points
-    let layer = makeLayer(width: 100, supportsInvertsShadow: false)
-
-    // when: animating the offset to -12 by 0 points
-    updateRounded(layer, offset: CGSize(width: -12, height: 0), animationTiming: .linear(duration: 2))
-
-    // then: each axis's margin grows to the larger offset along it at once, the horizontal one to the new offset's and
-    // the vertical one keeps the old offset's
-    expect(try shadowRect(of: layer)) == CGRect(x: 0, y: 0, width: 100, height: 100).insetBy(dx: -42, dy: -33)
-    expect(layer.animation(forKey: "shadowPath")) == nil
-
-    // when: updating without animation after the offset animation ends, as Core Animation removes it
-    layer.removeAllAnimations()
-    updateRounded(layer, offset: CGSize(width: -12, height: 0), animationTiming: nil)
-
-    // then: the margins fit the new offset
-    expect(try shadowRect(of: layer)) == CGRect(x: 0, y: 0, width: 100, height: 100).insetBy(dx: -42, dy: -30)
+    // then: so does the clip path, and the mask's frame changes at once too, keeping its animations
+    expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 250, height: 100)
+    let maskSizeAnimation = try (maskLayer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(clipPathAnimation, as: maskSizeAnimation)
+    expect(try isPath(path(clipPathAnimation.fromValue), closeTo: paths150.clip)) == true
+    expect(try path(clipPathAnimation.toValue)) == paths250.clip
   }
 
   // MARK: - Helpers
 
   /// An inner shadow layer of the given width and 100 points high, updated by `updateRounded` without animation.
-  private func makeLayer(width: CGFloat,
-                         supportsInvertsShadow: Bool,
-                         radius: CGFloat = 10,
-                         offset: CGSize = CGSize(width: 2, height: 3)) -> InnerShadowLayer
-  {
+  private func makeLayer(width: CGFloat) -> InnerShadowLayer {
     let layer = InnerShadowLayer()
-    layer.test.supportsInvertsShadowOverride = supportsInvertsShadow
     layer.frame = CGRect(x: 0, y: 0, width: width, height: 100)
-    updateRounded(layer, radius: radius, offset: offset, animationTiming: nil)
+    updateRounded(layer, animationTiming: nil)
     return layer
   }
 
   /// Updates the layer with a hole of the rounded rect of its size inset by 5 points, clipped by the rounded rect.
-  private func updateRounded(_ layer: InnerShadowLayer,
-                             radius: CGFloat = 10,
-                             offset: CGSize = CGSize(width: 2, height: 3),
-                             animationTiming: AnimationTiming?)
-  {
+  private func updateRounded(_ layer: InnerShadowLayer, animationTiming: AnimationTiming?) {
     layer.update(
       color: .black,
       opacity: 0.5,
-      radius: radius,
-      offset: offset,
+      radius: 10,
+      offset: CGSize(width: 2, height: 3),
       paths: { InnerShadowPaths(shadowPath: roundedRect(size: $0, inset: 5), clipPath: roundedRect(size: $0)) },
       animationTiming: animationTiming
     )
   }
 
   /// Animates the frame to the width, as the render pass does, and updates the layer with the same timing.
-  private func resize(_ layer: InnerShadowLayer,
-                      toWidth width: CGFloat,
-                      radius: CGFloat = 10,
-                      offset: CGSize = CGSize(width: 2, height: 3),
-                      timing: AnimationTiming)
-  {
+  private func resize(_ layer: InnerShadowLayer, toWidth width: CGFloat, timing: AnimationTiming) {
     layer.animateFrame(to: CGRect(x: 0, y: 0, width: width, height: 100), timing: timing)
-    updateRounded(layer, radius: radius, offset: offset, animationTiming: timing)
+    updateRounded(layer, animationTiming: timing)
   }
 
   /// The shadow path and the clip path `updateRounded` gives a layer of the given width.
-  private func referencePaths(width: CGFloat,
-                              supportsInvertsShadow: Bool,
-                              radius: CGFloat = 10,
-                              offset: CGSize = CGSize(width: 2, height: 3)) throws -> (shadow: CGPath, clip: CGPath)
-  {
-    let layer = makeLayer(width: width, supportsInvertsShadow: supportsInvertsShadow, radius: radius, offset: offset)
+  private func referencePaths(width: CGFloat) throws -> (shadow: CGPath, clip: CGPath) {
+    let layer = makeLayer(width: width)
     return try (layer.shadowPath.unwrap(), (layer.mask as? CAShapeLayer).unwrap().path.unwrap())
-  }
-
-  /// The bounding box of the layer's shadow path, the fallback's rect around the clip.
-  private func shadowRect(of layer: InnerShadowLayer) throws -> CGRect {
-    try layer.shadowPath.unwrap().boundingBoxOfPath
   }
 
   /// A rounded rect of the given size at the origin, with a corner radius of 10, inset by the given amount.

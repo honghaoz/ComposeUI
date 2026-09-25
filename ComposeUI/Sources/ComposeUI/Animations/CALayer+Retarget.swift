@@ -115,20 +115,6 @@ public extension CALayer {
     }
   }
 
-  /// The time the layer's in-flight animations of the given key path have left, in seconds of the layer's time space.
-  ///
-  /// The time is the longest animation's: a delayed animation that hasn't begun counts its remaining delay, and an
-  /// animation whose `beginTime` is still unset (zero) begins when the transaction commits, so it counts its full
-  /// duration. A paused animation (zero speed) counts its duration, as it has no end to measure to.
-  ///
-  /// - Parameter keyPath: The animated key path.
-  /// - Returns: The remaining time, or `nil` when no animation of the key path is in flight.
-  internal func remainingAnimationTime(forKeyPath keyPath: String) -> TimeInterval? {
-    inFlightAnimations(forKeyPath: keyPath, at: currentTime).animations
-      .max(by: { $0.remainingTime < $1.remainingTime })?
-      .remainingTime
-  }
-
   /// The layer's property animations of the given key path that haven't ended at `now`, and the keys of the kept ones
   /// that have ended.
   private func inFlightAnimations(forKeyPath keyPath: String, at now: TimeInterval) -> (animations: [InFlightAnimation], endedKeptKeys: [String]) {

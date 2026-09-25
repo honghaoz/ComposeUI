@@ -36,170 +36,6 @@ import ChouTiTest
 
 class CALayer_RetargetTests: XCTestCase {
 
-  // MARK: - Remaining Animation Time
-
-  func test_remainingAnimationTime_noAnimationOfKeyPath() {
-    // given: a layer with an animation of another key path only
-    let layer = CALayer()
-
-    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
-    spinAnimation.duration = 60
-    layer.add(spinAnimation, forKey: "spin")
-
-    // then: no opacity animation is in flight
-    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == nil
-  }
-
-  func test_remainingAnimationTime_unresolvedBeginTime() throws {
-    // given: a layer with an opacity animation that isn't committed yet, so its begin time is unset
-    let layer = CALayer()
-
-    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
-    fadeAnimation.duration = 4
-    layer.add(fadeAnimation, forKey: "fade")
-    expect(try layer.animation(forKey: "fade").unwrap().beginTime) == 0
-
-    // then: the animation begins at the commit, so its whole duration remains
-    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == 4
-
-    // when: the animation runs at double speed
-    fadeAnimation.speed = 2
-    layer.add(fadeAnimation, forKey: "fade")
-
-    // then: the duration is scaled by the speed
-    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == 2
-
-    // when: the animation is paused
-    fadeAnimation.speed = 0
-    layer.add(fadeAnimation, forKey: "fade")
-
-    // then: the duration stands in, as a paused animation has no end to measure to
-    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == 4
-  }
-
-  func test_remainingAnimationTime_longestAnimationWins() {
-    // given: a layer with basic and keyframe opacity animations of different durations, and an animation group
-    let layer = CALayer()
-
-    let shortFadeAnimation = CABasicAnimation(keyPath: "opacity")
-    shortFadeAnimation.duration = 3
-    layer.add(shortFadeAnimation, forKey: "short-fade")
-
-    let longFadeAnimation = CAKeyframeAnimation(keyPath: "opacity")
-    longFadeAnimation.duration = 10
-    layer.add(longFadeAnimation, forKey: "long-fade")
-
-    // an animation group has no key path of its own and doesn't count
-    let groupAnimation = CAAnimationGroup()
-    groupAnimation.duration = 60
-    layer.add(groupAnimation, forKey: "group")
-
-    // then: the longest opacity animation's time remains
-    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == 10
-  }
-
-  func test_remainingAnimationTime_scheduledAnimation() throws {
-    // given: a layer with an opacity animation scheduled one second ahead
-    let layer = CALayer()
-
-    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
-    fadeAnimation.duration = 2
-    fadeAnimation.beginTime = layer.currentTime + 1
-    layer.add(fadeAnimation, forKey: "fade")
-
-    // then: the remaining delay counts towards the remaining time
-    expect(try layer.remainingAnimationTime(forKeyPath: "opacity").unwrap()).to(beApproximatelyEqual(to: 3, within: 0.05))
-  }
-
-  func test_remainingAnimationTime_endedAnimation() {
-    // given: a layer with an opacity animation that ended, still on the layer as nothing has committed since
-    let layer = CALayer()
-
-    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
-    fadeAnimation.duration = 2
-    fadeAnimation.beginTime = layer.currentTime - 5
-    layer.add(fadeAnimation, forKey: "fade")
-
-    // then: nothing is in flight
-    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == nil
-  }
-
-  func test_remainingAnimationTime_endedAnimationKeptOnCompletion_assertsAndIsLeftAlone() {
-    // given: a layer with a kept opacity animation that ended
-    let layer = CALayer()
-
-    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
-    fadeAnimation.duration = 2
-    fadeAnimation.beginTime = layer.currentTime - 5
-    fadeAnimation.isRemovedOnCompletion = false
-    layer.add(fadeAnimation, forKey: "fade")
-
-    var assertionMessages: [String] = []
-    Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      assertionMessages.append(message)
-    }
-    defer {
-      Assert.resetTestAssertionFailureHandler()
-    }
-
-    // when: reading the remaining animation time
-    let remainingTime = layer.remainingAnimationTime(forKeyPath: "opacity")
-
-    // then: nothing is in flight, and it asserts but leaves the animation alone
-    expect(remainingTime) == nil
-    expect(assertionMessages) == ["animation \"fade\" of \"opacity\" is kept with isRemovedOnCompletion off, which isn't supported"]
-    expect(layer.animationKeys()) == ["fade"]
-  }
-
-  func test_remainingAnimationTime_pausedAnimation_pastItsDuration() throws {
-    // given: a layer with a paused opacity animation that began longer ago than its duration
-    let layer = CALayer()
-    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
-    fadeAnimation.fromValue = Float(1)
-    fadeAnimation.toValue = Float(0)
-    fadeAnimation.duration = 2
-    fadeAnimation.speed = 0
-    fadeAnimation.beginTime = layer.currentTime - 5
-    layer.add(fadeAnimation, forKey: "fade")
-
-    // then: it hasn't ended, its time is frozen, so it still counts its duration
-    expect(layer.remainingAnimationTime(forKeyPath: "opacity")) == 2
-
-    // when: retargeting the opacity
-    layer.retarget(keyPath: "opacity", to: Float(0.5))
-
-    // then: the frozen animation isn't taken for an ended one, which would be skipped, it is replaced like any in-flight
-    // animation
-    expect(layer.animationKeys()) == ["opacity"]
-    let animation = try (layer.animation(forKey: "opacity") as? CABasicAnimation).unwrap()
-    expect(animation.toValue as? Float) == 0.5
-    expect(animation.duration) == 2
-  }
-
-  func test_remainingAnimationTime_committedAnimation() throws {
-    // given: a hosted layer with a committed opacity animation that has run for a while
-    let testWindow = TestWindow()
-    let layer = CALayer()
-    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
-    testWindow.layer.addSublayer(layer)
-    CATransaction.flush()
-
-    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
-    fadeAnimation.fromValue = Float(1)
-    fadeAnimation.toValue = Float(0)
-    fadeAnimation.duration = 2
-    layer.add(fadeAnimation, forKey: "fade")
-    CATransaction.flush()
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
-    let beginTime = try layer.animation(forKey: "fade").unwrap().beginTime
-    expect(beginTime) > 0
-
-    // then: the time to the animation's end remains, measured from its begin time since the run loop's wait isn't exact
-    let remainingTime = try layer.remainingAnimationTime(forKeyPath: "opacity").unwrap()
-    expect(remainingTime).to(beApproximatelyEqual(to: beginTime + 2 - layer.currentTime, within: 0.02))
-    expect(remainingTime) < 2
-  }
-
   // MARK: - Retarget
 
   func test_retarget_withoutInFlightAnimation_setsValue() {
@@ -240,6 +76,28 @@ class CALayer_RetargetTests: XCTestCase {
     // Animation to remove
     expect(layer.animationKeys()) == ["ended"]
     expect(layer.cornerRadius) == 5
+  }
+
+  func test_retarget_pausedAnimation_pastItsDuration_isReplaced() throws {
+    // given: a layer with a paused opacity animation that began longer ago than its duration, so its time is frozen
+    let layer = CALayer()
+    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
+    fadeAnimation.fromValue = Float(1)
+    fadeAnimation.toValue = Float(0)
+    fadeAnimation.duration = 2
+    fadeAnimation.speed = 0
+    fadeAnimation.beginTime = layer.currentTime - 5
+    layer.add(fadeAnimation, forKey: "fade")
+
+    // when: retargeting the opacity
+    layer.retarget(keyPath: "opacity", to: Float(0.5))
+
+    // then: the frozen animation isn't taken for an ended one, which would be skipped, it is replaced like any in-flight
+    // animation, over its duration
+    expect(layer.animationKeys()) == ["opacity"]
+    let animation = try (layer.animation(forKey: "opacity") as? CABasicAnimation).unwrap()
+    expect(animation.toValue as? Float) == 0.5
+    expect(animation.duration) == 2
   }
 
   func test_retarget_endedAnimationKeptOnCompletion_assertsAndIsRemoved() {
