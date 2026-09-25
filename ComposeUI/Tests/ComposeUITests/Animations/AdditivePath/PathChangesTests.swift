@@ -319,6 +319,38 @@ class PathChangesTests: XCTestCase {
     expect(change.remainingFactor(at: duration, now: 100)) == 0
   }
 
+  func test_remainingFactor_beforeLanding_showsTheLandingFactorAtTheLandingTime() throws {
+    // given: a spring change cut short by a duration of 0.1s, before it settles
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .spring(dampingRatio: 1, response: 0.5, duration: 0.1), at: 100)
+    let change = try changes.changes.first.unwrap()
+
+    // then: at its landing time the change shows its landing factor before it lands and zero after, and at other times
+    // it shows the same either way
+    expect(change.remainingFactor(at: 0.1, now: 100, beforeLanding: true)) == change.landingFactor
+    expect(change.remainingFactor(at: 0.1, now: 100)) == 0
+    expect(change.remainingFactor(at: 0.05, now: 100, beforeLanding: true)) == change.remainingFactor(at: 0.05, now: 100)
+    expect(change.remainingFactor(at: 0.2, now: 100, beforeLanding: true)) == 0
+  }
+
+  // MARK: - Landing Factor
+
+  func test_landingFactor() {
+    // given: a linear change, an eased change, and a spring change cut short by a duration of 0.1s, before it settles
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 5), timing: .linear(duration: 1), at: 100)
+    changes.record(from: rect(inset: 5), to: rect(inset: 10), timing: .easeInEaseOut(duration: 1), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 15), timing: .spring(dampingRatio: 1, response: 0.5, duration: 0.1), at: 100)
+    expect(changes.changes.count) == 3
+
+    // then: the curves that reach their end land without a jump, and the spring jumps from what its curve leaves at the
+    // end of its duration
+    expect(changes.changes[0].landingFactor) == 0
+    expect(changes.changes[1].landingFactor) == 0
+    expect(changes.changes[2].landingFactor) == CGFloat(1 - changes.changes[2].curve.progress(forElapsedTime: 0.1))
+    expect(changes.changes[2].landingFactor) > 0.5
+  }
+
   // MARK: - Keyframes
 
   func test_keyframes_samplesAtTheDisplayRate() {
@@ -506,6 +538,58 @@ class PathChangesTests: XCTestCase {
     expect(keyframes.keyTimes) == nil
     expect(keyframes.paths.count) == 61
     expect(keyframes.paths[0].maxPointDistance(to: rect(inset: 10))) < 1e-9
+  }
+
+  func test_keyframes_truncatedSpring_jumpsWhereItLands() throws {
+    // a spring landing between evenly spread keyframes gets both keyframes of its jump, and one landing on an evenly
+    // spread keyframe gets the keyframe before its jump, as the evenly spread one shows it landed
+    let scenarios: [(springDuration: TimeInterval, keyframeCount: Int)] = [
+      (0.105, 123), // 2s at 60 per second, plus the end, the spring's landing and the keyframe before its jump
+      (0.1, 122), // 2s at 60 per second, plus the end and the keyframe before the spring's jump
+    ]
+    for (springDuration, keyframeCount) in scenarios {
+      let scenario = "spring duration: \(springDuration)"
+
+      // given: a linear change over two seconds, and a spring change cut short by its duration, before it settles
+      var changes = PathChanges()
+      changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
+      changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .spring(dampingRatio: 1, response: 0.5, duration: springDuration), at: 100)
+      let landingFactor = changes.changes[1].landingFactor
+      let path = rect(inset: 20)
+
+      // when: sampling the keyframes
+      let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
+
+      // then: the spring's landing time has two keyframes, the first with what the spring's curve leaves at its end and
+      // the second with the spring landed, so the spring jumps at once when it lands instead of across the spacing
+      let times = try keyframes.keyTimes.unwrap().map { $0.doubleValue * keyframes.duration }
+      expect(keyframes.paths.count, scenario) == keyframeCount
+      let jumpIndex = try times.firstIndex { abs($0 - springDuration) < 1e-9 }.unwrap()
+      expect(times[jumpIndex + 1], scenario) == times[jumpIndex]
+      let linearInset = 10 * (1 - springDuration / 2)
+      expect(keyframes.paths[jumpIndex].maxPointDistance(to: rect(inset: 20 - linearInset - 10 * landingFactor)), scenario) < 1e-9
+      expect(keyframes.paths[jumpIndex + 1].maxPointDistance(to: rect(inset: 20 - linearInset)), scenario) < 1e-9
+    }
+  }
+
+  func test_keyframes_truncatedSpringLandingLast_jumpsAtTheEnd() throws {
+    // given: a linear change over 0.05s, and a spring change cut short by a duration of 0.1s, which lands last
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 0.05), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .spring(dampingRatio: 1, response: 0.5, duration: 0.1), at: 100)
+    let landingFactor = changes.changes[1].landingFactor
+    let path = rect(inset: 20)
+
+    // when: sampling the keyframes
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
+
+    // then: the keyframes end with what the spring's curve leaves at its end, then the path itself at the same time, so
+    // the spring jumps at once at the end
+    let times = try keyframes.keyTimes.unwrap().map { $0.doubleValue * keyframes.duration }
+    expect(keyframes.duration) == 0.1
+    expect(Array(times.suffix(2))) == [0.1, 0.1]
+    expect(keyframes.paths[keyframes.paths.count - 2].maxPointDistance(to: rect(inset: 20 - 10 * landingFactor))) < 1e-9
+    expect(keyframes.paths.last) === path
   }
 
   func test_keyframes_oneChange_isSpreadEvenly() {
