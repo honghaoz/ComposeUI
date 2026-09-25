@@ -242,85 +242,13 @@ public extension CALayer {
 
   internal func setKeyPathValue(_ keyPath: String, _ value: Any) {
     #if canImport(AppKit)
-    if keyPath.hasPrefix("position"), let backedView {
+    // an NSView's frame doesn't follow its layer's geometry: after `layer.position = CGPoint(200, 320)`, `layer.frame`
+    // has moved but `backedView.frame` keeps the old origin, while UIKit keeps the two in sync. so the view's frame is
+    // set from the layer's after the change. the value goes through key-value coding, so a component key path such as
+    // `position.x` or `bounds.size.width` works like the whole property
+    if Self.isViewGeometryKeyPath(keyPath), let backedView {
       CATransaction.disableAnimations {
-        /**
-         For `NSView`, changing layer's frame related properties (aka `position`, `bounds.size`, `anchorPoint`) could
-         make view's frame and layer's frame out of sync.
-
-         For example:
-         ```
-         backedView.frame // (196.0, 315.0, 24.0, 28.0)
-         layer.position // (196.0, 315.0)
-         layer.position = CGPoint(200, 320)
-         layer.position // (200.0, 320.0)
-         layer.frame // (200.0, 320.0, 24.0, 28.0), which is correct
-         backedView.frame // (196.0, 315.0, 24.0, 28.0), which is still the old frame, it's out of sync with the layer's frame
-         ```
-
-         For this case, we should correct the view's frame
-         */
-
-        position = value as! CGPoint // swiftlint:disable:this force_cast
-        backedView.frame = frame
-      }
-      return
-    }
-    if keyPath.hasPrefix("bounds.size"), let backedView {
-      CATransaction.disableAnimations {
-        /**
-         ```
-         backedView.frame // (196.0, 315.0, 24.0, 28.0)
-         layer.frame // (196.0, 315.0, 24.0, 28.0)
-
-         layer.bounds.size = CGSize(50, 80)
-
-         layer.frame // (196.0, 315.0, 50.0, 80.0), which is correct. Note that anchorPoint is (0, 0)
-         backedView.frame // (196.0, 315.0, 24.0, 28.0) which is still the old frame, it's out of sync with the layer's frame
-
-         on iOS, anchorPoint is (0.5, 0.5), changing the bounds.size will change the frame around the anchorPoint
-         uiView.frame // (200.0, 150.0, 50.0, 50.0)
-         uiView.layer.frame // (200.0, 150.0, 50.0, 50.0)
-
-         uiView.layer.bounds.size = CGSize(80, 100)
-
-         uiView.layer.frame // (185.0, 125.0, 80.0, 100.0)
-         uiView.frame // (185.0, 125.0, 80.0, 100.0)
-         ```
-         */
-
-        bounds.size = value as! CGSize // swiftlint:disable:this force_cast
-        backedView.frame = frame
-      }
-      return
-    }
-    if keyPath.hasPrefix("anchorPoint"), let backedView {
-      CATransaction.disableAnimations {
-        /**
-         ```
-         // macOS behavior:
-         layer.frame // (196.0, 315.0, 24.0, 28.0)
-         backedView.frame // (196.0, 315.0, 24.0, 28.0)
-
-         backingLayer.anchorPoint // (0.0, 0.0)
-         backingLayer.anchorPoint = CGPoint(0.5, 0.5)
-
-         backingLayer.frame // (184.0, 301.0, 24.0, 28.0)
-         backedView.frame // (196.0, 315.0, 24.0, 28.0)
-
-         // iOS behavior:
-         uiView.frame // (200.0, 150.0, 50.0, 50.0)
-         uiView.layer.frame // (200.0, 150.0, 50.0, 50.0)
-
-         uiView.layer.anchorPoint = CGPoint(0, 0)
-
-         uiView.layer.frame // (225.0, 175.0, 50.0, 50.0)
-         uiView.frame // (225.0, 175.0, 50.0, 50.0)
-
-         // summary: anchorPoint position in the parent view is the same, the view/layer's frame moves accordingly
-         ```
-         */
-        anchorPoint = value as! CGPoint // swiftlint:disable:this force_cast
+        setValue(value, forKeyPath: keyPath)
         backedView.frame = frame
       }
       return
@@ -344,6 +272,21 @@ public extension CALayer {
       setValue(value, forKeyPath: keyPath)
     }
   }
+
+  #if canImport(AppKit)
+  /// Whether a key path is a layer property a view's frame is derived from, whole or by component, such as `position`
+  /// or `bounds.size.width`.
+  private static func isViewGeometryKeyPath(_ keyPath: String) -> Bool {
+    switch keyPath.prefix(while: { $0 != "." }) {
+    case "position",
+         "bounds",
+         "anchorPoint":
+      return true
+    default:
+      return false
+    }
+  }
+  #endif
 
   /// Get a unique animation key.
   ///
