@@ -69,9 +69,13 @@ struct PathChanges {
     /// The part of the offset left when the change lands.
     ///
     /// It is zero unless the curve doesn't reach its end, as a spring cut short by its duration, and the change jumps
-    /// from it to zero when it lands.
+    /// from it to zero when it lands. A change of an infinite duration never lands, so it has no jump.
     var landingFactor: CGFloat {
-      CGFloat(1 - curve.progress(atFraction: 1))
+      // the curve's end is at an infinite time, where a spring's progress is undefined, so there is no jump to key
+      guard curve.duration.isFinite else {
+        return 0
+      }
+      return CGFloat(1 - curve.progress(atFraction: 1))
     }
 
     /// The part of the offset left at a time.
