@@ -79,6 +79,9 @@ open class InnerShadowLayer: CALayer {
 
   private lazy var maskLayer = CAShapeLayer()
 
+  /// The margin of the fallback shadow path's rect around the clip, see `updateFallbackShadowPath(...)`.
+  private var fallbackMargin: CGSize?
+
   override public init() {
     super.init()
 
@@ -150,21 +153,17 @@ open class InnerShadowLayer: CALayer {
     let holePath = paths.shadowPath
     let clipPath = paths.clipPath ?? holePath
 
-    let innerShadowPath: CGPath
     #if DEBUG
     let useInvertsShadow: Bool = self.supportsInvertsShadowOverride ?? self.supportsInvertsShadow
     #else
     let useInvertsShadow: Bool = self.supportsInvertsShadow
     #endif
     if useInvertsShadow {
-      innerShadowPath = holePath
       self.disableActions {
         if !self.invertsShadow {
           self.invertsShadow = true // use the invertsShadow API
         }
       }
-    } else {
-      innerShadowPath = makeInnerShadowPath(holePath: holePath, clipPath: clipPath, radius: radius, offset: offset)
     }
 
     if let animationTiming {
@@ -202,7 +201,6 @@ open class InnerShadowLayer: CALayer {
       if shadowOffset != offset {
         animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
       }
-      animatePath(keyPath: "shadowPath", to: innerShadowPath, timing: animationTiming)
     } else {
       // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
       // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
@@ -216,7 +214,17 @@ open class InnerShadowLayer: CALayer {
       retarget(keyPath: "shadowOpacity", to: opacity)
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
-      setPath(keyPath: "shadowPath", to: innerShadowPath)
+    }
+
+    // the shadow path goes after the radius and offset, as the fallback's margin depends on their animations
+    if useInvertsShadow {
+      if let animationTiming {
+        animatePath(keyPath: "shadowPath", to: holePath, timing: animationTiming)
+      } else {
+        setPath(keyPath: "shadowPath", to: holePath)
+      }
+    } else {
+      updateFallbackShadowPath(holePath: holePath, clipPath: clipPath, radius: radius, offset: offset, animationTiming: animationTiming)
     }
   }
 
@@ -254,12 +262,41 @@ open class InnerShadowLayer: CALayer {
     // doesn't clear shadow properties since they are set by `update`
   }
 
-  private func makeInnerShadowPath(holePath: CGPath, clipPath: CGPath, radius: CGFloat, offset: CGSize) -> CGPath {
-    // make a bigger rect to contain the shadow.
-    // `radius + abs(offset)` covers the shadow's nominal extent, add extra 20pt to ensure the shadow is fully contained.
-    let hExtraSize = radius + abs(offset.width) + 20
-    let vExtraSize = radius + abs(offset.height) + 20
-    let biggerBounds = clipPath.boundingBoxOfPath.insetBy(dx: -hExtraSize, dy: -vExtraSize)
+  /// Updates the shadow path of the fallback for when `invertsShadow` isn't available: a drop shadow from a rect around
+  /// the clip, with the hole cut out.
+  ///
+  /// The rect's margin changes at once instead of animating with the path: a path change keeps going through a
+  /// non-animated update while the radius and offset glide to new values, so a margin change could outlast its radius
+  /// and move the rect into the clip. The margin only grows while the radius or offset animate, to cover their values.
+  private func updateFallbackShadowPath(holePath: CGPath,
+                                        clipPath: CGPath,
+                                        radius: CGFloat,
+                                        offset: CGSize,
+                                        animationTiming: AnimationTiming?)
+  {
+    // `radius + abs(offset)` covers the shadow's nominal extent, add extra 20pt to ensure the shadow is fully contained
+    let fittingMargin = CGSize(width: radius + abs(offset.width) + 20, height: radius + abs(offset.height) + 20)
+    let previousMargin = fallbackMargin ?? fittingMargin
+    let margin: CGSize
+    if remainingAnimationTime(forKeyPath: "shadowRadius") != nil || remainingAnimationTime(forKeyPath: "shadowOffset") != nil {
+      margin = CGSize(width: max(fittingMargin.width, previousMargin.width), height: max(fittingMargin.height, previousMargin.height))
+    } else {
+      margin = fittingMargin
+    }
+    fallbackMargin = margin
+
+    let path = makeInnerShadowPath(holePath: holePath, clipPath: clipPath, margin: margin)
+    if let animationTiming {
+      // the hole's and the clip's changes animate on the path with the margin it has, then the margin changes at once
+      let movedPath = margin == previousMargin ? path : makeInnerShadowPath(holePath: holePath, clipPath: clipPath, margin: previousMargin)
+      animatePath(keyPath: "shadowPath", to: movedPath, timing: animationTiming)
+    }
+    setPath(keyPath: "shadowPath", to: path)
+  }
+
+  private func makeInnerShadowPath(holePath: CGPath, clipPath: CGPath, margin: CGSize) -> CGPath {
+    // make a bigger rect to contain the shadow
+    let biggerBounds = clipPath.boundingBoxOfPath.insetBy(dx: -margin.width, dy: -margin.height)
     let biggerPath = BezierPath(rect: biggerBounds)
 
     // then cut the shadow path from the bigger rect
