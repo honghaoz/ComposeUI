@@ -94,17 +94,19 @@ class AdditivePathPerformanceTests: XCTestCase {
   }
 
   func test_setPath_changesInFlight() {
-    let cases: [(name: String, changeCount: Int, duration: TimeInterval, path: (CGFloat) -> CGPath)] = [
-      ("roundedRect.2changes.0.5s", 2, 0.5, { self.roundedRect(width: $0) }),
-      ("roundedRect.2changes.2s", 2, 2, { self.roundedRect(width: $0) }),
-      ("roundedRect.10changes.2s", 10, 2, { self.roundedRect(width: $0) }),
-      ("blob48.2changes.0.5s", 2, 0.5, { self.blob(width: $0) }),
+    let cases: [(name: String, durations: [TimeInterval], path: (CGFloat) -> CGPath)] = [
+      ("roundedRect.2changes.0.5s", [0.5, 0.5], { self.roundedRect(width: $0) }),
+      ("roundedRect.2changes.2s", [2, 2], { self.roundedRect(width: $0) }),
+      // the first change lands between evenly spread keyframes, as an interrupted change usually does
+      ("roundedRect.2changes.staggered", [0.37, 0.5], { self.roundedRect(width: $0) }),
+      ("roundedRect.10changes.2s", Array(repeating: 2, count: 10), { self.roundedRect(width: $0) }),
+      ("blob48.2changes.0.5s", [0.5, 0.5], { self.blob(width: $0) }),
     ]
     for testCase in cases {
       // given: a layer with changes in flight
       let layer = makeLayers(count: 1, path: testCase.path(100))[0]
-      for index in 0 ..< testCase.changeCount {
-        layer.animatePath(keyPath: "path", to: testCase.path(CGFloat(110 + index * 10)), timing: .easeInEaseOut(duration: testCase.duration))
+      for (index, duration) in testCase.durations.enumerated() {
+        layer.animatePath(keyPath: "path", to: testCase.path(CGFloat(110 + index * 10)), timing: .easeInEaseOut(duration: duration))
       }
 
       // when: setting another path on every call, as a live resize during the changes does

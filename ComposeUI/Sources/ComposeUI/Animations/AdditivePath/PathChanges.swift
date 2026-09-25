@@ -54,8 +54,8 @@ struct PathChanges {
     /// The speed of the change's timing.
     let speed: TimeInterval
 
-    /// The time the change begins, in the layer's time space, or zero until the animation that shows it is committed,
-    /// see `update(beginTime:sampledBeginTime:at:)`.
+    /// The time the change begins, in the layer's time space, or zero while it begins at the commit of the animation
+    /// that shows it, see `update(beginTime:at:)`.
     var beginTime: TimeInterval
 
     /// The time the change has left, see `CAAnimation.remainingTime(at:)`.
@@ -95,11 +95,12 @@ struct PathChanges {
 
   /// Whether the keyframes of the changes begin at the next commit, instead of now.
   ///
-  /// A change without a delay begins at the commit, as an animation without a delay does, while a change with a delay
-  /// begins its delay after it was recorded. The keyframes have one begin time, so they begin at the commit when a
-  /// change begins there and no change moves yet, and a transaction held open delays the other changes by the hold.
-  /// Once a change moves, the keyframes begin now to keep it where it is shown, and a change that begins at the commit
-  /// begins now with them.
+  /// The keyframes have one begin time, while a change begins at the commit or at its own begin time, see
+  /// `update(beginTime:at:)`, and the time between now and the commit isn't known until the commit. A change that moves
+  /// has to keep its motion, so the keyframes begin now once one moves. Before that, they begin at the commit when a
+  /// change begins there, so a transaction held open draws the changes with their own begin times late by the hold,
+  /// until an update draws them again. The begin time only decides how the keyframes draw the changes, it doesn't change
+  /// theirs.
   ///
   /// - Parameter now: The layer's current time.
   /// - Returns: `true` if a change begins at the commit and no change moves yet.
@@ -133,26 +134,18 @@ struct PathChanges {
 
   /// Prepares the changes for an update of the path.
   ///
-  /// Once the animation that shows the changes is committed, the changes that begin at the commit take the begin time
-  /// Core Animation gave the animation, and the other changes move by as much as that begin time differs from the one
-  /// the animation was sampled for, so every change stays where the animation showed it. The changes that have landed
-  /// are removed.
+  /// A change has the begin time an animation of its timing gets, see `record(from:to:timing:at:)`, and a begin time
+  /// that is set doesn't change, so the changes stay in step with animations of the same timings. A change without a
+  /// begin time takes the begin time of the animation that shows it: the commit once Core Animation has resolved it, or
+  /// the time the animation begins at when it doesn't begin at the commit, which is when it showed the change beginning.
+  /// The changes that have landed are removed.
   ///
   /// - Parameters:
-  ///   - beginTime: The begin time of the animation that shows the changes, zero until it is committed.
-  ///   - sampledBeginTime: The begin time the animation was sampled for: the time it was made at when it begins at the
-  ///     commit, otherwise its begin time.
+  ///   - beginTime: The begin time of the animation that shows the changes, zero while it begins at the next commit.
   ///   - now: The layer's current time.
-  mutating func update(beginTime: TimeInterval, sampledBeginTime: TimeInterval, at now: TimeInterval) {
-    if beginTime != 0 {
-      let shift = beginTime - sampledBeginTime
-      for index in changes.indices {
-        if changes[index].beginTime == 0 {
-          changes[index].beginTime = beginTime
-        } else {
-          changes[index].beginTime += shift
-        }
-      }
+  mutating func update(beginTime: TimeInterval, at now: TimeInterval) {
+    for index in changes.indices where changes[index].beginTime == 0 {
+      changes[index].beginTime = beginTime
     }
     changes.removeAll { $0.remainingTime(at: now) == nil }
   }
@@ -185,6 +178,8 @@ struct PathChanges {
       return
     }
 
+    // the change begins when `CALayer.animate` begins an animation of its timing, at the commit without a delay and the
+    // delay from now with one, so it keeps in step with the animations of the same timing
     let animation = CABasicAnimation.makeAnimation(timing)
     changes.append(
       Change(
@@ -212,9 +207,9 @@ struct PathChanges {
 
   /// The keyframes of a path plus the part of each change's offset that is left, from zero until every change has landed.
   ///
-  /// The keyframes are spread evenly at the sampling rate. A change too short for the spacing, as a snap is, would show
-  /// spread across the spacing, so the times it begins and lands get keyframes of their own, which hold it until it
-  /// begins and land it when it lands.
+  /// The keyframes are spread evenly at the sampling rate, and each time a change begins or lands gets a keyframe of its
+  /// own. A change starts or stops moving at those times, which the straight lines between evenly spread keyframes would
+  /// round off, and a change shorter than the spacing, as a snap is, would show spread across it.
   ///
   /// - Parameters:
   ///   - path: The path.
@@ -267,30 +262,35 @@ struct PathChanges {
     return Keyframes(paths: paths, keyTimes: times?.map { NSNumber(value: $0 / duration) }, duration: duration)
   }
 
-  /// The times of the keyframes when a change is too short for evenly spread keyframes: the evenly spread times, and
-  /// the times the short changes begin and land.
+  /// The times of the keyframes when a change begins or lands between evenly spread keyframes: the evenly spread times,
+  /// and the times the changes begin and land.
   ///
   /// - Parameters:
   ///   - evenSampleCount: The number of evenly spread keyframes.
   ///   - duration: The keyframes' duration.
   ///   - now: The layer's current time.
-  /// - Returns: The times from now, in order, or `nil` when no change is too short.
+  /// - Returns: The times from now, in order, or `nil` when every change begins and lands on an evenly spread time.
   private func sampleTimes(evenSampleCount: Int, duration: TimeInterval, at now: TimeInterval) -> [TimeInterval]? {
     let spacing = duration / TimeInterval(evenSampleCount - 1)
     var boundaries: [TimeInterval] = []
+    func addBoundary(_ time: TimeInterval) {
+      guard time > 0, time < duration else {
+        return
+      }
+      // a time on an evenly spread keyframe has its keyframe already
+      let evenIndex = time / spacing
+      guard abs(evenIndex - evenIndex.rounded()) * spacing > Constants.timeTolerance else {
+        return
+      }
+      boundaries.append(time)
+    }
+
     for change in changes {
       guard let landing = change.remainingTime(at: now) else {
         continue
       }
-
-      // a change shorter than two spacings has one evenly spread keyframe within it at most
-      let begin = change.beginTime == 0 ? 0 : change.beginTime - now
-      guard landing - begin < 2 * spacing else {
-        continue
-      }
-      for time in [begin, landing] where time > 0 && time < duration {
-        boundaries.append(time)
-      }
+      addBoundary(change.beginTime == 0 ? 0 : change.beginTime - now)
+      addBoundary(landing)
     }
     guard !boundaries.isEmpty else {
       return nil
@@ -317,5 +317,9 @@ struct PathChanges {
     /// For example, 10s of changes at 60 samples per second get 600 samples. Changes longer than 10s get fewer than 60
     /// samples per second. This is to prevent an absurd duration from building millions of samples.
     static let maxSampledDuration: TimeInterval = 10
+
+    /// The distance within which two times are the same time. Times computed in different ways differ by far less, and
+    /// keyframes are far further apart.
+    static let timeTolerance: TimeInterval = 1e-9
   }
 }

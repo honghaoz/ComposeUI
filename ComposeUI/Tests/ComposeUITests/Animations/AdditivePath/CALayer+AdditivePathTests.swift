@@ -125,8 +125,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(animation.duration).to(beApproximatelyEqual(to: 1.5, within: 0.05))
     expect(try values.first.unwrap().maxPointDistance(to: roundedRect(width: 125))) < 0.01
     expect(values.last) == roundedRect(width: 300)
-    let valueAtHalfSecond = values[Int((0.5 / animation.duration * TimeInterval(values.count - 1)).rounded())]
-    expect(valueAtHalfSecond.maxPointDistance(to: roundedRect(width: 200))) < 0.01
+    expect(try interpolatedPoints(of: animation, at: 0.5).path.maxPointDistance(to: roundedRect(width: 200))) < 0.01
   }
 
   func test_animatePath_changesSurviveTheCommit() throws {
@@ -222,7 +221,21 @@ class CALayer_AdditivePathTests: XCTestCase {
     CATransaction.flush()
 
     // then: while only the change without a delay moves, the path keeps the frame's width, as both begin at the commit
-    for _ in 0 ..< 4 {
+    for _ in 0 ..< 3 {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+      let shownWidth = try layer.presentation().unwrap().path.unwrap().boundingBoxOfPath.width
+      let frameWidth = try frameLayer.presentation().unwrap().bounds.width
+      expect(shownWidth).to(beApproximatelyEqual(to: frameWidth, within: 1))
+    }
+
+    // when: both grow on to 310 wide over half a second, in a transaction committed at once
+    frameLayer.animateFrame(to: CGRect(x: 0, y: 0, width: 310, height: 50), timing: .linear(duration: 0.5))
+    layer.animatePath(keyPath: "path", to: rect(width: 310), timing: .linear(duration: 0.5))
+    CATransaction.flush()
+
+    // then: the path keeps the frame's width past the delayed change's begin too, as the update draws the delayed change
+    // at its own begin time again
+    for _ in 0 ..< 8 {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
       let shownWidth = try layer.presentation().unwrap().path.unwrap().boundingBoxOfPath.width
       let frameWidth = try frameLayer.presentation().unwrap().bounds.width

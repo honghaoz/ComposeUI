@@ -108,7 +108,7 @@ private extension CALayer {
       return PathChanges()
     }
     var changes = box.changes
-    changes.update(beginTime: animation.beginTime, sampledBeginTime: box.sampledBeginTime, at: now)
+    changes.update(beginTime: animation.beginTime, at: now)
     return changes
   }
 
@@ -144,8 +144,8 @@ private extension CALayer {
       basicAnimation.beginTime = change.beginTime
       animation = basicAnimation
     } else {
-      // the keyframes come with key times only when a change is too short for evenly spread keyframes, as Core Animation
-      // spreads keyframes without key times evenly
+      // the keyframes come with key times only when a change begins or lands between evenly spread keyframes, as Core
+      // Animation spreads keyframes without key times evenly
       let keyframes = changes.keyframes(adding: path, points: points, at: now)
       let keyframeAnimation = CAKeyframeAnimation(keyPath: keyPath)
       keyframeAnimation.values = keyframes.paths
@@ -159,10 +159,7 @@ private extension CALayer {
       animation = keyframeAnimation
     }
 
-    // an animation that begins at the commit is made as if the commit were now, so a later commit moves the changes it
-    // shows, see `PathChanges.update(beginTime:sampledBeginTime:at:)`
-    let sampledBeginTime = animation.beginTime == 0 ? now : animation.beginTime
-    animation.setValue(PathChangesBox(changes, sampledBeginTime: sampledBeginTime), forKey: PathChangesBox.key)
+    animation.setValue(PathChangesBox(changes), forKey: PathChangesBox.key)
     add(animation, forKey: keyPath)
     setKeyPathValue(keyPath, path)
   }
@@ -212,11 +209,7 @@ private final class PathChangesBox {
   /// The changes.
   let changes: PathChanges
 
-  /// The begin time the animation was sampled for, see `PathChanges.update(beginTime:sampledBeginTime:at:)`.
-  let sampledBeginTime: TimeInterval
-
-  init(_ changes: PathChanges, sampledBeginTime: TimeInterval) {
+  init(_ changes: PathChanges) {
     self.changes = changes
-    self.sampledBeginTime = sampledBeginTime
   }
 }
