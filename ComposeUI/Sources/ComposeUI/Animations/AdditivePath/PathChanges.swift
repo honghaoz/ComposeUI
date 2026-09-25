@@ -233,6 +233,8 @@ struct PathChanges {
   /// when it lands, see `Change.landingFactor`, gets a keyframe at its landing time before the jump too, so the jump
   /// shows at once instead of across the spacing.
   ///
+  /// A change that never finishes, see `CAAnimation.neverFinishes(duration:)`, isn't supported.
+  ///
   /// - Parameters:
   ///   - path: The path.
   ///   - points: The points of the path, with the segments of the changes, see `hasSameSegments(as:)`.
@@ -240,6 +242,11 @@ struct PathChanges {
   /// - Returns: The keyframes, from now, or from the next commit, see `beginsAtCommit(at:)`. A keyframe where every
   ///   change has landed is the path itself.
   func keyframes(adding path: CGPath, points: PathPoints, at now: TimeInterval) -> Keyframes {
+    ComposeUI.assert(
+      !changes.contains(where: { CAAnimation.neverFinishes(duration: $0.curve.duration) }),
+      "a path change that never finishes can't overlap others"
+    )
+
     let duration = remainingTime(at: now)
     let sampledDuration = min(Constants.maxSampledDuration, duration)
     let evenSampleCount = max(2, Int((sampledDuration * Constants.samplesPerSecond).rounded(.up)) + 1)

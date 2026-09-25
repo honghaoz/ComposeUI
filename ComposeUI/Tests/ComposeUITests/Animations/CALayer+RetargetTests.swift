@@ -271,6 +271,78 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.cornerRadius) == 5
   }
 
+  func test_retarget_additiveSpringThatNeverSettles_keepsBouncingAroundTheNewValue() throws {
+    // given: a hosted layer on a paused timeline, whose corner radius springs additively to 20 without damping, so it
+    // bounces between 0 and 40 every half second forever, 0.3s in. the timeline is paused at a time that isn't zero, as a
+    // zero begin time means an unset one
+    let testWindow = TestWindow()
+    let timeline = CALayer()
+    timeline.speed = 0
+    timeline.timeOffset = 1000
+    testWindow.layer.addSublayer(timeline)
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    timeline.addSublayer(layer)
+    CATransaction.flush()
+
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .spring(dampingRatio: 0, response: 0.5))
+    CATransaction.flush()
+    let beginTime = try layer.animation(forKey: "cornerRadius").unwrap().beginTime
+    func shownRadius(at time: TimeInterval) throws -> CGFloat {
+      timeline.timeOffset = beginTime + time
+      CATransaction.flush()
+      return try layer.presentation().unwrap().cornerRadius
+    }
+    _ = try shownRadius(at: 0.3)
+
+    // when: retargeting the corner radius to 5
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+    CATransaction.flush()
+
+    // then: the glide to 5 takes the default duration instead of forever, and the spring keeps bouncing, now around 5:
+    // at 5 where its own offset is zero, and 20 away at its turning points
+    expect(try shownRadius(at: 0.625)).to(beApproximatelyEqual(to: 5, within: 1e-4))
+    expect(try shownRadius(at: 10.125)).to(beApproximatelyEqual(to: 5, within: 1e-4))
+    expect(try shownRadius(at: 10.25)).to(beApproximatelyEqual(to: 25, within: 1e-4))
+    expect(try shownRadius(at: 10.5)).to(beApproximatelyEqual(to: -15, within: 1e-4))
+  }
+
+  func test_retarget_nonAdditiveSpringThatNeverSettles_easesToTheNewValue() throws {
+    for speed in [CGFloat(1), 2] {
+      // given: a hosted layer on a paused timeline, whose corner radius springs non-additively from 0 to 20 without
+      // damping at the speed, 0.3s in
+      let testWindow = TestWindow()
+      let timeline = CALayer()
+      timeline.speed = 0
+      timeline.timeOffset = 1000
+      testWindow.layer.addSublayer(timeline)
+      let layer = CALayer()
+      layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+      timeline.addSublayer(layer)
+      CATransaction.flush()
+
+      let timing = AnimationTiming.spring(dampingRatio: 0, response: 0.5, speed: speed)
+      layer.animate(keyPath: "cornerRadius", timing: timing, from: { _ in CGFloat(0) }, to: { _ in CGFloat(20) })
+      CATransaction.flush()
+      let beginTime = try layer.animation(forKey: "cornerRadius").unwrap().beginTime
+      func shownRadius(at time: TimeInterval) throws -> CGFloat {
+        timeline.timeOffset = beginTime + time
+        CATransaction.flush()
+        return try layer.presentation().unwrap().cornerRadius
+      }
+      _ = try shownRadius(at: 0.3)
+
+      // when: retargeting the corner radius to 5
+      layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
+      CATransaction.flush()
+
+      // then: the spring is replaced by an ease to 5 over the default duration instead of forever, also at double speed,
+      // where the time the spring has left falls below Core Animation's forever, and the radius stays at 5
+      expect(try shownRadius(at: 0.6)).to(beApproximatelyEqual(to: 5, within: 1e-4))
+      expect(try shownRadius(at: 10)).to(beApproximatelyEqual(to: 5, within: 1e-4))
+    }
+  }
+
   func test_retarget_endedAnimation_isSkippedNextToAReplacedOne() throws {
     // given: a layer whose corner radius has an ended animation, still on the layer as nothing has committed since, and
     // a non-additive one in flight

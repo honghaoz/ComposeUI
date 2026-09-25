@@ -37,6 +37,7 @@
 - Drop and inner shadow paths now animate with the frame, including through interrupted resizes.
 - `DropShadowLayer` and `InnerShadowLayer` can now be created and subclassed outside the framework: their initializers are public.
 - The render pass now asserts, in debug builds, that a renderable's transform is identity when it applies the frame, so a `willInsert` or `willUpdate` block that sets a transform is reported consistently instead of misrendering or asserting only on animated passes. Set transforms in `update`, where they are reset and re-applied on every pass. See `Renderable`.
+- `AnimationTiming` now asserts, in debug builds, on invalid values and falls back: a speed of 0 or less, or NaN, becomes 1. An infinite or NaN delay becomes 0. An infinite or NaN duration becomes `Animations.defaultAnimationDuration`, or the spring descriptor's duration for a spring.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

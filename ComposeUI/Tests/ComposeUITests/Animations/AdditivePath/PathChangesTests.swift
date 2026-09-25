@@ -336,22 +336,31 @@ class PathChangesTests: XCTestCase {
   // MARK: - Landing Factor
 
   func test_landingFactor() {
-    // given: a linear change, an eased change, a spring change cut short by a duration of 0.1s, before it settles, and a
-    // spring change of an infinite duration
+    // given: a linear change, an eased change, and a spring change cut short by a duration of 0.1s, before it settles
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 5), timing: .linear(duration: 1), at: 100)
     changes.record(from: rect(inset: 5), to: rect(inset: 10), timing: .easeInEaseOut(duration: 1), at: 100)
     changes.record(from: rect(inset: 10), to: rect(inset: 15), timing: .spring(dampingRatio: 1, response: 0.5, duration: 0.1), at: 100)
-    changes.record(from: rect(inset: 15), to: rect(inset: 20), timing: .spring(dampingRatio: 0.5, response: 0.5, duration: .infinity), at: 100)
-    expect(changes.changes.count) == 4
+    expect(changes.changes.count) == 3
 
-    // then: the curves that reach their end land without a jump, the cut-short spring jumps from what its curve leaves
-    // at the end of its duration, and the spring of an infinite duration never lands, so it has no jump
+    // then: the curves that reach their end land without a jump, and the cut-short spring jumps from what its curve
+    // leaves at the end of its duration
     expect(changes.changes[0].landingFactor) == 0
     expect(changes.changes[1].landingFactor) == 0
     expect(changes.changes[2].landingFactor) == CGFloat(1 - changes.changes[2].curve.progress(forElapsedTime: 0.1))
     expect(changes.changes[2].landingFactor) > 0.5
-    expect(changes.changes[3].landingFactor) == 0
+  }
+
+  func test_landingFactor_infiniteDuration_isZero() {
+    // given: a spring change of an infinite duration, built directly, as `AnimationTiming` rejects an infinite duration
+    // and Core Animation gives a spring at most `Float.greatestFiniteMagnitude`
+    let animation = CABasicAnimation.makeAnimation(.spring(dampingRatio: 0.5, response: 0.5))
+    animation.duration = .infinity
+    let offset = PathPoints(rect(inset: 0)).subtracting(PathPoints(rect(inset: 5)))
+    let change = PathChanges.Change(offset: offset, animation: animation, curve: AnimationCurve(animation), speed: 1, beginTime: 0)
+
+    // then: the spring never lands, so it has no jump, instead of the undefined progress at its infinite end
+    expect(change.landingFactor) == 0
   }
 
   // MARK: - Keyframes
@@ -425,7 +434,7 @@ class PathChangesTests: XCTestCase {
   func test_keyframes_unreasonableDuration_boundsTheSampleCount() {
     // given: a change of an absurd duration, as a tiny speed on a timing gives
     var changes = PathChanges()
-    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1e300), at: 100)
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1, speed: 1e-30), at: 100)
     let path = rect(inset: 10)
 
     // when: sampling the keyframes
@@ -595,18 +604,27 @@ class PathChangesTests: XCTestCase {
     expect(keyframes.paths.last) === path
   }
 
-  func test_keyframes_springOfInfiniteDuration_addsNoJump() {
-    // given: a linear change over two seconds, and a spring change of an infinite duration, which never lands
+  func test_keyframes_springWithoutDamping_asserts() {
+    // given: a linear change over two seconds, and a spring change without damping, which never settles
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
-    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .spring(dampingRatio: 0.5, response: 0.5, duration: .infinity), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .spring(dampingRatio: 0, response: 0.5), at: 100)
     let path = rect(inset: 20)
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
 
     // when: sampling the keyframes
     let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 100)
 
-    // then: the spring gets no keyframe before a jump at its infinite landing time, which would trap, so the keyframes
-    // still end with the path itself
+    // then: it asserts, as a change that never finishes can't overlap others, and the keyframes still end with the path
+    // itself
+    expect(assertionMessages) == ["a path change that never finishes can't overlap others"]
     expect(keyframes.paths.last) === path
   }
 
