@@ -83,6 +83,14 @@ class ViewController: UIViewController {
     .frame(width: 200, height: 36)
     .padding(vertical: Constants.padding)
 
+    Playground.button(title: "Open Additive Path Lab", fontSize: 14) { [weak self] in
+      let controller = AdditivePathLabViewController()
+      controller.modalPresentationStyle = .fullScreen
+      self?.present(controller, animated: true)
+    }
+    .frame(width: 200, height: 36)
+    .padding(bottom: Constants.padding)
+
     VStack(spacing: 8) {
 
       ViewNode<Playground.TransitionView>()

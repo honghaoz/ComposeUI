@@ -14,6 +14,7 @@
 		E58E92472CCF40FD0076FEFB /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58E92462CCF40FD0076FEFB /* SceneDelegate.swift */; };
 		E58E92492CCF40FD0076FEFB /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58E92482CCF40FD0076FEFB /* ViewController.swift */; };
 		D10740013DC03C4BFC526634 /* RenderPassLabViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6218701550501452A48DD8C /* RenderPassLabViewController.swift */; };
+		4A1D9C3E7B2F4E6A8C5D1F04 /* AdditivePathLabViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1D9C3E7B2F4E6A8C5D1F03 /* AdditivePathLabViewController.swift */; };
 		E58E924C2CCF40FD0076FEFB /* Base in Resources */ = {isa = PBXBuildFile; fileRef = E58E924B2CCF40FD0076FEFB /* Base */; };
 		E58E924E2CCF40FF0076FEFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E58E924D2CCF40FF0076FEFB /* Assets.xcassets */; };
 		E58E92512CCF40FF0076FEFB /* Base in Resources */ = {isa = PBXBuildFile; fileRef = E58E92502CCF40FF0076FEFB /* Base */; };
@@ -30,6 +31,7 @@
 		FAD29AA7E71C49C681B130B7 /* Playground+TransitionRevivalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFAF329A87694966B1616473 /* Playground+TransitionRevivalView.swift */; };
 		CC51946AA0785EDDBC2F488F /* Playground+RenderPassLabContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEBBF7940C5318C92A81E67 /* Playground+RenderPassLabContent.swift */; };
 		3D0ABACBD60F343D478B95CC /* Playground+RenderPassLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C394505BEFDFF04FBD27B1D9 /* Playground+RenderPassLab.swift */; };
+		4A1D9C3E7B2F4E6A8C5D1F02 /* Playground+AdditivePathLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1D9C3E7B2F4E6A8C5D1F01 /* Playground+AdditivePathLab.swift */; };
 		A7C41E92B35D4F8A9C02D611 /* Playground+AnimateLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F52A81C46E5D9B8D13E722 /* Playground+AnimateLabView.swift */; };
 		A7C41E92B35D4F8A9C02D622 /* Playground+Debug.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F52A81C46E5D9B8D13E733 /* Playground+Debug.swift */; };
 		E5F25D7F2D9A5BEF00183721 /* Playground+ShadowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F25D7E2D9A5BEF00183721 /* Playground+ShadowView.swift */; };
@@ -44,6 +46,7 @@
 		E58E92462CCF40FD0076FEFB /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		E58E92482CCF40FD0076FEFB /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		C6218701550501452A48DD8C /* RenderPassLabViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderPassLabViewController.swift; sourceTree = "<group>"; };
+		4A1D9C3E7B2F4E6A8C5D1F03 /* AdditivePathLabViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdditivePathLabViewController.swift; sourceTree = "<group>"; };
 		E58E924B2CCF40FD0076FEFB /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		E58E924D2CCF40FF0076FEFB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E58E92502CCF40FF0076FEFB /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -59,6 +62,7 @@
 		EFAF329A87694966B1616473 /* Playground+TransitionRevivalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionRevivalView.swift"; sourceTree = "<group>"; };
 		ACEBBF7940C5318C92A81E67 /* Playground+RenderPassLabContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+RenderPassLabContent.swift"; sourceTree = "<group>"; };
 		C394505BEFDFF04FBD27B1D9 /* Playground+RenderPassLab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+RenderPassLab.swift"; sourceTree = "<group>"; };
+		4A1D9C3E7B2F4E6A8C5D1F01 /* Playground+AdditivePathLab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+AdditivePathLab.swift"; sourceTree = "<group>"; };
 		B3F52A81C46E5D9B8D13E722 /* Playground+AnimateLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+AnimateLabView.swift"; sourceTree = "<group>"; };
 		B3F52A81C46E5D9B8D13E733 /* Playground+Debug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+Debug.swift"; sourceTree = "<group>"; };
 		E5F25D7E2D9A5BEF00183721 /* Playground+ShadowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+ShadowView.swift"; sourceTree = "<group>"; };
@@ -100,6 +104,7 @@
 				E58E92462CCF40FD0076FEFB /* SceneDelegate.swift */,
 				E58E92482CCF40FD0076FEFB /* ViewController.swift */,
 				C6218701550501452A48DD8C /* RenderPassLabViewController.swift */,
+				4A1D9C3E7B2F4E6A8C5D1F03 /* AdditivePathLabViewController.swift */,
 				E5D636D32D7CECAB0080A152 /* Colors.swift */,
 				E5D636CC2D7CE8E40080A152 /* PlaygroundViews */,
 				E58E924A2CCF40FD0076FEFB /* Main.storyboard */,
@@ -119,6 +124,7 @@
 				EFAF329A87694966B1616473 /* Playground+TransitionRevivalView.swift */,
 				ACEBBF7940C5318C92A81E67 /* Playground+RenderPassLabContent.swift */,
 				C394505BEFDFF04FBD27B1D9 /* Playground+RenderPassLab.swift */,
+				4A1D9C3E7B2F4E6A8C5D1F01 /* Playground+AdditivePathLab.swift */,
 				B3F52A81C46E5D9B8D13E722 /* Playground+AnimateLabView.swift */,
 				B3F52A81C46E5D9B8D13E733 /* Playground+Debug.swift */,
 				E5D636CD2D7CEA270080A152 /* Playground+FrameView.swift */,
@@ -217,6 +223,7 @@
 				E5D636D22D7CEA9B0080A152 /* Playground.swift in Sources */,
 				E58E92492CCF40FD0076FEFB /* ViewController.swift in Sources */,
 				D10740013DC03C4BFC526634 /* RenderPassLabViewController.swift in Sources */,
+				4A1D9C3E7B2F4E6A8C5D1F04 /* AdditivePathLabViewController.swift in Sources */,
 				021EAA042E2F6C190094431C /* Playground+LayersView.swift in Sources */,
 				021EAA072E8000010094431C /* Playground+ZOrderView.swift in Sources */,
 				E58FCD712D8E77F9003138BE /* Playground+LabelView.swift in Sources */,
@@ -225,6 +232,7 @@
 				FAD29AA7E71C49C681B130B7 /* Playground+TransitionRevivalView.swift in Sources */,
 				CC51946AA0785EDDBC2F488F /* Playground+RenderPassLabContent.swift in Sources */,
 				3D0ABACBD60F343D478B95CC /* Playground+RenderPassLab.swift in Sources */,
+				4A1D9C3E7B2F4E6A8C5D1F02 /* Playground+AdditivePathLab.swift in Sources */,
 				A7C41E92B35D4F8A9C02D611 /* Playground+AnimateLabView.swift in Sources */,
 				A7C41E92B35D4F8A9C02D622 /* Playground+Debug.swift in Sources */,
 				E5D636D42D7CECAB0080A152 /* Colors.swift in Sources */,

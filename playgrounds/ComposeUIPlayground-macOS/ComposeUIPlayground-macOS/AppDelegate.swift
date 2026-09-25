@@ -36,6 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   private var window: NSWindow?
   private var additiveOpacityDemoWindow: AdditiveOpacityDemoWindow?
   private var renderPassLabWindow: RenderPassLabWindow?
+  private var additivePathLabWindow: AdditivePathLabWindow?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
 
@@ -73,6 +74,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     labItem.target = self
     demosMenu.addItem(labItem)
 
+    let pathLabItem = NSMenuItem(title: "Additive Path Lab", action: #selector(showAdditivePathLab), keyEquivalent: "")
+    pathLabItem.target = self
+    demosMenu.addItem(pathLabItem)
+
     let demosMenuItem = NSMenuItem()
     demosMenuItem.submenu = demosMenu
     NSApp.mainMenu?.addItem(demosMenuItem)
@@ -90,6 +95,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       renderPassLabWindow = RenderPassLabWindow()
     }
     renderPassLabWindow?.window?.makeKeyAndOrderFront(nil)
+  }
+
+  @objc private func showAdditivePathLab() {
+    if additivePathLabWindow == nil {
+      additivePathLabWindow = AdditivePathLabWindow()
+    }
+    additivePathLabWindow?.window?.makeKeyAndOrderFront(nil)
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {

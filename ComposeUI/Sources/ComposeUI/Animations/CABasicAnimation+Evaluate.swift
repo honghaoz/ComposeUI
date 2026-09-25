@@ -36,7 +36,7 @@ extension CABasicAnimation {
   /// Evaluates the animation's scalar value at the given time.
   ///
   /// The evaluation mirrors how Core Animation resolves the animation on its own: the animation's curve, the spring
-  /// animation itself or the timing function, maps the elapsed time fraction to a progress via `solveForInput(_:)`, and
+  /// animation itself or the timing function, maps the elapsed time fraction to a progress, see `AnimationCurve`, and
   /// the value interpolates `fromValue` to `toValue` by that progress.
   /// The elapsed time is scaled by the animation's `speed` and clamped to the animation's duration.
   ///
@@ -67,17 +67,7 @@ extension CABasicAnimation {
   /// - Parameter elapsed: The elapsed time in the animation's timeline, in seconds.
   /// - Returns: The progress, 1 for a zero-duration animation.
   func progress(forElapsedTime elapsed: TimeInterval) -> Double {
-    guard duration > 0 else {
-      return 1
-    }
-
-    let fraction = max(0, min(elapsed, duration)) / duration
-    if let spring = self as? CASpringAnimation {
-      return spring.solveForInput(fraction)
-    }
-
-    // a nil timing function is linear, matching Core Animation's default for basic animations
-    return timingFunction?.solveForInput(fraction) ?? fraction
+    AnimationCurve(self).progress(forElapsedTime: elapsed)
   }
 }
 
@@ -86,52 +76,12 @@ extension CAMediaTimingFunction {
   /// Solves the timing curve's output progress for the given input time fraction.
   ///
   /// The public-API counterpart of Core Animation's private `_solveForInput:`: solves the unit cubic bezier (anchored
-  /// at (0, 0) and (1, 1)) defined by the timing function's control points for `y` at the given `x`.
-  ///
-  /// Uses bisection: the bezier's x component is monotonic because the control points' x values are within [0, 1], so
-  /// bisection always converges. This runs once per transition interrupt, so the simple and robust solver is preferred
-  /// over a faster one.
+  /// at (0, 0) and (1, 1)) defined by the timing function's control points for `y` at the given `x`, see `AnimationCurve`.
   ///
   /// - Parameter fraction: The input time fraction, in [0, 1].
   /// - Returns: The curve's output progress at `fraction`.
   func solveForInput(_ fraction: Double) -> Double {
-    guard fraction > 0 else {
-      return 0
-    }
-    guard fraction < 1 else {
-      return 1
-    }
-
-    var controlPoint1: [Float] = [0, 0]
-    var controlPoint2: [Float] = [0, 0]
-    getControlPoint(at: 1, values: &controlPoint1)
-    getControlPoint(at: 2, values: &controlPoint2)
-
-    // control points on the diagonal make the curve the identity, the linear curve, so there is nothing to solve
-    if controlPoint1[0] == controlPoint1[1], controlPoint2[0] == controlPoint2[1] {
-      return fraction
-    }
-
-    func bezier(_ t: Double, _ value1: Double, _ value2: Double) -> Double {
-      // cubic bezier with anchors 0 and 1: 3(1-t)²t·p1 + 3(1-t)t²·p2 + t³
-      let oneMinusT = 1 - t
-      return 3 * oneMinusT * oneMinusT * t * value1 + 3 * oneMinusT * t * t * value2 + t * t * t
-    }
-
-    var lowerBound: Double = 0
-    var upperBound: Double = 1
-    var t = fraction
-    for _ in 0 ..< 32 {
-      let sampledX = bezier(t, Double(controlPoint1[0]), Double(controlPoint2[0]))
-      if sampledX < fraction {
-        lowerBound = t
-      } else {
-        upperBound = t
-      }
-      t = (lowerBound + upperBound) / 2
-    }
-
-    return bezier(t, Double(controlPoint1[1]), Double(controlPoint2[1]))
+    AnimationCurve(timingFunction: self).progress(atFraction: fraction)
   }
 }
 
@@ -140,37 +90,12 @@ extension CASpringAnimation {
   /// Solves the spring's progress for the given input time fraction.
   ///
   /// The public-API counterpart of Core Animation's private `_solveForInput:`: solves the damped spring physics from
-  /// the animation's `mass`, `stiffness`, `damping`, and `initialVelocity` at the elapsed time `fraction * duration`.
-  /// The progress starts at 0 (the `fromValue` end), may overshoot past 1, and settles at 1 (the `toValue` end), with
-  /// the initial rate given by `initialVelocity` in Core Animation's convention (positive moves towards the target, in
-  /// full from-to distances per second).
+  /// the animation's `mass`, `stiffness`, `damping`, and `initialVelocity` at the elapsed time `fraction * duration`,
+  /// see `AnimationCurve`.
   ///
   /// - Parameter fraction: The input time fraction of the animation's `duration`.
   /// - Returns: The spring's progress at `fraction`.
   func solveForInput(_ fraction: Double) -> Double {
-    let omegaSquared = Double(stiffness) / Double(mass)
-    // Core Animation clamps the damping at critical: an overdamped configuration (damping > 2√(stiffness·mass)) behaves
-    // as critically damped.
-    let beta = min(Double(damping) / (2 * Double(mass)), sqrt(omegaSquared))
-    let discriminant = beta * beta - omegaSquared
-
-    // the displacement u measures the remaining distance to the target, so the progress is 1 - u.
-    // u solves the damped spring equation with u(0) = 1 and u'(0) as the negated initial velocity, because positive
-    // velocity moves towards the target (0).
-    let initialDisplacementRate = -Double(initialVelocity)
-    let t = fraction * duration
-
-    let displacement: Double
-    if discriminant < -1e-9 {
-      // underdamped: decaying oscillation
-      let dampedFrequency = sqrt(-discriminant)
-      let sinCoefficient = (beta + initialDisplacementRate) / dampedFrequency
-      displacement = exp(-beta * t) * (cos(dampedFrequency * t) + sinCoefficient * sin(dampedFrequency * t))
-    } else {
-      // critically damped: fastest non-oscillating decay
-      displacement = exp(-beta * t) * (1 + (beta + initialDisplacementRate) * t)
-    }
-
-    return 1 - displacement
+    AnimationCurve(self).progress(atFraction: fraction)
   }
 }

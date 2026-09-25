@@ -38,6 +38,9 @@ public extension CABasicAnimation {
   /// The timing's delay is not applied here: scheduling the begin time requires the target layer's time space, so
   /// `CALayer.animate` sets it when adding the animation.
   ///
+  /// A timing with a zero duration makes an animation shorter than a frame at the normal speed, which lands as an
+  /// instant change after the delay, as a zero duration has no timeline for the timing's speed to scale.
+  ///
   /// - Parameters:
   ///   - timing: The timing of the animation.
   /// - Returns: The animation.
@@ -63,11 +66,26 @@ public extension CABasicAnimation {
       animation.duration = duration
     }
 
-    animation.speed = Float(timing.speed)
+    // Core Animation runs an animation of a zero duration for its default duration, so the snap gets a duration
+    // shorter than a frame instead, at the normal speed, as the timing's speed would stretch it past a frame
+    let isSnap = animation.duration <= 0
+    if isSnap {
+      animation.duration = Constants.snapDuration
+    }
+
+    animation.speed = isSnap ? 1 : Float(timing.speed)
     // backwards fill holds the from value while a scheduled animation waits out its delay, and avoids the final frame
     // appearing before the animation starts
     animation.fillMode = .both
 
     return animation
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The duration of an animation of a timing with a zero duration.
+    static let snapDuration: TimeInterval = 0.001
   }
 }
