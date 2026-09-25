@@ -277,6 +277,28 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(try interpolatedPoints(of: animation, at: 0.51).path.maxPointDistance(to: rect(inset: 20 - 10 * (1 - 0.51 / 2)))) < 1e-6
   }
 
+  func test_animatePath_truncatedSpring_jumpsWhenItLands() throws {
+    // given: a shape layer whose rect path grows from 100 to 200 points wide over two seconds
+    let layer = makeLayer()
+    layer.animatePath(keyPath: "path", to: rect(width: 200), timing: .linear(duration: 2))
+
+    // when: the path grows on to 300 points wide with a spring cut short by a duration of 0.1s, before it settles
+    let springTiming = AnimationTiming.spring(dampingRatio: 1, response: 0.5, duration: 0.1)
+    layer.animatePath(keyPath: "path", to: rect(width: 300), timing: springTiming)
+
+    // then: until the spring lands, the path shown follows the spring's curve, as Core Animation shows a spring cut short,
+    // instead of heading to where the spring lands, and right after, the spring has landed
+    let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    let springCurve = AnimationCurve(CABasicAnimation.makeAnimation(springTiming))
+    for time in [0.09, 0.095, 0.099] {
+      let expectedWidth = 300 - 100 * (1 - time / 2) - 100 * (1 - springCurve.progress(forElapsedTime: time))
+      let shownWidth = try interpolatedPoints(of: animation, at: time).path.boundingBoxOfPath.width
+      expect(shownWidth, "time: \(time)").to(beApproximatelyEqual(to: expectedWidth, within: 0.5))
+    }
+    let shownWidthAfterLanding = try interpolatedPoints(of: animation, at: 0.101).path.boundingBoxOfPath.width
+    expect(shownWidthAfterLanding).to(beApproximatelyEqual(to: 300 - 100 * (1 - 0.101 / 2), within: 1e-6))
+  }
+
   func test_animatePath_otherSegments_setsThePathAtOnce() {
     // given: a shape layer whose rect path changes to an inset rect
     let layer = makeLayer()

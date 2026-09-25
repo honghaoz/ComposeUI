@@ -66,16 +66,32 @@ struct PathChanges {
       CAAnimation.remainingTime(beginTime: beginTime, duration: curve.duration, speed: speed, at: now)
     }
 
+    /// The part of the offset left when the change lands.
+    ///
+    /// It is zero unless the curve doesn't reach its end, as a spring cut short by its duration, and the change jumps
+    /// from it to zero when it lands.
+    var landingFactor: CGFloat {
+      CGFloat(1 - curve.progress(atFraction: 1))
+    }
+
     /// The part of the offset left at a time.
     ///
     /// - Parameters:
     ///   - time: The time from now, see `PathChanges.keyframes(adding:points:at:)`.
     ///   - now: The layer's current time.
+    ///   - beforeLanding: Whether the change shows its landing factor at its landing time, as the side of its jump
+    ///     before it lands, instead of zero.
     /// - Returns: One until the change begins, zero once it has landed.
-    func remainingFactor(at time: TimeInterval, now: TimeInterval) -> CGFloat {
-      // a spring doesn't reach exactly one at its end, so the change lands when its time is up
-      guard let remainingTime = remainingTime(at: now), time < remainingTime else {
+    func remainingFactor(at time: TimeInterval, now: TimeInterval, beforeLanding: Bool = false) -> CGFloat {
+      guard let remainingTime = remainingTime(at: now) else {
         return 0
+      }
+
+      // a spring doesn't reach exactly one at its end, so the change lands when its time is up, jumping from its landing
+      // factor to zero. a time within the tolerance is the landing time, as an evenly spread keyframe on it is computed
+      // another way
+      guard time < remainingTime - Constants.timeTolerance else {
+        return beforeLanding && time <= remainingTime + Constants.timeTolerance ? landingFactor : 0
       }
 
       // an unset begin time resolves to the next commit, so the change is evaluated from its start
@@ -209,7 +225,9 @@ struct PathChanges {
   ///
   /// The keyframes are spread evenly at the sampling rate, and each time a change begins or lands gets a keyframe of its
   /// own. A change starts or stops moving at those times, which the straight lines between evenly spread keyframes would
-  /// round off, and a change shorter than the spacing, as a snap is, would show spread across it.
+  /// round off, and a change shorter than the spacing, as a snap is, would show spread across it. A change that jumps
+  /// when it lands, see `Change.landingFactor`, gets a keyframe at its landing time before the jump too, so the jump
+  /// shows at once instead of across the spacing.
   ///
   /// - Parameters:
   ///   - path: The path.
@@ -231,11 +249,11 @@ struct PathChanges {
     var paths: [CGPath] = []
     paths.reserveCapacity(sampleCount)
     for sampleIndex in 0 ..< sampleCount {
-      let time = times?[sampleIndex] ?? duration * (TimeInterval(sampleIndex) / TimeInterval(sampleCount - 1))
+      let sampleTime = times?[sampleIndex] ?? SampleTime(time: duration * (TimeInterval(sampleIndex) / TimeInterval(sampleCount - 1)))
 
       var hasOffset = false
       for changeIndex in changes.indices {
-        let factor = changes[changeIndex].remainingFactor(at: time, now: now)
+        let factor = changes[changeIndex].remainingFactor(at: sampleTime.time, now: now, beforeLanding: sampleTime.isBeforeLanding)
         factors[changeIndex] = factor
         hasOffset = hasOffset || factor != 0
       }
@@ -259,30 +277,59 @@ struct PathChanges {
       }
       paths.append(PathPoints.path(kinds: points.kinds, points: sum))
     }
-    return Keyframes(paths: paths, keyTimes: times?.map { NSNumber(value: $0 / duration) }, duration: duration)
+    return Keyframes(paths: paths, keyTimes: times?.map { NSNumber(value: $0.time / duration) }, duration: duration)
   }
 
-  /// The times of the keyframes when a change begins or lands between evenly spread keyframes: the evenly spread times,
-  /// and the times the changes begin and land.
+  /// The time of a keyframe.
+  private struct SampleTime {
+
+    /// The time from now.
+    let time: TimeInterval
+
+    /// Whether the keyframe shows the changes that land at the time before their jump, see `Change.landingFactor`. It
+    /// goes right before the keyframe at the same time that shows them landed.
+    let isBeforeLanding: Bool
+
+    /// The order of the keyframe: by time, and the keyframe before a jump first at the same time.
+    var order: (TimeInterval, Int) {
+      (time, isBeforeLanding ? 0 : 1)
+    }
+
+    init(time: TimeInterval, isBeforeLanding: Bool = false) {
+      self.time = time
+      self.isBeforeLanding = isBeforeLanding
+    }
+  }
+
+  /// The times of the keyframes when a change begins or lands between evenly spread keyframes, or jumps when it lands:
+  /// the evenly spread times, the times the changes begin and land, and the keyframes before the jumps.
   ///
   /// - Parameters:
   ///   - evenSampleCount: The number of evenly spread keyframes.
   ///   - duration: The keyframes' duration.
   ///   - now: The layer's current time.
-  /// - Returns: The times from now, in order, or `nil` when every change begins and lands on an evenly spread time.
-  private func sampleTimes(evenSampleCount: Int, duration: TimeInterval, at now: TimeInterval) -> [TimeInterval]? {
+  /// - Returns: The times from now, in order, or `nil` when every change begins and lands on an evenly spread time
+  ///   without a jump.
+  private func sampleTimes(evenSampleCount: Int, duration: TimeInterval, at now: TimeInterval) -> [SampleTime]? {
     let spacing = duration / TimeInterval(evenSampleCount - 1)
-    var boundaries: [TimeInterval] = []
-    func addBoundary(_ time: TimeInterval) {
-      guard time > 0, time < duration else {
+    func evenTime(_ index: Int) -> TimeInterval {
+      duration * (TimeInterval(index) / TimeInterval(evenSampleCount - 1))
+    }
+
+    var boundaries: [SampleTime] = []
+    func addBoundary(_ time: TimeInterval, isBeforeLanding: Bool = false) {
+      // a change can jump when it lands at the end, where its keyframe before the jump goes before the last one
+      guard time > 0, isBeforeLanding ? time <= duration : time < duration else {
         return
       }
-      // a time on an evenly spread keyframe has its keyframe already
-      let evenIndex = time / spacing
-      guard abs(evenIndex - evenIndex.rounded()) * spacing > Constants.timeTolerance else {
-        return
+      let evenIndex = (time / spacing).rounded()
+      if abs(time / spacing - evenIndex) * spacing > Constants.timeTolerance {
+        boundaries.append(SampleTime(time: time, isBeforeLanding: isBeforeLanding))
+      } else if isBeforeLanding {
+        // a jump on an evenly spread keyframe takes its time, so the keyframe before the jump sorts right before it
+        boundaries.append(SampleTime(time: evenTime(Int(evenIndex)), isBeforeLanding: true))
       }
-      boundaries.append(time)
+      // otherwise the time is on an evenly spread keyframe, which is its keyframe already
     }
 
     for change in changes {
@@ -291,13 +338,16 @@ struct PathChanges {
       }
       addBoundary(change.beginTime == 0 ? 0 : change.beginTime - now)
       addBoundary(landing)
+      if change.landingFactor != 0 {
+        addBoundary(landing, isBeforeLanding: true)
+      }
     }
     guard !boundaries.isEmpty else {
       return nil
     }
 
-    let evenTimes = (0 ..< evenSampleCount).map { duration * (TimeInterval($0) / TimeInterval(evenSampleCount - 1)) }
-    return (evenTimes + boundaries).sorted()
+    let evenTimes = (0 ..< evenSampleCount).map { SampleTime(time: evenTime($0)) }
+    return (evenTimes + boundaries).sorted { $0.order < $1.order }
   }
 
   // MARK: - Constants
