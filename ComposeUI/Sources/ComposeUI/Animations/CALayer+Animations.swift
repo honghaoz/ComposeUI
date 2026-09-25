@@ -42,22 +42,8 @@ public extension CALayer {
   ///   - timing: The animation timing.
   @_spi(Private)
   func animateFrame(to: CGRect, timing: AnimationTiming) {
-    animate(
-      keyPath: "position",
-      timing: timing,
-      from: { $0.position - $0.position(from: to) },
-      to: { _ in .zero },
-      model: { $0.position(from: to) },
-      updateAnimation: { $0.isAdditive = true }
-    )
-    animate(
-      keyPath: "bounds.size",
-      timing: timing,
-      from: { $0.bounds.size - to.size },
-      to: { _ in .zero },
-      model: { _ in to.size },
-      updateAnimation: { $0.isAdditive = true }
-    )
+    animate(keyPath: "position", to: position(from: to), timing: timing)
+    animate(keyPath: "bounds.size", to: to.size, timing: timing)
   }
 
   /// Animate the layer's value additively.
@@ -77,11 +63,11 @@ public extension CALayer {
   ///   - timing: The animation timing.
   ///   - updateAnimation: An optional closure to update the animation.
   @_spi(Private)
-  func animate<T: FloatingPoint>(keyPath: String, to: T, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
+  func animate(keyPath: String, to: some FloatingPoint, timing: AnimationTiming, updateAnimation: ((CABasicAnimation) -> Void)? = nil) {
     animate(
       keyPath: keyPath,
       timing: timing,
-      from: { ($0.value(forKeyPath: keyPath) as! T) - to }, // swiftlint:disable:this force_cast
+      from: { $0.floatingPointValue(forKeyPath: keyPath) - to },
       to: { _ in 0 },
       model: { _ in to },
       updateAnimation: {
@@ -105,7 +91,7 @@ public extension CALayer {
     animate(
       keyPath: keyPath,
       timing: timing,
-      from: { ($0.value(forKeyPath: keyPath) as! CGSize) - to }, // swiftlint:disable:this force_cast
+      from: { $0.sizeValue(forKeyPath: keyPath) - to },
       to: { _ in .zero },
       model: { _ in to },
       updateAnimation: {
@@ -129,7 +115,7 @@ public extension CALayer {
     animate(
       keyPath: keyPath,
       timing: timing,
-      from: { ($0.value(forKeyPath: keyPath) as! CGPoint) - to }, // swiftlint:disable:this force_cast
+      from: { $0.pointValue(forKeyPath: keyPath) - to },
       to: { _ in .zero },
       model: { _ in to },
       updateAnimation: {
@@ -238,6 +224,85 @@ public extension CALayer {
     add(animation, forKey: animationKey)
 
     setKeyPathValue(keyPath, model?(layer) ?? toValue)
+  }
+
+  // a read through KVC boxes the value in an `NSValue` or `NSNumber` and casts it back, which costs a sizable share of
+  // setting up an animation, so the typed `animate(keyPath:to:timing:updateAnimation:)` overloads read the current value
+  // with the functions below, which read the properties the framework animates directly
+
+  /// Get the layer's model value at a key path whose value is a `CGPoint`.
+  ///
+  /// `position` is read directly, other key paths through KVC.
+  ///
+  /// - Important: The key path's value must be a `CGPoint`. Otherwise, a crash will occur.
+  ///
+  /// - Parameter keyPath: The key path to read.
+  /// - Returns: The value at the key path.
+  internal func pointValue(forKeyPath keyPath: String) -> CGPoint {
+    switch keyPath {
+    case "position":
+      return position
+    default:
+      return value(forKeyPath: keyPath) as! CGPoint // swiftlint:disable:this force_cast
+    }
+  }
+
+  /// Get the layer's model value at a key path whose value is a `CGSize`.
+  ///
+  /// `bounds.size` and `shadowOffset` are read directly, other key paths through KVC.
+  ///
+  /// - Important: The key path's value must be a `CGSize`. Otherwise, a crash will occur.
+  ///
+  /// - Parameter keyPath: The key path to read.
+  /// - Returns: The value at the key path.
+  internal func sizeValue(forKeyPath keyPath: String) -> CGSize {
+    switch keyPath {
+    case "bounds.size":
+      return bounds.size
+    case "shadowOffset":
+      return shadowOffset
+    default:
+      return value(forKeyPath: keyPath) as! CGSize // swiftlint:disable:this force_cast
+    }
+  }
+
+  /// Get the layer's model value at a key path whose value is a floating-point number.
+  ///
+  /// `opacity`, `shadowOpacity`, `borderWidth`, `cornerRadius`, and `shadowRadius` are read directly when `T` is the
+  /// property's type. Other key paths and types are read through KVC.
+  ///
+  /// - Important: The key path's value must be a number that casts to `T`. Otherwise, a crash will occur.
+  ///
+  /// - Parameter keyPath: The key path to read.
+  /// - Returns: The value at the key path.
+  internal func floatingPointValue<T: FloatingPoint>(forKeyPath keyPath: String) -> T {
+    // a direct read is only taken for the property's own type, as other types rely on the conversion of KVC's boxed
+    // number, for example reading the `Float` opacity as a `CGFloat`
+    switch keyPath {
+    case "opacity":
+      if let value = opacity as? T {
+        return value
+      }
+    case "shadowOpacity":
+      if let value = shadowOpacity as? T {
+        return value
+      }
+    case "borderWidth":
+      if let value = borderWidth as? T {
+        return value
+      }
+    case "cornerRadius":
+      if let value = cornerRadius as? T {
+        return value
+      }
+    case "shadowRadius":
+      if let value = shadowRadius as? T {
+        return value
+      }
+    default:
+      break
+    }
+    return value(forKeyPath: keyPath) as! T // swiftlint:disable:this force_cast
   }
 
   internal func setKeyPathValue(_ keyPath: String, _ value: Any) {

@@ -39,10 +39,10 @@ class CALayer_AnimationsTests: XCTestCase {
   // MARK: - animate
 
   func test_animateFrame() throws {
-    // given: a layer hosted in a window, filling the window bounds
+    // given: a layer that counts KVC reads, hosted in a window, filling the window bounds
     let testWindow = TestWindow()
 
-    let layer = CALayer()
+    let layer = KVCReadCountingLayer()
     testWindow.layer.addSublayer(layer)
     layer.frame = testWindow.layer.bounds
 
@@ -71,6 +71,10 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(boundsSizeAnimation.isAdditive) == true
     expect(boundsSizeAnimation.isRemovedOnCompletion) == true
     expect(boundsSizeAnimation.fillMode) == .both
+
+    // then: the model frame is the target frame, and the current frame is read without KVC
+    expect(layer.frame) == CGRect(x: 100, y: 100, width: 50, height: 50)
+    expect(layer.kvcReadCount) == 0
   }
 
   func test_animateFloatingPoint() throws {
@@ -94,6 +98,23 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(animation.isRemovedOnCompletion) == true
     expect(animation.fillMode) == .both
     expect(layer.opacity) == 0.5 // model value should be set
+  }
+
+  func test_animateFloatingPoint_readsCurrentValueWithoutKVC() throws {
+    // given: a layer that counts KVC reads, with a corner radius
+    let layer = KVCReadCountingLayer()
+    layer.cornerRadius = 3
+
+    // when: animating the corner radius to a value of its property type
+    layer.animate(keyPath: "cornerRadius", to: CGFloat(8), timing: .easeInEaseOut(duration: 1))
+
+    // then: an additive animation starts from the current value, read without KVC, and the model value is set
+    let animation = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGFloat) == -5 // current (3) - target (8) = -5
+    expect(animation.toValue as? CGFloat) == 0
+    expect(animation.isAdditive) == true
+    expect(layer.cornerRadius) == 8
+    expect(layer.kvcReadCount) == 0
   }
 
   func test_animateCGSize() throws {
@@ -408,6 +429,133 @@ class CALayer_AnimationsTests: XCTestCase {
 
       // then: a unique key is generated
       expect(layer.animationKeys()) == ["test", "test-1"]
+    }
+  }
+
+  // MARK: - Key Path Values
+
+  func test_pointValue() {
+    // given: a layer that counts KVC reads, with a position and an anchor point
+    let layer = KVCReadCountingLayer()
+    layer.position = CGPoint(x: 10, y: 20)
+    layer.anchorPoint = CGPoint(x: 0.25, y: 0.75)
+
+    // when: reading the position
+    let position = layer.pointValue(forKeyPath: "position")
+
+    // then: the position is read directly
+    expect(position) == CGPoint(x: 10, y: 20)
+    expect(layer.kvcReadCount) == 0
+
+    // when: reading another point key path
+    let anchorPoint = layer.pointValue(forKeyPath: "anchorPoint")
+
+    // then: the value is read through KVC
+    expect(anchorPoint) == CGPoint(x: 0.25, y: 0.75)
+    expect(layer.kvcReadCount) == 1
+  }
+
+  func test_sizeValue() {
+    // given: a layer that counts KVC reads, with a bounds size, a shadow offset, and a translation
+    let layer = KVCReadCountingLayer()
+    layer.bounds.size = CGSize(width: 30, height: 40)
+    layer.shadowOffset = CGSize(width: 5, height: 6)
+    layer.transform = CATransform3DMakeTranslation(7, 8, 0)
+
+    // when: reading the bounds size and the shadow offset
+    let boundsSize = layer.sizeValue(forKeyPath: "bounds.size")
+    let shadowOffset = layer.sizeValue(forKeyPath: "shadowOffset")
+
+    // then: they are read directly
+    expect(boundsSize) == CGSize(width: 30, height: 40)
+    expect(shadowOffset) == CGSize(width: 5, height: 6)
+    expect(layer.kvcReadCount) == 0
+
+    // when: reading another size key path
+    let translation = layer.sizeValue(forKeyPath: "transform.translation")
+
+    // then: the value is read through KVC
+    expect(translation) == CGSize(width: 7, height: 8)
+    expect(layer.kvcReadCount) == 1
+  }
+
+  func test_floatingPointValue() {
+    // given: a layer that counts KVC reads, with non-default values for the numbers read directly, and a scale
+    let layer = KVCReadCountingLayer()
+    layer.opacity = 0.5
+    layer.shadowOpacity = 0.25
+    layer.borderWidth = 2
+    layer.cornerRadius = 3
+    layer.shadowRadius = 4
+    layer.transform = CATransform3DMakeScale(2, 2, 2)
+
+    // when: reading the numbers as their property types
+    let opacity: Float = layer.floatingPointValue(forKeyPath: "opacity")
+    let shadowOpacity: Float = layer.floatingPointValue(forKeyPath: "shadowOpacity")
+    let borderWidth: CGFloat = layer.floatingPointValue(forKeyPath: "borderWidth")
+    let cornerRadius: CGFloat = layer.floatingPointValue(forKeyPath: "cornerRadius")
+    let shadowRadius: CGFloat = layer.floatingPointValue(forKeyPath: "shadowRadius")
+
+    // then: they are read directly
+    expect(opacity) == 0.5
+    expect(shadowOpacity) == 0.25
+    expect(borderWidth) == 2
+    expect(cornerRadius) == 3
+    expect(shadowRadius) == 4
+    expect(layer.kvcReadCount) == 0
+
+    // when: reading the numbers as other floating-point types
+    let opacityAsCGFloat: CGFloat = layer.floatingPointValue(forKeyPath: "opacity")
+    let shadowOpacityAsCGFloat: CGFloat = layer.floatingPointValue(forKeyPath: "shadowOpacity")
+    let borderWidthAsFloat: Float = layer.floatingPointValue(forKeyPath: "borderWidth")
+    let cornerRadiusAsFloat: Float = layer.floatingPointValue(forKeyPath: "cornerRadius")
+    let shadowRadiusAsFloat: Float = layer.floatingPointValue(forKeyPath: "shadowRadius")
+
+    // then: they are read through KVC, which converts the boxed numbers
+    expect(opacityAsCGFloat) == 0.5
+    expect(shadowOpacityAsCGFloat) == 0.25
+    expect(borderWidthAsFloat) == 2
+    expect(cornerRadiusAsFloat) == 3
+    expect(shadowRadiusAsFloat) == 4
+    expect(layer.kvcReadCount) == 5
+
+    // when: reading another number key path
+    let scale: CGFloat = layer.floatingPointValue(forKeyPath: "transform.scale")
+
+    // then: the value is read through KVC
+    expect(scale) == 2
+    expect(layer.kvcReadCount) == 6
+  }
+
+  func test_keyPathValues_directReadsMatchKVC() {
+    // given: a plain layer and a view's backing layer, with non-default values for the properties read directly
+    let testWindow = TestWindow()
+    let view = View(frame: CGRect(x: 10, y: 20, width: 30, height: 40))
+    #if canImport(AppKit)
+    view.wantsLayer = true
+    #endif
+    testWindow.contentView().addSubview(view)
+
+    let plainLayer = CALayer()
+    plainLayer.frame = CGRect(x: 10, y: 20, width: 30, height: 40)
+
+    for layer in [plainLayer, view.layer()] {
+      layer.opacity = 0.5
+      layer.shadowOpacity = 0.25
+      layer.borderWidth = 2
+      layer.cornerRadius = 3
+      layer.shadowRadius = 4
+      layer.shadowOffset = CGSize(width: 5, height: 6)
+
+      // then: the direct reads return what KVC returns
+      expect(layer.value(forKeyPath: "position") as? CGPoint) == layer.pointValue(forKeyPath: "position")
+      expect(layer.value(forKeyPath: "bounds.size") as? CGSize) == layer.sizeValue(forKeyPath: "bounds.size")
+      expect(layer.value(forKeyPath: "shadowOffset") as? CGSize) == layer.sizeValue(forKeyPath: "shadowOffset")
+      expect(layer.value(forKeyPath: "opacity") as? Float) == layer.floatingPointValue(forKeyPath: "opacity") as Float
+      expect(layer.value(forKeyPath: "shadowOpacity") as? Float) == layer.floatingPointValue(forKeyPath: "shadowOpacity") as Float
+      expect(layer.value(forKeyPath: "borderWidth") as? CGFloat) == layer.floatingPointValue(forKeyPath: "borderWidth") as CGFloat
+      expect(layer.value(forKeyPath: "cornerRadius") as? CGFloat) == layer.floatingPointValue(forKeyPath: "cornerRadius") as CGFloat
+      expect(layer.value(forKeyPath: "shadowRadius") as? CGFloat) == layer.floatingPointValue(forKeyPath: "shadowRadius") as CGFloat
     }
   }
 
@@ -993,5 +1141,18 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(layer.animation(forKey: "fade")) == nil
     expect(layer.animation(forKey: "keyframe-fade")) == nil
     expect(layer.animation(forKey: "spin")) != nil
+  }
+}
+
+// MARK: - Instrumentation
+
+/// A layer that counts its KVC reads, to verify which reads skip KVC.
+private final class KVCReadCountingLayer: CALayer {
+
+  private(set) var kvcReadCount = 0
+
+  override func value(forKeyPath keyPath: String) -> Any? {
+    kvcReadCount += 1
+    return super.value(forKeyPath: keyPath)
   }
 }
