@@ -69,6 +69,25 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(layer.animationKeys()) == nil
   }
 
+  func test_animatePath_modelPathCleared_setsThePathAtOnce() {
+    // given: a shape layer whose rect path changes to an inset rect, and whose model path is then cleared without
+    // animation, which leaves the animation of the change on the layer
+    let layer = makeLayer()
+    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    CATransaction.disableAnimations {
+      layer.path = nil
+    }
+    expect(layer.animation(forKey: "path")) != nil
+
+    // when: animating to a more inset rect
+    layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2))
+
+    // then: the change in flight has no model path to add to, so it is dropped with its animation, and the inset rect
+    // shows at once
+    expect(layer.path) == rect(inset: 20)
+    expect(layer.animation(forKey: "path")) == nil
+  }
+
   func test_animatePath_samePath_keepsTheChangeInFlight() throws {
     // given: a shape layer whose rect path changes to an inset rect over two seconds
     let layer = makeLayer()
@@ -432,6 +451,25 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(animation.duration) == 2
     expect(animation.beginTime) == 0
     expect(layer.path) == rect(width: 120, inset: 10)
+  }
+
+  func test_setPath_modelPathCleared_setsThePathAtOnce() {
+    // given: a shape layer whose rect path changes to an inset rect, and whose model path is then cleared without
+    // animation, which leaves the animation of the change on the layer
+    let layer = makeLayer()
+    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    CATransaction.disableAnimations {
+      layer.path = nil
+    }
+    expect(layer.animation(forKey: "path")) != nil
+
+    // when: setting a more inset rect
+    layer.setPath(keyPath: "path", to: rect(inset: 20))
+
+    // then: the change in flight has no model path to add to, so it is dropped with its animation, and the inset rect
+    // shows at once
+    expect(layer.path) == rect(inset: 20)
+    expect(layer.animation(forKey: "path")) == nil
   }
 
   func test_setPath_samePath_doesNothing() throws {

@@ -41,8 +41,8 @@ public extension CALayer {
   ///
   /// The changes add point by point, so the paths need the same segments: the same kinds of elements in the same order.
   /// A path with other segments, or with points that aren't finite, as a null rect gives, drops the changes in flight
-  /// and shows at once. A layer without a path at the key path has nothing to animate from, so the path shows at once
-  /// too.
+  /// and shows at once. A layer without a path at the key path has nothing to animate from, and nothing for the
+  /// changes in flight to add to, so it drops them and shows the path at once too.
   ///
   /// - Important: The key path must hold a `CGPath`, such as `shadowPath` or `CAShapeLayer`'s `path`. A key path that
   ///   holds another value asserts, and the layer is left alone.
@@ -53,29 +53,29 @@ public extension CALayer {
   ///   - timing: The animation timing.
   @_spi(Private)
   func animatePath(keyPath: String, to path: CGPath, timing: AnimationTiming) {
-    let now = currentTime
-    var changes = pathChanges(forKeyPath: keyPath, at: now)
-    var points: PathPoints?
     switch modelPath(forKeyPath: keyPath) {
     case .path(let currentPath):
       guard currentPath != path else {
         return
       }
-      let newPoints = PathPoints(path)
-      changes.record(from: PathPoints(currentPath), to: newPoints, timing: timing, at: now)
-      points = newPoints
+      let now = currentTime
+      var changes = pathChanges(forKeyPath: keyPath, at: now)
+      let points = PathPoints(path)
+      changes.record(from: PathPoints(currentPath), to: points, timing: timing, at: now)
+      showPath(path, points: points, forKeyPath: keyPath, changes: changes, at: now)
     case .noValue:
-      break
+      showPathAtOnce(path, forKeyPath: keyPath)
     case .notAPath:
       return
     }
-    showPath(path, points: points, forKeyPath: keyPath, changes: changes, at: now)
   }
 
   /// Set a path of the layer without animation.
   ///
   /// The path's changes in flight keep adding to the new path, the way additive animations keep adding to a model value
-  /// that changes, so the path shown moves by the change of the model path, see `animatePath(keyPath:to:timing:)`.
+  /// that changes, so the path shown moves by the change of the model path, see `animatePath(keyPath:to:timing:)`. A
+  /// layer without a path at the key path has nothing for the changes in flight to add to, so it drops them and shows
+  /// the path at once.
   ///
   /// - Important: The key path must hold a `CGPath`, such as `shadowPath` or `CAShapeLayer`'s `path`. A key path that
   ///   holds another value asserts, and the layer is left alone.
@@ -90,13 +90,13 @@ public extension CALayer {
       guard currentPath != path else {
         return
       }
+      let now = currentTime
+      showPath(path, points: nil, forKeyPath: keyPath, changes: pathChanges(forKeyPath: keyPath, at: now), at: now)
     case .noValue:
-      break
+      showPathAtOnce(path, forKeyPath: keyPath)
     case .notAPath:
       return
     }
-    let now = currentTime
-    showPath(path, points: nil, forKeyPath: keyPath, changes: pathChanges(forKeyPath: keyPath, at: now), at: now)
   }
 }
 
@@ -193,7 +193,7 @@ private enum ModelPath {
   /// The key path holds a path.
   case path(CGPath)
 
-  /// The key path holds no value yet, as a shape layer without a path.
+  /// The key path holds no value, as a shape layer without a path.
   case noValue
 
   /// The key path holds a value that isn't a path.
