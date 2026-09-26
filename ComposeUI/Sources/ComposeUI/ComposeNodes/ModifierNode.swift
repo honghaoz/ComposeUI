@@ -409,11 +409,11 @@ public extension ComposeNode {
         let opacity = Float(opacity.resolve(for: context.contentView.theme))
         if let animationTiming = context.animationTiming {
           if layer.opacity != opacity {
-            layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
+            layer.animateOpacity(to: opacity, timing: animationTiming)
           }
         } else {
           // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
-          layer.setKeyPathValue("opacity", opacity)
+          layer.retargetOpacity(to: opacity)
         }
       }),
       resetForReuse: { renderable in
@@ -644,7 +644,13 @@ public extension ComposeNode {
             )
           }
           if layer.shadowOpacity != opacity {
-            layer.animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
+            // non-additive, since stacked opacity animations don't add up
+            layer.animate(
+              keyPath: "shadowOpacity",
+              timing: animationTiming,
+              from: { $0.presentation()?.shadowOpacity },
+              to: { _ in opacity }
+            )
           }
           if layer.shadowRadius != radius {
             layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
@@ -662,13 +668,13 @@ public extension ComposeNode {
             )
           }
         } else {
-          layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
+          layer.disableActions(for: "shadowColor", "shadowRadius", "shadowOffset", "shadowPath") {
             layer.shadowColor = color
-            layer.shadowOpacity = opacity
             layer.shadowRadius = radius
             layer.shadowOffset = offset
             layer.shadowPath = path?(item)
           }
+          layer.retarget(keyPath: "shadowOpacity", to: opacity)
         }
       }),
       resetForReuse: { renderable in

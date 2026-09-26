@@ -2387,6 +2387,165 @@ class ModifierNodeTests: XCTestCase {
     expect(layer?.animationKeys()) == nil
   }
 
+  // MARK: - Opacity Animations
+
+  func test_opacity_animatedUpdate_replacesTheInFlightAnimationFromTheShownOpacity() throws {
+    // given: a layer fading from 1 to 0.2, halfway through at 0.6
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    try refresh(renderable, with: opacityItem(0.2), animationTiming: nil)
+    addInFlightOpacityAnimation(to: layer, from: 0.8, progress: 0.5, duration: 10)
+
+    // when: an animated update reverses the change
+    try refresh(renderable, with: opacityItem(1), animationTiming: .linear(duration: 1))
+
+    // then: one animation replaces the fade, from the shown 0.6 to 1
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let animation = try animations.first.unwrap()
+    expect(animation.isAdditive) == true
+    expect(try (animation.fromValue as? Float).unwrap()).to(beApproximatelyEqual(to: -0.4, within: 0.01))
+    expect(layer.opacity) == 1
+  }
+
+  func test_opacity_nonAnimatedUpdate_continuesTheInFlightAnimation() throws {
+    // given: a layer fading from 1 to 0.2 over 10 s, halfway through at 0.6
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    try refresh(renderable, with: opacityItem(0.2), animationTiming: nil)
+    addInFlightOpacityAnimation(to: layer, from: 0.8, progress: 0.5, duration: 10)
+
+    // when: a non-animated update sets the opacity to 1
+    try refresh(renderable, with: opacityItem(1), animationTiming: nil)
+
+    // then: an ease-out glide replaces the fade, from the shown 0.6 to 1, landing when the fade would have
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let glide = try animations.first.unwrap()
+    expect(try (glide.fromValue as? Float).unwrap()).to(beApproximatelyEqual(to: -0.4, within: 0.01))
+    expect(glide.duration).to(beApproximatelyEqual(to: 5, within: 0.05))
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(layer.opacity) == 1
+  }
+
+  #if canImport(AppKit)
+  func test_opacity_animatedReversal_showsAContinuousOpacity() throws {
+    // given: a rendered layer animating from 1 to 0.2 over 1 s
+    let renderer = try PausedLayerRenderer(time: 10)
+    let renderable = Renderable.layer(renderer.layer)
+    try refresh(renderable, with: opacityItem(1), animationTiming: nil)
+    try refresh(renderable, with: opacityItem(0.2), animationTiming: .linear(duration: 1))
+    renderer.commit()
+
+    // when: halfway, an animated update reverses the change
+    renderer.move(to: 10.5)
+    let opacityBeforeReversal = renderer.renderedOpacity()
+    try refresh(renderable, with: opacityItem(1), animationTiming: .linear(duration: 1))
+
+    // then: it turns around at the shown 0.6 and rises to 1
+    expect(opacityBeforeReversal).to(beApproximatelyEqual(to: 0.6, within: 0.01))
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.6, within: 0.01))
+    renderer.move(to: 11)
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.8, within: 0.01))
+    renderer.move(to: 11.5)
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 1, within: 0.01))
+  }
+
+  func test_opacity_animatedThenNonAnimatedThenAnimatedUpdates_showAContinuousOpacity() throws {
+    // given: a rendered layer animating from 0.2 to 0.4 over 1 s
+    let renderer = try PausedLayerRenderer(time: 10)
+    let renderable = Renderable.layer(renderer.layer)
+    try refresh(renderable, with: opacityItem(0.2), animationTiming: nil)
+    try refresh(renderable, with: opacityItem(0.4), animationTiming: .linear(duration: 1))
+    renderer.commit()
+
+    // when: a quarter in, a non-animated update sets 0.6
+    renderer.move(to: 10.25)
+    let opacityBeforeNonAnimatedUpdate = renderer.renderedOpacity()
+    try refresh(renderable, with: opacityItem(0.6), animationTiming: nil)
+
+    // then: the opacity doesn't jump
+    expect(opacityBeforeNonAnimatedUpdate).to(beApproximatelyEqual(to: 0.25, within: 0.01))
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: opacityBeforeNonAnimatedUpdate, within: 0.01))
+
+    // when: halfway, an animated update sets 0.8
+    renderer.move(to: 10.5)
+    let opacityBeforeAnimatedUpdate = renderer.renderedOpacity()
+    try refresh(renderable, with: opacityItem(0.8), animationTiming: .linear(duration: 1))
+
+    // then: the opacity doesn't jump, and rises to 0.8
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: opacityBeforeAnimatedUpdate, within: 0.01))
+    renderer.move(to: 11.5)
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.8, within: 0.01))
+  }
+  #endif
+
+  func test_opacity_stackedModifiers_unchangedNonAnimatedRefresh_keepsTheInsertFade() throws {
+    // given: a layer node with two opacity modifiers, fading in over 10 s
+    var layer: CALayer?
+    var didInsert = false
+    let contentView = ComposeView {
+      LayerNode()
+        .opacity(0.3)
+        .opacity(1)
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .onInsert { _, _ in
+          didInsert = true
+        }
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh(animated: true)
+    let fade = try layer.unwrap().animation(forKey: "opacity").unwrap()
+
+    // when: a non-animated refresh with the same values
+    contentView.refresh(animated: false)
+
+    // then: the fade and its pending completion are kept
+    expect(layer?.animation(forKey: "opacity")) === fade
+    expect(layer?.opacity) == 1
+    expect(didInsert) == false
+  }
+
+  func test_shadow_animatedUpdate_replacesTheInFlightShadowOpacityAnimation() throws {
+    // given: a layer animating its shadow opacity from 0.3 to 0.6
+    let renderable = Renderable.layer(CALayer())
+    try refresh(renderable, with: shadowItem(opacity: 0.3), animationTiming: nil)
+    try refresh(renderable, with: shadowItem(opacity: 0.6), animationTiming: .linear(duration: 10))
+
+    // when: an animated update reverses the change
+    try refresh(renderable, with: shadowItem(opacity: 0.2), animationTiming: .linear(duration: 10))
+
+    // then: one non-additive animation to 0.2 replaces the in-flight one
+    let animations = renderable.layer.basicAnimations(forKeyPath: "shadowOpacity")
+    expect(animations.count) == 1
+    let animation = try animations.first.unwrap()
+    expect(animation.isAdditive) == false
+    expect(animation.toValue as? Float) == 0.2
+    expect(renderable.layer.shadowOpacity) == 0.2
+  }
+
+  func test_shadow_nonAnimatedUpdate_continuesTheInFlightShadowOpacityAnimation() throws {
+    // given: a layer animating its shadow opacity from 0.3 to 0.6 over 10 s
+    let renderable = Renderable.layer(CALayer())
+    try refresh(renderable, with: shadowItem(opacity: 0.3), animationTiming: nil)
+    try refresh(renderable, with: shadowItem(opacity: 0.6), animationTiming: .linear(duration: 10))
+
+    // when: a non-animated update sets the shadow opacity to 0.2
+    try refresh(renderable, with: shadowItem(opacity: 0.2), animationTiming: nil)
+
+    // then: an ease-out glide to 0.2 replaces the animation, landing when it would have
+    let animations = renderable.layer.basicAnimations(forKeyPath: "shadowOpacity")
+    expect(animations.count) == 1
+    let glide = try animations.first.unwrap()
+    expect(glide.toValue as? Float) == 0.2
+    expect(glide.duration) == 10
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(renderable.layer.shadowOpacity) == 0.2
+  }
+
   // MARK: - Helpers
 
   /// The renderable item of a layer node with every layer modifier, with the given values.
@@ -2437,6 +2596,28 @@ class ModifierNodeTests: XCTestCase {
     let size = CGSize(width: 100, height: 50)
     _ = node.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 2))
     return node.renderableItems(in: CGRect(origin: .zero, size: size)).first
+  }
+
+  /// The renderable item of a layer node with an opacity modifier.
+  private func opacityItem(_ opacity: CGFloat) throws -> RenderableItem {
+    try firstRenderableItem(of: LayerNode().opacity(opacity)).unwrap()
+  }
+
+  /// The renderable item of a layer node with a shadow modifier of the given opacity.
+  private func shadowItem(opacity: CGFloat) throws -> RenderableItem {
+    try firstRenderableItem(of: LayerNode().shadow(color: .black, opacity: opacity, radius: 2, offset: .zero, path: nil)).unwrap()
+  }
+
+  /// Adds a linear additive opacity animation from `from` to 0 that is `progress` of the way through.
+  private func addInFlightOpacityAnimation(to layer: CALayer, from: Double, progress: Double, duration: TimeInterval) {
+    let animation = CABasicAnimation(keyPath: "opacity")
+    animation.fromValue = from
+    animation.toValue = 0.0
+    animation.duration = duration
+    animation.timingFunction = CAMediaTimingFunction(name: .linear)
+    animation.isAdditive = true
+    animation.beginTime = layer.currentTime - duration * progress
+    layer.add(animation, forKey: "opacity")
   }
 }
 
