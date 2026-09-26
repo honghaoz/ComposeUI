@@ -347,7 +347,9 @@ public extension ComposeNode {
             )
           }
         } else {
-          layer.retarget(keyPath: "backgroundColor", to: color)
+          layer.disableActions(for: "backgroundColor") {
+            layer.backgroundColor = color
+          }
         }
       },
       resetForReuse: { renderable in
@@ -395,13 +397,15 @@ public extension ComposeNode {
             layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
           }
         } else {
-          layer.retarget(keyPath: "opacity", to: opacity)
+          layer.disableActions(for: "opacity") {
+            layer.opacity = opacity
+          }
         }
       },
       resetForReuse: { renderable in
         let layer = renderable.layer
         if layer.opacity != 1 {
-          // `setKeyPathValue` resets a backing view's alpha too, which the updates set along with the layer's opacity
+          // `setKeyPathValue` resets a backing view's alpha too, which an animated update sets along with the layer's opacity
           layer.setKeyPathValue("opacity", Float(1))
         }
       }
@@ -456,8 +460,10 @@ public extension ComposeNode {
             layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
           }
         } else {
-          layer.retarget(keyPath: "borderColor", to: color)
-          layer.retarget(keyPath: "borderWidth", to: width)
+          layer.disableActions(for: "borderColor", "borderWidth") {
+            layer.borderColor = color
+            layer.borderWidth = width
+          }
         }
       },
       resetForReuse: { renderable in
@@ -501,7 +507,9 @@ public extension ComposeNode {
             layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
           }
         } else {
-          layer.retarget(keyPath: "cornerRadius", to: radius)
+          layer.disableActions(for: "cornerRadius") {
+            layer.cornerRadius = radius
+          }
         }
       },
       resetForReuse: { renderable in
@@ -616,12 +624,7 @@ public extension ComposeNode {
             )
           }
           if layer.shadowOpacity != opacity {
-            layer.animate(
-              keyPath: "shadowOpacity",
-              timing: animationTiming,
-              from: { $0.presentation()?.shadowOpacity ?? $0.shadowOpacity },
-              to: { _ in opacity }
-            )
+            layer.animate(keyPath: "shadowOpacity", to: opacity, timing: animationTiming)
           }
           if layer.shadowRadius != radius {
             layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
@@ -639,17 +642,12 @@ public extension ComposeNode {
             )
           }
         } else {
-          layer.retarget(keyPath: "shadowColor", to: color)
-          layer.retarget(keyPath: "shadowOpacity", to: opacity)
-          layer.retarget(keyPath: "shadowRadius", to: radius)
-          layer.retarget(keyPath: "shadowOffset", to: offset)
-          if let path = path?(item) {
-            layer.retarget(keyPath: "shadowPath", to: path)
-          } else {
-            // without a path, Core Animation derives the shadow from the layer's content, so there is no path to continue toward
-            layer.disableActions(for: "shadowPath") {
-              layer.shadowPath = nil
-            }
+          layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
+            layer.shadowColor = color
+            layer.shadowOpacity = opacity
+            layer.shadowRadius = radius
+            layer.shadowOffset = offset
+            layer.shadowPath = path?(item)
           }
         }
       },
