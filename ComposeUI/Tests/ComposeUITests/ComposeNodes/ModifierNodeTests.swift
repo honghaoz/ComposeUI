@@ -2478,6 +2478,28 @@ class ModifierNodeTests: XCTestCase {
     renderer.move(to: 11.5)
     expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.8, within: 0.01))
   }
+
+  func test_shadow_twoAnimatedUpdatesBeforeACommit_showAContinuousShadowOpacity() throws {
+    // given: a rendered layer showing only its white shadow, at 0.3
+    let renderer = try PausedLayerRenderer(time: 10)
+    renderer.layer.disableActions(for: "backgroundColor") {
+      renderer.layer.backgroundColor = nil
+    }
+    let renderable = Renderable.layer(renderer.layer)
+    try refresh(renderable, with: whiteShadowItem(opacity: 0.3), animationTiming: nil)
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.3, within: 0.01))
+
+    // when: two animated updates change it to 0.6, then to 0.2, before a commit
+    try refresh(renderable, with: whiteShadowItem(opacity: 0.6), animationTiming: .linear(duration: 1))
+    try refresh(renderable, with: whiteShadowItem(opacity: 0.2), animationTiming: .linear(duration: 1))
+
+    // then: it animates from the shown 0.3 to 0.2
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.3, within: 0.01))
+    renderer.move(to: 10.5)
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.25, within: 0.01))
+    renderer.move(to: 11)
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.2, within: 0.01))
+  }
   #endif
 
   func test_opacity_stackedModifiers_unchangedNonAnimatedRefresh_keepsTheInsertFade() throws {
@@ -2607,6 +2629,15 @@ class ModifierNodeTests: XCTestCase {
   private func shadowItem(opacity: CGFloat) throws -> RenderableItem {
     try firstRenderableItem(of: LayerNode().shadow(color: .black, opacity: opacity, radius: 2, offset: .zero, path: nil)).unwrap()
   }
+
+  #if canImport(AppKit)
+  /// The renderable item of a layer node with a sharp white shadow of the given opacity under `PausedLayerRenderer`'s
+  /// layer, so the rendered opacity is the shadow opacity.
+  private func whiteShadowItem(opacity: CGFloat) throws -> RenderableItem {
+    let path = CGPath(rect: CGRect(x: 0, y: 0, width: 4, height: 4), transform: nil)
+    return try firstRenderableItem(of: LayerNode().shadow(color: .white, opacity: opacity, radius: 0, offset: .zero, path: { _ in path })).unwrap()
+  }
+  #endif
 
   /// Adds a linear additive opacity animation from `from` to 0 that is `progress` of the way through.
   private func addInFlightOpacityAnimation(to layer: CALayer, from: Double, progress: Double, duration: TimeInterval) {
