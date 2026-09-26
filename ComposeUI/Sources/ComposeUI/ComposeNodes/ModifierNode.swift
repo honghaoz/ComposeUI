@@ -397,15 +397,14 @@ public extension ComposeNode {
             layer.animate(keyPath: "opacity", to: opacity, timing: animationTiming)
           }
         } else {
-          layer.disableActions(for: "opacity") {
-            layer.opacity = opacity
-          }
+          // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
+          layer.setKeyPathValue("opacity", opacity)
         }
       },
       resetForReuse: { renderable in
         let layer = renderable.layer
         if layer.opacity != 1 {
-          // `setKeyPathValue` resets a backing view's alpha too, which an animated update sets along with the layer's opacity
+          // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
           layer.setKeyPathValue("opacity", Float(1))
         }
       }

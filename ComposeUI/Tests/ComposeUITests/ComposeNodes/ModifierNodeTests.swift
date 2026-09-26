@@ -2201,6 +2201,29 @@ class ModifierNodeTests: XCTestCase {
     expect(renderable.layer.opacity) == 1
   }
 
+  func test_opacity_nonAnimatedUpdate_keepsTheBackingViewAlphaInSync() throws {
+    // given: a view-backed renderable whose opacity modifier animated to 0.3, which sets the layer's opacity and the
+    // view's alpha
+    let view = BaseView()
+    let renderable = Renderable.view(view)
+    try refresh(renderable, with: firstRenderableItem(of: ViewNode(view).opacity(0.3)).unwrap(), animationTiming: .easeInEaseOut(duration: 1))
+    expect(view.alpha).to(beApproximatelyEqual(to: 0.3, within: 1e-6))
+
+    // when: a non-animated update sets the opacity back to 1
+    let item = try firstRenderableItem(of: ViewNode(view).opacity(1)).unwrap()
+    refresh(renderable, with: item, animationTiming: nil)
+
+    // then: the view's alpha follows the layer's opacity
+    expect(renderable.layer.opacity) == 1
+    expect(view.alpha) == 1
+
+    // when: the reset for reuse block runs, with the layer's opacity already at 1
+    item.resetForReuse?(renderable)
+
+    // then: the view isn't left faded
+    expect(view.alpha) == 1
+  }
+
   // MARK: - Helpers
 
   /// The renderable item of a layer node with every layer modifier, with the given values.
