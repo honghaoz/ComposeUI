@@ -333,10 +333,10 @@ class ComposeView_TransitionTests: XCTestCase {
   private func makeResidueTransition(takesOverKeyPaths: Set<String>,
                                      removedLayer: @escaping (CALayer) -> Void,
                                      insertTransitionDidRun: @escaping (RenderableTransition.InsertTransition.Context) -> Void,
-                                     makeTakeoverRestore: ((Renderable) -> () -> Void)? = nil) -> RenderableTransition
+                                     prepareForTakeover: ((Renderable) -> Void)? = nil) -> RenderableTransition
   {
     RenderableTransition(
-      insert: RenderableTransition.InsertTransition(takesOverKeyPaths: takesOverKeyPaths) { renderable, context, completion in
+      insert: RenderableTransition.InsertTransition(takesOverKeyPaths: takesOverKeyPaths, prepareForTakeover: prepareForTakeover) { renderable, context, completion in
         renderable.setFrame(context.targetFrame)
         insertTransitionDidRun(context)
         completion()
@@ -354,8 +354,7 @@ class ComposeView_TransitionTests: XCTestCase {
         },
         resetForReuse: { renderable in
           renderable.layer.opacity = 1
-        },
-        makeTakeoverRestore: makeTakeoverRestore
+        }
       )
     )
   }
@@ -470,8 +469,8 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(insertContext?.revivalPosition) == nil
   }
 
-  func test_reinsertRemovingRenderable_insertTransitionTakesOver_runsTheTakeoverRestoreBeforeTheContentUpdate() {
-    // given: a compose view showing content with a transition whose removal restores its values for a takeover
+  func test_reinsertRemovingRenderable_insertTransitionTakesOver_preparesTheRenderableBeforeTheContentUpdate() {
+    // given: a compose view with content whose insert transition prepares a renderable it takes over
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var events: [String] = []
@@ -479,11 +478,8 @@ class ComposeView_TransitionTests: XCTestCase {
       takesOverKeyPaths: ["opacity"],
       removedLayer: { _ in events.append("remove") },
       insertTransitionDidRun: { _ in events.append("insert") },
-      makeTakeoverRestore: { renderable in
-        events.append("make restore at opacity \(renderable.layer.opacity)")
-        return {
-          events.append("restore")
-        }
+      prepareForTakeover: { renderable in
+        events.append("prepare at opacity \(renderable.layer.opacity)")
       }
     )
 
@@ -496,44 +492,41 @@ class ComposeView_TransitionTests: XCTestCase {
         .frame(width: 100, height: 100)
     }
 
+    // when: the content is inserted with animation
     contentView.setContent(content: makeContent)
-    contentView.refresh(animated: false)
+    contentView.refresh(animated: true)
 
-    // when: the content is removed with animation
-    events = []
+    // then: a fresh insertion isn't prepared
+    expect(events) == ["update", "insert"]
+
+    // when: the content is removed, then re-inserted with animation
     contentView.setContent {
       Empty()
     }
     contentView.refresh(animated: true)
-
-    // then: the restore is made before the removal animates, so it sees the resting opacity
-    expect(events) == ["make restore at opacity 1.0", "remove"]
-
-    // when: re-insert the renderable with animation
     events = []
     contentView.setContent(content: makeContent)
     contentView.refresh(animated: true)
 
-    // then: the restore runs once, before the content update and the insert transition
+    // then: the revived renderable is prepared once, from the removal's untouched residue, before the content update
+    // and the insert transition
     expect(contentView.test.removingRenderableMap.count) == 0
-    expect(events) == ["restore", "update", "insert"]
+    expect(events) == ["prepare at opacity 0.0", "update", "insert"]
   }
 
-  func test_reinsertRemovingRenderable_insertTransitionDoesNotTakeOver_skipsTheTakeoverRestore() {
-    // given: a compose view showing content with a transition whose removal restores its values for a takeover, and
-    // whose insert doesn't take over the removal's key path
+  func test_reinsertRemovingRenderable_insertTransitionDoesNotTakeOver_skipsThePreparation() {
+    // given: a compose view with content whose insert transition prepares a renderable it takes over, but doesn't take
+    // over the removal's key path
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
     var removedLayer: CALayer?
-    var restoreCount = 0
+    var prepareCount = 0
     let transition = makeResidueTransition(
       takesOverKeyPaths: ["position"],
       removedLayer: { removedLayer = $0 },
       insertTransitionDidRun: { _ in },
-      makeTakeoverRestore: { _ in
-        return {
-          restoreCount += 1
-        }
+      prepareForTakeover: { _ in
+        prepareCount += 1
       }
     )
 
@@ -555,10 +548,10 @@ class ComposeView_TransitionTests: XCTestCase {
     contentView.setContent(content: makeContent)
     contentView.refresh(animated: true)
 
-    // then: the removal is reset instead, without the restore
+    // then: the removal is reset instead, without the preparation
     expect(contentView.test.removingRenderableMap.count) == 0
     expect(removedLayer?.opacity) == 1
-    expect(restoreCount) == 0
+    expect(prepareCount) == 0
   }
 
   func test_reinsertRemovingRenderable_slideTransition_insertComposesWithInFlightRemoval() throws {

@@ -51,6 +51,10 @@ public extension RenderableTransition {
     RenderableTransition(
       insert: options.contains(.insert) ? InsertTransition(
         takesOverKeyPaths: ["opacity"],
+        prepareForTakeover: to == nil ? { renderable in
+          // the removal's opacity isn't the content's, so it's replaced with the fresh 1, keeping what's shown
+          renderable.layer.retargetOpacity(to: 1)
+        } : nil,
         animate: { renderable, context, completion in
           renderable.setFrame(context.targetFrame)
 
@@ -67,13 +71,6 @@ public extension RenderableTransition {
         },
         resetForReuse: { renderable in
           renderable.layer.setKeyPathValue("opacity", Float(1))
-        },
-        makeTakeoverRestore: { renderable in
-          let restingOpacity = renderable.layer.opacity
-          return {
-            // keeps what's shown, so the insertion continues from it to the opacity the content sets
-            renderable.layer.retargetOpacity(to: restingOpacity)
-          }
         }
       ) : nil
     )

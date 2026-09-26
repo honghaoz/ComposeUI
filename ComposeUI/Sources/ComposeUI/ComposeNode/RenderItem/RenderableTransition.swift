@@ -81,6 +81,7 @@ public struct RenderableTransition {
     /// transform to identity.
     public let takesOverKeyPaths: Set<String>
 
+    private let prepareForTakeover: ((Renderable) -> Void)?
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
 
     /// Creates a new insert transition with the given animation closure.
@@ -95,8 +96,31 @@ public struct RenderableTransition {
     public init(takesOverKeyPaths: Set<String> = [],
                 animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void)
     {
+      self.init(takesOverKeyPaths: takesOverKeyPaths, prepareForTakeover: nil, animate: animate)
+    }
+
+    /// Creates a new insert transition that prepares a revived renderable when it takes over the removal.
+    ///
+    /// - Parameters:
+    ///   - takesOverKeyPaths: See `init(takesOverKeyPaths:animate:)`.
+    ///   - prepareForTakeover: A closure the framework calls when this transition takes over a revived renderable's
+    ///     removal, before the renderable's content update, so the content's values land on the prepared ones. It
+    ///     should keep what's shown, since the transition continues from it.
+    ///   - animate: See `init(takesOverKeyPaths:animate:)`.
+    init(takesOverKeyPaths: Set<String>,
+         prepareForTakeover: ((_ renderable: Renderable) -> Void)?,
+         animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void)
+    {
       self.takesOverKeyPaths = takesOverKeyPaths
+      self.prepareForTakeover = prepareForTakeover
       self.animate = animate
+    }
+
+    /// Prepares a revived renderable whose removal this transition takes over, before the renderable's content update.
+    ///
+    /// - Parameter renderable: The revived renderable.
+    func prepareForTakeover(renderable: Renderable) {
+      prepareForTakeover?(renderable)
     }
 
     /// Animates the insert transition.
@@ -133,7 +157,6 @@ public struct RenderableTransition {
 
     private let animate: (Renderable, Context, @escaping () -> Void) -> Void
     private let resetForReuse: ((Renderable) -> Void)?
-    private let makeTakeoverRestore: ((Renderable) -> () -> Void)?
 
     /// Creates a new remove transition with the given animation closure.
     ///
@@ -154,28 +177,9 @@ public struct RenderableTransition {
                 animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
                 resetForReuse: ((_ renderable: Renderable) -> Void)? = nil)
     {
-      self.init(animatedKeyPaths: animatedKeyPaths, animate: animate, resetForReuse: resetForReuse, makeTakeoverRestore: nil)
-    }
-
-    /// Creates a new remove transition that restores the model values it writes when a revival takes it over.
-    ///
-    /// - Parameters:
-    ///   - animatedKeyPaths: See `init(animatedKeyPaths:animate:resetForReuse:)`.
-    ///   - animate: See `init(animatedKeyPaths:animate:resetForReuse:)`.
-    ///   - resetForReuse: See `init(animatedKeyPaths:animate:resetForReuse:)`.
-    ///   - makeTakeoverRestore: A closure called right before the removal animates, so it can capture the resting values.
-    ///     It returns the closure the framework runs when a reviving insert transition takes over the removal, before
-    ///     the renderable's content update. That closure restores the model values the removal wrote, keeping what's
-    ///     shown, so the content's values land on the resting ones.
-    init(animatedKeyPaths: Set<String>?,
-         animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void,
-         resetForReuse: ((_ renderable: Renderable) -> Void)?,
-         makeTakeoverRestore: ((_ renderable: Renderable) -> () -> Void)?)
-    {
       self.animatedKeyPaths = animatedKeyPaths
       self.animate = animate
       self.resetForReuse = resetForReuse
-      self.makeTakeoverRestore = makeTakeoverRestore
     }
 
     /// Animates the remove transition.
@@ -200,15 +204,6 @@ public struct RenderableTransition {
         renderable.layer.removeAnimations(forKeyPath: keyPath)
       }
       resetForReuse?(renderable)
-    }
-
-    /// Makes the closure that restores the model values this transition writes, for a revival that takes it over.
-    ///
-    /// - Parameter renderable: The renderable about to be removed.
-    /// - Returns: The closure to run when a reviving insert transition takes over the removal, before the renderable's
-    ///   content update. `nil` when the transition leaves its model values for the insert transition.
-    func makeTakeoverRestore(renderable: Renderable) -> (() -> Void)? {
-      makeTakeoverRestore?(renderable)
     }
 
     /// Whether a reviving insert transition takes over this transition's in-flight removal state.
