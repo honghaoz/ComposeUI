@@ -114,8 +114,8 @@ extension CALayer {
 
   /// The opacity the in-flight opacity animations show, whoever added them, and its rate of change per second.
   ///
-  /// - Returns: The opacity, clamped to [0, 1], and its rate, zero when it pushes past a bound. `nil` when no opacity
-  ///   animation is in flight.
+  /// - Returns: The opacity, clamped to [0, 1] after each animation like the render server does, and its rate, zero
+  ///   when it pushes past a bound. `nil` when no opacity animation is in flight.
   func interruptedOpacityState() -> (value: Float, velocity: Double)? {
     let opacityAnimations = basicAnimations(forKeyPath: "opacity")
     guard !opacityAnimations.isEmpty else {
@@ -136,6 +136,8 @@ extension CALayer {
         } else {
           value = animationValue
         }
+        // the render server clamps opacity after each animation
+        value = max(0, min(value, 1))
       }
       return value
     }
@@ -143,12 +145,11 @@ extension CALayer {
     let value = composedValue(at: now)
     let earlierValue = composedValue(at: now - RetargetConstants.velocitySamplingInterval)
 
-    let clampedValue = max(0, min(value, 1))
     var velocity = (value - earlierValue) / RetargetConstants.velocitySamplingInterval
-    if (clampedValue == 0 && velocity < 0) || (clampedValue == 1 && velocity > 0) {
+    if (value == 0 && velocity < 0) || (value == 1 && velocity > 0) {
       velocity = 0
     }
-    return (Float(clampedValue), velocity)
+    return (Float(value), velocity)
   }
 }
 

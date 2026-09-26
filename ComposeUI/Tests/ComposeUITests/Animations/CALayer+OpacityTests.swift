@@ -135,10 +135,66 @@ class CALayer_OpacityTests: XCTestCase {
     expect(layer.animationKeys()) == ["opacity"]
   }
 
+  // MARK: - interruptedOpacityState
+
+  func test_interruptedOpacityState_clampsAfterEachAnimation() throws {
+    // given: a layer at 1 with two additive animations adding -2, then +0.5
+    let layer = CALayer()
+    layer.opacity = 1
+    addInFlightAnimation(to: layer, from: -2, progress: 0, duration: 10, key: "a")
+    addInFlightAnimation(to: layer, from: 0.5, progress: 0, duration: 10, key: "b")
+
+    // then: the first animation clamps at 0 before the second adds 0.5, as the render server does
+    expect(try layer.interruptedOpacityState().unwrap().value).to(beApproximatelyEqual(to: 0.5, within: 1e-3))
+  }
+
+  func test_interruptedOpacityState_justReachedABound_hasNoVelocity() throws {
+    // given: a layer on a timeline paused at t = 10, whose opacity rose to 1 within the last sampling interval
+    let root = CALayer()
+    root.speed = 0
+    root.timeOffset = 10
+    let layer = CALayer()
+    root.addSublayer(layer)
+    layer.opacity = 0.75
+    let animation = CABasicAnimation(keyPath: "opacity")
+    animation.fromValue = 0.0
+    animation.toValue = 0.5
+    animation.duration = 1
+    animation.timingFunction = CAMediaTimingFunction(name: .linear)
+    animation.isAdditive = true
+    animation.beginTime = 9.498
+    layer.add(animation, forKey: "opacity")
+
+    // then: it's at 1 with no velocity, as the motion past the bound doesn't show
+    let state = try layer.interruptedOpacityState().unwrap()
+    expect(state.value) == 1
+    expect(state.velocity) == 0
+  }
+
+  #if canImport(AppKit)
+  func test_interruptedOpacityState_matchesTheRenderedOpacity() throws {
+    // given: a rendered layer at 1 with two additive animations adding -2, then +0.5, both fading out over 10 s
+    let renderer = try PausedLayerRenderer(time: 10)
+    let layer = renderer.layer
+    layer.opacity = 1
+    addInFlightAnimation(to: layer, from: -2, progress: 0, duration: 10, key: "a")
+    addInFlightAnimation(to: layer, from: 0.5, progress: 0, duration: 10, key: "b")
+
+    for time in [10.0, 15.0] {
+      // when: moving the timeline
+      renderer.move(to: time)
+
+      // then: the computed opacity is the rendered one
+      let computedOpacity = try Double(layer.interruptedOpacityState().unwrap().value)
+      expect(renderer.renderedOpacity(), "\(time)").to(beApproximatelyEqual(to: computedOpacity, within: 0.01))
+    }
+  }
+  #endif
+
   // MARK: - Helpers
 
   /// Adds a linear additive opacity animation from `from` to 0 that is `progress` of the way through.
-  private func addInFlightAnimation(to layer: CALayer, from: Double, progress: Double, duration: TimeInterval) {
+  private func addInFlightAnimation(to layer: CALayer, from: Double, progress: Double, duration: TimeInterval, key: String = "opacity") {
     let animation = CABasicAnimation(keyPath: "opacity")
     animation.fromValue = from
     animation.toValue = 0.0
@@ -146,6 +202,6 @@ class CALayer_OpacityTests: XCTestCase {
     animation.timingFunction = CAMediaTimingFunction(name: .linear)
     animation.isAdditive = true
     animation.beginTime = layer.currentTime - duration * progress
-    layer.add(animation, forKey: "opacity")
+    layer.add(animation, forKey: key)
   }
 }

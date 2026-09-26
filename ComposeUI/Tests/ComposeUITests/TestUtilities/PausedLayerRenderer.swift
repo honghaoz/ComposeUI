@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-#if os(macOS)
+#if canImport(AppKit)
 
 import Metal
 import QuartzCore
