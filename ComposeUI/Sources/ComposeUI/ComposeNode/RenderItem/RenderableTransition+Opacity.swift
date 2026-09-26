@@ -34,17 +34,17 @@ public extension RenderableTransition {
 
   /// Creates an opacity transition.
   ///
-  /// For insertion, the renderable fades from `from` to `to`. For removal, the renderable fades from its current
-  /// opacity back to `from`. Starting a transition while another one is in flight continues from the current visual
-  /// opacity.
+  /// For insertion, the renderable fades from `from` to `to`, or when `to` is `nil`, to the opacity its content sets.
+  /// For removal, the renderable fades from its current opacity back to `from`.
+  /// Starting a transition while another one is in flight continues from the current visual opacity.
   ///
   /// - Parameters:
   ///   - from: The starting opacity value.
-  ///   - to: The ending opacity value.
+  ///   - to: The ending opacity value. `nil`, the default, ends at the opacity the content sets.
   ///   - timing: The timing function for the animation.
   ///   - options: The options for the transition.
   static func opacity(from: CGFloat = 0,
-                      to: CGFloat = 1,
+                      to: CGFloat? = nil,
                       timing: AnimationTiming = .easeInEaseOut(duration: Animations.defaultAnimationDuration),
                       options: RenderableTransition.Options = .both) -> RenderableTransition
   {
@@ -54,25 +54,21 @@ public extension RenderableTransition {
         animate: { renderable, context, completion in
           renderable.setFrame(context.targetFrame)
 
-          renderable.layer.retargetOpacity(
-            freshStartValue: Float(from),
-            targetValue: Float(to),
-            timing: timing,
-            completion: completion
-          )
+          let layer = renderable.layer
+          let targetValue = to.map { Float($0) } ?? layer.contentOpacity
+          layer.opacityRemovalRecord = nil
+          layer.animateOpacity(to: targetValue, timing: timing, freshStartValue: Float(from), completion: completion)
         }
       ) : nil,
       remove: options.contains(.remove) ? RemoveTransition(
         animatedKeyPaths: ["opacity"],
         animate: { renderable, _, completion in
-          renderable.layer.retargetOpacity(
-            freshStartValue: renderable.layer.opacity,
-            targetValue: Float(from),
-            timing: timing,
-            completion: completion
-          )
+          let layer = renderable.layer
+          layer.opacityRemovalRecord = OpacityRemovalRecord(restingOpacity: layer.opacity, removalOpacity: Float(from))
+          layer.animateOpacity(to: Float(from), timing: timing, freshStartValue: layer.opacity, completion: completion)
         },
         resetForReuse: { renderable in
+          renderable.layer.opacityRemovalRecord = nil
           renderable.layer.setKeyPathValue("opacity", Float(1))
         }
       ) : nil
@@ -80,157 +76,44 @@ public extension RenderableTransition {
   }
 }
 
-private extension AnimationTiming {
+/// The opacity change of a removal, kept for a revival.
+private final class OpacityRemovalRecord {
 
-  /// The timing for a retargeting animation.
-  ///
-  /// For a spring timing, the interrupted velocity is carried into the spring's initial velocity, in Core Animation's
-  /// convention (positive moves towards the target, in full from-to distances per second), so the spring's derived
-  /// duration accounts for the carried velocity.
-  ///
-  /// The velocity is only carried by an immediate retargeting: a delayed one freezes the interrupted motion at rest
-  /// for the delay window, so its spring launches from rest. The velocity is also dropped for a from-to distance
-  /// below `RetargetConstants.velocityCarryMinimumDelta`.
-  ///
-  /// - Parameters:
-  ///   - velocity: The interrupted rate of change, in value units per second. `nil` when nothing was interrupted.
-  ///   - delta: The retargeting animation's from-to distance, in value units.
-  /// - Returns: The retarget timing.
-  func retargeted(carryingVelocity velocity: Double?, over delta: Float) -> AnimationTiming {
-    let retargetTiming: Timing
-    switch timing {
-    case .spring(let descriptor, let duration):
-      if let velocity, delay == 0, abs(delta) > RetargetConstants.velocityCarryMinimumDelta, speed > 0 {
-        let initialVelocity = CGFloat(-velocity) / (CGFloat(delta) * speed)
-        let descriptor = SpringDescriptor(
-          initialVelocity: initialVelocity,
-          mass: descriptor.mass,
-          stiffness: descriptor.stiffness,
-          damping: descriptor.damping
-        )
-        retargetTiming = .spring(descriptor, duration: duration)
-      } else {
-        retargetTiming = timing
-      }
-    case .timingFunction:
-      retargetTiming = timing
-    }
-    return AnimationTiming(timing: retargetTiming, delay: delay, speed: speed)
+  /// The opacity before the removal.
+  let restingOpacity: Float
+
+  /// The opacity the removal set.
+  let removalOpacity: Float
+
+  init(restingOpacity: Float, removalOpacity: Float) {
+    self.restingOpacity = restingOpacity
+    self.removalOpacity = removalOpacity
   }
 }
 
 private extension CALayer {
 
-  /// Replaces any in-flight opacity animations with a single additive animation towards `targetValue`.
-  ///
-  /// When an opacity transition is in flight (running animations, or a scheduled one whose delay hasn't elapsed),
-  /// the new animation continues from the opacity the layer currently shows. For a spring timing, it also continues
-  /// with the current velocity, through the spring's initial velocity. Without an in-flight transition, the new
-  /// animation starts from `freshStartValue`.
-  ///
-  /// Retargeting replaces the in-flight animations instead of stacking on them, because the render server clamps
-  /// opacity per animation while compositing additive animations, so opposing stacked animations do not compose (the
-  /// screen diverges from the unclamped sum that `presentation()` reports).
-  ///
-  /// The timing's delay schedules the new animation's begin time: the interrupted state is evaluated when the
-  /// retargeting is dispatched, and the animation holds its start value until the delay elapses, so an interrupted
-  /// in-flight animation freezes at its sampled value for the delay window.
-  ///
-  /// A zero-duration timing applies `targetValue` and completes immediately when there is no delay. With a delay,
-  /// the change is scheduled as a snap that applies right after the delay window.
-  ///
-  /// - Parameters:
-  ///   - freshStartValue: The opacity to start from when no opacity transition is in flight.
-  ///   - targetValue: The opacity to animate to. Also set as the model value.
-  ///   - timing: The timing for the animation.
-  ///   - completion: The block called when the animation completes or is torn down before completing (removed by a
-  ///     superseding retargeting, a reset, or the layer leaving the layer tree).
-  func retargetOpacity(freshStartValue: Float,
-                       targetValue: Float,
-                       timing: AnimationTiming,
-                       completion: @escaping () -> Void)
-  {
-    let interrupted = interruptedOpacityState()
-    removeAnimations(forKeyPath: "opacity")
+  static let opacityRemovalRecordKey = "ComposeUI.opacityRemovalRecord"
 
-    guard timing.timing.duration > 0 || timing.delay > 0 else {
-      setKeyPathValue("opacity", targetValue)
-      completion()
-      return
+  /// The last opacity removal, kept until the next insertion or reset.
+  var opacityRemovalRecord: OpacityRemovalRecord? {
+    get {
+      value(forKey: Self.opacityRemovalRecordKey) as? OpacityRemovalRecord
     }
-
-    let start = interrupted?.value ?? freshStartValue
-    let delta = start - targetValue
-
-    animate(
-      keyPath: "opacity",
-      timing: timing.retargeted(carryingVelocity: interrupted?.velocity, over: delta),
-      from: { _ in delta },
-      to: { _ in 0 },
-      model: { _ in targetValue },
-      updateAnimation: {
-        $0.isAdditive = true
-        $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
-          completion()
-        })
-      }
-    )
+    set {
+      setValue(newValue, forKey: Self.opacityRemovalRecordKey)
+    }
   }
 
-  /// Evaluates the in-flight opacity animations.
+  /// The opacity the content set, which an insertion without a `to` value ends at.
   ///
-  /// The transition owns the renderable layer's opacity, so every opacity animation on the layer is treated as an
-  /// in-flight transition. The animations compose in their key order, the same way Core Animation applies them: a
-  /// non-additive animation replaces the composed value, and an additive animation contributes on top of it. A
-  /// scheduled animation whose delay hasn't elapsed contributes the start value its fill mode is holding.
-  ///
-  /// - Returns: The composed opacity and its rate of change in opacity per second, or `nil` when no opacity animation
-  ///   is in flight. The value is clamped to opacity's rendered [0, 1] range, and the rate is zero when it would push
-  ///   past a saturated bound, because motion past a bound isn't visible and carries no momentum.
-  func interruptedOpacityState() -> (value: Float, velocity: Double)? {
-    let opacityAnimations = basicAnimations(forKeyPath: "opacity")
-    guard !opacityAnimations.isEmpty else {
-      return nil
+  /// When a removal is revived, the layer still has the removal's opacity. If the content didn't change it, the
+  /// content set no opacity, so this returns the opacity from before the removal. A content opacity equal to the
+  /// removal's looks the same, so it's taken as none.
+  var contentOpacity: Float {
+    guard let record = opacityRemovalRecord, opacity == record.removalOpacity else {
+      return opacity
     }
-
-    let now = currentTime
-
-    func composedValue(at time: TimeInterval) -> Double {
-      var value = Double(opacity)
-      for animation in opacityAnimations {
-        guard let animationValue = animation.scalarValue(at: time) else {
-          ComposeUI.assertFailure("unsupported in-flight opacity animation: \(animation)")
-          continue
-        }
-        if animation.isAdditive {
-          value += animationValue
-        } else {
-          value = animationValue
-        }
-      }
-      return value
-    }
-
-    let value = composedValue(at: now)
-    let earlierValue = composedValue(at: now - RetargetConstants.velocitySamplingInterval)
-
-    let clampedValue = max(0, min(value, 1))
-    var velocity = (value - earlierValue) / RetargetConstants.velocitySamplingInterval
-    if (clampedValue == 0 && velocity < 0) || (clampedValue == 1 && velocity > 0) {
-      velocity = 0
-    }
-    return (Float(clampedValue), velocity)
+    return record.restingOpacity
   }
-}
-
-private enum RetargetConstants {
-
-  /// The minimum from-to distance for carrying the interrupted velocity into a spring retarget.
-  ///
-  /// The normalized velocity diverges as the distance approaches zero, and continuing a sub-1% opacity distance with
-  /// momentum is imperceptible anyway.
-  static let velocityCarryMinimumDelta: Float = 0.01
-
-  /// The finite-difference interval for sampling the interrupted rate of change.
-  static let velocitySamplingInterval: TimeInterval = 1 / 240
 }
