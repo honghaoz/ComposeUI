@@ -36,8 +36,8 @@ public extension CALayer {
   /// to the new value and lands when the in-flight animations would have. With an in-flight animation that never
   /// finishes, such as a spring without damping, the glide takes `Animations.defaultAnimationDuration` instead.
   ///
-  /// - Without in-flight animations, the value is set directly. An animation already heading to the value is left alone,
-  ///   and an ended one is skipped, as Core Animation removes it.
+  /// - A value the model already has leaves the layer alone, as its in-flight animations already head to it. Without
+  ///   in-flight animations, the value is set directly. An ended animation is skipped, as Core Animation removes it.
   /// - Additive animations of numbers, `CGSize` and `CGPoint` are folded into one additive ease-out from the value they
   ///   show, so later additive animations keep stacking on it. A running spring keeps going instead, so its momentum
   ///   carries on, with the ease-out stacked on it. Stacked additive animations show their sum only for properties the
@@ -49,12 +49,18 @@ public extension CALayer {
   /// A folded or replaced animation is removed, so its delegate is told it stopped before finishing.
   ///
   /// - Important: The value's type must match the key path's, or Core Animation crashes.
-  /// - Important: Animations kept with `isRemovedOnCompletion` off aren't supported. A kept one that has ended is removed.
+  /// - Important: Animations kept with `isRemovedOnCompletion` off aren't supported.
   ///
   /// - Parameters:
   ///   - keyPath: The key path to set.
   ///   - value: The value to set.
   func retarget(keyPath: String, to value: Any) {
+    // the model already has the value, so the in-flight animations already head to it, nothing to change
+    let currentValue = self.value(forKeyPath: keyPath)
+    if let currentValue, (currentValue as AnyObject).isEqual(value) {
+      return
+    }
+
     let now = currentTime
     let (inFlightAnimations, endedKeptKeys) = inFlightAnimations(forKeyPath: keyPath, at: now)
 
@@ -66,12 +72,6 @@ public extension CALayer {
     guard let remainingTime = inFlightAnimations.max(by: { $0.remainingTime < $1.remainingTime })?.remainingTime else {
       // no in-flight animations, set the value directly
       setKeyPathValue(keyPath, value)
-      return
-    }
-
-    // an in-flight animation already heading to the value keeps its easing, skipping the retarget
-    let currentValue = self.value(forKeyPath: keyPath)
-    if let currentValue, (currentValue as AnyObject).isEqual(value) {
       return
     }
 
