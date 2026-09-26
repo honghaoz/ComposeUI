@@ -134,6 +134,7 @@ Hard-won rules from past corrections, grouped by theme.
 - Read an external collection once per call and do everything that needs it in that pass. Framework accessors often copy on each read.
 - A fast path has to fire in the steady state, not just on the first call. Measure in the state the code itself creates, inside the context it runs in, with a warm-up. Otherwise the harness dominates the numbers.
 - Give the common case an exact shortcut when it is trivially exact, and keep the general path for the rest.
+- Converting an existing closure to a closure type that involves a generic parameter, for example a block field of a type nested in `RenderItem<T>`, allocates a reabstraction thunk, since generic closures take their arguments indirectly. In a hot path, write the closure literal where the generic-typed value is built, and count allocations (for example with `malloc_zone_statistics`) instead of inferring them from the code.
 
 ## CI
 
