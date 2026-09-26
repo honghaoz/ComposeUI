@@ -55,8 +55,7 @@ public extension RenderableTransition {
           renderable.setFrame(context.targetFrame)
 
           let layer = renderable.layer
-          let targetValue = to.map { Float($0) } ?? layer.contentOpacity
-          layer.opacityRemovalRecord = nil
+          let targetValue = to.map { Float($0) } ?? layer.opacity
           layer.animateOpacity(to: targetValue, timing: timing, freshStartValue: Float(from), completion: completion)
         }
       ) : nil,
@@ -64,56 +63,19 @@ public extension RenderableTransition {
         animatedKeyPaths: ["opacity"],
         animate: { renderable, _, completion in
           let layer = renderable.layer
-          layer.opacityRemovalRecord = OpacityRemovalRecord(restingOpacity: layer.opacity, removalOpacity: Float(from))
           layer.animateOpacity(to: Float(from), timing: timing, freshStartValue: layer.opacity, completion: completion)
         },
         resetForReuse: { renderable in
-          renderable.layer.opacityRemovalRecord = nil
           renderable.layer.setKeyPathValue("opacity", Float(1))
+        },
+        makeTakeoverRestore: { renderable in
+          let restingOpacity = renderable.layer.opacity
+          return {
+            // keeps what's shown, so the insertion continues from it to the opacity the content sets
+            renderable.layer.retargetOpacity(to: restingOpacity)
+          }
         }
       ) : nil
     )
-  }
-}
-
-/// The opacity change of a removal, kept for a revival.
-private final class OpacityRemovalRecord {
-
-  /// The opacity before the removal.
-  let restingOpacity: Float
-
-  /// The opacity the removal set.
-  let removalOpacity: Float
-
-  init(restingOpacity: Float, removalOpacity: Float) {
-    self.restingOpacity = restingOpacity
-    self.removalOpacity = removalOpacity
-  }
-}
-
-private extension CALayer {
-
-  static let opacityRemovalRecordKey = "ComposeUI.opacityRemovalRecord"
-
-  /// The last opacity removal, kept until the next insertion or reset.
-  var opacityRemovalRecord: OpacityRemovalRecord? {
-    get {
-      value(forKey: Self.opacityRemovalRecordKey) as? OpacityRemovalRecord
-    }
-    set {
-      setValue(newValue, forKey: Self.opacityRemovalRecordKey)
-    }
-  }
-
-  /// The opacity the content set, which an insertion without a `to` value ends at.
-  ///
-  /// When a removal is revived, the layer still has the removal's opacity. If the content didn't change it, the
-  /// content set no opacity, so this returns the opacity from before the removal. A content opacity equal to the
-  /// removal's looks the same, so it's taken as none.
-  var contentOpacity: Float {
-    guard let record = opacityRemovalRecord, opacity == record.removalOpacity else {
-      return opacity
-    }
-    return record.restingOpacity
   }
 }

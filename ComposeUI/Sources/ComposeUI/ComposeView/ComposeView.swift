@@ -170,6 +170,9 @@ open class ComposeView: BaseScrollView {
 
     /// The removal completion. Executing it finalizes the removal, cancelling it revives the renderable.
     let completion: CancellableBlock
+
+    /// Restores the model values the removal wrote, for a revival that takes it over.
+    let takeoverRestore: (() -> Void)?
   }
 
   /// The map of the renderables that are being removed.
@@ -1211,7 +1214,9 @@ open class ComposeView: BaseScrollView {
             removingRenderableMap[oldId] = RemovingRenderable(
               renderable: oldRenderable,
               removeTransition: removeTransition,
-              completion: completion
+              completion: completion,
+              // made before the removal animates, so it captures the resting values
+              takeoverRestore: removeTransition.makeTakeoverRestore(renderable: oldRenderable)
             )
 
             #if DEBUG
@@ -1354,6 +1359,8 @@ open class ComposeView: BaseScrollView {
           if removingRenderable.removeTransition.isTakenOver(by: insertTransition) {
             revivalPosition = removingRenderable.renderable.layer.position
             revivalTransform = removingRenderable.renderable.layer.transform
+            // before the content update, so the content's values land on the resting ones
+            removingRenderable.takeoverRestore?()
           } else {
             removingRenderable.removeTransition.resetForReuse(renderable: removingRenderable.renderable)
           }

@@ -30,7 +30,7 @@
 
 import QuartzCore
 
-extension CALayer {
+public extension CALayer {
 
   /// Animates the opacity to a value with one animation that continues from the opacity the layer shows.
   ///
@@ -46,6 +46,7 @@ extension CALayer {
   ///   - timing: The animation timing. A zero duration sets the value right away, or after the delay.
   ///   - freshStartValue: The opacity to start from when nothing is in flight. `nil` starts from the model value.
   ///   - completion: Called when the animation finishes or is removed early.
+  @_spi(Private)
   func animateOpacity(to targetValue: Float,
                       timing: AnimationTiming,
                       freshStartValue: Float? = nil,
@@ -86,6 +87,7 @@ extension CALayer {
   /// committed, so a later opacity animation can continue from it.
   ///
   /// - Parameter value: The opacity to set.
+  @_spi(Private)
   func retargetOpacity(to value: Float) {
     // the in-flight animations already head to the value
     guard opacity != value else {
@@ -111,6 +113,9 @@ extension CALayer {
     // an animation that never finishes has no end to land with, so the glide takes the default duration
     animateOpacity(to: value, timing: .easeOut(duration: neverFinishes ? Animations.defaultAnimationDuration : remainingTime))
   }
+}
+
+extension CALayer {
 
   /// The opacity the in-flight opacity animations show, whoever added them, and its rate of change per second.
   ///
