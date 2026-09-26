@@ -844,6 +844,29 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(layer.opacity) == 0
   }
 
+  func test_revival_springTiming_continuesTheFadeOutVelocity() throws {
+    // given: a layer at 0.8, halfway through fading out, showing 0.4 and falling at 0.08 per second
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .spring())
+    let takeoverRestore = try remove(layer, with: transition)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+
+    // when: it's revived without the content setting an opacity
+    takeoverRestore()
+    try unwrap(transition.insert).animate(renderable: .layer(layer), context: insertContext(), completion: {})
+
+    // then: a spring fades in from the shown 0.4, continuing the fade-out's velocity
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let spring = try unwrap(animations.first as? CASpringAnimation)
+    expect(try unwrap(spring.fromValue as? Float)).to(beApproximatelyEqual(to: -0.4, within: 0.01))
+    // opacity velocity -0.08/s over a delta of -0.4 towards 0.8 is -0.2 in Core Animation's convention
+    expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.2, within: 0.01))
+    expect(layer.opacity) == 0.8
+  }
+
   func test_revival_withTo_endsAtTo() throws {
     // given: a layer at 0.8, fading out
     let layer = CALayer()
@@ -1009,6 +1032,43 @@ class RenderableTransition_OpacityTests: XCTestCase {
     // then: it fades to 0, not back to 0.8
     expect(contentView.test.removingRenderableMap.count) == 0
     expect(layer.opacity) == 0
+  }
+
+  func test_composeViewIntegration_revival_springFadeIn_continuesTheFadeOutVelocity() throws {
+    // given: a layer node with an opacity of 0.8 and a spring opacity transition, fading out
+    var opacity: CGFloat = 0.8
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .opacity(opacity)
+        .transition(.opacity(timing: .spring()))
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+
+    // the fade-out on screen: showing 0.4 and falling at 0.08 per second
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+
+    // when: the node is revived with its opacity changed to 0.6
+    opacity = 0.6
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: a spring fades in from the shown 0.4, continuing the fade-out's velocity
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let spring = try unwrap(animations.first as? CASpringAnimation)
+    expect(try unwrap(spring.fromValue as? Float)).to(beApproximatelyEqual(to: -0.2, within: 0.01))
+    // opacity velocity -0.08/s over a delta of -0.2 towards 0.6 is -0.4 in Core Animation's convention
+    expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.4, within: 0.02))
+    expect(layer.opacity) == 0.6
   }
 
   func test_composeViewIntegration_revival_withOpacitySetDirectlyToTheRemovalOpacity_endsAtIt() throws {

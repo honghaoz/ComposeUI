@@ -171,6 +171,52 @@ class CALayer_OpacityTests: XCTestCase {
     expect(state.velocity) == 0
   }
 
+  func test_interruptedOpacityState_animationNotBegun_hasTheReplacedVelocity() throws {
+    // given: a layer at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising at 0.1 per second
+    let layer = CALayer()
+    layer.opacity = 1
+    addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
+
+    // when: an animation to 0.8 replaces it, before a commit begins the new animation
+    layer.animateOpacity(to: 0.8, timing: .linear(duration: 1))
+
+    // then: the layer still shows 0.5, rising at 0.1 per second
+    let state = try layer.interruptedOpacityState().unwrap()
+    expect(state.value).to(beApproximatelyEqual(to: 0.5, within: 1e-3))
+    expect(state.velocity).to(beApproximatelyEqual(to: 0.1, within: 1e-3))
+  }
+
+  func test_interruptedOpacityState_animationNotBegun_replacedNothing_hasNoVelocity() throws {
+    // given: a layer at 0.3 with nothing in flight
+    let layer = CALayer()
+    layer.opacity = 0.3
+
+    // when: an animation to 1 starts, before a commit begins it
+    layer.animateOpacity(to: 1, timing: .linear(duration: 1))
+
+    // then: the layer shows 0.3 at rest
+    let state = try layer.interruptedOpacityState().unwrap()
+    expect(state.value).to(beApproximatelyEqual(to: 0.3, within: 1e-6))
+    expect(state.velocity) == 0
+  }
+
+  func test_animateOpacity_twiceBeforeACommit_springCarriesTheVelocityShown() throws {
+    // given: a layer at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising at 0.1 per second
+    let layer = CALayer()
+    layer.opacity = 1
+    addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
+
+    // when: an animation to 0.8 replaces it, then a spring to 0 replaces that one, before a commit
+    layer.animateOpacity(to: 0.8, timing: .linear(duration: 1))
+    layer.animateOpacity(to: 0, timing: .spring())
+
+    // then: the spring continues from the shown 0.5 with the shown velocity
+    let spring = try (layer.basicAnimations(forKeyPath: "opacity").first as? CASpringAnimation).unwrap()
+    expect(try (spring.fromValue as? Float).unwrap()).to(beApproximatelyEqual(to: 0.5, within: 1e-3))
+    // opacity velocity +0.1/s over a delta of 0.5 towards 0 is -0.2 in Core Animation's convention
+    expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.2, within: 0.01))
+  }
+
   #if canImport(AppKit)
   func test_interruptedOpacityState_matchesTheRenderedOpacity() throws {
     // given: a rendered layer at 1 with two additive animations adding -2, then +0.5, both fading out over 10 s

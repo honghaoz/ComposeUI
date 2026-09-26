@@ -72,6 +72,10 @@ public extension CALayer {
       model: { _ in targetValue },
       updateAnimation: {
         $0.isAdditive = true
+        if let velocity = interrupted?.velocity, velocity != 0 {
+          // the layer shows the replaced motion until the animation begins, see `interruptedOpacityState()`
+          $0.setValue(velocity, forKey: RetargetConstants.replacedVelocityKey)
+        }
         if let completion {
           $0.delegate = AnimationDelegate(animationDidStop: { _, _ in
             completion()
@@ -117,7 +121,10 @@ public extension CALayer {
 
 extension CALayer {
 
-  /// The opacity the in-flight opacity animations show, whoever added them, and its rate of change per second.
+  /// The opacity the in-flight opacity animations show and its rate of change per second.
+  ///
+  /// An animation `animateOpacity` added since the last commit hasn't begun, so the layer still shows the motion it
+  /// replaced, and the rate is that motion's.
   ///
   /// - Returns: The opacity, clamped to [0, 1] after each animation like the render server does, and its rate, zero
   ///   when it pushes past a bound. `nil` when no opacity animation is in flight.
@@ -148,9 +155,15 @@ extension CALayer {
     }
 
     let value = composedValue(at: now)
-    let earlierValue = composedValue(at: now - RetargetConstants.velocitySamplingInterval)
 
-    var velocity = (value - earlierValue) / RetargetConstants.velocitySamplingInterval
+    var velocity: Double
+    if opacityAnimations.count == 1, opacityAnimations[0].beginTime == 0 {
+      // Core Animation sets the begin time at the commit, so the animation hasn't begun
+      velocity = opacityAnimations[0].value(forKey: RetargetConstants.replacedVelocityKey) as? Double ?? 0
+    } else {
+      let earlierValue = composedValue(at: now - RetargetConstants.velocitySamplingInterval)
+      velocity = (value - earlierValue) / RetargetConstants.velocitySamplingInterval
+    }
     if (value == 0 && velocity < 0) || (value == 1 && velocity > 0) {
       velocity = 0
     }
@@ -200,4 +213,7 @@ private enum RetargetConstants {
 
   /// The interval for sampling the in-flight rate of change.
   static let velocitySamplingInterval: TimeInterval = 1 / 240
+
+  /// The key of the rate of change an opacity animation replaced, kept on the animation.
+  static let replacedVelocityKey = "ComposeUI.replacedOpacityVelocity"
 }

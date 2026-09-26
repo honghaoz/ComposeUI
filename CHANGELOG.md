@@ -28,6 +28,7 @@
 - The `AnimationBehavior.dynamic` closure is now called once per render pass instead of once per renderable, so one decision applies to the whole pass.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
 - Slide transitions now continue a revival from wherever the removal left the renderable.
+- A spring opacity transition now continues a revival with the removal's speed, instead of starting from rest.
 - The insert transition context gains `revivalPosition` and `revivalTransform` for taking-over transitions.
 - `ComposeView` now re-renders on display scale changes on iOS/tvOS, matching the existing macOS handling.
 - `ComposeView.setNeedsRefresh(animated:)` now merges coalesced requests to non-animated when any request was non-animated.
