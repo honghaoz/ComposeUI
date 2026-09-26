@@ -44,7 +44,11 @@ private struct ModifierNode: ComposeNode {
   private let willInsert: ((Renderable, RenderableInsertContext) -> Void)?
   private let didInsert: ((Renderable, RenderableInsertContext) -> Void)?
   private let willUpdate: ((Renderable, RenderableUpdateContext) -> Void)?
-  private let update: ((Renderable, RenderableUpdateContext) -> Void)?
+
+  /// The update blocks, kept as a list instead of combined like the other blocks, so that an outer keyed block overrides
+  /// an inner one, see `RenderableUpdateKey`.
+  private let updates: RenderableItem.AdditionalUpdates
+
   private let willRemove: ((Renderable, RenderableRemoveContext) -> Void)?
   private let didRemove: ((Renderable, RenderableRemoveContext) -> Void)?
   private let reuseId: String?
@@ -57,7 +61,7 @@ private struct ModifierNode: ComposeNode {
                    willInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
                    didInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
                    willUpdate: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
-                   update: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
+                   update: RenderableItem.AdditionalUpdate? = nil,
                    willRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    didRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    reuseId: String? = nil,
@@ -71,7 +75,7 @@ private struct ModifierNode: ComposeNode {
       self.willInsert = Self.combineBlocks(modifierNode.willInsert, willInsert)
       self.didInsert = Self.combineBlocks(modifierNode.didInsert, didInsert)
       self.willUpdate = Self.combineBlocks(modifierNode.willUpdate, willUpdate)
-      self.update = Self.combineBlocks(modifierNode.update, update)
+      self.updates = Self.combineUpdates(modifierNode.updates, update)
       self.willRemove = Self.combineBlocks(modifierNode.willRemove, willRemove)
       self.didRemove = Self.combineBlocks(modifierNode.didRemove, didRemove)
       self.reuseId = modifierNode.reuseId ?? reuseId
@@ -84,7 +88,7 @@ private struct ModifierNode: ComposeNode {
       self.willInsert = willInsert
       self.didInsert = didInsert
       self.willUpdate = willUpdate
-      self.update = update
+      self.updates = Self.combineUpdates(.none, update)
       self.willRemove = willRemove
       self.didRemove = didRemove
       self.reuseId = reuseId
@@ -109,6 +113,13 @@ private struct ModifierNode: ComposeNode {
         second(renderable)
       }
     }
+  }
+
+  private static func combineUpdates(_ updates: RenderableItem.AdditionalUpdates, _ update: RenderableItem.AdditionalUpdate?) -> RenderableItem.AdditionalUpdates {
+    guard let update else {
+      return updates
+    }
+    return updates.adding(update)
   }
 
   private static func combineBlocks<T>(_ first: ((Renderable, T) -> Void)?, _ second: ((Renderable, T) -> Void)?) -> ((Renderable, T) -> Void)? {
@@ -159,8 +170,8 @@ private struct ModifierNode: ComposeNode {
         if let willUpdate = willUpdate {
           item = item.addWillUpdate(willUpdate)
         }
-        if let update = update {
-          item = item.addUpdate(update)
+        if !updates.isEmpty {
+          item = item.addUpdates(updates)
         }
         if let willRemove = willRemove {
           item = item.addWillRemove(willRemove)
@@ -230,7 +241,7 @@ public extension ComposeNode {
   /// - Parameter update: The block to execute.
   /// - Returns: A new node with the block added.
   func onUpdate(_ update: @escaping (_ renderable: Renderable, _ context: RenderableUpdateContext) -> Void) -> some ComposeNode {
-    ModifierNode(node: self, update: update)
+    ModifierNode(node: self, update: RenderableItem.AdditionalUpdate(key: nil, block: update))
   }
 
   /// Execute a block when the renderables provided by the node are about to be removed from the renderable hierarchy.
@@ -310,6 +321,7 @@ public extension ComposeNode {
   /// Set the background color of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the background color set.
+  /// - Note: The outermost background color wins, the inner ones are not applied.
   ///
   /// - Parameter color: The background color to set.
   /// - Returns: A new node with the background color set.
@@ -320,13 +332,14 @@ public extension ComposeNode {
   /// Set the themed background color of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the background color set.
+  /// - Note: The outermost background color wins, the inner ones are not applied.
   ///
   /// - Parameter color: The themed background color to set.
   /// - Returns: A new node with the background color set.
   func backgroundColor(_ color: ThemedColor) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: { item, context in
+      update: RenderableItem.AdditionalUpdate(key: .backgroundColor, block: { item, context in
         switch context.updateType {
         case .insert,
              .refresh:
@@ -351,7 +364,7 @@ public extension ComposeNode {
             layer.backgroundColor = color
           }
         }
-      },
+      }),
       resetForReuse: { renderable in
         let layer = renderable.layer
         if layer.backgroundColor != nil {
@@ -366,6 +379,7 @@ public extension ComposeNode {
   /// Set the opacity of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the opacity set.
+  /// - Note: The outermost opacity wins, the inner ones are not applied.
   ///
   /// - Parameter opacity: The opacity to set.
   /// - Returns: A new node with the opacity set.
@@ -376,13 +390,14 @@ public extension ComposeNode {
   /// Set the themed opacity of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the opacity set.
+  /// - Note: The outermost opacity wins, the inner ones are not applied.
   ///
   /// - Parameter opacity: The themed opacity to set.
   /// - Returns: A new node with the opacity set.
   func opacity(_ opacity: Themed<CGFloat>) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: { item, context in
+      update: RenderableItem.AdditionalUpdate(key: .opacity, block: { item, context in
         switch context.updateType {
         case .insert,
              .refresh:
@@ -400,7 +415,7 @@ public extension ComposeNode {
           // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
           layer.setKeyPathValue("opacity", opacity)
         }
-      },
+      }),
       resetForReuse: { renderable in
         let layer = renderable.layer
         if layer.opacity != 1 {
@@ -414,6 +429,7 @@ public extension ComposeNode {
   /// Set the border of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the border set.
+  /// - Note: The outermost border wins, the inner ones are not applied.
   ///
   /// - Parameters:
   ///   - color: The color of the border.
@@ -426,6 +442,7 @@ public extension ComposeNode {
   /// Set the themed border of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the border set.
+  /// - Note: The outermost border wins, the inner ones are not applied.
   ///
   /// - Parameters:
   ///   - color: The themed color of the border.
@@ -434,7 +451,7 @@ public extension ComposeNode {
   func border(color: ThemedColor, width: Themed<CGFloat>) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: { item, context in
+      update: RenderableItem.AdditionalUpdate(key: .border, block: { item, context in
         switch context.updateType {
         case .insert,
              .refresh:
@@ -464,7 +481,7 @@ public extension ComposeNode {
             layer.borderWidth = width
           }
         }
-      },
+      }),
       resetForReuse: { renderable in
         let layer = renderable.layer
         let defaultBorderColor = layer.defaultBorderColor
@@ -481,6 +498,7 @@ public extension ComposeNode {
   /// Set the corner radius of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the corner radius set.
+  /// - Note: The outermost corner radius wins, the inner ones are not applied.
   ///
   /// - Parameters:
   ///   - radius: The corner radius to set.
@@ -489,7 +507,7 @@ public extension ComposeNode {
   func cornerRadius(_ radius: CGFloat, cornerCurve: CALayerCornerCurve = .continuous) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: { item, context in
+      update: RenderableItem.AdditionalUpdate(key: .cornerRadius, block: { item, context in
         switch context.updateType {
         case .insert,
              .refresh:
@@ -510,7 +528,7 @@ public extension ComposeNode {
             layer.cornerRadius = radius
           }
         }
-      },
+      }),
       resetForReuse: { renderable in
         let layer = renderable.layer
         if layer.cornerCurve != .continuous {
@@ -528,13 +546,14 @@ public extension ComposeNode {
   /// Set whether the node's renderables are masked to bounds.
   ///
   /// - Note: All renderables provided by the node will have the `masksToBounds` set.
+  /// - Note: The outermost `masksToBounds` wins, the inner ones are not applied.
   ///
   /// - Parameter masksToBounds: Whether the renderable is masked to bounds. The default is `true`.
   /// - Returns: A new node with the `masksToBounds` set.
   func masksToBounds(_ masksToBounds: Bool = true) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: { item, context in
+      update: RenderableItem.AdditionalUpdate(key: .masksToBounds, block: { item, context in
         switch context.updateType {
         case .insert,
              .refresh:
@@ -545,7 +564,7 @@ public extension ComposeNode {
 
         let layer = item.layer
         layer.masksToBounds = masksToBounds
-      },
+      }),
       resetForReuse: { renderable in
         if renderable.layer.masksToBounds != false {
           renderable.layer.masksToBounds = false
@@ -557,6 +576,7 @@ public extension ComposeNode {
   /// Set the shadow of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the shadow set.
+  /// - Note: The outermost shadow wins, the inner ones are not applied.
   ///
   /// - Note: The layer's border may show ghosting effect when the shadow is animating. You may want to avoid adding a shadow to layers that have a border.
   /// Tip: You can use a dedicated transparent `LayerNode` as an underlay and apply the shadow to the underlay or use `dropShadow(color:opacity:radius:offset:path:)` to add a drop shadow underlay to the node.
@@ -576,6 +596,7 @@ public extension ComposeNode {
   /// Set the themed shadow of the node's renderables.
   ///
   /// - Note: All renderables provided by the node will have the shadow set.
+  /// - Note: The outermost shadow wins, the inner ones are not applied.
   ///
   /// - Note: The layer's border may show ghosting effect when the shadow is animating. You may want to avoid adding a shadow to layers that have a border.
   /// Tip: You can use a dedicated transparent `LayerNode` as an underlay and apply the shadow to the underlay or use `dropShadow(color:opacity:radius:offset:path:)` to add a drop shadow underlay to the node.
@@ -591,7 +612,7 @@ public extension ComposeNode {
   func shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: { item, context in
+      update: RenderableItem.AdditionalUpdate(key: .shadow, block: { item, context in
         switch context.updateType {
         case .insert,
              .refresh:
@@ -649,7 +670,7 @@ public extension ComposeNode {
             layer.shadowPath = path?(item)
           }
         }
-      },
+      }),
       resetForReuse: { renderable in
         let layer = renderable.layer
         layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
@@ -683,13 +704,14 @@ public extension ComposeNode {
   /// Set whether the node's renderables are interactive.
   ///
   /// - Note: All renderables provided by the node will have the `isUserInteractionEnabled` set.
+  /// - Note: The outermost `interactive` wins, the inner ones are not applied.
   ///
   /// - Parameter isEnabled: Whether the renderable is interactive.
   /// - Returns: A new node with the `isUserInteractionEnabled` set.
   func interactive(_ isEnabled: Bool = true) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: { item, context in
+      update: RenderableItem.AdditionalUpdate(key: .interactive, block: { item, context in
         switch context.updateType {
         case .insert,
              .refresh:
@@ -709,7 +731,7 @@ public extension ComposeNode {
         #if canImport(UIKit)
         view.isUserInteractionEnabled = isEnabled
         #endif
-      },
+      }),
       resetForReuse: { renderable in
         guard let view = renderable.view else {
           return
@@ -731,13 +753,14 @@ public extension ComposeNode {
   /// Set whether the node's renderables are rasterized.
   ///
   /// - Note: All renderables provided by the node will have the `shouldRasterize` set.
+  /// - Note: The outermost rasterization wins, the inner ones are not applied.
   ///
   /// - Parameter scale: The scale of the rasterized content. Specify `nil` to disable rasterization.
   /// - Returns: A new node with the rasterization set.
   func rasterize(_ scale: CGFloat?) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: { item, context in
+      update: RenderableItem.AdditionalUpdate(key: .rasterize, block: { item, context in
         switch context.updateType {
         case .insert,
              .refresh:
@@ -754,7 +777,7 @@ public extension ComposeNode {
           layer.shouldRasterize = false
           layer.rasterizationScale = 1
         }
-      },
+      }),
       resetForReuse: { renderable in
         let layer = renderable.layer
         if layer.shouldRasterize != false {

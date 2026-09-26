@@ -2224,6 +2224,169 @@ class ModifierNodeTests: XCTestCase {
     expect(view.alpha) == 1
   }
 
+  // MARK: - Stacked Modifiers
+
+  func test_stackedModifiers_applyOnlyTheOutermost() throws {
+    // each case stacks two modifiers of one property with an `onUpdate` block between them, which checks whether the
+    // property still has its default value where the inner modifier would have set it
+    struct Case {
+      let name: String
+      let renderable: Renderable
+      let node: (_ checkBetween: @escaping (Renderable) -> Void) -> any ComposeNode
+      let hasDefaultValue: (Renderable) -> Bool
+      let hasOuterValue: (Renderable) -> Bool
+    }
+
+    let view = BaseView()
+    let cases: [Case] = [
+      Case(
+        name: "backgroundColor",
+        renderable: .layer(CALayer()),
+        node: { checkBetween in
+          LayerNode().backgroundColor(.red).onUpdate { renderable, _ in checkBetween(renderable) }.backgroundColor(.blue)
+        },
+        hasDefaultValue: { $0.layer.backgroundColor == nil },
+        hasOuterValue: { $0.layer.backgroundColor == Color.blue.cgColor }
+      ),
+      Case(
+        name: "opacity",
+        renderable: .layer(CALayer()),
+        node: { checkBetween in
+          LayerNode().opacity(0.3).onUpdate { renderable, _ in checkBetween(renderable) }.opacity(0.6)
+        },
+        hasDefaultValue: { $0.layer.opacity == 1 },
+        hasOuterValue: { $0.layer.opacity == 0.6 }
+      ),
+      Case(
+        name: "border",
+        renderable: .layer(CALayer()),
+        node: { checkBetween in
+          LayerNode().border(color: .red, width: 1).onUpdate { renderable, _ in checkBetween(renderable) }.border(color: .blue, width: 2)
+        },
+        hasDefaultValue: { $0.layer.borderWidth == 0 },
+        hasOuterValue: { $0.layer.borderWidth == 2 && $0.layer.borderColor == Color.blue.cgColor }
+      ),
+      Case(
+        name: "cornerRadius",
+        renderable: .layer(CALayer()),
+        node: { checkBetween in
+          LayerNode().cornerRadius(4).onUpdate { renderable, _ in checkBetween(renderable) }.cornerRadius(8)
+        },
+        hasDefaultValue: { $0.layer.cornerRadius == 0 },
+        hasOuterValue: { $0.layer.cornerRadius == 8 }
+      ),
+      Case(
+        name: "masksToBounds",
+        renderable: .layer(CALayer()),
+        node: { checkBetween in
+          LayerNode().masksToBounds(true).onUpdate { renderable, _ in checkBetween(renderable) }.masksToBounds(true)
+        },
+        hasDefaultValue: { !$0.layer.masksToBounds },
+        hasOuterValue: { $0.layer.masksToBounds }
+      ),
+      Case(
+        name: "shadow",
+        renderable: .layer(CALayer()),
+        node: { checkBetween in
+          LayerNode()
+            .shadow(color: .red, opacity: 0.3, radius: 2, offset: CGSize(width: 1, height: 1), path: nil)
+            .onUpdate { renderable, _ in checkBetween(renderable) }
+            .shadow(color: .blue, opacity: 0.6, radius: 4, offset: CGSize(width: 2, height: 2), path: nil)
+        },
+        hasDefaultValue: { $0.layer.shadowOpacity == 0 },
+        hasOuterValue: { $0.layer.shadowOpacity == 0.6 && $0.layer.shadowRadius == 4 && $0.layer.shadowColor == Color.blue.cgColor }
+      ),
+      Case(
+        name: "interactive",
+        renderable: .view(view),
+        node: { checkBetween in
+          ViewNode(view).interactive(false).onUpdate { renderable, _ in checkBetween(renderable) }.interactive(false)
+        },
+        hasDefaultValue: { $0.isInteractive },
+        hasOuterValue: { !$0.isInteractive }
+      ),
+      Case(
+        name: "rasterize",
+        renderable: .layer(CALayer()),
+        node: { checkBetween in
+          LayerNode().rasterize(2).onUpdate { renderable, _ in checkBetween(renderable) }.rasterize(3)
+        },
+        hasDefaultValue: { !$0.layer.shouldRasterize },
+        hasOuterValue: { $0.layer.shouldRasterize && $0.layer.rasterizationScale == 3 }
+      ),
+    ]
+
+    for testCase in cases {
+      // given: the stacked modifiers' renderable item
+      var hasDefaultValueBetween: Bool?
+      let item = try firstRenderableItem(of: testCase.node { hasDefaultValueBetween = testCase.hasDefaultValue($0) }).unwrap()
+
+      // when: a non-animated update
+      refresh(testCase.renderable, with: item, animationTiming: nil)
+
+      // then: the inner modifier doesn't apply its value, and the outer one does
+      expect(hasDefaultValueBetween, testCase.name) == true
+      expect(testCase.hasOuterValue(testCase.renderable), testCase.name) == true
+
+      // when: an animated update with the same values
+      refresh(testCase.renderable, with: item, animationTiming: .easeInEaseOut(duration: 1))
+
+      // then: nothing animates, as the inner value never reaches the layer to animate through
+      expect(testCase.renderable.layer.animationKeys(), testCase.name) == nil
+    }
+  }
+
+  func test_stackedModifiers_splitByANode_applyOnlyTheOutermost() throws {
+    // given: two opacity modifiers split by a padding node, which the modifiers don't coalesce across, with an
+    // `onUpdate` block after the inner one
+    var opacityBetween: Float?
+    let renderable = Renderable.layer(CALayer())
+    let item = try firstRenderableItem(
+      of: LayerNode()
+        .opacity(0.3)
+        .onUpdate { renderable, _ in opacityBetween = renderable.layer.opacity }
+        .padding(4)
+        .opacity(0.6)
+    ).unwrap()
+
+    // when: a non-animated update
+    refresh(renderable, with: item, animationTiming: nil)
+
+    // then: the inner modifier doesn't apply its value, and the outer one does
+    expect(opacityBetween) == 1
+    expect(renderable.layer.opacity) == 0.6
+
+    // when: an animated update with the same value
+    refresh(renderable, with: item, animationTiming: .easeInEaseOut(duration: 1))
+
+    // then: nothing animates
+    expect(renderable.layer.animationKeys()) == nil
+  }
+
+  func test_stackedOpacity_animatedRefresh_doesNotAnimateThroughTheInnerValue() {
+    // given: a rendered layer node with two opacity modifiers and an animation
+    var layer: CALayer?
+    let contentView = ComposeView {
+      LayerNode()
+        .opacity(0.3)
+        .opacity(1)
+        .animation(.easeInEaseOut(duration: 1))
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh()
+
+    // when: an animated refresh with the same values
+    contentView.refresh(animated: true)
+
+    // then: the layer shows the outer opacity without animating, where it used to add opposing opacity animations
+    // that the render server showed as a dip to the inner value
+    expect(layer?.opacity) == 1
+    expect(layer?.animationKeys()) == nil
+  }
+
   // MARK: - Helpers
 
   /// The renderable item of a layer node with every layer modifier, with the given values.
@@ -2274,5 +2437,19 @@ class ModifierNodeTests: XCTestCase {
     let size = CGSize(width: 100, height: 50)
     _ = node.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 2))
     return node.renderableItems(in: CGRect(origin: .zero, size: size)).first
+  }
+}
+
+private extension Renderable {
+
+  /// Whether the renderable's view takes user interaction, as the `interactive` modifier sets it.
+  var isInteractive: Bool {
+    #if canImport(AppKit)
+    return view?.ignoreHitTest != true
+    #endif
+
+    #if canImport(UIKit)
+    return view?.isUserInteractionEnabled != false
+    #endif
   }
 }

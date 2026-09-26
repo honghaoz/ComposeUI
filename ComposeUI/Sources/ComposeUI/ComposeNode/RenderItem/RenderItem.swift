@@ -45,6 +45,26 @@ public typealias LayerItem<T: CALayer> = RenderItem<T>
 /// A render item that is either a view or a layer.
 public typealias RenderableItem = RenderItem<Renderable>
 
+// MARK: - RenderableUpdateKey
+
+/// The renderable property that a built-in modifier's update block sets.
+///
+/// Of a render item's update blocks with one key, only the last one runs, at its own position. Stacked modifiers of
+/// one property, for example `.opacity(0.3).opacity(1)`, then apply only the outermost value, since applying each value
+/// in turn would animate the layer through the overridden values.
+///
+/// - Note: A raw value is the key's bit index in a `UInt64`, so there can be at most 64 keys.
+enum RenderableUpdateKey: UInt64 {
+  case backgroundColor
+  case opacity
+  case border
+  case cornerRadius
+  case masksToBounds
+  case shadow
+  case interactive
+  case rasterize
+}
+
 // MARK: - RenderItem
 
 /// An item that can provide a renderable with its frame and lifecycle callbacks.
@@ -110,7 +130,15 @@ public struct RenderItem<T> {
   /// Note that it is possible that when a renderable is being inserted into the renderable hierarchy with a transition animation, a
   /// new update, which is triggered by a `refresh()`, is called on the renderable. In this case, an update call with
   /// `RenderableUpdateType.refresh` type will be called before the update call with `RenderableUpdateType.insert` type.
-  public var update: (T, RenderableUpdateContext) -> Void { storage.update }
+  public var update: (T, RenderableUpdateContext) -> Void {
+    let storage = storage
+    guard !storage.additionalUpdates.isEmpty else {
+      return storage.update
+    }
+    return { renderable, context in
+      storage.performUpdate(renderable, context)
+    }
+  }
 
   /// The block to be called when the renderable is about to be removed from the renderable hierarchy.
   ///
@@ -155,6 +183,118 @@ public struct RenderItem<T> {
   /// small items-order fraction, so that items stack in the items order within the same z-index band.
   public var zIndex: CGFloat? { storage.zIndex }
 
+  /// Runs `update`, then the additional update blocks in the order they were added.
+  ///
+  /// The render pass calls this instead of reading `update`, which builds a new block for an item with additional
+  /// update blocks.
+  func performUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
+    storage.performUpdate(renderable, context)
+  }
+
+  /// An update block added to a render item, optionally keyed by the renderable property it sets.
+  struct AdditionalUpdate {
+
+    /// The renderable property the block sets, see `RenderableUpdateKey`. `nil` for a block that is never replaced.
+    let key: RenderableUpdateKey?
+
+    /// The update block.
+    let block: (T, RenderableUpdateContext) -> Void
+  }
+
+  /// The update blocks added to a render item, in the order they run.
+  ///
+  /// A keyed block overrides the earlier blocks of its key: they are skipped when the blocks run, see `RenderableUpdateKey`.
+  ///
+  /// Nodes are rebuilt on every refresh and items on every render pass, so the blocks form a linked list that adding a
+  /// block extends without copying the others, with a single block stored inline. An array would copy its blocks each
+  /// time a coalescing modifier adds one, since the inner modifier still holds them.
+  enum AdditionalUpdates {
+
+    case none
+    case one(AdditionalUpdate)
+    indirect case more(AdditionalUpdate, previous: AdditionalUpdates)
+
+    /// Whether the list has no blocks.
+    var isEmpty: Bool {
+      switch self {
+      case .none:
+        return true
+      case .one,
+           .more:
+        return false
+      }
+    }
+
+    /// Returns the list with a block added to run last.
+    func adding(_ update: AdditionalUpdate) -> AdditionalUpdates {
+      switch self {
+      case .none:
+        return .one(update)
+      case .one,
+           .more:
+        return .more(update, previous: self)
+      }
+    }
+
+    /// Returns the list with another list's blocks added to run after its own, in order.
+    func adding(contentsOf other: AdditionalUpdates) -> AdditionalUpdates {
+      guard !isEmpty else {
+        return other
+      }
+      switch other {
+      case .none:
+        return self
+      case .one(let update):
+        return adding(update)
+      case .more(let update, let previous):
+        return adding(contentsOf: previous).adding(update)
+      }
+    }
+
+    /// Calls the body with each block that isn't overridden, in order.
+    func forEach(_ body: (AdditionalUpdate) -> Void) {
+      forEach(skipping: KeySet(), body)
+    }
+
+    private func forEach(skipping laterKeys: KeySet, _ body: (AdditionalUpdate) -> Void) {
+      switch self {
+      case .none:
+        break
+      case .one(let update):
+        if !laterKeys.contains(update.key) {
+          body(update)
+        }
+      case .more(let update, let previous):
+        previous.forEach(skipping: laterKeys.inserting(update.key), body)
+        if !laterKeys.contains(update.key) {
+          body(update)
+        }
+      }
+    }
+
+    /// The keys of the blocks that run later, as bits, so that running the blocks allocates nothing.
+    private struct KeySet {
+
+      private var bits: UInt64 = 0
+
+      func contains(_ key: RenderableUpdateKey?) -> Bool {
+        guard let key else {
+          return false
+        }
+        return bits & (1 << key.rawValue) != 0
+      }
+
+      func inserting(_ key: RenderableUpdateKey?) -> KeySet {
+        guard let key else {
+          return self
+        }
+        var keySet = self
+        keySet.bits |= 1 << key.rawValue
+        return keySet
+      }
+    }
+  }
+
   /// The boxed behavior backing a `RenderItem`. See `storage`.
   ///
   /// Holds everything except `id` and `frame`. Because all fields are immutable, the box can be shared freely across
@@ -166,6 +306,10 @@ public struct RenderItem<T> {
     let didInsert: ((T, RenderableInsertContext) -> Void)?
     let willUpdate: ((T, RenderableUpdateContext) -> Void)?
     let update: (T, RenderableUpdateContext) -> Void
+
+    /// The update blocks added after `update`, see `addUpdate(_:)` and `addUpdates(_:)`.
+    let additionalUpdates: AdditionalUpdates
+
     let willRemove: ((T, RenderableRemoveContext) -> Void)?
     let didRemove: ((T, RenderableRemoveContext) -> Void)?
     let reuseId: ReuseId?
@@ -180,6 +324,7 @@ public struct RenderItem<T> {
          didInsert: ((T, RenderableInsertContext) -> Void)?,
          willUpdate: ((T, RenderableUpdateContext) -> Void)?,
          update: @escaping (T, RenderableUpdateContext) -> Void,
+         additionalUpdates: AdditionalUpdates,
          willRemove: ((T, RenderableRemoveContext) -> Void)?,
          didRemove: ((T, RenderableRemoveContext) -> Void)?,
          reuseId: ReuseId?,
@@ -194,6 +339,7 @@ public struct RenderItem<T> {
       self.didInsert = didInsert
       self.willUpdate = willUpdate
       self.update = update
+      self.additionalUpdates = additionalUpdates
       self.willRemove = willRemove
       self.didRemove = didRemove
       self.reuseId = reuseId
@@ -202,6 +348,11 @@ public struct RenderItem<T> {
       self.transition = transition
       self.animationTiming = animationTiming
       self.zIndex = zIndex
+    }
+
+    func performUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
+      update(renderable, context)
+      additionalUpdates.forEach { $0.block(renderable, context) }
     }
   }
 
@@ -228,6 +379,7 @@ public struct RenderItem<T> {
       didInsert: didInsert,
       willUpdate: willUpdate,
       update: update,
+      additionalUpdates: .none,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId.map { ReuseId(namespace: .user, id: $0) }, // external callers can only set a user-provided identifier
@@ -248,6 +400,7 @@ public struct RenderItem<T> {
        didInsert: ((T, RenderableInsertContext) -> Void)? = nil,
        willUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
        update: @escaping (T, RenderableUpdateContext) -> Void,
+       additionalUpdates: AdditionalUpdates = .none,
        willRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
        didRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
        reuseId: ReuseId? = nil,
@@ -265,6 +418,7 @@ public struct RenderItem<T> {
       didInsert: didInsert,
       willUpdate: willUpdate,
       update: update,
+      additionalUpdates: additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -291,7 +445,8 @@ public struct RenderItem<T> {
       },
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -318,7 +473,8 @@ public struct RenderItem<T> {
         additionalDidInsert(renderable, context)
       },
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -345,7 +501,8 @@ public struct RenderItem<T> {
         willUpdate?(renderable, context)
         additionalWillUpdate(renderable, context)
       },
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -362,6 +519,20 @@ public struct RenderItem<T> {
   /// - Parameter additionalUpdate: The additional update block.
   /// - Returns: The renderable item with the additional update block.
   public func addUpdate(_ additionalUpdate: @escaping (T, RenderableUpdateContext) -> Void) -> Self {
+    with(additionalUpdates: storage.additionalUpdates.adding(AdditionalUpdate(key: nil, block: additionalUpdate)))
+  }
+
+  /// Add additional update blocks to the renderable item, in order.
+  ///
+  /// A keyed block overrides the item's earlier blocks of its key, see `RenderableUpdateKey`.
+  ///
+  /// - Parameter newUpdates: The additional update blocks.
+  /// - Returns: The renderable item with the additional update blocks.
+  func addUpdates(_ newUpdates: AdditionalUpdates) -> Self {
+    with(additionalUpdates: storage.additionalUpdates.adding(contentsOf: newUpdates))
+  }
+
+  private func with(additionalUpdates: AdditionalUpdates) -> Self {
     Self(
       id: id,
       frame: frame,
@@ -369,10 +540,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: { renderable, context in
-        update(renderable, context)
-        additionalUpdate(renderable, context)
-      },
+      update: storage.update,
+      additionalUpdates: additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -396,7 +565,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: { renderable, context in
         willRemove?(renderable, context)
         additionalWillRemove(renderable, context)
@@ -423,7 +593,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: { renderable, context in
         didRemove?(renderable, context)
@@ -458,7 +629,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: ReuseId(namespace: .user, id: reuseId),
@@ -488,7 +660,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -512,7 +685,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -545,7 +719,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -575,7 +750,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -602,7 +778,8 @@ public struct RenderItem<T> {
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
-      update: update,
+      update: storage.update,
+      additionalUpdates: storage.additionalUpdates,
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
@@ -635,7 +812,7 @@ public extension ViewItem {
         { willUpdate($0.view as! T, $1) } // swiftlint:disable:this force_cast
       },
       update: {
-        update($0.view as! T, $1) // swiftlint:disable:this force_cast
+        performUpdate($0.view as! T, $1) // swiftlint:disable:this force_cast
       },
       willRemove: willRemove.map { willRemove in
         { willRemove($0.view as! T, $1) } // swiftlint:disable:this force_cast
@@ -675,7 +852,7 @@ public extension LayerItem {
         { willUpdate($0.layer as! T, $1) } // swiftlint:disable:this force_cast
       },
       update: {
-        update($0.layer as! T, $1) // swiftlint:disable:this force_cast
+        performUpdate($0.layer as! T, $1) // swiftlint:disable:this force_cast
       },
       willRemove: willRemove.map { willRemove in
         { willRemove($0.layer as! T, $1) } // swiftlint:disable:this force_cast

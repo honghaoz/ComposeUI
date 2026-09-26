@@ -1318,7 +1318,7 @@ open class ComposeView: BaseScrollView {
 
         renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
-        renderableItem.update(renderable, renderableUpdateContext)
+        renderableItem.performUpdate(renderable, renderableUpdateContext)
 
         // a nested `ComposeView` this pass resized renders its content for the new size within this render pass,
         // instead of on its own later, so its animations are capped by this pass's animation decision
@@ -1396,7 +1396,7 @@ open class ComposeView: BaseScrollView {
 
         updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
-        renderableItem.update(renderable, renderableUpdateContext)
+        renderableItem.performUpdate(renderable, renderableUpdateContext)
 
         // a nested `ComposeView` this pass inserted renders now, within this pass, for the same reasons as a resized one
         (renderable.view as? ComposeView)?.renderBoundsChangeIfNeeded()
