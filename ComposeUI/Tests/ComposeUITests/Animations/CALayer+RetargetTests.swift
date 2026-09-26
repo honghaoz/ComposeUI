@@ -129,6 +129,43 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.cornerRadius) == 5
   }
 
+  func test_retarget_unchangedValue_leavesKeptAnimationsAlone() {
+    for isEnded in [false, true] {
+      let scenario = isEnded ? "ended" : "in flight"
+
+      // given: a layer whose corner radius has an animation to 20 kept with isRemovedOnCompletion off, in flight or
+      // ended, with the model at 20
+      let layer = CALayer()
+      layer.cornerRadius = 20
+      let keptAnimation = CABasicAnimation(keyPath: "cornerRadius")
+      keptAnimation.fromValue = CGFloat(0)
+      keptAnimation.toValue = CGFloat(20)
+      keptAnimation.duration = 10
+      keptAnimation.isRemovedOnCompletion = false
+      keptAnimation.fillMode = .forwards
+      if isEnded {
+        keptAnimation.beginTime = layer.currentTime - 20
+      }
+      layer.add(keptAnimation, forKey: "kept")
+
+      var assertionMessages: [String] = []
+      Assert.setTestAssertionFailureHandler { message, _, _, _ in
+        assertionMessages.append(message)
+      }
+      defer {
+        Assert.resetTestAssertionFailureHandler()
+      }
+
+      // when: retargeting the corner radius to the value the model has
+      layer.retarget(keyPath: "cornerRadius", to: CGFloat(20))
+
+      // then: there is nothing to change, so the kept animation is left alone without asserting
+      expect(assertionMessages, scenario) == []
+      expect(layer.animationKeys(), scenario) == ["kept"]
+      expect(layer.cornerRadius, scenario) == 20
+    }
+  }
+
   func test_retarget_additiveSpringThatNeverSettles_keepsBouncingAroundTheNewValue() throws {
     // given: a hosted layer on a paused timeline, whose corner radius springs additively to 20 without damping, so it
     // bounces between 0 and 40 every half second forever, 0.3s in. the timeline is paused at a time that isn't zero, as a

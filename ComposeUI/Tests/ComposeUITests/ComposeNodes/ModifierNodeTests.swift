@@ -379,22 +379,24 @@ class ModifierNodeTests: XCTestCase {
     do {
       // given: a layer node with a background color and an animation
       var layer: CALayer?
+      var color: Color = .red
       let contentView = ComposeView {
         LayerNode()
-          .backgroundColor(.red)
+          .backgroundColor(color)
           .animation(.easeInEaseOut(duration: 1))
           .onUpdate { renderable, context in
             layer = renderable.layer
           }
       }
 
-      // when: the view is sized and refreshed animated twice
+      // when: the view is sized and refreshed animated, then refreshed animated with a new color
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
+      color = .blue
       contentView.refresh(animated: true)
 
-      // then: the layer has the background color with an animation
-      expect(layer?.backgroundColor) == Color.red.cgColor
+      // then: the layer animates to the new color
+      expect(layer?.backgroundColor) == Color.blue.cgColor
       expect(layer?.animationKeys()?.contains("backgroundColor")) == true
     }
 
@@ -517,22 +519,24 @@ class ModifierNodeTests: XCTestCase {
     do {
       // given: a layer node with an opacity and an animation
       var layer: CALayer?
+      var opacity: CGFloat = 0.6
       let contentView = ComposeView {
         LayerNode()
-          .opacity(0.6)
+          .opacity(opacity)
           .animation(.easeInEaseOut(duration: 1))
           .onUpdate { renderable, context in
             layer = renderable.layer
           }
       }
 
-      // when: the view is sized and refreshed animated twice
+      // when: the view is sized and refreshed animated, then refreshed animated with a new opacity
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
+      opacity = 0.3
       contentView.refresh(animated: true)
 
-      // then: the layer has the opacity with an animation
-      expect(layer?.opacity) == 0.6
+      // then: the layer animates to the new opacity
+      expect(layer?.opacity) == 0.3
       expect(layer?.animationKeys()?.contains("opacity")) == true
     }
 
@@ -660,23 +664,27 @@ class ModifierNodeTests: XCTestCase {
     do {
       // given: a layer node with a border and an animation
       var layer: CALayer?
+      var color: Color = .cyan
+      var width: CGFloat = 4
       let contentView = ComposeView {
         LayerNode()
-          .border(color: .cyan, width: 4)
+          .border(color: color, width: width)
           .animation(.easeInEaseOut(duration: 1))
           .onUpdate { renderable, context in
             layer = renderable.layer
           }
       }
 
-      // when: the view is sized and refreshed animated twice
+      // when: the view is sized and refreshed animated, then refreshed animated with a new border
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
+      color = .magenta
+      width = 6
       contentView.refresh(animated: true)
 
-      // then: the layer has the border with animations
-      expect(layer?.borderColor) == Color.cyan.cgColor
-      expect(layer?.borderWidth) == 4
+      // then: the layer animates to the new border
+      expect(layer?.borderColor) == Color.magenta.cgColor
+      expect(layer?.borderWidth) == 6
       expect(layer?.animationKeys()?.contains("borderColor")) == true
       expect(layer?.animationKeys()?.contains("borderWidth")) == true
     }
@@ -778,22 +786,24 @@ class ModifierNodeTests: XCTestCase {
     do {
       // given: a layer node with a corner radius and an animation
       var layer: CALayer?
+      var radius: CGFloat = 15
       let contentView = ComposeView {
         LayerNode()
-          .cornerRadius(15)
+          .cornerRadius(radius)
           .animation(.easeInEaseOut(duration: 1))
           .onUpdate { renderable, context in
             layer = renderable.layer
           }
       }
 
-      // when: the view is sized and refreshed animated twice
+      // when: the view is sized and refreshed animated, then refreshed animated with a new corner radius
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
+      radius = 25
       contentView.refresh(animated: true)
 
-      // then: the layer has the corner radius with an animation
-      expect(layer?.cornerRadius) == 15
+      // then: the layer animates to the new corner radius
+      expect(layer?.cornerRadius) == 25
       expect(layer?.animationKeys()?.contains("cornerRadius")) == true
     }
 
@@ -1133,25 +1143,33 @@ class ModifierNodeTests: XCTestCase {
     do {
       // given: a layer node with a shadow and an animation
       var layer: CALayer?
+      var color: Color = .orange
+      var opacity: CGFloat = 0.5
+      var radius: CGFloat = 6
+      var offset = CGSize(width: 3, height: 3)
       let contentView = ComposeView {
         LayerNode()
-          .shadow(color: .orange, opacity: 0.5, radius: 6, offset: CGSize(width: 3, height: 3), path: nil)
+          .shadow(color: color, opacity: opacity, radius: radius, offset: offset, path: nil)
           .animation(.easeInEaseOut(duration: 1))
           .onUpdate { renderable, context in
             layer = renderable.layer
           }
       }
 
-      // when: the view is sized and refreshed animated twice
+      // when: the view is sized and refreshed animated, then refreshed animated with a new shadow
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       contentView.refresh(animated: true)
+      color = .purple
+      opacity = 0.7
+      radius = 9
+      offset = CGSize(width: 4, height: 5)
       contentView.refresh(animated: true)
 
-      // then: the layer has the shadow with animations
-      expect(layer?.shadowColor) == Color.orange.cgColor
-      expect(layer?.shadowOpacity) == 0.5
-      expect(layer?.shadowRadius) == 6
-      expect(layer?.shadowOffset) == CGSize(width: 3, height: 3)
+      // then: the layer animates to the new shadow
+      expect(layer?.shadowColor) == Color.purple.cgColor
+      expect(layer?.shadowOpacity) == 0.7
+      expect(layer?.shadowRadius) == 9
+      expect(layer?.shadowOffset) == CGSize(width: 4, height: 5)
       expect(layer?.animationKeys()?.contains("shadowColor")) == true
       expect(layer?.animationKeys()?.contains("shadowOpacity")) == true
       expect(layer?.animationKeys()?.contains("shadowRadius")) == true
@@ -2122,7 +2140,134 @@ class ModifierNodeTests: XCTestCase {
     }
   }
 
+  // MARK: - Animated and Non-animated Updates
+
+  func test_layerModifiers_animatedUpdate_animatesOnlyTheChangedValue() throws {
+    let baseItem = try styledItem()
+    let changedItems: [(keyPath: String, item: RenderableItem)] = try [
+      ("backgroundColor", styledItem(backgroundColor: .yellow)),
+      ("opacity", styledItem(opacity: 0.8)),
+      ("borderColor", styledItem(borderColor: .yellow)),
+      ("borderWidth", styledItem(borderWidth: 5)),
+      ("cornerRadius", styledItem(cornerRadius: 8)),
+      ("shadowColor", styledItem(shadowColor: .yellow)),
+      ("shadowOpacity", styledItem(shadowOpacity: 0.9)),
+      ("shadowRadius", styledItem(shadowRadius: 6)),
+      ("shadowOffset", styledItem(shadowOffset: CGSize(width: 3, height: 4))),
+      ("shadowPath", styledItem(shadowPathInset: 2)),
+    ]
+    for (keyPath, changedItem) in changedItems {
+      // given: a layer styled by every layer modifier without animation
+      let layer = CALayer()
+      layer.frame = baseItem.frame
+      refresh(.layer(layer), with: baseItem, animationTiming: nil)
+
+      // when: refreshing with animation and nothing changed
+      refresh(.layer(layer), with: baseItem, animationTiming: .easeInEaseOut(duration: 1))
+
+      // then: nothing animates
+      expect(layer.animationKeys(), keyPath) == nil
+
+      // when: refreshing with animation and one value changed
+      refresh(.layer(layer), with: changedItem, animationTiming: .easeInEaseOut(duration: 1))
+
+      // then: only that value animates
+      expect(layer.animationKeys(), keyPath) == [keyPath]
+      let animation = try layer.animation(forKey: keyPath).unwrap()
+
+      // when: refreshing with animation again while the change animates, nothing changed
+      refresh(.layer(layer), with: changedItem, animationTiming: .easeInEaseOut(duration: 2))
+
+      // then: the in-flight animation is kept, instead of being replaced or joined by one that changes nothing
+      expect(layer.animationKeys(), keyPath) == [keyPath]
+      expect(layer.animation(forKey: keyPath), keyPath) === animation
+    }
+  }
+
+  func test_opacity_resetForReuse_resetsTheBackingViewAlpha() throws {
+    // given: a view-backed renderable whose opacity modifier animated to 0.3, which sets the layer's opacity and the
+    // view's alpha
+    let view = BaseView()
+    let renderable = Renderable.view(view)
+    let item = try firstRenderableItem(of: ViewNode(view).opacity(0.3)).unwrap()
+    refresh(renderable, with: item, animationTiming: .easeInEaseOut(duration: 1))
+    expect(view.alpha).to(beApproximatelyEqual(to: 0.3, within: 1e-6))
+
+    // when: the reset for reuse block runs
+    item.resetForReuse?(renderable)
+
+    // then: the view's alpha is back to 1 along with the layer's opacity, so a reuse without the modifier isn't faded
+    expect(view.alpha) == 1
+    expect(renderable.layer.opacity) == 1
+  }
+
+  func test_opacity_nonAnimatedUpdate_keepsTheBackingViewAlphaInSync() throws {
+    // given: a view-backed renderable whose opacity modifier animated to 0.3, which sets the layer's opacity and the
+    // view's alpha
+    let view = BaseView()
+    let renderable = Renderable.view(view)
+    try refresh(renderable, with: firstRenderableItem(of: ViewNode(view).opacity(0.3)).unwrap(), animationTiming: .easeInEaseOut(duration: 1))
+    expect(view.alpha).to(beApproximatelyEqual(to: 0.3, within: 1e-6))
+
+    // when: a non-animated update sets the opacity back to 1
+    let item = try firstRenderableItem(of: ViewNode(view).opacity(1)).unwrap()
+    refresh(renderable, with: item, animationTiming: nil)
+
+    // then: the view's alpha follows the layer's opacity
+    expect(renderable.layer.opacity) == 1
+    expect(view.alpha) == 1
+
+    // when: the reset for reuse block runs, with the layer's opacity already at 1
+    item.resetForReuse?(renderable)
+
+    // then: the view isn't left faded
+    expect(view.alpha) == 1
+  }
+
   // MARK: - Helpers
+
+  /// The renderable item of a layer node with every layer modifier, with the given values.
+  private func styledItem(backgroundColor: Color = .red,
+                          opacity: CGFloat = 0.5,
+                          borderColor: Color = .green,
+                          borderWidth: CGFloat = 2,
+                          cornerRadius: CGFloat = 4,
+                          shadowColor: Color = .blue,
+                          shadowOpacity: CGFloat = 0.3,
+                          shadowRadius: CGFloat = 3,
+                          shadowOffset: CGSize = CGSize(width: 1, height: 2),
+                          shadowPathInset: CGFloat = 0) throws -> RenderableItem
+  {
+    try firstRenderableItem(
+      of: LayerNode()
+        .backgroundColor(backgroundColor)
+        .opacity(opacity)
+        .border(color: borderColor, width: borderWidth)
+        .cornerRadius(cornerRadius)
+        .shadow(color: shadowColor, opacity: shadowOpacity, radius: shadowRadius, offset: shadowOffset, path: { renderable in
+          CGPath(rect: renderable.layer.bounds.insetBy(dx: shadowPathInset, dy: shadowPathInset), transform: nil)
+        })
+    ).unwrap()
+  }
+
+  /// Updates the renderable with the item for a refresh with the animation timing.
+  private func refresh(_ renderable: Renderable, with item: RenderableItem, animationTiming: AnimationTiming?) {
+    // the context holds the content view weakly, so the view is kept alive through the update
+    let contentView = ComposeView()
+    withExtendedLifetime(contentView) {
+      item.update(renderable, RenderableUpdateContext(
+        updateType: .refresh,
+        oldFrame: item.frame,
+        newFrame: item.frame,
+        previousRenderBounds: .zero,
+        renderBounds: .zero,
+        animationTiming: animationTiming,
+        contentView: contentView,
+        contentEvaluation: nil,
+        animationDecision: animationTiming == nil ? ComposeView.AnimationDecision.disabled : ComposeView.AnimationDecision.all
+      ))
+    }
+  }
 
   private func firstRenderableItem(of node: some ComposeNode) -> RenderableItem? {
     var node = node
