@@ -401,9 +401,8 @@ public extension ComposeNode {
       resetForReuse: { renderable in
         let layer = renderable.layer
         if layer.opacity != 1 {
-          layer.disableActions(for: "opacity") {
-            layer.opacity = 1
-          }
+          // `setKeyPathValue` resets a backing view's alpha too, which the updates set along with the layer's opacity
+          layer.setKeyPathValue("opacity", Float(1))
         }
       }
     )

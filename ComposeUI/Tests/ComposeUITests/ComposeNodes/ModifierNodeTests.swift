@@ -2160,23 +2160,23 @@ class ModifierNodeTests: XCTestCase {
       // given: a layer styled by every layer modifier without animation
       let layer = CALayer()
       layer.frame = baseItem.frame
-      refresh(layer, with: baseItem, animationTiming: nil)
+      refresh(.layer(layer), with: baseItem, animationTiming: nil)
 
       // when: refreshing with animation and nothing changed
-      refresh(layer, with: baseItem, animationTiming: .easeInEaseOut(duration: 1))
+      refresh(.layer(layer), with: baseItem, animationTiming: .easeInEaseOut(duration: 1))
 
       // then: nothing animates
       expect(layer.animationKeys(), keyPath) == nil
 
       // when: refreshing with animation and one value changed
-      refresh(layer, with: changedItem, animationTiming: .easeInEaseOut(duration: 1))
+      refresh(.layer(layer), with: changedItem, animationTiming: .easeInEaseOut(duration: 1))
 
       // then: only that value animates
       expect(layer.animationKeys(), keyPath) == [keyPath]
       let animation = try layer.animation(forKey: keyPath).unwrap()
 
       // when: refreshing with animation again while the change animates, nothing changed
-      refresh(layer, with: changedItem, animationTiming: .easeInEaseOut(duration: 2))
+      refresh(.layer(layer), with: changedItem, animationTiming: .easeInEaseOut(duration: 2))
 
       // then: the in-flight animation is kept, instead of being replaced or joined by one that changes nothing
       expect(layer.animationKeys(), keyPath) == [keyPath]
@@ -2203,11 +2203,11 @@ class ModifierNodeTests: XCTestCase {
       // given: a layer styled without animation, then with one value animating to a new one over a second
       let layer = CALayer()
       layer.frame = baseItem.frame
-      refresh(layer, with: baseItem, animationTiming: nil)
-      refresh(layer, with: changedItem, animationTiming: .easeInEaseOut(duration: 1))
+      refresh(.layer(layer), with: baseItem, animationTiming: nil)
+      refresh(.layer(layer), with: changedItem, animationTiming: .easeInEaseOut(duration: 1))
 
       // when: refreshing without animation to another value while the change animates
-      refresh(layer, with: newItem, animationTiming: nil)
+      refresh(.layer(layer), with: newItem, animationTiming: nil)
 
       // then: the model has the other value, and the in-flight animation is replaced by retarget's ease-out glide to it,
       // which lands when the change would have
@@ -2217,6 +2217,22 @@ class ModifierNodeTests: XCTestCase {
       expect(glide.timingFunction, keyPath) == CAMediaTimingFunction(name: .easeOut)
       expect(glide.duration, keyPath) == 1
     }
+  }
+
+  func test_opacity_resetForReuse_resetsTheBackingViewAlpha() throws {
+    // given: a view-backed renderable whose opacity modifier set 0.3 without animation, on the layer and the view
+    let view = BaseView()
+    let renderable = Renderable.view(view)
+    let item = try firstRenderableItem(of: ViewNode(view).opacity(0.3)).unwrap()
+    refresh(renderable, with: item, animationTiming: nil)
+    expect(view.alpha).to(beApproximatelyEqual(to: 0.3, within: 1e-6))
+
+    // when: the reset for reuse block runs
+    item.resetForReuse?(renderable)
+
+    // then: the view's alpha is back to 1 along with the layer's opacity, so a reuse without the modifier isn't faded
+    expect(view.alpha) == 1
+    expect(renderable.layer.opacity) == 1
   }
 
   // MARK: - Helpers
@@ -2245,12 +2261,12 @@ class ModifierNodeTests: XCTestCase {
     ).unwrap()
   }
 
-  /// Updates the layer with the item for a refresh with the animation timing.
-  private func refresh(_ layer: CALayer, with item: RenderableItem, animationTiming: AnimationTiming?) {
+  /// Updates the renderable with the item for a refresh with the animation timing.
+  private func refresh(_ renderable: Renderable, with item: RenderableItem, animationTiming: AnimationTiming?) {
     // the context holds the content view weakly, so the view is kept alive through the update
     let contentView = ComposeView()
     withExtendedLifetime(contentView) {
-      item.update(.layer(layer), RenderableUpdateContext(
+      item.update(renderable, RenderableUpdateContext(
         updateType: .refresh,
         oldFrame: item.frame,
         newFrame: item.frame,
