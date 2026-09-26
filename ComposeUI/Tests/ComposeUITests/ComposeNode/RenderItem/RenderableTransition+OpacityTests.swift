@@ -811,37 +811,74 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(layer.opacity) == 0
   }
 
-  func test_revival_withoutTo_opacitySetDirectly_endsAtIt() throws {
-    // given: a layer at 0.8, fading out
+  func test_revival_withoutTo_opacitySetDirectly_fadesFromTheShownOpacityToIt() throws {
+    // given: a layer at 0.8, halfway through fading out at 0.4
     let layer = CALayer()
     layer.opacity = 0.8
     let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
     try remove(layer, with: transition)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
 
     // when: it's revived after its opacity is set directly to 0.5
     try revive(layer, with: transition) {
       layer.opacity = 0.5
     }
 
-    // then: it fades to 0.5
+    // then: it fades from the shown 0.4 to 0.5
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: -0.1, within: 0.01))
     expect(layer.opacity) == 0.5
   }
 
-  func test_revival_withoutTo_opacitySetDirectlyToTheRemovalOpacity_endsAtIt() throws {
-    // given: a layer at 0.8, fading out to 0
+  func test_revival_withoutTo_opacitySetDirectlyToTheRemovalOpacity_fadesFromTheShownOpacityToIt() throws {
+    // given: a layer at 0.8, halfway through fading out to 0, at 0.4
     let layer = CALayer()
     layer.opacity = 0.8
     let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
     try remove(layer, with: transition)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
 
     // when: it's revived after its opacity is set directly to 0, the removal's opacity
     try revive(layer, with: transition) {
       layer.opacity = 0
     }
 
-    // then: it fades to 0
+    // then: it fades from the shown 0.4 to 0
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.4, within: 0.01))
     expect(layer.opacity) == 0
   }
+
+  #if canImport(AppKit)
+  func test_revival_opacitySetDirectly_showsAContinuousOpacity() throws {
+    // given: a rendered layer at 0.8, halfway through a 1 s fade-out
+    let renderer = try PausedLayerRenderer(time: 10)
+    let layer = renderer.layer
+    layer.disableActions(for: "opacity") {
+      layer.opacity = 0.8
+    }
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 1))
+    try remove(layer, with: transition)
+    renderer.commit()
+    renderer.move(to: 10.5)
+    let opacityBeforeRevival = renderer.renderedOpacity()
+
+    // when: it's revived after its opacity is set directly to 0.5
+    try revive(layer, with: transition) {
+      layer.opacity = 0.5
+    }
+
+    // then: it turns around at the shown 0.4 without a jump, and fades to 0.5
+    expect(opacityBeforeRevival).to(beApproximatelyEqual(to: 0.4, within: 0.01))
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.4, within: 0.01))
+    renderer.move(to: 11.5)
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.5, within: 0.01))
+  }
+  #endif
 
   func test_revival_springTiming_continuesTheFadeOutVelocity() throws {
     // given: a layer at 0.8, halfway through fading out, showing 0.4 and falling at 0.08 per second
@@ -1085,8 +1122,8 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(layer.opacity) == 0.6
   }
 
-  func test_composeViewIntegration_revival_withOpacitySetDirectlyToTheRemovalOpacity_endsAtIt() throws {
-    // given: a layer node that sets its opacity to 0.8 directly, fading out to 0
+  func test_composeViewIntegration_revival_withOpacitySetDirectlyToTheRemovalOpacity_fadesFromTheShownOpacityToIt() throws {
+    // given: a layer node that sets its opacity to 0.8 directly, halfway through fading out to 0, at 0.4
     var opacity: Float = 0.8
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let makeContent: () -> ComposeContent = {
@@ -1104,15 +1141,19 @@ class RenderableTransition_OpacityTests: XCTestCase {
     }
     contentView.refresh(animated: true)
     let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
 
     // when: the node is revived with its opacity set directly to 0
     opacity = 0
     contentView.setContent(content: makeContent)
     contentView.refresh(animated: true)
 
-    // then: it fades to 0, not back to 0.8
+    // then: it fades from the shown 0.4 to 0, not back to 0.8
     expect(contentView.test.removingRenderableMap.count) == 0
-    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.4, within: 0.01))
     expect(layer.opacity) == 0
   }
 
@@ -1234,9 +1275,12 @@ class RenderableTransition_OpacityTests: XCTestCase {
   ///     animates.
   private func revive(_ layer: CALayer, with transition: RenderableTransition, contentUpdate: () -> Void = {}) throws {
     let insertTransition = try unwrap(transition.insert)
-    insertTransition.prepareForTakeover(renderable: .layer(layer))
-    contentUpdate()
-    insertTransition.animate(renderable: .layer(layer), context: insertContext(), completion: {})
+    // the render pass runs without implicit animations
+    CATransaction.disableAnimations {
+      insertTransition.prepareForTakeover(renderable: .layer(layer))
+      contentUpdate()
+      insertTransition.animate(renderable: .layer(layer), context: insertContext(), completion: {})
+    }
   }
 
   /// Adds an in-flight additive opacity animation with a known progress to `layer`.
