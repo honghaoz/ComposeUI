@@ -2184,6 +2184,64 @@ class ModifierNodeTests: XCTestCase {
     }
   }
 
+  func test_layerModifiers_nonAnimatedUpdate_continuesInFlightAnimationsToTheNewValue() throws {
+    let baseItem = try styledItem()
+    let insetPath = CGPath(rect: baseItem.frame.insetBy(dx: 4, dy: 4), transform: nil)
+    let changes: [(keyPath: String, changedItem: RenderableItem, newItem: RenderableItem, newValue: Any)] = try [
+      ("backgroundColor", styledItem(backgroundColor: .yellow), styledItem(backgroundColor: .cyan), Color.cyan.cgColor),
+      ("opacity", styledItem(opacity: 0.8), styledItem(opacity: 0.2), Float(0.2)),
+      ("borderColor", styledItem(borderColor: .yellow), styledItem(borderColor: .cyan), Color.cyan.cgColor),
+      ("borderWidth", styledItem(borderWidth: 5), styledItem(borderWidth: 7), CGFloat(7)),
+      ("cornerRadius", styledItem(cornerRadius: 8), styledItem(cornerRadius: 12), CGFloat(12)),
+      ("shadowColor", styledItem(shadowColor: .yellow), styledItem(shadowColor: .cyan), Color.cyan.cgColor),
+      ("shadowOpacity", styledItem(shadowOpacity: 0.9), styledItem(shadowOpacity: 0.6), Float(0.6)),
+      ("shadowRadius", styledItem(shadowRadius: 6), styledItem(shadowRadius: 9), CGFloat(9)),
+      ("shadowOffset", styledItem(shadowOffset: CGSize(width: 3, height: 4)), styledItem(shadowOffset: CGSize(width: 5, height: 6)), CGSize(width: 5, height: 6)),
+      ("shadowPath", styledItem(shadowPathInset: 2), styledItem(shadowPathInset: 4), insetPath),
+    ]
+    for (keyPath, changedItem, newItem, newValue) in changes {
+      // given: a layer with one value animating to a new one over a second
+      let layer = CALayer()
+      layer.frame = baseItem.frame
+      refresh(.layer(layer), with: baseItem, animationTiming: nil)
+      refresh(.layer(layer), with: changedItem, animationTiming: .easeInEaseOut(duration: 1))
+
+      // when: a non-animated update sets another value
+      refresh(.layer(layer), with: newItem, animationTiming: nil)
+
+      // then: an ease-out glide to the other value replaces the animation, landing when it would have
+      expect((layer.value(forKeyPath: keyPath) as AnyObject).isEqual(newValue), keyPath) == true
+      expect(layer.animationKeys(), keyPath) == [keyPath]
+      let glide = try (layer.animation(forKey: keyPath) as? CABasicAnimation).unwrap()
+      expect(glide.timingFunction, keyPath) == CAMediaTimingFunction(name: .easeOut)
+      expect(glide.duration, keyPath) == 1
+
+      // when: another non-animated update with the same values
+      refresh(.layer(layer), with: newItem, animationTiming: nil)
+
+      // then: the glide is kept
+      expect(layer.animation(forKey: keyPath), keyPath) === glide
+    }
+  }
+
+  func test_shadow_nonAnimatedUpdate_withoutPath_removesTheInFlightPathAnimation() throws {
+    // given: a layer whose shadow path animates to an inset path
+    let layer = CALayer()
+    let baseItem = try styledItem()
+    layer.frame = baseItem.frame
+    refresh(.layer(layer), with: baseItem, animationTiming: nil)
+    try refresh(.layer(layer), with: styledItem(shadowPathInset: 2), animationTiming: .easeInEaseOut(duration: 1))
+    expect(layer.animation(forKey: "shadowPath")) != nil
+
+    // when: a non-animated update removes the path
+    let item = try firstRenderableItem(of: LayerNode().shadow(color: .blue, opacity: 0.3, radius: 3, offset: CGSize(width: 1, height: 2), path: nil)).unwrap()
+    refresh(.layer(layer), with: item, animationTiming: nil)
+
+    // then: the shadow follows the layer's content right away, instead of the animation heading on to the old path
+    expect(layer.shadowPath) == nil
+    expect(layer.animation(forKey: "shadowPath")) == nil
+  }
+
   func test_opacity_resetForReuse_resetsTheBackingViewAlpha() throws {
     // given: a view-backed renderable whose opacity modifier animated to 0.3, which sets the layer's opacity and the
     // view's alpha

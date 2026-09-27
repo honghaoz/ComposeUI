@@ -360,9 +360,7 @@ public extension ComposeNode {
             )
           }
         } else {
-          layer.disableActions(for: "backgroundColor") {
-            layer.backgroundColor = color
-          }
+          layer.retarget(keyPath: "backgroundColor", to: color)
         }
       }),
       resetForReuse: { renderable in
@@ -478,10 +476,8 @@ public extension ComposeNode {
             layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
           }
         } else {
-          layer.disableActions(for: "borderColor", "borderWidth") {
-            layer.borderColor = color
-            layer.borderWidth = width
-          }
+          layer.retarget(keyPath: "borderColor", to: color)
+          layer.retarget(keyPath: "borderWidth", to: width)
         }
       }),
       resetForReuse: { renderable in
@@ -526,9 +522,7 @@ public extension ComposeNode {
             layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
           }
         } else {
-          layer.disableActions(for: "cornerRadius") {
-            layer.cornerRadius = radius
-          }
+          layer.retarget(keyPath: "cornerRadius", to: radius)
         }
       }),
       resetForReuse: { renderable in
@@ -670,13 +664,20 @@ public extension ComposeNode {
             )
           }
         } else {
-          // before the path provider, which may read it
+          // before the path provider, which may read them
+          layer.retarget(keyPath: "shadowColor", to: color)
           layer.retarget(keyPath: "shadowOpacity", to: opacity)
-          layer.disableActions(for: "shadowColor", "shadowRadius", "shadowOffset", "shadowPath") {
-            layer.shadowColor = color
-            layer.shadowRadius = radius
-            layer.shadowOffset = offset
-            layer.shadowPath = path?(item)
+          layer.retarget(keyPath: "shadowRadius", to: radius)
+          layer.retarget(keyPath: "shadowOffset", to: offset)
+
+          if let path = path?(item) {
+            layer.retarget(keyPath: "shadowPath", to: path)
+          } else {
+            // without a path, the shadow follows the layer's content, so there is no path to continue toward
+            layer.removeAnimations(forKeyPath: "shadowPath")
+            layer.disableActions(for: "shadowPath") {
+              layer.shadowPath = nil
+            }
           }
         }
       }),
