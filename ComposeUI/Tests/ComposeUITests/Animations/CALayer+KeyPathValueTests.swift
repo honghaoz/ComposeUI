@@ -858,4 +858,91 @@ class CALayer_KeyPathValueTests: XCTestCase {
     expect(view.frame) == view.layer().frame
     expect(view.layer().animationKeys()) == nil
   }
+
+  func test_setKeyPathValue_viewSettersTurningActionsOn_keepActionsOff() {
+    // given: a view whose frame and alpha setters enable actions with a duration, as app code a view runs can, and a
+    // layer hosted in a window, committed so that its changes animate implicitly
+    let testWindow = TestWindow()
+    let view = ActionsEnablingView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+    #if canImport(AppKit)
+    view.wantsLayer = true
+    #endif
+    testWindow.contentView().addSubview(view)
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    testWindow.layer.addSublayer(layer)
+    expect(layer.presentation()).toEventuallyNot(beNil())
+    view.resetSetterCallCount()
+
+    // when: in a transaction that disables animations, as a render pass does, setting the position and the opacity of
+    // the view's backing layer, then changing the hosted layer
+    CATransaction.disableAnimations {
+      view.layer().setKeyPathValue("position", CGPoint(x: 180, y: 250))
+      view.layer().setKeyPathValue("opacity", Float(0.5))
+      layer.cornerRadius = 8
+    }
+
+    // then: the view's setters ran and turned actions on, but actions are turned off again after each write, so the
+    // hosted layer's change doesn't animate. a UIKit view's frame follows its layer without its frame setter
+    #if canImport(AppKit)
+    expect(view.setterCallCount) == 2
+    #else
+    expect(view.setterCallCount) == 1
+    #endif
+    expect(view.layer().position) == CGPoint(x: 180, y: 250)
+    expect(view.alpha) == 0.5
+    expect(layer.cornerRadius) == 8
+    expect(layer.animationKeys()) == nil
+  }
+}
+
+/// A view whose frame and alpha setters enable actions with a duration in the current transaction, as app code a view
+/// runs to animate its own sublayers can.
+private final class ActionsEnablingView: View {
+
+  private(set) var setterCallCount = 0
+
+  func resetSetterCallCount() {
+    setterCallCount = 0
+  }
+
+  override var frame: CGRect {
+    get {
+      super.frame
+    }
+    set {
+      enableActions()
+      super.frame = newValue
+    }
+  }
+
+  #if canImport(AppKit)
+  override var alphaValue: CGFloat {
+    get {
+      super.alphaValue
+    }
+    set {
+      enableActions()
+      super.alphaValue = newValue
+    }
+  }
+  #endif
+
+  #if canImport(UIKit)
+  override var alpha: CGFloat {
+    get {
+      super.alpha
+    }
+    set {
+      enableActions()
+      super.alpha = newValue
+    }
+  }
+  #endif
+
+  private func enableActions() {
+    setterCallCount += 1
+    CATransaction.setDisableActions(false)
+    CATransaction.setAnimationDuration(1)
+  }
 }
