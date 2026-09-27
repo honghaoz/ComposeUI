@@ -123,6 +123,29 @@ class CATransaction_ExtensionsTests: XCTestCase {
     expect(layer.opacity) == 0.5
   }
 
+  func test_disableAnimationsIfNeeded_actionsAlreadyDisabled_workTurnsActionsOn() {
+    // given: a layer hosted in the test window
+    let layer = makeTestLayer()
+
+    // when: inside a transaction that already disables actions and has a duration, running work that turns actions on,
+    // then changing the layer
+    var disablesActionsAfterWork = false
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    CATransaction.setAnimationDuration(2)
+    CATransaction.disableAnimationsIfNeeded {
+      CATransaction.setDisableActions(false)
+    }
+    disablesActionsAfterWork = CATransaction.disableActions()
+    layer.opacity = 0.5
+    CATransaction.commit()
+
+    // then: actions are turned off again after the work, so the layer's change doesn't animate
+    expect(disablesActionsAfterWork) == true
+    expect(layer.animationKeys()) == nil
+    expect(layer.opacity) == 0.5
+  }
+
   private func makeTestLayer() -> CALayer {
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
