@@ -174,6 +174,19 @@ private extension CALayer {
 
   /// The model value at a key path, which should hold a path.
   func modelPath(forKeyPath keyPath: String) -> ModelPath {
+    // a read through KVC costs a sizable share of setting a path, so the paths the framework animates, the shadow path
+    // and a shape layer's path, are read directly
+    switch keyPath {
+    case "shadowPath":
+      return shadowPath.map { .path($0) } ?? .noValue
+    case "path":
+      if let shapeLayer = self as? CAShapeLayer {
+        return shapeLayer.path.map { .path($0) } ?? .noValue
+      }
+    default:
+      break
+    }
+
     guard let value = value(forKeyPath: keyPath) else {
       return .noValue
     }
