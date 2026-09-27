@@ -92,7 +92,10 @@ public struct RenderableUpdateContext: Equatable {
   /// The content view's bounds used to select and position the renderables of this render pass, before applying `visibleBoundsInsets`.
   public let renderBounds: CGRect
 
-  /// The timing to use for this renderable update, or nil to apply changes immediately.
+  /// The timing to use for this renderable update, or nil to apply the changes without starting an animation.
+  ///
+  /// A non-animated update doesn't stop in-flight animations, such as the ones an earlier animated update started. To
+  /// continue an in-flight animation toward a new value, set the value with `CALayer.retarget(keyPath:to:)`.
   public let animationTiming: AnimationTiming?
 
   /// The content view that contains the renderable.
@@ -112,7 +115,8 @@ public struct RenderableUpdateContext: Equatable {
   ///   - newFrame: The new frame that the renderable should be set to after the update.
   ///   - previousRenderBounds: The content view's last completed render bounds, or nil if it has not rendered.
   ///   - renderBounds: The content view's bounds used for this render pass.
-  ///   - animationTiming: The timing to use for this renderable update, or nil to apply changes immediately.
+  ///   - animationTiming: The timing to use for this renderable update, or nil to apply the changes without starting
+  ///     an animation.
   ///   - contentView: The content view that contains the renderable.
   ///   - contentEvaluation: The content evaluation of this render pass.
   ///   - animationDecision: Whether transitions and update animations are enabled.
