@@ -332,10 +332,11 @@ class ComposeView_TransitionTests: XCTestCase {
   /// animate opacity but declares the given taken-over key paths.
   private func makeResidueTransition(takesOverKeyPaths: Set<String>,
                                      removedLayer: @escaping (CALayer) -> Void,
-                                     insertTransitionDidRun: @escaping (RenderableTransition.InsertTransition.Context) -> Void) -> RenderableTransition
+                                     insertTransitionDidRun: @escaping (RenderableTransition.InsertTransition.Context) -> Void,
+                                     prepareForTakeover: ((Renderable) -> Void)? = nil) -> RenderableTransition
   {
     RenderableTransition(
-      insert: RenderableTransition.InsertTransition(takesOverKeyPaths: takesOverKeyPaths) { renderable, context, completion in
+      insert: RenderableTransition.InsertTransition(takesOverKeyPaths: takesOverKeyPaths, prepareForTakeover: prepareForTakeover) { renderable, context, completion in
         renderable.setFrame(context.targetFrame)
         insertTransitionDidRun(context)
         completion()
@@ -466,6 +467,91 @@ class ComposeView_TransitionTests: XCTestCase {
 
     // then: a reset revival provides no revival position: the insert starts fresh
     expect(insertContext?.revivalPosition) == nil
+  }
+
+  func test_reinsertRemovingRenderable_insertTransitionTakesOver_preparesTheRenderableBeforeTheContentUpdate() {
+    // given: a compose view with content whose insert transition prepares a renderable it takes over
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var events: [String] = []
+    let transition = makeResidueTransition(
+      takesOverKeyPaths: ["opacity"],
+      removedLayer: { _ in events.append("remove") },
+      insertTransitionDidRun: { _ in events.append("insert") },
+      prepareForTakeover: { renderable in
+        events.append("prepare at opacity \(renderable.layer.opacity)")
+      }
+    )
+
+    let makeContent: () -> ComposeContent = {
+      ColorNode(.red)
+        .onUpdate { _, _ in
+          events.append("update")
+        }
+        .transition(transition)
+        .frame(width: 100, height: 100)
+    }
+
+    // when: the content is inserted with animation
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: a fresh insertion isn't prepared
+    expect(events) == ["update", "insert"]
+
+    // when: the content is removed, then re-inserted with animation
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    events = []
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: the revived renderable is prepared once, from the removal's untouched residue, before the content update
+    // and the insert transition
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(events) == ["prepare at opacity 0.0", "update", "insert"]
+  }
+
+  func test_reinsertRemovingRenderable_insertTransitionDoesNotTakeOver_skipsThePreparation() {
+    // given: a compose view with content whose insert transition prepares a renderable it takes over, but doesn't take
+    // over the removal's key path
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var removedLayer: CALayer?
+    var prepareCount = 0
+    let transition = makeResidueTransition(
+      takesOverKeyPaths: ["position"],
+      removedLayer: { removedLayer = $0 },
+      insertTransitionDidRun: { _ in },
+      prepareForTakeover: { _ in
+        prepareCount += 1
+      }
+    )
+
+    let makeContent: () -> ComposeContent = {
+      ColorNode(.red)
+        .transition(transition)
+        .frame(width: 100, height: 100)
+    }
+
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    expect(removedLayer?.opacity) == 0
+
+    // when: re-insert the renderable with animation
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: the removal is reset instead, without the preparation
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(removedLayer?.opacity) == 1
+    expect(prepareCount) == 0
   }
 
   func test_reinsertRemovingRenderable_slideTransition_insertComposesWithInFlightRemoval() throws {

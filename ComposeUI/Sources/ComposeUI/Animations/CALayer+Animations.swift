@@ -415,6 +415,19 @@ public extension CALayer {
     }
   }
 
+  /// The layer's property animations animating the given key path, such as basic and keyframe animations.
+  ///
+  /// - Parameter keyPath: The animated key path.
+  /// - Returns: The property animations animating `keyPath`, in the layer's animation key order.
+  internal func propertyAnimations(forKeyPath keyPath: String) -> [CAPropertyAnimation] {
+    (animationKeys() ?? []).compactMap { key in
+      guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
+        return nil
+      }
+      return animation
+    }
+  }
+
   /// Removes the layer's animations animating the given key path, leaving other animations alone.
   ///
   /// - Parameter keyPath: The animated key path.

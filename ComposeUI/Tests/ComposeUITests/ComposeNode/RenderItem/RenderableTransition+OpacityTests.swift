@@ -32,7 +32,7 @@ import QuartzCore
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class RenderableTransition_OpacityTests: XCTestCase {
 
@@ -730,6 +730,641 @@ class RenderableTransition_OpacityTests: XCTestCase {
 
     let now = layer.convertTime(CACurrentMediaTime(), from: nil)
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
+  }
+
+  func test_options_makeOnlyTheChosenTransitions() {
+    // then: each option makes only its transition
+    expect(RenderableTransition.opacity(options: .insert).insert) != nil
+    expect(RenderableTransition.opacity(options: .insert).remove) == nil
+    expect(RenderableTransition.opacity(options: .remove).insert) == nil
+    expect(RenderableTransition.opacity(options: .remove).remove) != nil
+  }
+
+  // MARK: - Content Opacity
+
+  func test_insert_withoutTo_endsAtTheModelOpacity() throws {
+    // given: a layer whose content set its opacity to 0.5
+    let layer = CALayer()
+    layer.opacity = 0.5
+
+    // when: an insertion without a `to` value
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try unwrap(transition.insert).animate(renderable: .layer(layer), context: insertContext(), completion: {})
+
+    // then: it fades from 0 to the content's 0.5
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(animations.first).fromValue as? Float) == -0.5
+    expect(layer.opacity) == 0.5
+  }
+
+  func test_revival_withoutTo_contentSetsNoOpacity_endsAtFullOpacity() throws {
+    // given: a layer at 0.8, halfway through fading out at 0.4
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+    expect(layer.opacity) == 0
+
+    // when: it's revived without the content setting an opacity
+    try revive(layer, with: transition)
+
+    // then: it fades from the shown 0.4 to 1, not back to the 0.8 from before the removal
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: -0.6, within: 0.01))
+    expect(layer.opacity) == 1
+  }
+
+  func test_revival_withoutTo_contentSetsAnOpacity_endsAtIt() throws {
+    // given: a layer at 0.8, fading out
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+
+    // when: it's revived after the content sets its opacity to 0.5
+    try revive(layer, with: transition) {
+      layer.retargetOpacity(to: 0.5)
+    }
+
+    // then: it fades to 0.5
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+    expect(layer.opacity) == 0.5
+  }
+
+  func test_revival_withoutTo_contentSetsTheRemovalOpacity_endsAtIt() throws {
+    // given: a layer at 0.8, fading out to 0
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+
+    // when: it's revived after the content sets its opacity to 0, the removal's opacity
+    try revive(layer, with: transition) {
+      layer.retargetOpacity(to: 0)
+    }
+
+    // then: it fades to 0
+    expect(layer.opacity) == 0
+  }
+
+  func test_revival_withoutTo_opacitySetDirectly_fadesFromTheShownOpacityToIt() throws {
+    // given: a layer at 0.8, halfway through fading out at 0.4
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+
+    // when: it's revived after its opacity is set directly to 0.5
+    try revive(layer, with: transition) {
+      layer.opacity = 0.5
+    }
+
+    // then: it fades from the shown 0.4 to 0.5
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: -0.1, within: 0.01))
+    expect(layer.opacity) == 0.5
+  }
+
+  func test_revival_withoutTo_opacitySetDirectlyToTheRemovalOpacity_fadesFromTheShownOpacityToIt() throws {
+    // given: a layer at 0.8, halfway through fading out to 0, at 0.4
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+
+    // when: it's revived after its opacity is set directly to 0, the removal's opacity
+    try revive(layer, with: transition) {
+      layer.opacity = 0
+    }
+
+    // then: it fades from the shown 0.4 to 0
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.4, within: 0.01))
+    expect(layer.opacity) == 0
+  }
+
+  #if canImport(AppKit)
+  func test_revival_opacitySetDirectly_showsAContinuousOpacity() throws {
+    // given: a rendered layer at 0.8, halfway through a 1 s fade-out
+    let renderer = try PausedLayerRenderer(time: 10)
+    let layer = renderer.layer
+    layer.disableActions(for: "opacity") {
+      layer.opacity = 0.8
+    }
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 1))
+    try remove(layer, with: transition)
+    renderer.commit()
+    renderer.move(to: 10.5)
+    let opacityBeforeRevival = renderer.renderedOpacity()
+
+    // when: it's revived after its opacity is set directly to 0.5
+    try revive(layer, with: transition) {
+      layer.opacity = 0.5
+    }
+
+    // then: it turns around at the shown 0.4 without a jump, and fades to 0.5
+    expect(opacityBeforeRevival).to(beApproximatelyEqual(to: 0.4, within: 0.01))
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.4, within: 0.01))
+    renderer.move(to: 11.5)
+    expect(renderer.renderedOpacity()).to(beApproximatelyEqual(to: 0.5, within: 0.01))
+  }
+  #endif
+
+  func test_revival_springTiming_continuesTheFadeOutVelocity() throws {
+    // given: a layer at 0.8, halfway through fading out, showing 0.4 and falling at 0.08 per second
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .spring())
+    try remove(layer, with: transition)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+
+    // when: it's revived without the content setting an opacity
+    try revive(layer, with: transition)
+
+    // then: a spring fades in from the shown 0.4 to 1, continuing the fade-out's velocity
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let spring = try unwrap(animations.first as? CASpringAnimation)
+    expect(try unwrap(spring.fromValue as? Float)).to(beApproximatelyEqual(to: -0.6, within: 0.01))
+    // opacity velocity -0.08/s over a delta of -0.6 towards 1 is -0.13 in Core Animation's convention
+    expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.133, within: 0.01))
+    expect(layer.opacity) == 1
+  }
+
+  func test_revival_withTo_endsAtTo() throws {
+    // given: a layer at 0.8, fading out
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(to: 0.6, timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+
+    // when: it's revived
+    try revive(layer, with: transition)
+
+    // then: it fades to `to`
+    expect(layer.opacity) == 0.6
+  }
+
+  func test_insert_afterResetForReuse_endsAtTheModelOpacity() throws {
+    // given: a layer at 0.8 whose fade-out was reset for reuse
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+    try unwrap(transition.remove).resetForReuse(renderable: .layer(layer))
+
+    // when: it's inserted after the content sets its opacity to 0
+    layer.opacity = 0
+    try unwrap(transition.insert).animate(renderable: .layer(layer), context: insertContext(), completion: {})
+
+    // then: it fades to 0, not to the 0.8 from before the removal
+    expect(layer.opacity) == 0
+  }
+
+  func test_insert_afterRevival_endsAtTheModelOpacity() throws {
+    // given: a layer at 0.8, revived from a fade-out
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+    try revive(layer, with: transition)
+    expect(layer.opacity) == 1
+
+    // when: it's inserted again after the content sets its opacity to 0
+    layer.opacity = 0
+    try unwrap(transition.insert).animate(renderable: .layer(layer), context: insertContext(), completion: {})
+
+    // then: it fades to 0
+    expect(layer.opacity) == 0
+  }
+
+  // MARK: - Prepare for Takeover
+
+  func test_prepareForTakeover_setsFullOpacity_keepingTheShownOpacity() throws {
+    // given: a layer at 0.8, halfway through fading out at 0.4
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+
+    // when: the fade-in prepares to take over the removal
+    try unwrap(transition.insert).prepareForTakeover(renderable: .layer(layer))
+
+    // then: the opacity is 1, while the layer still shows 0.4
+    expect(layer.opacity) == 1
+    expect(try unwrap(layer.interruptedOpacityState()).value).to(beApproximatelyEqual(to: 0.4, within: 0.01))
+  }
+
+  func test_prepareForTakeover_atFullOpacity_keepsTheRemovalAnimation() throws {
+    // given: a layer at 1, "fading out" to 1
+    let layer = CALayer()
+    let transition = RenderableTransition.opacity(from: 1, timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+    let fade = try unwrap(layer.animation(forKey: "opacity"))
+
+    // when: the fade-in prepares to take over the removal
+    try unwrap(transition.insert).prepareForTakeover(renderable: .layer(layer))
+
+    // then: nothing changes
+    expect(layer.animation(forKey: "opacity")) === fade
+    expect(layer.opacity) == 1
+  }
+
+  func test_prepareForTakeover_withTo_changesNothing() throws {
+    // given: a layer at 0.8, fading out to 0, with a fade-in to 0.6
+    let layer = CALayer()
+    layer.opacity = 0.8
+    let transition = RenderableTransition.opacity(to: 0.6, timing: .linear(duration: 5))
+    try remove(layer, with: transition)
+    let fade = try unwrap(layer.animation(forKey: "opacity"))
+
+    // when: the fade-in prepares to take over the removal
+    try unwrap(transition.insert).prepareForTakeover(renderable: .layer(layer))
+
+    // then: nothing changes, as the fade-in ends at `to` whatever the content sets
+    expect(layer.animation(forKey: "opacity")) === fade
+    expect(layer.opacity) == 0
+  }
+
+  func test_composeViewIntegration_opacityModifier_fadesInToTheModifierOpacity() throws {
+    // given: a layer node with an opacity of 0.5 and an opacity transition
+    var layer: CALayer?
+    let contentView = ComposeView {
+      LayerNode()
+        .opacity(0.5)
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the node is inserted
+    contentView.refresh(animated: true)
+
+    // then: it fades to 0.5, not 1
+    let fadingLayer = try unwrap(layer)
+    expect(fadingLayer.opacity) == 0.5
+    let fade = try unwrap(fadingLayer.animation(forKey: "opacity") as? CABasicAnimation)
+    expect(fade.fromValue as? Float) == -0.5
+
+    // when: a non-animated refresh
+    contentView.refresh(animated: false)
+
+    // then: the fade is kept
+    expect(fadingLayer.animation(forKey: "opacity")) === fade
+    expect(fadingLayer.opacity) == 0.5
+  }
+
+  func test_composeViewIntegration_revival_withOpacityModifier_continuesToTheModifierOpacity() throws {
+    // given: a layer node with an opacity of 0.5, fading out
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .opacity(0.5)
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    expect(layer.opacity) == 0
+
+    // when: the node is revived
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: one fade continues to 0.5
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+    expect(layer.opacity) == 0.5
+  }
+
+  func test_composeViewIntegration_revival_withOpacityChangedToTheRemovalOpacity_endsAtIt() throws {
+    // given: a layer node with an opacity of 0.8, fading out to 0
+    var opacity: CGFloat = 0.8
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .opacity(opacity)
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+
+    // when: the node is revived with its opacity changed to 0
+    opacity = 0
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: it fades to 0, not back to 0.8
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(layer.opacity) == 0
+  }
+
+  func test_composeViewIntegration_revival_springFadeIn_continuesTheFadeOutVelocity() throws {
+    // given: a layer node with an opacity of 0.8 and a spring opacity transition, fading out
+    var opacity: CGFloat = 0.8
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .opacity(opacity)
+        .transition(.opacity(timing: .spring()))
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+
+    // the fade-out on screen: showing 0.4 and falling at 0.08 per second
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+
+    // when: the node is revived with its opacity changed to 0.6
+    opacity = 0.6
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: a spring fades in from the shown 0.4, continuing the fade-out's velocity
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    let spring = try unwrap(animations.first as? CASpringAnimation)
+    expect(try unwrap(spring.fromValue as? Float)).to(beApproximatelyEqual(to: -0.2, within: 0.01))
+    // opacity velocity -0.08/s over a delta of -0.2 towards 0.6 is -0.4 in Core Animation's convention
+    expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.4, within: 0.02))
+    expect(layer.opacity) == 0.6
+  }
+
+  func test_composeViewIntegration_revival_withOpacitySetDirectlyToTheRemovalOpacity_fadesFromTheShownOpacityToIt() throws {
+    // given: a layer node that sets its opacity to 0.8 directly, halfway through fading out to 0, at 0.4
+    var opacity: Float = 0.8
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .onUpdate { renderable, _ in
+          renderable.layer.opacity = opacity
+        }
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    layer.removeAnimations(forKeyPath: "opacity")
+    addInFlightAdditiveAnimation(to: layer, from: 0.8, progress: 0.5)
+
+    // when: the node is revived with its opacity set directly to 0
+    opacity = 0
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: it fades from the shown 0.4 to 0, not back to 0.8
+    expect(contentView.test.removingRenderableMap.count) == 0
+    let animations = layer.basicAnimations(forKeyPath: "opacity")
+    expect(animations.count) == 1
+    expect(try unwrap(unwrap(animations.first).fromValue as? Float)).to(beApproximatelyEqual(to: 0.4, within: 0.01))
+    expect(layer.opacity) == 0
+  }
+
+  func test_composeViewIntegration_revival_withoutOpacityModifier_returnsToFullOpacity() throws {
+    // given: a layer node without an opacity modifier, fading out
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    expect(layer.opacity) == 0
+
+    // when: the node is revived
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: one fade continues back to 1
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+    expect(layer.opacity) == 1
+  }
+
+  func test_composeViewIntegration_revival_withOpacityModifierDropped_endsAtFullOpacity() throws {
+    // given: a layer node with an opacity of 0.8, fading out
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      LayerNode()
+        .opacity(0.8)
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+
+    // when: the node is revived without its opacity modifier
+    contentView.setContent {
+      LayerNode()
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+    contentView.refresh(animated: true)
+
+    // then: it fades to 1, not back to 0.8
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(layer.opacity) == 1
+  }
+
+  func test_composeViewIntegration_revivalByACustomInsert_leavesTheRemovalResidueUntouched() throws {
+    // given: a layer node fading out, whose custom insert transition takes over the opacity removal
+    var insertedOpacity: Float?
+    var insertedAnimation: CABasicAnimation?
+    let transition = RenderableTransition(
+      insert: RenderableTransition.InsertTransition(takesOverKeyPaths: ["opacity"]) { renderable, context, completion in
+        insertedOpacity = renderable.layer.opacity
+        insertedAnimation = renderable.layer.basicAnimations(forKeyPath: "opacity").first
+        renderable.setFrame(context.targetFrame)
+        completion()
+      },
+      remove: RenderableTransition.opacity(timing: .linear(duration: 10)).remove
+    )
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .transition(transition)
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    let fade = try unwrap(layer.basicAnimations(forKeyPath: "opacity").first)
+
+    // when: the node is revived
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: the custom insert transition sees the removal's opacity and in-flight fade
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(insertedOpacity) == 0
+    expect(insertedAnimation) === fade
+  }
+
+  func test_composeViewIntegration_revivalByAWrappedFadeIn_withoutOpacityModifier_endsAtFullOpacityAndCompletes() throws {
+    // given: a layer node without an opacity modifier, fading out, whose fade-in is wrapped with the preparation
+    // forwarded, counting its completions
+    var completionCount = 0
+    let transition = try wrappedOpacityTransition(onInsertCompletion: { completionCount += 1 })
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .transition(transition)
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+
+    // when: the node is revived
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: it fades to 1
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+    expect(layer.opacity) == 1
+
+    // when: the fade-in is torn down
+    layer.removeAnimations(forKeyPath: "opacity")
+
+    // then: its completion comes through the wrapper, on a later run loop turn
+    expect(completionCount).toEventually(beEqual(to: 1))
+  }
+
+  func test_composeViewIntegration_revivalByAWrappedFadeIn_withOpacityModifier_endsAtIt() throws {
+    // given: a layer node with an opacity of 0.5, fading out, whose fade-in is wrapped with the preparation forwarded
+    let transition = try wrappedOpacityTransition()
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      LayerNode()
+        .opacity(0.5)
+        .transition(transition)
+        .frame(width: 100, height: 100)
+    }
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+
+    // when: the node is revived
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: it fades to 0.5
+    expect(contentView.test.removingRenderableMap.count) == 0
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+    expect(layer.opacity) == 0.5
+  }
+
+  // MARK: - Helpers
+
+  private func insertContext() -> RenderableTransition.InsertTransition.Context {
+    RenderableTransition.InsertTransition.Context(targetFrame: CGRect(x: 0, y: 0, width: 10, height: 10), contentView: nil)
+  }
+
+  private func removeContext() -> RenderableTransition.RemoveTransition.Context {
+    RenderableTransition.RemoveTransition.Context(contentView: nil)
+  }
+
+  /// The opacity transition, with its fade-in wrapped through public API, forwarding the preparation.
+  ///
+  /// - Parameter onInsertCompletion: Called when the wrapped fade-in completes.
+  private func wrappedOpacityTransition(onInsertCompletion: @escaping () -> Void = {}) throws -> RenderableTransition {
+    let fade = RenderableTransition.opacity(timing: .linear(duration: 10))
+    let fadeIn = try unwrap(fade.insert)
+    return RenderableTransition(
+      insert: RenderableTransition.InsertTransition(
+        takesOverKeyPaths: fadeIn.takesOverKeyPaths,
+        prepareForTakeover: fadeIn.prepareForTakeover(renderable:),
+        animate: { renderable, context, completion in
+          fadeIn.animate(renderable: renderable, context: context, completion: {
+            onInsertCompletion()
+            completion()
+          })
+        }
+      ),
+      remove: fade.remove
+    )
+  }
+
+  /// Starts removing the layer with the transition.
+  private func remove(_ layer: CALayer, with transition: RenderableTransition) throws {
+    try unwrap(transition.remove).animate(renderable: .layer(layer), context: removeContext(), completion: {})
+  }
+
+  /// Revives the layer like the render pass does when the insert transition takes over the removal.
+  ///
+  /// - Parameters:
+  ///   - layer: The removing layer.
+  ///   - transition: The transition.
+  ///   - contentUpdate: The content update, which runs after the insert transition prepares the layer and before it
+  ///     animates.
+  private func revive(_ layer: CALayer, with transition: RenderableTransition, contentUpdate: () -> Void = {}) throws {
+    let insertTransition = try unwrap(transition.insert)
+    // the render pass runs without implicit animations
+    CATransaction.disableAnimations {
+      insertTransition.prepareForTakeover(renderable: .layer(layer))
+      contentUpdate()
+      insertTransition.animate(renderable: .layer(layer), context: insertContext(), completion: {})
+    }
   }
 
   /// Adds an in-flight additive opacity animation with a known progress to `layer`.

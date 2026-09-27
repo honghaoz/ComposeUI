@@ -1354,6 +1354,8 @@ open class ComposeView: BaseScrollView {
           if removingRenderable.removeTransition.isTakenOver(by: insertTransition) {
             revivalPosition = removingRenderable.renderable.layer.position
             revivalTransform = removingRenderable.renderable.layer.transform
+            // before the content update, so the content's values land on the prepared ones
+            insertTransition?.prepareForTakeover(renderable: removingRenderable.renderable)
           } else {
             removingRenderable.removeTransition.resetForReuse(renderable: removingRenderable.renderable)
           }

@@ -44,15 +44,19 @@ extension CABasicAnimation {
   /// committed frame rather than the evaluation time, is unreliable for layers outside a committed layer tree, and
   /// cannot provide a rate of change.
   ///
-  /// The supported animation shapes are the ones ComposeUI transitions produce: `timeOffset`, `repeatCount`, and
-  /// `autoreverses` are not evaluated.
+  /// An animation with a `timeOffset`, a `repeatCount`, a `repeatDuration`, or `autoreverses` isn't supported.
   ///
   /// - Parameter time: The time in the layer's time space, compared against `beginTime`. An animation with an unset
   ///   (zero) `beginTime` hasn't been scheduled by Core Animation yet (it is resolved when the transaction commits),
   ///   and an animation scheduled in the future hasn't started: both evaluate at zero elapsed time, yielding `fromValue`.
-  /// - Returns: The scalar value at `time`. `nil` when `fromValue` or `toValue` is not a scalar number.
+  /// - Returns: The scalar value at `time`. `nil` when `fromValue` or `toValue` is not a scalar number, or the
+  ///   animation isn't a supported shape.
   func scalarValue(at time: TimeInterval) -> Double? {
-    guard let from = (fromValue as? NSNumber)?.doubleValue,
+    guard timeOffset == 0,
+          repeatCount == 0,
+          repeatDuration == 0,
+          !autoreverses,
+          let from = (fromValue as? NSNumber)?.doubleValue,
           let to = (toValue as? NSNumber)?.doubleValue
     else {
       return nil

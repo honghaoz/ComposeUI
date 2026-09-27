@@ -119,6 +119,24 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     expect(animation.scalarValue(at: 0)) == nil
   }
 
+  func test_scalarValue_unsupportedShapes() {
+    // given: linear animations that have a time offset, repeat, or autoreverse
+    let shapes: [(name: String, apply: (CABasicAnimation) -> Void)] = [
+      ("timeOffset", { $0.timeOffset = 1 }),
+      ("repeatCount", { $0.repeatCount = 2 }),
+      ("repeatDuration", { $0.repeatDuration = 8 }),
+      ("autoreverses", { $0.autoreverses = true }),
+    ]
+
+    for shape in shapes {
+      let animation = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 100, timingFunction: CAMediaTimingFunction(name: .linear))
+      shape.apply(animation)
+
+      // then: the scalar value is nil, as they're shapes it doesn't evaluate
+      expect(animation.scalarValue(at: 101), shape.name) == nil
+    }
+  }
+
   func test_scalarValue_spring_criticallyDamped() throws {
     // given: a critically damped spring animation from 1 to 0
     let descriptor = SpringDescriptor(dampingRatio: 1, response: 0.4)

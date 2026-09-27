@@ -15,6 +15,7 @@
 - `LayoutCacheNode` is no longer available.
 - Delayed animations are now scheduled with Core Animation's `beginTime` instead of a GCD timer.
 - Zero-duration transitions now call their completion, and a completion is also called when its animation is torn down early.
+- `RenderableTransition.opacity`'s `to` is now optional, and without it the fade ends at the opacity the content sets, for example with the `opacity` modifier, instead of 1.
 
 ### Changes
 
@@ -27,7 +28,9 @@
 - The `AnimationBehavior.dynamic` closure is now called once per render pass instead of once per renderable, so one decision applies to the whole pass.
 - Added a scale transition, `.scale(from:anchor:timing:options:)`.
 - Slide transitions now continue a revival from wherever the removal left the renderable.
+- A spring opacity transition now continues a revival with the removal's speed, instead of starting from rest.
 - The insert transition context gains `revivalPosition` and `revivalTransform` for taking-over transitions.
+- Added `InsertTransition.prepareForTakeover`, which prepares a revived renderable before its content update. A transition that wraps an insert transition forwards it.
 - `ComposeView` now re-renders on display scale changes on iOS/tvOS, matching the existing macOS handling.
 - `ComposeView.setNeedsRefresh(animated:)` now merges coalesced requests to non-animated when any request was non-animated.
 - A render pass no longer animates the frame of a reused renderable whose frame is unchanged, and it recognizes unchanged frames on 3x displays too, where the frame derived from the layer does not round-trip and used to be re-applied on every pass. `DropShadowLayer` and `InnerShadowLayer` skip their mask's frame animations the same way.
@@ -35,6 +38,7 @@
 - A non-animated `DropShadowLayer`, `InnerShadowLayer` or `ColorNode` update now continues in-flight animations toward the new values instead of letting them finish toward the old ones and then snapping. The shadow opacity animates non-additively, since opposing additive opacity animations don't compose on screen.
 - Node modifiers and `ColorNode` now animate only the properties that changed.
 - Stacked modifiers of one property, such as `.opacity(0.3).opacity(1)`, now apply only the outermost one, so an animated refresh no longer animates through the inner values.
+- The `opacity` and `shadow` modifiers now animate an opacity from the shown value instead of stacking additive animations, so reversing a change in flight no longer jumps, and a non-animated change continues an in-flight animation.
 - Added `CALayer.retarget(keyPath:to:)`, which sets a property and continues its in-flight animations toward the new value.
 - Fixed `CALayer.retarget(keyPath:to:)` and `CALayer.animate` crashing, losing the change, or dropping the layer's transform on macOS when setting a geometry key path such as `position.x` or `bounds` on a view-backed layer.
 - Drop and inner shadow paths now animate with the frame, including through interrupted resizes.
