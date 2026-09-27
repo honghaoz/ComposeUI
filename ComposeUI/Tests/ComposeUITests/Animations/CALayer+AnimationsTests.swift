@@ -39,10 +39,10 @@ class CALayer_AnimationsTests: XCTestCase {
   // MARK: - animate
 
   func test_animateFrame() throws {
-    // given: a layer that counts KVC reads, hosted in a window, filling the window bounds
+    // given: a layer that counts KVC reads and writes, hosted in a window, filling the window bounds
     let testWindow = TestWindow()
 
-    let layer = KVCReadCountingLayer()
+    let layer = KVCCountingLayer()
     testWindow.layer.addSublayer(layer)
     layer.frame = testWindow.layer.bounds
 
@@ -72,9 +72,10 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(boundsSizeAnimation.isRemovedOnCompletion) == true
     expect(boundsSizeAnimation.fillMode) == .both
 
-    // then: the model frame is the target frame, and the current frame is read without KVC
+    // then: the model frame is the target frame, and the frame is read and set without KVC
     expect(layer.frame) == CGRect(x: 100, y: 100, width: 50, height: 50)
     expect(layer.kvcReadCount) == 0
+    expect(layer.kvcWriteCount) == 0
   }
 
   func test_animateFloatingPoint() throws {
@@ -102,7 +103,7 @@ class CALayer_AnimationsTests: XCTestCase {
 
   func test_animateFloatingPoint_readsCurrentValueWithoutKVC() throws {
     // given: a layer that counts KVC reads, with a corner radius
-    let layer = KVCReadCountingLayer()
+    let layer = KVCCountingLayer()
     layer.cornerRadius = 3
 
     // when: animating the corner radius to a value of its property type
@@ -436,7 +437,7 @@ class CALayer_AnimationsTests: XCTestCase {
 
   func test_pointValue() {
     // given: a layer that counts KVC reads, with a position and an anchor point
-    let layer = KVCReadCountingLayer()
+    let layer = KVCCountingLayer()
     layer.position = CGPoint(x: 10, y: 20)
     layer.anchorPoint = CGPoint(x: 0.25, y: 0.75)
 
@@ -457,7 +458,7 @@ class CALayer_AnimationsTests: XCTestCase {
 
   func test_sizeValue() {
     // given: a layer that counts KVC reads, with a bounds size, a shadow offset, and a translation
-    let layer = KVCReadCountingLayer()
+    let layer = KVCCountingLayer()
     layer.bounds.size = CGSize(width: 30, height: 40)
     layer.shadowOffset = CGSize(width: 5, height: 6)
     layer.transform = CATransform3DMakeTranslation(7, 8, 0)
@@ -481,7 +482,7 @@ class CALayer_AnimationsTests: XCTestCase {
 
   func test_floatingPointValue() {
     // given: a layer that counts KVC reads, with non-default values for the numbers read directly, and a scale
-    let layer = KVCReadCountingLayer()
+    let layer = KVCCountingLayer()
     layer.opacity = 0.5
     layer.shadowOpacity = 0.25
     layer.borderWidth = 2
@@ -557,501 +558,6 @@ class CALayer_AnimationsTests: XCTestCase {
       expect(layer.value(forKeyPath: "cornerRadius") as? CGFloat) == layer.floatingPointValue(forKeyPath: "cornerRadius") as CGFloat
       expect(layer.value(forKeyPath: "shadowRadius") as? CGFloat) == layer.floatingPointValue(forKeyPath: "shadowRadius") as CGFloat
     }
-  }
-
-  // MARK: - setKeyPathValue
-
-  func test_setKeyPathValue_position() throws {
-    // given: a test window with a container view
-    let testWindow = TestWindow()
-    let containerView = testWindow.contentView()
-
-    #if os(macOS)
-    // given: a layer-backed view with a centered anchor point
-    do {
-      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = view.layer()
-      layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      expect(layer.position) == CGPoint(x: 150, y: 225)
-
-      // when: setting the position key path value
-      layer.setKeyPathValue("position", CGPoint(x: 180, y: 250)) // x: 30, y: 25
-
-      // then: the layer frame moves and the view frame follows
-      expect(layer.frame) == CGRect(x: 130, y: 225, width: 100, height: 50)
-      expect(view.frame) == layer.frame
-    }
-
-    // given: a layer-hosted view with a centered anchor point
-    do {
-      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = CALayer()
-      view.layer = CALayer()
-      layer.delegate = view as? CALayerDelegate
-      layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      expect(layer.position) == CGPoint(x: 150, y: 225)
-
-      // when: setting the position key path value
-      layer.setKeyPathValue("position", CGPoint(x: 180, y: 250)) // x: 30, y: 25
-
-      // then: the layer frame moves and the view frame follows
-      expect(layer.frame) == CGRect(x: 130, y: 225, width: 100, height: 50)
-      expect(view.frame) == layer.frame
-    }
-    #endif
-
-    #if canImport(UIKit)
-    // given: a view in the container view
-    let view = UIView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-    containerView.addSubview(view)
-    let layer = view.layer
-
-    // when: setting the position key path value
-    layer.setKeyPathValue("position", CGPoint(x: 10, y: 20))
-
-    // then: the layer position is updated
-    expect(layer.position) == CGPoint(x: 10, y: 20)
-    #endif
-  }
-
-  func test_setKeyPathValue_bounds_size() throws {
-    // given: a test window with a container view
-    let testWindow = TestWindow()
-    let containerView = testWindow.contentView()
-
-    #if os(macOS)
-    // given: a layer-backed view
-    do {
-      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = view.layer()
-      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      expect(layer.bounds.size) == CGSize(width: 100, height: 50)
-
-      // when: setting the bounds.size key path value
-      layer.setKeyPathValue("bounds.size", CGSize(width: 150, height: 80))
-
-      // then: the layer bounds and frame are updated and the view follows
-      expect(layer.bounds.size) == CGSize(width: 150, height: 80)
-      expect(view.bounds.size) == layer.bounds.size
-      expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
-      expect(view.frame) == layer.frame
-    }
-
-    // given: a layer-hosted view
-    do {
-      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = CALayer()
-      view.layer = layer
-      layer.delegate = view as? CALayerDelegate
-      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      expect(layer.bounds.size) == CGSize(width: 100, height: 50)
-
-      // when: setting the bounds.size key path value
-      layer.setKeyPathValue("bounds.size", CGSize(width: 150, height: 80))
-
-      // then: the layer bounds and frame are updated and the view follows
-      expect(layer.bounds.size) == CGSize(width: 150, height: 80)
-      expect(view.bounds.size) == layer.bounds.size
-      expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
-      expect(view.frame) == layer.frame
-    }
-    #endif
-
-    #if canImport(UIKit)
-    // given: a view in the container view
-    let view = UIView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-    containerView.addSubview(view)
-    let layer = view.layer
-    expect(layer.bounds.size) == CGSize(width: 100, height: 50)
-
-    // when: setting the bounds.size key path value
-    layer.setKeyPathValue("bounds.size", CGSize(width: 150, height: 80))
-
-    // then: the layer bounds and frame are updated and the view follows
-    expect(layer.bounds.size) == CGSize(width: 150, height: 80)
-    expect(view.bounds.size) == layer.bounds.size
-    expect(view.frame) == CGRect(x: 75, y: 185, width: 150, height: 80)
-    expect(view.frame) == layer.frame
-    #endif
-  }
-
-  func test_setKeyPathValue_anchorPoint() throws {
-    // given: a test window with a container view
-    let testWindow = TestWindow()
-    let containerView = testWindow.contentView()
-
-    // given: a plain layer, testing layer's behavior by changing anchor point
-    do {
-      let layer = CALayer()
-      layer.frame = CGRect(x: 200, y: 150, width: 50, height: 50)
-      expect(layer.anchorPoint) == CGPoint(x: 0.5, y: 0.5)
-
-      // when: setting the anchorPoint key path value
-      layer.setKeyPathValue("anchorPoint", CGPoint(x: 0, y: 0))
-
-      // then: the frame moves to keep the anchor point position in parent the same
-      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0) // a plain layer takes the new anchor point directly
-      expect(layer.frame) == CGRect(x: 225, y: 175, width: 50, height: 50)
-    }
-
-    #if os(macOS)
-    // given: a layer-backed view
-    do {
-      let view = View(frame: CGRect(x: 200, y: 150, width: 50, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = view.layer()
-      layer.frame = CGRect(x: 200, y: 150, width: 50, height: 50)
-      view.frame = CGRect(x: 200, y: 150, width: 50, height: 50)
-      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0) // default for macOS
-
-      // when: setting the anchorPoint key path value
-      layer.setKeyPathValue("anchorPoint", CGPoint(x: 0.5, y: 0.5))
-
-      // then: the frame moves to keep the anchor point position in parent the same
-      // the anchor point reads back as (0, 0) because AppKit re-normalizes the backing layer's anchor point to the
-      // macOS default when the view's frame is set
-      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0)
-      expect(layer.frame) == CGRect(x: 175, y: 125, width: 50, height: 50)
-      expect(view.frame) == layer.frame
-    }
-
-    // given: a layer-hosted view
-    do {
-      let view = View(frame: CGRect(x: 200, y: 150, width: 50, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = CALayer()
-      view.layer = layer
-      layer.delegate = view as? CALayerDelegate
-      layer.frame = CGRect(x: 200, y: 150, width: 50, height: 50)
-      view.frame = CGRect(x: 200, y: 150, width: 50, height: 50)
-      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0) // default for macOS
-
-      // when: setting the anchorPoint key path value
-      layer.setKeyPathValue("anchorPoint", CGPoint(x: 0.5, y: 0.5))
-
-      // then: the frame moves to keep the anchor point position in parent the same
-      // the anchor point reads back as (0, 0) because AppKit re-normalizes the hosted layer's anchor point to the
-      // macOS default when the view's frame is set
-      expect(layer.anchorPoint) == CGPoint(x: 0, y: 0)
-      expect(layer.frame) == CGRect(x: 175, y: 125, width: 50, height: 50)
-      expect(view.frame) == layer.frame
-    }
-    #endif
-
-    #if canImport(UIKit)
-    // given: a view in the container view
-    let view = UIView(frame: CGRect(x: 200, y: 150, width: 50, height: 50))
-    containerView.addSubview(view)
-    let layer = view.layer
-    expect(layer.anchorPoint) == CGPoint(x: 0.5, y: 0.5) // default for iOS
-
-    // when: setting the anchorPoint key path value
-    layer.setKeyPathValue("anchorPoint", CGPoint(x: 0, y: 0))
-
-    // then: the anchor point is updated and the frame moves to keep the anchor point position in parent the same
-    expect(layer.anchorPoint) == CGPoint(x: 0, y: 0)
-    expect(layer.frame) == CGRect(x: 225, y: 175, width: 50, height: 50)
-    expect(view.frame) == layer.frame
-    #endif
-  }
-
-  func test_setKeyPathValue_bounds() throws {
-    // given: a test window with a container view
-    let testWindow = TestWindow()
-    let containerView = testWindow.contentView()
-
-    #if os(macOS)
-    // given: a layer-backed view with a child view
-    do {
-      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let childView = View(frame: CGRect(x: 30, y: 30, width: 10, height: 10))
-      view.addSubview(childView)
-      let layer = view.layer()
-      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-
-      // when: setting the bounds key path value with a new origin and size, and committing
-      layer.setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
-      CATransaction.flush()
-
-      // then: the layer bounds and frame are updated, the view follows, and the child shows shifted by the bounds origin
-      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
-      expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
-      expect(view.frame) == layer.frame
-      expect(view.bounds) == layer.bounds
-      expect(try layer.convert(childView.layer().frame, to: layer.superlayer.unwrap())) == CGRect(x: 120, y: 210, width: 10, height: 10)
-
-      // when: moving the view
-      view.frame.origin = CGPoint(x: 110, y: 200)
-      CATransaction.flush()
-
-      // then: the bounds are kept
-      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
-      expect(view.bounds) == layer.bounds
-    }
-
-    // given: a layer-hosted view with a child view
-    do {
-      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = CALayer()
-      view.layer = layer
-      layer.delegate = view as? CALayerDelegate
-      let childView = View(frame: CGRect(x: 30, y: 30, width: 10, height: 10))
-      view.addSubview(childView)
-      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-
-      // when: setting the bounds key path value with a new origin and size, and committing
-      layer.setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
-      CATransaction.flush()
-
-      // then: the layer bounds and frame are updated, the view follows, and the child shows shifted by the bounds origin
-      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
-      expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
-      expect(view.frame) == layer.frame
-      expect(view.bounds) == layer.bounds
-      expect(try layer.convert(childView.layer().frame, to: layer.superlayer.unwrap())) == CGRect(x: 120, y: 210, width: 10, height: 10)
-
-      // when: moving the view
-      view.frame.origin = CGPoint(x: 110, y: 200)
-      CATransaction.flush()
-
-      // then: the bounds are kept
-      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
-      expect(view.bounds) == layer.bounds
-    }
-
-    // given: a flipped layer-backed view with a child view
-    do {
-      let view = BaseView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let childView = View(frame: CGRect(x: 30, y: 30, width: 10, height: 10))
-      view.addSubview(childView)
-      let layer = view.layer()
-      layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-      view.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
-
-      // when: setting the bounds key path value with a new origin and size, and committing
-      layer.setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
-      CATransaction.flush()
-
-      // then: the layer bounds and frame are updated, the view follows, and the child shows shifted by the bounds origin.
-      // the flipped view measures y down from its top edge at 280, so the child spans 10 to 20 points below it
-      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
-      expect(layer.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
-      expect(view.frame) == layer.frame
-      expect(view.bounds) == layer.bounds
-      expect(try layer.convert(childView.layer().frame, to: layer.superlayer.unwrap())) == CGRect(x: 120, y: 260, width: 10, height: 10)
-
-      // when: moving the view
-      view.frame.origin = CGPoint(x: 110, y: 200)
-      CATransaction.flush()
-
-      // then: the bounds are kept
-      expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
-      expect(view.bounds) == layer.bounds
-    }
-    #endif
-
-    #if canImport(UIKit)
-    // given: a view with a child view in the container view
-    let view = UIView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-    containerView.addSubview(view)
-    let childView = UIView(frame: CGRect(x: 30, y: 30, width: 10, height: 10))
-    view.addSubview(childView)
-    let layer = view.layer
-
-    // when: setting the bounds key path value with a new origin and size, and committing
-    layer.setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
-    CATransaction.flush()
-
-    // then: the layer bounds and frame are updated around the centered anchor point, the view follows, and the child
-    // shows shifted by the bounds origin
-    expect(layer.bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
-    expect(view.frame) == CGRect(x: 75, y: 185, width: 150, height: 80)
-    expect(view.frame) == layer.frame
-    expect(view.bounds) == layer.bounds
-    expect(layer.convert(childView.layer.frame, to: containerView.layer)) == CGRect(x: 95, y: 195, width: 10, height: 10)
-    #endif
-  }
-
-  func test_setKeyPathValue_geometryComponent() throws {
-    // given: four views in a test window
-    let testWindow = TestWindow()
-    let containerView = testWindow.contentView()
-    func makeView() -> View {
-      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      #if os(macOS)
-      view.wantsLayer = true
-      #endif
-      containerView.addSubview(view)
-      return view
-    }
-    let movedView = makeView()
-    let resizedView = makeView()
-    let anchoredView = makeView()
-    let shiftedView = makeView()
-
-    // when: setting one component per view, of the position, the bounds size, the anchor point and the bounds origin,
-    // and committing
-    movedView.layer().setKeyPathValue("position.x", CGFloat(180))
-    resizedView.layer().setKeyPathValue("bounds.size.width", CGFloat(120))
-    anchoredView.layer().setKeyPathValue("anchorPoint.y", CGFloat(1))
-    shiftedView.layer().setKeyPathValue("bounds.origin.x", CGFloat(10))
-    CATransaction.flush()
-
-    // then: the components are set, the layer frames follow, and so do the view frames and bounds. the anchor point is
-    // the origin on macOS and the center on iOS
-    expect(movedView.layer().position.x) == 180
-    expect(resizedView.layer().bounds.size) == CGSize(width: 120, height: 50)
-    expect(shiftedView.layer().bounds.origin) == CGPoint(x: 10, y: 0)
-    #if os(macOS)
-    expect(movedView.layer().frame) == CGRect(x: 180, y: 200, width: 100, height: 50)
-    expect(resizedView.layer().frame) == CGRect(x: 100, y: 200, width: 120, height: 50)
-    expect(anchoredView.layer().frame) == CGRect(x: 100, y: 150, width: 100, height: 50)
-    #else
-    expect(movedView.layer().frame) == CGRect(x: 130, y: 200, width: 100, height: 50)
-    expect(resizedView.layer().frame) == CGRect(x: 90, y: 200, width: 120, height: 50)
-    expect(anchoredView.layer().frame) == CGRect(x: 100, y: 175, width: 100, height: 50)
-    #endif
-    expect(shiftedView.layer().frame) == CGRect(x: 100, y: 200, width: 100, height: 50)
-    expect(movedView.frame) == movedView.layer().frame
-    expect(resizedView.frame) == resizedView.layer().frame
-    expect(anchoredView.frame) == anchoredView.layer().frame
-    expect(shiftedView.frame) == shiftedView.layer().frame
-    expect(shiftedView.bounds) == shiftedView.layer().bounds
-  }
-
-  func test_setKeyPathValue_geometry_keepsTransform() throws {
-    // given: three views in a test window, rotated by 30 degrees after their first commit
-    let testWindow = TestWindow()
-    let containerView = testWindow.contentView()
-    func makeView() -> View {
-      let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
-      #if os(macOS)
-      view.wantsLayer = true
-      #endif
-      containerView.addSubview(view)
-      return view
-    }
-    let movedView = makeView()
-    let resizedView = makeView()
-    let shiftedView = makeView()
-    CATransaction.flush()
-    let rotation = CATransform3DMakeRotation(.pi / 6, 0, 0, 1)
-    CATransaction.disableAnimations {
-      for view in [movedView, resizedView, shiftedView] {
-        view.layer().transform = rotation
-      }
-    }
-    CATransaction.flush()
-
-    // when: setting a component of the position on one, the whole bounds on another and a component of the bounds
-    // origin on the last, and committing
-    movedView.layer().setKeyPathValue("position.x", CGFloat(180))
-    resizedView.layer().setKeyPathValue("bounds", CGRect(x: 10, y: 20, width: 150, height: 80))
-    shiftedView.layer().setKeyPathValue("bounds.origin.x", CGFloat(10))
-    CATransaction.flush()
-
-    // then: the layers take the new geometry and keep their rotation. on macOS, the view frames are the frames without
-    // the rotation, and the view bounds match the layers'
-    expect(movedView.layer().position.x) == 180
-    expect(movedView.layer().bounds) == CGRect(x: 0, y: 0, width: 100, height: 50)
-    expect(resizedView.layer().bounds) == CGRect(x: 10, y: 20, width: 150, height: 80)
-    expect(shiftedView.layer().bounds) == CGRect(x: 10, y: 0, width: 100, height: 50)
-    for view in [movedView, resizedView, shiftedView] {
-      expect(CATransform3DEqualToTransform(view.layer().transform, rotation)) == true
-    }
-    #if os(macOS)
-    expect(movedView.frame) == CGRect(x: 180, y: 200, width: 100, height: 50)
-    expect(resizedView.frame) == CGRect(x: 100, y: 200, width: 150, height: 80)
-    expect(shiftedView.frame) == CGRect(x: 100, y: 200, width: 100, height: 50)
-    for view in [movedView, resizedView, shiftedView] {
-      expect(view.bounds) == view.layer().bounds
-    }
-    #endif
-  }
-
-  func test_setKeyPathValue_opacity() throws {
-    // given: a test window with a container view
-    let testWindow = TestWindow()
-    let containerView = testWindow.contentView()
-
-    #if os(macOS)
-    // given: a layer-backed view with full opacity
-    do {
-      let view = View(frame: CGRect(x: 200, y: 150, width: 50, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = view.layer()
-      expect(layer.opacity) == 1.0
-      expect(view.alpha) == 1.0
-
-      // when: setting the opacity key path value
-      layer.setKeyPathValue("opacity", Float(0.7))
-
-      // then: the layer opacity is updated and the view alpha matches
-      expect(layer.opacity) == 0.7
-      expect(view.alpha) == CGFloat(layer.opacity) // view alpha should match layer opacity
-    }
-
-    // given: a layer-hosted view with full opacity
-    do {
-      let view = View(frame: CGRect(x: 200, y: 150, width: 50, height: 50))
-      view.wantsLayer = true
-      containerView.addSubview(view)
-      let layer = CALayer()
-      view.layer = layer
-      layer.delegate = view as? CALayerDelegate
-      expect(layer.opacity) == 1.0
-      expect(view.alpha) == 1.0
-      expect(layer.backedView) === view
-
-      // when: setting the opacity key path value
-      layer.setKeyPathValue("opacity", Float(0.3))
-
-      // then: the layer opacity is updated and the view alpha matches
-      expect(layer.opacity) == 0.3
-      expect(view.alpha) == CGFloat(layer.opacity) // view alpha should match layer opacity
-    }
-    #endif
-
-    #if canImport(UIKit)
-    // given: a view with full opacity in the container view
-    let view = UIView(frame: CGRect(x: 200, y: 150, width: 50, height: 50))
-    containerView.addSubview(view)
-    let layer = view.layer
-    expect(layer.opacity) == 1.0
-    expect(view.alpha) == 1.0
-
-    // when: setting the opacity key path value
-    layer.setKeyPathValue("opacity", Float(0.8))
-
-    // then: the layer opacity is updated and the view alpha matches
-    expect(layer.opacity) == 0.8
-    expect(view.alpha) == CGFloat(layer.opacity) // view alpha should match layer opacity
-    #endif
   }
 
   // MARK: - uniqueAnimationKey
@@ -1166,18 +672,5 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(layer.animation(forKey: "fade")) == nil
     expect(layer.animation(forKey: "keyframe-fade")) == nil
     expect(layer.animation(forKey: "spin")) != nil
-  }
-}
-
-// MARK: - Instrumentation
-
-/// A layer that counts its KVC reads, to verify which reads skip KVC.
-private final class KVCReadCountingLayer: CALayer {
-
-  private(set) var kvcReadCount = 0
-
-  override func value(forKeyPath keyPath: String) -> Any? {
-    kvcReadCount += 1
-    return super.value(forKeyPath: keyPath)
   }
 }

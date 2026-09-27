@@ -51,3 +51,21 @@ public extension CATransaction {
     return try work()
   }
 }
+
+extension CATransaction {
+
+  /// Execute the block with Core Animation implicit animations disabled, in a nested transaction only when the current
+  /// transaction doesn't already disable actions.
+  ///
+  /// - Parameter work: The block to execute.
+  @inline(__always)
+  static func disableAnimationsIfNeeded(_ work: () -> Void) {
+    if CATransaction.disableActions() {
+      // no implicit animation can start in the current transaction, as in a render pass, so a nested transaction would
+      // change nothing but still cost its begin and commit, which take longer than a direct property write
+      work()
+      return
+    }
+    CATransaction.disableAnimations(work)
+  }
+}

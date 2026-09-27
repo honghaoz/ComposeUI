@@ -585,6 +585,48 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(layer.animation(forKey: "path")) == nil
   }
 
+  // MARK: - Key Path Access
+
+  func test_setPath_readsAndSetsPathsDirectly() throws {
+    // given: a layer and a shape layer that count KVC reads and writes, without paths
+    let layer = KVCCountingLayer()
+    let shapeLayer = KVCCountingShapeLayer()
+
+    // when: setting their paths, then setting and animating them again
+    layer.setPath(keyPath: "shadowPath", to: rect())
+    layer.setPath(keyPath: "shadowPath", to: rect(inset: 10))
+    layer.animatePath(keyPath: "shadowPath", to: rect(inset: 20), timing: .linear(duration: 1))
+    shapeLayer.setPath(keyPath: "path", to: rect())
+    shapeLayer.setPath(keyPath: "path", to: rect(inset: 10))
+    shapeLayer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 1))
+
+    // then: the paths animate from the paths set before, and are read and set without KVC
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expect(try PathPoints(path(shadowPathAnimation.fromValue))) == PathPoints(rect(inset: 10))
+    expect(layer.shadowPath) == rect(inset: 20)
+    let pathAnimation = try (shapeLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try PathPoints(path(pathAnimation.fromValue))) == PathPoints(rect(inset: 10))
+    expect(shapeLayer.path) == rect(inset: 20)
+    expect(layer.kvcReadCount) == 0
+    expect(layer.kvcWriteCount) == 0
+    expect(shapeLayer.kvcReadCount) == 0
+    expect(shapeLayer.kvcWriteCount) == 0
+  }
+
+  func test_setPath_otherKeyPath_readsAndSetsThroughKVC() throws {
+    // given: a layer that counts KVC reads and writes, which isn't a shape layer, so it has no `path` property
+    let layer = KVCCountingLayer()
+
+    // when: setting a path at the `path` key path, then another path
+    layer.setPath(keyPath: "path", to: rect())
+    layer.setPath(keyPath: "path", to: rect(inset: 10))
+
+    // then: the paths are read and set through KVC, as a value for the key
+    expect(try path(layer.value(forKey: "path"))) == rect(inset: 10)
+    expect(layer.kvcReadCount) == 2
+    expect(layer.kvcWriteCount) == 2
+  }
+
   // MARK: - Helpers
 
   /// A shape layer of 100 by 50 points at the origin, with the given path.

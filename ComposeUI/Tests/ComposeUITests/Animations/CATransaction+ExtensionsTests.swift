@@ -78,6 +78,51 @@ class CATransaction_ExtensionsTests: XCTestCase {
     expect(layer.opacity) == 0.5
   }
 
+  func test_disableAnimationsIfNeeded() {
+    // given: a layer hosted in the test window
+    let layer = makeTestLayer()
+
+    // when: changing the frame and opacity with animations disabled if needed, outside a transaction that disables actions
+    var disablesActions = false
+    var animationDuration: CFTimeInterval = -1
+    CATransaction.disableAnimationsIfNeeded {
+      disablesActions = CATransaction.disableActions()
+      animationDuration = CATransaction.animationDuration()
+      layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+      layer.opacity = 0.5
+    }
+
+    // then: the block runs in a nested transaction that disables animations, so no implicit animations are created
+    expect(disablesActions) == true
+    expect(animationDuration) == 0
+    expect(layer.animationKeys()) == nil
+    expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(layer.opacity) == 0.5
+  }
+
+  func test_disableAnimationsIfNeeded_actionsAlreadyDisabled() {
+    // given: a layer hosted in the test window
+    let layer = makeTestLayer()
+
+    // when: changing the opacity with animations disabled if needed, inside a transaction that already disables actions
+    // and has a duration
+    var animationDuration: CFTimeInterval = -1
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    CATransaction.setAnimationDuration(2)
+    CATransaction.disableAnimationsIfNeeded {
+      animationDuration = CATransaction.animationDuration()
+      layer.opacity = 0.5
+    }
+    CATransaction.commit()
+
+    // then: the block runs in the current transaction, whose duration a nested transaction would have zeroed, and no
+    // implicit animation is created
+    expect(animationDuration) == 2
+    expect(layer.animationKeys()) == nil
+    expect(layer.opacity) == 0.5
+  }
+
   private func makeTestLayer() -> CALayer {
     let frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let layer = CALayer()
