@@ -171,12 +171,21 @@ class RenderableTests: XCTestCase {
     expect(view.frameSetCount) == 1
     expect(view.layer().animationKeys()) == nil
 
+    // given: the frame set count reset
+    view.resetFrameSetCount()
+
     // when: updating to another frame with animation
     renderable.updateFrame(CGRect(x: 50, y: 60, width: 500, height: 600), animationTiming: .easeInEaseOut(duration: 1))
 
-    // then: the frame is animated and the view lands at the new frame
+    // then: the frame is animated and the view lands at the new frame. an AppKit view's frame is set once, while a
+    // UIKit view's frame follows its layer without its frame setter
     expect(view.layer().animationKeys()) == ["position", "bounds.size"]
     expect(view.frame) == CGRect(x: 50, y: 60, width: 500, height: 600)
+    #if canImport(AppKit)
+    expect(view.frameSetCount) == 1
+    #else
+    expect(view.frameSetCount) == 0
+    #endif
   }
 
   #if canImport(AppKit)

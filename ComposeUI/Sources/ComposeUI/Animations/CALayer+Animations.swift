@@ -42,7 +42,12 @@ public extension CALayer {
   ///   - timing: The animation timing.
   @_spi(Private)
   func animateFrame(to: CGRect, timing: AnimationTiming) {
-    animate(keyPath: "position", to: position(from: to), timing: timing)
+    // the `bounds.size` write syncs an AppKit backing view from both the position and the size, so the `position` write
+    // skips its own sync, which would set the view's frame to an intermediate frame, the new position with the old
+    // size, and post a frame-change notification for it
+    skippingViewSync {
+      animate(keyPath: "position", to: position(from: to), timing: timing)
+    }
     animate(keyPath: "bounds.size", to: to.size, timing: timing)
   }
 

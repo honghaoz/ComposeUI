@@ -78,6 +78,68 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(layer.kvcWriteCount) == 0
   }
 
+  func test_animateFrame_viewBacked_setsViewFrameOnce() throws {
+    // given: a view in a window that counts its frame sets, and on AppKit its frame-change notifications
+    let testWindow = TestWindow()
+    let view = FrameTrackingView(frame: CGRect(x: 10, y: 20, width: 100, height: 50))
+    testWindow.contentView().addSubview(view)
+    let layer = view.layer()
+    #if canImport(AppKit)
+    var notificationCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: view, queue: nil) { _ in
+      notificationCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    #endif
+    let frame = CGRect(x: 30, y: 60, width: 140, height: 80)
+    let positionOffset = layer.position - layer.position(from: frame)
+    view.resetFrameSetCount()
+
+    // when: animating the frame to a new origin and size
+    layer.animateFrame(to: frame, timing: .easeInEaseOut(duration: 1))
+
+    // then: the layer animates from its old frame, and the layer and the view land at the new frame
+    expect(layer.animationKeys()) == ["position", "bounds.size"]
+    let positionAnimation = try (layer.animation(forKey: "position") as? CABasicAnimation).unwrap()
+    expect(positionAnimation.fromValue as? CGPoint) == positionOffset
+    let boundsSizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(boundsSizeAnimation.fromValue as? CGSize) == CGSize(width: -40, height: -30)
+    expect(layer.frame) == frame
+    expect(view.frame) == frame
+
+    // then: an AppKit view's frame is set once, to the new frame, so it posts one frame-change notification. a UIKit
+    // view's frame follows its layer without its frame setter
+    #if canImport(AppKit)
+    expect(view.frameSetCount) == 1
+    expect(notificationCount) == 1
+    #else
+    expect(view.frameSetCount) == 0
+    #endif
+
+    // given: the animations removed and the counts reset
+    layer.removeAllAnimations()
+    view.resetFrameSetCount()
+    #if canImport(AppKit)
+    notificationCount = 0
+    #endif
+
+    // when: setting another frame with a zero-duration timing
+    layer.animateFrame(to: CGRect(x: 50, y: 70, width: 60, height: 40), timing: .easeInEaseOut(duration: 0))
+
+    // then: no animation is added, the layer and the view land at the frame, and an AppKit view's frame is set once
+    expect(layer.animationKeys()) == nil
+    expect(layer.frame) == CGRect(x: 50, y: 70, width: 60, height: 40)
+    expect(view.frame) == CGRect(x: 50, y: 70, width: 60, height: 40)
+    #if canImport(AppKit)
+    expect(view.frameSetCount) == 1
+    expect(notificationCount) == 1
+    #else
+    expect(view.frameSetCount) == 0
+    #endif
+  }
+
   func test_animateFloatingPoint() throws {
     // given: a layer hosted in a window with full opacity
     let testWindow = TestWindow()

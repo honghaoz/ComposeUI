@@ -894,6 +894,107 @@ class CALayer_KeyPathValueTests: XCTestCase {
     expect(layer.cornerRadius) == 8
     expect(layer.animationKeys()) == nil
   }
+
+  func test_skippingViewSync() {
+    // given: two views in a window that count their frame sets
+    let testWindow = TestWindow()
+    let view = FrameTrackingView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+    let otherView = FrameTrackingView(frame: CGRect(x: 100, y: 300, width: 100, height: 50))
+    testWindow.contentView().addSubview(view)
+    testWindow.contentView().addSubview(otherView)
+    view.resetFrameSetCount()
+    otherView.resetFrameSetCount()
+
+    // when: moving both views' layers, skipping the view sync of the first view's layer
+    view.layer().skippingViewSync {
+      view.layer().setKeyPathValue("position", CGPoint(x: 180, y: 250))
+      otherView.layer().setKeyPathValue("position", CGPoint(x: 180, y: 350))
+    }
+
+    // then: both layers move and the other view follows its layer. on AppKit, the first view keeps its frame, while a
+    // UIKit view's frame is its layer's, without its frame setter
+    expect(view.layer().position) == CGPoint(x: 180, y: 250)
+    expect(otherView.layer().position) == CGPoint(x: 180, y: 350)
+    expect(otherView.frame) == otherView.layer().frame
+    #if canImport(AppKit)
+    expect(view.frame) == CGRect(x: 100, y: 200, width: 100, height: 50)
+    expect(view.frameSetCount) == 0
+    expect(otherView.frameSetCount) == 1
+    #else
+    expect(view.frame) == view.layer().frame
+    expect(view.frameSetCount) == 0
+    expect(otherView.frameSetCount) == 0
+    #endif
+
+    // when: resizing the first view's layer after the block
+    view.layer().setKeyPathValue("bounds.size", CGSize(width: 150, height: 80))
+
+    // then: the first view follows both its layer's position and size
+    expect(view.layer().position) == CGPoint(x: 180, y: 250)
+    expect(view.layer().bounds.size) == CGSize(width: 150, height: 80)
+    expect(view.frame) == view.layer().frame
+    #if canImport(AppKit)
+    expect(view.frameSetCount) == 1
+    #endif
+  }
+
+  func test_skippingViewSync_nested() {
+    // given: two views in a window that count their frame sets
+    let testWindow = TestWindow()
+    let view = FrameTrackingView(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+    let otherView = FrameTrackingView(frame: CGRect(x: 100, y: 300, width: 100, height: 50))
+    testWindow.contentView().addSubview(view)
+    testWindow.contentView().addSubview(otherView)
+    view.resetFrameSetCount()
+    otherView.resetFrameSetCount()
+
+    // when: in the first view layer's block, skipping the view sync of the other view's layer in an inner block, then
+    // writing both layers' geometry after the inner block
+    view.layer().skippingViewSync {
+      otherView.layer().skippingViewSync {
+        otherView.layer().setKeyPathValue("position", CGPoint(x: 180, y: 350))
+      }
+      otherView.layer().setKeyPathValue("bounds.size", CGSize(width: 150, height: 80))
+      view.layer().setKeyPathValue("position", CGPoint(x: 180, y: 250))
+    }
+
+    // then: the other view syncs again after the inner block, following both its layer's position and size. on AppKit,
+    // the first view's sync stays skipped until the outer block ends
+    expect(otherView.layer().position) == CGPoint(x: 180, y: 350)
+    expect(otherView.layer().bounds.size) == CGSize(width: 150, height: 80)
+    expect(otherView.frame) == otherView.layer().frame
+    expect(view.layer().position) == CGPoint(x: 180, y: 250)
+    #if canImport(AppKit)
+    expect(otherView.frameSetCount) == 1
+    expect(view.frame) == CGRect(x: 100, y: 200, width: 100, height: 50)
+    expect(view.frameSetCount) == 0
+    #else
+    expect(view.frame) == view.layer().frame
+    #endif
+
+    // when: resizing the first view's layer after the outer block
+    view.layer().setKeyPathValue("bounds.size", CGSize(width: 150, height: 80))
+
+    // then: the first view follows its layer again
+    expect(view.frame) == view.layer().frame
+    #if canImport(AppKit)
+    expect(view.frameSetCount) == 1
+    #endif
+  }
+
+  func test_skippingViewSync_layerWithoutView() {
+    // given: a layer that doesn't back a view
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+
+    // when: setting its position while skipping the view sync
+    layer.skippingViewSync {
+      layer.setKeyPathValue("position", CGPoint(x: 40, y: 60))
+    }
+
+    // then: the position is set
+    expect(layer.position) == CGPoint(x: 40, y: 60)
+  }
 }
 
 /// A view whose frame and alpha setters enable actions with a duration in the current transaction, as app code a view

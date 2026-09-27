@@ -42,7 +42,7 @@ extension CALayer {
     // AppKit resets the transform and the anchor point whenever the view's geometry changes, so the transform is put
     // back. the anchor point isn't: AppKit would reset it on the view's next geometry change anyway, so transforms
     // pivot with a translation from the actual anchor point instead, see `RenderableTransition.scale`
-    if Self.isViewGeometryKeyPath(keyPath), let backedView {
+    if Self.isViewGeometryKeyPath(keyPath), let backedView, CALayer.viewSyncSkippingLayer !== self {
       CATransaction.disableAnimationsIfNeeded {
         let modelTransform = transform
 
@@ -83,6 +83,38 @@ extension CALayer {
     CATransaction.disableAnimationsIfNeeded {
       setModelValue(value, forKeyPath: keyPath)
     }
+  }
+
+  #if canImport(AppKit)
+  /// The layer whose geometry writes don't sync its backing view, see `skippingViewSync(_:)`.
+  private static var viewSyncSkippingLayer: CALayer?
+  #endif
+
+  /// Execute the block with `setKeyPathValue(_:_:)` not syncing the layer's AppKit backing view after geometry writes.
+  ///
+  /// UIKit keeps a view's geometry in sync with its layer's, so there the block just runs.
+  ///
+  /// - Important: The view stays out of sync with the layer until a later geometry write syncs it, so the caller must
+  ///   make one after the block.
+  ///
+  /// - Parameter work: The block to execute.
+  @inline(__always)
+  func skippingViewSync(_ work: () -> Void) {
+    #if canImport(AppKit)
+    // only a layer that backs a view is recorded, so the shared state is only accessed on the main thread, where AppKit
+    // confines views
+    guard backedView != nil else {
+      work()
+      return
+    }
+
+    let outerLayer = CALayer.viewSyncSkippingLayer
+    CALayer.viewSyncSkippingLayer = self
+    work()
+    CALayer.viewSyncSkippingLayer = outerLayer
+    #else
+    work()
+    #endif
   }
 
   // A write through KVC resolves the key path and boxes a number or a structure in an `NSNumber` or `NSValue`, which
