@@ -2502,6 +2502,36 @@ class ModifierNodeTests: XCTestCase {
   }
   #endif
 
+  func test_shadow_pathProvider_readsTheShadowOpacityBeingSet() throws {
+    // given: a layer whose shadow path provider makes the path as wide as 100 times the shadow opacity
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+
+    // when: a non-animated update sets 0.2
+    try refresh(renderable, with: shadowOpacityWidthItem(opacity: 0.2), animationTiming: nil)
+
+    // then: the path is 20 wide
+    expect(try unwrap(layer.shadowPath).boundingBox.width).to(beApproximatelyEqual(to: 20, within: 1e-3))
+
+    // when: a non-animated update sets 0.8
+    try refresh(renderable, with: shadowOpacityWidthItem(opacity: 0.8), animationTiming: nil)
+
+    // then: the path is 80 wide
+    expect(try unwrap(layer.shadowPath).boundingBox.width).to(beApproximatelyEqual(to: 80, within: 1e-3))
+
+    // when: a non-animated update sets 0.8 again
+    try refresh(renderable, with: shadowOpacityWidthItem(opacity: 0.8), animationTiming: nil)
+
+    // then: the path stays 80 wide
+    expect(try unwrap(layer.shadowPath).boundingBox.width).to(beApproximatelyEqual(to: 80, within: 1e-3))
+
+    // when: an animated update sets 0.5
+    try refresh(renderable, with: shadowOpacityWidthItem(opacity: 0.5), animationTiming: .linear(duration: 1))
+
+    // then: the path is 50 wide, as the provider reads the new opacity either way
+    expect(try unwrap(layer.shadowPath).boundingBox.width).to(beApproximatelyEqual(to: 50, within: 1e-3))
+  }
+
   func test_opacity_stackedModifiers_unchangedNonAnimatedRefresh_keepsTheInsertFade() throws {
     // given: a layer node with two opacity modifiers, fading in over 10 s
     var layer: CALayer?
@@ -2628,6 +2658,14 @@ class ModifierNodeTests: XCTestCase {
   /// The renderable item of a layer node with a shadow modifier of the given opacity.
   private func shadowItem(opacity: CGFloat) throws -> RenderableItem {
     try firstRenderableItem(of: LayerNode().shadow(color: .black, opacity: opacity, radius: 2, offset: .zero, path: nil)).unwrap()
+  }
+
+  /// The renderable item of a layer node with a shadow of the given opacity, whose path is as wide as 100 times the
+  /// layer's shadow opacity when the path provider runs.
+  private func shadowOpacityWidthItem(opacity: CGFloat) throws -> RenderableItem {
+    try firstRenderableItem(of: LayerNode().shadow(color: .black, opacity: opacity, radius: 0, offset: .zero, path: { renderable in
+      CGPath(rect: CGRect(x: 0, y: 0, width: CGFloat(renderable.layer.shadowOpacity) * 100, height: 10), transform: nil)
+    })).unwrap()
   }
 
   #if canImport(AppKit)

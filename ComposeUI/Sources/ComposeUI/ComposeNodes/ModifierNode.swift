@@ -668,13 +668,14 @@ public extension ComposeNode {
             )
           }
         } else {
+          // before the path provider, which may read it
+          layer.retarget(keyPath: "shadowOpacity", to: opacity)
           layer.disableActions(for: "shadowColor", "shadowRadius", "shadowOffset", "shadowPath") {
             layer.shadowColor = color
             layer.shadowRadius = radius
             layer.shadowOffset = offset
             layer.shadowPath = path?(item)
           }
-          layer.retarget(keyPath: "shadowOpacity", to: opacity)
         }
       }),
       resetForReuse: { renderable in
