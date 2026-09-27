@@ -102,7 +102,7 @@ public extension CALayer {
     let now = currentTime
     var remainingTime: TimeInterval?
     var neverFinishes = false
-    for animation in basicAnimations(forKeyPath: "opacity") {
+    for animation in propertyAnimations(forKeyPath: "opacity") {
       guard let animationRemainingTime = animation.remainingTime(at: now) else {
         continue
       }
