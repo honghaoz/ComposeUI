@@ -144,7 +144,7 @@ Hard-won rules from past corrections, grouped by theme.
 
 ## Core Animation
 
-- Additive animations compose on screen only for properties the render server doesn't clamp between animations. It clamps opacities (`opacity`, `shadowOpacity`) to [0, 1] after applying each animation, so opposing additive animations of an opacity don't compose even though `presentation()` reports the unclamped sum: animate opacities non-additively or with a single replacing animation. Other bounded properties compose as a sum where verified (`shadowRadius`, `CAShapeLayer`'s `strokeStart` and `strokeEnd`). Verify any other property with a `CARenderer` probe (render the layer tree into a Metal texture and read the pixels) before relying on either behavior, since only the compositor's output tells.
+- Additive animations compose on screen only for properties the render server doesn't clamp between animations. It clamps opacities (`opacity`, `shadowOpacity`) to [0, 1] after applying each animation, so opposing additive animations of an opacity don't compose even though `presentation()` reports the unclamped sum: animate opacities non-additively or with a single replacing animation. It clamps `cornerRadius` at 0 the same way, which matters only when the running sum dips below 0. Other bounded properties compose as a sum where verified (`shadowRadius`, `borderWidth`, `CAShapeLayer`'s `strokeStart` and `strokeEnd`). Verify any other property with a `CARenderer` probe (render the layer tree into a Metal texture and read the pixels) before relying on either behavior, since only the compositor's output tells.
 
 ## Cross-platform
 
