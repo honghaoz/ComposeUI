@@ -55,6 +55,10 @@ public extension CALayer {
   ///   [0, 1] after applying each animation, so opposing additive animations of an opacity don't compose: the shown
   ///   value diverges from the sum `presentation()` reports.
   ///
+  ///   For properties that may not compose correctly, make sure each animation's value is within the property's valid
+  ///   value range or use non-additive animations. `RenderableTransition.opacity`, for example, continues an opacity
+  ///   with a single animation that replaces the in-flight one.
+  ///
   ///   Properties that compose correctly:
   ///   - `shadowRadius`
   ///   - `borderWidth`
