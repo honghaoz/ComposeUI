@@ -130,7 +130,7 @@ extension CALayer {
   /// - Returns: The opacity, clamped to [0, 1] after each animation like the render server does, and its rate, zero
   ///   when it pushes past a bound. `nil` when no opacity animation is in flight.
   func interruptedOpacityState() -> (value: Float, velocity: Double)? {
-    let opacityAnimations = basicAnimations(forKeyPath: "opacity")
+    let opacityAnimations = propertyAnimations(forKeyPath: "opacity")
     guard !opacityAnimations.isEmpty else {
       return nil
     }
@@ -149,7 +149,7 @@ extension CALayer {
     func composedValue(at time: TimeInterval) -> Double {
       var value = Double(opacity)
       for animation in opacityAnimations {
-        guard let animationValue = animation.scalarValue(at: time) else {
+        guard let animationValue = (animation as? CABasicAnimation)?.scalarValue(at: time) else {
           ComposeUI.assertFailure("unsupported in-flight opacity animation: \(animation)")
           continue
         }

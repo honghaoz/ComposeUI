@@ -36,7 +36,7 @@ public extension RenderableTransition {
   ///
   /// For insertion, the renderable fades from `from` to `to`, or when `to` is `nil`, to the opacity its content sets.
   /// For removal, the renderable fades from its current opacity back to `from`.
-  /// Starting a transition while another one is in flight continues from the current visual opacity.
+  /// Starting a transition replaces the in-flight opacity animations, continuing from the current visual opacity.
   ///
   /// - Parameters:
   ///   - from: The starting opacity value.

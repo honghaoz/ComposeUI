@@ -380,6 +380,7 @@ public extension ComposeNode {
   ///
   /// - Note: All renderables provided by the node will have the opacity set.
   /// - Note: The outermost opacity wins, the inner ones are not applied.
+  /// - Note: The modifier replaces the renderables' in-flight opacity animations.
   ///
   /// - Parameter opacity: The opacity to set.
   /// - Returns: A new node with the opacity set.
@@ -391,6 +392,7 @@ public extension ComposeNode {
   ///
   /// - Note: All renderables provided by the node will have the opacity set.
   /// - Note: The outermost opacity wins, the inner ones are not applied.
+  /// - Note: The modifier replaces the renderables' in-flight opacity animations.
   ///
   /// - Parameter opacity: The themed opacity to set.
   /// - Returns: A new node with the opacity set.

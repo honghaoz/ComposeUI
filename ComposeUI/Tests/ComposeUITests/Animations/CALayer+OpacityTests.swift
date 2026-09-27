@@ -235,6 +235,35 @@ class CALayer_OpacityTests: XCTestCase {
     expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.2, within: 0.01))
   }
 
+  func test_interruptedOpacityState_keyframeAnimation_assertsAndLeavesItOut() throws {
+    // given: a layer at 1 with an additive keyframe animation, and halfway through a 10 s fade in from 0, at 0.5 and
+    // rising at 0.1 per second
+    let layer = CALayer()
+    layer.opacity = 1
+    let keyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
+    keyframeAnimation.values = [-0.6, 0.0]
+    keyframeAnimation.duration = 2
+    keyframeAnimation.isAdditive = true
+    layer.add(keyframeAnimation, forKey: "keyframes")
+    addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
+
+    var assertionMessage: String?
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessage = message
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: reading the state
+    let state = try layer.interruptedOpacityState().unwrap()
+
+    // then: it asserts on the keyframe animation, and the state comes from the fade in alone
+    expect(assertionMessage?.hasPrefix("unsupported in-flight opacity animation")) == true
+    expect(state.value).to(beApproximatelyEqual(to: 0.5, within: 1e-3))
+    expect(state.velocity).to(beApproximatelyEqual(to: 0.1, within: 1e-3))
+  }
+
   #if canImport(AppKit)
   func test_interruptedOpacityState_matchesTheRenderedOpacity() throws {
     // given: a rendered layer at 1 with two additive animations adding -2, then +0.5, both fading out over 10 s

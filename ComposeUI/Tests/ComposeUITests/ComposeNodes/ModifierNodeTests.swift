@@ -2502,6 +2502,35 @@ class ModifierNodeTests: XCTestCase {
   }
   #endif
 
+  func test_opacity_animatedUpdate_overAKeyframeAnimation_assertsAndReplacesIt() throws {
+    // given: a layer at 0.8 with an additive keyframe opacity animation added outside the modifier
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    try refresh(renderable, with: opacityItem(0.8), animationTiming: nil)
+    let keyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
+    keyframeAnimation.values = [-0.6, 0.0]
+    keyframeAnimation.duration = 2
+    keyframeAnimation.isAdditive = true
+    layer.add(keyframeAnimation, forKey: "keyframes")
+
+    var assertionMessage: String?
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessage = message
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: an animated update sets 0.9
+    try refresh(renderable, with: opacityItem(0.9), animationTiming: .linear(duration: 1))
+
+    // then: it asserts on the keyframe animation, and replaces it with one animation to 0.9
+    expect(assertionMessage?.hasPrefix("unsupported in-flight opacity animation")) == true
+    expect(layer.animation(forKey: "keyframes")) == nil
+    expect(layer.basicAnimations(forKeyPath: "opacity").count) == 1
+    expect(layer.opacity) == 0.9
+  }
+
   func test_shadow_pathProvider_readsTheShadowOpacityBeingSet() throws {
     // given: a layer whose shadow path provider makes the path as wide as 100 times the shadow opacity
     let layer = CALayer()

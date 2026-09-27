@@ -1116,6 +1116,31 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(animations.first?.keyPath) == "opacity"
   }
 
+  func test_propertyAnimations_forKeyPath() {
+    // given: a layer with basic, keyframe, and different key path animations
+    let layer = CALayer()
+
+    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
+    fadeAnimation.duration = 60
+    layer.add(fadeAnimation, forKey: "fade")
+
+    let keyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
+    keyframeAnimation.duration = 60
+    layer.add(keyframeAnimation, forKey: "keyframe-fade")
+
+    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
+    spinAnimation.duration = 60
+    layer.add(spinAnimation, forKey: "spin")
+
+    // when: querying property animations for the opacity key path
+    let animations = layer.propertyAnimations(forKeyPath: "opacity")
+
+    // then: both opacity animations match, in order, and the other key path doesn't
+    expect(animations.count) == 2
+    expect(animations.first is CABasicAnimation) == true
+    expect(animations.last is CAKeyframeAnimation) == true
+  }
+
   func test_removeAnimations_forKeyPath() {
     // given: a layer with basic, keyframe, and different key path animations
     let layer = CALayer()
