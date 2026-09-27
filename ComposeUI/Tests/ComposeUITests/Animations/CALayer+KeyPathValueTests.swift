@@ -67,7 +67,7 @@ class CALayer_KeyPathValueTests: XCTestCase {
       view.wantsLayer = true
       containerView.addSubview(view)
       let layer = CALayer()
-      view.layer = CALayer()
+      view.layer = layer
       layer.delegate = view as? CALayerDelegate
       layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
       layer.frame = CGRect(x: 100, y: 200, width: 100, height: 50)
@@ -527,6 +527,32 @@ class CALayer_KeyPathValueTests: XCTestCase {
     expect(layer.opacity) == 0.8
     expect(view.alpha) == CGFloat(layer.opacity) // view alpha should match layer opacity
     #endif
+  }
+
+  func test_setKeyPathValue_opacityOfOtherType_viewBacked_asserts() {
+    // given: a view with full opacity in a test window
+    let testWindow = TestWindow()
+    let view = View(frame: CGRect(x: 200, y: 150, width: 50, height: 50))
+    #if canImport(AppKit)
+    view.wantsLayer = true
+    #endif
+    testWindow.contentView().addSubview(view)
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: setting the opacity of the view's backing layer to a value that isn't a `Float`
+    view.layer().setKeyPathValue("opacity", CGFloat(0.5))
+
+    // then: it asserts, and the layer and the view keep their opacity
+    expect(assertionMessages) == ["Expected Float value for \"opacity\" keyPath, got CGFloat"]
+    expect(view.layer().opacity) == 1
+    expect(view.alpha) == 1
   }
 
   func test_setKeyPathValue_directWrites() {
