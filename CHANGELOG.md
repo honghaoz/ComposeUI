@@ -30,6 +30,7 @@
 - Slide transitions now continue a revival from wherever the removal left the renderable.
 - A spring opacity transition now continues a revival with the removal's speed, instead of starting from rest.
 - The insert transition context gains `revivalPosition` and `revivalTransform` for taking-over transitions.
+- Added `InsertTransition.prepareForTakeover`, which prepares a revived renderable before its content update. A transition that wraps an insert transition forwards it.
 - `ComposeView` now re-renders on display scale changes on iOS/tvOS, matching the existing macOS handling.
 - `ComposeView.setNeedsRefresh(animated:)` now merges coalesced requests to non-animated when any request was non-animated.
 - A render pass no longer animates the frame of a reused renderable whose frame is unchanged, and it recognizes unchanged frames on 3x displays too, where the frame derived from the layer does not round-trip and used to be re-applied on every pass. `DropShadowLayer` and `InnerShadowLayer` skip their mask's frame animations the same way.

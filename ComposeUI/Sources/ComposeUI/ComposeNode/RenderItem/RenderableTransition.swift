@@ -76,7 +76,8 @@ public struct RenderableTransition {
     /// is additive, which the built-in transitions' animations satisfy.
     ///
     /// The renderable's content update runs before this transition, so content-written model values of the taken-over
-    /// properties land before this transition observes the state. The insertion context's `revivalPosition` and
+    /// properties land before this transition observes the state. The transition can prepare the renderable before the
+    /// content update, see `prepareForTakeover(renderable:)`. The insertion context's `revivalPosition` and
     /// `revivalTransform` are captured earlier, before the render pass applies the target frame and resets the
     /// transform to identity.
     public let takesOverKeyPaths: Set<String>
@@ -89,27 +90,16 @@ public struct RenderableTransition {
     /// - Parameters:
     ///   - takesOverKeyPaths: The key paths of a revived renderable's in-flight removal state that this transition
     ///     takes over. Defaults to none. See `takesOverKeyPaths`.
+    ///   - prepareForTakeover: A closure the framework calls when this transition takes over a revived renderable's
+    ///     removal, before the renderable's content update, so the content's values land on the prepared ones. It
+    ///     should keep what's shown, since the transition continues from it. Defaults to `nil`, no preparation.
     ///   - animate: The closure to animate the insert transition.
     ///     The closure provides the renderable to insert, the animation context, and the completion block.
     ///     You **MUST** make sure to call the completion block when the transition is completed.
     ///     You **MUST** make sure the renderable's frame is set to the target frame when the transition is completed.
     public init(takesOverKeyPaths: Set<String> = [],
+                prepareForTakeover: ((_ renderable: Renderable) -> Void)? = nil,
                 animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void)
-    {
-      self.init(takesOverKeyPaths: takesOverKeyPaths, prepareForTakeover: nil, animate: animate)
-    }
-
-    /// Creates a new insert transition that prepares a revived renderable when it takes over the removal.
-    ///
-    /// - Parameters:
-    ///   - takesOverKeyPaths: See `init(takesOverKeyPaths:animate:)`.
-    ///   - prepareForTakeover: A closure the framework calls when this transition takes over a revived renderable's
-    ///     removal, before the renderable's content update, so the content's values land on the prepared ones. It
-    ///     should keep what's shown, since the transition continues from it.
-    ///   - animate: See `init(takesOverKeyPaths:animate:)`.
-    init(takesOverKeyPaths: Set<String>,
-         prepareForTakeover: ((_ renderable: Renderable) -> Void)?,
-         animate: @escaping (_ renderable: Renderable, _ context: Context, _ completion: @escaping () -> Void) -> Void)
     {
       self.takesOverKeyPaths = takesOverKeyPaths
       self.prepareForTakeover = prepareForTakeover
@@ -118,8 +108,10 @@ public struct RenderableTransition {
 
     /// Prepares a revived renderable whose removal this transition takes over, before the renderable's content update.
     ///
+    /// The framework calls it. A transition that wraps this one calls it from its own preparation.
+    ///
     /// - Parameter renderable: The revived renderable.
-    func prepareForTakeover(renderable: Renderable) {
+    public func prepareForTakeover(renderable: Renderable) {
       prepareForTakeover?(renderable)
     }
 
