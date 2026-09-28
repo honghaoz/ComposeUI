@@ -297,6 +297,26 @@ class CALayer_OpacityTests: XCTestCase {
     expect(spring.initialVelocity).to(beApproximatelyEqual(to: -0.2, within: 0.01))
   }
 
+  func test_animateOpacity_springWithNegativeDelay_carriesTheVelocityShown() throws {
+    for delay in [-0.5, -.infinity] {
+      // given: a layer at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising at 0.1 per second
+      let layer = CALayer()
+      layer.opacity = 1
+      addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
+
+      // when: a spring to 0 with a negative delay replaces it
+      layer.animateOpacity(to: 0, timing: .spring(delay: delay))
+
+      // then: the spring begins now, as without a delay, so it continues from the shown 0.5 with the shown velocity,
+      // instead of from rest
+      let spring = try (layer.basicAnimations(forKeyPath: "opacity").first as? CASpringAnimation).unwrap()
+      expect(spring.beginTime, "delay \(delay)") == layer.currentTime
+      expect(try (spring.fromValue as? Float).unwrap(), "delay \(delay)").to(beApproximatelyEqual(to: 0.5, within: 1e-3))
+      // opacity velocity +0.1/s over a delta of 0.5 towards 0 is -0.2 in Core Animation's convention
+      expect(spring.initialVelocity, "delay \(delay)").to(beApproximatelyEqual(to: -0.2, within: 0.01))
+    }
+  }
+
   func test_interruptedOpacityState_keyframeAnimation_assertsAndLeavesItOut() throws {
     // given: a layer at 1 with an additive keyframe animation, and halfway through a 10 s fade in from 0, at 0.5 and
     // rising at 0.1 per second

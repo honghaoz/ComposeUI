@@ -205,7 +205,7 @@ private extension AnimationTiming {
     let retargetTiming: Timing
     switch timing {
     case .spring(let descriptor, let duration):
-      if let velocity, delay == 0, abs(delta) > RetargetConstants.velocityCarryMinimumDelta, speed > 0 {
+      if let velocity, delay <= 0, abs(delta) > RetargetConstants.velocityCarryMinimumDelta, speed > 0 {
         // Core Animation's initial velocity is in distances per second, positive toward the target
         let initialVelocity = CGFloat(-velocity) / (CGFloat(delta) * speed)
         let descriptor = SpringDescriptor(
