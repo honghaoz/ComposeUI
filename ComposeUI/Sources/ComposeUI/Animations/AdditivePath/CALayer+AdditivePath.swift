@@ -153,7 +153,7 @@ private extension CALayer {
       keyframeAnimation.calculationMode = .linear
       keyframeAnimation.duration = keyframes.duration
       keyframeAnimation.fillMode = .both
-      keyframeAnimation.beginTime = now
+      keyframeAnimation.beginTime = CAAnimation.beginTime(at: now)
       animation = keyframeAnimation
     }
 

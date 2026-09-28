@@ -154,6 +154,51 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(try interpolatedPoints(of: animation, at: 0.5).path.maxPointDistance(to: roundedRect(width: 200))) < 0.01
   }
 
+  func test_animatePath_pausedTimelineAtZero_interruptionContinuesFromTheShownPath() throws {
+    // given: a hosted shape layer on a timeline paused at zero, whose rounded rect path animates from 100 to 200 wide
+    // over two seconds from the timeline's zero, committed with the timeline moved to 1, and shown at 1.5
+    let testWindow = TestWindow()
+    let root = CALayer()
+    root.speed = 0
+    root.timeOffset = 0
+    testWindow.layer.addSublayer(root)
+    let layer = makeLayer(path: roundedRect(width: 100))
+    root.addSublayer(layer)
+    CATransaction.flush()
+    layer.animatePath(keyPath: "path", to: roundedRect(width: 200), timing: .linear(duration: 2))
+    root.timeOffset = 1
+    CATransaction.flush()
+    root.timeOffset = 1.5
+    CATransaction.flush()
+    let shownWidth = try layer.presentation().unwrap().path.unwrap().boundingBoxOfPath.width
+
+    // when: the path grows on to 300 wide over a second
+    layer.animatePath(keyPath: "path", to: roundedRect(width: 300), timing: .linear(duration: 1))
+
+    // then: the first change keeps its begin time at zero, instead of the time of the commit, which Core Animation gives
+    // a begin time of zero, so the keyframes start from the width shown, 175, and last as long as the new change, longer
+    // than the half second the first change has left
+    let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    let values = try paths(of: animation)
+    expect(shownWidth).to(beApproximatelyEqual(to: 175, within: 1e-6))
+    expect(try values.first.unwrap().maxPointDistance(to: roundedRect(width: 175))) < 0.01
+    expect(animation.duration) == 1
+  }
+
+  func test_animatePath_negativeDelay_beginsNow() throws {
+    // given: a shape layer with a rect path
+    let layer = makeLayer()
+
+    // when: animating the path to an inset rect with a negative delay, at 1000
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2, delay: -0.5))
+    }
+
+    // then: the animation begins at 1000, as without a delay, instead of half a second earlier
+    let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(animation.beginTime) == 1000
+  }
+
   func test_animatePath_changesSurviveTheCommit() throws {
     // given: a hosted shape layer whose rect path changes to an inset rect over two seconds from a new turn of the run
     // loop, committed a while ago

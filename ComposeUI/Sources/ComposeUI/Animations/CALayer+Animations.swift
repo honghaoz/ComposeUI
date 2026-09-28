@@ -180,10 +180,11 @@ public extension CALayer {
   /// Add an animation to the layer.
   ///
   /// The animation is added and the model value is set synchronously. The animation begins at the current time of the
-  /// animation clock plus the timing's delay, in the layer's time space, see `AnimationClock`. The animation's fill mode
-  /// holds the `from` value until the delay elapses, so the layer keeps showing its pre-animation state during the delay
-  /// window while the model value is already set. A zero-duration timing applies the model value immediately when there
-  /// is no delay. With a delay, the change is scheduled as a snap that applies right after the delay window.
+  /// animation clock plus the timing's delay, in the layer's time space, see `AnimationClock` and
+  /// `CAAnimation.beginTime(at:delay:)`. The animation's fill mode holds the `from` value until the delay elapses, so the
+  /// layer keeps showing its pre-animation state during the delay window while the model value is already set. A
+  /// zero-duration timing applies the model value immediately when there is no delay. With a delay, the change is
+  /// scheduled as a snap that applies right after the delay window.
   ///
   /// The animation only survives on a layer that is in a committed layer tree: Core Animation drops animations on
   /// detached layers when the enclosing transaction commits.
@@ -222,7 +223,7 @@ public extension CALayer {
     animation.fromValue = from(layer)
     let toValue = to(layer)
     animation.toValue = toValue
-    animation.beginTime = currentTime + timing.delay
+    animation.beginTime = CAAnimation.beginTime(at: currentTime, delay: timing.delay)
 
     updateAnimation?(animation)
 

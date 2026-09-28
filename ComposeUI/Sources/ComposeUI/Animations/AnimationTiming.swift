@@ -152,7 +152,7 @@ public struct AnimationTiming: Hashable {
   ///
   /// The delay elapses in the animated layer's time space: a paused or speed-scaled layer (or ancestor) scales the
   /// delay with it. The delay is not scaled by `speed`, which only scales the animation's own timeline. A zero-duration
-  /// timing with a delay applies as a snap right after the delay window.
+  /// timing with a delay applies as a snap right after the delay window. A delay of zero or less is no delay.
   public let delay: TimeInterval
 
   /// The speed of the animation.
