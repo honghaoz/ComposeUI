@@ -159,6 +159,7 @@ Hard-won rules from past corrections, grouped by theme.
 ## Docs
 
 - Match content to the section's altitude: overview sections get a couple of high-level sentences, mechanics and specifics go in the section that owns them.
+- A CHANGELOG entry is for a change users would notice or need to act on. Leave out internal details, such as an edge-case fix that makes one more code path follow a rule the API already documents.
 
 ## Design decisions
 
