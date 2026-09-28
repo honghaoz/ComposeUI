@@ -86,6 +86,18 @@ class CAAnimation_RemainingTimeTests: XCTestCase {
     expect(animation.remainingTime(at: now)) == 0.5
   }
 
+  func test_remainingTime_animationBeginningNow_atAMediaTime_hasExactlyItsDuration() {
+    // given: an animation of 0.37 seconds that begins at a time of the magnitude of a media time
+    let now: TimeInterval = 517000.123
+    let animation = CABasicAnimation(keyPath: "opacity")
+    animation.duration = 0.37
+    animation.beginTime = now
+
+    // then: exactly its duration remains, without the rounding of its end time at that magnitude
+    expect(animation.remainingTime(at: now)) == 0.37
+    expect(now + 0.37 - now) != 0.37
+  }
+
   func test_remainingTime_pausedAnimation_pastItsDuration() {
     // given: a paused animation that began longer ago than its duration
     let now: TimeInterval = 100

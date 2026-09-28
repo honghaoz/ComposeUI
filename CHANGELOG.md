@@ -45,6 +45,7 @@
 - `DropShadowLayer` and `InnerShadowLayer` can now be created and subclassed outside the framework: their initializers are public.
 - The render pass now asserts, in debug builds, that a renderable's transform is identity when it applies the frame, so a `willInsert` or `willUpdate` block that sets a transform is reported consistently instead of misrendering or asserting only on animated passes. Set transforms in `update`, where they are reset and re-applied on every pass. See `Renderable`.
 - `AnimationTiming` now asserts, in debug builds, on invalid values and falls back: a speed of 0 or less, or NaN, becomes 1. An infinite or NaN delay becomes 0. An infinite or NaN duration becomes `Animations.defaultAnimationDuration`, or the spring descriptor's duration for a spring.
+- Animations that ComposeUI adds now begin at a time read once per turn of the main run loop, instead of when Core Animation commits the transaction. Later updates evaluate them from the time they begin on screen, so a shadow's paths stay on its frame through interrupted resizes, even when a busy main thread delays the commit, and a non-animated update continues an animation from where it shows. The first frame of an animation shows it as far in as the time from the turn's first animation to that frame. The time holds until the main run loop turns, which XCTest doesn't do between test methods, so a test that compares animations with the media time should turn the run loop first.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

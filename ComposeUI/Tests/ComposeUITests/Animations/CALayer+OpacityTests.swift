@@ -90,6 +90,7 @@ class CALayer_OpacityTests: XCTestCase {
     let layer = CALayer()
     layer.opacity = 0.2
     addInFlightAnimation(to: layer, from: 0.8, progress: 0.5, duration: 10)
+    let fadeEndTime = try layer.animation(forKey: "opacity").unwrap().beginTime + 10
 
     // when: retargeting the opacity to 1
     layer.retargetOpacity(to: 1)
@@ -102,6 +103,7 @@ class CALayer_OpacityTests: XCTestCase {
     expect(try (glide.fromValue as? Float).unwrap()).to(beApproximatelyEqual(to: -0.4, within: 0.01))
     expect(glide.toValue as? Float) == 0
     expect(glide.duration).to(beApproximatelyEqual(to: 5, within: 0.05))
+    expect(glide.beginTime + glide.duration).to(beApproximatelyEqual(to: fadeEndTime, within: 1e-9))
     expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     expect(layer.opacity) == 1
   }
@@ -177,7 +179,7 @@ class CALayer_OpacityTests: XCTestCase {
     layer.opacity = 1
     addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
 
-    // when: an animation to 0.8 replaces it, before a commit begins the new animation
+    // when: an animation to 0.8 replaces it at the current time, so the new animation hasn't begun
     layer.animateOpacity(to: 0.8, timing: .linear(duration: 1))
 
     // then: the layer still shows 0.5, rising at 0.1 per second
@@ -192,7 +194,7 @@ class CALayer_OpacityTests: XCTestCase {
     layer.opacity = 1
     addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
 
-    // when: an animation to 0.8 replaces it, and the opacity is set directly to 0.2, before a commit
+    // when: an animation to 0.8 replaces it, and the opacity is set directly to 0.2, at the current time
     layer.animateOpacity(to: 0.8, timing: .linear(duration: 1))
     layer.disableActions(for: "opacity") {
       layer.opacity = 0.2
@@ -209,7 +211,7 @@ class CALayer_OpacityTests: XCTestCase {
     let layer = CALayer()
     layer.opacity = 0.3
 
-    // when: an animation to 1 starts, before a commit begins it
+    // when: an animation to 1 starts at the current time, so it hasn't begun
     layer.animateOpacity(to: 1, timing: .linear(duration: 1))
 
     // then: the layer shows 0.3 at rest
@@ -218,13 +220,54 @@ class CALayer_OpacityTests: XCTestCase {
     expect(state.velocity) == 0
   }
 
-  func test_animateOpacity_twiceBeforeACommit_springCarriesTheVelocityShown() throws {
+  func test_interruptedOpacityState_animationAddedEarlier_isEvaluatedFromItsBeginTime() throws {
+    // given: a layer at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising at 0.1 per second, and an
+    // animation to 0.8 over a second that replaced it at 1000
+    let layer = CALayer()
+    layer.opacity = 1
+    AnimationClock.sharingTime(at: 1000) {
+      addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
+      layer.animateOpacity(to: 0.8, timing: .linear(duration: 1))
+    }
+
+    // when: reading the state a quarter second later
+    let state = try AnimationClock.sharingTime(at: 1000.25) {
+      try layer.interruptedOpacityState().unwrap()
+    }
+
+    // then: the new animation has begun, so the state is its own: a quarter of the way from 0.5 to 0.8, rising at 0.3
+    // per second, instead of the motion it replaced
+    expect(state.value).to(beApproximatelyEqual(to: 0.575, within: 1e-6))
+    expect(state.velocity).to(beApproximatelyEqual(to: 0.3, within: 1e-6))
+  }
+
+  func test_interruptedOpacityState_animationBeganWithinTheSamplingInterval_hasItsOwnVelocity() throws {
+    // given: a layer at 0.8, with an animation from 0.5 over a second that began a millisecond ago, shorter than the
+    // velocity sampling interval
+    let layer = CALayer()
+    layer.opacity = 0.8
+    AnimationClock.sharingTime(at: 1000) {
+      addInFlightAnimation(to: layer, from: -0.3, progress: 0, duration: 1)
+    }
+
+    // when: reading the state
+    let state = try AnimationClock.sharingTime(at: 1000.001) {
+      try layer.interruptedOpacityState().unwrap()
+    }
+
+    // then: the rate is the animation's own 0.3 per second, measured from where it began, instead of mixing in the from
+    // value it held before
+    expect(state.value).to(beApproximatelyEqual(to: 0.5003, within: 1e-6))
+    expect(state.velocity).to(beApproximatelyEqual(to: 0.3, within: 1e-6))
+  }
+
+  func test_animateOpacity_twiceAtTheSameTime_springCarriesTheVelocityShown() throws {
     // given: a layer at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising at 0.1 per second
     let layer = CALayer()
     layer.opacity = 1
     addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
 
-    // when: an animation to 0.8 replaces it, then a spring to 0 replaces that one, before a commit
+    // when: an animation to 0.8 replaces it, then a spring to 0 replaces that one, at the same time
     layer.animateOpacity(to: 0.8, timing: .linear(duration: 1))
     layer.animateOpacity(to: 0, timing: .spring())
 

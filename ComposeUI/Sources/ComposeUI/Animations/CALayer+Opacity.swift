@@ -131,8 +131,9 @@ extension CALayer {
 
   /// The opacity the in-flight opacity animations show and its rate of change per second.
   ///
-  /// An animation `animateOpacity` added since the last commit hasn't begun, so the layer still shows the motion it
-  /// replaced, and this returns that motion's opacity and rate.
+  /// The animations are evaluated from their begin times at the current time of the animation clock, see
+  /// `AnimationClock`. An animation `animateOpacity` added at the current time hasn't moved yet, so the layer still
+  /// shows the motion it replaced, and this returns that motion's opacity and rate.
   ///
   /// - Returns: The opacity, clamped to [0, 1] after each animation like the render server does, and its rate, zero
   ///   when it pushes past a bound. `nil` when no opacity animation is in flight.
@@ -142,16 +143,16 @@ extension CALayer {
       return nil
     }
 
-    // Core Animation sets the begin time at the commit, so an animation without one hasn't begun
+    let now = currentTime
+
+    // an animation added at the current time begins now, so the layer still shows the motion it replaced
     if opacityAnimations.count == 1,
-       opacityAnimations[0].beginTime == 0,
+       opacityAnimations[0].beginTime == now,
        let replacedOpacity = opacityAnimations[0].value(forKey: RetargetConstants.replacedOpacityKey) as? Float,
        let replacedVelocity = opacityAnimations[0].value(forKey: RetargetConstants.replacedVelocityKey) as? Double
     {
       return (replacedOpacity, replacedVelocity)
     }
-
-    let now = currentTime
 
     func composedValue(at time: TimeInterval) -> Double {
       var value = Double(opacity)
@@ -171,10 +172,18 @@ extension CALayer {
       return value
     }
 
-    let value = composedValue(at: now)
-    let earlierValue = composedValue(at: now - RetargetConstants.velocitySamplingInterval)
+    // the rate is measured over the sampling interval back from now, but not from before an animation began in it: an
+    // animation holds its from value until it begins, and measuring across the begin would mix the hold into its rate.
+    // an unset begin time, zero, isn't a begin in the interval, as the animation hasn't begun
+    var samplingStart = now - RetargetConstants.velocitySamplingInterval
+    for animation in opacityAnimations where animation.beginTime != 0 && animation.beginTime < now {
+      samplingStart = max(samplingStart, animation.beginTime)
+    }
 
-    var velocity = (value - earlierValue) / RetargetConstants.velocitySamplingInterval
+    let value = composedValue(at: now)
+    let earlierValue = composedValue(at: samplingStart)
+
+    var velocity = (value - earlierValue) / (now - samplingStart)
     if (value == 0 && velocity < 0) || (value == 1 && velocity > 0) {
       velocity = 0
     }

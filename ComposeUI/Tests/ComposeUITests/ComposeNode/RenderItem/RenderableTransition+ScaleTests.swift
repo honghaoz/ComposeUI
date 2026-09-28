@@ -220,7 +220,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
     expect(animation.isAdditive) == true
     expect(animation.fillMode) == .both
 
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
@@ -366,7 +366,7 @@ class RenderableTransition_ScaleTests: XCTestCase {
     expect(animation.duration).to(beApproximatelyEqual(to: 0.001, within: 1e-6))
     expect(completionCallCount) == 0
 
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 

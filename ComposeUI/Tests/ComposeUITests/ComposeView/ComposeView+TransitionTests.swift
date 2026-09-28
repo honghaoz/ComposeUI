@@ -711,7 +711,7 @@ class ComposeView_TransitionTests: XCTestCase {
     // complete the removal here and detach the renderable before the revival.
     let halfwayAnimation = try unwrap(removeAnimation.copy() as? CABasicAnimation)
     halfwayAnimation.delegate = nil
-    halfwayAnimation.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - 5
+    halfwayAnimation.beginTime = layer.currentTime - 5
     layer.removeAnimation(forKey: removeAnimationKey)
     layer.add(halfwayAnimation, forKey: removeAnimationKey)
 
