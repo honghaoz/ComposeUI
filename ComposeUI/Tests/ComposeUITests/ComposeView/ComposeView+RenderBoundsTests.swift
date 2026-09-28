@@ -136,4 +136,111 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 10, width: 120, height: 80)
   }
+
+  #if canImport(AppKit)
+  func test_renderBounds_hidingLegacyScroller_scrolledToBottom() {
+    // given: a view with legacy scrollers, scrolled to the bottom of rows that overflow both axes
+    var contentSize = CGSize(width: 200, height: 300)
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< Int(contentSize.height / 10) {
+          LayerNode().frame(width: contentSize.width, height: 10)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    useLegacyScrollers(view)
+    view.refresh(animated: false)
+
+    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.layoutIfNeeded()
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset()) == CGPoint(x: 0, y: 200)
+
+    // when: a refresh shortens the rows, so the clip view clamps the offset while the horizontal scroller shows, and
+    // fits them horizontally, which hides the scroller and clamps the offset again
+    contentSize = CGSize(width: 100, height: 250)
+    view.refresh(animated: false)
+
+    // then: the pass renders the rows at the offset the view ends up with
+    expect(view.hasHorizontalScroller) == false
+    expect(view.contentOffset()) == CGPoint(x: 0, y: 150)
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 150, width: 100, height: 100)
+    expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 100, height: 10) }
+  }
+
+  func test_renderBounds_hidingLegacyScroller_scrolledToRightEdge() {
+    // given: a view with legacy scrollers, scrolled to the right edge of columns that overflow both axes
+    var contentSize = CGSize(width: 300, height: 200)
+    let view = ComposeView {
+      HStack {
+        for _ in 0 ..< Int(contentSize.width / 10) {
+          LayerNode().frame(width: 10, height: contentSize.height)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    useLegacyScrollers(view)
+    view.refresh(animated: false)
+
+    view.setContentOffset(CGPoint(x: 200, y: 0))
+    view.layoutIfNeeded()
+    expect(view.hasVerticalScroller) == true
+    expect(view.contentOffset()) == CGPoint(x: 200, y: 0)
+
+    // when: a refresh narrows the columns, so the clip view clamps the offset while the vertical scroller shows, and
+    // fits them vertically, which hides the scroller and clamps the offset again
+    contentSize = CGSize(width: 250, height: 100)
+    view.refresh(animated: false)
+
+    // then: the pass renders the columns at the offset the view ends up with
+    expect(view.hasVerticalScroller) == false
+    expect(view.contentOffset()) == CGPoint(x: 150, y: 0)
+    expect(view.test.lastRenderBounds) == CGRect(x: 150, y: 0, width: 100, height: 100)
+    expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: CGFloat($0) * 10, y: 0, width: 10, height: 100) }
+  }
+
+  func test_renderBounds_showingLegacyScroller_scrolledToBottom() {
+    // given: a view with legacy scrollers, scrolled to the bottom of rows that overflow only vertically
+    var contentSize = CGSize(width: 100, height: 300)
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< Int(contentSize.height / 10) {
+          LayerNode().frame(width: contentSize.width, height: 10)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    useLegacyScrollers(view)
+    view.refresh(animated: false)
+
+    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.layoutIfNeeded()
+    expect(view.hasHorizontalScroller) == false
+    expect(view.contentOffset()) == CGPoint(x: 0, y: 200)
+
+    // when: a refresh shortens the rows, so the clip view clamps the offset, and widens them, which shows the
+    // horizontal scroller and shrinks the clip view
+    contentSize = CGSize(width: 200, height: 250)
+    view.refresh(animated: false)
+
+    // then: the pass renders the rows at the offset the view ends up with
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset()) == CGPoint(x: 0, y: 150)
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 150, width: 100, height: 100)
+    expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
+  }
+
+  /// Makes the view show legacy scrollers for the axes its content overflows, so a shown scroller shrinks the clip view.
+  private func useLegacyScrollers(_ view: ComposeView) {
+    view.scrollIndicatorBehavior = .auto
+    view.scrollerStyle = .legacy
+  }
+
+  /// The frames of the rendered layers, ordered from top to bottom, then from left to right.
+  private func renderedFrames(in view: ComposeView) -> [CGRect] {
+    let frames = view.contentView().layer?.sublayers?.map(\.frame) ?? []
+    return frames.sorted { ($0.minY, $0.minX) < ($1.minY, $1.minX) }
+  }
+  #endif
 }
