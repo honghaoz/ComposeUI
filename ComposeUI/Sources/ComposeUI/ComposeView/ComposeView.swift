@@ -976,65 +976,6 @@ open class ComposeView: BaseScrollView {
     // set content size
     setContentSize(roundedContentSize)
 
-    // updating content size can move the scroll offset, so read it again to ensure the correct offset is used for rendering
-    bounds.origin = contentOffset()
-
-    if let willRenderHandler {
-      willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
-
-      // the will-render handler may change the bounds, so read them again.
-      // only the origin is picked to ensure the correct content offset is used for rendering.
-      // ignoring the size change because the layout above already used the old size. if the size changes, the render
-      // pass will be triggered again after the pass ends (see `render()`).
-      bounds.origin = renderBounds().origin
-    }
-
-    // the bounds are final from here on, so the render type and the animation decision are made once for the render pass.
-    // a pass within a parent's render pass is capped by the parent's animation decision: the view's animation behavior
-    // can lower it but never raise it. the view's own updates carry `.all`, which caps nothing. nested views rendering
-    // within this pass inherit the animation decision in turn, so a cap reaches every depth.
-    let renderType = context.renderType(bounds: bounds)
-    let animationDecision = animationBehavior
-      .animationDecision(renderType: renderType, contentView: self)
-      .capped(by: animationDecisionCap)
-
-    renderingAnimationDecision = animationDecision
-
-    let visibleBounds = bounds.inset(by: visibleBoundsInsets)
-
-    // get renderable items
-    let renderableItems: [RenderableItem]
-    if let centeredChildFrame {
-      // logic copied from FrameNode.renderableItems(in:) (part 2)
-      let boundsInChild = visibleBounds.translate(-centeredChildFrame.origin)
-
-      #if DEBUG
-      debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: boundsInChild))
-      #endif
-
-      let childItems = contentNode.renderableItems(in: boundsInChild)
-
-      var mappedChildItems: [RenderableItem] = []
-      mappedChildItems.reserveCapacity(childItems.count)
-
-      for var item in childItems {
-        item.frame = item.frame.translate(centeredChildFrame.origin)
-        mappedChildItems.append(item)
-      }
-
-      renderableItems = mappedChildItems
-    } else {
-      #if DEBUG
-      debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: visibleBounds))
-      #endif
-
-      renderableItems = contentNode.renderableItems(in: visibleBounds)
-    }
-
-    #if DEBUG
-    debug?.onEvent(.renderDidReceiveRenderableItems(renderableItems: renderableItems, contentSize: contentSize))
-    #endif
-
     // update scrollable behavior
     switch scrollBehavior {
     case .auto:
@@ -1102,6 +1043,67 @@ open class ComposeView: BaseScrollView {
 
     #if canImport(AppKit)
     invalidateScrollElasticity()
+    #endif
+
+    // updating the content size or the scroll indicators can move the scroll offset: on AppKit, hiding a legacy
+    // scroller grows the clip view, which can clamp the offset. so read the offset after both, to render the viewport
+    // the view ends up with.
+    bounds.origin = contentOffset()
+
+    if let willRenderHandler {
+      willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
+
+      // the will-render handler may change the bounds, so read them again.
+      // only the origin is picked to ensure the correct content offset is used for rendering.
+      // ignoring the size change because the layout above already used the old size. if the size changes, the render
+      // pass will be triggered again after the pass ends (see `render()`).
+      bounds.origin = renderBounds().origin
+    }
+
+    // the bounds are final from here on, so the render type and the animation decision are made once for the render pass.
+    // a pass within a parent's render pass is capped by the parent's animation decision: the view's animation behavior
+    // can lower it but never raise it. the view's own updates carry `.all`, which caps nothing. nested views rendering
+    // within this pass inherit the animation decision in turn, so a cap reaches every depth.
+    let renderType = context.renderType(bounds: bounds)
+    let animationDecision = animationBehavior
+      .animationDecision(renderType: renderType, contentView: self)
+      .capped(by: animationDecisionCap)
+
+    renderingAnimationDecision = animationDecision
+
+    let visibleBounds = bounds.inset(by: visibleBoundsInsets)
+
+    // get renderable items
+    let renderableItems: [RenderableItem]
+    if let centeredChildFrame {
+      // logic copied from FrameNode.renderableItems(in:) (part 2)
+      let boundsInChild = visibleBounds.translate(-centeredChildFrame.origin)
+
+      #if DEBUG
+      debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: boundsInChild))
+      #endif
+
+      let childItems = contentNode.renderableItems(in: boundsInChild)
+
+      var mappedChildItems: [RenderableItem] = []
+      mappedChildItems.reserveCapacity(childItems.count)
+
+      for var item in childItems {
+        item.frame = item.frame.translate(centeredChildFrame.origin)
+        mappedChildItems.append(item)
+      }
+
+      renderableItems = mappedChildItems
+    } else {
+      #if DEBUG
+      debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: visibleBounds))
+      #endif
+
+      renderableItems = contentNode.renderableItems(in: visibleBounds)
+    }
+
+    #if DEBUG
+    debug?.onEvent(.renderDidReceiveRenderableItems(renderableItems: renderableItems, contentSize: contentSize))
     #endif
 
     // set up the renderable item ids and map
