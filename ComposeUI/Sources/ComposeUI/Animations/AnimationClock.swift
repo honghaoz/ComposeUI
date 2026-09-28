@@ -51,8 +51,8 @@ enum AnimationClock {
   /// The time of the current turn of the main run loop, `nil` until the turn's first read.
   private static var turnTime: CFTimeInterval?
 
-  /// Whether the main run loop observer that ends the turns is installed.
-  private static var isObservingTurns = false
+  /// The main run loop observers that end the turns, installed at the first read.
+  private static var turnObservers: [CFRunLoopObserver] = []
 
   /// The current media time, see `CACurrentMediaTime()`.
   ///
@@ -75,29 +75,44 @@ enum AnimationClock {
 
     let time = CACurrentMediaTime()
     turnTime = time
-    if !isObservingTurns {
+    if turnObservers.isEmpty {
       observeTurns()
     }
     return time
   }
 
-  /// Installs the main run loop observer that ends a turn once Core Animation has committed its changes.
+  /// Installs the main run loop observers that end a turn once Core Animation has committed its changes.
   private static func observeTurns() {
-    isObservingTurns = true
-
     // Core Animation commits in a main run loop observer of order 2000000, before the loop waits and when it exits.
     // this observer is ordered right after it, so the layout the commit runs still reads the turn's time, and anything
     // added after the commit belongs to the next commit and reads a new time
-    let observer = CFRunLoopObserverCreateWithHandler(
+    let commitObserver: CFRunLoopObserver = CFRunLoopObserverCreateWithHandler(
       nil,
       CFRunLoopActivity.beforeWaiting.rawValue | CFRunLoopActivity.exit.rawValue,
       true,
-      Constants.turnObserverOrder,
+      Constants.commitObserverOrder,
       { _, _ in
         turnTime = nil
       }
     )
-    CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+
+    // the run loop takes an activity's observers before it calls them, so when the first read happens in one of them,
+    // such as a layout Core Animation's commit runs, the observer above misses that commit, and the time would outlast
+    // the wait after it. this observer ends the turn when the loop wakes too, before the wake's other observers
+    let wakeObserver: CFRunLoopObserver = CFRunLoopObserverCreateWithHandler(
+      nil,
+      CFRunLoopActivity.afterWaiting.rawValue,
+      true,
+      Constants.wakeObserverOrder,
+      { _, _ in
+        turnTime = nil
+      }
+    )
+
+    turnObservers = [commitObserver, wakeObserver]
+    for observer in turnObservers {
+      CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+    }
   }
 
   #if DEBUG
@@ -125,13 +140,26 @@ enum AnimationClock {
     }
     return try block()
   }
+
+  /// Removes the main run loop observers and forgets the turn's time, so the next read is the first one, for tests.
+  static func resetForTesting() {
+    for observer in turnObservers {
+      CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes)
+    }
+    turnObservers = []
+    turnTime = nil
+  }
   #endif
 
   // MARK: - Constants
 
   private enum Constants {
 
-    /// The order of the main run loop observer that ends the turns, right after Core Animation's commit observer.
-    static let turnObserverOrder: CFIndex = 2000001
+    /// The order of the main run loop observer that ends a turn at the commit, right after Core Animation's commit
+    /// observer.
+    static let commitObserverOrder: CFIndex = 2000001
+
+    /// The order of the main run loop observer that ends a turn when the loop wakes, before any other observer.
+    static let wakeObserverOrder: CFIndex = .min
   }
 }

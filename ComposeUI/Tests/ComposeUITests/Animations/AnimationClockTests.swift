@@ -104,6 +104,35 @@ class AnimationClockTests: XCTestCase {
     expect(AnimationClock.now - turnTime) >= 0.001
   }
 
+  func test_now_firstReadDuringTheCommit_theTurnEndsWhenTheLoopWakes() throws {
+    // given: the clock's first read, in an observer of the pass that commits before the main run loop waits, as in a
+    // layout Core Animation's commit runs, an observer of the wake that reads the clock, and an event 30 ms later
+    AnimationClock.resetForTesting()
+    var firstRead: CFTimeInterval?
+    let commitReader = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, false, 2000000) { _, _ in
+      firstRead = AnimationClock.now
+    }
+    var wakeRead: (timeBefore: CFTimeInterval, read: CFTimeInterval)?
+    let wakeReader = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue, false, 0) { _, _ in
+      wakeRead = (CACurrentMediaTime(), AnimationClock.now)
+    }
+    CFRunLoopAddObserver(CFRunLoopGetMain(), commitReader, .commonModes)
+    CFRunLoopAddObserver(CFRunLoopGetMain(), wakeReader, .commonModes)
+    var eventRead: CFTimeInterval?
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+      eventRead = AnimationClock.now
+    }
+
+    // when: the loop waits and wakes without exiting in between, as an app's main run loop does
+    CFRunLoopRunInMode(.defaultMode, 0.1, false)
+
+    // then: the observers the first read installed missed its pass, but the turn ended when the loop woke, before the
+    // wake's other observers, so the reads after the wait are new times
+    let wake = try wakeRead.unwrap()
+    expect(wake.read) >= wake.timeBefore
+    expect(try eventRead.unwrap() - firstRead.unwrap()) >= 0.03
+  }
+
   func test_now_afterAFlush_readsTheTurnsTime() {
     // given: the time of the current turn of the main run loop
     let turnTime = AnimationClock.now
