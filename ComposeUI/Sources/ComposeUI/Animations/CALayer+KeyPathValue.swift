@@ -202,6 +202,86 @@ extension CALayer {
     setValue(value, forKeyPath: keyPath)
   }
 
+  // A read through KVC boxes the value too, so the properties the framework animates are compared directly, for a
+  // value of the property's own type, like `setModelValue(_:forKeyPath:)` sets them.
+
+  /// Whether the layer's model value at a key path is the given value.
+  ///
+  /// A `nil` model value equals `nil`, which bridges to `NSNull`.
+  ///
+  /// - Parameters:
+  ///   - value: The value.
+  ///   - keyPath: The key path.
+  /// - Returns: Whether the model value is the value.
+  func hasModelValue(_ value: Any, forKeyPath keyPath: String) -> Bool {
+    switch keyPath {
+    case "position":
+      if let value = value as? CGPoint {
+        return position == value
+      }
+    case "bounds.size":
+      if let value = value as? CGSize {
+        return bounds.size == value
+      }
+    case "shadowOffset":
+      if let value = value as? CGSize {
+        return shadowOffset == value
+      }
+    case "opacity":
+      if let value = value as? Float {
+        return opacity == value
+      }
+    case "shadowOpacity":
+      if let value = value as? Float {
+        return shadowOpacity == value
+      }
+    case "borderWidth":
+      if let value = value as? CGFloat {
+        return borderWidth == value
+      }
+    case "cornerRadius":
+      if let value = value as? CGFloat {
+        return cornerRadius == value
+      }
+    case "shadowRadius":
+      if let value = value as? CGFloat {
+        return shadowRadius == value
+      }
+    case "backgroundColor":
+      return Self.isObject(backgroundColor, equalTo: value)
+    case "borderColor":
+      return Self.isObject(borderColor, equalTo: value)
+    case "shadowColor":
+      return Self.isObject(shadowColor, equalTo: value)
+    case "shadowPath":
+      return Self.isObject(shadowPath, equalTo: value)
+    case "path":
+      if let shapeLayer = self as? CAShapeLayer {
+        return Self.isObject(shapeLayer.path, equalTo: value)
+      }
+    default:
+      break
+    }
+    return Self.isObject(self.value(forKeyPath: keyPath) as AnyObject?, equalTo: value)
+  }
+
+  /// Whether a model value, as an object, is the given value, compared like KVC compares its boxed values.
+  ///
+  /// A value of another type, such as a platform color at a `CGColor` key path, isn't equal instead of asserting, since
+  /// setting it asserts.
+  ///
+  /// - Parameters:
+  ///   - modelValue: The model value, a Core Foundation object such as a color or a path, or a KVC boxed value.
+  ///   - value: The value.
+  /// - Returns: Whether the model value is the value.
+  private static func isObject(_ modelValue: AnyObject?, equalTo value: Any) -> Bool {
+    let object = value as AnyObject
+    guard let modelValue else {
+      return CFGetTypeID(object) == CFNullGetTypeID()
+    }
+    return CFEqual(modelValue, object)
+  }
+
   // A conditional cast to a Core Foundation type succeeds for any object, so it can't tell a color or a path from
   // another value, and the functions below check the type ID instead. a `nil` optional bridges to `NSNull`, which KVC
   // sets as is for a color and ignores for a shape layer's path, so the functions return it as a `nil` value to set.

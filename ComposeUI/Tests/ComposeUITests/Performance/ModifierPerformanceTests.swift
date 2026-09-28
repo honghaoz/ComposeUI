@@ -143,6 +143,76 @@ class ModifierPerformanceTests: XCTestCase {
     }
   }
 
+  func test_refresh_changingValues() {
+    // given: a compose view showing rows of four built-in modifiers whose values alternate between two sets
+    var isAlternate = false
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< Constants.rowCount {
+          Self.makeAlternatingRow(isAlternate)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.allRowsSize)
+    view.refresh(animated: false)
+
+    // when: refreshing without animation with the other values each time, which sets every property of every row
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { _ in
+      isAlternate.toggle()
+      view.refresh(animated: false)
+    }
+    let grossAllocations = AllocationCounter.count {
+      isAlternate.toggle()
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings and the allocations
+    report(
+      name: "modifiers.refresh.changingValues",
+      result: result,
+      grossAllocations: grossAllocations,
+      unit: (name: "row", count: Constants.rowCount)
+    )
+  }
+
+  func test_refresh_changingValues_whileAnimating() {
+    // given: a compose view showing rows of four built-in modifiers whose values alternate between two sets, animating
+    // to the other set over a duration longer than the measurement
+    var isAlternate = false
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< Constants.rowCount {
+          Self.makeAlternatingRow(isAlternate)
+            .animation(.easeInEaseOut(duration: Constants.longAnimationDuration))
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.allRowsSize)
+    view.refresh(animated: false)
+    isAlternate.toggle()
+    view.refresh(animated: true)
+
+    // when: refreshing without animation with the other values each time, which continues the in-flight animations
+    // toward them. No time passes between the refreshes, so the border width's and the corner radius's additive glides
+    // fold into their start values and are set directly, and the colors and the opacity keep animations in flight
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { _ in
+      isAlternate.toggle()
+      view.refresh(animated: false)
+    }
+    let grossAllocations = AllocationCounter.count {
+      isAlternate.toggle()
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings and the allocations
+    report(
+      name: "modifiers.refresh.changingValues.whileAnimating",
+      result: result,
+      grossAllocations: grossAllocations,
+      unit: (name: "row", count: Constants.rowCount)
+    )
+  }
+
   // MARK: - Scroll
 
   func test_scroll() {
@@ -213,6 +283,16 @@ class ModifierPerformanceTests: XCTestCase {
 
     /// Built-in modifiers and callbacks, split by a node the modifiers don't coalesce across.
     case mixedAcrossNodes
+  }
+
+  /// A row of four built-in modifiers of different properties, with one of two sets of values.
+  private static func makeAlternatingRow(_ isAlternate: Bool) -> some ComposeNode {
+    LayerNode()
+      .backgroundColor(isAlternate ? .red : .blue)
+      .opacity(isAlternate ? 0.5 : 0.6)
+      .cornerRadius(isAlternate ? 4 : 6)
+      .border(color: isAlternate ? .blue : .red, width: isAlternate ? 1 : 2)
+      .frame(width: Constants.rowWidth, height: Constants.rowHeight)
   }
 
   private static func makeRows(_ workload: Workload, count: Int) -> [any ComposeNode] {
@@ -332,6 +412,9 @@ class ModifierPerformanceTests: XCTestCase {
 
     static let warmup = 10
     static let iterations = 60
+
+    /// An animation duration that outlasts the measurement, so the animations stay in flight throughout.
+    static let longAnimationDuration: TimeInterval = 60
 
     static let scrollRowCount = 5000
     static let scrollViewSize = CGSize(width: rowWidth, height: 844)

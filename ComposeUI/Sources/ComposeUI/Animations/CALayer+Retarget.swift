@@ -56,13 +56,16 @@ public extension CALayer {
   ///   - value: The value to set.
   func retarget(keyPath: String, to value: Any) {
     // the model already has the value, so the in-flight animations already head to it, nothing to change
-    let currentValue = self.value(forKeyPath: keyPath)
-    if let currentValue, (currentValue as AnyObject).isEqual(value) {
+    if hasModelValue(value, forKeyPath: keyPath) {
       return
     }
 
-    let now = currentTime
-    let (inFlightAnimations, endedKeptKeys) = inFlightAnimations(forKeyPath: keyPath, at: now)
+    guard let animations = inFlightAnimations(forKeyPath: keyPath) else {
+      // nothing animates the key path, set the value directly
+      setKeyPathValue(keyPath, value)
+      return
+    }
+    let (inFlightAnimations, endedKeptKeys, now) = animations
 
     // a kept animation that has ended would cover the new value
     for key in endedKeptKeys {
@@ -81,7 +84,9 @@ public extension CALayer {
     // uses the basic easing curve for simplicity, no interrupted velocity to carry
     let timing = AnimationTiming.easeOut(duration: neverFinishes ? Animations.defaultAnimationDuration : remainingTime)
 
-    if let currentValue, let fold = additiveFold(of: inFlightAnimations, keyPath: keyPath, from: currentValue, to: value, at: now) {
+    if let currentValue = self.value(forKeyPath: keyPath),
+       let fold = additiveFold(of: inFlightAnimations, keyPath: keyPath, from: currentValue, to: value, at: now)
+    {
       for key in fold.keys {
         removeAnimation(forKey: key)
       }
@@ -115,9 +120,13 @@ public extension CALayer {
     }
   }
 
-  /// The layer's property animations of the given key path that haven't ended at `now`, and the keys of the kept ones
-  /// that have ended.
-  private func inFlightAnimations(forKeyPath keyPath: String, at now: TimeInterval) -> (animations: [InFlightAnimation], endedKeptKeys: [String]) {
+  /// The layer's property animations of the given key path that haven't ended at `now`, the keys of the kept ones that
+  /// have ended, and `now`, the layer's current time.
+  ///
+  /// Returns `nil` when no animation animates the key path, without reading the current time, since reading it converts
+  /// the time through the layer tree, and a layer usually has nothing animating.
+  private func inFlightAnimations(forKeyPath keyPath: String) -> (animations: [InFlightAnimation], endedKeptKeys: [String], now: TimeInterval)? {
+    var now: TimeInterval?
     var inFlightAnimations: [InFlightAnimation] = []
     var endedKeptKeys: [String] = []
     for key in animationKeys() ?? [] {
@@ -130,13 +139,19 @@ public extension CALayer {
         "animation \"\(key)\" of \"\(keyPath)\" is kept with isRemovedOnCompletion off, which isn't supported"
       )
 
-      if let remainingTime = animation.remainingTime(at: now) {
+      let time = now ?? currentTime
+      now = time
+      if let remainingTime = animation.remainingTime(at: time) {
         inFlightAnimations.append(InFlightAnimation(key: key, animation: animation, remainingTime: remainingTime))
       } else if !animation.isRemovedOnCompletion {
         endedKeptKeys.append(key)
       }
     }
-    return (inFlightAnimations, endedKeptKeys)
+
+    guard let now else {
+      return nil
+    }
+    return (inFlightAnimations, endedKeptKeys, now)
   }
 
   /// The in-flight additive animations to fold into one glide to the new value, and the offset of the shown value from
