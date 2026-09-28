@@ -54,7 +54,7 @@ struct PathChanges {
     /// The speed of the change's timing.
     let speed: TimeInterval
 
-    /// The time the change begins, in the layer's time space, see `record(from:to:timing:at:)`.
+    /// The time the change begins, in the layer's time space, never zero, see `record(from:to:timing:at:)`.
     let beginTime: TimeInterval
 
     /// The time the change has left, see `CAAnimation.remainingTime(at:)`.
@@ -97,11 +97,7 @@ struct PathChanges {
         return beforeLanding && time <= remainingTime + Constants.timeTolerance ? landingFactor : 0
       }
 
-      // a zero begin time is the one Core Animation takes as unset, so the change is evaluated from its start, the way
-      // its remaining time counts it, see `CAAnimation.remainingTime(at:)`
-      let started = beginTime == 0 ? 0 : now - beginTime
-
-      return CGFloat(1 - curve.progress(forElapsedTime: (started + time) * speed))
+      return CGFloat(1 - curve.progress(forElapsedTime: (now - beginTime + time) * speed))
     }
   }
 
@@ -164,8 +160,8 @@ struct PathChanges {
       return
     }
 
-    // the change begins when `CALayer.animate` begins an animation of its timing, the delay after now, so it keeps in
-    // step with the animations of the same timing
+    // the change begins when `CALayer.animate` begins an animation of its timing, so it keeps in step with the
+    // animations of the same timing
     let animation = CABasicAnimation.makeAnimation(timing)
     changes.append(
       Change(
@@ -173,7 +169,7 @@ struct PathChanges {
         animation: animation,
         curve: AnimationCurve(animation),
         speed: TimeInterval(animation.speed),
-        beginTime: now + timing.delay
+        beginTime: CAAnimation.beginTime(at: now, delay: timing.delay)
       )
     )
   }
@@ -312,7 +308,7 @@ struct PathChanges {
       guard let landing = change.remainingTime(at: now) else {
         continue
       }
-      addBoundary(change.beginTime == 0 ? 0 : change.beginTime - now)
+      addBoundary(change.beginTime - now)
       addBoundary(landing)
       if change.landingFactor != 0 {
         addBoundary(landing, isBeforeLanding: true)

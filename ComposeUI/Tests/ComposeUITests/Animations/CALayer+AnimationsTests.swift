@@ -390,6 +390,46 @@ class CALayer_AnimationsTests: XCTestCase {
     }
   }
 
+  func test_animate_negativeDelay_beginsNow() throws {
+    for delay in [-0.5, -2, -.infinity] {
+      // given: a layer with partial opacity
+      let layer = CALayer()
+      layer.opacity = 0.2
+
+      // when: animating the opacity with a negative delay
+      layer.animate(keyPath: "opacity", to: Float(1), timing: .linear(duration: 1, delay: delay))
+
+      // then: the animation begins now, as without a delay, instead of that far in the past
+      expect(try layer.animation(forKey: "opacity").unwrap().beginTime, "delay \(delay)") == layer.currentTime
+    }
+  }
+
+  func test_animate_pausedTimelineAtZero_beginsAtZero() throws {
+    // given: a layer hosted in a window at an opacity of 0, on a timeline paused at zero
+    let testWindow = TestWindow()
+    let root = CALayer()
+    root.speed = 0
+    root.timeOffset = 0
+    testWindow.layer.addSublayer(root)
+    let layer = CALayer()
+    root.addSublayer(layer)
+    layer.opacity = 0
+    CATransaction.flush()
+
+    // when: animating the opacity to 1 over two seconds at the timeline's zero, then moving the timeline to 1 before the
+    // transaction commits, and on to 1.5
+    layer.animate(keyPath: "opacity", to: Float(1), timing: .linear(duration: 2))
+    root.timeOffset = 1
+    CATransaction.flush()
+    root.timeOffset = 1.5
+    CATransaction.flush()
+
+    // then: the animation keeps a begin time at zero, instead of the time of the commit, which Core Animation gives a
+    // begin time of zero, so it shows three quarters of the way
+    expect(try layer.animation(forKey: "opacity").unwrap().beginTime) == .leastNormalMagnitude
+    expect(try layer.presentation().unwrap().opacity).to(beApproximatelyEqual(to: 0.75, within: 1e-6))
+  }
+
   func test_animate_delayed_nilFromValue_resolvesAtDispatch() throws {
     // given: an unhosted layer with a green background
     let red = CGColor(red: 1, green: 0, blue: 0, alpha: 1)

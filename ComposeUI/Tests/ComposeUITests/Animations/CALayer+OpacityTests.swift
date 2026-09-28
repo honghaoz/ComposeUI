@@ -220,6 +220,25 @@ class CALayer_OpacityTests: XCTestCase {
     expect(state.velocity) == 0
   }
 
+  func test_interruptedOpacityState_pausedTimelineAtZero_animationNotBegun_hasTheReplacedVelocity() throws {
+    // given: a layer on a timeline paused at zero, at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising
+    // at 0.1 per second
+    let layer = CALayer()
+    layer.speed = 0
+    layer.timeOffset = 0
+    layer.opacity = 1
+    addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
+
+    // when: an animation to 0.8 replaces it at the timeline's zero, which gives it the least positive begin time instead
+    // of zero, so the new animation hasn't begun
+    layer.animateOpacity(to: 0.8, timing: .linear(duration: 1))
+
+    // then: the layer still shows 0.5, rising at 0.1 per second
+    let state = try layer.interruptedOpacityState().unwrap()
+    expect(state.value).to(beApproximatelyEqual(to: 0.5, within: 1e-3))
+    expect(state.velocity).to(beApproximatelyEqual(to: 0.1, within: 1e-3))
+  }
+
   func test_interruptedOpacityState_animationAddedEarlier_isEvaluatedFromItsBeginTime() throws {
     // given: a layer at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising at 0.1 per second, and an
     // animation to 0.8 over a second that replaced it at 1000

@@ -69,6 +69,40 @@ class PathChangesTests: XCTestCase {
     expect(change.animation.beginTime) == 0
   }
 
+  func test_record_negativeDelay_beginsNow() {
+    // given: no changes in flight
+    var changes = PathChanges()
+
+    // when: recording changes with negative delays, a negative infinity included, which `AnimationTiming` keeps
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1, delay: -0.5), at: 100)
+    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 1, delay: -.infinity), at: 100)
+
+    // then: the changes begin now, as without a delay, instead of in the past
+    expect(changes.changes.map(\.beginTime)) == [100, 100]
+  }
+
+  func test_record_atTimeZero_beginsAtTheLeastPositiveTime() throws {
+    // given: no changes in flight
+    var changes = PathChanges()
+
+    // when: recording a linear change over one second at a layer time of zero, as a paused layer's can be
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 0)
+
+    // then: the change begins at the least positive time instead of zero, which Core Animation takes as unset, so half
+    // a second later it's halfway
+    let change = try changes.changes.first.unwrap()
+    expect(change.beginTime) == .leastNormalMagnitude
+    expect(change.remainingTime(at: 0.5)) == 0.5
+    expect(change.remainingFactor(at: 0, now: 0.5)) == 0.5
+
+    // then: so are its keyframes, which start halfway and last the half second left
+    let path = rect(inset: 10)
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 0.5)
+    expect(keyframes.duration) == 0.5
+    expect(keyframes.keyTimes) == nil
+    expect(keyframes.paths[0].maxPointDistance(to: rect(inset: 5))) < 1e-9
+  }
+
   func test_record_zeroDuration() throws {
     // given: no changes in flight
     var changes = PathChanges()
@@ -584,28 +618,6 @@ class PathChangesTests: XCTestCase {
     // then: the change begins and lands with the keyframes, so it needs no keyframes of its own
     expect(keyframes.duration) == 0.37
     expect(keyframes.keyTimes) == nil
-  }
-
-  // MARK: - Zero Begin Time
-
-  func test_zeroBeginTime_isEvaluatedAsUnset() throws {
-    // given: a linear change over one second recorded at a layer time of zero, as a paused layer's can be, which gives
-    // it the zero begin time Core Animation takes as unset
-    var changes = PathChanges()
-    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 0)
-    let change = try changes.changes.first.unwrap()
-    expect(change.beginTime) == 0
-
-    // then: half a second later, the change is evaluated from its start, the way its remaining time counts it
-    expect(change.remainingTime(at: 0.5)) == 1
-    expect(change.remainingFactor(at: 0, now: 0.5)) == 1
-
-    // then: so are its keyframes, which start with the whole change and last its whole duration
-    let path = rect(inset: 10)
-    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 0.5)
-    expect(keyframes.duration) == 1
-    expect(keyframes.keyTimes) == nil
-    expect(keyframes.paths[0].maxPointDistance(to: rect(inset: 0))) < 1e-9
   }
 
   // MARK: - Helpers
