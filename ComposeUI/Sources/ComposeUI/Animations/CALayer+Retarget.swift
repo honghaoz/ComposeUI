@@ -126,30 +126,30 @@ public extension CALayer {
   /// Returns `nil` when no animation animates the key path, without reading the current time, since reading it converts
   /// the time through the layer tree, and a layer usually has nothing animating.
   private func inFlightAnimations(forKeyPath keyPath: String) -> (animations: [InFlightAnimation], endedKeptKeys: [String], now: TimeInterval)? {
-    let keyedAnimations = (animationKeys() ?? []).compactMap { key -> (key: String, animation: CAPropertyAnimation)? in
-      guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
-        return nil
-      }
-      return (key, animation)
-    }
-    guard !keyedAnimations.isEmpty else {
-      return nil
-    }
-
-    let now = currentTime
+    var now: TimeInterval?
     var inFlightAnimations: [InFlightAnimation] = []
     var endedKeptKeys: [String] = []
-    for (key, animation) in keyedAnimations {
+    for key in animationKeys() ?? [] {
+      guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
+        continue
+      }
+
       ComposeUI.assert(
         animation.isRemovedOnCompletion,
         "animation \"\(key)\" of \"\(keyPath)\" is kept with isRemovedOnCompletion off, which isn't supported"
       )
 
-      if let remainingTime = animation.remainingTime(at: now) {
+      let time = now ?? currentTime
+      now = time
+      if let remainingTime = animation.remainingTime(at: time) {
         inFlightAnimations.append(InFlightAnimation(key: key, animation: animation, remainingTime: remainingTime))
       } else if !animation.isRemovedOnCompletion {
         endedKeptKeys.append(key)
       }
+    }
+
+    guard let now else {
+      return nil
     }
     return (inFlightAnimations, endedKeptKeys, now)
   }
