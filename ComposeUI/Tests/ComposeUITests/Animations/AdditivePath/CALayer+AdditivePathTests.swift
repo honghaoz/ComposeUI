@@ -42,18 +42,20 @@ class CALayer_AdditivePathTests: XCTestCase {
     // given: a shape layer with a rect path
     let layer = makeLayer()
 
-    // when: animating the path to an inset rect
-    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .easeIn(duration: 2))
+    // when: animating the path to an inset rect at 1000
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .easeIn(duration: 2))
+    }
 
-    // then: a basic animation goes from the rect to the inset rect with the timing, beginning at the next commit, and
-    // the model has the inset rect
+    // then: a basic animation goes from the rect to the inset rect with the timing, beginning at 1000, and the model has
+    // the inset rect
     let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
     expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect())
     expect(try path(animation.toValue)) == rect(inset: 10)
     expect(animation.duration) == 2
     expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeIn)
     expect(animation.fillMode) == .both
-    expect(animation.beginTime) == 0
+    expect(animation.beginTime) == 1000
     expect(layer.path) == rect(inset: 10)
   }
 
@@ -102,15 +104,19 @@ class CALayer_AdditivePathTests: XCTestCase {
   }
 
   func test_animatePath_changeInFlight_addsTheChanges() throws {
-    // given: a shape layer whose rect path changes to an inset rect over one second
+    // given: a shape layer whose rect path changes to an inset rect over one second, from 1000
     let layer = makeLayer()
-    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 1))
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 1))
+    }
 
-    // when: animating to a more inset rect over two seconds
-    layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2))
+    // when: animating to a more inset rect over two seconds at the same time
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2))
+    }
 
     // then: the path animates with keyframes of both changes added up, spread evenly from the path shown to the new
-    // path, until the longer change lands. no change has begun, so the keyframes begin at the next commit with them
+    // path, until the longer change lands. the changes begin at 1000, and so do the keyframes
     let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
     let values = try paths(of: animation)
     expect(values.count) == 121
@@ -118,7 +124,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(animation.calculationMode) == .linear
     expect(animation.duration) == 2
     expect(animation.fillMode) == .both
-    expect(animation.beginTime) == 0
+    expect(animation.beginTime) == 1000
     expect(try values.first.unwrap().maxPointDistance(to: rect(inset: 0))) < 1e-9
     expect(values[60].maxPointDistance(to: rect(inset: 15))) < 1e-3 // at one second
     expect(values.last) == rect(inset: 20)
@@ -126,22 +132,23 @@ class CALayer_AdditivePathTests: XCTestCase {
   }
 
   func test_animatePath_interruptedResize_staysOnTheResizedShape() throws {
-    // given: a shape layer whose rounded rect path grew from 100 to 200 wide, over two seconds from half a second ago
+    // given: a shape layer whose rounded rect path grows from 100 to 200 wide over two seconds, from 999.5
     let layer = makeLayer(path: roundedRect(width: 100))
-    layer.animatePath(keyPath: "path", to: roundedRect(width: 200), timing: .linear(duration: 2))
-    let now = layer.currentTime
-    try resolveBeginTime(of: layer, to: now - 0.5)
+    AnimationClock.sharingTime(at: 999.5) {
+      layer.animatePath(keyPath: "path", to: roundedRect(width: 200), timing: .linear(duration: 2))
+    }
 
-    // when: it grows on to 300 wide over one second
-    layer.animatePath(keyPath: "path", to: roundedRect(width: 300), timing: .linear(duration: 1))
+    // when: it grows on to 300 wide over one second, at 1000
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: roundedRect(width: 300), timing: .linear(duration: 1))
+    }
 
     // then: the path is the rounded rect of the width the two changes add up to: 125 wide now, as the first change is a
-    // quarter done, 200 wide half a second later, and 300 wide when the first change lands. the first change has begun,
-    // so the keyframes begin now
+    // quarter done, 200 wide half a second later, and 300 wide when the first change lands. the keyframes begin now
     let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
     let values = try paths(of: animation)
-    expect(animation.beginTime).to(beApproximatelyEqual(to: now, within: 0.05))
-    expect(animation.duration).to(beApproximatelyEqual(to: 1.5, within: 0.05))
+    expect(animation.beginTime) == 1000
+    expect(animation.duration) == 1.5
     expect(try values.first.unwrap().maxPointDistance(to: roundedRect(width: 125))) < 0.01
     expect(values.last) == roundedRect(width: 300)
     expect(try interpolatedPoints(of: animation, at: 0.5).path.maxPointDistance(to: roundedRect(width: 200))) < 0.01
@@ -163,8 +170,8 @@ class CALayer_AdditivePathTests: XCTestCase {
     // when: animating on to a more inset rect
     layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 1))
 
-    // then: the change kept on the committed animation begins when Core Animation began it, so the keyframes begin now,
-    // from the path shown: the first change's part done at the keyframes' begin
+    // then: the change kept on the committed animation begins at the animation's begin time, and the keyframes begin
+    // now, from the path shown: the first change's part done at the keyframes' begin
     let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
     let elapsedTime = animation.beginTime - committedBeginTime
     expect(elapsedTime) > 0
@@ -204,19 +211,22 @@ class CALayer_AdditivePathTests: XCTestCase {
     }
   }
 
-  func test_animatePath_delayedChange_leavesTheOtherChangeOnTheCommit() throws {
+  func test_animatePath_delayedChange_keyframesBeginWhereTheOtherChangeBegins() throws {
     // given: a shape layer with a rect path
     let layer = makeLayer()
 
-    // when: in one transaction, the path changes to an inset rect over two seconds, and on to a more inset rect over
-    // two seconds after a delay of a second
-    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
-    layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2, delay: 1))
+    // when: at 1000, the path changes to an inset rect over two seconds, and on to a more inset rect over two seconds
+    // after a delay of a second
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+      layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2, delay: 1))
+    }
 
-    // then: the keyframes begin at the commit, where the change without a delay begins, as an animation without a delay
-    // does
+    // then: the keyframes begin at 1000, where the change without a delay begins, and hold the delayed change until it
+    // begins a second later, when the path shown is the first inset rect less the half of the first change left
     let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
-    expect(animation.beginTime) == 0
+    expect(animation.beginTime) == 1000
+    expect(try interpolatedPoints(of: animation, at: 1).path.maxPointDistance(to: rect(inset: 10 - 10 * (1 - 1.0 / 2)))) < 1e-9
   }
 
   func test_animatePath_heldTransaction_followsTheFrame() throws {
@@ -239,7 +249,8 @@ class CALayer_AdditivePathTests: XCTestCase {
     Thread.sleep(forTimeInterval: 0.3)
     CATransaction.flush()
 
-    // then: while only the change without a delay moves, the path keeps the frame's width, as both begin at the commit
+    // then: while only the change without a delay moves, the path keeps the frame's width, as both begin when they were
+    // added, not at the commit
     for _ in 0 ..< 3 {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
       let shownWidth = try layer.presentation().unwrap().path.unwrap().boundingBoxOfPath.width
@@ -263,12 +274,16 @@ class CALayer_AdditivePathTests: XCTestCase {
   }
 
   func test_animatePath_delayedSnap_holdsUntilItsDelayEnds() throws {
-    // given: a shape layer whose rect path changes to an inset rect over two seconds
+    // given: a shape layer whose rect path changes to an inset rect over two seconds, from 1000
     let layer = makeLayer()
-    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    }
 
-    // when: the path snaps on to a more inset rect after a delay that ends between two samples
-    layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 0, delay: 0.508))
+    // when: at the same time, the path snaps on to a more inset rect after a delay that ends between two samples
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 0, delay: 0.508))
+    }
 
     // then: right before the delay ends, the path shown is the first change's alone, and right after, the snap has
     // landed, as the keyframes hold the snap until its delay ends
@@ -474,20 +489,24 @@ class CALayer_AdditivePathTests: XCTestCase {
   }
 
   func test_setPath_changeInFlight_movesThePathShownByTheModelChange() throws {
-    // given: a shape layer whose rect path changes to an inset rect over two seconds
+    // given: a shape layer whose rect path changes to an inset rect over two seconds, from 1000
     let layer = makeLayer()
-    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    }
 
-    // when: setting the inset rect 120 wide
-    layer.setPath(keyPath: "path", to: rect(width: 120, inset: 10))
+    // when: setting the inset rect 120 wide at the same time
+    AnimationClock.sharingTime(at: 1000) {
+      layer.setPath(keyPath: "path", to: rect(width: 120, inset: 10))
+    }
 
     // then: the change keeps adding to the new path, so the path shown widens by 20 at once and still loses its inset
-    // over the change's time
+    // over the change's time, from the change's begin time
     let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
     expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect(width: 120))
     expect(try path(animation.toValue)) == rect(width: 120, inset: 10)
     expect(animation.duration) == 2
-    expect(animation.beginTime) == 0
+    expect(animation.beginTime) == 1000
     expect(layer.path) == rect(width: 120, inset: 10)
   }
 
@@ -572,13 +591,17 @@ class CALayer_AdditivePathTests: XCTestCase {
   }
 
   func test_setPath_landedChanges_removesTheirAnimation() throws {
-    // given: a shape layer whose path change landed, while its animation is still on the layer
+    // given: a shape layer whose path change of two seconds from 1000 has landed, while its animation is still on the
+    // layer
     let layer = makeLayer()
-    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
-    try resolveBeginTime(of: layer, to: layer.currentTime - 5)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    }
 
-    // when: setting another path
-    layer.setPath(keyPath: "path", to: rect(inset: 20))
+    // when: setting another path at 1005
+    AnimationClock.sharingTime(at: 1005) {
+      layer.setPath(keyPath: "path", to: rect(inset: 20))
+    }
 
     // then: nothing is in flight, so the animation of the landed change is removed and the path shows at once
     expect(layer.path) == rect(inset: 20)
@@ -635,14 +658,6 @@ class CALayer_AdditivePathTests: XCTestCase {
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
     layer.setPath(keyPath: "path", to: path ?? rect())
     return layer
-  }
-
-  /// Gives the layer's path animation a begin time, as a commit does.
-  private func resolveBeginTime(of layer: CALayer, to beginTime: TimeInterval) throws {
-    // `copy()` returns `Any`, and a copy of an animation is an animation
-    let animation = try layer.animation(forKey: "path").unwrap().copy() as! CAAnimation // swiftlint:disable:this force_cast
-    animation.beginTime = beginTime
-    layer.add(animation, forKey: "path")
   }
 
   /// A rect of the given width and 50 points high at the origin, inset by the given amount.

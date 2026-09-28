@@ -418,9 +418,7 @@ class InnerShadowNodeTests: XCTestCase {
   }
 
   func test_render_pathsFollowFrame_acrossInterruptedResizes() throws {
-    // given: a hosted inner shadow with its hole inset from its clip, whose width animates linearly over a second after
-    // a short delay, as explicit begin times keep the frame and the paths in step, see
-    // https://github.com/honghaoz/ComposeUI/issues/51
+    // given: a hosted inner shadow with its hole inset from its clip, whose width animates linearly over a second
     let window = TestWindow()
     var width: CGFloat = 100
     var layer: CALayer?
@@ -430,7 +428,7 @@ class InnerShadowNodeTests: XCTestCase {
         return InnerShadowPaths(shadowPath: CGPath(rect: bounds.insetBy(dx: 5, dy: 5), transform: nil), clipPath: CGPath(rect: bounds, transform: nil))
       })
       .frame(width: width, height: 100)
-      .animation(.linear(duration: 1, delay: 0.05))
+      .animation(.linear(duration: 1))
       .onUpdate { renderable, _ in
         layer = renderable.layer
       }
@@ -472,12 +470,15 @@ class InnerShadowNodeTests: XCTestCase {
     expect(shownDuringResize.bounds) < 195
     expectOnTheFrame(shownDuringResize)
 
-    // when: an animated refresh widens the shadow further while the resize is in flight
+    // when: an animated refresh widens the shadow further while the resize is in flight, and its transaction commits
+    // 50 ms later, as it does when the main thread is busy
     width = 250
     view.refresh(animated: true)
+    Thread.sleep(forTimeInterval: 0.05)
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
 
-    // then: the resizes add up, far short of the new width, and the paths stay on the bounds
+    // then: the resizes add up, far short of the new width, and the paths stay on the bounds, as the frame's new
+    // animation and the paths' new change both begin at the refresh instead of at the commit
     let shownDuringInterruption = try shownWidths()
     expect(shownDuringInterruption.bounds) > 105
     expect(shownDuringInterruption.bounds) < 240

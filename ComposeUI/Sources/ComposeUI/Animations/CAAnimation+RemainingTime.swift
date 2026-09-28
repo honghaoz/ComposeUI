@@ -61,7 +61,10 @@ extension CAAnimation {
       return duration
     }
     let scaledDuration = duration / speed
-    let remainingTime = beginTime == 0 ? scaledDuration : beginTime + scaledDuration - now
+    // the elapsed time is taken off the duration, rather than now off the end time: the difference of two close times is
+    // exact, while the end time rounds at the magnitude of a media time, so an animation that begins now has exactly its
+    // duration left
+    let remainingTime = beginTime == 0 ? scaledDuration : scaledDuration - (now - beginTime)
     return remainingTime > 0 ? remainingTime : nil
   }
 

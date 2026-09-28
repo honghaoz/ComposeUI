@@ -228,7 +228,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     nonAdditiveAnimation.toValue = 1.0
     nonAdditiveAnimation.duration = 10
     nonAdditiveAnimation.timingFunction = CAMediaTimingFunction(name: .linear)
-    nonAdditiveAnimation.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - 5
+    nonAdditiveAnimation.beginTime = layer.currentTime - 5
     layer.add(nonAdditiveAnimation, forKey: "opacity")
 
     // when: a remove transition retargets
@@ -297,7 +297,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     risingAnimation.duration = 10
     risingAnimation.timingFunction = CAMediaTimingFunction(name: .linear)
     risingAnimation.isAdditive = true
-    risingAnimation.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - 5
+    risingAnimation.beginTime = layer.currentTime - 5
     layer.add(risingAnimation, forKey: "opacity")
 
     // when: a spring remove transition retargets
@@ -395,7 +395,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(try unwrap(spring.fromValue as? Float)).to(beApproximatelyEqual(to: 0.5, within: 0.01))
     expect(spring.initialVelocity) == 0
 
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(spring.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
@@ -508,7 +508,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(animation.fillMode) == .both
 
     // the animation is scheduled in the future by the delay, and evaluates to its held start delta until then
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
     expect(try unwrap(animation.scalarValue(at: now))).to(beApproximatelyEqual(to: -1, within: 1e-6))
   }
@@ -537,7 +537,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     let animation = try unwrap(animations.first)
     expect(try unwrap(animation.fromValue as? Float)).to(beApproximatelyEqual(to: -0.5, within: 0.01))
 
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
@@ -643,7 +643,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     let animation = try unwrap(animations.first)
     expect(try unwrap(animation.fromValue as? Float)) == 0
 
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
@@ -728,7 +728,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     expect(animation.duration).to(beApproximatelyEqual(to: 0.001, within: 1e-6))
     expect(insertCompletionCallCount) == 0
 
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
@@ -1378,7 +1378,7 @@ class RenderableTransition_OpacityTests: XCTestCase {
     animation.duration = duration
     animation.timingFunction = CAMediaTimingFunction(name: .linear)
     animation.isAdditive = true
-    animation.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) - duration * progress
+    animation.beginTime = layer.currentTime - duration * progress
     layer.add(animation, forKey: "opacity")
   }
 }

@@ -54,9 +54,8 @@ struct PathChanges {
     /// The speed of the change's timing.
     let speed: TimeInterval
 
-    /// The time the change begins, in the layer's time space, or zero while it begins at the commit of the animation
-    /// that shows it, see `update(beginTime:at:)`.
-    var beginTime: TimeInterval
+    /// The time the change begins, in the layer's time space, see `record(from:to:timing:at:)`.
+    let beginTime: TimeInterval
 
     /// The time the change has left, see `CAAnimation.remainingTime(at:)`.
     ///
@@ -98,7 +97,8 @@ struct PathChanges {
         return beforeLanding && time <= remainingTime + Constants.timeTolerance ? landingFactor : 0
       }
 
-      // an unset begin time resolves to the next commit, so the change is evaluated from its start
+      // a zero begin time is the one Core Animation takes as unset, so the change is evaluated from its start, the way
+      // its remaining time counts it, see `CAAnimation.remainingTime(at:)`
       let started = beginTime == 0 ? 0 : now - beginTime
 
       return CGFloat(1 - curve.progress(forElapsedTime: (started + time) * speed))
@@ -111,29 +111,6 @@ struct PathChanges {
   /// Whether no change is in flight.
   var isEmpty: Bool {
     changes.isEmpty
-  }
-
-  /// Whether the keyframes of the changes begin at the next commit, instead of now.
-  ///
-  /// The keyframes have one begin time, while a change begins at the commit or at its own begin time, see
-  /// `update(beginTime:at:)`, and the time between now and the commit isn't known until the commit. A change that moves
-  /// has to keep its motion, so the keyframes begin now once one moves. Before that, they begin at the commit when a
-  /// change begins there, so a transaction held open draws the changes with their own begin times late by the hold,
-  /// until an update draws them again. The begin time only decides how the keyframes draw the changes, it doesn't change
-  /// theirs.
-  ///
-  /// - Parameter now: The layer's current time.
-  /// - Returns: `true` if a change begins at the commit and no change moves yet.
-  func beginsAtCommit(at now: TimeInterval) -> Bool {
-    var hasChangeBeginningAtCommit = false
-    for change in changes {
-      if change.beginTime == 0 {
-        hasChangeBeginningAtCommit = true
-      } else if change.beginTime <= now {
-        return false
-      }
-    }
-    return hasChangeBeginningAtCommit
   }
 
   /// The time the longest change has left.
@@ -152,21 +129,10 @@ struct PathChanges {
     changes.allSatisfy { $0.offset.hasSameSegments(as: path) }
   }
 
-  /// Prepares the changes for an update of the path.
+  /// Removes the changes that have landed.
   ///
-  /// A change has the begin time an animation of its timing gets, see `record(from:to:timing:at:)`, and a begin time
-  /// that is set doesn't change, so the changes stay in step with animations of the same timings. A change without a
-  /// begin time takes the begin time of the animation that shows it: the commit once Core Animation has resolved it, or
-  /// the time the animation begins at when it doesn't begin at the commit, which is when it showed the change beginning.
-  /// The changes that have landed are removed.
-  ///
-  /// - Parameters:
-  ///   - beginTime: The begin time of the animation that shows the changes, zero while it begins at the next commit.
-  ///   - now: The layer's current time.
-  mutating func update(beginTime: TimeInterval, at now: TimeInterval) {
-    for index in changes.indices where changes[index].beginTime == 0 {
-      changes[index].beginTime = beginTime
-    }
+  /// - Parameter now: The layer's current time.
+  mutating func removeLandedChanges(at now: TimeInterval) {
     changes.removeAll { $0.remainingTime(at: now) == nil }
   }
 
@@ -198,8 +164,8 @@ struct PathChanges {
       return
     }
 
-    // the change begins when `CALayer.animate` begins an animation of its timing, at the commit without a delay and the
-    // delay from now with one, so it keeps in step with the animations of the same timing
+    // the change begins when `CALayer.animate` begins an animation of its timing, the delay after now, so it keeps in
+    // step with the animations of the same timing
     let animation = CABasicAnimation.makeAnimation(timing)
     changes.append(
       Change(
@@ -207,7 +173,7 @@ struct PathChanges {
         animation: animation,
         curve: AnimationCurve(animation),
         speed: TimeInterval(animation.speed),
-        beginTime: timing.delay > 0 ? now + timing.delay : 0
+        beginTime: now + timing.delay
       )
     )
   }
@@ -239,8 +205,7 @@ struct PathChanges {
   ///   - path: The path.
   ///   - points: The points of the path, with the segments of the changes, see `hasSameSegments(as:)`.
   ///   - now: The layer's current time.
-  /// - Returns: The keyframes, from now, or from the next commit, see `beginsAtCommit(at:)`. A keyframe where every
-  ///   change has landed is the path itself.
+  /// - Returns: The keyframes, from now. A keyframe where every change has landed is the path itself.
   func keyframes(adding path: CGPath, points: PathPoints, at now: TimeInterval) -> Keyframes {
     ComposeUI.assert(
       !changes.contains(where: { CAAnimation.neverFinishes(duration: $0.curve.duration) }),

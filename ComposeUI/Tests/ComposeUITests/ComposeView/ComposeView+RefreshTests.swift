@@ -161,6 +161,87 @@ class ComposeView_RefreshTests: XCTestCase {
     renderable.removeAllAnimations()
   }
 
+  func test_refresh_nonAnimatedAfterAnimatedInOneTurn_findsNoTimePassed() throws {
+    // given: a layer with a corner radius of 4, which animates over 10 seconds
+    var radius: CGFloat = 4
+    var layer: CALayer?
+    let view = ComposeView {
+      LayerNode()
+        .cornerRadius(radius)
+        .frame(width: 100, height: 50)
+        .animation(.easeInEaseOut(duration: 10))
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    view.refresh(animated: false)
+    let renderable = try unwrap(layer)
+
+    // when: in one turn of the run loop, an animated refresh changes the radius to 8, and a non-animated one changes it
+    // back to 4
+    radius = 8
+    view.refresh(animated: true)
+    radius = 4
+    view.refresh(animated: false)
+
+    // then: the passes read one time, so the animation hasn't begun when the second pass continues it, and the radius
+    // shows 4 all along: the animation is removed and the radius is set directly
+    expect(renderable.cornerRadius) == 4
+    expect(renderable.animationKeys()) == nil
+
+    // when: another non-animated refresh changes the radius to 8
+    radius = 8
+    view.refresh(animated: false)
+
+    // then: nothing is in flight to continue, so the radius changes at once
+    expect(renderable.cornerRadius) == 8
+    expect(renderable.animationKeys()) == nil
+  }
+
+  func test_refresh_animated_animationsOfThePassBeginAtOneTime() throws {
+    // given: a new turn of the run loop, and in it, a drop shadow with a cutout rendered 100 points wide without
+    // animation, which reads no time, in a view whose layout then takes 10 ms
+    RunLoop.main.run(until: Date())
+    var width: CGFloat = 100
+    var layer: CALayer?
+    let view = ComposeView {
+      DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { size in
+        let bounds = CGRect(origin: .zero, size: size)
+        return DropShadowPaths(shadowPath: CGPath(rect: bounds, transform: nil), cutoutPath: CGPath(rect: bounds.insetBy(dx: 10, dy: 10), transform: nil))
+      })
+      .frame(width: width, height: 100)
+      .animation(.easeInEaseOut(duration: 1))
+      .onUpdate { renderable, _ in
+        layer = renderable.layer
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+    view.refresh(animated: false)
+    let shadowLayer = try unwrap(layer)
+    let mask = try unwrap(shadowLayer.mask as? CAShapeLayer)
+    var layoutEndTime: CFTimeInterval?
+    _ = view.onWillLayout { _, _ in
+      Thread.sleep(forTimeInterval: 0.01)
+      layoutEndTime = CACurrentMediaTime()
+    }
+
+    // when: an animated refresh widens the shadow
+    width = 200
+    view.refresh(animated: true)
+
+    // then: the frame animations the pass adds, and the shadow path and mask animations the shadow's update adds, begin
+    // at one time
+    let beginTimes = try ["position", "bounds.size", "shadowPath"].map { try unwrap(shadowLayer.animation(forKey: $0)).beginTime }
+      + ["position", "bounds.size", "path"].map { try unwrap(mask.animation(forKey: $0)).beginTime }
+    expect(Set(beginTimes).count) == 1
+
+    // then: the time is read when the pass adds its first animation, after the layout, not when the pass starts
+    let passBeginTime = try unwrap(beginTimes.first)
+    let layoutEnd = try unwrap(layoutEndTime)
+    expect(passBeginTime) >= layoutEnd
+  }
+
   func test_setNeedsRefresh_merging() {
     // given: a compose view that has done its initial render
     var renderCount = 0

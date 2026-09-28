@@ -45,8 +45,7 @@ class PathChangesTests: XCTestCase {
     // when: recording a change from a rect to an inset rect
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .easeIn(duration: 2), at: 100)
 
-    // then: the change is the rect minus the inset rect, point by point, timed by the timing, and it begins at the next
-    // commit
+    // then: the change is the rect minus the inset rect, point by point, timed by the timing, and it begins now
     expect(changes.changes.count) == 1
     let change = try changes.changes.first.unwrap()
     expect(change.offset) == PathPoints(rect(inset: 0)).subtracting(PathPoints(rect(inset: 10)))
@@ -54,7 +53,7 @@ class PathChangesTests: XCTestCase {
     expect(change.animation.timingFunction) == CAMediaTimingFunction(name: .easeIn)
     expect(change.curve.duration) == 2
     expect(change.speed) == 1
-    expect(change.beginTime) == 0
+    expect(change.beginTime) == 100
   }
 
   func test_record_delayedChange_beginsAfterTheDelay() throws {
@@ -141,52 +140,22 @@ class PathChangesTests: XCTestCase {
     expect(changes.isEmpty) == true
   }
 
-  // MARK: - Update
+  // MARK: - Remove Landed Changes
 
-  func test_update_resolvesTheBeginTime() {
-    // given: a change recorded before the commit, and a delayed change with its own begin time
+  func test_removeLandedChanges() {
+    // given: changes of one, two and three seconds, recorded two seconds ago, and a delayed change that hasn't begun
     var changes = PathChanges()
-    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
-    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 2, delay: 1), at: 100)
+    changes.record(from: rect(inset: 0), to: rect(inset: 5), timing: .linear(duration: 1), at: 98)
+    changes.record(from: rect(inset: 5), to: rect(inset: 10), timing: .linear(duration: 2), at: 98)
+    changes.record(from: rect(inset: 10), to: rect(inset: 15), timing: .linear(duration: 3), at: 98)
+    changes.record(from: rect(inset: 15), to: rect(inset: 20), timing: .linear(duration: 0.5, delay: 1), at: 100)
 
-    // when: updating before the animation that shows the changes is committed
-    changes.update(beginTime: 0, at: 100)
+    // when: removing the changes that have landed
+    changes.removeLandedChanges(at: 100)
 
-    // then: the first change still begins at the next commit
-    expect(changes.changes.map(\.beginTime)) == [0, 101]
-
-    // when: updating after the commit gave the animation a begin time
-    changes.update(beginTime: 100.02, at: 100.5)
-
-    // then: the first change begins when the animation began, and the delayed change keeps its own begin time
-    expect(changes.changes.map(\.beginTime)) == [100.02, 101]
-  }
-
-  func test_update_laterCommit_keepsTheDelayedChangesBeginTime() {
-    // given: a change recorded before the commit, and a delayed change with its own begin time
-    var changes = PathChanges()
-    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 2), at: 100)
-    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 2, delay: 1), at: 100)
-
-    // when: updating after the animation that shows them, made at 100, was committed at 100.3
-    changes.update(beginTime: 100.3, at: 100.5)
-
-    // then: the first change begins at the commit, and the delayed change keeps its own begin time, as a delayed
-    // animation does
-    expect(changes.changes.map(\.beginTime)) == [100.3, 101]
-  }
-
-  func test_update_removesLandedChanges() {
-    // given: a change of one second and a change of three seconds, recorded before the commit
-    var changes = PathChanges()
-    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 100)
-    changes.record(from: rect(inset: 10), to: rect(inset: 20), timing: .linear(duration: 3), at: 100)
-
-    // when: updating two seconds after the animation that shows them began
-    changes.update(beginTime: 98, at: 100)
-
-    // then: the change of one second has landed and is removed, the other is kept
-    expect(changes.changes.map(\.curve.duration)) == [3]
+    // then: the change of one second and the change of two seconds, which lands now, are removed, and the change of
+    // three seconds and the delayed change are kept
+    expect(changes.changes.map(\.curve.duration)) == [3, 0.5]
   }
 
   // MARK: - State
@@ -204,35 +173,12 @@ class PathChangesTests: XCTestCase {
     // then: the ended change leaves no time
     expect(changes.remainingTime(at: 100)) == 0
 
-    // when: a delayed change of two seconds, and a change of one second beginning at the next commit
+    // when: a delayed change of two seconds, and a change of one second beginning now
     changes.record(from: rect(inset: 5), to: rect(inset: 10), timing: .linear(duration: 2, delay: 0.5), at: 100)
     changes.record(from: rect(inset: 10), to: rect(inset: 15), timing: .linear(duration: 1), at: 100)
 
     // then: the longest time left remains
     expect(changes.remainingTime(at: 100)) == 2.5
-  }
-
-  func test_beginsAtCommit() {
-    // given: no changes in flight
-    var changes = PathChanges()
-
-    // then: no change begins at the commit
-    expect(changes.beginsAtCommit(at: 100)) == false
-
-    // when: a change with a delay of a second
-    changes.record(from: rect(inset: 0), to: rect(inset: 5), timing: .linear(duration: 1, delay: 1), at: 100)
-
-    // then: it begins after its delay, so the keyframes begin now
-    expect(changes.beginsAtCommit(at: 100)) == false
-
-    // when: a change without a delay
-    changes.record(from: rect(inset: 5), to: rect(inset: 10), timing: .linear(duration: 1), at: 100)
-
-    // then: the keyframes begin at the commit with it, as no change moves yet
-    expect(changes.beginsAtCommit(at: 100)) == true
-
-    // then: once the delayed change moves, the keyframes begin now, to keep it where it is shown
-    expect(changes.beginsAtCommit(at: 101)) == false
   }
 
   func test_hasSameSegments() {
@@ -255,7 +201,7 @@ class PathChangesTests: XCTestCase {
   // MARK: - Remaining Factor
 
   func test_remainingFactor() throws {
-    // given: a linear change over one second, beginning at the next commit
+    // given: a linear change over one second, beginning now
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 100)
     let change = try changes.changes.first.unwrap()
@@ -270,7 +216,6 @@ class PathChangesTests: XCTestCase {
     // given: a linear change over one second that began a quarter second ago
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 99.75)
-    changes.update(beginTime: 99.75, at: 100)
     let change = try changes.changes.first.unwrap()
 
     // then: three quarters of the offset are left now, a quarter half a second later, and none once the change lands
@@ -366,7 +311,7 @@ class PathChangesTests: XCTestCase {
   // MARK: - Keyframes
 
   func test_keyframes_samplesAtTheDisplayRate() {
-    // given: a linear change from a rect to an inset rect over half a second, beginning at the next commit
+    // given: a linear change from a rect to an inset rect over half a second, beginning now
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 0.5), at: 100)
     let path = rect(inset: 10)
@@ -388,7 +333,6 @@ class PathChangesTests: XCTestCase {
     // given: a linear change over one second that began half a second ago
     var changes = PathChanges()
     changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 99.5)
-    changes.update(beginTime: 99.5, at: 100)
     let path = rect(inset: 10)
 
     // when: sampling the keyframes
@@ -640,6 +584,28 @@ class PathChangesTests: XCTestCase {
     // then: the change begins and lands with the keyframes, so it needs no keyframes of its own
     expect(keyframes.duration) == 0.37
     expect(keyframes.keyTimes) == nil
+  }
+
+  // MARK: - Zero Begin Time
+
+  func test_zeroBeginTime_isEvaluatedAsUnset() throws {
+    // given: a linear change over one second recorded at a layer time of zero, as a paused layer's can be, which gives
+    // it the zero begin time Core Animation takes as unset
+    var changes = PathChanges()
+    changes.record(from: rect(inset: 0), to: rect(inset: 10), timing: .linear(duration: 1), at: 0)
+    let change = try changes.changes.first.unwrap()
+    expect(change.beginTime) == 0
+
+    // then: half a second later, the change is evaluated from its start, the way its remaining time counts it
+    expect(change.remainingTime(at: 0.5)) == 1
+    expect(change.remainingFactor(at: 0, now: 0.5)) == 1
+
+    // then: so are its keyframes, which start with the whole change and last its whole duration
+    let path = rect(inset: 10)
+    let keyframes = changes.keyframes(adding: path, points: PathPoints(path), at: 0.5)
+    expect(keyframes.duration) == 1
+    expect(keyframes.keyTimes) == nil
+    expect(keyframes.paths[0].maxPointDistance(to: rect(inset: 0))) < 1e-9
   }
 
   // MARK: - Helpers

@@ -104,11 +104,11 @@ private extension CALayer {
 
   /// The path's changes in flight, kept on the animation that shows them.
   func pathChanges(forKeyPath keyPath: String, at now: TimeInterval) -> PathChanges {
-    guard let animation = animation(forKey: keyPath), let box = animation.value(forKey: PathChangesBox.key) as? PathChangesBox else {
+    guard let box = animation(forKey: keyPath)?.value(forKey: PathChangesBox.key) as? PathChangesBox else {
       return PathChanges()
     }
     var changes = box.changes
-    changes.update(beginTime: animation.beginTime, at: now)
+    changes.removeLandedChanges(at: now)
     return changes
   }
 
@@ -153,9 +153,7 @@ private extension CALayer {
       keyframeAnimation.calculationMode = .linear
       keyframeAnimation.duration = keyframes.duration
       keyframeAnimation.fillMode = .both
-      if !changes.beginsAtCommit(at: now) {
-        keyframeAnimation.beginTime = now
-      }
+      keyframeAnimation.beginTime = now
       animation = keyframeAnimation
     }
 

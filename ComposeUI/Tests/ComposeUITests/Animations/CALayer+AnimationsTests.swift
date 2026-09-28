@@ -290,7 +290,7 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(animation.toValue as? Float) == 0
     expect(animation.fillMode) == .both
 
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
@@ -322,7 +322,7 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(try unwrap(animation.fromValue as? Float)).to(beApproximatelyEqual(to: -0.8, within: 1e-6))
     expect(animation.duration).to(beApproximatelyEqual(to: 0.001, within: 1e-6))
 
-    let now = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let now = layer.currentTime
     expect(animation.beginTime - now).to(beApproximatelyEqual(to: 0.5, within: 0.1))
   }
 
@@ -338,9 +338,29 @@ class CALayer_AnimationsTests: XCTestCase {
     // then: the delay is expressed in the layer's time space, which runs at twice the media time for this layer,
     // so the begin time is the layer's current time plus the delay (far from the media time plus the delay)
     let animation = try unwrap(layer.animation(forKey: "opacity") as? CABasicAnimation)
-    let layerNow = layer.convertTime(CACurrentMediaTime(), from: nil)
+    let layerNow = layer.currentTime
     expect(animation.beginTime - layerNow).to(beApproximatelyEqual(to: 0.5, within: 0.1))
-    expect(abs(animation.beginTime - (CACurrentMediaTime() + 0.5))).toNot(beApproximatelyEqual(to: 0, within: 1))
+    expect(abs(animation.beginTime - (AnimationClock.now + 0.5))).toNot(beApproximatelyEqual(to: 0, within: 1))
+  }
+
+  func test_animate_beginsAtTheClocksTimeInTheLayersTimeSpace() throws {
+    // given: a layer in a layer tree whose time runs at twice the media time
+    let root = CALayer()
+    root.speed = 2
+    let layer = CALayer()
+    root.addSublayer(layer)
+    layer.opacity = 0.2
+
+    // when: at the media time 1000, animating the opacity, and the corner radius after a delay
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animate(keyPath: "opacity", to: Float(1), timing: .linear(duration: 1))
+      layer.animate(keyPath: "cornerRadius", to: CGFloat(10), timing: .linear(duration: 1, delay: 0.5))
+    }
+
+    // then: the animations begin at 1000 in the layer's time space, 2000, the delayed one after its delay, instead of
+    // at a time Core Animation sets when the transaction commits
+    expect(try layer.animation(forKey: "opacity").unwrap().beginTime) == 2000
+    expect(try layer.animation(forKey: "cornerRadius").unwrap().beginTime) == 2000.5
   }
 
   func test_animate_delayed_nilFromValue_resolvesAtDispatch() throws {
@@ -654,6 +674,25 @@ class CALayer_AnimationsTests: XCTestCase {
 
     // then: the next sequential number is still used
     expect(layer.uniqueAnimationKey(key: "position")) == "position-1"
+  }
+
+  // MARK: - currentTime
+
+  func test_currentTime_maskLayer_isInTheMaskedLayersTimeSpace() {
+    // given: a layer with a mask, in a layer tree whose time runs at twice the media time from a begin time of 5
+    let root = CALayer()
+    root.speed = 2
+    root.beginTime = 5
+    let layer = CALayer()
+    root.addSublayer(layer)
+    let mask = CAShapeLayer()
+    layer.mask = mask
+
+    AnimationClock.sharingTime(at: 1000) {
+      // then: the mask's current time is the masked layer's, so the mask's animations begin with the layer's
+      expect(layer.currentTime) == 1990
+      expect(mask.currentTime) == layer.currentTime
+    }
   }
 
   // MARK: - Key Path Animations

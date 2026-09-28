@@ -575,7 +575,7 @@ class CALayer_RetargetTests: XCTestCase {
     layer.retarget(keyPath: "cornerRadius", to: CGFloat(5))
 
     // then: the model has the new value, and the animation is replaced by one additive ease-out from the shown radius,
-    // 5 below the new one, over the animation's remaining time
+    // 5 below the new one, over the animation's remaining time, beginning at the current time
     expect(layer.cornerRadius) == 5
     expect(layer.animationKeys()) == ["cornerRadius"]
     let glide = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
@@ -583,7 +583,7 @@ class CALayer_RetargetTests: XCTestCase {
     expect(glide.fromValue as? CGFloat) == -5
     expect(glide.toValue as? CGFloat) == 0
     expect(glide.duration) == 10
-    expect(glide.beginTime) == 0
+    expect(glide.beginTime) == layer.currentTime
     expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     expect(glide.fillMode) == .both
     expect(glide.isRemovedOnCompletion) == true

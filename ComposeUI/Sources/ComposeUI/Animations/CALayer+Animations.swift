@@ -179,14 +179,14 @@ public extension CALayer {
 
   /// Add an animation to the layer.
   ///
-  /// The animation is added and the model value is set synchronously. The timing's delay schedules the animation's
-  /// begin time in the layer's time space, and the animation's fill mode holds the `from` value until the delay
-  /// elapses, so the layer keeps showing its pre-animation state during the delay window while the model value is
-  /// already set. A zero-duration timing applies the model value immediately when there is no delay. With a delay,
-  /// the change is scheduled as a snap that applies right after the delay window.
+  /// The animation is added and the model value is set synchronously. The animation begins at the current time of the
+  /// animation clock plus the timing's delay, in the layer's time space, see `AnimationClock`. The animation's fill mode
+  /// holds the `from` value until the delay elapses, so the layer keeps showing its pre-animation state during the delay
+  /// window while the model value is already set. A zero-duration timing applies the model value immediately when there
+  /// is no delay. With a delay, the change is scheduled as a snap that applies right after the delay window.
   ///
-  /// A scheduled animation only survives on a layer that is in a committed layer tree: Core Animation drops animations
-  /// on detached layers when the enclosing transaction commits.
+  /// The animation only survives on a layer that is in a committed layer tree: Core Animation drops animations on
+  /// detached layers when the enclosing transaction commits.
   ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
@@ -222,9 +222,7 @@ public extension CALayer {
     animation.fromValue = from(layer)
     let toValue = to(layer)
     animation.toValue = toValue
-    if timing.delay > 0 {
-      animation.beginTime = currentTime + timing.delay
-    }
+    animation.beginTime = currentTime + timing.delay
 
     updateAnimation?(animation)
 
@@ -344,11 +342,11 @@ public extension CALayer {
     return currentKey
   }
 
-  /// The current time in the layer's time space.
+  /// The current time in the layer's time space, read from the animation clock, see `AnimationClock`.
   ///
   /// This is the time that the layer's animation begin times are expressed in.
   internal var currentTime: TimeInterval {
-    convertTime(CACurrentMediaTime(), from: nil)
+    convertTime(AnimationClock.now, from: nil)
   }
 
   /// The layer's basic animations animating the given key path.
