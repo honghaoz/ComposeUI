@@ -214,6 +214,56 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     expect(try unwrap(moving.scalarValue(at: 100.1))) < (try unwrap(still.scalarValue(at: 100.1)))
   }
 
+  func test_elapsedTime() {
+    // given: an animation that begins at 100
+    let animation = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 100)
+
+    // then: the elapsed time is the time since the begin time, negative before it, and not clamped to the duration
+    expect(animation.elapsedTime(at: 101)) == 1
+    expect(animation.elapsedTime(at: 99)) == -1
+    expect(animation.elapsedTime(at: 106)) == 6
+
+    // when: doubling the speed
+    animation.speed = 2
+
+    // then: the elapsed time is scaled by the speed
+    expect(animation.elapsedTime(at: 101)) == 2
+
+    // when: pausing the animation
+    animation.speed = 0
+
+    // then: the elapsed time stays at zero
+    expect(animation.elapsedTime(at: 101)) == 0
+  }
+
+  func test_elapsedTime_unresolvedBeginTime_isZero() {
+    // given: an animation with an unset begin time, which Core Animation resolves when the transaction commits
+    let animation = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 0)
+    animation.speed = 2
+
+    // then: it hasn't run, whatever the time
+    expect(animation.elapsedTime(at: 0)) == 0
+    expect(animation.elapsedTime(at: 100)) == 0
+  }
+
+  func test_elapsedTime_unsupportedShapes() {
+    // given: animations that have a time offset, repeat, or autoreverse
+    let shapes: [(name: String, apply: (CABasicAnimation) -> Void)] = [
+      ("timeOffset", { $0.timeOffset = 1 }),
+      ("repeatCount", { $0.repeatCount = 2 }),
+      ("repeatDuration", { $0.repeatDuration = 8 }),
+      ("autoreverses", { $0.autoreverses = true }),
+    ]
+
+    for shape in shapes {
+      let animation = makeAnimation(from: 1, to: 0, duration: 4, beginTime: 100)
+      shape.apply(animation)
+
+      // then: the elapsed time is nil, as `progress(forElapsedTime:)` doesn't evaluate their timeline
+      expect(animation.elapsedTime(at: 101), shape.name) == nil
+    }
+  }
+
   // MARK: - Parity with Core Animation's private _solveForInput:
 
   func test_solveForInput_timingFunction_matchesPrivateImplementation() throws {

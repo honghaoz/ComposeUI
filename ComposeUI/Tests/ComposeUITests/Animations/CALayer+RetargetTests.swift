@@ -872,6 +872,14 @@ class CALayer_RetargetTests: XCTestCase {
         animation.timeOffset = 1
         return animation
       }),
+      ("spring with a repeat count", { _ in
+        // a running spring that lands on the model value is kept, but only when its timing can be evaluated
+        let animation = CASpringAnimation(keyPath: "cornerRadius")
+        animation.fromValue = CGFloat(-20)
+        animation.toValue = CGFloat(0)
+        animation.repeatCount = 2
+        return animation
+      }),
       ("scheduled without a backwards fill", { layer in
         let animation = CABasicAnimation(keyPath: "cornerRadius")
         animation.fromValue = CGFloat(-20)

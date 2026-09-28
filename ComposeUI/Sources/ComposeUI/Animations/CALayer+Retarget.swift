@@ -169,6 +169,7 @@ public extension CALayer {
     for inFlightAnimation in animations {
       guard let animation = inFlightAnimation.animation as? CABasicAnimation,
             animation.isAdditive,
+            let elapsed = animation.elapsedTime(at: now),
             let (from, to) = animation.additiveValues(ofKind: oldValue, at: now)
       else {
         return nil
@@ -178,8 +179,6 @@ public extension CALayer {
         continue
       }
 
-      // an unset begin time resolves to the next commit, so the animation hasn't moved yet
-      let elapsed = animation.beginTime == 0 ? 0 : (now - animation.beginTime) * TimeInterval(animation.speed)
       offset += from + (to - from).scaled(by: animation.progress(forElapsedTime: elapsed))
       keys.append(inFlightAnimation.key)
     }
@@ -211,17 +210,14 @@ private struct InFlightAnimation {
 
 private extension CABasicAnimation {
 
-  /// The animation's from and to values, when both are of `kind` and the animation's value at a time can be computed
-  /// the way `progress(forElapsedTime:)` evaluates it, otherwise `nil`.
+  /// The animation's from and to values, when both are of `kind` and the value the animation shows at `now`
+  /// interpolates them, otherwise `nil`. The timing, which gives the progress to interpolate by, is checked by
+  /// `elapsedTime(at:)`.
   ///
-  /// The evaluation doesn't cover a by value, repeats and time offsets, and a scheduled animation without a backwards
-  /// fill doesn't show its from value until it begins.
+  /// A by value isn't evaluated, and a scheduled animation without a backwards fill doesn't show its from value until
+  /// it begins.
   func additiveValues(ofKind kind: AdditiveValue, at now: TimeInterval) -> (from: AdditiveValue, to: AdditiveValue)? {
     guard byValue == nil,
-          repeatCount == 0,
-          repeatDuration == 0,
-          !autoreverses,
-          timeOffset == 0,
           beginTime <= now || fillMode == .backwards || fillMode == .both,
           let from = fromValue.flatMap({ AdditiveValue($0) }),
           from.isSameKind(as: kind),
