@@ -381,6 +381,54 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.backgroundColor) == Color.blue.cgColor
   }
 
+  func test_retarget_inFlightAnimationToNil_nilValue_isKept() throws {
+    // given: a layer with a linear background color animation heading to a nil model color
+    let layer = CALayer()
+    layer.backgroundColor = Color.red.cgColor
+    layer.animate(
+      keyPath: "backgroundColor",
+      timing: .linear(duration: 10),
+      from: { _ -> CGColor? in Color.red.cgColor },
+      to: { _ -> CGColor? in nil }
+    )
+    expect(layer.backgroundColor) == nil
+
+    // when: retargeting the background color to nil
+    layer.retarget(keyPath: "backgroundColor", to: CGColor?.none as Any)
+
+    // then: the model already is nil, so the animation keeps its easing instead of being replaced by one to nil
+    let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
+    expect(animation.duration) == 10
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .linear)
+    expect(layer.animationKeys()) == ["backgroundColor"]
+    expect(layer.backgroundColor) == nil
+  }
+
+  func test_retarget_withoutInFlightAnimation_readsAndSetsWithoutKVC() {
+    // given: a layer that counts KVC reads and writes, with a corner radius and a background color
+    let layer = KVCCountingLayer()
+    layer.cornerRadius = 4
+    layer.backgroundColor = Color.red.cgColor
+
+    // when: retargeting them to the values the model has
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(4))
+    layer.retarget(keyPath: "backgroundColor", to: Color.red.cgColor)
+
+    // then: the values are compared without KVC
+    expect(layer.kvcReadCount) == 0
+
+    // when: retargeting them to new values, with nothing animating
+    layer.retarget(keyPath: "cornerRadius", to: CGFloat(8))
+    layer.retarget(keyPath: "backgroundColor", to: Color.blue.cgColor)
+
+    // then: the values are compared and set without KVC, and without an animation
+    expect(layer.cornerRadius) == 8
+    expect(layer.backgroundColor) == Color.blue.cgColor
+    expect(layer.animationKeys()) == nil
+    expect(layer.kvcReadCount) == 0
+    expect(layer.kvcWriteCount) == 0
+  }
+
   func test_retarget_inFlightAnimation_replacesWithEaseOutOverRemainingTime() throws {
     // given: a layer with two uncommitted background color animations of different durations, and an animation of
     // another key path

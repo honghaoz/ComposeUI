@@ -143,6 +143,43 @@ class ModifierPerformanceTests: XCTestCase {
     }
   }
 
+  func test_refresh_changingValues() {
+    // given: a compose view showing rows of four built-in modifiers whose values alternate between two sets
+    var isAlternate = false
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< Constants.rowCount {
+          LayerNode()
+            .backgroundColor(isAlternate ? .red : .blue)
+            .opacity(isAlternate ? 0.5 : 0.6)
+            .cornerRadius(isAlternate ? 4 : 6)
+            .border(color: isAlternate ? .blue : .red, width: isAlternate ? 1 : 2)
+            .frame(width: Constants.rowWidth, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.allRowsSize)
+    view.refresh(animated: false)
+
+    // when: refreshing without animation with the other values each time, which sets every property of every row
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { _ in
+      isAlternate.toggle()
+      view.refresh(animated: false)
+    }
+    let grossAllocations = AllocationCounter.count {
+      isAlternate.toggle()
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings and the allocations
+    report(
+      name: "modifiers.refresh.changingValues",
+      result: result,
+      grossAllocations: grossAllocations,
+      unit: (name: "row", count: Constants.rowCount)
+    )
+  }
+
   // MARK: - Scroll
 
   func test_scroll() {

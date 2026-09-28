@@ -801,6 +801,177 @@ class CALayer_KeyPathValueTests: XCTestCase {
     }
   }
 
+  func test_hasModelValue_directReads() {
+    // given: a layer that counts KVC reads, with a value for each number and structure property compared directly
+    let layer = KVCCountingLayer()
+    layer.position = CGPoint(x: 10, y: 20)
+    layer.bounds.size = CGSize(width: 30, height: 40)
+    layer.shadowOffset = CGSize(width: 5, height: 6)
+    layer.opacity = 0.5
+    layer.shadowOpacity = 0.25
+    layer.borderWidth = 2
+    layer.cornerRadius = 3
+    layer.shadowRadius = 4
+
+    let cases: [(keyPath: String, modelValue: Any, otherValue: Any)] = [
+      ("position", CGPoint(x: 10, y: 20), CGPoint(x: 10, y: 21)),
+      ("bounds.size", CGSize(width: 30, height: 40), CGSize(width: 30, height: 41)),
+      ("shadowOffset", CGSize(width: 5, height: 6), CGSize(width: 5, height: 7)),
+      ("opacity", Float(0.5), Float(0.75)),
+      ("shadowOpacity", Float(0.25), Float(0.75)),
+      ("borderWidth", CGFloat(2), CGFloat(2.5)),
+      ("cornerRadius", CGFloat(3), CGFloat(3.5)),
+      ("shadowRadius", CGFloat(4), CGFloat(4.5)),
+    ]
+    for (keyPath, modelValue, otherValue) in cases {
+      // then: the model value is found and another value isn't
+      expect(layer.hasModelValue(modelValue, forKeyPath: keyPath), keyPath) == true
+      expect(layer.hasModelValue(otherValue, forKeyPath: keyPath), keyPath) == false
+    }
+
+    // then: values wrapped in optionals, as `retarget` gets them as an `Any`, are compared the same way
+    expect(layer.hasModelValue(Float?(0.5) as Any, forKeyPath: "opacity")) == true
+    expect(layer.hasModelValue(Any?(CGFloat(3)) as Any, forKeyPath: "cornerRadius")) == true
+
+    // then: the values are read without KVC
+    expect(layer.kvcReadCount) == 0
+  }
+
+  func test_hasModelValue_colorsAndPaths() {
+    // given: a layer and a shape layer that count KVC reads, with colors and paths
+    let layer = KVCCountingLayer()
+    let shapeLayer = KVCCountingShapeLayer()
+    let red = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+    let blue = CGColor(red: 0, green: 0, blue: 1, alpha: 1)
+    let rect = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil)
+    let ellipse = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil)
+    layer.backgroundColor = red
+    layer.borderColor = red
+    layer.shadowColor = red
+    layer.shadowPath = rect
+    shapeLayer.path = rect
+
+    // then: an equal color or path is found, also as another instance, and another one or nil isn't
+    for keyPath in ["backgroundColor", "borderColor", "shadowColor"] {
+      expect(layer.hasModelValue(CGColor(red: 1, green: 0, blue: 0, alpha: 1), forKeyPath: keyPath), keyPath) == true
+      expect(layer.hasModelValue(blue, forKeyPath: keyPath), keyPath) == false
+      expect(layer.hasModelValue(CGColor?.none as Any, forKeyPath: keyPath), keyPath) == false
+    }
+    expect(layer.hasModelValue(CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil), forKeyPath: "shadowPath")) == true
+    expect(layer.hasModelValue(ellipse, forKeyPath: "shadowPath")) == false
+    expect(layer.hasModelValue(CGPath?.none as Any, forKeyPath: "shadowPath")) == false
+    expect(shapeLayer.hasModelValue(CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil), forKeyPath: "path")) == true
+    expect(shapeLayer.hasModelValue(ellipse, forKeyPath: "path")) == false
+
+    // when: the colors and the paths are nil
+    layer.backgroundColor = nil
+    layer.borderColor = nil
+    layer.shadowColor = nil
+    layer.shadowPath = nil
+    shapeLayer.path = nil
+
+    // then: nil, which a nil optional bridges to `NSNull` for, is found, and a color or a path isn't
+    for keyPath in ["backgroundColor", "borderColor", "shadowColor"] {
+      expect(layer.hasModelValue(CGColor?.none as Any, forKeyPath: keyPath), keyPath) == true
+      expect(layer.hasModelValue(red, forKeyPath: keyPath), keyPath) == false
+    }
+    expect(layer.hasModelValue(CGPath?.none as Any, forKeyPath: "shadowPath")) == true
+    expect(layer.hasModelValue(rect, forKeyPath: "shadowPath")) == false
+    expect(shapeLayer.hasModelValue(CGPath?.none as Any, forKeyPath: "path")) == true
+    expect(shapeLayer.hasModelValue(rect, forKeyPath: "path")) == false
+
+    // then: the colors and the paths are read without KVC
+    expect(layer.kvcReadCount) == 0
+    expect(shapeLayer.kvcReadCount) == 0
+  }
+
+  func test_hasModelValue_valueOfOtherType_comparesThroughKVC() {
+    // given: a layer that counts KVC reads, with an opacity, a corner radius and a background color
+    let layer = KVCCountingLayer()
+    layer.opacity = 0.5
+    layer.cornerRadius = 4
+    layer.backgroundColor = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // then: a number of another type is compared through KVC, which compares the boxed numbers by value
+    expect(layer.hasModelValue(CGFloat(0.5), forKeyPath: "opacity")) == true
+    expect(layer.hasModelValue(CGFloat(0.75), forKeyPath: "opacity")) == false
+    expect(layer.hasModelValue(4, forKeyPath: "cornerRadius")) == true
+    expect(layer.kvcReadCount) == 3
+
+    // then: a platform color isn't the color, and it doesn't assert, as setting it asserts instead
+    expect(layer.hasModelValue(Color.red, forKeyPath: "backgroundColor")) == false
+    expect(assertionMessages) == []
+    expect(layer.kvcReadCount) == 3
+  }
+
+  func test_hasModelValue_otherKeyPaths_compareThroughKVC() {
+    // given: a layer that counts KVC reads, with an anchor point and a z position
+    let layer = KVCCountingLayer()
+    layer.anchorPoint = CGPoint(x: 0.25, y: 0.75)
+    layer.zPosition = 2
+
+    // then: the values of other key paths are compared through KVC
+    expect(layer.hasModelValue(CGPoint(x: 0.25, y: 0.75), forKeyPath: "anchorPoint")) == true
+    expect(layer.hasModelValue(CGPoint(x: 0.5, y: 0.5), forKeyPath: "anchorPoint")) == false
+    expect(layer.hasModelValue(CGFloat(2), forKeyPath: "zPosition")) == true
+    expect(layer.kvcReadCount) == 3
+
+    // then: the `path` of a layer that isn't a shape layer is a value for the key, compared through KVC, nil while unset
+    let rect = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil)
+    expect(layer.hasModelValue(CGPath?.none as Any, forKeyPath: "path")) == true
+    expect(layer.hasModelValue(rect, forKeyPath: "path")) == false
+    expect(layer.kvcReadCount) == 5
+  }
+
+  func test_hasModelValue_directReadsMatchKVC() {
+    // given: for each property compared directly, a model value and values to compare with it, the same one, an equal
+    // one and another one
+    let red = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+    let rect = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil)
+    func colors() -> [Any] {
+      [red, CGColor(red: 1, green: 0, blue: 0, alpha: 1), CGColor(red: 0, green: 1, blue: 0, alpha: 1)]
+    }
+    func paths() -> [Any] {
+      [rect, CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil), CGPath(ellipseIn: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil)]
+    }
+    let cases: [(keyPath: String, modelValue: Any, values: [Any])] = [
+      ("position", CGPoint(x: 50, y: 60), [CGPoint(x: 50, y: 60), CGPoint(x: 50, y: 61)]),
+      ("bounds.size", CGSize(width: 70, height: 80), [CGSize(width: 70, height: 80), CGSize(width: 71, height: 80)]),
+      ("shadowOffset", CGSize(width: 5, height: 6), [CGSize(width: 5, height: 6), CGSize(width: 6, height: 6)]),
+      ("opacity", Float(0.5), [Float(0.5), Float(0.25)]),
+      ("shadowOpacity", Float(0.25), [Float(0.25), Float(0.5)]),
+      ("borderWidth", CGFloat(2), [CGFloat(2), CGFloat(3)]),
+      ("cornerRadius", CGFloat(3), [CGFloat(3), CGFloat(4)]),
+      ("shadowRadius", CGFloat(4), [CGFloat(4), CGFloat(5)]),
+      ("backgroundColor", red, colors()),
+      ("borderColor", red, colors()),
+      ("shadowColor", red, colors()),
+      ("shadowPath", rect, paths()),
+      ("path", rect, paths()),
+    ]
+
+    for layer in [CALayer(), CAShapeLayer()] {
+      for (keyPath, modelValue, values) in cases {
+        // when: the model has the model value
+        layer.setKeyPathValue(keyPath, modelValue)
+
+        for value in values {
+          // then: comparing the value directly agrees with comparing it through KVC
+          let isEqualThroughKVC = (layer.value(forKeyPath: keyPath) as AnyObject).isEqual(value)
+          expect(layer.hasModelValue(value, forKeyPath: keyPath), "\(type(of: layer)) \(keyPath)") == isEqualThroughKVC
+        }
+      }
+    }
+  }
+
   func test_setKeyPathValue_disablesImplicitAnimations() {
     // given: a layer hosted in a window, committed so that its changes animate implicitly
     let testWindow = TestWindow()

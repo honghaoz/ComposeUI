@@ -99,10 +99,17 @@ public extension CALayer {
       return
     }
 
+    // without opacity animations, the current time isn't read, since reading it converts the time through the layer tree
+    let opacityAnimations = propertyAnimations(forKeyPath: "opacity")
+    guard !opacityAnimations.isEmpty else {
+      setKeyPathValue("opacity", value)
+      return
+    }
+
     let now = currentTime
     var remainingTime: TimeInterval?
     var neverFinishes = false
-    for animation in propertyAnimations(forKeyPath: "opacity") {
+    for animation in opacityAnimations {
       guard let animationRemainingTime = animation.remainingTime(at: now) else {
         continue
       }
