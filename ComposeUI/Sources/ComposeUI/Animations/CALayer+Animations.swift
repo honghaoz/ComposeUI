@@ -187,7 +187,9 @@ public extension CALayer {
   /// scheduled as a snap that applies right after the delay window.
   ///
   /// The animation only survives on a layer that is in a committed layer tree: Core Animation drops animations on
-  /// detached layers when the enclosing transaction commits.
+  /// detached layers when the enclosing transaction commits. The begin time is in the layer's time space when the
+  /// animation is added, and Core Animation reads it in the layer's time space at the commit, so add the animation after
+  /// the layer joins a tree whose timing differs, such as under an ancestor with a `speed` other than 1.
   ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.
   ///
