@@ -155,11 +155,12 @@ class CALayer_AdditivePathTests: XCTestCase {
   }
 
   func test_animatePath_changesSurviveTheCommit() throws {
-    // given: a hosted shape layer whose rect path changes to an inset rect over two seconds, committed a while ago
+    // given: a hosted shape layer whose rect path changes to an inset rect over two seconds from a new turn of the run
+    // loop, committed a while ago
     let testWindow = TestWindow()
     let layer = makeLayer()
     testWindow.layer.addSublayer(layer)
-    CATransaction.flush()
+    RunLoop.main.run(until: Date())
 
     layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
     CATransaction.flush()

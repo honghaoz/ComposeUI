@@ -90,7 +90,9 @@ class ComposeView_TransitionTests: XCTestCase {
   }
 
   func test_delayedTransition_removalCompletesThroughScheduledAnimation() {
-    // given: a hosted compose view showing content with a delayed opacity transition
+    // given: a hosted compose view showing content with a delayed opacity transition, in a new turn of the run loop, so
+    // its animations begin when they're added
+    RunLoop.main.run(until: Date())
     let window = TestWindow()
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.contentView().addSubview(contentView)
@@ -636,7 +638,9 @@ class ComposeView_TransitionTests: XCTestCase {
   }
 
   func test_reinsertRemovingRenderable_crossSideSlideTransition_renderedPositionIsContinuous() throws {
-    // given: a hosted compose view showing content with a slow cross-side slide transition
+    // given: a hosted compose view showing content with a slow cross-side slide transition, in a new turn of the run loop,
+    // so its animations begin when they're added
+    RunLoop.main.run(until: Date())
     let window = TestWindow()
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.contentView().addSubview(contentView)

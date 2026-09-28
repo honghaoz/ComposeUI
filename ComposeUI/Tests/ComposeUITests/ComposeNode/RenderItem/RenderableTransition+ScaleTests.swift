@@ -660,7 +660,9 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_composeViewIntegration_topAnchor_renderedTopEdgeStaysFixed() throws {
-    // given: a hosted compose view showing content with a slow top-anchored scale transition
+    // given: a hosted compose view showing content with a slow top-anchored scale transition, in a new turn of the run
+    // loop, so its animations begin when they're added
+    RunLoop.main.run(until: Date())
     let window = TestWindow()
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.contentView().addSubview(contentView)
@@ -697,7 +699,9 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_composeViewIntegration_bottomRightAnchor_renderedBottomRightCornerStaysFixed() throws {
-    // given: a hosted compose view showing content with a slow bottom-right-anchored scale transition
+    // given: a hosted compose view showing content with a slow bottom-right-anchored scale transition, in a new turn of
+    // the run loop, so its animations begin when they're added
+    RunLoop.main.run(until: Date())
     let window = TestWindow()
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.contentView().addSubview(contentView)
@@ -734,9 +738,11 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_composeViewIntegration_viewRenderable_topAnchor_renderedTopEdgeStaysFixed() throws {
-    // given: a hosted compose view showing a view renderable with a slow top-anchored scale transition.
+    // given: a hosted compose view showing a view renderable with a slow top-anchored scale transition, in a new turn of
+    // the run loop, so its animations begin when they're added.
     // the view's backing layer anchors at a corner on AppKit and at the center on UIKit, and a vertical pivot is the
     // combination a y-axis mistake in the compensation would flip, so this pins the pivot on the risky configuration
+    RunLoop.main.run(until: Date())
     let window = TestWindow()
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.contentView().addSubview(contentView)
@@ -904,7 +910,9 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_composeViewIntegration_revival_renderedScaleIsContinuous() throws {
-    // given: a hosted compose view showing content with a slow scale transition
+    // given: a hosted compose view showing content with a slow scale transition, in a new turn of the run loop, so its
+    // animations begin when they're added
+    RunLoop.main.run(until: Date())
     let window = TestWindow()
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.contentView().addSubview(contentView)

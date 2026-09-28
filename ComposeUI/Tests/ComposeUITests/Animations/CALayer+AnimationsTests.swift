@@ -415,14 +415,15 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_animate_delayed_holdsFromValueDuringDelayWindow() throws {
-    // given: a layer hosted in a window with partial opacity
+    // given: a layer hosted in a window with partial opacity, in a new turn of the run loop, so an animation added now
+    // begins now
     let testWindow = TestWindow()
 
     let layer = CALayer()
     testWindow.layer.addSublayer(layer)
     layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     layer.opacity = 0.2
-    CATransaction.flush()
+    RunLoop.main.run(until: Date())
 
     // when: animating the opacity with a delay and a completion delegate
     var isCompleted = false

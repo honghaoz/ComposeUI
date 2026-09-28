@@ -141,7 +141,9 @@ class ComposeView_KeyWindowTests: XCTestCase {
   }
 
   func test_keyWindowDidChange_keepsInFlightAnimations() throws {
-    // given: a compose view in a key window, with a themed color row grown and recolored by an animated refresh
+    // given: a compose view in a key window, with a themed color row grown and recolored by an animated refresh in a new
+    // turn of the run loop, so its animations begin when it's made
+    RunLoop.main.run(until: Date())
     let window = TestWindow()
     window.makeKey()
 
