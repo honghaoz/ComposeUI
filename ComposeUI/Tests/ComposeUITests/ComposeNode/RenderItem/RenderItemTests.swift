@@ -153,6 +153,30 @@ class RenderItemTests: XCTestCase {
     expect(appliedTokens(of: updatedItem)) == ["own", "opacity", "a", "b", "c"]
   }
 
+  func test_update_blocksTakingEitherRenderableType_runInOrder() {
+    // given: an item with blocks that take a `Renderable`, as modifiers add them, around a block that takes the item's
+    // renderable type, as `addUpdate(_:)` adds it
+    let item = makeItem()
+      .addUpdates(updateList(
+        keyedUpdate(.opacity, appendingToken("opacity 1")),
+        keyedUpdate(nil, appendingToken("a"))
+      ))
+      .addUpdate(appendingToken("b"))
+      .addUpdates(updateList(keyedUpdate(.opacity, appendingToken("opacity 2"))))
+
+    // then: the blocks run in order and the later keyed block replaces the earlier one, whether the update block is read
+    // or the render pass runs the update
+    expect(appliedTokens(of: item, byReadingTheBlock: true)) == ["own", "a", "b", "opacity 2"]
+    expect(appliedTokens(of: item)) == ["own", "a", "b", "opacity 2"]
+  }
+
+  func test_additionalUpdates_nodeFitsA64ByteAllocation() {
+    // then: a list node, a 16-byte object header followed by a block and the rest of the list, fits a 64-byte
+    // allocation, which a block's key stored before the block would outgrow through padding
+    let nodePayloadSize = MemoryLayout<RenderableItem.AdditionalUpdate>.stride + MemoryLayout<RenderableItem.AdditionalUpdates>.size
+    expect(16 + nodePayloadSize) <= 64
+  }
+
   func test_otherBuilders_keepTheAddedBlocksAndTheirKeys() {
     let builders: [(name: String, build: (RenderableItem) -> RenderableItem)] = [
       ("addWillInsert", { $0.addWillInsert { _, _ in } }),
