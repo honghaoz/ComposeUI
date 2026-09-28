@@ -363,6 +363,33 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(try layer.animation(forKey: "cornerRadius").unwrap().beginTime) == 2000.5
   }
 
+  func test_animate_hosted_showsTheValueItsBeginTimeGives() throws {
+    // given: a layer hosted in a window, at an x of 5, in a new turn of the run loop, so an animation added now begins
+    // now
+    let testWindow = TestWindow()
+    let layer = CALayer()
+    testWindow.layer.addSublayer(layer)
+    layer.frame = CGRect(x: 0, y: 0, width: 10, height: 10)
+    RunLoop.main.run(until: Date())
+
+    // when: animating the x to 1005 linearly over 10 seconds, 100 points per second, and the transaction commits 50 ms
+    // later, as it does when the main thread is busy
+    layer.animate(keyPath: "position.x", to: CGFloat(1005), timing: .linear(duration: 10))
+    let beginTime = try layer.convertTime(layer.animation(forKey: "position.x").unwrap().beginTime, to: nil)
+    Thread.sleep(forTimeInterval: 0.05)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+    // then: the layer shows the x the timing gives from the begin time at the time it's read, instead of from the commit
+    for _ in 0 ..< 5 {
+      let timeBefore = CACurrentMediaTime()
+      let shownX = try Double(layer.presentation().unwrap().position.x)
+      let timeAfter = CACurrentMediaTime()
+      expect(shownX) >= 5 + 100 * (timeBefore - beginTime)
+      expect(shownX) <= 5 + 100 * (timeAfter - beginTime)
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+    }
+  }
+
   func test_animate_delayed_nilFromValue_resolvesAtDispatch() throws {
     // given: an unhosted layer with a green background
     let red = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
