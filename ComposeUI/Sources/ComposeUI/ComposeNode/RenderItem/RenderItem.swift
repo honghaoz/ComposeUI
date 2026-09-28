@@ -194,11 +194,45 @@ public struct RenderItem<T> {
   /// An update block added to a render item, optionally keyed by the renderable property it sets.
   struct AdditionalUpdate {
 
+    /// The update block.
+    ///
+    /// Stored before `key`, so that the key's byte packs after `Block`'s tag byte. The other way around, padding
+    /// makes each node of `AdditionalUpdates` 16 bytes larger.
+    private let block: Block
+
     /// The renderable property the block sets, see `RenderableUpdateKey`. `nil` for a block that is never replaced.
     let key: RenderableUpdateKey?
 
-    /// The update block.
-    let block: (T, RenderableUpdateContext) -> Void
+    fileprivate init(block: Block, key: RenderableUpdateKey?) {
+      self.block = block
+      self.key = key
+    }
+
+    /// Runs the block.
+    func perform(_ renderable: T, _ context: RenderableUpdateContext) {
+      switch block {
+      case .generic(let block):
+        block(renderable, context)
+      case .renderable(let block):
+        // only `init(key:block:)` makes a `renderable` block, and it requires `T` to be `Renderable`, so the cast does
+        // nothing
+        block(renderable as! Renderable, context) // swiftlint:disable:this force_cast
+      }
+    }
+
+    /// An update block, stored with the renderable type it takes.
+    ///
+    /// A closure that takes a `Renderable` is stored as it is instead of as a `(T, RenderableUpdateContext) -> Void`: a
+    /// closure typed with the generic `T` takes the renderable indirectly, so converting an existing closure to it
+    /// allocates a reabstraction thunk, for example for each `onUpdate` modifier.
+    fileprivate enum Block {
+
+      /// A block that takes the item's renderable type, see `addUpdate(_:)`.
+      case generic((T, RenderableUpdateContext) -> Void)
+
+      /// A block that takes a `Renderable`, which only a `RenderableItem` has, see `init(key:block:)`.
+      case renderable((Renderable, RenderableUpdateContext) -> Void)
+    }
   }
 
   /// The update blocks added to a render item, in the order they run.
@@ -352,7 +386,7 @@ public struct RenderItem<T> {
 
     func performUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
       update(renderable, context)
-      additionalUpdates.forEach { $0.block(renderable, context) }
+      additionalUpdates.forEach { $0.perform(renderable, context) }
     }
   }
 
@@ -519,7 +553,7 @@ public struct RenderItem<T> {
   /// - Parameter additionalUpdate: The additional update block.
   /// - Returns: The renderable item with the additional update block.
   public func addUpdate(_ additionalUpdate: @escaping (T, RenderableUpdateContext) -> Void) -> Self {
-    with(additionalUpdates: storage.additionalUpdates.adding(AdditionalUpdate(key: nil, block: additionalUpdate)))
+    with(additionalUpdates: storage.additionalUpdates.adding(AdditionalUpdate(block: .generic(additionalUpdate), key: nil)))
   }
 
   /// Add additional update blocks to the renderable item, in order.
@@ -789,6 +823,18 @@ public struct RenderItem<T> {
       animationTiming: animationTiming,
       zIndex: zIndex
     )
+  }
+}
+
+extension RenderItem.AdditionalUpdate where T == Renderable {
+
+  /// Makes a `RenderableItem`'s update block that takes a `Renderable`, which is stored as it is, see `Block`.
+  ///
+  /// - Parameters:
+  ///   - key: The renderable property the block sets, see `RenderableUpdateKey`. `nil` for a block that is never replaced.
+  ///   - block: The update block.
+  init(key: RenderableUpdateKey?, block: @escaping (Renderable, RenderableUpdateContext) -> Void) {
+    self.init(block: .renderable(block), key: key)
   }
 }
 
