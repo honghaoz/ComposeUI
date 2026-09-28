@@ -42,7 +42,8 @@ extension CALayer {
     // AppKit resets the transform and the anchor point whenever the view's geometry changes, so the transform is put
     // back. the anchor point isn't: AppKit would reset it on the view's next geometry change anyway, so transforms
     // pivot with a translation from the actual anchor point instead, see `RenderableTransition.scale`
-    if Self.isViewGeometryKeyPath(keyPath), let backedView, CALayer.viewSyncSkippingLayer !== self {
+    // most layers don't back a view, so that is checked before the key path
+    if let backedView, Self.isViewGeometryKeyPath(keyPath), CALayer.viewSyncSkippingLayer !== self {
       CATransaction.disableAnimationsIfNeeded {
         let modelTransform = transform
 
@@ -330,14 +331,16 @@ extension CALayer {
   /// Whether a key path is a layer property a view's frame or bounds is derived from, whole or by component, such as
   /// `position` or `bounds.size.width`.
   private static func isViewGeometryKeyPath(_ keyPath: String) -> Bool {
-    switch keyPath.prefix(while: { $0 != "." }) {
-    case "position",
-         "bounds",
-         "anchorPoint":
-      return true
-    default:
-      return false
-    }
+    isKeyPath(keyPath, ofProperty: "position") || isKeyPath(keyPath, ofProperty: "bounds") || isKeyPath(keyPath, ofProperty: "anchorPoint")
+  }
+
+  /// Whether a key path is a property or one of its components, such as `bounds.size` of `bounds`, and not a longer
+  /// name, such as `anchorPointZ` of `anchorPoint`.
+  ///
+  /// The key path's prefix and the byte after it are checked instead of its first component split off by character,
+  /// since splitting by character segments grapheme clusters, which costs more than the write the check is for.
+  private static func isKeyPath(_ keyPath: String, ofProperty property: String) -> Bool {
+    keyPath.hasPrefix(property) && (keyPath.utf8.count == property.utf8.count || keyPath.utf8.dropFirst(property.utf8.count).first == UInt8(ascii: "."))
   }
   #endif
 }

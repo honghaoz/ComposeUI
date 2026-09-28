@@ -468,6 +468,40 @@ class CALayer_KeyPathValueTests: XCTestCase {
     #endif
   }
 
+  #if canImport(AppKit)
+  func test_setKeyPathValue_keyPathsNamedLikeGeometry_leaveTheViewAlone() {
+    // given: a view in a test window whose layer moved without the view, as setting a layer's position directly leaves an
+    // AppKit view behind
+    let testWindow = TestWindow()
+    let view = View(frame: CGRect(x: 100, y: 200, width: 100, height: 50))
+    view.wantsLayer = true
+    testWindow.contentView().addSubview(view)
+    CATransaction.disableAnimations {
+      view.layer().position = CGPoint(x: 300, y: 300)
+    }
+    let viewFrame = view.frame
+    expect(viewFrame) != view.layer().frame
+
+    // when: setting key paths whose first components only start like the name of a property the view's geometry comes
+    // from
+    view.layer().setKeyPathValue("anchorPointZ", CGFloat(1))
+    view.layer().setKeyPathValue("positionOffset", CGFloat(2))
+    view.layer().setKeyPathValue("boundsInset", CGFloat(3))
+
+    // then: the values are set, and the view isn't moved to the layer's frame
+    expect(view.layer().anchorPointZ) == 1
+    expect(view.layer().value(forKey: "positionOffset") as? CGFloat) == 2
+    expect(view.layer().value(forKey: "boundsInset") as? CGFloat) == 3
+    expect(view.frame) == viewFrame
+
+    // when: setting a component of the position
+    view.layer().setKeyPathValue("position.x", CGFloat(300))
+
+    // then: the view follows the layer
+    expect(view.frame) == view.layer().frame
+  }
+  #endif
+
   func test_setKeyPathValue_opacity() throws {
     // given: a test window with a container view
     let testWindow = TestWindow()
