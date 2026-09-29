@@ -303,4 +303,42 @@ class ComposeView_ScrollIndicatorBehaviorTests: XCTestCase {
       expect(contentView.showsVerticalScrollIndicator) == false
     }
   }
+
+  func test_scrollIndicatorBehavior_auto_contentFittingWithFloatingPointNoise() {
+    // given: a view showing six columns a sixth of its width each, which the layout sums to a hair over its width
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      HStack {
+        for _ in 0 ..< 6 {
+          ColorNode(.red)
+            .frame(width: 100.0 / 6, height: 100)
+        }
+      }
+    }
+    contentView.scrollIndicatorBehavior = .auto
+
+    // when: the view refreshes
+    contentView.refresh(animated: false)
+
+    // then: the content fits, so both indicators are hidden
+    expect(contentView.showsHorizontalScrollIndicator) == false
+    expect(contentView.showsVerticalScrollIndicator) == false
+  }
+
+  func test_scrollIndicatorBehavior_auto_contentOverflowingByLessThanAPixel() {
+    // given: a view whose content is a tenth of a point wider than the view, less than a pixel
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: 100.1, height: 100)
+    }
+    contentView.scrollIndicatorBehavior = .auto
+
+    // when: the view refreshes
+    contentView.refresh(animated: false)
+
+    // then: the content overflows horizontally, so only the horizontal indicator is shown
+    expect(contentView.showsHorizontalScrollIndicator) == true
+    expect(contentView.showsVerticalScrollIndicator) == false
+  }
 }

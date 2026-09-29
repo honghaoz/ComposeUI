@@ -222,20 +222,20 @@ open class ScrollView: NSScrollView {
     if alwaysBounceHorizontal {
       horizontalScrollElasticity = .allowed
     } else {
-      if documentView().frame.width <= super.contentSize.width {
-        horizontalScrollElasticity = .none
-      } else {
+      if documentView().frame.width.extends(beyond: super.contentSize.width) {
         horizontalScrollElasticity = .allowed
+      } else {
+        horizontalScrollElasticity = .none
       }
     }
 
     if alwaysBounceVertical {
       verticalScrollElasticity = .allowed
     } else {
-      if documentView().frame.height <= super.contentSize.height {
-        verticalScrollElasticity = .none
-      } else {
+      if documentView().frame.height.extends(beyond: super.contentSize.height) {
         verticalScrollElasticity = .allowed
+      } else {
+        verticalScrollElasticity = .none
       }
     }
   }

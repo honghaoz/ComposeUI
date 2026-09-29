@@ -58,4 +58,16 @@ extension CGFloat {
       return self + (nearest - remainder)
     }
   }
+
+  /// Returns whether the length extends beyond another length by more than `Constants.geometryTolerance`.
+  ///
+  /// Lengths computed by different arithmetic, such as a content size summed by the layout and a viewport size converted
+  /// through backing coordinates, can differ by floating-point noise while describing the same geometry. Use this
+  /// instead of `>` to decide whether one length overflows another, so that the noise doesn't count as an overflow.
+  ///
+  /// - Parameter other: The length to compare with.
+  /// - Returns: `true` if the length is greater than `other` by more than the tolerance.
+  func extends(beyond other: CGFloat) -> Bool {
+    self - other > Constants.geometryTolerance
+  }
 }
