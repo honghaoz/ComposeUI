@@ -573,14 +573,14 @@ final class InnerShadowLayerTests: XCTestCase {
     // then: the shadow heads back to red from where it is over the time the interrupted animation had left, neither
     // snapping nor finishing the animation towards blue: whenever the run loop lets the test look, the shown color is
     // where the retargeting animation puts it, until it lands on red. the run loop's timing isn't reliable, so the test
-    // checks each look against the animation's own value for that time instead of expecting a value at a fixed delay
+    // checks each look against the animation's own values for the times just before and after it, instead of expecting
+    // a value at a fixed delay
     expect(try layer.animation(forKey: "shadowColor").unwrap().duration).to(beApproximatelyEqual(to: interruptedBeginTime + 0.5 - retargetTime, within: 0.02))
     var landed = false
     for _ in 0 ..< 40 where !landed {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
-      let blue = try renderedBlue()
-      let predicted = try layer.predictedValue(forKeyPath: "shadowColor", at: layer.currentTime, scalar: blueComponent)
-      expect(blue).to(beApproximatelyEqual(to: predicted, within: 0.05))
+      let (blue, times) = try layer.readPresentation { try blueComponent(of: $0.shadowColor.unwrap()) }
+      try layer.expectShown(blue, forKeyPath: "shadowColor", between: times, scalar: blueComponent, within: 0.05)
       expect(blue) <= blueBeforeUpdate + 0.05
       landed = blue < 0.01
     }

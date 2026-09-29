@@ -472,14 +472,14 @@ final class DropShadowLayerTests: XCTestCase {
     // then: the shadow heads back to red from where it is over the time the interrupted animation had left, neither
     // snapping nor finishing the animation towards blue: whenever the run loop lets the test look, the shown color is
     // where the retargeting animation puts it, until it lands on red. the run loop's timing isn't reliable, so the test
-    // checks each look against the animation's own value for that time instead of expecting a value at a fixed delay
+    // checks each look against the animation's own values for the times just before and after it, instead of expecting
+    // a value at a fixed delay
     expect(try layer.animation(forKey: "shadowColor").unwrap().duration).to(beApproximatelyEqual(to: interruptedBeginTime + 0.5 - retargetTime, within: 0.02))
     var landed = false
     for _ in 0 ..< 40 where !landed {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
-      let blue = try renderedBlue()
-      let predicted = try layer.predictedValue(forKeyPath: "shadowColor", at: layer.currentTime, scalar: blueComponent)
-      expect(blue).to(beApproximatelyEqual(to: predicted, within: 0.05))
+      let (blue, times) = try layer.readPresentation { try blueComponent(of: $0.shadowColor.unwrap()) }
+      try layer.expectShown(blue, forKeyPath: "shadowColor", between: times, scalar: blueComponent, within: 0.05)
       expect(blue) <= blueBeforeUpdate + 0.05
       landed = blue < 0.01
     }
@@ -495,7 +495,8 @@ final class DropShadowLayerTests: XCTestCase {
   }
 
   func test_update_withoutAnimation_opacityAndRadius_renderContinuously() throws {
-    // given: a hosted layer whose shadow opacity and radius are animating up from zero
+    // given: a hosted layer whose shadow opacity and radius are animating up from zero, showing what their animations
+    // give
     let testWindow = TestWindow()
     let layer = DropShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -505,47 +506,45 @@ final class DropShadowLayerTests: XCTestCase {
       layer.update(color: .black, opacity: opacity, radius: radius, offset: .zero, path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }, animationTiming: animationTiming)
     }
 
-    func shown() throws -> (opacity: Float, radius: CGFloat) {
-      let presentation = try layer.presentation().unwrap()
-      return (presentation.shadowOpacity, presentation.shadowRadius)
-    }
-
     update(opacity: 0, radius: 0, animationTiming: nil)
     CATransaction.flush()
     expect(layer.presentation()).toEventuallyNot(beNil())
 
     update(opacity: 1, radius: 20, animationTiming: .linear(duration: 0.5))
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
-    let shownBeforeUpdate = try shown()
+    let (shownBeforeUpdate, timesBeforeUpdate) = try layer.readPresentation { (opacity: CGFloat($0.shadowOpacity), radius: $0.shadowRadius) }
+    try layer.expectShown(shownBeforeUpdate.opacity, forKeyPath: "shadowOpacity", between: timesBeforeUpdate, scalar: numberScalar, within: 0.05)
+    try layer.expectShown(shownBeforeUpdate.radius, forKeyPath: "shadowRadius", between: timesBeforeUpdate, scalar: numberScalar, within: 0.5)
     expect(shownBeforeUpdate.opacity) > 0.1
     expect(shownBeforeUpdate.radius) > 2
 
-    // when: updating without animation timing back to zero, while the animations are in flight
+    // when: updating without animation timing back to zero, while the animations are in flight. the update begins its
+    // animations at the clock's time for this turn, which the test reads first, see `AnimationClock`
+    let updateTime = layer.currentTime
+    let radiusAtUpdate = try layer.predictedValue(forKeyPath: "shadowRadius", at: updateTime, scalar: numberScalar)
     update(opacity: 0, radius: 0, animationTiming: nil)
 
-    // then: the shown values don't jump: the opacity is retargeted from what it shows and the radius keeps its additive
-    // animation with a scaled copy of it stacked on top, so neither drops to zero at the update
+    // then: neither value drops to zero at the update. the radius' animation is folded into a glide from the radius at
+    // the update's time, so the radius doesn't jump. the opacity is retargeted from what the layer shows, which Core
+    // Animation evaluates once per transaction, at its first presentation read, the read before the update here. so it
+    // starts from exactly the opacity that read showed, which trails the interrupted animation at the update's time
+    // when the main thread stalls between that read and the clock read
     expect(layer.shadowOpacity) == 0
     expect(layer.shadowRadius) == 0
-    let now = layer.currentTime
-    expect(try layer.predictedValue(forKeyPath: "shadowOpacity", at: now, scalar: numberScalar))
-      .to(beApproximatelyEqual(to: CGFloat(shownBeforeUpdate.opacity), within: 0.05))
-    expect(try layer.predictedValue(forKeyPath: "shadowRadius", at: now, scalar: numberScalar))
-      .to(beApproximatelyEqual(to: shownBeforeUpdate.radius, within: 0.5))
+    expect(try layer.predictedValue(forKeyPath: "shadowRadius", at: updateTime, scalar: numberScalar))
+      .to(beApproximatelyEqual(to: radiusAtUpdate, within: 1e-6))
+    expect(try layer.predictedValue(forKeyPath: "shadowOpacity", at: updateTime, scalar: numberScalar))
+      .to(beApproximatelyEqual(to: shownBeforeUpdate.opacity, within: 1e-6))
 
     // then: both head back to zero along their animations and land when the interrupted animations would have. the run
-    // loop's timing isn't reliable, so the test checks each look against the animations' own values for that time
-    // instead of expecting values at a fixed delay. the radius' copy ends a few milliseconds before its animation, so
-    // the last frame can show the animation's last sliver alone
+    // loop's timing isn't reliable, so the test checks each look against the animations' own values for the times just
+    // before and after it, instead of expecting values at a fixed delay
     var landed = false
     for _ in 0 ..< 40 where !landed {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
-      let shownNow = try shown()
-      let now = layer.currentTime
-      let predictedOpacity = try layer.predictedValue(forKeyPath: "shadowOpacity", at: now, scalar: numberScalar)
-      let predictedRadius = try layer.predictedValue(forKeyPath: "shadowRadius", at: now, scalar: numberScalar)
-      expect(CGFloat(shownNow.opacity)).to(beApproximatelyEqual(to: predictedOpacity, within: 0.05))
-      expect(shownNow.radius).to(beApproximatelyEqual(to: predictedRadius, within: 0.5))
+      let (shownNow, times) = try layer.readPresentation { (opacity: CGFloat($0.shadowOpacity), radius: $0.shadowRadius) }
+      try layer.expectShown(shownNow.opacity, forKeyPath: "shadowOpacity", between: times, scalar: numberScalar, within: 0.05)
+      try layer.expectShown(shownNow.radius, forKeyPath: "shadowRadius", between: times, scalar: numberScalar, within: 0.5)
       expect(shownNow.opacity) >= 0
       expect(shownNow.radius) >= -0.5
       landed = shownNow.opacity < 0.01 && shownNow.radius < 0.1

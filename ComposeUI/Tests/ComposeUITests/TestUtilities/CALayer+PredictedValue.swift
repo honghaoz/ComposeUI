@@ -40,7 +40,8 @@ extension CALayer {
   /// animation's value, or the last non-additive animation's value.
   ///
   /// A hosted test can't control when the run loop lets it read the presentation layer, so instead of expecting a
-  /// value at a fixed delay, it compares what it reads with this prediction for the time it read at.
+  /// value at a fixed delay, it compares what it reads with this prediction for the times around the read, see
+  /// `readPresentation(_:)`.
   ///
   /// - Parameters:
   ///   - keyPath: The animated key path.
@@ -61,6 +62,55 @@ extension CALayer {
       predicted = animation.isAdditive ? predicted + animated : animated
     }
     return predicted
+  }
+
+  /// Reads values from the presentation layer, with the times just before and after the read.
+  ///
+  /// The main thread can stall for tens of milliseconds between any two reads on a loaded machine, so a time read next
+  /// to a presentation read can be far from the time Core Animation evaluated the presentation layer at. The shown
+  /// values lie between the predictions for the times before and after the read instead, see
+  /// `expectShown(_:forKeyPath:between:scalar:within:file:line:)`. The times are read from `CACurrentMediaTime()`,
+  /// since `currentTime` holds one time per run loop turn, see `AnimationClock`.
+  ///
+  /// - Important: Core Animation evaluates every presentation layer of a transaction at the time of the transaction's
+  ///   first presentation read, until it commits, so the read must be the first since a run loop turn or a
+  ///   `CATransaction.flush()`.
+  ///
+  /// - Parameter read: Reads the values from the presentation layer.
+  /// - Returns: The values, and the times before and after the read, in the layer's time space.
+  func readPresentation<T>(_ read: (Self) throws -> T) throws -> (shown: T, times: ClosedRange<TimeInterval>) {
+    let timeBefore = convertTime(CACurrentMediaTime(), from: nil)
+    // Core Animation makes a presentation layer of the layer's class, which an extension of `CALayer` sees as `CALayer`
+    let shown = try read(presentation().unwrap() as! Self) // swiftlint:disable:this force_cast
+    let timeAfter = convertTime(CACurrentMediaTime(), from: nil)
+    return (shown, timeBefore ... timeAfter)
+  }
+
+  /// Expects a value read with `readPresentation(_:)` to lie between the predictions for the times it was read between,
+  /// within a tolerance.
+  ///
+  /// The key path's animations must move one way between the times, so the predictions for the two times bound the
+  /// value.
+  ///
+  /// - Parameters:
+  ///   - shown: The value read from the presentation layer.
+  ///   - keyPath: The animated key path.
+  ///   - times: The times the value was read between, see `readPresentation(_:)`.
+  ///   - scalar: The scalar to compare a value of the key path by, see `predictedValue(forKeyPath:at:scalar:)`.
+  ///   - tolerance: How far outside the predictions the value may be.
+  func expectShown(_ shown: CGFloat,
+                   forKeyPath keyPath: String,
+                   between times: ClosedRange<TimeInterval>,
+                   scalar: (Any) throws -> CGFloat,
+                   within tolerance: CGFloat,
+                   file: StaticString = #filePath,
+                   line: UInt = #line) throws
+  {
+    let earlier = try predictedValue(forKeyPath: keyPath, at: times.lowerBound, scalar: scalar)
+    let later = try predictedValue(forKeyPath: keyPath, at: times.upperBound, scalar: scalar)
+    let description = "\(keyPath), predicted \(earlier) to \(later)"
+    expect(shown, description, file: file, line: line) >= min(earlier, later) - tolerance
+    expect(shown, description, file: file, line: line) <= max(earlier, later) + tolerance
   }
 }
 
