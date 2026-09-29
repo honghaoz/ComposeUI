@@ -610,6 +610,34 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(renderedFrames(in: view)) == (0 ..< 20).map { CGRect(x: CGFloat($0) * 10, y: 0, width: 10, height: 100) }
   }
 
+  func test_renderBounds_rotatedView_contentFittingTheView_doesNotScroll() {
+    // given: a 200 × 100 view with legacy scrollers nested in another compose view in a window, rotated 30°, showing
+    // content as large as the view, which the rotation's backing conversions make differ from the render bounds by
+    // floating-point noise
+    let window = TestWindow()
+    let parent = ComposeView {
+      LayerNode().frame(width: 10, height: 10)
+    }
+    parent.frame = CGRect(x: 0, y: 0, width: 500, height: 500)
+    window.contentView().addSubview(parent)
+    let view = ComposeView {
+      LayerNode().frame(width: 200, height: 100)
+    }
+    view.frame = CGRect(x: 150, y: 150, width: 200, height: 100)
+    useLegacyScrollers(view)
+    parent.contentView().addSubview(view)
+    view.frameRotation = 30
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the content fits, so the view neither scrolls nor shows scrollers, and its document is the content's size
+    expect(view.isScrollable) == false
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+    expect(view.contentSize) == CGSize(width: 200, height: 100)
+  }
+
   func test_renderBounds_legacyScrollers_growingNearTheEnd_rendersOnceForTheNewSize() {
     // given: a view with legacy scrollers, scrolled near the end of rows that overflow both axes
     let view = ComposeView {

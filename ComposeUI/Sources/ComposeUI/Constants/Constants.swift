@@ -59,9 +59,9 @@ public enum Constants {
 
   /// The tolerance for comparing geometry values that went through different floating-point arithmetic.
   ///
-  /// A layer's model geometry is computed by Core Animation and, for a layer-backed AppKit view, by AppKit, each with
-  /// its own arithmetic, so values describing the same geometry can differ by a few ulps. The tolerance is far above
-  /// that noise and far below the pixel grid frames are rounded to before they are applied, so it never hides a real
-  /// change.
+  /// Values describing the same geometry can differ by floating-point noise when different arithmetic computes them:
+  /// Core Animation and AppKit each compute the layer geometry of a layer-backed view, and the layout sums a content size
+  /// that can differ from a viewport size converted through backing coordinates. The tolerance is far above that noise
+  /// and far below a pixel, so it never hides a real difference.
   static let geometryTolerance: CGFloat = 1e-6
 }

@@ -191,4 +191,44 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       expect(contentView.alwaysBounceVertical) == false
     }
   }
+
+  func test_scrollBehavior_auto_contentFittingWithFloatingPointNoise() {
+    // given: a view showing six columns a sixth of its width each, which the layout sums to a hair over its width
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      HStack {
+        for _ in 0 ..< 6 {
+          ColorNode(.red)
+            .frame(width: 100.0 / 6, height: 100)
+        }
+      }
+    }
+
+    // when: the view refreshes
+    contentView.refresh(animated: false)
+
+    // then: the content is wider than the view by floating-point noise only
+    expect(contentView.contentSize.width) > 100
+    expect(contentView.contentSize.width).to(beApproximatelyEqual(to: 100, within: 1e-9))
+
+    // then: the content fits, so the view neither scrolls nor clips
+    expect(contentView.isScrollable) == false
+    expect(contentView.clipsToBounds) == false
+  }
+
+  func test_scrollBehavior_auto_contentOverflowingByLessThanAPixel() {
+    // given: a view whose content is a tenth of a point wider than the view, less than a pixel
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: 100.1, height: 100)
+    }
+
+    // when: the view refreshes
+    contentView.refresh(animated: false)
+
+    // then: the content overflows, so the view scrolls and clips
+    expect(contentView.isScrollable) == true
+    expect(contentView.clipsToBounds) == true
+  }
 }

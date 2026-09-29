@@ -969,8 +969,11 @@ open class ComposeView: BaseScrollView {
     debug?.onEvent(.renderDidLayout(contentSize: contentSize))
     #endif
 
+    // the layout and the render bounds compute their sizes with different arithmetic, so content that fits the bounds
+    // exactly can differ from them by floating-point noise. compare them with `extends(beyond:)` instead of `<` and `>`,
+    // so the noise doesn't center, scroll, clip, or show scroll indicators.
     var centeredChildFrame: CGRect?
-    if contentSize.width < boundsSize.width || contentSize.height < boundsSize.height {
+    if boundsSize.width.extends(beyond: contentSize.width) || boundsSize.height.extends(beyond: contentSize.height) {
       // if content is smaller than the bounds in either dimension, should center the content
 
       let adjustedContentSize = CGSize(
@@ -988,10 +991,13 @@ open class ComposeView: BaseScrollView {
     // set content size
     setContentSize(roundedContentSize)
 
+    let overflowsHorizontally = contentSize.width.extends(beyond: boundsSize.width)
+    let overflowsVertically = contentSize.height.extends(beyond: boundsSize.height)
+
     // update scrollable behavior
     switch scrollBehavior {
     case .auto:
-      isScrollable = contentSize.width > boundsSize.width || contentSize.height > boundsSize.height
+      isScrollable = overflowsHorizontally || overflowsVertically
       alwaysBounceHorizontal = false
       alwaysBounceVertical = false
     case .manual:
@@ -1031,8 +1037,8 @@ open class ComposeView: BaseScrollView {
 
     switch scrollIndicatorBehavior {
     case .auto:
-      showsHorizontalScrollIndicator = contentSize.width > boundsSize.width
-      showsVerticalScrollIndicator = contentSize.height > boundsSize.height
+      showsHorizontalScrollIndicator = overflowsHorizontally
+      showsVerticalScrollIndicator = overflowsVertically
     case .manual:
       break
     case .always:
