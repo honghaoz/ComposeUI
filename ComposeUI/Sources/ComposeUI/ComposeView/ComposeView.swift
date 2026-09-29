@@ -986,13 +986,21 @@ open class ComposeView: BaseScrollView {
       contentSize = adjustedContentSize
     }
 
-    let roundedContentSize = contentSize.roundedUp(scaleFactor: contentScaleFactor)
+    let overflowsHorizontally = contentSize.width.extends(beyond: boundsSize.width)
+    let overflowsVertically = contentSize.height.extends(beyond: boundsSize.height)
+
+    // round the content up to whole pixels, except along an axis it fits: there it can still exceed the bounds by
+    // floating-point noise, which rounding up would turn into a pixel to scroll, so use the bounds instead.
+    var roundedContentSize = contentSize.roundedUp(scaleFactor: contentScaleFactor)
+    if !overflowsHorizontally {
+      roundedContentSize.width = boundsSize.width
+    }
+    if !overflowsVertically {
+      roundedContentSize.height = boundsSize.height
+    }
 
     // set content size
     setContentSize(roundedContentSize)
-
-    let overflowsHorizontally = contentSize.width.extends(beyond: boundsSize.width)
-    let overflowsVertically = contentSize.height.extends(beyond: boundsSize.height)
 
     // update scrollable behavior
     switch scrollBehavior {
