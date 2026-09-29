@@ -1520,29 +1520,29 @@ open class ComposeView: BaseScrollView {
     }
   }
 
-  /// Returns the bounds used for layout/rendering.
-  ///
-  /// On AppKit, this temporarily disables scrollers so the bounds aren't reduced by scroller thickness.
+  /// Returns the bounds used for layout and rendering.
   private func renderBounds() -> CGRect {
     #if canImport(AppKit)
-    // before accessing the bounds(), aka the contentView's bounds, we need to disable the scrollers so that the scrollers
-    // don't affect the bounds.
-    // the scrollers have 15 point in size, if we don't disable them, the bounds will be 15 point smaller than the actual bounds.
-    let oldHasHorizontalScroller = hasHorizontalScroller
-    let oldHasVerticalScroller = hasVerticalScroller
-    hasHorizontalScroller = false
-    hasVerticalScroller = false
+    // a legacy scroller shrinks the clip view (`bounds()`), so the size comes from the frame, as AppKit computes it
+    // without scrollers. it then depends only on the frame, the border, and the magnification, so showing or hiding a
+    // scroller never changes the layout.
+    let sizeWithoutScrollers = NSScrollView.contentSize(
+      forFrameSize: frame.size,
+      horizontalScrollerClass: nil,
+      verticalScrollerClass: nil,
+      borderType: borderType,
+      controlSize: .regular,
+      scrollerStyle: scrollerStyle
+    )
+    return CGRect(
+      origin: bounds().origin,
+      size: CGSize(width: sizeWithoutScrollers.width / magnification, height: sizeWithoutScrollers.height / magnification)
+    )
     #endif
 
-    let bounds = bounds()
-
-    #if canImport(AppKit)
-    // restore the scrollers
-    hasHorizontalScroller = oldHasHorizontalScroller
-    hasVerticalScroller = oldHasVerticalScroller
+    #if canImport(UIKit)
+    return bounds()
     #endif
-
-    return bounds
   }
 
   // MARK: - Constants
