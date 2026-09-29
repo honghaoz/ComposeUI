@@ -192,7 +192,7 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
     }
   }
 
-  func test_scrollBehavior_auto_contentFittingWithFloatingPointNoise() {
+  func test_scrollBehavior_auto_contentFittingWithFloatingPointNoise() throws {
     // given: a view showing six columns a sixth of its width each, which the layout sums to a hair over its width
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     contentView.setContent {
@@ -203,17 +203,49 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
         }
       }
     }
+    var laidOutContentSize: CGSize?
+    contentView.onDidRender { _, context in
+      laidOutContentSize = context.contentSize
+    }
 
     // when: the view refreshes
     contentView.refresh(animated: false)
 
     // then: the content is wider than the view by floating-point noise only
-    expect(contentView.contentSize.width) > 100
-    expect(contentView.contentSize.width).to(beApproximatelyEqual(to: 100, within: 1e-9))
+    let contentWidth = try unwrap(laidOutContentSize).width
+    expect(contentWidth) > 100
+    expect(contentWidth).to(beApproximatelyEqual(to: 100, within: 1e-9))
 
-    // then: the content fits, so the view neither scrolls nor clips
+    // then: the content fits, so the view neither scrolls nor clips, and has nothing to scroll horizontally
     expect(contentView.isScrollable) == false
     expect(contentView.clipsToBounds) == false
+    expect(contentView.contentSize.width) == 100
+  }
+
+  func test_scrollBehavior_auto_contentFittingOneAxisWithFloatingPointNoise() {
+    // given: a view whose content overflows vertically and is wider than the view by floating-point noise, which rounding
+    // up to whole pixels would turn into a pixel
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: 100 + 1e-9, height: 300)
+    }
+
+    // when: the view refreshes
+    contentView.refresh(animated: false)
+
+    // then: the view scrolls, but its content is as wide as the view, so it scrolls only vertically
+    expect(contentView.isScrollable) == true
+    expect(contentView.contentSize) == CGSize(width: 100, height: 300)
+
+    #if canImport(AppKit)
+    // when: the scroll elasticity updates
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+
+    // then: the view bounces only vertically
+    expect(contentView.horizontalScrollElasticity) == .none
+    expect(contentView.verticalScrollElasticity) == .allowed
+    #endif
   }
 
   func test_scrollBehavior_auto_contentOverflowingByLessThanAPixel() {

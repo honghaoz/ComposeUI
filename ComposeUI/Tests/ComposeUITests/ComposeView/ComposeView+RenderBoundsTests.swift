@@ -631,11 +631,11 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the content fits, so the view neither scrolls nor shows scrollers, and its document is the content's size
+    // then: the content fits, so the view neither scrolls nor shows scrollers, and its document is the view's size
     expect(view.isScrollable) == false
     expect(view.hasHorizontalScroller) == false
     expect(view.hasVerticalScroller) == false
-    expect(view.contentSize) == CGSize(width: 200, height: 100)
+    expectSize(view.contentSize, approximatelyEquals: CGSize(width: 200, height: 100))
   }
 
   func test_renderBounds_legacyScrollers_growingNearTheEnd_rendersOnceForTheNewSize() {

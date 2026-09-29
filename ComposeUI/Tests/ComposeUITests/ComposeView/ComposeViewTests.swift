@@ -105,6 +105,24 @@ class ComposeViewTests: XCTestCase {
     }
   }
 
+  #if canImport(UIKit)
+  func test_centerContent_viewOffThePixelGrid() {
+    // given: a view whose width is off the pixel grid, showing smaller content
+    contentView.frame = CGRect(x: 0, y: 0, width: 100.3, height: 100)
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: 50, height: 80)
+    }
+
+    // when: the view is refreshed
+    contentView.refresh(animated: false)
+
+    // then: the content size is the view's size instead of that size rounded up to whole pixels, so there's nothing to
+    // scroll
+    expect(contentView.contentSize) == CGSize(width: 100.3, height: 100)
+  }
+  #endif
+
   func test_visibleBoundsInsets() {
     // given: a compose view with extended visible bounds and render tracking for offscreen top and bottom views
     var isTopRendered = false
