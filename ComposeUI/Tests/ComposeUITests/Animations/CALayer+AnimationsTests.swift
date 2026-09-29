@@ -373,8 +373,10 @@ class CALayer_AnimationsTests: XCTestCase {
     RunLoop.main.run(until: Date())
 
     // when: animating the x to 1005 linearly over 10 seconds, 100 points per second, and the transaction commits 50 ms
-    // later, as it does when the main thread is busy
-    layer.animate(keyPath: "position.x", to: CGFloat(1005), timing: .linear(duration: 10))
+    // later, as it does when the main thread is busy. the animation has no timing function, so Core Animation paces it
+    // linearly instead of solving the linear timing function's curve, which it does only to within 1e-5 of the change,
+    // 0.01 points here, too loose for the bounds below
+    layer.animate(keyPath: "position.x", to: CGFloat(1005), timing: .linear(duration: 10), updateAnimation: { $0.timingFunction = nil })
     let beginTime = try layer.convertTime(layer.animation(forKey: "position.x").unwrap().beginTime, to: nil)
     Thread.sleep(forTimeInterval: 0.05)
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
