@@ -147,6 +147,12 @@ Hard-won rules from past corrections, grouped by theme.
 ## Core Animation
 
 - Additive animations compose on screen only for properties the render server doesn't clamp between animations. It clamps opacities (`opacity`, `shadowOpacity`) to [0, 1] after applying each animation, so opposing additive animations of an opacity don't compose even though `presentation()` reports the unclamped sum: animate opacities non-additively or with a single replacing animation. It clamps `cornerRadius` at 0 the same way, which matters only when the running sum dips below 0. Other bounded properties compose as a sum where verified (`shadowRadius`, `borderWidth`, `CAShapeLayer`'s `strokeStart` and `strokeEnd`). Verify any other property with a `CARenderer` probe (render the layer tree into a Metal texture and read the pixels) before relying on either behavior, since only the compositor's output tells.
+- Core Animation evaluates all presentation layers of a transaction at one time, the time of the transaction's first presentation read of any layer, until the outermost transaction commits in a run loop turn or a `CATransaction.flush()`. Model changes don't refresh it. So two presentation reads in one transaction always agree, but a presentation read and a clock read aren't for the same time, even next to each other. Verified on macOS and in the iOS simulator.
+- Core Animation solves every timing function's curve numerically in single precision, to within 1e-5 of the change, even `CAMediaTimingFunction(name: .linear)`, while a nil timing function paces linearly and exactly, up to single-precision rounding. Compare a presentation value exactly with a computed one only for an animation without a timing function, and allow 1e-5 of the change otherwise. Verified on macOS and in the iOS simulator.
+
+## Testing
+
+- A test must not assume two reads happen at the same moment. The main thread can stall between any two statements for tens of milliseconds on a loaded machine, and no tolerance bounds that. Compare values computed for one time, or bracket a presentation read between two clock reads and accept any value between the predictions for them.
 
 ## Cross-platform
 
