@@ -231,6 +231,123 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
   }
 
+  func test_renderBounds_legacyScrollers_scrolledToTheEnd_keepsTheOffset() {
+    // given: a view with legacy scrollers, showing rows that overflow both axes
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 30 {
+          LayerNode().frame(width: 200, height: 10)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    useLegacyScrollers(view)
+    view.refresh(animated: false)
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+
+    var renderBounds: [CGRect] = []
+    view.onDidRender { _, context in
+      renderBounds.append(context.renderBounds)
+    }
+
+    // when: scroll to the end, which the shown scrollers put a scroller thickness further than without them
+    let maxOffsetY = view.maxOffsetY
+    view.setContentOffset(CGPoint(x: 0, y: maxOffsetY))
+    view.layoutIfNeeded()
+
+    // then: the view stays at the end, rendered once for the full view size, with the rows that fill the viewport
+    expect(view.contentOffset()) == CGPoint(x: 0, y: maxOffsetY)
+    expect(renderBounds) == [CGRect(x: 0, y: maxOffsetY, width: 100, height: 100)]
+    expect(renderedFrames(in: view)) == (21 ..< 30).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
+  }
+
+  func test_renderBounds_legacyScrollers_scrolledSideways_keepsTheOffset() {
+    // given: a view with legacy scrollers, showing rows as wide as the view that overflow only vertically, so the shown
+    // vertical scroller leaves a scroller thickness of the rows to scroll to sideways
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 30 {
+          LayerNode().frame(width: 100, height: 10)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    useLegacyScrollers(view)
+    view.refresh(animated: false)
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == true
+
+    var renderBounds: [CGRect] = []
+    view.onDidRender { _, context in
+      renderBounds.append(context.renderBounds)
+    }
+
+    // when: scroll sideways within that thickness
+    view.setContentOffset(CGPoint(x: 10, y: 50))
+    view.layoutIfNeeded()
+
+    // then: the view stays where it's scrolled to, rendered once for the full view size
+    expect(view.contentOffset()) == CGPoint(x: 10, y: 50)
+    expect(renderBounds) == [CGRect(x: 10, y: 50, width: 100, height: 100)]
+  }
+
+  func test_renderBounds_legacyScrollers_contentShrinksAtTheEnd_rendersOnce() {
+    // given: a view with legacy scrollers, scrolled to the bottom of rows that overflow both axes
+    var rowCount = 30
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< rowCount {
+          LayerNode().frame(width: 200, height: 10)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    useLegacyScrollers(view)
+    view.refresh(animated: false)
+    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.layoutIfNeeded()
+    expect(view.contentOffset()) == CGPoint(x: 0, y: 200)
+
+    var renderBounds: [CGRect] = []
+    view.onDidRender { _, context in
+      renderBounds.append(context.renderBounds)
+    }
+
+    // when: a refresh shortens the rows while the scrollers stay shown, so the content size clamps the offset to the
+    // new end
+    rowCount = 25
+    view.refresh(animated: false)
+
+    // then: the view renders once, at the new end, for the full view size
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+    expect(view.contentOffset()) == CGPoint(x: 0, y: view.maxOffsetY)
+    expect(renderBounds) == [CGRect(x: 0, y: view.maxOffsetY, width: 100, height: 100)]
+  }
+
+  func test_renderBounds_legacyScrollers_sizeFollowsTheFrameBorderAndMagnification() {
+    // given: a view with a line border, content insets, and a magnification of 2, showing both legacy scrollers
+    let view = ComposeView {
+      LayerNode().frame(width: 300, height: 300)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 122, height: 82)
+    useLegacyScrollers(view)
+    view.borderType = .lineBorder
+    view.contentInsets = NSEdgeInsets(top: 10, left: 5, bottom: 7, right: 3)
+    view.allowsMagnification = true
+    view.magnification = 2
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the content lays out for the frame inside the 1 pt border, in the document's magnified coordinates,
+    // regardless of the scrollers and the insets
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 60, height: 40)
+  }
+
   /// Makes the view show legacy scrollers for the axes its content overflows, so a shown scroller shrinks the clip view.
   private func useLegacyScrollers(_ view: ComposeView) {
     view.scrollIndicatorBehavior = .auto

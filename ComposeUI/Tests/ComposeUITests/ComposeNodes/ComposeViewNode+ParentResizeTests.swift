@@ -844,8 +844,7 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
   #if canImport(AppKit)
   func test_parentResize_capsEveryNestedLayoutTheResizeTriggers_withLegacyScrollers() throws {
     // given: a parent without animations and a scrolled nested view with legacy scrollers, whose dynamic behavior always
-    // animates. resizing the nested view lays it out several times: the frame change clamps the scroll offset, and the
-    // scroller toggling of each layout changes the bounds again.
+    // animates. growing the nested view also clamps its scroll offset near the end.
     let timing = AnimationTiming.linear(duration: 10)
     var childView: ComposeView?
     var childRenderTypes: [ComposeView.RenderType] = []
@@ -894,11 +893,17 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     parent.setNeedsLayout()
     parent.layoutIfNeeded()
 
-    // then: every layout the resize triggers is capped by the parent's decision, so the row snaps
+    // then: the resize lays the nested view out once, for its new size at the clamped offset, and the layout is capped by
+    // the parent's decision, so the row snaps
     expect(child.frame) == CGRect(x: 0, y: 0, width: 140, height: 140)
     expect(row.frame) == CGRect(x: 0, y: 0, width: 140, height: 400)
     expect(row.animationKeys()) == nil
-    expect(childRenderTypes.count) > 1
+    expect(childRenderTypes) == [
+      .boundsChange(
+        previousBounds: CGRect(x: 0, y: 290, width: 100, height: 100),
+        bounds: CGRect(origin: child.contentOffset(), size: CGSize(width: 140, height: 140))
+      ),
+    ]
     expect(childRenderTypes.count) == layerContexts.count
     for context in layerContexts {
       expect(context.updateType) == .boundsChange
