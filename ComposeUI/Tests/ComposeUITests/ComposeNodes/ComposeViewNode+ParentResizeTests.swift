@@ -893,11 +893,13 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     parent.setNeedsLayout()
     parent.layoutIfNeeded()
 
-    // then: the resize lays the nested view out once, for its new size at the clamped offset, and the layout is capped by
-    // the parent's decision, so the row snaps
+    // then: the resize clamps the offset to the end of the content and lays the nested view out once, for its new size at
+    // that offset, and the layout is capped by the parent's decision, so the row snaps
     expect(child.frame) == CGRect(x: 0, y: 0, width: 140, height: 140)
     expect(row.frame) == CGRect(x: 0, y: 0, width: 140, height: 400)
     expect(row.animationKeys()) == nil
+    expect(child.contentOffset()) == CGPoint(x: 0, y: child.maxOffsetY)
+    expect(child.contentOffset().y) < 290
     expect(childRenderTypes) == [
       .boundsChange(
         previousBounds: CGRect(x: 0, y: 290, width: 100, height: 100),

@@ -16,6 +16,7 @@
 - Delayed animations are now scheduled with Core Animation's `beginTime` instead of a GCD timer.
 - Zero-duration transitions now call their completion, and a completion is also called when its animation is torn down early.
 - `RenderableTransition.opacity`'s `to` is now optional, and without it the fade ends at the opacity the content sets, for example with the `opacity` modifier, instead of 1.
+- `ComposeView.tile()` is now final on macOS. The content lays out for the view's bounds inside the border whether or not scroll bars show, so tiling that takes space from the clip view would cover the content. Place accessory views outside the `ComposeView` instead.
 
 ### Changes
 
