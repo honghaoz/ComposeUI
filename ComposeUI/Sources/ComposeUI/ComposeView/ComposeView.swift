@@ -710,6 +710,18 @@ open class ComposeView: BaseScrollView {
   }
   #endif
 
+  // MARK: - Tiling
+
+  #if canImport(AppKit)
+  /// Tiles the clip view and the scrollers.
+  ///
+  /// It's final because the content lays out for the view's bounds inside the border, so space that custom tiling takes
+  /// from the clip view would cover the content.
+  override public final func tile() { // swiftlint:disable:this unneeded_override
+    super.tile()
+  }
+  #endif
+
   // MARK: - Render
 
   /// Refreshes and re-renders the content.
@@ -1523,21 +1535,29 @@ open class ComposeView: BaseScrollView {
   /// Returns the bounds used for layout and rendering.
   private func renderBounds() -> CGRect {
     #if canImport(AppKit)
-    // a legacy scroller shrinks the clip view (`bounds()`), so the size comes from the frame, as AppKit computes it
-    // without scrollers. it then depends only on the frame, the border, and the magnification, so showing or hiding a
-    // scroller never changes the layout.
-    let sizeWithoutScrollers = NSScrollView.contentSize(
-      forFrameSize: frame.size,
-      horizontalScrollerClass: nil,
-      verticalScrollerClass: nil,
-      borderType: borderType,
-      controlSize: .regular,
-      scrollerStyle: scrollerStyle
-    )
-    return CGRect(
-      origin: bounds().origin,
-      size: CGSize(width: sizeWithoutScrollers.width / magnification, height: sizeWithoutScrollers.height / magnification)
-    )
+    // a legacy scroller shrinks the clip view (`bounds()`), so the size comes from the view's bounds inside the border,
+    // where AppKit tiles the clip view without scrollers. it then depends only on the bounds, the border, and the
+    // magnification, so showing or hiding a scroller never changes the layout.
+    let borderWidth: CGFloat
+    switch borderType {
+    case .noBorder:
+      borderWidth = 0
+    case .grooveBorder:
+      // `NSScrollView.contentSize(forFrameSize:...)` assumes 1 pt here, but AppKit tiles a 2 pt groove
+      borderWidth = 2
+    default:
+      borderWidth = 1
+    }
+    // AppKit rounds the clip view's size, not its edges, to whole backing pixels, through any bounds scaling, so the size
+    // rounds the same way to match the area the view shows. each dimension rounds with the pixel scale along its own axis,
+    // the length of a converted unit vector, since converting the size itself would mix the dimensions under rotation.
+    let unitX = convertToBacking(CGSize(width: 1, height: 0))
+    let unitY = convertToBacking(CGSize(width: 0, height: 1))
+    let pixelsPerUnitX = hypot(unitX.width, unitX.height)
+    let pixelsPerUnitY = hypot(unitY.width, unitY.height)
+    let width = (max(self.bounds.width - 2 * borderWidth, 0) * pixelsPerUnitX).rounded() / pixelsPerUnitX
+    let height = (max(self.bounds.height - 2 * borderWidth, 0) * pixelsPerUnitY).rounded() / pixelsPerUnitY
+    return CGRect(origin: bounds().origin, size: CGSize(width: width / magnification, height: height / magnification))
     #endif
 
     #if canImport(UIKit)
