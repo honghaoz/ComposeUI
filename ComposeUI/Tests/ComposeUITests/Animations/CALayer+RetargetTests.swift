@@ -1067,7 +1067,7 @@ class CALayer_RetargetTests: XCTestCase {
   }
 
   func test_retarget_hosted_additiveAnimationInFlight_showsNoJump() throws {
-    // given: a hosted layer whose corner radius is animating additively from 0 to 20
+    // given: a hosted layer whose corner radius is animating additively from 0 to 20, showing what its animation gives
     let testWindow = TestWindow()
     let layer = CALayer()
     layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
@@ -1075,34 +1075,33 @@ class CALayer_RetargetTests: XCTestCase {
     CATransaction.flush()
     expect(layer.presentation()).toEventuallyNot(beNil())
 
-    func shownRadius() throws -> CGFloat {
-      try layer.presentation().unwrap().cornerRadius
-    }
-
     layer.animate(keyPath: "cornerRadius", to: CGFloat(20), timing: .linear(duration: 0.5))
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
-    let radiusBeforeRetarget = try shownRadius()
+    let (radiusBeforeRetarget, timesBeforeRetarget) = try layer.readPresentation { $0.cornerRadius }
+    try layer.expectShown(radiusBeforeRetarget, forKeyPath: "cornerRadius", between: timesBeforeRetarget, scalar: numberScalar, within: 0.5)
     expect(radiusBeforeRetarget) > 2
 
-    // when: retargeting the corner radius back to zero
+    // when: retargeting the corner radius back to zero. the retarget begins its glide at the clock's time for this
+    // turn, which the test reads first, see `AnimationClock`
+    let retargetTime = layer.currentTime
+    let radiusAtRetarget = try layer.predictedValue(forKeyPath: "cornerRadius", at: retargetTime, scalar: numberScalar)
     layer.retarget(keyPath: "cornerRadius", to: CGFloat(0))
 
-    // then: the model is zero, and the glide starts from the shown radius: no jump
+    // then: the model is zero, and the glide starts from the radius at the retarget's time: no jump
     expect(layer.cornerRadius) == 0
-    expect(try layer.predictedValue(forKeyPath: "cornerRadius", at: layer.currentTime, scalar: numberScalar))
-      .to(beApproximatelyEqual(to: radiusBeforeRetarget, within: 0.5))
+    expect(try layer.predictedValue(forKeyPath: "cornerRadius", at: retargetTime, scalar: numberScalar))
+      .to(beApproximatelyEqual(to: radiusAtRetarget, within: 1e-6))
 
     // then: whenever the run loop lets the test look, the shown radius is where the animations put it, below where it
     // was and not below zero, until it lands on zero when the interrupted animation would have. the run loop's timing
-    // isn't reliable, so the test checks each look against the animations' own value for that time instead of
-    // expecting a value at a fixed delay
+    // isn't reliable, so the test checks each look against the animations' own values for the times just before and
+    // after it, instead of expecting a value at a fixed delay
     var landed = false
     for _ in 0 ..< 40 where !landed {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
-      let shown = try shownRadius()
-      let predicted = try layer.predictedValue(forKeyPath: "cornerRadius", at: layer.currentTime, scalar: numberScalar)
-      expect(shown).to(beApproximatelyEqual(to: predicted, within: 0.5))
-      expect(shown) <= radiusBeforeRetarget + 0.5
+      let (shown, times) = try layer.readPresentation { $0.cornerRadius }
+      try layer.expectShown(shown, forKeyPath: "cornerRadius", between: times, scalar: numberScalar, within: 0.5)
+      expect(shown) <= radiusAtRetarget + 0.5
       expect(shown) >= -0.5
       landed = shown < 0.1
     }

@@ -239,21 +239,24 @@ class CALayer_AdditivePathTests: XCTestCase {
     CATransaction.flush()
 
     // then: whenever the run loop lets the test look, the path shown is the rect inset by the sum of the changes left
-    // at that time. a sample only shows at its time if Core Animation spreads the keyframes evenly
+    // at that time, between the insets for the times just before and after the look, as the inset only grows. a sample
+    // only shows at its time if Core Animation spreads the keyframes evenly
     for _ in 0 ..< 6 {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
       let beginTime = try layer.animation(forKey: "path").unwrap().beginTime
       expect(beginTime) > 0
-      let elapsedTime = layer.currentTime - beginTime
-      let expectedInset = 20 - 10 * max(0, 1 - elapsedTime) - 10 * max(0, 1 - elapsedTime / 3)
-      let expectedBounds = CGRect(x: 0, y: 0, width: 100, height: 50).insetBy(dx: expectedInset, dy: expectedInset)
+
+      func expectedInset(at time: TimeInterval) -> CGFloat {
+        let elapsedTime = time - beginTime
+        return 20 - 10 * max(0, 1 - elapsedTime) - 10 * max(0, 1 - elapsedTime / 3)
+      }
 
       // Core Animation turns the lines of a path it interpolates into curves, so the shape shown is compared by its bounds
-      let shownBounds = try layer.presentation().unwrap().path.unwrap().boundingBoxOfPath
-      expect(shownBounds.minX).to(beApproximatelyEqual(to: expectedBounds.minX, within: 0.5))
-      expect(shownBounds.minY).to(beApproximatelyEqual(to: expectedBounds.minY, within: 0.5))
-      expect(shownBounds.maxX).to(beApproximatelyEqual(to: expectedBounds.maxX, within: 0.5))
-      expect(shownBounds.maxY).to(beApproximatelyEqual(to: expectedBounds.maxY, within: 0.5))
+      let (shownBounds, times) = try layer.readPresentation { try $0.path.unwrap().boundingBoxOfPath }
+      for shownInset in [shownBounds.minX, shownBounds.minY, 100 - shownBounds.maxX, 50 - shownBounds.maxY] {
+        expect(shownInset) >= expectedInset(at: times.lowerBound) - 0.5
+        expect(shownInset) <= expectedInset(at: times.upperBound) + 0.5
+      }
     }
   }
 
