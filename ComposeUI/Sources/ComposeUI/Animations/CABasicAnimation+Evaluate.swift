@@ -87,8 +87,8 @@ extension CAAnimation {
   /// The time since the animation's `beginTime` at the given time, scaled by its `speed`, whatever its timing.
   ///
   /// An animation with an unset (zero) `beginTime` hasn't been scheduled by Core Animation yet (it is resolved when the
-  /// transaction commits), so it has run for zero seconds. An animation scheduled in the future has run for a negative
-  /// time, even without a backwards fill, when it doesn't show its from value until it begins.
+  /// transaction commits), so it has run for zero seconds. An animation scheduled in the future at a positive speed has
+  /// run for a negative time, even without a backwards fill, when it doesn't show its from value until it begins.
   ///
   /// - Parameter time: The time in the layer's time space, compared against `beginTime`.
   /// - Returns: The time since the animation began, negative before it begins.

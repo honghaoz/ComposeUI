@@ -52,6 +52,8 @@ public extension CALayer {
   ///
   /// - Important: The value's type must match the key path's, or Core Animation crashes.
   /// - Important: Animations kept with `isRemovedOnCompletion` off aren't supported.
+  /// - Important: Animations added without a key aren't retargeted or accounted for, since Core Animation doesn't list
+  ///   them.
   ///
   /// - Parameters:
   ///   - keyPath: The key path to set.

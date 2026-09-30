@@ -40,6 +40,9 @@ extension CALayer {
   /// can be up to a run loop turn away from the clock's time in either direction, and a layer has no presentation layer
   /// before it is committed.
   ///
+  /// - Important: An animation added without a key isn't included, since Core Animation doesn't list it, see
+  ///   `animationSequence(forKeyPath:)`.
+  ///
   /// - Parameter keyPath: The key path.
   /// - Returns: The value.
   func shownValue(forKeyPath keyPath: String) -> Any? {
@@ -89,10 +92,11 @@ extension CALayer {
   ///   - animations: The layer's animations that change the key path, in the order Core Animation applies them, see
   ///     `animationSequence(forKeyPath:)`.
   ///   - time: The time in the layer's time space, see `currentTime`.
-  /// - Returns: The value. When an animation can't be evaluated, it's the presentation value instead: one whose timing
-  ///   `elapsedTime(at:)` doesn't evaluate, or one that shows and changes the key path through another key path, see
-  ///   `KeyPathAnimation.indirect`, isn't a basic animation from a value to a value, has a value function, or has values
-  ///   that don't interpolate, see `AnimationInterpolation`.
+  /// - Returns: The value. When an animation can't be evaluated, it's the presentation value instead: one that has begun
+  ///   or fills backwards, and has a time offset, repeats or autoreverses, see `hasEvaluableTiming`, or a negative speed,
+  ///   or one that shows and changes the key path through another key path, see `KeyPathAnimation.indirect`, isn't a
+  ///   basic animation from a value to a value, has values that don't interpolate, see `AnimationInterpolation`, or has
+  ///   a value function, which only applies to a transform.
   func shownValue(forKeyPath keyPath: String, animations: some Sequence<KeyPathAnimation>, at time: TimeInterval) -> Any? {
     switch keyPath {
     case "opacity":
@@ -125,28 +129,18 @@ extension CALayer {
   private func composedNumber(model: Double, clampedTo range: ClosedRange<Double>, animations: some Sequence<KeyPathAnimation>, at time: TimeInterval) -> Double? {
     var value = model
     for keyPathAnimation in animations {
-      // an animation that doesn't show has no effect, so it's skipped before its timing and values are checked, and one
-      // that hasn't begun shows only with a backwards fill, whatever its timing
-      let elapsed = keyPathAnimation.animation.timeSinceBegin(at: time)
-      if elapsed < 0, !keyPathAnimation.animation.fillsBackwards {
+      switch keyPathAnimation.effect(at: time) {
+      case .noEffect:
         continue
-      }
-      guard keyPathAnimation.animation.hasEvaluableTiming else {
+      case .unevaluable:
         return nil
+      case .shows(let animation, let progress):
+        guard let from = (animation.fromValue as? NSNumber)?.doubleValue, let to = (animation.toValue as? NSNumber)?.doubleValue else {
+          return nil
+        }
+        let animatedValue = from + (to - from) * progress
+        value = min(max(animation.isAdditive ? value + animatedValue : animatedValue, range.lowerBound), range.upperBound)
       }
-      guard keyPathAnimation.animation.shows(atElapsedTime: elapsed, time: time) else {
-        continue
-      }
-      guard let animation = keyPathAnimation.directAnimation as? CABasicAnimation,
-            animation.byValue == nil,
-            let from = (animation.fromValue as? NSNumber)?.doubleValue,
-            let to = (animation.toValue as? NSNumber)?.doubleValue
-      else {
-        return nil
-      }
-
-      let animatedValue = from + (to - from) * animation.progress(forElapsedTime: elapsed)
-      value = min(max(animation.isAdditive ? value + animatedValue : animatedValue, range.lowerBound), range.upperBound)
     }
     return value
   }
@@ -155,39 +149,30 @@ extension CALayer {
   private func composedValue(model: Any?, animations: some Sequence<KeyPathAnimation>, at time: TimeInterval) -> ComposedValue {
     var value = model
     for keyPathAnimation in animations {
-      // an animation that doesn't show has no effect, so it's skipped before its timing and values are checked, and one
-      // that hasn't begun shows only with a backwards fill, whatever its timing
-      let elapsed = keyPathAnimation.animation.timeSinceBegin(at: time)
-      if elapsed < 0, !keyPathAnimation.animation.fillsBackwards {
+      switch keyPathAnimation.effect(at: time) {
+      case .noEffect:
         continue
-      }
-      guard keyPathAnimation.animation.hasEvaluableTiming else {
+      case .unevaluable:
         return .unevaluable
-      }
-      guard keyPathAnimation.animation.shows(atElapsedTime: elapsed, time: time) else {
-        continue
-      }
-      // a value function shows its output, such as a transform, instead of the interpolated value. the values are read
-      // as objects, as Core Animation keeps them, and told apart by their type IDs, since casting an `Any` costs far more
-      guard let animation = keyPathAnimation.directAnimation as? CABasicAnimation,
-            animation.byValue == nil,
-            animation.valueFunction == nil,
-            let from = animation.fromValue.map({ $0 as AnyObject }), CFGetTypeID(from) != CFNullGetTypeID(),
-            let to = animation.toValue.map({ $0 as AnyObject }), CFGetTypeID(to) != CFNullGetTypeID()
-      else {
-        return .unevaluable
-      }
-
-      guard let animatedValue = AnimationInterpolation.value(from: from, to: to, progress: animation.progress(forElapsedTime: elapsed)) else {
-        return .unevaluable
-      }
-      if animation.isAdditive {
-        guard let base = value.flatMap({ AdditiveValue($0) }), let addend = AdditiveValue(animatedValue), base.isSameKind(as: addend) else {
+      case .shows(let animation, let progress):
+        // a value function, which only applies to a transform, shows its output instead of the interpolated value. the
+        // values are read as objects, as Core Animation keeps them, and told apart by their type IDs, since casting an
+        // `Any` costs far more
+        guard animation.valueFunction == nil,
+              let from = animation.fromValue.map({ $0 as AnyObject }), CFGetTypeID(from) != CFNullGetTypeID(),
+              let to = animation.toValue.map({ $0 as AnyObject }), CFGetTypeID(to) != CFNullGetTypeID(),
+              let animatedValue = AnimationInterpolation.value(from: from, to: to, progress: progress)
+        else {
           return .unevaluable
         }
-        value = (base + addend).value
-      } else {
-        value = animatedValue
+        if animation.isAdditive {
+          guard let base = value.flatMap({ AdditiveValue($0) }), let addend = AdditiveValue(animatedValue), base.isSameKind(as: addend) else {
+            return .unevaluable
+          }
+          value = (base + addend).value
+        } else {
+          value = animatedValue
+        }
       }
     }
     return .value(value)
@@ -203,6 +188,12 @@ extension CALayer {
 }
 
 private extension CAAnimation {
+
+  /// Whether the animation begins after a time, whatever its speed, which only sets how it runs once it begins. An
+  /// unset (zero) `beginTime` becomes the time of the commit, so the animation has begun.
+  func begins(after time: TimeInterval) -> Bool {
+    beginTime != 0 && time < beginTime
+  }
 
   /// Whether the animation shows its start before it begins.
   var fillsBackwards: Bool {
@@ -225,6 +216,49 @@ private extension CAAnimation {
     }
     return !isRemovedOnCompletion && (fillMode == .forwards || fillMode == .both)
   }
+}
+
+private extension KeyPathAnimation {
+
+  /// How the animation affects the value its key path shows at a time.
+  ///
+  /// Whether the animation has begun is decided first, since one that hasn't begun shows nothing without a backwards
+  /// fill, whatever its timing or kind. Whether it has ended depends on its timing, so that's decided once its timing is
+  /// known to be evaluated.
+  ///
+  /// - Parameter time: The time in the layer's time space, see `CALayer.currentTime`.
+  /// - Returns: The effect.
+  func effect(at time: TimeInterval) -> AnimationEffect {
+    // an animation that hasn't begun shows only with a backwards fill, whatever its timing or speed
+    if animation.begins(after: time), !animation.fillsBackwards {
+      return .noEffect
+    }
+    // a negative speed runs the animation backwards from its end once it begins, which isn't evaluated
+    guard animation.hasEvaluableTiming, animation.speed >= 0 else {
+      return .unevaluable
+    }
+    let elapsed = animation.timeSinceBegin(at: time)
+    guard animation.shows(atElapsedTime: elapsed, time: time) else {
+      return .noEffect
+    }
+    guard let basicAnimation = directAnimation as? CABasicAnimation, basicAnimation.byValue == nil else {
+      return .unevaluable
+    }
+    return .shows(basicAnimation, progress: basicAnimation.progress(forElapsedTime: elapsed))
+  }
+}
+
+/// How an animation affects the value a key path shows at a time.
+private enum AnimationEffect {
+
+  /// The animation doesn't show at the time.
+  case noEffect
+
+  /// The animation may show, but its timing or kind isn't evaluated, see `CALayer.shownValue(forKeyPath:animations:at:)`.
+  case unevaluable
+
+  /// The animation shows its values at a progress, from its from value (0) to its to value (1).
+  case shows(CABasicAnimation, progress: Double)
 }
 
 /// A key path's composed value, or that an animation of it can't be evaluated.

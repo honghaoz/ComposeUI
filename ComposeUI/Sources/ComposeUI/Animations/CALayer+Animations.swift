@@ -319,6 +319,9 @@ public extension CALayer {
   /// The first animation is found when the sequence is created, so a caller can skip the work the animations need, such
   /// as reading the layer's current time, when no animation changes the key path.
   ///
+  /// An animation added without a key isn't included, since `animationKeys()` doesn't list it, and without a key it
+  /// can't be looked up.
+  ///
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The animations in the layer's animation key order, or `nil` when no animation changes the key path.
   internal func animationSequence(forKeyPath keyPath: String) -> KeyPathAnimationSequence? {

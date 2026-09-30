@@ -283,6 +283,8 @@ class CALayer_ShownValueTests: XCTestCase {
         ("an animation repeating for a duration that begins later", laterAnimation { $0.repeatDuration = 4 }),
         ("an autoreversing animation that begins later", laterAnimation { $0.autoreverses = true }),
         ("an animation with a time offset that begins later", laterAnimation { $0.timeOffset = 0.5 }),
+        ("a reversed animation that begins later", laterAnimation { $0.speed = -1 }),
+        ("a paused animation that begins later", laterAnimation { $0.speed = 0 }),
       ]
       for testCase in cases {
         // given: a layer at 0.25, raised by an additive animation of 0.5 over two seconds from 1000, with an animation
@@ -351,6 +353,10 @@ class CALayer_ShownValueTests: XCTestCase {
     repeatingAnimation.repeatCount = 2
     let laterRepeatingAnimation = animation(keyPath: "backgroundColor", from: red, to: blue, beginTime: 1001)
     laterRepeatingAnimation.repeatCount = 2
+    let reversedAnimation = animation(keyPath: "backgroundColor", from: red, to: blue)
+    reversedAnimation.speed = -1
+    let reversedOpacityAnimation = animation(keyPath: "opacity", from: 0.0, to: 1.0)
+    reversedOpacityAnimation.speed = -1
     let opacityKeyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
     opacityKeyframeAnimation.values = [0, 1]
     opacityKeyframeAnimation.beginTime = 1000
@@ -370,6 +376,8 @@ class CALayer_ShownValueTests: XCTestCase {
       ("no to value", "backgroundColor", animation(keyPath: "backgroundColor", from: red, to: nil)),
       ("a repeat", "backgroundColor", repeatingAnimation),
       ("a repeat that begins later with a backwards fill", "backgroundColor", laterRepeatingAnimation),
+      ("a negative speed", "backgroundColor", reversedAnimation),
+      ("an opacity at a negative speed", "opacity", reversedOpacityAnimation),
       ("values of other kinds", "shadowOffset", animation(keyPath: "shadowOffset", from: 1.0, to: CGSize(width: 8, height: 4))),
       ("a pattern color", "backgroundColor", animation(keyPath: "backgroundColor", from: red, to: patternColor)),
       ("paths of other segments", "shadowPath", animation(keyPath: "shadowPath", from: square, to: ellipse)),
