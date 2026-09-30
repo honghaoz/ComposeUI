@@ -236,6 +236,40 @@ class CALayer_ShownValueTests: XCTestCase {
     }
   }
 
+  func test_shownValue_animationWithoutADuration_evaluatesWithTheDurationCoreAnimationGivesIt() throws {
+    let cases: [(name: String, transactionDuration: TimeInterval?, shown: Double)] = [
+      ("the default duration", nil, 5),
+      ("the transaction's animation duration", 1, 1.25),
+      ("a zero transaction duration, which drops the animation", 0, 20),
+    ]
+    for testCase in cases {
+      // given: a layer with a border width of 20, and a linear animation of it from 0 to 10 from 1000 without a
+      // duration, added in a fresh transaction, since one an earlier test left open could carry its own duration
+      CATransaction.flush()
+      let layer = CALayer()
+      layer.borderWidth = 20
+      let borderAnimation = CABasicAnimation(keyPath: "borderWidth")
+      borderAnimation.fromValue = 0.0
+      borderAnimation.toValue = 10.0
+      borderAnimation.beginTime = 1000
+      CATransaction.begin()
+      if let duration = testCase.transactionDuration {
+        CATransaction.setAnimationDuration(duration)
+      }
+      layer.add(borderAnimation, forKey: "borderWidth")
+      CATransaction.commit()
+
+      // when: reading the border width at 1000.125
+      let shown = AnimationClock.sharingTime(at: 1000.125) {
+        layer.shownValue(forKeyPath: "borderWidth")
+      }
+
+      // then: Core Animation gave the animation the transaction's animation duration, 0.25 s by default, which it's
+      // evaluated with instead of being skipped as ended, and a zero one drops the animation, leaving the model value
+      expect(try unwrap((shown as? NSNumber)?.doubleValue, testCase.name), testCase.name) == testCase.shown
+    }
+  }
+
   func test_shownValue_scheduledAnimation_showsItsFromValueOnlyWithABackwardsFill() throws {
     let cases: [(fillMode: CAMediaTimingFillMode, shown: CGColor)] = [
       (.removed, red),
