@@ -92,7 +92,7 @@ Before reporting a change complete, verify in order:
 2. New code MUST have full test coverage, including guard/assertion paths and both branches of conditionals. Enumerate and test the logic's edge cases (boundary values, zero or empty inputs, interrupted in-flight states) and assert their observable outcomes. Full coverage must fall out of covering every case, not be the goal itself: a test can execute many lines without checking any corner case. Verify with `swift test --enable-code-coverage` + `xcrun llvm-cov report` on the touched files.
 3. `make format` and `make lint` pass.
 4. Cross-platform changes: both `AppKit` and `UIKit` conditional compilation paths build and are exercised by platform tests.
-5. User-facing behavior changes have an entry under `Unreleased` in `CHANGELOG.md`.
+5. User-facing behavior changes since the last release have an entry under `Unreleased` in `CHANGELOG.md`.
 
 # Boundaries
 
@@ -169,6 +169,7 @@ Hard-won rules from past corrections, grouped by theme.
 
 - Match content to the section's altitude: overview sections get a couple of high-level sentences, mechanics and specifics go in the section that owns them.
 - A CHANGELOG entry is for a change users would notice or need to act on. Leave out internal details, such as an edge-case fix that makes one more code path follow a rule the API already documents.
+- Judge CHANGELOG entries against the last release, not the previous commit. Users only see released behavior, so a change to behavior that's still unreleased gets no entry of its own: update the entry that introduced the behavior when what it describes changes, and add nothing when the change only corrects it. Otherwise entries pile up for intermediate states no user saw.
 
 ## Design decisions
 
