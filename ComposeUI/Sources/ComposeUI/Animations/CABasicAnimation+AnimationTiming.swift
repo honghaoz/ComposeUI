@@ -41,6 +41,8 @@ public extension CABasicAnimation {
   /// A timing with a zero duration makes an animation shorter than a frame at the normal speed, which lands as an
   /// instant change after the delay, as a zero duration has no timeline for the timing's speed to scale.
   ///
+  /// The animation's fill mode is `.both`, so an animation scheduled to begin later holds its from value until it begins.
+  ///
   /// - Parameters:
   ///   - timing: The timing of the animation.
   /// - Returns: The animation.

@@ -108,7 +108,7 @@ public struct ColorNode: ComposeNode {
               layer.animate(
                 keyPath: "backgroundColor",
                 timing: animationTiming,
-                from: { $0.presentation()?.backgroundColor },
+                from: { $0.shownColor(forKeyPath: "backgroundColor") },
                 to: { _ in color }
               )
             }

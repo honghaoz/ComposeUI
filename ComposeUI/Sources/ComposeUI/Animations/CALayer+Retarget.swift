@@ -107,14 +107,15 @@ public extension CALayer {
         updateAnimation: { $0.isAdditive = true }
       )
     } else {
-      // remove the in-flight animations and replace them with a new one from the current value to the new value
+      // replace the in-flight animations with a new one from the value they show to the new value.
+      let startValue = shownValue(forKeyPath: keyPath, animations: inFlightAnimations.lazy.map(\.animation), at: now)
       for inFlightAnimation in inFlightAnimations {
         removeAnimation(forKey: inFlightAnimation.key)
       }
       animate(
         keyPath: keyPath,
         timing: timing,
-        from: { $0.presentation()?.value(forKeyPath: keyPath) },
+        from: { _ in startValue },
         to: { _ -> Any? in value }
       )
     }
@@ -126,30 +127,24 @@ public extension CALayer {
   /// Returns `nil` when no animation animates the key path, without reading the current time, since reading it converts
   /// the time through the layer tree, and a layer usually has nothing animating.
   private func inFlightAnimations(forKeyPath keyPath: String) -> (animations: [InFlightAnimation], endedKeptKeys: [String], now: TimeInterval)? {
-    var now: TimeInterval?
+    guard let animations = propertyAnimationSequence(forKeyPath: keyPath) else {
+      return nil
+    }
+
+    let now = currentTime
     var inFlightAnimations: [InFlightAnimation] = []
     var endedKeptKeys: [String] = []
-    for key in animationKeys() ?? [] {
-      guard let animation = animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath else {
-        continue
-      }
-
+    for (key, animation) in animations {
       ComposeUI.assert(
         animation.isRemovedOnCompletion,
         "animation \"\(key)\" of \"\(keyPath)\" is kept with isRemovedOnCompletion off, which isn't supported"
       )
 
-      let time = now ?? currentTime
-      now = time
-      if let remainingTime = animation.remainingTime(at: time) {
+      if let remainingTime = animation.remainingTime(at: now) {
         inFlightAnimations.append(InFlightAnimation(key: key, animation: animation, remainingTime: remainingTime))
       } else if !animation.isRemovedOnCompletion {
         endedKeptKeys.append(key)
       }
-    }
-
-    guard let now else {
-      return nil
     }
     return (inFlightAnimations, endedKeptKeys, now)
   }
@@ -242,91 +237,5 @@ private extension CABasicAnimation {
       return nil
     }
     return (from, to)
-  }
-}
-
-/// A value of a kind that animates additively, a number, `CGSize` or `CGPoint`, as two components.
-///
-/// A number uses the first component and leaves the second at zero, so the component-wise math is the same for every
-/// kind.
-private struct AdditiveValue {
-
-  private enum Kind {
-    case number
-    case size
-    case point
-  }
-
-  private let kind: Kind
-
-  /// The components: the number and zero, width and height, or x and y.
-  private let components: SIMD2<Double>
-
-  /// Creates the value from a number, `CGSize` or `CGPoint`, as Core Animation boxes them.
-  ///
-  /// - Returns: `nil` for a value of another kind.
-  init?(_ value: Any) {
-    if let size = value as? CGSize {
-      kind = .size
-      components = SIMD2(size.width, size.height)
-    } else if let point = value as? CGPoint {
-      kind = .point
-      components = SIMD2(point.x, point.y)
-    } else if let number = value as? NSNumber {
-      kind = .number
-      components = SIMD2(number.doubleValue, 0)
-    } else {
-      return nil
-    }
-  }
-
-  private init(kind: Kind, components: SIMD2<Double>) {
-    self.kind = kind
-    self.components = components
-  }
-
-  /// The value as Core Animation boxes it.
-  var value: Any {
-    switch kind {
-    case .number:
-      return components.x
-    case .size:
-      return CGSize(width: components.x, height: components.y)
-    case .point:
-      return CGPoint(x: components.x, y: components.y)
-    }
-  }
-
-  /// The zero of the value's kind.
-  var zero: AdditiveValue {
-    AdditiveValue(kind: kind, components: .zero)
-  }
-
-  /// Whether every component is zero.
-  var isZero: Bool {
-    components == .zero
-  }
-
-  func isSameKind(as other: AdditiveValue) -> Bool {
-    kind == other.kind
-  }
-
-  /// The value with every component multiplied by `factor`.
-  func scaled(by factor: Double) -> AdditiveValue {
-    AdditiveValue(kind: kind, components: components * factor)
-  }
-
-  /// The component-wise sum of two values of the same kind.
-  static func + (lhs: AdditiveValue, rhs: AdditiveValue) -> AdditiveValue {
-    AdditiveValue(kind: lhs.kind, components: lhs.components + rhs.components)
-  }
-
-  static func += (lhs: inout AdditiveValue, rhs: AdditiveValue) {
-    lhs = lhs + rhs
-  }
-
-  /// The component-wise difference of two values of the same kind.
-  static func - (lhs: AdditiveValue, rhs: AdditiveValue) -> AdditiveValue {
-    AdditiveValue(kind: lhs.kind, components: lhs.components - rhs.components)
   }
 }
