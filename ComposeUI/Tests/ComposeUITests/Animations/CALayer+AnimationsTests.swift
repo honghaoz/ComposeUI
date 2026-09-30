@@ -706,6 +706,9 @@ class CALayer_AnimationsTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
+    // a group animating the key path is not a basic animation
+    layer.add(group(of: [CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
     // when: querying basic animations for the opacity key path
     let animations = layer.basicAnimations(forKeyPath: "opacity")
 
@@ -715,7 +718,7 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_propertyAnimations_forKeyPath() {
-    // given: a layer with basic, keyframe, and different key path animations
+    // given: a layer with basic, keyframe, and different key path animations, and a group animating the key path
     let layer = CALayer()
 
     let fadeAnimation = CABasicAnimation(keyPath: "opacity")
@@ -730,17 +733,20 @@ class CALayer_AnimationsTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
+    layer.add(group(of: [CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
     // when: querying property animations for the opacity key path
     let animations = layer.propertyAnimations(forKeyPath: "opacity")
 
-    // then: both opacity animations match, in order, and the other key path doesn't
+    // then: both opacity animations match, in order, and neither the other key path nor the group does
     expect(animations.count) == 2
     expect(animations.first is CABasicAnimation) == true
     expect(animations.last is CAKeyframeAnimation) == true
   }
 
-  func test_propertyAnimationSequence_yieldsTheKeyPathsAnimationsWithTheirKeysInOrder() throws {
-    // given: a layer with two opacity animations, and an animation of another key path and a transition between them
+  func test_animationSequence_yieldsTheKeyPathsAnimationsWithTheirKeysInOrder() throws {
+    // given: a layer with opacity animations, and groups with one, directly and in a group of their own, between other
+    // animations: of another key path, a transition, a group of another key path and a transition, and an empty group
     let layer = CALayer()
 
     let fadeAnimation = CABasicAnimation(keyPath: "opacity")
@@ -751,44 +757,104 @@ class CALayer_AnimationsTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
+    layer.add(group(of: [CABasicAnimation(keyPath: "position"), CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
     let transition = CATransition()
     transition.duration = 60
     layer.add(transition, forKey: "transition")
+
+    layer.add(group(of: [CABasicAnimation(keyPath: "position"), CATransition()]), forKey: "group-move")
+    layer.add(group(of: nil), forKey: "empty-group")
+    layer.add(group(of: [group(of: [CABasicAnimation(keyPath: "position")]), group(of: [CABasicAnimation(keyPath: "opacity")])]), forKey: "nested-group-fade")
 
     let keyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
     keyframeAnimation.duration = 60
     layer.add(keyframeAnimation, forKey: "keyframe-fade")
 
     // when: iterating the opacity animations
-    let animations = try Array(layer.propertyAnimationSequence(forKeyPath: "opacity").unwrap())
+    let animations = try Array(layer.animationSequence(forKeyPath: "opacity").unwrap())
 
-    // then: both opacity animations are yielded with their keys, in order, skipping the other animations
-    expect(animations.map(\.key)) == ["fade", "keyframe-fade"]
-    expect(animations.first?.animation is CABasicAnimation) == true
-    expect(animations.last?.animation is CAKeyframeAnimation) == true
+    // then: the opacity animations and the groups with one are yielded with their keys, in order, skipping the others,
+    // the opacity animations as direct ones and the groups as indirect ones
+    expect(animations.map(\.key)) == ["fade", "group-fade", "nested-group-fade", "keyframe-fade"]
+    expect(animations.map { kind(of: $0.animation) }) == ["direct", "indirect", "indirect", "direct"]
+    expect(animations[0].animation.animation is CABasicAnimation) == true
+    expect(animations[1].animation.animation is CAAnimationGroup) == true
+    expect(animations[2].animation.animation is CAAnimationGroup) == true
+    expect(animations[3].animation.animation is CAKeyframeAnimation) == true
   }
 
-  func test_propertyAnimationSequence_noAnimationOfTheKeyPath_isNil() {
-    // given: a layer without animations and a layer with an animation of another key path
+  func test_animationSequence_relatedKeyPaths_areIndirect() throws {
+    // given: a layer whose position animates directly, through its x component, and through a group of it, with a
+    // sibling of its bounds size, its bounds, one of its bounds size's components, and a key path that only starts with
+    // `position` animating too
+    let layer = CALayer()
+    for keyPath in ["position", "position.x", "positionX", "bounds", "bounds.origin", "bounds.size.width"] {
+      let animation = CABasicAnimation(keyPath: keyPath)
+      animation.duration = 60
+      layer.add(animation, forKey: keyPath)
+    }
+    layer.add(group(of: [CABasicAnimation(keyPath: "position.y")]), forKey: "group-move-y")
+
+    // when: iterating the animations of the position and of the bounds size
+    let positionAnimations = try Array(layer.animationSequence(forKeyPath: "position").unwrap())
+    let sizeAnimations = try Array(layer.animationSequence(forKeyPath: "bounds.size").unwrap())
+
+    // then: the position's animation is direct, and its component's and the group's are indirect, while a key path
+    // that doesn't continue with a dot isn't related
+    expect(positionAnimations.map(\.key)) == ["position", "position.x", "group-move-y"]
+    expect(positionAnimations.map { kind(of: $0.animation) }) == ["direct", "indirect", "indirect"]
+
+    // then: the bounds and the size's component change the size indirectly, while a sibling of the size doesn't
+    expect(sizeAnimations.map(\.key)) == ["bounds", "bounds.size.width"]
+    expect(sizeAnimations.map { kind(of: $0.animation) }) == ["indirect", "indirect"]
+  }
+
+  func test_keyPathLookups_leaveRelatedKeyPathsOut() {
+    // given: a layer whose position animates directly and through its x component
+    let layer = CALayer()
+    for keyPath in ["position", "position.x"] {
+      let animation = CABasicAnimation(keyPath: keyPath)
+      animation.duration = 60
+      layer.add(animation, forKey: keyPath)
+    }
+
+    // then: the position's lookups only find the direct animation
+    expect(layer.basicAnimations(forKeyPath: "position").map(\.keyPath)) == ["position"]
+    expect(layer.propertyAnimations(forKeyPath: "position").map(\.keyPath)) == ["position"]
+
+    // when: removing the position's animations
+    layer.removeAnimations(forKeyPath: "position")
+
+    // then: the component's animation is left alone
+    expect(layer.animationKeys()) == ["position.x"]
+  }
+
+  func test_animationSequence_noAnimationOfTheKeyPath_isNil() {
+    // given: a layer without animations, and a layer with an animation, a group and an empty group of other key paths,
+    // and a group with an animation without a key path
     let layer = CALayer()
     let spinningLayer = CALayer()
     let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
     spinAnimation.duration = 60
     spinningLayer.add(spinAnimation, forKey: "spin")
+    spinningLayer.add(group(of: [CABasicAnimation(keyPath: "position")]), forKey: "group-move")
+    spinningLayer.add(group(of: nil), forKey: "empty-group")
+    spinningLayer.add(group(of: [CABasicAnimation()]), forKey: "group-no-key-path")
 
     // then: neither has opacity animations
-    expect(layer.propertyAnimationSequence(forKeyPath: "opacity")).to(beNil())
-    expect(spinningLayer.propertyAnimationSequence(forKeyPath: "opacity")).to(beNil())
+    expect(layer.animationSequence(forKeyPath: "opacity")).to(beNil())
+    expect(spinningLayer.animationSequence(forKeyPath: "opacity")).to(beNil())
   }
 
-  func test_propertyAnimationSequence_doesntExtendTheLayersLifetime() {
+  func test_animationSequence_doesntExtendTheLayersLifetime() {
     // given: a layer
     var layer: CALayer? = CALayer()
     weak let weakLayer = layer
 
     autoreleasepool {
       // when: looking up its animations, then letting the layer go before the enclosing autorelease pool drains
-      _ = layer?.propertyAnimationSequence(forKeyPath: "opacity")
+      _ = layer?.animationSequence(forKeyPath: "opacity")
       layer = nil
 
       // then: the layer is released right away
@@ -814,12 +880,34 @@ class CALayer_AnimationsTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
+    // a group animating the key path survives, since it may animate other key paths
+    layer.add(group(of: [CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
     // when: removing animations for the opacity key path
     layer.removeAnimations(forKeyPath: "opacity")
 
-    // then: both opacity animations are removed and the other key path animation survives
+    // then: both opacity animations are removed, and the other key path animation and the group survive
     expect(layer.animation(forKey: "fade")) == nil
     expect(layer.animation(forKey: "keyframe-fade")) == nil
     expect(layer.animation(forKey: "spin")) != nil
+    expect(layer.animation(forKey: "group-fade")) != nil
+  }
+
+  // MARK: - Helpers
+
+  private func group(of animations: [CAAnimation]?) -> CAAnimationGroup {
+    let group = CAAnimationGroup()
+    group.animations = animations
+    group.duration = 60
+    return group
+  }
+
+  private func kind(of animation: KeyPathAnimation) -> String {
+    switch animation {
+    case .direct:
+      return "direct"
+    case .indirect:
+      return "indirect"
+    }
   }
 }

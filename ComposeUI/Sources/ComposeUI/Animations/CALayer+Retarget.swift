@@ -46,7 +46,9 @@ public extension CALayer {
   ///   `opacity` and `shadowOpacity` are replaced too, since the render server clamps them after each animation and
   ///   stacked animations wouldn't compose on screen.
   ///
-  /// A folded or replaced animation is removed, so its delegate is told it stopped before finishing.
+  /// A folded or replaced animation is removed, so its delegate is told it stopped before finishing. An animation that
+  /// changes the key path through another key path, such as a group or an animation of `position.x` for `position`, is
+  /// neither folded nor replaced, since it's there for the other key path, and keeps running.
   ///
   /// - Important: The value's type must match the key path's, or Core Animation crashes.
   /// - Important: Animations kept with `isRemovedOnCompletion` off aren't supported.
@@ -65,7 +67,7 @@ public extension CALayer {
       setKeyPathValue(keyPath, value)
       return
     }
-    let (inFlightAnimations, endedKeptKeys, now) = animations
+    let (inFlightAnimations, indirectAnimations, endedKeptKeys, now) = animations
 
     // a kept animation that has ended would cover the new value
     for key in endedKeptKeys {
@@ -108,7 +110,11 @@ public extension CALayer {
       )
     } else {
       // replace the in-flight animations with a new one from the value they show to the new value.
-      let startValue = shownValue(forKeyPath: keyPath, animations: inFlightAnimations.lazy.map(\.animation), at: now)
+      // an animation that changes the key path through another key path keeps running and is part of the start value,
+      // which only then needs the animations in one array
+      let startValue = indirectAnimations.isEmpty
+        ? shownValue(forKeyPath: keyPath, animations: inFlightAnimations.lazy.map { KeyPathAnimation.direct($0.animation) }, at: now)
+        : shownValue(forKeyPath: keyPath, animations: indirectAnimations + inFlightAnimations.map { KeyPathAnimation.direct($0.animation) }, at: now)
       for inFlightAnimation in inFlightAnimations {
         removeAnimation(forKey: inFlightAnimation.key)
       }
@@ -121,20 +127,29 @@ public extension CALayer {
     }
   }
 
-  /// The layer's property animations of the given key path that haven't ended at `now`, the keys of the kept ones that
-  /// have ended, and `now`, the layer's current time.
+  /// The layer's property animations of the given key path that haven't ended at `now`, its animations that change the
+  /// key path through another key path, the keys of the kept property animations that have ended, and `now`, the
+  /// layer's current time.
   ///
-  /// Returns `nil` when no animation animates the key path, without reading the current time, since reading it converts
+  /// An animation that changes the key path through another key path, see `KeyPathAnimation.indirect`, isn't one of the
+  /// in-flight animations, since it's there for the other key path, so the retarget neither folds nor removes it.
+  ///
+  /// Returns `nil` when no animation changes the key path, without reading the current time, since reading it converts
   /// the time through the layer tree, and a layer usually has nothing animating.
-  private func inFlightAnimations(forKeyPath keyPath: String) -> (animations: [InFlightAnimation], endedKeptKeys: [String], now: TimeInterval)? {
-    guard let animations = propertyAnimationSequence(forKeyPath: keyPath) else {
+  private func inFlightAnimations(forKeyPath keyPath: String) -> (animations: [InFlightAnimation], indirectAnimations: [KeyPathAnimation], endedKeptKeys: [String], now: TimeInterval)? {
+    guard let animations = animationSequence(forKeyPath: keyPath) else {
       return nil
     }
 
     let now = currentTime
     var inFlightAnimations: [InFlightAnimation] = []
+    var indirectAnimations: [KeyPathAnimation] = []
     var endedKeptKeys: [String] = []
-    for (key, animation) in animations {
+    for (key, keyPathAnimation) in animations {
+      guard let animation = keyPathAnimation.directAnimation else {
+        indirectAnimations.append(keyPathAnimation)
+        continue
+      }
       ComposeUI.assert(
         animation.isRemovedOnCompletion,
         "animation \"\(key)\" of \"\(keyPath)\" is kept with isRemovedOnCompletion off, which isn't supported"
@@ -146,7 +161,7 @@ public extension CALayer {
         endedKeptKeys.append(key)
       }
     }
-    return (inFlightAnimations, endedKeptKeys, now)
+    return (inFlightAnimations, indirectAnimations, endedKeptKeys, now)
   }
 
   /// The in-flight additive animations to fold into one glide to the new value, and the offset of the shown value from

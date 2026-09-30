@@ -279,10 +279,10 @@ public extension CALayer {
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The basic animations animating `keyPath`, in the layer's animation key order.
   internal func basicAnimations(forKeyPath keyPath: String) -> [CABasicAnimation] {
-    guard let animations = propertyAnimationSequence(forKeyPath: keyPath) else {
+    guard let animations = animationSequence(forKeyPath: keyPath) else {
       return []
     }
-    return animations.compactMap { $0.animation as? CABasicAnimation }
+    return animations.compactMap { $0.animation.directAnimation as? CABasicAnimation }
   }
 
   /// The layer's property animations animating the given key path, such as basic and keyframe animations.
@@ -290,33 +290,38 @@ public extension CALayer {
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The property animations animating `keyPath`, in the layer's animation key order.
   internal func propertyAnimations(forKeyPath keyPath: String) -> [CAPropertyAnimation] {
-    guard let animations = propertyAnimationSequence(forKeyPath: keyPath) else {
+    guard let animations = animationSequence(forKeyPath: keyPath) else {
       return []
     }
-    return animations.map(\.animation)
+    return animations.compactMap(\.animation.directAnimation)
   }
 
-  /// Removes the layer's animations animating the given key path, leaving other animations alone.
+  /// Removes the layer's property animations animating the given key path, leaving other animations alone.
+  ///
+  /// An animation that changes the key path through another key path is left alone too, see `KeyPathAnimation.indirect`,
+  /// since it's there for the other key path.
   ///
   /// - Parameter keyPath: The animated key path.
   internal func removeAnimations(forKeyPath keyPath: String) {
-    guard let animations = propertyAnimationSequence(forKeyPath: keyPath) else {
+    guard let animations = animationSequence(forKeyPath: keyPath) else {
       return
     }
     // the sequence walks a copy of the keys, so removing an animation doesn't skip the next one
-    for (key, _) in animations {
+    for (key, animation) in animations where animation.directAnimation != nil {
       removeAnimation(forKey: key)
     }
   }
 
-  /// The layer's property animations animating the given key path, with their keys, looked up as they're iterated.
+  /// The layer's animations that change what the given key path shows, with their keys, looked up as they're iterated:
+  /// its property animations of the key path, and the ones that change it through another key path, see
+  /// `KeyPathAnimation`.
   ///
   /// The first animation is found when the sequence is created, so a caller can skip the work the animations need, such
-  /// as reading the layer's current time, when no animation animates the key path.
+  /// as reading the layer's current time, when no animation changes the key path.
   ///
   /// - Parameter keyPath: The animated key path.
-  /// - Returns: The animations in the layer's animation key order, or `nil` when no animation animates the key path.
-  internal func propertyAnimationSequence(forKeyPath keyPath: String) -> PropertyAnimationSequence? {
+  /// - Returns: The animations in the layer's animation key order, or `nil` when no animation changes the key path.
+  internal func animationSequence(forKeyPath keyPath: String) -> KeyPathAnimationSequence? {
     // `animationKeys()` bridges Core Animation's array of keys to a Swift array of strings, which costs more than
     // looking up the animations, so the array is read as it is. `perform(_:)` autoreleases the layer, so a local pool
     // releases it right away instead of keeping a layer its owners let go alive until the run loop's pool drains.
@@ -326,13 +331,45 @@ public extension CALayer {
     guard let keys else {
       return nil
     }
-    return PropertyAnimationSequence(layer: self, keyPath: keyPath, keys: keys)
+    return KeyPathAnimationSequence(layer: self, keyPath: keyPath, keys: keys)
   }
 }
 
-/// A layer's property animations animating a key path, with their keys, looked up as they're iterated, see
-/// `CALayer.propertyAnimationSequence(forKeyPath:)`.
-struct PropertyAnimationSequence: Sequence, IteratorProtocol {
+/// A layer's animation that changes what a key path shows, see `CALayer.animationSequence(forKeyPath:)`.
+enum KeyPathAnimation {
+
+  /// A property animation of the key path.
+  case direct(CAPropertyAnimation)
+
+  /// An animation that changes the key path through another key path: a property animation of a component of the key
+  /// path, such as `position.x` of `position`, or of a key path the key path is a component of, such as `bounds` of
+  /// `bounds.size`, or a group with an animation of the key path or of such a key path, at any depth.
+  case indirect(CAAnimation)
+
+  /// The animation.
+  var animation: CAAnimation {
+    switch self {
+    case .direct(let animation):
+      return animation
+    case .indirect(let animation):
+      return animation
+    }
+  }
+
+  /// The property animation of the key path, or `nil` for an animation that changes it through another key path.
+  var directAnimation: CAPropertyAnimation? {
+    switch self {
+    case .direct(let animation):
+      return animation
+    case .indirect:
+      return nil
+    }
+  }
+}
+
+/// A layer's animations that change what a key path shows, with their keys, looked up as they're iterated, see
+/// `CALayer.animationSequence(forKeyPath:)`.
+struct KeyPathAnimationSequence: Sequence, IteratorProtocol {
 
   private let layer: CALayer
   private let keyPath: String
@@ -341,9 +378,9 @@ struct PropertyAnimationSequence: Sequence, IteratorProtocol {
   private var index = 0
 
   /// The first animation, found when the sequence is created, which `next()` returns first.
-  private var first: (key: String, animation: CAPropertyAnimation)?
+  private var first: (key: String, animation: KeyPathAnimation)?
 
-  /// Creates the sequence, or returns `nil` when no animation animates the key path.
+  /// Creates the sequence, or returns `nil` when no animation changes the key path.
   fileprivate init?(layer: CALayer, keyPath: String, keys: NSArray) {
     self.layer = layer
     self.keyPath = keyPath
@@ -355,7 +392,7 @@ struct PropertyAnimationSequence: Sequence, IteratorProtocol {
     self.first = first
   }
 
-  mutating func next() -> (key: String, animation: CAPropertyAnimation)? {
+  mutating func next() -> (key: String, animation: KeyPathAnimation)? {
     if let first {
       self.first = nil
       return first
@@ -363,16 +400,49 @@ struct PropertyAnimationSequence: Sequence, IteratorProtocol {
     return lookUpNext()
   }
 
-  /// Looks up the next animation animating the key path, after the keys looked up so far.
-  private mutating func lookUpNext() -> (key: String, animation: CAPropertyAnimation)? {
+  /// Looks up the next animation that changes the key path, after the keys looked up so far.
+  private mutating func lookUpNext() -> (key: String, animation: KeyPathAnimation)? {
     while index < keyCount {
       // Core Animation's keys are strings
       let key = unsafeDowncast(keys.object(at: index) as AnyObject, to: NSString.self) as String
       index += 1
-      if let animation = layer.animation(forKey: key) as? CAPropertyAnimation, animation.keyPath == keyPath {
-        return (key, animation)
+      let animation = layer.animation(forKey: key)
+      if let propertyAnimation = animation as? CAPropertyAnimation, let animatedKeyPath = propertyAnimation.keyPath {
+        if animatedKeyPath == keyPath {
+          return (key, .direct(propertyAnimation))
+        }
+        if Self.isKeyPath(animatedKeyPath, aComponentOf: keyPath) || Self.isKeyPath(keyPath, aComponentOf: animatedKeyPath) {
+          return (key, .indirect(propertyAnimation))
+        }
+      } else if let group = animation as? CAAnimationGroup, Self.group(group, changes: keyPath) {
+        return (key, .indirect(group))
       }
     }
     return nil
+  }
+
+  /// Whether a group changes what a key path shows, with an animation of the key path, of one of its components, or of
+  /// a key path it's a component of, directly or in a group of its own.
+  private static func group(_ group: CAAnimationGroup, changes keyPath: String) -> Bool {
+    group.animations?.contains { animation in
+      if let propertyAnimation = animation as? CAPropertyAnimation {
+        guard let animatedKeyPath = propertyAnimation.keyPath else {
+          return false
+        }
+        return animatedKeyPath == keyPath || isKeyPath(animatedKeyPath, aComponentOf: keyPath) || isKeyPath(keyPath, aComponentOf: animatedKeyPath)
+      }
+      return (animation as? CAAnimationGroup).map { Self.group($0, changes: keyPath) } ?? false
+    } ?? false
+  }
+
+  /// Whether a key path is a component of another, such as `position.x` of `position`: it starts with the other key
+  /// path and a dot.
+  ///
+  /// The bytes are compared instead of splitting the key path into components by character, since splitting by
+  /// character segments grapheme clusters, which costs more than the lookup the check is for.
+  private static func isKeyPath(_ keyPath: String, aComponentOf otherKeyPath: String) -> Bool {
+    let bytes = keyPath.utf8
+    let otherBytes = otherKeyPath.utf8
+    return bytes.count > otherBytes.count && bytes.starts(with: otherBytes) && bytes.dropFirst(otherBytes.count).first == UInt8(ascii: ".")
   }
 }

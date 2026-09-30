@@ -60,10 +60,11 @@ class CALayer_ShownValueTests: XCTestCase {
   }
 
   func test_shownValue_otherKeyPathsAnimating_isTheModelValue() {
-    // given: a red layer whose position animates
+    // given: a red layer whose position animates, directly and in a group
     let layer = TimeConversionCountingLayer()
     layer.backgroundColor = red
     layer.add(animation(keyPath: "position", from: CGPoint(x: 0, y: 0), to: CGPoint(x: 10, y: 10)), forKey: "position")
+    layer.add(group(of: [CABasicAnimation(keyPath: "position")]), forKey: "group-move")
 
     // when: reading the background color
     let shown = AnimationClock.sharingTime(at: 1000.5) {
@@ -258,6 +259,42 @@ class CALayer_ShownValueTests: XCTestCase {
     }
   }
 
+  func test_shownValue_animationNotShowing_isSkippedWhateverItsValues() throws {
+    for keyPath in ["borderWidth", "opacity"] {
+      let laterToOnlyAnimation = animation(keyPath: keyPath, from: nil, to: 1.0, beginTime: 1001)
+      laterToOnlyAnimation.fillMode = .removed
+      let endedToOnlyAnimation = animation(keyPath: keyPath, from: nil, to: 1.0, beginTime: 997)
+      let laterKeyframeAnimation = CAKeyframeAnimation(keyPath: keyPath)
+      laterKeyframeAnimation.values = [0.0, 1.0]
+      laterKeyframeAnimation.beginTime = 1001
+      laterKeyframeAnimation.duration = 2
+
+      let cases: [(name: String, animation: CAAnimation)] = [
+        ("a to-only animation that begins later", laterToOnlyAnimation),
+        ("a to-only animation that has ended", endedToOnlyAnimation),
+        ("a keyframe animation that begins later", laterKeyframeAnimation),
+      ]
+      for testCase in cases {
+        // given: a layer at 0.25, raised by an additive animation of 0.5 over two seconds from 1000, with an animation
+        // that can't be evaluated and doesn't show at 1000.5, as it begins later without a backwards fill or has ended
+        let layer = CALayer()
+        layer.borderWidth = 0.25
+        layer.opacity = 0.25
+        layer.add(animation(keyPath: keyPath, from: 0.0, to: 0.5, isAdditive: true), forKey: "raise")
+        layer.add(testCase.animation, forKey: "unevaluable")
+
+        // when: reading the key path at 1000.5
+        let shown = AnimationClock.sharingTime(at: 1000.5) {
+          layer.shownValue(forKeyPath: keyPath)
+        }
+
+        // then: the animation that doesn't show is skipped, so the model value is raised by a quarter of 0.5
+        let description = "\(testCase.name) of \(keyPath)"
+        expect(try unwrap((shown as? NSNumber)?.doubleValue, description), description) == 0.375
+      }
+    }
+  }
+
   // MARK: - Typed Values
 
   func test_shownColorPathAndOpacity() throws {
@@ -296,18 +333,24 @@ class CALayer_ShownValueTests: XCTestCase {
     let ellipse = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil)
     let keyframeAnimation = CAKeyframeAnimation(keyPath: "backgroundColor")
     keyframeAnimation.values = [red, blue]
+    keyframeAnimation.beginTime = 1000
+    keyframeAnimation.duration = 2
     let byAnimation = animation(keyPath: "backgroundColor", from: red, to: blue)
     byAnimation.byValue = blue
     let repeatingAnimation = animation(keyPath: "backgroundColor", from: red, to: blue)
     repeatingAnimation.repeatCount = 2
     let opacityKeyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
     opacityKeyframeAnimation.values = [0, 1]
+    opacityKeyframeAnimation.beginTime = 1000
+    opacityKeyframeAnimation.duration = 2
     let opacityByAnimation = animation(keyPath: "opacity", from: 0.0, to: 1.0)
     opacityByAnimation.byValue = 1.0
     let repeatingOpacityAnimation = animation(keyPath: "opacity", from: 0.0, to: 1.0)
     repeatingOpacityAnimation.repeatCount = 2
+    let rotation = animation(keyPath: "transform", from: 0.0, to: Double.pi)
+    rotation.valueFunction = CAValueFunction(name: .rotateZ)
 
-    let cases: [(name: String, keyPath: String, animation: CAPropertyAnimation)] = [
+    let cases: [(name: String, keyPath: String, animation: CAAnimation)] = [
       ("a keyframe animation", "backgroundColor", keyframeAnimation),
       ("a by value", "backgroundColor", byAnimation),
       ("an unresolved from value", "backgroundColor", animation(keyPath: "backgroundColor", from: NSNull(), to: blue)),
@@ -324,6 +367,13 @@ class CALayer_ShownValueTests: XCTestCase {
       ("an opacity from a color", "opacity", animation(keyPath: "opacity", from: red, to: 1.0)),
       ("an opacity to a color", "opacity", animation(keyPath: "opacity", from: 0.0, to: red)),
       ("a repeating opacity", "opacity", repeatingOpacityAnimation),
+      ("a value function", "transform", rotation),
+      ("a group", "backgroundColor", group(of: [CABasicAnimation(keyPath: "backgroundColor")])),
+      ("a group in a group", "backgroundColor", group(of: [group(of: [CABasicAnimation(keyPath: "backgroundColor")])])),
+      ("an opacity group", "opacity", group(of: [CABasicAnimation(keyPath: "opacity")])),
+      ("a component key path", "position", animation(keyPath: "position.x", from: 0.0, to: 10.0)),
+      ("a parent key path", "bounds.size", animation(keyPath: "bounds", from: CGRect(x: 0, y: 0, width: 10, height: 10), to: CGRect(x: 0, y: 0, width: 20, height: 20))),
+      ("a group of a component key path", "position", group(of: [CABasicAnimation(keyPath: "position.x")])),
     ]
     for testCase in cases {
       // given: a red layer without a presentation layer, with an animation that can't be evaluated
@@ -440,7 +490,7 @@ class CALayer_ShownValueTests: XCTestCase {
         let description = "\(testCase.keyPath) at \(time)"
         let shown = try unwrap(hostedLayer.presentation()?.value(forKeyPath: testCase.keyPath), description)
         let twin = makeLayer(for: testCase)
-        let computed = try unwrap(twin.shownValue(forKeyPath: testCase.keyPath, animations: twin.propertyAnimations(forKeyPath: testCase.keyPath), at: time), description)
+        let computed = try unwrap(twin.shownValue(forKeyPath: testCase.keyPath, animations: twin.propertyAnimations(forKeyPath: testCase.keyPath).map(KeyPathAnimation.direct), at: time), description)
         switch testCase.keyPath {
         case "backgroundColor":
           try expectExtendedSRGBComponents(of: colorValue(computed), toBe: colorValue(shown).extendedSRGBComponents(), within: 1e-4)
@@ -481,7 +531,7 @@ class CALayer_ShownValueTests: XCTestCase {
 
     // then: the computed opacity, clamped after each animation, is the one that renders, while the presentation layer
     // reports the unclamped sum
-    let opacity = try unwrap(opacityLayer.shownValue(forKeyPath: "opacity", animations: opacityLayer.propertyAnimations(forKeyPath: "opacity"), at: 10.5) as? Float)
+    let opacity = try unwrap(opacityLayer.shownValue(forKeyPath: "opacity", animations: opacityLayer.propertyAnimations(forKeyPath: "opacity").map(KeyPathAnimation.direct), at: 10.5) as? Float)
     expect(Double(opacity)).to(beApproximatelyEqual(to: 0.775, within: 1e-6))
     expect(opacityRenderer.renderedOpacity()).to(beApproximatelyEqual(to: Double(opacity), within: 0.01))
     expect(try Double(unwrap(opacityLayer.presentation()).opacity)).to(beApproximatelyEqual(to: 0.875, within: 1e-6))
@@ -497,7 +547,7 @@ class CALayer_ShownValueTests: XCTestCase {
     radiusLayer.add(animation(keyPath: "cornerRadius", from: 2.0, to: 0.0, beginTime: 10, isAdditive: true), forKey: "b")
 
     // when: reading the corner radius as they begin, and rendering the corner's pixel
-    let radius = try unwrap(radiusLayer.shownValue(forKeyPath: "cornerRadius", animations: radiusLayer.propertyAnimations(forKeyPath: "cornerRadius"), at: 10) as? CGFloat)
+    let radius = try unwrap(radiusLayer.shownValue(forKeyPath: "cornerRadius", animations: radiusLayer.propertyAnimations(forKeyPath: "cornerRadius").map(KeyPathAnimation.direct), at: 10) as? CGFloat)
     let renderedCorner = radiusRenderer.renderedOpacity(x: 0, y: 0)
 
     // then: the computed radius, clamped at 0 after each animation, is 2, and the corner renders as a still corner of that
@@ -529,5 +579,15 @@ class CALayer_ShownValueTests: XCTestCase {
     animation.fillMode = .both
     animation.isAdditive = isAdditive
     return animation
+  }
+
+  /// A group of animations over two seconds from 1000, with a backwards and a forwards fill.
+  private func group(of animations: [CAAnimation]) -> CAAnimationGroup {
+    let group = CAAnimationGroup()
+    group.animations = animations
+    group.beginTime = 1000
+    group.duration = 2
+    group.fillMode = .both
+    return group
   }
 }

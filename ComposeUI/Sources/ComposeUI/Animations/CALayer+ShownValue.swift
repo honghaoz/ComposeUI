@@ -45,7 +45,7 @@ extension CALayer {
   func shownValue(forKeyPath keyPath: String) -> Any? {
     // a key path usually has nothing animating, so its model value is returned without reading the clock, which
     // converts the time through every layer up the tree
-    guard let animations = propertyAnimationSequence(forKeyPath: keyPath) else {
+    guard let animations = animationSequence(forKeyPath: keyPath) else {
       return modelValue(forKeyPath: keyPath)
     }
     return shownValue(forKeyPath: keyPath, animations: animations.lazy.map(\.animation), at: currentTime)
@@ -77,20 +77,23 @@ extension CALayer {
 
   /// The value a key path shows at a time, given its animations.
   ///
-  /// The animations are evaluated at the time and composed the way Core Animation composes them: an additive animation's
-  /// value adds to the value below it, and another animation's value replaces it. The properties the render server
-  /// clamps after each animation are clamped the same way: `opacity` and `shadowOpacity` to [0, 1], and `cornerRadius`
-  /// at 0, see `animate(keyPath:to:timing:updateAnimation:)`. The values interpolate as Core Animation interpolates them,
-  /// see `AnimationInterpolation`.
+  /// The animations that show at the time are evaluated and composed the way Core Animation composes them: an additive
+  /// animation's value adds to the value below it, and another animation's value replaces it. An animation that doesn't
+  /// show, one that hasn't begun without a backwards fill or has ended, has no effect, whatever its values. The
+  /// properties the render server clamps after each animation are clamped the same way: `opacity` and `shadowOpacity` to
+  /// [0, 1], and `cornerRadius` at 0, see `animate(keyPath:to:timing:updateAnimation:)`. The values interpolate as Core
+  /// Animation interpolates them, see `AnimationInterpolation`.
   ///
   /// - Parameters:
   ///   - keyPath: The key path.
-  ///   - animations: The layer's property animations of the key path, in the order Core Animation applies them.
+  ///   - animations: The layer's animations that change the key path, in the order Core Animation applies them, see
+  ///     `animationSequence(forKeyPath:)`.
   ///   - time: The time in the layer's time space, see `currentTime`.
-  /// - Returns: The value. When an animation can't be evaluated, it's the presentation value instead: one that isn't a
-  ///   basic animation from a value to a value, whose values don't interpolate, see `AnimationInterpolation`, or whose
-  ///   timing `elapsedTime(at:)` doesn't evaluate.
-  func shownValue(forKeyPath keyPath: String, animations: some Sequence<CAPropertyAnimation>, at time: TimeInterval) -> Any? {
+  /// - Returns: The value. When an animation can't be evaluated, it's the presentation value instead: one whose timing
+  ///   `elapsedTime(at:)` doesn't evaluate, or one that shows and changes the key path through another key path, see
+  ///   `KeyPathAnimation.indirect`, isn't a basic animation from a value to a value, has a value function, or has values
+  ///   that don't interpolate, see `AnimationInterpolation`.
+  func shownValue(forKeyPath keyPath: String, animations: some Sequence<KeyPathAnimation>, at time: TimeInterval) -> Any? {
     switch keyPath {
     case "opacity":
       if let opacity = composedNumber(model: Double(opacity), clampedTo: 0 ... 1, animations: animations, at: time) {
@@ -119,19 +122,22 @@ extension CALayer {
   /// The number the animations show over the model value, clamped after each animation.
   ///
   /// - Returns: The number, or `nil` when an animation can't be evaluated.
-  private func composedNumber(model: Double, clampedTo range: ClosedRange<Double>, animations: some Sequence<CAPropertyAnimation>, at time: TimeInterval) -> Double? {
+  private func composedNumber(model: Double, clampedTo range: ClosedRange<Double>, animations: some Sequence<KeyPathAnimation>, at time: TimeInterval) -> Double? {
     var value = model
-    for animation in animations {
-      guard let animation = animation as? CABasicAnimation,
-            animation.byValue == nil,
-            let from = (animation.fromValue as? NSNumber)?.doubleValue,
-            let to = (animation.toValue as? NSNumber)?.doubleValue,
-            let elapsed = animation.elapsedTime(at: time)
-      else {
+    for keyPathAnimation in animations {
+      // an animation that doesn't show has no effect, so it's skipped before its values are checked
+      guard let elapsed = keyPathAnimation.animation.elapsedTime(at: time) else {
         return nil
       }
-      guard animation.shows(atElapsedTime: elapsed, time: time) else {
+      guard keyPathAnimation.animation.shows(atElapsedTime: elapsed, time: time) else {
         continue
+      }
+      guard let animation = keyPathAnimation.directAnimation as? CABasicAnimation,
+            animation.byValue == nil,
+            let from = (animation.fromValue as? NSNumber)?.doubleValue,
+            let to = (animation.toValue as? NSNumber)?.doubleValue
+      else {
+        return nil
       }
 
       let animatedValue = from + (to - from) * animation.progress(forElapsedTime: elapsed)
@@ -141,21 +147,25 @@ extension CALayer {
   }
 
   /// The value the animations show over the model value.
-  private func composedValue(model: Any?, animations: some Sequence<CAPropertyAnimation>, at time: TimeInterval) -> ComposedValue {
+  private func composedValue(model: Any?, animations: some Sequence<KeyPathAnimation>, at time: TimeInterval) -> ComposedValue {
     var value = model
-    for animation in animations {
-      // the values are read as objects, as Core Animation keeps them, and told apart by their type IDs, since casting an
-      // `Any` costs far more
-      guard let animation = animation as? CABasicAnimation,
-            animation.byValue == nil,
-            let from = animation.fromValue.map({ $0 as AnyObject }), CFGetTypeID(from) != CFNullGetTypeID(),
-            let to = animation.toValue.map({ $0 as AnyObject }), CFGetTypeID(to) != CFNullGetTypeID(),
-            let elapsed = animation.elapsedTime(at: time)
-      else {
+    for keyPathAnimation in animations {
+      // an animation that doesn't show has no effect, so it's skipped before its values are checked
+      guard let elapsed = keyPathAnimation.animation.elapsedTime(at: time) else {
         return .unevaluable
       }
-      guard animation.shows(atElapsedTime: elapsed, time: time) else {
+      guard keyPathAnimation.animation.shows(atElapsedTime: elapsed, time: time) else {
         continue
+      }
+      // a value function shows its output, such as a transform, instead of the interpolated value. the values are read
+      // as objects, as Core Animation keeps them, and told apart by their type IDs, since casting an `Any` costs far more
+      guard let animation = keyPathAnimation.directAnimation as? CABasicAnimation,
+            animation.byValue == nil,
+            animation.valueFunction == nil,
+            let from = animation.fromValue.map({ $0 as AnyObject }), CFGetTypeID(from) != CFNullGetTypeID(),
+            let to = animation.toValue.map({ $0 as AnyObject }), CFGetTypeID(to) != CFNullGetTypeID()
+      else {
+        return .unevaluable
       }
 
       guard let animatedValue = AnimationInterpolation.value(from: from, to: to, progress: animation.progress(forElapsedTime: elapsed)) else {
@@ -182,7 +192,7 @@ extension CALayer {
   }
 }
 
-private extension CABasicAnimation {
+private extension CAAnimation {
 
   /// Whether the animation shows at a time, given its elapsed time then: before it begins only with a backwards fill,
   /// and once it has ended only when it's kept with a forwards fill, as Core Animation removes it on completion otherwise.
