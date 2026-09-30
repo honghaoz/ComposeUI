@@ -125,8 +125,13 @@ extension CALayer {
   private func composedNumber(model: Double, clampedTo range: ClosedRange<Double>, animations: some Sequence<KeyPathAnimation>, at time: TimeInterval) -> Double? {
     var value = model
     for keyPathAnimation in animations {
-      // an animation that doesn't show has no effect, so it's skipped before its values are checked
-      guard let elapsed = keyPathAnimation.animation.elapsedTime(at: time) else {
+      // an animation that doesn't show has no effect, so it's skipped before its timing and values are checked, and one
+      // that hasn't begun shows only with a backwards fill, whatever its timing
+      let elapsed = keyPathAnimation.animation.timeSinceBegin(at: time)
+      if elapsed < 0, !keyPathAnimation.animation.fillsBackwards {
+        continue
+      }
+      guard keyPathAnimation.animation.hasEvaluableTiming else {
         return nil
       }
       guard keyPathAnimation.animation.shows(atElapsedTime: elapsed, time: time) else {
@@ -150,8 +155,13 @@ extension CALayer {
   private func composedValue(model: Any?, animations: some Sequence<KeyPathAnimation>, at time: TimeInterval) -> ComposedValue {
     var value = model
     for keyPathAnimation in animations {
-      // an animation that doesn't show has no effect, so it's skipped before its values are checked
-      guard let elapsed = keyPathAnimation.animation.elapsedTime(at: time) else {
+      // an animation that doesn't show has no effect, so it's skipped before its timing and values are checked, and one
+      // that hasn't begun shows only with a backwards fill, whatever its timing
+      let elapsed = keyPathAnimation.animation.timeSinceBegin(at: time)
+      if elapsed < 0, !keyPathAnimation.animation.fillsBackwards {
+        continue
+      }
+      guard keyPathAnimation.animation.hasEvaluableTiming else {
         return .unevaluable
       }
       guard keyPathAnimation.animation.shows(atElapsedTime: elapsed, time: time) else {
@@ -194,16 +204,21 @@ extension CALayer {
 
 private extension CAAnimation {
 
+  /// Whether the animation shows its start before it begins.
+  var fillsBackwards: Bool {
+    fillMode == .backwards || fillMode == .both
+  }
+
   /// Whether the animation shows at a time, given its elapsed time then: before it begins only with a backwards fill,
   /// and once it has ended only when it's kept with a forwards fill, as Core Animation removes it on completion otherwise.
   ///
   /// - Parameters:
-  ///   - elapsed: The animation's elapsed time at the time, see `elapsedTime(at:)`.
+  ///   - elapsed: The animation's elapsed time at the time, see `timeSinceBegin(at:)`.
   ///   - time: The time in the layer's time space.
   /// - Returns: Whether the animation shows.
   func shows(atElapsedTime elapsed: TimeInterval, time: TimeInterval) -> Bool {
     if elapsed < 0 {
-      return fillMode == .backwards || fillMode == .both
+      return fillsBackwards
     }
     guard remainingTime(at: time) == nil else {
       return true

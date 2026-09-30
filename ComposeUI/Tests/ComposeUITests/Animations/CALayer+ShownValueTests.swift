@@ -259,7 +259,7 @@ class CALayer_ShownValueTests: XCTestCase {
     }
   }
 
-  func test_shownValue_animationNotShowing_isSkippedWhateverItsValues() throws {
+  func test_shownValue_animationNotShowing_isSkippedWhateverItsValuesOrTiming() throws {
     for keyPath in ["borderWidth", "opacity"] {
       let laterToOnlyAnimation = animation(keyPath: keyPath, from: nil, to: 1.0, beginTime: 1001)
       laterToOnlyAnimation.fillMode = .removed
@@ -268,11 +268,21 @@ class CALayer_ShownValueTests: XCTestCase {
       laterKeyframeAnimation.values = [0.0, 1.0]
       laterKeyframeAnimation.beginTime = 1001
       laterKeyframeAnimation.duration = 2
+      func laterAnimation(_ configure: (CABasicAnimation) -> Void) -> CABasicAnimation {
+        let animation = animation(keyPath: keyPath, from: 0.0, to: 1.0, beginTime: 1001)
+        animation.fillMode = .removed
+        configure(animation)
+        return animation
+      }
 
       let cases: [(name: String, animation: CAAnimation)] = [
         ("a to-only animation that begins later", laterToOnlyAnimation),
         ("a to-only animation that has ended", endedToOnlyAnimation),
         ("a keyframe animation that begins later", laterKeyframeAnimation),
+        ("a repeating animation that begins later", laterAnimation { $0.repeatCount = 2 }),
+        ("an animation repeating for a duration that begins later", laterAnimation { $0.repeatDuration = 4 }),
+        ("an autoreversing animation that begins later", laterAnimation { $0.autoreverses = true }),
+        ("an animation with a time offset that begins later", laterAnimation { $0.timeOffset = 0.5 }),
       ]
       for testCase in cases {
         // given: a layer at 0.25, raised by an additive animation of 0.5 over two seconds from 1000, with an animation
@@ -339,6 +349,8 @@ class CALayer_ShownValueTests: XCTestCase {
     byAnimation.byValue = blue
     let repeatingAnimation = animation(keyPath: "backgroundColor", from: red, to: blue)
     repeatingAnimation.repeatCount = 2
+    let laterRepeatingAnimation = animation(keyPath: "backgroundColor", from: red, to: blue, beginTime: 1001)
+    laterRepeatingAnimation.repeatCount = 2
     let opacityKeyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
     opacityKeyframeAnimation.values = [0, 1]
     opacityKeyframeAnimation.beginTime = 1000
@@ -357,6 +369,7 @@ class CALayer_ShownValueTests: XCTestCase {
       ("an unresolved to value", "backgroundColor", animation(keyPath: "backgroundColor", from: red, to: NSNull())),
       ("no to value", "backgroundColor", animation(keyPath: "backgroundColor", from: red, to: nil)),
       ("a repeat", "backgroundColor", repeatingAnimation),
+      ("a repeat that begins later with a backwards fill", "backgroundColor", laterRepeatingAnimation),
       ("values of other kinds", "shadowOffset", animation(keyPath: "shadowOffset", from: 1.0, to: CGSize(width: 8, height: 4))),
       ("a pattern color", "backgroundColor", animation(keyPath: "backgroundColor", from: red, to: patternColor)),
       ("paths of other segments", "shadowPath", animation(keyPath: "shadowPath", from: square, to: ellipse)),

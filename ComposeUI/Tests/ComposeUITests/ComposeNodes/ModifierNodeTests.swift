@@ -2767,6 +2767,40 @@ class ModifierNodeTests: XCTestCase {
     expect(try PathPoints(pathValue(pathAnimation.fromValue))) == PathPoints(CGPath(rect: CGRect(x: 0, y: 0, width: 125, height: 10), transform: nil))
   }
 
+  func test_colorsAndShadowPath_animatedUpdate_unevaluableAnimationsWithoutPresentation_startFromTheModelValues() throws {
+    // given: a layer with red colors and a 100 point wide shadow path, and keyframe animations of each, which the shown
+    // value can't evaluate, while the layer has no presentation layer to fall back to
+    let renderable = Renderable.layer(CALayer())
+    func path(width: CGFloat) -> CGPath {
+      CGPath(rect: CGRect(x: 0, y: 0, width: width, height: 10), transform: nil)
+    }
+    func item(_ color: Color, pathWidth: CGFloat) throws -> RenderableItem {
+      try firstRenderableItem(of: LayerNode()
+        .backgroundColor(color)
+        .border(color: color, width: 1)
+        .shadow(color: color, opacity: 1, radius: 2, offset: .zero, path: { _ in path(width: pathWidth) })).unwrap()
+    }
+    try refresh(renderable, with: item(.red, pathWidth: 100), animationTiming: nil)
+    let layer = renderable.layer
+    for (keyPath, value) in [("backgroundColor", Color.green.cgColor), ("borderColor", Color.green.cgColor), ("shadowColor", Color.green.cgColor), ("shadowPath", path(width: 50))] as [(String, Any)] {
+      let keyframeAnimation = CAKeyframeAnimation(keyPath: keyPath)
+      keyframeAnimation.values = [value, value]
+      keyframeAnimation.duration = 10
+      layer.add(keyframeAnimation, forKey: "keyframe-\(keyPath)")
+    }
+
+    // when: an animated update to blue colors and a 200 point wide shadow path
+    try refresh(renderable, with: item(.blue, pathWidth: 200), animationTiming: .linear(duration: 2))
+
+    // then: the new animations start from the model values, instead of from clear and no path
+    for keyPath in ["backgroundColor", "borderColor", "shadowColor"] {
+      let animation = try (layer.animation(forKey: keyPath) as? CABasicAnimation).unwrap()
+      expect(try colorValue(animation.fromValue), keyPath) == Color.red.cgColor
+    }
+    let pathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expect(try pathValue(pathAnimation.fromValue)) == path(width: 100)
+  }
+
   func test_shadow_animatedUpdate_withoutShadowColor_animatesTheColorFromClear() throws {
     // given: a layer without a shadow color
     let layer = CALayer()
