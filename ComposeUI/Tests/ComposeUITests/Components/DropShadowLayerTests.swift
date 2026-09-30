@@ -251,6 +251,33 @@ final class DropShadowLayerTests: XCTestCase {
     expect(replacedPathAnimation.duration) == 2
   }
 
+  func test_update_withAnimation_colorAndOpacityInFlight_startFromTheValuesAtTheClocksTime() throws {
+    // given: a layer whose shadow color animates from red to blue, and shadow opacity from 0 to 1, over two seconds
+    // from 1000
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    func update(color: Color, opacity: CGFloat, animationTiming: AnimationTiming?) {
+      layer.update(color: color, opacity: opacity, radius: 4, offset: .zero, path: { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }, animationTiming: animationTiming)
+    }
+
+    AnimationClock.sharingTime(at: 1000) {
+      update(color: .red, opacity: 0, animationTiming: nil)
+      update(color: .blue, opacity: 1, animationTiming: .linear(duration: 2))
+    }
+
+    // when: updating with animation timing a quarter of the way, where the layer has no presentation layer to read
+    AnimationClock.sharingTime(at: 1000.5) {
+      update(color: .green, opacity: 0.5, animationTiming: .linear(duration: 2))
+    }
+
+    // then: the new animations start from the color and opacity the layer shows at the clock's time
+    let colorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
+    expect(try colorValue(colorAnimation.fromValue).sRGBComponents()[2]).to(beApproximatelyEqual(to: 0.25, within: 1e-6))
+    let opacityAnimation = try (layer.animation(forKey: "shadowOpacity") as? CABasicAnimation).unwrap()
+    expect(opacityAnimation.fromValue as? Float) == 0.25
+  }
+
   func test_update_withoutAnimation_continuesInFlightShadowAnimations() throws {
     // given: a layer with a cutout, resized and animated towards new values of every shadow property, with a second,
     // delayed animated update stacked on the radius, plus animations of other properties standing in for a transition
@@ -362,8 +389,8 @@ final class DropShadowLayerTests: XCTestCase {
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
     expect(shadowPathAnimation.duration) == 10
     expect(shadowPathAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
-    expect(try PathPoints(path(shadowPathAnimation.fromValue))) == PathPoints(CGPath(rect: CGRect(x: 1, y: 1, width: 98, height: 98), transform: nil))
-    expect(try path(shadowPathAnimation.toValue)) == referenceShadowPath
+    expect(try PathPoints(pathValue(shadowPathAnimation.fromValue))) == PathPoints(CGPath(rect: CGRect(x: 1, y: 1, width: 98, height: 98), transform: nil))
+    expect(try pathValue(shadowPathAnimation.toValue)) == referenceShadowPath
 
     // then: the mask keeps its frame animations, and its path does as the shadow path
     expect(Set(mask.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
@@ -376,8 +403,8 @@ final class DropShadowLayerTests: XCTestCase {
     let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
     expect(maskPathAnimation.duration) == 10
     expect(maskPathAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
-    expect(try PathPoints(path(maskPathAnimation.fromValue))) == PathPoints(maskPath(cutout: CGPath(rect: CGRect(x: 2, y: 2, width: 96, height: 96), transform: nil)))
-    expect(try path(maskPathAnimation.toValue)) == referenceMaskPath
+    expect(try PathPoints(pathValue(maskPathAnimation.fromValue))) == PathPoints(maskPath(cutout: CGPath(rect: CGRect(x: 2, y: 2, width: 96, height: 96), transform: nil)))
+    expect(try pathValue(maskPathAnimation.toValue)) == referenceMaskPath
 
     // when: updating with animation timing and the same values
     update(layer, green, animationTiming: .linear(duration: 2))
@@ -450,9 +477,7 @@ final class DropShadowLayerTests: XCTestCase {
     }
 
     func renderedBlue() throws -> CGFloat {
-      let color = try layer.presentation().unwrap().shadowColor.unwrap()
-      let sRGB = try CGColorSpace(name: CGColorSpace.sRGB).unwrap()
-      return try color.converted(to: sRGB, intent: .defaultIntent, options: nil).unwrap().components.unwrap()[2]
+      try layer.presentation().unwrap().shadowColor.unwrap().sRGBComponents()[2]
     }
 
     update(color: .red, animationTiming: nil)
@@ -478,8 +503,8 @@ final class DropShadowLayerTests: XCTestCase {
     var landed = false
     for _ in 0 ..< 40 where !landed {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
-      let (blue, times) = try layer.readPresentation { try blueComponent(of: $0.shadowColor.unwrap()) }
-      try layer.expectShown(blue, forKeyPath: "shadowColor", between: times, scalar: blueComponent, within: 0.05)
+      let (blue, times) = try layer.readPresentation { try blueScalar($0.shadowColor.unwrap()) }
+      try layer.expectShown(blue, forKeyPath: "shadowColor", between: times, scalar: blueScalar, within: 0.05)
       expect(blue) <= blueBeforeUpdate + 0.05
       landed = blue < 0.01
     }
@@ -487,13 +512,6 @@ final class DropShadowLayerTests: XCTestCase {
   }
 
   /// The blue component of a color value in the sRGB color space, for `predictedValue(forKeyPath:at:scalar:)`.
-  private func blueComponent(of value: Any) throws -> CGFloat {
-    // a Core Foundation type can't be checked at runtime, so the cast is forced
-    let color = value as! CGColor // swiftlint:disable:this force_cast
-    let sRGB = try CGColorSpace(name: CGColorSpace.sRGB).unwrap()
-    return try color.converted(to: sRGB, intent: .defaultIntent, options: nil).unwrap().components.unwrap()[2]
-  }
-
   func test_update_withoutAnimation_opacityAndRadius_renderContinuously() throws {
     // given: a hosted layer whose shadow opacity and radius are animating up from zero, showing what their animations
     // give
@@ -522,19 +540,17 @@ final class DropShadowLayerTests: XCTestCase {
     // animations at the clock's time for this turn, which the test reads first, see `AnimationClock`
     let updateTime = layer.currentTime
     let radiusAtUpdate = try layer.predictedValue(forKeyPath: "shadowRadius", at: updateTime, scalar: numberScalar)
+    let opacityAtUpdate = try layer.predictedValue(forKeyPath: "shadowOpacity", at: updateTime, scalar: numberScalar)
     update(opacity: 0, radius: 0, animationTiming: nil)
 
-    // then: neither value drops to zero at the update. the radius' animation is folded into a glide from the radius at
-    // the update's time, so the radius doesn't jump. the opacity is retargeted from what the layer shows, which Core
-    // Animation evaluates once per transaction, at its first presentation read, the read before the update here. so it
-    // starts from exactly the opacity that read showed, which trails the interrupted animation at the update's time
-    // when the main thread stalls between that read and the clock read
+    // then: neither value drops to zero at the update, or jumps. the radius' animation is folded into a glide from the
+    // radius at the update's time, and the opacity's is replaced by one from the opacity at that time
     expect(layer.shadowOpacity) == 0
     expect(layer.shadowRadius) == 0
     expect(try layer.predictedValue(forKeyPath: "shadowRadius", at: updateTime, scalar: numberScalar))
       .to(beApproximatelyEqual(to: radiusAtUpdate, within: 1e-6))
     expect(try layer.predictedValue(forKeyPath: "shadowOpacity", at: updateTime, scalar: numberScalar))
-      .to(beApproximatelyEqual(to: shownBeforeUpdate.opacity, within: 1e-6))
+      .to(beApproximatelyEqual(to: opacityAtUpdate, within: 1e-6))
 
     // then: both head back to zero along their animations and land when the interrupted animations would have. the run
     // loop's timing isn't reliable, so the test checks each look against the animations' own values for the times just
@@ -568,15 +584,15 @@ final class DropShadowLayerTests: XCTestCase {
       let sizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
       let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
       expectSameTiming(shadowPathAnimation, as: sizeAnimation)
-      expect(try isPath(path(shadowPathAnimation.fromValue), closeTo: roundedRect(width: 100))) == true
-      expect(try path(shadowPathAnimation.toValue)) == roundedRect(width: 200)
+      expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(width: 100))) == true
+      expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(width: 200)
 
       // then: so does the mask path, with the mask's frame
       let maskSizeAnimation = try (mask.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
       let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
       expectSameTiming(maskPathAnimation, as: maskSizeAnimation)
-      expect(try isPath(path(maskPathAnimation.fromValue), closeTo: maskPath(width: 100))) == true
-      expect(try PathPoints(path(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 200))
+      expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: 100))) == true
+      expect(try PathPoints(pathValue(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 200))
     }
   }
 
@@ -597,8 +613,8 @@ final class DropShadowLayerTests: XCTestCase {
     expect(shadowPathAnimation.keyTimes) == nil
     expect(maskPathAnimation.keyTimes) == nil
 
-    let shadowPaths = try paths(of: shadowPathAnimation)
-    let maskPaths = try paths(of: maskPathAnimation)
+    let shadowPaths = try pathValues(of: shadowPathAnimation)
+    let maskPaths = try pathValues(of: maskPathAnimation)
     expect(shadowPaths.count) == maskPaths.count
     for index in shadowPaths.indices {
       let time = 2 * CGFloat(index) / CGFloat(shadowPaths.count - 1)
@@ -625,8 +641,8 @@ final class DropShadowLayerTests: XCTestCase {
     expect(shadowPathAnimation.keyTimes) == nil
     expect(maskPathAnimation.keyTimes) == nil
 
-    let shadowPaths = try paths(of: shadowPathAnimation)
-    let maskPaths = try paths(of: maskPathAnimation)
+    let shadowPaths = try pathValues(of: shadowPathAnimation)
+    let maskPaths = try pathValues(of: maskPathAnimation)
     expect(isPath(shadowPaths[0], closeTo: roundedRect(width: 100))) == true
     expect(isPath(shadowPaths[shadowPaths.count / 2], closeTo: roundedRect(width: 150, cornerRadius: 20))) == true
     expect(shadowPaths.last) == roundedRect(width: 200, cornerRadius: 20)
@@ -651,8 +667,8 @@ final class DropShadowLayerTests: XCTestCase {
     let sizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
     expectSameTiming(shadowPathAnimation, as: sizeAnimation)
-    expect(try isPath(path(shadowPathAnimation.fromValue), closeTo: roundedRect(width: 150))) == true
-    expect(try path(shadowPathAnimation.toValue)) == roundedRect(width: 250)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(width: 150))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(width: 250)
     expect(layer.shadowPath) == roundedRect(width: 250)
 
     // then: so does the mask path, and the mask's frame changes at once too, keeping its animations
@@ -660,8 +676,8 @@ final class DropShadowLayerTests: XCTestCase {
     let maskSizeAnimation = try (mask.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
     let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
     expectSameTiming(maskPathAnimation, as: maskSizeAnimation)
-    expect(try isPath(path(maskPathAnimation.fromValue), closeTo: maskPath(width: 150))) == true
-    expect(try PathPoints(path(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 250))
+    expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: 150))) == true
+    expect(try PathPoints(pathValue(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 250))
   }
 
   func test_update_withAnimation_pathsOfOtherElements_changeAtOnce() throws {
@@ -770,16 +786,5 @@ final class DropShadowLayerTests: XCTestCase {
     return points.hasSameSegments(as: otherPoints) && zip(points.points, otherPoints.points).allSatisfy {
       abs($0.x - $1.x) <= 1e-6 && abs($0.y - $1.y) <= 1e-6
     }
-  }
-
-  /// The paths of a keyframe animation.
-  private func paths(of animation: CAKeyframeAnimation) throws -> [CGPath] {
-    try animation.values.unwrap().map { try path($0) }
-  }
-
-  /// A path given as an animation value.
-  private func path(_ value: Any?) throws -> CGPath {
-    // a Core Foundation type can't be checked at runtime, so the cast is forced
-    try (value.unwrap() as! CGPath) // swiftlint:disable:this force_cast
   }
 }

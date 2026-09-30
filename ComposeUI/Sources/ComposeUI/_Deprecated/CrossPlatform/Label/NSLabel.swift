@@ -89,8 +89,7 @@
 //
 //    @available(*, unavailable)
 //    public required init?(coder: NSCoder) {
-//      // swiftlint:disable:next fatal_error
-//      fatalError("init(coder:) is unavailable")
+//      fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
 //    }
 //
 //    private func commonInit() {

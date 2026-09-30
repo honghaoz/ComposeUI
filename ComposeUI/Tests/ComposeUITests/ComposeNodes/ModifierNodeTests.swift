@@ -2714,6 +2714,107 @@ class ModifierNodeTests: XCTestCase {
     expect(renderable.layer.shadowOpacity) == 0.2
   }
 
+  func test_colors_animatedUpdate_colorsInFlight_startFromTheColorsAtTheClocksTime() throws {
+    // given: a layer whose background and border colors animate from red to blue over two seconds, from 1000
+    let renderable = Renderable.layer(CALayer())
+    func item(_ color: Color) throws -> RenderableItem {
+      try firstRenderableItem(of: LayerNode().backgroundColor(color).border(color: color, width: 1)).unwrap()
+    }
+    try AnimationClock.sharingTime(at: 1000) {
+      try refresh(renderable, with: item(.red), animationTiming: nil)
+      try refresh(renderable, with: item(.blue), animationTiming: .linear(duration: 2))
+    }
+
+    // when: an animated update to green a quarter of the way, where the layer has no presentation layer to read
+    try AnimationClock.sharingTime(at: 1000.5) {
+      try refresh(renderable, with: item(.green), animationTiming: .linear(duration: 2))
+    }
+
+    // then: the new animations start from the colors the layer shows at the clock's time, instead of the model colors
+    for keyPath in ["backgroundColor", "borderColor"] {
+      let animation = try (renderable.layer.animation(forKey: keyPath) as? CABasicAnimation).unwrap()
+      try expectExtendedSRGBComponents(of: colorValue(animation.fromValue), toBe: [0.75, 0, 0.25, 1])
+    }
+  }
+
+  func test_shadow_animatedUpdate_shadowInFlight_startsFromTheShadowAtTheClocksTime() throws {
+    // given: a layer whose shadow color animates from red to blue, opacity from 0 to 1, and path from 100 to 200 points
+    // wide, over two seconds from 1000
+    let renderable = Renderable.layer(CALayer())
+    func item(color: Color, opacity: CGFloat, width: CGFloat) throws -> RenderableItem {
+      try firstRenderableItem(of: LayerNode().shadow(color: color, opacity: opacity, radius: 2, offset: .zero, path: { _ in
+        CGPath(rect: CGRect(x: 0, y: 0, width: width, height: 10), transform: nil)
+      })).unwrap()
+    }
+    try AnimationClock.sharingTime(at: 1000) {
+      try refresh(renderable, with: item(color: .red, opacity: 0, width: 100), animationTiming: nil)
+      try refresh(renderable, with: item(color: .blue, opacity: 1, width: 200), animationTiming: .linear(duration: 2))
+    }
+
+    // when: an animated update a quarter of the way, where the layer has no presentation layer to read
+    try AnimationClock.sharingTime(at: 1000.5) {
+      try refresh(renderable, with: item(color: .green, opacity: 0.5, width: 300), animationTiming: .linear(duration: 2))
+    }
+
+    // then: the new animations start from the color, opacity and path the layer shows at the clock's time, instead of
+    // the model values
+    let layer = renderable.layer
+    let colorAnimation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
+    try expectExtendedSRGBComponents(of: colorValue(colorAnimation.fromValue), toBe: [0.75, 0, 0.25, 1])
+    let opacityAnimation = try (layer.animation(forKey: "shadowOpacity") as? CABasicAnimation).unwrap()
+    expect(opacityAnimation.fromValue as? Float) == 0.25
+    let pathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expect(try PathPoints(pathValue(pathAnimation.fromValue))) == PathPoints(CGPath(rect: CGRect(x: 0, y: 0, width: 125, height: 10), transform: nil))
+  }
+
+  func test_colorsAndShadowPath_animatedUpdate_unevaluableAnimationsWithoutPresentation_startFromTheModelValues() throws {
+    // given: a layer with red colors and a 100 point wide shadow path, and keyframe animations of each, which the shown
+    // value can't evaluate, while the layer has no presentation layer to fall back to
+    let renderable = Renderable.layer(CALayer())
+    func path(width: CGFloat) -> CGPath {
+      CGPath(rect: CGRect(x: 0, y: 0, width: width, height: 10), transform: nil)
+    }
+    func item(_ color: Color, pathWidth: CGFloat) throws -> RenderableItem {
+      try firstRenderableItem(of: LayerNode()
+        .backgroundColor(color)
+        .border(color: color, width: 1)
+        .shadow(color: color, opacity: 1, radius: 2, offset: .zero, path: { _ in path(width: pathWidth) })).unwrap()
+    }
+    try refresh(renderable, with: item(.red, pathWidth: 100), animationTiming: nil)
+    let layer = renderable.layer
+    for (keyPath, value) in [("backgroundColor", Color.green.cgColor), ("borderColor", Color.green.cgColor), ("shadowColor", Color.green.cgColor), ("shadowPath", path(width: 50))] as [(String, Any)] {
+      let keyframeAnimation = CAKeyframeAnimation(keyPath: keyPath)
+      keyframeAnimation.values = [value, value]
+      keyframeAnimation.duration = 10
+      layer.add(keyframeAnimation, forKey: "keyframe-\(keyPath)")
+    }
+
+    // when: an animated update to blue colors and a 200 point wide shadow path
+    try refresh(renderable, with: item(.blue, pathWidth: 200), animationTiming: .linear(duration: 2))
+
+    // then: the new animations start from the model values, instead of from clear and no path
+    for keyPath in ["backgroundColor", "borderColor", "shadowColor"] {
+      let animation = try (layer.animation(forKey: keyPath) as? CABasicAnimation).unwrap()
+      expect(try colorValue(animation.fromValue), keyPath) == Color.red.cgColor
+    }
+    let pathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expect(try pathValue(pathAnimation.fromValue)) == path(width: 100)
+  }
+
+  func test_shadow_animatedUpdate_withoutShadowColor_animatesTheColorFromClear() throws {
+    // given: a layer without a shadow color
+    let layer = CALayer()
+    layer.shadowColor = nil
+    let renderable = Renderable.layer(layer)
+
+    // when: an animated update sets a black shadow
+    try refresh(renderable, with: shadowItem(opacity: 0.5), animationTiming: .linear(duration: 1))
+
+    // then: the shadow color animates from clear
+    let animation = try (layer.animation(forKey: "shadowColor") as? CABasicAnimation).unwrap()
+    expect(try colorValue(animation.fromValue)) == Color.clear.cgColor
+  }
+
   // MARK: - Helpers
 
   /// The renderable item of a layer node with every layer modifier, with the given values.

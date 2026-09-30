@@ -73,8 +73,8 @@ extension CALayer {
   /// since `currentTime` holds one time per run loop turn, see `AnimationClock`.
   ///
   /// - Important: Core Animation evaluates every presentation layer of a transaction at the time of the transaction's
-  ///   first presentation read, until it commits, so the read must be the first since a run loop turn or a
-  ///   `CATransaction.flush()`.
+  ///   first presentation read of a layer with animations, until it commits, so the read must be the first such read
+  ///   since a run loop turn or a `CATransaction.flush()`.
   ///
   /// - Parameter read: Reads the values from the presentation layer.
   /// - Returns: The values, and the times before and after the read, in the layer's time space.
@@ -112,9 +112,4 @@ extension CALayer {
     expect(shown, description, file: file, line: line) >= min(earlier, later) - tolerance
     expect(shown, description, file: file, line: line) <= max(earlier, later) + tolerance
   }
-}
-
-/// The scalar of a number value, for `predictedValue(forKeyPath:at:scalar:)`.
-func numberScalar(_ value: Any) throws -> CGFloat {
-  try CGFloat((value as? NSNumber).unwrap().doubleValue)
 }

@@ -116,8 +116,7 @@
 
    override init(layer: Any) {
      guard let layer = layer as? Self else {
-       // swiftlint:disable:next fatal_error
-       fatalError("expect the `layer` to be the same type during an animation.")
+       fatalError("expect the `layer` to be the same type during an animation.") // swiftlint:disable:this fatal_error
      }
      super.init(layer: layer)
    }

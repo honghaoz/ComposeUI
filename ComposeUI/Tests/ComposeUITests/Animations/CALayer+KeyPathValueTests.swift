@@ -1006,6 +1006,181 @@ class CALayer_KeyPathValueTests: XCTestCase {
     }
   }
 
+  func test_modelValue_directReads() {
+    // given: a layer and a shape layer that count KVC reads, with a value for each property read directly
+    let layer = KVCCountingLayer()
+    let shapeLayer = KVCCountingShapeLayer()
+    let red = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+    let rect = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 20), transform: nil)
+    layer.bounds.size = CGSize(width: 30, height: 40)
+    layer.position = CGPoint(x: 10, y: 20)
+    layer.cornerRadius = 3
+    layer.borderWidth = 2
+    layer.borderColor = red
+    layer.opacity = 0.5
+    layer.shadowColor = red
+    layer.shadowOpacity = 0.25
+    layer.shadowOffset = CGSize(width: 5, height: 6)
+    layer.shadowRadius = 4
+    layer.shadowPath = rect
+    shapeLayer.path = rect
+
+    // then: each value is the property's, in its own type, and a color that isn't set is nil
+    expect(layer.modelValue(forKeyPath: "bounds.size") as? CGSize) == CGSize(width: 30, height: 40)
+    expect(layer.modelValue(forKeyPath: "position") as? CGPoint) == CGPoint(x: 10, y: 20)
+    expect(layer.modelValue(forKeyPath: "backgroundColor")) == nil
+    expect(layer.modelValue(forKeyPath: "cornerRadius") as? CGFloat) == 3
+    expect(layer.modelValue(forKeyPath: "borderWidth") as? CGFloat) == 2
+    expect(layer.modelValue(forKeyPath: "borderColor") as AnyObject) === red
+    expect(layer.modelValue(forKeyPath: "opacity") as? Float) == 0.5
+    expect(layer.modelValue(forKeyPath: "shadowColor") as AnyObject) === red
+    expect(layer.modelValue(forKeyPath: "shadowOpacity") as? Float) == 0.25
+    expect(layer.modelValue(forKeyPath: "shadowOffset") as? CGSize) == CGSize(width: 5, height: 6)
+    expect(layer.modelValue(forKeyPath: "shadowRadius") as? CGFloat) == 4
+    expect(layer.modelValue(forKeyPath: "shadowPath") as AnyObject) === layer.shadowPath
+    expect(shapeLayer.modelValue(forKeyPath: "path") as AnyObject) === shapeLayer.path
+
+    // then: the values are read without KVC
+    expect(layer.kvcReadCount) == 0
+    expect(shapeLayer.kvcReadCount) == 0
+  }
+
+  func test_modelValue_otherKeyPaths_readThroughKVC() {
+    // given: a layer that counts KVC reads, with an anchor point
+    let layer = KVCCountingLayer()
+    layer.anchorPoint = CGPoint(x: 0.25, y: 0.75)
+
+    // then: the values of other key paths, and the `path` of a layer that isn't a shape layer, are read through KVC
+    expect(layer.modelValue(forKeyPath: "anchorPoint") as? CGPoint) == CGPoint(x: 0.25, y: 0.75)
+    expect(layer.modelValue(forKeyPath: "path")) == nil
+    expect(layer.kvcReadCount) == 2
+  }
+
+  func test_pointValue() {
+    // given: a layer that counts KVC reads, with a position and an anchor point
+    let layer = KVCCountingLayer()
+    layer.position = CGPoint(x: 10, y: 20)
+    layer.anchorPoint = CGPoint(x: 0.25, y: 0.75)
+
+    // when: reading the position
+    let position = layer.pointValue(forKeyPath: "position")
+
+    // then: the position is read directly
+    expect(position) == CGPoint(x: 10, y: 20)
+    expect(layer.kvcReadCount) == 0
+
+    // when: reading another point key path
+    let anchorPoint = layer.pointValue(forKeyPath: "anchorPoint")
+
+    // then: the value is read through KVC
+    expect(anchorPoint) == CGPoint(x: 0.25, y: 0.75)
+    expect(layer.kvcReadCount) == 1
+  }
+
+  func test_sizeValue() {
+    // given: a layer that counts KVC reads, with a bounds size, a shadow offset, and a translation
+    let layer = KVCCountingLayer()
+    layer.bounds.size = CGSize(width: 30, height: 40)
+    layer.shadowOffset = CGSize(width: 5, height: 6)
+    layer.transform = CATransform3DMakeTranslation(7, 8, 0)
+
+    // when: reading the bounds size and the shadow offset
+    let boundsSize = layer.sizeValue(forKeyPath: "bounds.size")
+    let shadowOffset = layer.sizeValue(forKeyPath: "shadowOffset")
+
+    // then: they are read directly
+    expect(boundsSize) == CGSize(width: 30, height: 40)
+    expect(shadowOffset) == CGSize(width: 5, height: 6)
+    expect(layer.kvcReadCount) == 0
+
+    // when: reading another size key path
+    let translation = layer.sizeValue(forKeyPath: "transform.translation")
+
+    // then: the value is read through KVC
+    expect(translation) == CGSize(width: 7, height: 8)
+    expect(layer.kvcReadCount) == 1
+  }
+
+  func test_floatingPointValue() {
+    // given: a layer that counts KVC reads, with non-default values for the numbers read directly, and a scale
+    let layer = KVCCountingLayer()
+    layer.opacity = 0.5
+    layer.shadowOpacity = 0.25
+    layer.borderWidth = 2
+    layer.cornerRadius = 3
+    layer.shadowRadius = 4
+    layer.transform = CATransform3DMakeScale(2, 2, 2)
+
+    // when: reading the numbers as their property types
+    let opacity: Float = layer.floatingPointValue(forKeyPath: "opacity")
+    let shadowOpacity: Float = layer.floatingPointValue(forKeyPath: "shadowOpacity")
+    let borderWidth: CGFloat = layer.floatingPointValue(forKeyPath: "borderWidth")
+    let cornerRadius: CGFloat = layer.floatingPointValue(forKeyPath: "cornerRadius")
+    let shadowRadius: CGFloat = layer.floatingPointValue(forKeyPath: "shadowRadius")
+
+    // then: they are read directly
+    expect(opacity) == 0.5
+    expect(shadowOpacity) == 0.25
+    expect(borderWidth) == 2
+    expect(cornerRadius) == 3
+    expect(shadowRadius) == 4
+    expect(layer.kvcReadCount) == 0
+
+    // when: reading the numbers as other floating-point types
+    let opacityAsCGFloat: CGFloat = layer.floatingPointValue(forKeyPath: "opacity")
+    let shadowOpacityAsCGFloat: CGFloat = layer.floatingPointValue(forKeyPath: "shadowOpacity")
+    let borderWidthAsFloat: Float = layer.floatingPointValue(forKeyPath: "borderWidth")
+    let cornerRadiusAsFloat: Float = layer.floatingPointValue(forKeyPath: "cornerRadius")
+    let shadowRadiusAsFloat: Float = layer.floatingPointValue(forKeyPath: "shadowRadius")
+
+    // then: they are read through KVC, which converts the boxed numbers
+    expect(opacityAsCGFloat) == 0.5
+    expect(shadowOpacityAsCGFloat) == 0.25
+    expect(borderWidthAsFloat) == 2
+    expect(cornerRadiusAsFloat) == 3
+    expect(shadowRadiusAsFloat) == 4
+    expect(layer.kvcReadCount) == 5
+
+    // when: reading another number key path
+    let scale: CGFloat = layer.floatingPointValue(forKeyPath: "transform.scale")
+
+    // then: the value is read through KVC
+    expect(scale) == 2
+    expect(layer.kvcReadCount) == 6
+  }
+
+  func test_keyPathValues_directReadsMatchKVC() {
+    // given: a plain layer and a view's backing layer, with non-default values for the properties read directly
+    let testWindow = TestWindow()
+    let view = View(frame: CGRect(x: 10, y: 20, width: 30, height: 40))
+    #if canImport(AppKit)
+    view.wantsLayer = true
+    #endif
+    testWindow.contentView().addSubview(view)
+
+    let plainLayer = CALayer()
+    plainLayer.frame = CGRect(x: 10, y: 20, width: 30, height: 40)
+
+    for layer in [plainLayer, view.layer()] {
+      layer.opacity = 0.5
+      layer.shadowOpacity = 0.25
+      layer.borderWidth = 2
+      layer.cornerRadius = 3
+      layer.shadowRadius = 4
+      layer.shadowOffset = CGSize(width: 5, height: 6)
+
+      // then: the direct reads return what KVC returns
+      expect(layer.value(forKeyPath: "position") as? CGPoint) == layer.pointValue(forKeyPath: "position")
+      expect(layer.value(forKeyPath: "bounds.size") as? CGSize) == layer.sizeValue(forKeyPath: "bounds.size")
+      expect(layer.value(forKeyPath: "shadowOffset") as? CGSize) == layer.sizeValue(forKeyPath: "shadowOffset")
+      expect(layer.value(forKeyPath: "opacity") as? Float) == layer.floatingPointValue(forKeyPath: "opacity") as Float
+      expect(layer.value(forKeyPath: "shadowOpacity") as? Float) == layer.floatingPointValue(forKeyPath: "shadowOpacity") as Float
+      expect(layer.value(forKeyPath: "borderWidth") as? CGFloat) == layer.floatingPointValue(forKeyPath: "borderWidth") as CGFloat
+      expect(layer.value(forKeyPath: "cornerRadius") as? CGFloat) == layer.floatingPointValue(forKeyPath: "cornerRadius") as CGFloat
+      expect(layer.value(forKeyPath: "shadowRadius") as? CGFloat) == layer.floatingPointValue(forKeyPath: "shadowRadius") as CGFloat
+    }
+  }
+
   func test_setKeyPathValue_disablesImplicitAnimations() {
     // given: a layer hosted in a window, committed so that its changes animate implicitly
     let testWindow = TestWindow()

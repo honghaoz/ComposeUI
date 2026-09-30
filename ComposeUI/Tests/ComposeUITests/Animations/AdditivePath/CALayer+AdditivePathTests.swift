@@ -50,8 +50,8 @@ class CALayer_AdditivePathTests: XCTestCase {
     // then: a basic animation goes from the rect to the inset rect with the timing, beginning at 1000, and the model has
     // the inset rect
     let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect())
-    expect(try path(animation.toValue)) == rect(inset: 10)
+    expect(try PathPoints(pathValue(animation.fromValue))) == PathPoints(rect())
+    expect(try pathValue(animation.toValue)) == rect(inset: 10)
     expect(animation.duration) == 2
     expect(animation.timingFunction) == CAMediaTimingFunction(name: .easeIn)
     expect(animation.fillMode) == .both
@@ -118,7 +118,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     // then: the path animates with keyframes of both changes added up, spread evenly from the path shown to the new
     // path, until the longer change lands. the changes begin at 1000, and so do the keyframes
     let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
-    let values = try paths(of: animation)
+    let values = try pathValues(of: animation)
     expect(values.count) == 121
     expect(animation.keyTimes) == nil
     expect(animation.calculationMode) == .linear
@@ -146,7 +146,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     // then: the path is the rounded rect of the width the two changes add up to: 125 wide now, as the first change is a
     // quarter done, 200 wide half a second later, and 300 wide when the first change lands. the keyframes begin now
     let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
-    let values = try paths(of: animation)
+    let values = try pathValues(of: animation)
     expect(animation.beginTime) == 1000
     expect(animation.duration) == 1.5
     expect(try values.first.unwrap().maxPointDistance(to: roundedRect(width: 125))) < 0.01
@@ -179,7 +179,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     // a begin time of zero, so the keyframes start from the width shown, 175, and last as long as the new change, longer
     // than the half second the first change has left
     let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
-    let values = try paths(of: animation)
+    let values = try pathValues(of: animation)
     expect(shownWidth).to(beApproximatelyEqual(to: 175, within: 1e-6))
     expect(try values.first.unwrap().maxPointDistance(to: roundedRect(width: 175))) < 0.01
     expect(animation.duration) == 1
@@ -222,7 +222,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     let elapsedTime = animation.beginTime - committedBeginTime
     expect(elapsedTime) > 0
     let shownInset = 10 * elapsedTime / 2
-    expect(try paths(of: animation).first.unwrap().maxPointDistance(to: rect(inset: shownInset))) < 1e-3
+    expect(try pathValues(of: animation).first.unwrap().maxPointDistance(to: rect(inset: shownInset))) < 1e-3
   }
 
   func test_animatePath_changesInFlight_showTheirSum() throws {
@@ -423,8 +423,8 @@ class CALayer_AdditivePathTests: XCTestCase {
 
     // then: the new path shows at once, and the change in flight keeps adding to it
     let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect(width: 120, inset: 10))
-    expect(try path(animation.toValue)) == rect(width: 120, inset: 20)
+    expect(try PathPoints(pathValue(animation.fromValue))) == PathPoints(rect(width: 120, inset: 10))
+    expect(try pathValue(animation.toValue)) == rect(width: 120, inset: 20)
     expect(animation.duration) == 2
   }
 
@@ -439,7 +439,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
     expect(animation.beginTime).to(beApproximatelyEqual(to: layer.currentTime + 0.5, within: 0.05))
     expect(animation.fillMode) == .both
-    expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect())
+    expect(try PathPoints(pathValue(animation.fromValue))) == PathPoints(rect())
   }
 
   func test_animatePath_spring() throws {
@@ -469,7 +469,7 @@ class CALayer_AdditivePathTests: XCTestCase {
 
     // then: the shadow path animates from the rect
     let animation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect())
+    expect(try PathPoints(pathValue(animation.fromValue))) == PathPoints(rect())
     expect(layer.shadowPath) == rect(inset: 10)
   }
 
@@ -486,7 +486,7 @@ class CALayer_AdditivePathTests: XCTestCase {
 
     // then: the changes went with the replaced animation, so the path animates from the model path alone
     let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect(inset: 10))
+    expect(try PathPoints(pathValue(animation.fromValue))) == PathPoints(rect(inset: 10))
     expect(animation.duration) == 1
 
     // when: the layer's animations are removed, and the path animates again
@@ -495,7 +495,7 @@ class CALayer_AdditivePathTests: XCTestCase {
 
     // then: the changes went with the animations too
     let newAnimation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(newAnimation.fromValue))) == PathPoints(rect(inset: 20))
+    expect(try PathPoints(pathValue(newAnimation.fromValue))) == PathPoints(rect(inset: 20))
   }
 
   func test_animatePath_keyPathWithoutPath_asserts() {
@@ -552,8 +552,8 @@ class CALayer_AdditivePathTests: XCTestCase {
     // then: the change keeps adding to the new path, so the path shown widens by 20 at once and still loses its inset
     // over the change's time, from the change's begin time
     let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect(width: 120))
-    expect(try path(animation.toValue)) == rect(width: 120, inset: 10)
+    expect(try PathPoints(pathValue(animation.fromValue))) == PathPoints(rect(width: 120))
+    expect(try pathValue(animation.toValue)) == rect(width: 120, inset: 10)
     expect(animation.duration) == 2
     expect(animation.beginTime) == 1000
     expect(layer.path) == rect(width: 120, inset: 10)
@@ -588,7 +588,7 @@ class CALayer_AdditivePathTests: XCTestCase {
 
     // then: the change in flight is left alone
     let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(animation.fromValue))) == PathPoints(rect())
+    expect(try PathPoints(pathValue(animation.fromValue))) == PathPoints(rect())
   }
 
   func test_setPath_otherSegments_setsThePathAtOnce() {
@@ -674,10 +674,10 @@ class CALayer_AdditivePathTests: XCTestCase {
 
     // then: the paths animate from the paths set before, and are read and set without KVC
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(shadowPathAnimation.fromValue))) == PathPoints(rect(inset: 10))
+    expect(try PathPoints(pathValue(shadowPathAnimation.fromValue))) == PathPoints(rect(inset: 10))
     expect(layer.shadowPath) == rect(inset: 20)
     let pathAnimation = try (shapeLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expect(try PathPoints(path(pathAnimation.fromValue))) == PathPoints(rect(inset: 10))
+    expect(try PathPoints(pathValue(pathAnimation.fromValue))) == PathPoints(rect(inset: 10))
     expect(shapeLayer.path) == rect(inset: 20)
     expect(layer.kvcReadCount) == 0
     expect(layer.kvcWriteCount) == 0
@@ -694,7 +694,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     layer.setPath(keyPath: "path", to: rect(inset: 10))
 
     // then: the paths are read and set through KVC, as a value for the key
-    expect(try path(layer.value(forKey: "path"))) == rect(inset: 10)
+    expect(try pathValue(layer.value(forKey: "path"))) == rect(inset: 10)
     expect(layer.kvcReadCount) == 2
     expect(layer.kvcWriteCount) == 2
   }
@@ -719,15 +719,10 @@ class CALayer_AdditivePathTests: XCTestCase {
     CGPath(roundedRect: CGRect(x: 0, y: 0, width: width, height: 50), cornerWidth: 10, cornerHeight: 10, transform: nil)
   }
 
-  /// The paths of a keyframe animation.
-  private func paths(of animation: CAKeyframeAnimation) throws -> [CGPath] {
-    try animation.values.unwrap().map { try path($0) }
-  }
-
   /// The points a keyframe animation of paths shows at a time from its begin, interpolated the way Core Animation
   /// interpolates linear keyframes: at the key times, or spread evenly without them.
   private func interpolatedPoints(of animation: CAKeyframeAnimation, at time: TimeInterval) throws -> PathPoints {
-    let values = try paths(of: animation).map { PathPoints($0) }
+    let values = try pathValues(of: animation).map { PathPoints($0) }
     let times = animation.keyTimes?.map { $0.doubleValue * animation.duration }
       ?? values.indices.map { animation.duration * TimeInterval($0) / TimeInterval(values.count - 1) }
     let index = try times.lastIndex { $0 <= time }.unwrap()
@@ -736,11 +731,5 @@ class CALayer_AdditivePathTests: XCTestCase {
     }
     let fraction = (time - times[index]) / (times[index + 1] - times[index])
     return values[index].adding(values[index + 1].subtracting(values[index]), multipliedBy: fraction)
-  }
-
-  /// A path given as an animation value.
-  private func path(_ value: Any?) throws -> CGPath {
-    // a Core Foundation type can't be checked at runtime, so the cast is forced
-    try (value.unwrap() as! CGPath) // swiftlint:disable:this force_cast
   }
 }

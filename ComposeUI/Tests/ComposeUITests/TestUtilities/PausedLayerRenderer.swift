@@ -93,8 +93,13 @@ final class PausedLayerRenderer {
     CATransaction.flush()
   }
 
-  /// The opacity the white layer shows at the current time.
-  func renderedOpacity() -> Double {
+  /// The opacity the white layer shows at the current time, at a pixel of the 4 by 4 render.
+  ///
+  /// - Parameters:
+  ///   - x: The pixel's column. The default is inside the layer's rounded corners.
+  ///   - y: The pixel's row.
+  /// - Returns: The opacity.
+  func renderedOpacity(x: Int = 1, y: Int = 1) -> Double {
     commit()
 
     renderer.beginFrame(atTime: CACurrentMediaTime(), timeStamp: nil)
@@ -108,7 +113,7 @@ final class PausedLayerRenderer {
     fence?.waitUntilCompleted()
 
     var pixel = [UInt8](repeating: 0, count: 4)
-    texture.getBytes(&pixel, bytesPerRow: 16, from: MTLRegionMake2D(1, 1, 1, 1), mipmapLevel: 0)
+    texture.getBytes(&pixel, bytesPerRow: 16, from: MTLRegionMake2D(x, y, 1, 1), mipmapLevel: 0)
     return Double(pixel[2]) / 255 // BGRA: the red channel
   }
 }

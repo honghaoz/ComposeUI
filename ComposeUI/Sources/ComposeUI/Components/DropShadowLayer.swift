@@ -96,8 +96,7 @@ open class DropShadowLayer: CALayer {
 
   override public init(layer: Any) {
     guard let layer = layer as? DropShadowLayer else {
-      // swiftlint:disable:next fatal_error
-      fatalError("expect the `layer` to be the same type during an animation.")
+      fatalError("expect the `layer` to be the same type during an animation.") // swiftlint:disable:this fatal_error
     }
     super.init(layer: layer)
   }
@@ -132,7 +131,7 @@ open class DropShadowLayer: CALayer {
         animate(
           keyPath: "shadowColor",
           timing: animationTiming,
-          from: { $0.presentation()?.shadowColor },
+          from: { $0.shownColor(forKeyPath: "shadowColor") },
           to: { _ in color }
         )
       }
@@ -143,7 +142,7 @@ open class DropShadowLayer: CALayer {
         animate(
           keyPath: "shadowOpacity",
           timing: animationTiming,
-          from: { $0.presentation()?.shadowOpacity },
+          from: { $0.shownOpacity(forKeyPath: "shadowOpacity") },
           to: { _ in opacity }
         )
       }

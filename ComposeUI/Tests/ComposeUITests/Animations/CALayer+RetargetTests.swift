@@ -41,7 +41,7 @@ class CALayer_RetargetTests: XCTestCase {
   func test_retarget_withoutInFlightAnimation_setsValue() {
     // given: a hosted layer with a background color and an animation of another key path
     let testWindow = TestWindow()
-    let layer = CALayer()
+    let layer = TimeConversionCountingLayer()
     layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     layer.backgroundColor = Color.red.cgColor
     testWindow.layer.addSublayer(layer)
@@ -50,13 +50,16 @@ class CALayer_RetargetTests: XCTestCase {
     let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
+    let timeConversionCount = layer.timeConversionCount
 
     // when: retargeting the background color to a new color
     layer.retarget(keyPath: "backgroundColor", to: Color.blue.cgColor)
 
-    // then: the color is set without an animation, implicit or otherwise, and the other animation is left alone
+    // then: the color is set without an animation, implicit or otherwise, the other animation is left alone, and the
+    // layer's current time isn't read
     expect(layer.backgroundColor) == Color.blue.cgColor
     expect(layer.animationKeys()) == ["spin"]
+    expect(layer.timeConversionCount) == timeConversionCount
   }
 
   func test_retarget_endedAnimation_isSkipped() {
@@ -474,7 +477,7 @@ class CALayer_RetargetTests: XCTestCase {
     expect(layer.presentation()).toEventuallyNot(beNil())
 
     func shownBlue() throws -> CGFloat {
-      try blueComponent(of: layer.presentation().unwrap().backgroundColor.unwrap())
+      try layer.presentation().unwrap().backgroundColor.unwrap().sRGBComponents()[2]
     }
 
     layer.animate(
@@ -495,7 +498,7 @@ class CALayer_RetargetTests: XCTestCase {
     // then: the retargeting animation starts from the shown color and lands when the interrupted one would have
     let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
     // a Core Foundation type can't be checked at runtime, so the cast is forced
-    expect(try blueComponent(of: animation.fromValue as! CGColor)).to(beApproximatelyEqual(to: blueBeforeRetarget, within: 0.1)) // swiftlint:disable:this force_cast
+    expect(try colorValue(animation.fromValue).sRGBComponents()[2]).to(beApproximatelyEqual(to: blueBeforeRetarget, within: 0.1))
     expect(animation.duration).to(beApproximatelyEqual(to: interruptedBeginTime + 0.5 - retargetTime, within: 0.02))
     expect(layer.backgroundColor) == Color.red.cgColor
 
@@ -523,7 +526,8 @@ class CALayer_RetargetTests: XCTestCase {
 
     func shownColor() throws -> (blue: CGFloat, green: CGFloat) {
       let color = try layer.presentation().unwrap().backgroundColor.unwrap()
-      return try (blue: blueComponent(of: color), green: greenComponent(of: color))
+      let components = try color.sRGBComponents()
+      return (blue: components[2], green: components[1])
     }
 
     let toBlue = CABasicAnimation(keyPath: "backgroundColor")
@@ -553,13 +557,175 @@ class CALayer_RetargetTests: XCTestCase {
     // landing when the longer one would have
     expect(layer.animationKeys()) == ["backgroundColor"]
     let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
-    // a Core Foundation type can't be checked at runtime, so the cast is forced
-    let fromColor = animation.fromValue as! CGColor // swiftlint:disable:this force_cast
-    expect(try greenComponent(of: fromColor)).to(beApproximatelyEqual(to: shownBeforeRetarget.green, within: 0.1))
-    expect(try blueComponent(of: fromColor)) < 0.1
+    let fromComponents = try colorValue(animation.fromValue).sRGBComponents()
+    expect(fromComponents[1]).to(beApproximatelyEqual(to: shownBeforeRetarget.green, within: 0.1))
+    expect(fromComponents[2]) < 0.1
     expect(animation.duration).to(beApproximatelyEqual(to: toBlueBeginTime + 1 - retargetTime, within: 0.02))
     expect(animation.toValue as! CGColor) == Color.yellow.cgColor // swiftlint:disable:this force_cast
     expect(layer.backgroundColor) == Color.yellow.cgColor
+  }
+
+  func test_retarget_replacingAnimation_startsFromTheValueAtTheClocksTime() throws {
+    // given: a layer whose background color animates from red to blue, and shadow opacity from 0 to 1, over two seconds
+    // from 1000
+    let layer = CALayer()
+    let red = CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1)
+    let blue = CGColor(srgbRed: 0, green: 0, blue: 1, alpha: 1)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animate(keyPath: "backgroundColor", timing: .linear(duration: 2), from: { _ in red }, to: { _ in blue })
+      layer.animate(keyPath: "shadowOpacity", timing: .linear(duration: 2), from: { _ in Float(0) }, to: { _ in Float(1) })
+    }
+
+    // when: retargeting both a quarter of the way, where the layer has no presentation layer to read
+    AnimationClock.sharingTime(at: 1000.5) {
+      layer.retarget(keyPath: "backgroundColor", to: Color.green.cgColor)
+      layer.retarget(keyPath: "shadowOpacity", to: Float(0.5))
+    }
+
+    // then: the replacing animations begin at the clock's time and start from what the layer shows then
+    let colorAnimation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
+    expect(colorAnimation.beginTime) == 1000.5
+    try expectExtendedSRGBComponents(of: colorValue(colorAnimation.fromValue), toBe: [0.75, 0, 0.25, 1])
+    let opacityAnimation = try (layer.animation(forKey: "shadowOpacity") as? CABasicAnimation).unwrap()
+    expect(opacityAnimation.beginTime) == 1000.5
+    expect(opacityAnimation.fromValue as? Float) == 0.25
+  }
+
+  func test_retarget_hosted_startsFromTheValueAtTheClocksTime() throws {
+    // given: a hosted layer whose background color animates from red to blue over two seconds, and shows it
+    let testWindow = TestWindow()
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    let red = CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1)
+    let blue = CGColor(srgbRed: 0, green: 0, blue: 1, alpha: 1)
+    layer.backgroundColor = red
+    testWindow.layer.addSublayer(layer)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+    layer.animate(keyPath: "backgroundColor", timing: .linear(duration: 2), from: { _ in red }, to: { _ in blue })
+    let beginTime = try layer.animation(forKey: "backgroundColor").unwrap().beginTime
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+    expect(layer.presentation()?.backgroundColor) != red
+
+    // when: retargeting with the clock half a second into the animation, while Core Animation evaluates the
+    // presentation layer at its own time
+    AnimationClock.sharingTime(at: layer.convertTime(beginTime + 0.5, to: nil)) {
+      layer.retarget(keyPath: "backgroundColor", to: Color.green.cgColor)
+    }
+
+    // then: the replacing animation starts from the color at the clock's time, a quarter of the way, instead of the
+    // color the presentation layer shows
+    let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
+    try expectExtendedSRGBComponents(of: colorValue(animation.fromValue), toBe: [0.75, 0, 0.25, 1])
+  }
+
+  func test_retarget_valueFunctionAnimationInFlight_startsFromTheShownTransform() throws {
+    // given: a hosted layer spinning with a rotation that a value function turns into its transform, and shows it
+    let testWindow = TestWindow()
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    testWindow.layer.addSublayer(layer)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+    let spinAnimation = CABasicAnimation(keyPath: "transform")
+    spinAnimation.valueFunction = CAValueFunction(name: .rotateZ)
+    spinAnimation.fromValue = 0.0
+    spinAnimation.toValue = Double.pi
+    spinAnimation.duration = 60
+    layer.add(spinAnimation, forKey: "spin")
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+    let shownTransform = try (layer.presentation()?.value(forKeyPath: "transform") as? NSValue).unwrap().caTransform3DValue
+    expect(CATransform3DIsIdentity(shownTransform)) == false
+
+    // when: retargeting the transform to a scale
+    layer.retarget(keyPath: "transform", to: CATransform3DMakeScale(2, 2, 1))
+
+    // then: the spin is replaced by an animation from the transform the layer shows, read from the presentation layer
+    // since the value function isn't evaluated
+    expect(layer.animation(forKey: "spin")) == nil
+    let animation = try (layer.animation(forKey: "transform") as? CABasicAnimation).unwrap()
+    let fromTransform = try (animation.fromValue as? NSValue).unwrap().caTransform3DValue
+    expect(CATransform3DEqualToTransform(fromTransform, shownTransform)) == true
+
+    // when: committing the replacement
+    CATransaction.flush()
+
+    // then: Core Animation evaluates it into the transform the layer shows, still rotated as it starts
+    let replacementTransform = try (layer.presentation()?.value(forKeyPath: "transform") as? NSValue).unwrap().caTransform3DValue
+    expect(CATransform3DIsIdentity(replacementTransform)) == false
+  }
+
+  func test_retarget_groupAnimatingTheKeyPath_startsFromTheShownValueAndKeepsTheGroup() throws {
+    // given: a hosted red layer whose background color animates to blue, and a group added later that animates it from
+    // green, so the group's color shows
+    let testWindow = TestWindow()
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    let red = CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1)
+    let green = CGColor(srgbRed: 0, green: 1, blue: 0, alpha: 1)
+    let blue = CGColor(srgbRed: 0, green: 0, blue: 1, alpha: 1)
+    layer.backgroundColor = red
+    testWindow.layer.addSublayer(layer)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+    layer.animate(keyPath: "backgroundColor", timing: .linear(duration: 60), from: { _ in red }, to: { _ in blue })
+    layer.add(colorGroup(from: green, to: blue), forKey: "tint")
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+    let shownColor = try layer.presentation().unwrap().backgroundColor.unwrap()
+
+    // when: retargeting the background color to yellow
+    layer.retarget(keyPath: "backgroundColor", to: CGColor(srgbRed: 1, green: 1, blue: 0, alpha: 1))
+
+    // then: the first animation is replaced by one from the color the layer shows, read from the presentation layer
+    // since the group isn't evaluated, and the group keeps running
+    let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
+    expect(try colorValue(animation.fromValue)) == shownColor
+    expect(layer.animation(forKey: "tint")) != nil
+  }
+
+  func test_retarget_onlyAGroupAnimatingTheKeyPath_setsTheValueAndKeepsTheGroup() {
+    // given: a red layer whose background color only a group animates
+    let layer = CALayer()
+    layer.backgroundColor = Color.red.cgColor
+    layer.add(colorGroup(from: Color.green.cgColor, to: Color.blue.cgColor), forKey: "tint")
+
+    // when: retargeting the background color to blue
+    layer.retarget(keyPath: "backgroundColor", to: Color.blue.cgColor)
+
+    // then: the color is set directly, as the group isn't an in-flight animation to retarget, and the group keeps running
+    expect(layer.backgroundColor) == Color.blue.cgColor
+    expect(layer.animationKeys()) == ["tint"]
+  }
+
+  func test_retarget_relatedKeyPathAnimating_startsFromTheShownValueAndKeepsItsAnimation() throws {
+    // given: a hosted layer whose position animates, and whose x component animates too, added later so it shows
+    let testWindow = TestWindow()
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+    testWindow.layer.addSublayer(layer)
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+    let moveAnimation = CABasicAnimation(keyPath: "position")
+    moveAnimation.fromValue = CGPoint(x: 0, y: 0)
+    moveAnimation.toValue = CGPoint(x: 100, y: 100)
+    moveAnimation.duration = 60
+    layer.add(moveAnimation, forKey: "position")
+    let moveXAnimation = CABasicAnimation(keyPath: "position.x")
+    moveXAnimation.fromValue = 300.0
+    moveXAnimation.toValue = 400.0
+    moveXAnimation.duration = 60
+    layer.add(moveXAnimation, forKey: "move-x")
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+    let shownPosition = try layer.presentation().unwrap().position
+
+    // when: retargeting the position
+    layer.retarget(keyPath: "position", to: CGPoint(x: 200, y: 200))
+
+    // then: the position's animation is replaced by one from the position the layer shows, read from the presentation
+    // layer since the component's animation isn't evaluated, and the component's animation keeps running
+    let animation = try (layer.animation(forKey: "position") as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGPoint) == shownPosition
+    expect(layer.animation(forKey: "move-x")) != nil
   }
 
   // MARK: - Retarget, additive animations in flight
@@ -1141,19 +1307,18 @@ class CALayer_RetargetTests: XCTestCase {
     expect(landed) == true
   }
 
-  /// The blue component of the color in the sRGB color space.
-  private func blueComponent(of color: CGColor) throws -> CGFloat {
-    try sRGBComponents(of: color)[2]
-  }
+  // MARK: - Helpers
 
-  /// The green component of the color in the sRGB color space.
-  private func greenComponent(of color: CGColor) throws -> CGFloat {
-    try sRGBComponents(of: color)[1]
-  }
-
-  private func sRGBComponents(of color: CGColor) throws -> [CGFloat] {
-    let sRGB = try CGColorSpace(name: CGColorSpace.sRGB).unwrap()
-    return try color.converted(to: sRGB, intent: .defaultIntent, options: nil).unwrap().components.unwrap()
+  /// A group that animates the background color from a color to a color over 60 seconds.
+  private func colorGroup(from: CGColor, to: CGColor) -> CAAnimationGroup {
+    let tint = CABasicAnimation(keyPath: "backgroundColor")
+    tint.fromValue = from
+    tint.toValue = to
+    tint.duration = 60
+    let group = CAAnimationGroup()
+    group.animations = [tint]
+    group.duration = 60
+    return group
   }
 }
 

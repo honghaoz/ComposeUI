@@ -355,7 +355,7 @@ public extension ComposeNode {
             layer.animate(
               keyPath: "backgroundColor",
               timing: animationTiming,
-              from: { $0.presentation()?.backgroundColor ?? $0.backgroundColor ?? Color.clear.cgColor },
+              from: { $0.shownColor(forKeyPath: "backgroundColor") ?? $0.backgroundColor ?? Color.clear.cgColor },
               to: { _ in color }
             )
           }
@@ -468,7 +468,7 @@ public extension ComposeNode {
             layer.animate(
               keyPath: "borderColor",
               timing: animationTiming,
-              from: { $0.presentation()?.borderColor ?? $0.borderColor ?? Color.clear.cgColor },
+              from: { $0.shownColor(forKeyPath: "borderColor") ?? $0.borderColor ?? Color.clear.cgColor },
               to: { _ in color }
             )
           }
@@ -635,7 +635,7 @@ public extension ComposeNode {
             layer.animate(
               keyPath: "shadowColor",
               timing: animationTiming,
-              from: { $0.presentation()?.shadowColor ?? $0.shadowColor ?? Color.clear.cgColor },
+              from: { $0.shownColor(forKeyPath: "shadowColor") ?? $0.shadowColor ?? Color.clear.cgColor },
               to: { _ in color }
             )
           }
@@ -644,7 +644,7 @@ public extension ComposeNode {
             layer.animate(
               keyPath: "shadowOpacity",
               timing: animationTiming,
-              from: { $0.presentation()?.shadowOpacity },
+              from: { $0.shownOpacity(forKeyPath: "shadowOpacity") },
               to: { _ in opacity }
             )
           }
@@ -659,7 +659,7 @@ public extension ComposeNode {
             layer.animate(
               keyPath: "shadowPath",
               timing: animationTiming,
-              from: { $0.presentation()?.shadowPath ?? $0.shadowPath },
+              from: { $0.shownPath(forKeyPath: "shadowPath") ?? $0.shadowPath },
               to: { _ in path }
             )
           }

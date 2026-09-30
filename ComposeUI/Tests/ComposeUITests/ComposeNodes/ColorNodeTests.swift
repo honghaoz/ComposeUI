@@ -291,6 +291,41 @@ class ColorNodeTests: XCTestCase {
     expect(layer.animation(forKey: "backgroundColor")) === animation
   }
 
+  func test_update_withAnimation_colorInFlight_startsFromTheColorAtTheClocksTime() throws {
+    // given: a themed color node rendered in the light theme, whose color animates towards the dark theme's over two
+    // seconds from 1000
+    var node = ColorNode(ThemedColor(light: .red, dark: .blue))
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let item = try node.renderableItems(in: frame).first.unwrap()
+
+    let contentView = ComposeView()
+    contentView.overrideTheme = .light
+    let renderable = item.make(RenderableMakeContext(initialFrame: frame, contentView: contentView))
+    let layer = renderable.layer
+
+    func update(animationTiming: AnimationTiming?) {
+      let animationDecision = animationTiming == nil ? ComposeView.AnimationDecision.disabled : ComposeView.AnimationDecision.all
+      item.update(renderable, RenderableUpdateContext(updateType: .refresh, oldFrame: frame, newFrame: frame, previousRenderBounds: frame, renderBounds: frame, animationTiming: animationTiming, contentView: contentView, contentEvaluation: nil, animationDecision: animationDecision))
+    }
+    AnimationClock.sharingTime(at: 1000) {
+      update(animationTiming: nil)
+      contentView.overrideTheme = .dark
+      update(animationTiming: .linear(duration: 2))
+    }
+
+    // when: the theme flips back and the node is refreshed with animation a quarter of the way, where the layer has no
+    // presentation layer to read
+    contentView.overrideTheme = .light
+    AnimationClock.sharingTime(at: 1000.5) {
+      update(animationTiming: .linear(duration: 2))
+    }
+
+    // then: the new animation starts from the color the layer shows at the clock's time
+    let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
+    try expectExtendedSRGBComponents(of: colorValue(animation.fromValue), toBe: [0.75, 0, 0.25, 1])
+  }
+
   func test_boundsChange_keepsColor_withUnchangedItemFrame() throws {
     // given: a fixed-size color node configured from the container width
     var renderedLayer: CALayer?

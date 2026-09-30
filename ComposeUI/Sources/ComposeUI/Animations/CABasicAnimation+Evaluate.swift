@@ -58,35 +58,44 @@ extension CABasicAnimation {
     return from + (to - from) * progress(forElapsedTime: elapsed)
   }
 
-  /// The time the animation has run at the given time, in its own timeline: the time since `beginTime`, scaled by
-  /// `speed`.
-  ///
-  /// An animation with an unset (zero) `beginTime` hasn't been scheduled by Core Animation yet (it is resolved when the
-  /// transaction commits), so it has run for zero seconds. An animation scheduled in the future has run for a negative
-  /// time, even without a backwards fill, when it doesn't show its from value until it begins.
-  ///
-  /// - Parameter time: The time in the layer's time space, compared against `beginTime`.
-  /// - Returns: The elapsed time, or `nil` for an animation with a `timeOffset`, a `repeatCount`, a `repeatDuration`,
-  ///   or `autoreverses`, which `progress(forElapsedTime:)` doesn't evaluate.
-  func elapsedTime(at time: TimeInterval) -> TimeInterval? {
-    guard timeOffset == 0,
-          repeatCount == 0,
-          repeatDuration == 0,
-          !autoreverses
-    else {
-      return nil
-    }
-    // the fill mode isn't checked, so a rate of change sampled across the begin time still evaluates the animation on
-    // both sides of it
-    return beginTime == 0 ? 0 : (time - beginTime) * TimeInterval(speed)
-  }
-
   /// The animation's progress from `fromValue` (0) to `toValue` (1) after the given elapsed time.
   ///
   /// - Parameter elapsed: The elapsed time in the animation's timeline, in seconds, see `elapsedTime(at:)`.
   /// - Returns: The progress, 1 for a zero-duration animation.
   func progress(forElapsedTime elapsed: TimeInterval) -> Double {
     AnimationCurve(self).progress(forElapsedTime: elapsed)
+  }
+}
+
+extension CAAnimation {
+
+  /// The time the animation has run at the given time, in its own timeline, see `timeSinceBegin(at:)`.
+  ///
+  /// - Parameter time: The time in the layer's time space, compared against `beginTime`.
+  /// - Returns: The elapsed time, or `nil` for an animation whose timing `CABasicAnimation.progress(forElapsedTime:)`
+  ///   doesn't evaluate, see `hasEvaluableTiming`.
+  func elapsedTime(at time: TimeInterval) -> TimeInterval? {
+    hasEvaluableTiming ? timeSinceBegin(at: time) : nil
+  }
+
+  /// Whether `CABasicAnimation.progress(forElapsedTime:)` evaluates the animation's timing: it has no `timeOffset`,
+  /// `repeatCount`, `repeatDuration` or `autoreverses`.
+  var hasEvaluableTiming: Bool {
+    timeOffset == 0 && repeatCount == 0 && repeatDuration == 0 && !autoreverses
+  }
+
+  /// The time since the animation's `beginTime` at the given time, scaled by its `speed`, whatever its timing.
+  ///
+  /// An animation with an unset (zero) `beginTime` hasn't been scheduled by Core Animation yet (it is resolved when the
+  /// transaction commits), so it has run for zero seconds. An animation scheduled in the future at a positive speed has
+  /// run for a negative time, even without a backwards fill, when it doesn't show its from value until it begins.
+  ///
+  /// - Parameter time: The time in the layer's time space, compared against `beginTime`.
+  /// - Returns: The time since the animation began, negative before it begins.
+  func timeSinceBegin(at time: TimeInterval) -> TimeInterval {
+    // the fill mode isn't checked, so a rate of change sampled across the begin time still evaluates the animation on
+    // both sides of it
+    beginTime == 0 ? 0 : (time - beginTime) * TimeInterval(speed)
   }
 }
 

@@ -119,7 +119,8 @@ extension CALayer {
   }
 
   // A write through KVC resolves the key path and boxes a number or a structure in an `NSNumber` or `NSValue`, which
-  // costs a sizable share of setting up an animation, so the properties the framework animates are set directly.
+  // costs a sizable share of setting up an animation, so the properties the framework animates are set directly. The
+  // switches below list these properties in the order `CALayer` declares them, followed by a shape layer's path.
 
   /// Set the layer's model value at a key path.
   ///
@@ -130,44 +131,14 @@ extension CALayer {
     // a number or a structure is only set directly when it has the property's own type, as other types rely on KVC's
     // conversion of the boxed value, for example setting a `CGFloat` as the `Float` opacity
     switch keyPath {
-    case "position":
-      if let value = value as? CGPoint {
-        position = value
-        return
-      }
     case "bounds.size":
       if let value = value as? CGSize {
         bounds.size = value
         return
       }
-    case "shadowOffset":
-      if let value = value as? CGSize {
-        shadowOffset = value
-        return
-      }
-    case "opacity":
-      if let value = value as? Float {
-        opacity = value
-        return
-      }
-    case "shadowOpacity":
-      if let value = value as? Float {
-        shadowOpacity = value
-        return
-      }
-    case "borderWidth":
-      if let value = value as? CGFloat {
-        borderWidth = value
-        return
-      }
-    case "cornerRadius":
-      if let value = value as? CGFloat {
-        cornerRadius = value
-        return
-      }
-    case "shadowRadius":
-      if let value = value as? CGFloat {
-        shadowRadius = value
+    case "position":
+      if let value = value as? CGPoint {
+        position = value
         return
       }
     case "backgroundColor":
@@ -175,16 +146,46 @@ extension CALayer {
         backgroundColor = color
       }
       return
+    case "cornerRadius":
+      if let value = value as? CGFloat {
+        cornerRadius = value
+        return
+      }
+    case "borderWidth":
+      if let value = value as? CGFloat {
+        borderWidth = value
+        return
+      }
     case "borderColor":
       if let color = Self.color(from: value, forKeyPath: keyPath) {
         borderColor = color
       }
       return
+    case "opacity":
+      if let value = value as? Float {
+        opacity = value
+        return
+      }
     case "shadowColor":
       if let color = Self.color(from: value, forKeyPath: keyPath) {
         shadowColor = color
       }
       return
+    case "shadowOpacity":
+      if let value = value as? Float {
+        shadowOpacity = value
+        return
+      }
+    case "shadowOffset":
+      if let value = value as? CGSize {
+        shadowOffset = value
+        return
+      }
+    case "shadowRadius":
+      if let value = value as? CGFloat {
+        shadowRadius = value
+        return
+      }
     case "shadowPath":
       if let path = Self.path(from: value, forKeyPath: keyPath) {
         shadowPath = path
@@ -216,44 +217,44 @@ extension CALayer {
   /// - Returns: Whether the model value is the value.
   func hasModelValue(_ value: Any, forKeyPath keyPath: String) -> Bool {
     switch keyPath {
-    case "position":
-      if let value = value as? CGPoint {
-        return position == value
-      }
     case "bounds.size":
       if let value = value as? CGSize {
         return bounds.size == value
       }
-    case "shadowOffset":
-      if let value = value as? CGSize {
-        return shadowOffset == value
+    case "position":
+      if let value = value as? CGPoint {
+        return position == value
       }
-    case "opacity":
-      if let value = value as? Float {
-        return opacity == value
-      }
-    case "shadowOpacity":
-      if let value = value as? Float {
-        return shadowOpacity == value
+    case "backgroundColor":
+      return Self.isObject(backgroundColor, equalTo: value)
+    case "cornerRadius":
+      if let value = value as? CGFloat {
+        return cornerRadius == value
       }
     case "borderWidth":
       if let value = value as? CGFloat {
         return borderWidth == value
       }
-    case "cornerRadius":
-      if let value = value as? CGFloat {
-        return cornerRadius == value
+    case "borderColor":
+      return Self.isObject(borderColor, equalTo: value)
+    case "opacity":
+      if let value = value as? Float {
+        return opacity == value
+      }
+    case "shadowColor":
+      return Self.isObject(shadowColor, equalTo: value)
+    case "shadowOpacity":
+      if let value = value as? Float {
+        return shadowOpacity == value
+      }
+    case "shadowOffset":
+      if let value = value as? CGSize {
+        return shadowOffset == value
       }
     case "shadowRadius":
       if let value = value as? CGFloat {
         return shadowRadius == value
       }
-    case "backgroundColor":
-      return Self.isObject(backgroundColor, equalTo: value)
-    case "borderColor":
-      return Self.isObject(borderColor, equalTo: value)
-    case "shadowColor":
-      return Self.isObject(shadowColor, equalTo: value)
     case "shadowPath":
       return Self.isObject(shadowPath, equalTo: value)
     case "path":
@@ -264,6 +265,128 @@ extension CALayer {
       break
     }
     return Self.isObject(self.value(forKeyPath: keyPath) as AnyObject?, equalTo: value)
+  }
+
+  /// The layer's model value at a key path.
+  ///
+  /// The properties the framework animates are read directly, in their own types, like `setModelValue(_:forKeyPath:)`
+  /// sets them. Other key paths are read through KVC.
+  ///
+  /// - Parameter keyPath: The key path.
+  /// - Returns: The model value, `nil` for a key path without a value, such as a layer without a background color.
+  func modelValue(forKeyPath keyPath: String) -> Any? {
+    switch keyPath {
+    case "bounds.size":
+      return bounds.size
+    case "position":
+      return position
+    case "backgroundColor":
+      return backgroundColor
+    case "cornerRadius":
+      return cornerRadius
+    case "borderWidth":
+      return borderWidth
+    case "borderColor":
+      return borderColor
+    case "opacity":
+      return opacity
+    case "shadowColor":
+      return shadowColor
+    case "shadowOpacity":
+      return shadowOpacity
+    case "shadowOffset":
+      return shadowOffset
+    case "shadowRadius":
+      return shadowRadius
+    case "shadowPath":
+      return shadowPath
+    case "path":
+      if let shapeLayer = self as? CAShapeLayer {
+        return shapeLayer.path
+      }
+    default:
+      break
+    }
+    return value(forKeyPath: keyPath)
+  }
+
+  // A read through KVC boxes the value in an `NSValue` or `NSNumber` and casts it back, which costs a sizable share of
+  // setting up an animation, so the typed `animate(keyPath:to:timing:updateAnimation:)` overloads read the current value
+  // with the functions below, which read the properties the framework animates directly.
+
+  /// Get the layer's model value at a key path whose value is a `CGPoint`.
+  ///
+  /// `position` is read directly, other key paths through KVC.
+  ///
+  /// - Important: The key path's value must be a `CGPoint`. Otherwise, a crash will occur.
+  ///
+  /// - Parameter keyPath: The key path to read.
+  /// - Returns: The value at the key path.
+  func pointValue(forKeyPath keyPath: String) -> CGPoint {
+    switch keyPath {
+    case "position":
+      return position
+    default:
+      return value(forKeyPath: keyPath) as! CGPoint // swiftlint:disable:this force_cast
+    }
+  }
+
+  /// Get the layer's model value at a key path whose value is a `CGSize`.
+  ///
+  /// `bounds.size` and `shadowOffset` are read directly, other key paths through KVC.
+  ///
+  /// - Important: The key path's value must be a `CGSize`. Otherwise, a crash will occur.
+  ///
+  /// - Parameter keyPath: The key path to read.
+  /// - Returns: The value at the key path.
+  func sizeValue(forKeyPath keyPath: String) -> CGSize {
+    switch keyPath {
+    case "bounds.size":
+      return bounds.size
+    case "shadowOffset":
+      return shadowOffset
+    default:
+      return value(forKeyPath: keyPath) as! CGSize // swiftlint:disable:this force_cast
+    }
+  }
+
+  /// Get the layer's model value at a key path whose value is a floating-point number.
+  ///
+  /// `cornerRadius`, `borderWidth`, `opacity`, `shadowOpacity`, and `shadowRadius` are read directly when `T` is the
+  /// property's type. Other key paths and types are read through KVC.
+  ///
+  /// - Important: The key path's value must be a number that casts to `T`. Otherwise, a crash will occur.
+  ///
+  /// - Parameter keyPath: The key path to read.
+  /// - Returns: The value at the key path.
+  func floatingPointValue<T: FloatingPoint>(forKeyPath keyPath: String) -> T {
+    // a direct read is only taken for the property's own type, as other types rely on the conversion of KVC's boxed
+    // number, for example reading the `Float` opacity as a `CGFloat`
+    switch keyPath {
+    case "cornerRadius":
+      if let value = cornerRadius as? T {
+        return value
+      }
+    case "borderWidth":
+      if let value = borderWidth as? T {
+        return value
+      }
+    case "opacity":
+      if let value = opacity as? T {
+        return value
+      }
+    case "shadowOpacity":
+      if let value = shadowOpacity as? T {
+        return value
+      }
+    case "shadowRadius":
+      if let value = shadowRadius as? T {
+        return value
+      }
+    default:
+      break
+    }
+    return value(forKeyPath: keyPath) as! T // swiftlint:disable:this force_cast
   }
 
   /// Whether a model value, as an object, is the given value, compared like KVC compares its boxed values.

@@ -456,6 +456,54 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(layer.backgroundColor) == red
   }
 
+  func test_animate_delayed_nilFromValue_animationInFlight_resolvesToTheShownValue() throws {
+    // given: an unhosted layer whose background color animates from red to blue over two seconds, from 1000
+    let red = CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1)
+    let blue = CGColor(srgbRed: 0, green: 0, blue: 1, alpha: 1)
+    let layer = CALayer()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animate(keyPath: "backgroundColor", timing: .linear(duration: 2), from: { _ in red }, to: { _ in blue })
+    }
+
+    // when: a quarter of the way, animating the background color to green with a delay, from a nil value
+    AnimationClock.sharingTime(at: 1000.5) {
+      layer.animate(
+        keyPath: "backgroundColor",
+        timing: .linear(duration: 1, delay: 0.5),
+        from: { _ -> CGColor? in nil },
+        to: { _ in CGColor(srgbRed: 0, green: 1, blue: 0, alpha: 1) }
+      )
+    }
+
+    // then: the nil from value is resolved to the color the layer shows at the clock's time, a quarter of the way to
+    // blue, instead of the model color
+    let animation = try unwrap(layer.animation(forKey: "backgroundColor") as? CABasicAnimation)
+    try expectExtendedSRGBComponents(of: colorValue(animation.fromValue), toBe: [0.75, 0, 0.25, 1])
+  }
+
+  func test_animate_delayed_nilFromValue_unevaluableAnimationInFlight_resolvesToTheModelValue() throws {
+    // given: an unhosted green layer with a keyframe animation of its background color, which can't be evaluated
+    let green = CGColor(srgbRed: 0, green: 1, blue: 0, alpha: 1)
+    let layer = CALayer()
+    layer.backgroundColor = green
+    let keyframeAnimation = CAKeyframeAnimation(keyPath: "backgroundColor")
+    keyframeAnimation.values = [green, CGColor(srgbRed: 0, green: 0, blue: 1, alpha: 1)]
+    keyframeAnimation.duration = 2
+    layer.add(keyframeAnimation, forKey: "keyframes")
+
+    // when: animating the background color to red with a delay, from a nil value
+    layer.animate(
+      keyPath: "backgroundColor",
+      timing: .linear(duration: 1, delay: 0.5),
+      from: { _ -> CGColor? in nil },
+      to: { _ in CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1) }
+    )
+
+    // then: the layer has no presentation layer to fall back to, so the nil from value is resolved to the model color
+    let animation = try unwrap(layer.animation(forKey: "backgroundColor") as? CABasicAnimation)
+    expect(try colorValue(animation.fromValue)) == green
+  }
+
   func test_animate_delayed_holdsFromValueDuringDelayWindow() throws {
     // given: a layer hosted in a window with partial opacity, in a new turn of the run loop, so an animation added now
     // begins now
@@ -585,133 +633,6 @@ class CALayer_AnimationsTests: XCTestCase {
     }
   }
 
-  // MARK: - Key Path Values
-
-  func test_pointValue() {
-    // given: a layer that counts KVC reads, with a position and an anchor point
-    let layer = KVCCountingLayer()
-    layer.position = CGPoint(x: 10, y: 20)
-    layer.anchorPoint = CGPoint(x: 0.25, y: 0.75)
-
-    // when: reading the position
-    let position = layer.pointValue(forKeyPath: "position")
-
-    // then: the position is read directly
-    expect(position) == CGPoint(x: 10, y: 20)
-    expect(layer.kvcReadCount) == 0
-
-    // when: reading another point key path
-    let anchorPoint = layer.pointValue(forKeyPath: "anchorPoint")
-
-    // then: the value is read through KVC
-    expect(anchorPoint) == CGPoint(x: 0.25, y: 0.75)
-    expect(layer.kvcReadCount) == 1
-  }
-
-  func test_sizeValue() {
-    // given: a layer that counts KVC reads, with a bounds size, a shadow offset, and a translation
-    let layer = KVCCountingLayer()
-    layer.bounds.size = CGSize(width: 30, height: 40)
-    layer.shadowOffset = CGSize(width: 5, height: 6)
-    layer.transform = CATransform3DMakeTranslation(7, 8, 0)
-
-    // when: reading the bounds size and the shadow offset
-    let boundsSize = layer.sizeValue(forKeyPath: "bounds.size")
-    let shadowOffset = layer.sizeValue(forKeyPath: "shadowOffset")
-
-    // then: they are read directly
-    expect(boundsSize) == CGSize(width: 30, height: 40)
-    expect(shadowOffset) == CGSize(width: 5, height: 6)
-    expect(layer.kvcReadCount) == 0
-
-    // when: reading another size key path
-    let translation = layer.sizeValue(forKeyPath: "transform.translation")
-
-    // then: the value is read through KVC
-    expect(translation) == CGSize(width: 7, height: 8)
-    expect(layer.kvcReadCount) == 1
-  }
-
-  func test_floatingPointValue() {
-    // given: a layer that counts KVC reads, with non-default values for the numbers read directly, and a scale
-    let layer = KVCCountingLayer()
-    layer.opacity = 0.5
-    layer.shadowOpacity = 0.25
-    layer.borderWidth = 2
-    layer.cornerRadius = 3
-    layer.shadowRadius = 4
-    layer.transform = CATransform3DMakeScale(2, 2, 2)
-
-    // when: reading the numbers as their property types
-    let opacity: Float = layer.floatingPointValue(forKeyPath: "opacity")
-    let shadowOpacity: Float = layer.floatingPointValue(forKeyPath: "shadowOpacity")
-    let borderWidth: CGFloat = layer.floatingPointValue(forKeyPath: "borderWidth")
-    let cornerRadius: CGFloat = layer.floatingPointValue(forKeyPath: "cornerRadius")
-    let shadowRadius: CGFloat = layer.floatingPointValue(forKeyPath: "shadowRadius")
-
-    // then: they are read directly
-    expect(opacity) == 0.5
-    expect(shadowOpacity) == 0.25
-    expect(borderWidth) == 2
-    expect(cornerRadius) == 3
-    expect(shadowRadius) == 4
-    expect(layer.kvcReadCount) == 0
-
-    // when: reading the numbers as other floating-point types
-    let opacityAsCGFloat: CGFloat = layer.floatingPointValue(forKeyPath: "opacity")
-    let shadowOpacityAsCGFloat: CGFloat = layer.floatingPointValue(forKeyPath: "shadowOpacity")
-    let borderWidthAsFloat: Float = layer.floatingPointValue(forKeyPath: "borderWidth")
-    let cornerRadiusAsFloat: Float = layer.floatingPointValue(forKeyPath: "cornerRadius")
-    let shadowRadiusAsFloat: Float = layer.floatingPointValue(forKeyPath: "shadowRadius")
-
-    // then: they are read through KVC, which converts the boxed numbers
-    expect(opacityAsCGFloat) == 0.5
-    expect(shadowOpacityAsCGFloat) == 0.25
-    expect(borderWidthAsFloat) == 2
-    expect(cornerRadiusAsFloat) == 3
-    expect(shadowRadiusAsFloat) == 4
-    expect(layer.kvcReadCount) == 5
-
-    // when: reading another number key path
-    let scale: CGFloat = layer.floatingPointValue(forKeyPath: "transform.scale")
-
-    // then: the value is read through KVC
-    expect(scale) == 2
-    expect(layer.kvcReadCount) == 6
-  }
-
-  func test_keyPathValues_directReadsMatchKVC() {
-    // given: a plain layer and a view's backing layer, with non-default values for the properties read directly
-    let testWindow = TestWindow()
-    let view = View(frame: CGRect(x: 10, y: 20, width: 30, height: 40))
-    #if canImport(AppKit)
-    view.wantsLayer = true
-    #endif
-    testWindow.contentView().addSubview(view)
-
-    let plainLayer = CALayer()
-    plainLayer.frame = CGRect(x: 10, y: 20, width: 30, height: 40)
-
-    for layer in [plainLayer, view.layer()] {
-      layer.opacity = 0.5
-      layer.shadowOpacity = 0.25
-      layer.borderWidth = 2
-      layer.cornerRadius = 3
-      layer.shadowRadius = 4
-      layer.shadowOffset = CGSize(width: 5, height: 6)
-
-      // then: the direct reads return what KVC returns
-      expect(layer.value(forKeyPath: "position") as? CGPoint) == layer.pointValue(forKeyPath: "position")
-      expect(layer.value(forKeyPath: "bounds.size") as? CGSize) == layer.sizeValue(forKeyPath: "bounds.size")
-      expect(layer.value(forKeyPath: "shadowOffset") as? CGSize) == layer.sizeValue(forKeyPath: "shadowOffset")
-      expect(layer.value(forKeyPath: "opacity") as? Float) == layer.floatingPointValue(forKeyPath: "opacity") as Float
-      expect(layer.value(forKeyPath: "shadowOpacity") as? Float) == layer.floatingPointValue(forKeyPath: "shadowOpacity") as Float
-      expect(layer.value(forKeyPath: "borderWidth") as? CGFloat) == layer.floatingPointValue(forKeyPath: "borderWidth") as CGFloat
-      expect(layer.value(forKeyPath: "cornerRadius") as? CGFloat) == layer.floatingPointValue(forKeyPath: "cornerRadius") as CGFloat
-      expect(layer.value(forKeyPath: "shadowRadius") as? CGFloat) == layer.floatingPointValue(forKeyPath: "shadowRadius") as CGFloat
-    }
-  }
-
   // MARK: - uniqueAnimationKey
 
   func test_uniqueAnimationKey_noExistingAnimations() {
@@ -785,6 +706,9 @@ class CALayer_AnimationsTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
+    // a group animating the key path is not a basic animation
+    layer.add(group(of: [CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
     // when: querying basic animations for the opacity key path
     let animations = layer.basicAnimations(forKeyPath: "opacity")
 
@@ -794,7 +718,7 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_propertyAnimations_forKeyPath() {
-    // given: a layer with basic, keyframe, and different key path animations
+    // given: a layer with basic, keyframe, and different key path animations, and a group animating the key path
     let layer = CALayer()
 
     let fadeAnimation = CABasicAnimation(keyPath: "opacity")
@@ -809,13 +733,133 @@ class CALayer_AnimationsTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
+    layer.add(group(of: [CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
     // when: querying property animations for the opacity key path
     let animations = layer.propertyAnimations(forKeyPath: "opacity")
 
-    // then: both opacity animations match, in order, and the other key path doesn't
+    // then: both opacity animations match, in order, and neither the other key path nor the group does
     expect(animations.count) == 2
     expect(animations.first is CABasicAnimation) == true
     expect(animations.last is CAKeyframeAnimation) == true
+  }
+
+  func test_animationSequence_yieldsTheKeyPathsAnimationsWithTheirKeysInOrder() throws {
+    // given: a layer with opacity animations, and groups with one, directly and in a group of their own, between other
+    // animations: of another key path, a transition, a group of another key path and a transition, and an empty group
+    let layer = CALayer()
+
+    let fadeAnimation = CABasicAnimation(keyPath: "opacity")
+    fadeAnimation.duration = 60
+    layer.add(fadeAnimation, forKey: "fade")
+
+    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
+    spinAnimation.duration = 60
+    layer.add(spinAnimation, forKey: "spin")
+
+    layer.add(group(of: [CABasicAnimation(keyPath: "position"), CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
+    let transition = CATransition()
+    transition.duration = 60
+    layer.add(transition, forKey: "transition")
+
+    layer.add(group(of: [CABasicAnimation(keyPath: "position"), CATransition()]), forKey: "group-move")
+    layer.add(group(of: nil), forKey: "empty-group")
+    layer.add(group(of: [group(of: [CABasicAnimation(keyPath: "position")]), group(of: [CABasicAnimation(keyPath: "opacity")])]), forKey: "nested-group-fade")
+
+    let keyframeAnimation = CAKeyframeAnimation(keyPath: "opacity")
+    keyframeAnimation.duration = 60
+    layer.add(keyframeAnimation, forKey: "keyframe-fade")
+
+    // when: iterating the opacity animations
+    let animations = try Array(layer.animationSequence(forKeyPath: "opacity").unwrap())
+
+    // then: the opacity animations and the groups with one are yielded with their keys, in order, skipping the others,
+    // the opacity animations as direct ones and the groups as indirect ones
+    expect(animations.map(\.key)) == ["fade", "group-fade", "nested-group-fade", "keyframe-fade"]
+    expect(animations.map { kind(of: $0.animation) }) == ["direct", "indirect", "indirect", "direct"]
+    expect(animations[0].animation.animation is CABasicAnimation) == true
+    expect(animations[1].animation.animation is CAAnimationGroup) == true
+    expect(animations[2].animation.animation is CAAnimationGroup) == true
+    expect(animations[3].animation.animation is CAKeyframeAnimation) == true
+  }
+
+  func test_animationSequence_relatedKeyPaths_areIndirect() throws {
+    // given: a layer whose position animates directly, through its x component, and through a group of it, with a
+    // sibling of its bounds size, its bounds, one of its bounds size's components, and a key path that only starts with
+    // `position` animating too
+    let layer = CALayer()
+    for keyPath in ["position", "position.x", "positionX", "bounds", "bounds.origin", "bounds.size.width"] {
+      let animation = CABasicAnimation(keyPath: keyPath)
+      animation.duration = 60
+      layer.add(animation, forKey: keyPath)
+    }
+    layer.add(group(of: [CABasicAnimation(keyPath: "position.y")]), forKey: "group-move-y")
+
+    // when: iterating the animations of the position and of the bounds size
+    let positionAnimations = try Array(layer.animationSequence(forKeyPath: "position").unwrap())
+    let sizeAnimations = try Array(layer.animationSequence(forKeyPath: "bounds.size").unwrap())
+
+    // then: the position's animation is direct, and its component's and the group's are indirect, while a key path
+    // that doesn't continue with a dot isn't related
+    expect(positionAnimations.map(\.key)) == ["position", "position.x", "group-move-y"]
+    expect(positionAnimations.map { kind(of: $0.animation) }) == ["direct", "indirect", "indirect"]
+
+    // then: the bounds and the size's component change the size indirectly, while a sibling of the size doesn't
+    expect(sizeAnimations.map(\.key)) == ["bounds", "bounds.size.width"]
+    expect(sizeAnimations.map { kind(of: $0.animation) }) == ["indirect", "indirect"]
+  }
+
+  func test_keyPathLookups_leaveRelatedKeyPathsOut() {
+    // given: a layer whose position animates directly and through its x component
+    let layer = CALayer()
+    for keyPath in ["position", "position.x"] {
+      let animation = CABasicAnimation(keyPath: keyPath)
+      animation.duration = 60
+      layer.add(animation, forKey: keyPath)
+    }
+
+    // then: the position's lookups only find the direct animation
+    expect(layer.basicAnimations(forKeyPath: "position").map(\.keyPath)) == ["position"]
+    expect(layer.propertyAnimations(forKeyPath: "position").map(\.keyPath)) == ["position"]
+
+    // when: removing the position's animations
+    layer.removeAnimations(forKeyPath: "position")
+
+    // then: the component's animation is left alone
+    expect(layer.animationKeys()) == ["position.x"]
+  }
+
+  func test_animationSequence_noAnimationOfTheKeyPath_isNil() {
+    // given: a layer without animations, and a layer with an animation, a group and an empty group of other key paths,
+    // and a group with an animation without a key path
+    let layer = CALayer()
+    let spinningLayer = CALayer()
+    let spinAnimation = CABasicAnimation(keyPath: "transform.rotation.z")
+    spinAnimation.duration = 60
+    spinningLayer.add(spinAnimation, forKey: "spin")
+    spinningLayer.add(group(of: [CABasicAnimation(keyPath: "position")]), forKey: "group-move")
+    spinningLayer.add(group(of: nil), forKey: "empty-group")
+    spinningLayer.add(group(of: [CABasicAnimation()]), forKey: "group-no-key-path")
+
+    // then: neither has opacity animations
+    expect(layer.animationSequence(forKeyPath: "opacity")).to(beNil())
+    expect(spinningLayer.animationSequence(forKeyPath: "opacity")).to(beNil())
+  }
+
+  func test_animationSequence_doesntExtendTheLayersLifetime() {
+    // given: a layer
+    var layer: CALayer? = CALayer()
+    weak let weakLayer = layer
+
+    autoreleasepool {
+      // when: looking up its animations, then letting the layer go before the enclosing autorelease pool drains
+      _ = layer?.animationSequence(forKeyPath: "opacity")
+      layer = nil
+
+      // then: the layer is released right away
+      expect(weakLayer).to(beNil())
+    }
   }
 
   func test_removeAnimations_forKeyPath() {
@@ -836,12 +880,34 @@ class CALayer_AnimationsTests: XCTestCase {
     spinAnimation.duration = 60
     layer.add(spinAnimation, forKey: "spin")
 
+    // a group animating the key path survives, since it may animate other key paths
+    layer.add(group(of: [CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
     // when: removing animations for the opacity key path
     layer.removeAnimations(forKeyPath: "opacity")
 
-    // then: both opacity animations are removed and the other key path animation survives
+    // then: both opacity animations are removed, and the other key path animation and the group survive
     expect(layer.animation(forKey: "fade")) == nil
     expect(layer.animation(forKey: "keyframe-fade")) == nil
     expect(layer.animation(forKey: "spin")) != nil
+    expect(layer.animation(forKey: "group-fade")) != nil
+  }
+
+  // MARK: - Helpers
+
+  private func group(of animations: [CAAnimation]?) -> CAAnimationGroup {
+    let group = CAAnimationGroup()
+    group.animations = animations
+    group.duration = 60
+    return group
+  }
+
+  private func kind(of animation: KeyPathAnimation) -> String {
+    switch animation {
+    case .direct:
+      return "direct"
+    case .indirect:
+      return "indirect"
+    }
   }
 }
