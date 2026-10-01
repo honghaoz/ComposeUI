@@ -28,6 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
+// MARK: - AppKit
+
 #if canImport(AppKit)
 import AppKit
 
@@ -40,12 +42,48 @@ open class ScrollView: NSScrollView {
 
   override open var contentSize: CGSize {
     get {
-      documentView().bounds.size
+      contentContainerView.bounds.size
     }
     set {
-      ComposeUI.assert(documentView().frame.origin == .zero)
-      documentView().frame = CGRect(origin: .zero, size: newValue)
+      ComposeUI.assert(contentContainerView.frame.origin == .zero)
+      contentContainerView.frame = CGRect(origin: .zero, size: newValue)
     }
+  }
+
+  /// The offset of the visible area's origin from the content's origin, like `UIScrollView`'s `contentOffset`.
+  ///
+  /// Unlike on UIKit, setting it keeps the offset within the scrollable range.
+  public var contentOffset: CGPoint {
+    get {
+      contentView.bounds.origin
+    }
+    set {
+      contentView.scroll(newValue)
+    }
+  }
+
+  /// The custom distance that the content is inset from the scroll view's edges, like `UIScrollView`'s `contentInset`.
+  ///
+  /// This is `contentInsets`, which includes the automatic adjustments while `automaticallyAdjustsContentInsets` is on.
+  public var contentInset: EdgeInsets {
+    get {
+      contentInsets
+    }
+    set {
+      contentInsets = newValue
+    }
+  }
+
+  /// The insets in effect, including the automatic adjustments, like `UIScrollView`'s `adjustedContentInset`.
+  ///
+  /// AppKit applies the automatic adjustments to `contentInsets` itself, so this is `contentInsets`.
+  public var adjustedContentInset: EdgeInsets {
+    contentInsets
+  }
+
+  /// The size of the visible area in content coordinates, like `UIScrollView`'s `visibleSize`.
+  public var visibleSize: CGSize {
+    contentView.bounds.size
   }
 
   override public init(frame: CGRect) {
@@ -110,19 +148,24 @@ open class ScrollView: NSScrollView {
     contentView.postsBoundsChangedNotifications = false
   }
 
-  // MARK: - Document View
-
-  /// Get the document view.
-  /// - Returns: The document view.
-  public func documentView() -> NSView {
-    documentView! // swiftlint:disable:this force_unwrapping
-  }
-
   // MARK: - Scroll
+
+  /// Whether scrolling is enabled, like `UIScrollView`'s `isScrollEnabled`.
+  ///
+  /// While scrolling is disabled, the scroll view passes scroll wheel events to its next responder.
+  public var isScrollEnabled: Bool = true
 
   private var scrollSession: ScrollSession?
 
   override open func scrollWheel(with event: NSEvent) {
+    // https://apptyrant.com/2015/05/18/how-to-disable-nsscrollview-scrolling/
+    guard isScrollEnabled else {
+      // send the event to outside of the scroll view.
+      // https://github.com/onmyway133/blog/issues/733
+      nextResponder?.scrollWheel(with: event)
+      return
+    }
+
     let scrollSession: ScrollSession
     if let currentScrollSession = self.scrollSession {
       if ScrollSession.isNewSession(with: event) {
@@ -222,7 +265,7 @@ open class ScrollView: NSScrollView {
     if alwaysBounceHorizontal {
       horizontalScrollElasticity = .allowed
     } else {
-      if documentView().frame.width.extends(beyond: super.contentSize.width) {
+      if contentContainerView.frame.width.extends(beyond: super.contentSize.width) {
         horizontalScrollElasticity = .allowed
       } else {
         horizontalScrollElasticity = .none
@@ -232,7 +275,7 @@ open class ScrollView: NSScrollView {
     if alwaysBounceVertical {
       verticalScrollElasticity = .allowed
     } else {
-      if documentView().frame.height.extends(beyond: super.contentSize.height) {
+      if contentContainerView.frame.height.extends(beyond: super.contentSize.height) {
         verticalScrollElasticity = .allowed
       } else {
         verticalScrollElasticity = .none
@@ -342,8 +385,24 @@ private extension ScrollView {
 
 #endif
 
+// MARK: - UIKit
+
 #if canImport(UIKit)
 import UIKit
 
 public typealias ScrollView = UIScrollView
 #endif
+
+extension ScrollView {
+
+  /// The view that holds the scroll view's content: the document view on AppKit, and the scroll view itself on UIKit.
+  var contentContainerView: View {
+    #if canImport(AppKit)
+    return documentView! // swiftlint:disable:this force_unwrapping
+    #endif
+
+    #if canImport(UIKit)
+    return self
+    #endif
+  }
+}

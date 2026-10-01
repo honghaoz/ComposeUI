@@ -170,7 +170,7 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
 
       // when: the parent scrolls with the nested views still visible
       nestedContexts.removeAll()
-      parent.setContentOffset(CGPoint(x: 0, y: 50))
+      parent.contentOffset = CGPoint(x: 0, y: 50)
       parent.layoutIfNeeded()
 
       // then: the parent's render pass updates the outermost nested view, whose size is unchanged, so neither its
@@ -302,9 +302,9 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     parent.refresh(animated: false)
     let child = try unwrap(childView)
     let row = try unwrap(layer)
-    child.setContentOffset(CGPoint(x: 0, y: 290))
+    child.contentOffset = CGPoint(x: 0, y: 290)
     child.layoutIfNeeded()
-    expect(child.contentOffset()) == CGPoint(x: 0, y: 290)
+    expect(child.contentOffset) == CGPoint(x: 0, y: 290)
     expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 400)
     row.removeAllAnimations()
     childRenderTypes.removeAll()
@@ -317,7 +317,7 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
 
     // then: the one layout rendering the new bounds is capped by the parent's decision, so the row snaps
     expect(child.frame) == CGRect(x: 0, y: 0, width: 140, height: 140)
-    expect(child.contentOffset()) == CGPoint(x: 0, y: 260)
+    expect(child.contentOffset) == CGPoint(x: 0, y: 260)
     expect(row.frame) == CGRect(x: 0, y: 0, width: 140, height: 400)
     expect(row.animationKeys()) == nil
     expect(childRenderTypes) == [.boundsChange(
@@ -880,9 +880,9 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     parent.refresh(animated: false)
     let child = try unwrap(childView)
     let row = try unwrap(layer)
-    child.setContentOffset(CGPoint(x: 0, y: 290))
+    child.contentOffset = CGPoint(x: 0, y: 290)
     child.layoutIfNeeded()
-    expect(child.contentOffset()) == CGPoint(x: 0, y: 290)
+    expect(child.contentOffset) == CGPoint(x: 0, y: 290)
     expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 400)
     row.removeAllAnimations()
     childRenderTypes.removeAll()
@@ -898,12 +898,12 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     expect(child.frame) == CGRect(x: 0, y: 0, width: 140, height: 140)
     expect(row.frame) == CGRect(x: 0, y: 0, width: 140, height: 400)
     expect(row.animationKeys()) == nil
-    expect(child.contentOffset()) == CGPoint(x: 0, y: child.maxOffsetY)
-    expect(child.contentOffset().y) < 290
+    expect(child.contentOffset) == CGPoint(x: 0, y: child.maxOffsetY)
+    expect(child.contentOffset.y) < 290
     expect(childRenderTypes) == [
       .boundsChange(
         previousBounds: CGRect(x: 0, y: 290, width: 100, height: 100),
-        bounds: CGRect(origin: child.contentOffset(), size: CGSize(width: 140, height: 140))
+        bounds: CGRect(origin: child.contentOffset, size: CGSize(width: 140, height: 140))
       ),
     ]
     expect(childRenderTypes.count) == layerContexts.count

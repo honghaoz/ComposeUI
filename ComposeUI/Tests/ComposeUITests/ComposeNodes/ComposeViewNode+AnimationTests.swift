@@ -146,7 +146,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     expect(childView) == nil
 
     // when: scrolling inserts the nested view
-    contentView.setContentOffset(CGPoint(x: 0, y: 125))
+    contentView.contentOffset = CGPoint(x: 0, y: 125)
     contentView.layoutIfNeeded()
 
     // then: the nested view and its content both run their insert transitions, while the scroll pass allows no
@@ -252,7 +252,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       }
 
       // when: scrolling the outer view offscreen starts its removal transition
-      parent.setContentOffset(CGPoint(x: 0, y: 200))
+      parent.contentOffset = CGPoint(x: 0, y: 200)
       parent.layoutIfNeeded()
 
       // then: the removed view and its descendants remain mounted during removal
@@ -263,7 +263,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       expect(removal.toValue as? Float) == 0
       expect(removal.duration) == 10
       expect(removal.isAdditive) == true
-      expect(reusedLayer.superlayer) === originalViews[0].contentView().layer()
+      expect(reusedLayer.superlayer) === originalViews[0].contentContainerView.layer()
 
       // when: the parent resizes while the nested subtree is still offscreen
       parent.frame.size.width = 160
@@ -278,7 +278,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       renderTypes.removeAll()
 
       // when: scrolling back revives the outer view before removal completes
-      parent.setContentOffset(.zero)
+      parent.contentOffset = .zero
       parent.layoutIfNeeded()
 
       // then: every nested view is reused and refreshes with the parent's separate decisions
@@ -387,7 +387,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     }
 
     // when: scrolling the nested view offscreen starts its removal transition
-    parent.setContentOffset(CGPoint(x: 0, y: 200))
+    parent.contentOffset = CGPoint(x: 0, y: 200)
     parent.layoutIfNeeded()
 
     // then: the nested view stays mounted during the removal
@@ -405,7 +405,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     childRenderType = nil
 
     // when: scrolling back revives the nested view before its removal completes
-    parent.setContentOffset(.zero)
+    parent.contentOffset = .zero
     parent.layoutIfNeeded()
 
     // then: the host's scroll decision caps the nested view's own behavior, so the reused row snaps to its new

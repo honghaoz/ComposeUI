@@ -93,11 +93,11 @@ public extension RenderableTransition {
             case .top:
               startFrame = targetFrame.translate(dy: -targetFrame.maxY - overshoot)
             case .bottom:
-              startFrame = targetFrame.translate(dy: context.contentView.bounds().height - targetFrame.minY + overshoot)
+              startFrame = targetFrame.translate(dy: context.contentView.visibleSize.height - targetFrame.minY + overshoot)
             case .left:
               startFrame = targetFrame.translate(dx: -targetFrame.maxX - overshoot)
             case .right:
-              startFrame = targetFrame.translate(dx: context.contentView.bounds().width - targetFrame.minX + overshoot)
+              startFrame = targetFrame.translate(dx: context.contentView.visibleSize.width - targetFrame.minX + overshoot)
             }
             startPosition = layer.position(from: startFrame)
           }
@@ -130,11 +130,11 @@ public extension RenderableTransition {
           case .top:
             targetFrame = currentFrame.translate(dy: -currentFrame.maxY - overshoot)
           case .bottom:
-            targetFrame = currentFrame.translate(dy: context.contentView.bounds().height - currentFrame.minY + overshoot)
+            targetFrame = currentFrame.translate(dy: context.contentView.visibleSize.height - currentFrame.minY + overshoot)
           case .left:
             targetFrame = currentFrame.translate(dx: -currentFrame.maxX - overshoot)
           case .right:
-            targetFrame = currentFrame.translate(dx: context.contentView.bounds().width - currentFrame.minX + overshoot)
+            targetFrame = currentFrame.translate(dx: context.contentView.visibleSize.width - currentFrame.minX + overshoot)
           }
 
           guard timing.timing.duration > 0 || timing.delay > 0 else {

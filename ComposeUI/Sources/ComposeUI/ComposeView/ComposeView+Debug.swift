@@ -55,7 +55,7 @@ public extension ComposeView {
       case renderDidReceiveRenderableItems(renderableItems: [RenderableItem], contentSize: CGSize)
 
       /// The scrollable behavior has been updated.
-      case renderDidUpdateScrollableBehavior(isScrollable: Bool, alwaysBounceHorizontal: Bool, alwaysBounceVertical: Bool)
+      case renderDidUpdateScrollableBehavior(isScrollEnabled: Bool, alwaysBounceHorizontal: Bool, alwaysBounceVertical: Bool)
 
       /// The clipping behavior has been updated.
       case renderDidUpdateClippingBehavior(clipsToBounds: Bool)

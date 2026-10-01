@@ -851,7 +851,7 @@ class LabelNodeTests: XCTestCase {
   }
 
   private func firstBaseTextView(in view: ComposeView) -> BaseTextView? {
-    view.contentView().subviews.compactMap { $0 as? BaseTextView }.first
+    view.contentContainerView.subviews.compactMap { $0 as? BaseTextView }.first
   }
 }
 

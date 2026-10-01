@@ -431,7 +431,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     // then: the prepared content remains unapplied
     expect(child.refreshCount) == 1
     expect(hostedView) == nil
-    expect(child.contentView().layer().sublayers?.isEmpty ?? true) == true
+    expect(child.contentContainerView.layer().sublayers?.isEmpty ?? true) == true
 
     // when: a later request allows the base implementation to render after external data changes
     width = 140
@@ -446,7 +446,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(child.lastAnimated) == false
     expect(renderedEvaluation) === evaluation
     expect(host.bounds.size) == CGSize(width: 80, height: 50)
-    expect(host.content.sizeThatFits(child.bounds().size)) == CGSize(width: 80, height: 50)
+    expect(host.content.sizeThatFits(child.visibleSize)) == CGSize(width: 80, height: 50)
 
     // when: the child refreshes after consuming the prepared evaluation
     child.refresh(animated: false)
@@ -456,7 +456,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(renderedEvaluation) !== evaluation
     expect(hostedView) === host
     expect(host.bounds.size) == CGSize(width: 140, height: 50)
-    expect(host.content.sizeThatFits(child.bounds().size)) == CGSize(width: 140, height: 50)
+    expect(host.content.sizeThatFits(child.visibleSize)) == CGSize(width: 140, height: 50)
   }
 
   func test_refreshOverride_appliesReplacementSuppliedAfterSuper() throws {
@@ -487,7 +487,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(colors) == [ComposeUI.Color.red.cgColor, ComposeUI.Color.blue.cgColor]
     expect(child.refreshCount) == 2
     expect(child.lastAnimated) == false
-    expect(child.contentView().layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
+    expect(child.contentContainerView.layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
   }
 
   func test_refreshOverride_replacementSuppliedBeforeSuper_supersedesOriginalContent() throws {
@@ -518,8 +518,8 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(colors.isEmpty) == false
     expect(colors.contains(ComposeUI.Color.red.cgColor)) == false
     expect(child.refreshCount) == 2
-    expect(child.contentView().layer().sublayers?.count) == 1
-    expect(child.contentView().layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
+    expect(child.contentContainerView.layer().sublayers?.count) == 1
+    expect(child.contentContainerView.layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
   }
 
   func test_refreshOverrideWithoutSuper_appliesReplacementSuppliedByOverride() throws {
@@ -536,9 +536,9 @@ class ComposeView_PreparedContentTests: XCTestCase {
     child.setPreparedContent(ColorNode(.red), contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled)
 
     // then: the replacement renders instead of the superseded content
-    expect(child.contentView().layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
+    expect(child.contentContainerView.layer().sublayers?.first?.backgroundColor) == ComposeUI.Color.blue.cgColor
     expect(child.refreshCount) == 2
-    expect(child.contentView().layer().sublayers?.count) == 1
+    expect(child.contentContainerView.layer().sublayers?.count) == 1
   }
 
   func test_refreshOverride_replacementKeepsItsOwnAnimationDecision() throws {
@@ -603,7 +603,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     child.callsSuper = false
     child.setPreparedContent(ColorNode(.blue), contentEvaluation: preparedEvaluation, animationDecision: ComposeView.AnimationDecision.disabled)
     expect(child.refreshCount) == 1
-    expect(child.contentView().layer().sublayers?.isEmpty ?? true) == true
+    expect(child.contentContainerView.layer().sublayers?.isEmpty ?? true) == true
 
     // when: the application replaces the builder before the prepared content is applied
     child.callsSuper = true
@@ -620,7 +620,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
     expect(child.refreshCount) == 2
     expect(layer?.backgroundColor) == ComposeUI.Color.green.cgColor
     expect(renderedEvaluation) !== preparedEvaluation
-    expect(child.contentView().layer().sublayers?.count) == 1
+    expect(child.contentContainerView.layer().sublayers?.count) == 1
   }
 }
 

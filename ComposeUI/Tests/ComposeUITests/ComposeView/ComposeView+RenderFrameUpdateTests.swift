@@ -65,7 +65,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(tracked.frame) == CGRect(x: 0, y: 0, width: 100, height: 50)
 
     // when: scroll a little, the tracking row stays visible and its content-space frame is unchanged
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: the reused renderable still has the correct frame
@@ -87,7 +87,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     tracked.resetFrameSetCount()
 
     // when: scroll a little, the tracking row stays visible and its content-space frame is unchanged
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: the frame did not change, so the render pass should not have re-applied it
@@ -115,7 +115,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     tracked.resetFrameSetCount()
 
     // when: scroll a little, the tracking row stays visible and its content-space frame is unchanged
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: the frame is recognized as unchanged despite the imprecise derived frame, so it is not re-applied
@@ -294,7 +294,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(tracked.frame) == CGRect(x: 0, y: 10, width: 100, height: 50)
 
     // when: scrolling a little, the row stays visible and keeps its content-space frame
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: the animated scroll pass adds no frame animations to the reused row
@@ -320,7 +320,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(CATransform3DIsIdentity(layer.transform)) == false
 
     // when: the layer is reused via scroll
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: the render pass resets the transform to identity before applying the frame
@@ -340,7 +340,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(CATransform3DIsIdentity(layer.transform)) == true
 
     // when: the layer is reused via scroll
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: an already-identity transform stays identity
@@ -469,7 +469,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     tracked.resetFrameSetCount()
 
     // when: the row is reused by a scroll and by a refresh
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
     view.refresh(animated: false)
 

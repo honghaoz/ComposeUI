@@ -481,7 +481,7 @@ open class ComposeView: BaseScrollView {
     /// The view is scrollable if the content is larger than the view's bounds. Otherwise, the view is not scrollable.
     case auto
 
-    /// The view does not modify scroll settings. `isScrollable` and `alwaysBounceHorizontal`/`alwaysBounceVertical` are managed by you.
+    /// The view does not modify scroll settings. `isScrollEnabled` and `alwaysBounceHorizontal`/`alwaysBounceVertical` are managed by you.
     case manual
 
     /// The view is always scrollable. The view will always bounce.
@@ -1000,33 +1000,33 @@ open class ComposeView: BaseScrollView {
     }
 
     // set content size
-    setContentSize(roundedContentSize)
+    self.contentSize = roundedContentSize
 
     // update scrollable behavior
     switch scrollBehavior {
     case .auto:
-      isScrollable = overflowsHorizontally || overflowsVertically
+      isScrollEnabled = overflowsHorizontally || overflowsVertically
       alwaysBounceHorizontal = false
       alwaysBounceVertical = false
     case .manual:
       break
     case .always:
-      isScrollable = true
+      isScrollEnabled = true
       alwaysBounceHorizontal = true
       alwaysBounceVertical = true
     case .never:
-      isScrollable = false
+      isScrollEnabled = false
       alwaysBounceHorizontal = false
       alwaysBounceVertical = false
     }
 
     #if DEBUG
-    debug?.onEvent(.renderDidUpdateScrollableBehavior(isScrollable: isScrollable, alwaysBounceHorizontal: alwaysBounceHorizontal, alwaysBounceVertical: alwaysBounceVertical))
+    debug?.onEvent(.renderDidUpdateScrollableBehavior(isScrollEnabled: isScrollEnabled, alwaysBounceHorizontal: alwaysBounceHorizontal, alwaysBounceVertical: alwaysBounceVertical))
     #endif
 
     switch clippingBehavior {
     case .auto:
-      clipsToBounds = isScrollable
+      clipsToBounds = isScrollEnabled
     case .manual:
       break
     case .always:
@@ -1074,7 +1074,7 @@ open class ComposeView: BaseScrollView {
     // updating the content size or the scroll indicators can move the scroll offset: on AppKit, hiding a legacy
     // scroller grows the clip view, which can clamp the offset. so read the offset after both, to render the viewport
     // the view ends up with.
-    bounds.origin = contentOffset()
+    bounds.origin = contentOffset
 
     if let willRenderHandler {
       willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
@@ -1420,7 +1420,7 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.willUpdate?(renderable, renderableUpdateContext)
 
-        renderable.addToParent(contentView())
+        renderable.addToParent(contentContainerView)
         renderable.assertIdentityTransform()
         renderable.setFrame(newFrame)
 
@@ -1549,7 +1549,7 @@ open class ComposeView: BaseScrollView {
   /// Returns the bounds used for layout and rendering.
   private func renderBounds() -> CGRect {
     #if canImport(AppKit)
-    // a legacy scroller shrinks the clip view (`bounds()`), so the size comes from the view's bounds inside the border,
+    // a legacy scroller shrinks the clip view (`visibleSize`), so the size comes from the view's bounds inside the border,
     // where AppKit tiles the clip view without scrollers. it then depends only on the bounds, the border, and the
     // magnification, so showing or hiding a scroller never changes the layout.
     let borderWidth: CGFloat
@@ -1571,11 +1571,11 @@ open class ComposeView: BaseScrollView {
     let pixelsPerUnitY = hypot(unitY.width, unitY.height)
     let width = (max(self.bounds.width - 2 * borderWidth, 0) * pixelsPerUnitX).rounded() / pixelsPerUnitX
     let height = (max(self.bounds.height - 2 * borderWidth, 0) * pixelsPerUnitY).rounded() / pixelsPerUnitY
-    return CGRect(origin: bounds().origin, size: CGSize(width: width / magnification, height: height / magnification))
+    return CGRect(origin: contentOffset, size: CGSize(width: width / magnification, height: height / magnification))
     #endif
 
     #if canImport(UIKit)
-    return bounds()
+    return bounds
     #endif
   }
 

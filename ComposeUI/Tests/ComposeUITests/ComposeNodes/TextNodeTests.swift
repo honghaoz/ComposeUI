@@ -346,7 +346,7 @@ class TextNodeTests: XCTestCase {
     #endif
 
     // when: the reused text view scrolls
-    contentView.setContentOffset(CGPoint(x: 0, y: 20))
+    contentView.contentOffset = CGPoint(x: 0, y: 20)
     contentView.layoutIfNeeded()
 
     // then: scrolling preserves the selection and edited text

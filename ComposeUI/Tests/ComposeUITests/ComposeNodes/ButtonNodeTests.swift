@@ -234,7 +234,7 @@ class ButtonNodeTests: XCTestCase {
     )
     button.refresh(animated: false)
 
-    let layer = try (button.contentView().layer().sublayers?.first).unwrap()
+    let layer = try (button.contentContainerView.layer().sublayers?.first).unwrap()
     var node = ButtonNode(
       content: { _ in
         ColorNode(.blue)
@@ -267,7 +267,7 @@ class ButtonNodeTests: XCTestCase {
     // then: the new content and handler replace the prior configuration
     expect(layer.backgroundColor).toEventually(beEqual(to: Color.blue.cgColor))
     expect(action) == "new double tap"
-    expect(button.contentView().layer().sublayers?.first) === layer
+    expect(button.contentContainerView.layer().sublayers?.first) === layer
   }
 
   func test_boundsChange_preservesPressedContentAndNormalMeasurement() throws {
@@ -413,7 +413,7 @@ class ButtonNodeTests: XCTestCase {
     let button = try renderedButton.unwrap()
     button.setNeedsLayout()
     button.layoutIfNeeded()
-    let layer = try (button.contentView().layer().sublayers?.first).unwrap()
+    let layer = try (button.contentContainerView.layer().sublayers?.first).unwrap()
 
     // when: new data is supplied without a refresh and the parent resizes
     generation = 2

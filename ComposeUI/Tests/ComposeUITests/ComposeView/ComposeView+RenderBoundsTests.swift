@@ -62,7 +62,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     #if canImport(AppKit)
     view.scrollIndicatorBehavior = .auto
-    // use legacy scrollers so the scroller thickness affects bounds().
+    // use legacy scrollers so the scroller thickness affects the visible size.
     view.scrollerStyle = .legacy
     view.hasHorizontalScroller = true
     view.hasVerticalScroller = true
@@ -75,16 +75,17 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.layoutIfNeeded()
 
     // then: the view is rendered with the expected bounds
+    expect(view.contentOffset) == .zero
     #if canImport(AppKit)
-    // after layout, the bounds() should consider the scrollers
+    // after layout, the visible size should consider the scrollers
     if #available(macOS 26.0, *) {
-      expect(view.bounds()) == CGRect(x: 0, y: 0, width: 103, height: 63)
+      expect(view.visibleSize) == CGSize(width: 103, height: 63)
     } else {
-      expect(view.bounds()) == CGRect(x: 0, y: 0, width: 105, height: 65)
+      expect(view.visibleSize) == CGSize(width: 105, height: 65)
     }
     #endif
     #if canImport(UIKit)
-    expect(view.bounds()) == CGRect(x: 0, y: 0, width: 120, height: 80)
+    expect(view.visibleSize) == CGSize(width: 120, height: 80)
     #endif
 
     expect(updateCount) == 1
@@ -117,7 +118,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
 
     // when: adjust scroll position and layout again
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: should update
@@ -152,10 +153,10 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     useLegacyScrollers(view)
     view.refresh(animated: false)
 
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.layoutIfNeeded()
     expect(view.hasHorizontalScroller) == true
-    expect(view.contentOffset()) == CGPoint(x: 0, y: 200)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 200)
 
     // when: a refresh shortens the rows, so the clip view clamps the offset while the horizontal scroller shows, and
     // fits them horizontally, which hides the scroller and clamps the offset again
@@ -164,7 +165,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // then: the pass renders the rows at the offset the view ends up with
     expect(view.hasHorizontalScroller) == false
-    expect(view.contentOffset()) == CGPoint(x: 0, y: 150)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 150)
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 150, width: 100, height: 100)
     expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 100, height: 10) }
   }
@@ -183,10 +184,10 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     useLegacyScrollers(view)
     view.refresh(animated: false)
 
-    view.setContentOffset(CGPoint(x: 200, y: 0))
+    view.contentOffset = CGPoint(x: 200, y: 0)
     view.layoutIfNeeded()
     expect(view.hasVerticalScroller) == true
-    expect(view.contentOffset()) == CGPoint(x: 200, y: 0)
+    expect(view.contentOffset) == CGPoint(x: 200, y: 0)
 
     // when: a refresh narrows the columns, so the clip view clamps the offset while the vertical scroller shows, and
     // fits them vertically, which hides the scroller and clamps the offset again
@@ -195,7 +196,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // then: the pass renders the columns at the offset the view ends up with
     expect(view.hasVerticalScroller) == false
-    expect(view.contentOffset()) == CGPoint(x: 150, y: 0)
+    expect(view.contentOffset) == CGPoint(x: 150, y: 0)
     expect(view.test.lastRenderBounds) == CGRect(x: 150, y: 0, width: 100, height: 100)
     expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: CGFloat($0) * 10, y: 0, width: 10, height: 100) }
   }
@@ -214,10 +215,10 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     useLegacyScrollers(view)
     view.refresh(animated: false)
 
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.layoutIfNeeded()
     expect(view.hasHorizontalScroller) == false
-    expect(view.contentOffset()) == CGPoint(x: 0, y: 200)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 200)
 
     // when: a refresh shortens the rows, so the clip view clamps the offset, and widens them, which shows the
     // horizontal scroller and shrinks the clip view
@@ -226,7 +227,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // then: the pass renders the rows at the offset the view ends up with
     expect(view.hasHorizontalScroller) == true
-    expect(view.contentOffset()) == CGPoint(x: 0, y: 150)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 150)
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 150, width: 100, height: 100)
     expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
   }
@@ -253,11 +254,11 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // when: scroll to the end, which the shown scrollers put a scroller thickness further than without them
     let maxOffsetY = view.maxOffsetY
-    view.setContentOffset(CGPoint(x: 0, y: maxOffsetY))
+    view.contentOffset = CGPoint(x: 0, y: maxOffsetY)
     view.layoutIfNeeded()
 
     // then: the view stays at the end, rendered once for the full view size, with the rows that fill the viewport
-    expect(view.contentOffset()) == CGPoint(x: 0, y: maxOffsetY)
+    expect(view.contentOffset) == CGPoint(x: 0, y: maxOffsetY)
     expect(renderBounds) == [CGRect(x: 0, y: maxOffsetY, width: 100, height: 100)]
     expect(renderedFrames(in: view)) == (21 ..< 30).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
   }
@@ -284,11 +285,11 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     }
 
     // when: scroll sideways within that thickness
-    view.setContentOffset(CGPoint(x: 10, y: 50))
+    view.contentOffset = CGPoint(x: 10, y: 50)
     view.layoutIfNeeded()
 
     // then: the view stays where it's scrolled to, rendered once for the full view size
-    expect(view.contentOffset()) == CGPoint(x: 10, y: 50)
+    expect(view.contentOffset) == CGPoint(x: 10, y: 50)
     expect(renderBounds) == [CGRect(x: 10, y: 50, width: 100, height: 100)]
   }
 
@@ -305,9 +306,9 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     useLegacyScrollers(view)
     view.refresh(animated: false)
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.layoutIfNeeded()
-    expect(view.contentOffset()) == CGPoint(x: 0, y: 200)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 200)
 
     var renderBounds: [CGRect] = []
     view.onDidRender { _, context in
@@ -322,7 +323,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // then: the view renders once, at the new end, for the full view size
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == true
-    expect(view.contentOffset()) == CGPoint(x: 0, y: view.maxOffsetY)
+    expect(view.contentOffset) == CGPoint(x: 0, y: view.maxOffsetY)
     expect(renderBounds) == [CGRect(x: 0, y: view.maxOffsetY, width: 100, height: 100)]
   }
 
@@ -391,7 +392,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // then: the content lays out for the area inside the tiled border, so it scrolls, with both scrollers shown
     expect(view.test.lastRenderBounds?.size) == CGSize(width: 236, height: 176)
-    expect(view.isScrollable) == true
+    expect(view.isScrollEnabled) == true
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == true
 
@@ -514,9 +515,9 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // then: the rows lay out for the size AppKit rounds the clip view down to, so the content is no wider than the
     // visible area, and only the vertical scroller shows
-    expect(view.bounds().size) == CGSize(width: 99, height: 99)
+    expect(view.visibleSize) == CGSize(width: 99, height: 99)
     expect(view.test.lastRenderBounds?.size) == CGSize(width: 99, height: 99)
-    expect(view.contentSize()) == CGSize(width: 99, height: 400)
+    expect(view.contentSize) == CGSize(width: 99, height: 400)
     expect(view.hasVerticalScroller) == true
     expect(view.hasHorizontalScroller) == false
   }
@@ -536,9 +537,9 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     // then: the content lays out for the size AppKit rounds the clip view up to, which it fits, so the view neither
     // scrolls nor shows scrollers
-    expectSize(view.bounds().size, approximatelyEquals: CGSize(width: 100, height: 100))
+    expectSize(view.visibleSize, approximatelyEquals: CGSize(width: 100, height: 100))
     expectSize(view.test.lastRenderBounds?.size, approximatelyEquals: CGSize(width: 100, height: 100))
-    expect(view.isScrollable) == false
+    expect(view.isScrollEnabled) == false
     expect(view.hasVerticalScroller) == false
     expect(view.hasHorizontalScroller) == false
   }
@@ -562,7 +563,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
       // then: the content lays out for the clip view's size, so the view scrolls exactly when the content doesn't fit it
       let clipSize = view.contentView.frame.size
       expectSize(view.test.lastRenderBounds?.size, approximatelyEquals: clipSize)
-      expect(view.isScrollable) == (contentLength > clipSize.width)
+      expect(view.isScrollEnabled) == (contentLength > clipSize.width)
     }
   }
 
@@ -598,7 +599,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
       }
     }
     view.frame = CGRect(x: 150, y: 150, width: 200, height: 100)
-    parent.contentView().addSubview(view)
+    parent.contentContainerView.addSubview(view)
     view.frameRotation = 30
 
     // when: the view refreshes
@@ -625,14 +626,14 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     }
     view.frame = CGRect(x: 150, y: 150, width: 200, height: 100)
     useLegacyScrollers(view)
-    parent.contentView().addSubview(view)
+    parent.contentContainerView.addSubview(view)
     view.frameRotation = 30
 
     // when: the view refreshes
     view.refresh(animated: false)
 
     // then: the content fits, so the view neither scrolls nor shows scrollers, and its document is the view's size
-    expect(view.isScrollable) == false
+    expect(view.isScrollEnabled) == false
     expect(view.hasHorizontalScroller) == false
     expect(view.hasVerticalScroller) == false
     expectSize(view.contentSize, approximatelyEquals: CGSize(width: 200, height: 100))
@@ -650,9 +651,9 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     useLegacyScrollers(view)
     view.refresh(animated: false)
-    view.setContentOffset(CGPoint(x: 0, y: 290))
+    view.contentOffset = CGPoint(x: 0, y: 290)
     view.layoutIfNeeded()
-    expect(view.contentOffset()) == CGPoint(x: 0, y: 290)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 290)
 
     var renderBounds: [CGRect] = []
     view.onDidRender { _, context in
@@ -665,7 +666,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.layoutIfNeeded()
 
     // then: the view renders once, after the tiling, for the new size at the clamped offset
-    expect(view.contentOffset()) == CGPoint(x: 0, y: view.maxOffsetY)
+    expect(view.contentOffset) == CGPoint(x: 0, y: view.maxOffsetY)
     expect(renderBounds) == [CGRect(x: 0, y: view.maxOffsetY, width: 140, height: 140)]
   }
 
@@ -677,7 +678,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
   /// The frames of the rendered layers, ordered from top to bottom, then from left to right.
   private func renderedFrames(in view: ComposeView) -> [CGRect] {
-    let frames = view.contentView().layer?.sublayers?.map(\.frame) ?? []
+    let frames = view.contentContainerView.layer?.sublayers?.map(\.frame) ?? []
     return frames.sorted { ($0.minY, $0.minX) < ($1.minY, $1.minX) }
   }
 

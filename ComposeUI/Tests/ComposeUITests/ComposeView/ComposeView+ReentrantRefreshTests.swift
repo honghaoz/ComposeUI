@@ -110,7 +110,7 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
       expect(contentMakeCount) == 2
       expect(layer) === originalLayer
       expect(originalLayer.backgroundColor) == Color.red.cgColor
-      expect(composeView.contentView().layer().sublayers?.count) == 1
+      expect(composeView.contentContainerView.layer().sublayers?.count) == 1
 
       // when: the run loop performs the deferred refresh
       var isDrained = false
@@ -122,7 +122,7 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
       expect(contentMakeCount) == 3
       expect(layer) === originalLayer
       expect(originalLayer.backgroundColor) == Color.blue.cgColor
-      expect(composeView.contentView().layer().sublayers?.count) == 1
+      expect(composeView.contentContainerView.layer().sublayers?.count) == 1
     }
   }
 

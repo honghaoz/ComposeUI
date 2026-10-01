@@ -103,7 +103,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     hostWindow?.displayIfNeeded()
     #endif
 
-    let contentView: View = view.contentView()
+    let contentView = view.contentContainerView
     let ids = recorder.renderableItemIds
 
     // all renderables must be in the hierarchy
@@ -223,7 +223,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     var offset: CGFloat = 0
     for _ in 0 ..< 30 {
       offset += 35
-      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.contentOffset = CGPoint(x: 0, y: offset)
       view.layoutIfNeeded()
       expectHierarchyMatchesItemOrder(view, recorder)
     }
@@ -243,7 +243,7 @@ class ComposeView_ZOrderTests: XCTestCase {
 
     // start scrolled down, then scroll up so that new rows enter at the back of the z-order
     var offset: CGFloat = 1050
-    view.setContentOffset(CGPoint(x: 0, y: offset))
+    view.contentOffset = CGPoint(x: 0, y: offset)
     view.layoutIfNeeded()
     expectHierarchyMatchesItemOrder(view, recorder)
 
@@ -251,7 +251,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     // then: the hierarchy matches the items order after each step
     for _ in 0 ..< 30 {
       offset -= 35
-      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.contentOffset = CGPoint(x: 0, y: offset)
       view.layoutIfNeeded()
       expectHierarchyMatchesItemOrder(view, recorder)
     }
@@ -412,7 +412,7 @@ class ComposeView_ZOrderTests: XCTestCase {
 
     // then: the in-transition removing views keep their z-positions relative to the reused views:
     // "r1" stays at the back, "r2" stays above "b" and below "c"
-    let subviews = view.contentView().subviews
+    let subviews = view.contentContainerView.subviews
     guard let removingIndex1 = subviews.firstIndex(of: removingView1),
           let removingIndex2 = subviews.firstIndex(of: removingView2),
           let indexB = subviews.firstIndex(of: viewB),
@@ -458,7 +458,7 @@ class ComposeView_ZOrderTests: XCTestCase {
     let expectedLayers = expectedIds.compactMap { recorder.renderableMap[$0]?.layer }
     expect(expectedLayers.count) == 5
     let renderableLayerIds = Set(expectedLayers.map { ObjectIdentifier($0) })
-    let actualLayers = Self.effectiveRenderOrder(of: view.contentView().layer()).filter { renderableLayerIds.contains(ObjectIdentifier($0)) }
+    let actualLayers = Self.effectiveRenderOrder(of: view.contentContainerView.layer()).filter { renderableLayerIds.contains(ObjectIdentifier($0)) }
     expect(actualLayers.map { ObjectIdentifier($0) }) == expectedLayers.map { ObjectIdentifier($0) }
   }
 

@@ -1203,18 +1203,18 @@ class ComposeView_RenderReuseTests: XCTestCase {
   private func scrollDown(_ view: ComposeView) {
     var offset: CGFloat = 0
     while offset <= Constants.maxOffset {
-      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.contentOffset = CGPoint(x: 0, y: offset)
       view.layoutIfNeeded()
       offset += Constants.rowHeight
     }
   }
 
   private func visibleRowViews(in view: ComposeView) -> [ReuseTrackingView] {
-    view.contentView().subviews.compactMap { $0 as? ReuseTrackingView }
+    view.contentContainerView.subviews.compactMap { $0 as? ReuseTrackingView }
   }
 
   private func visibleRowTypeNames(in view: ComposeView) -> Set<String> {
-    Set(view.contentView().subviews.map { String(describing: type(of: $0)) })
+    Set(view.contentContainerView.subviews.map { String(describing: type(of: $0)) })
   }
 
   private func firstRenderableItem(of node: some ComposeNode) -> RenderableItem? {
@@ -1238,15 +1238,15 @@ class ComposeView_RenderReuseTests: XCTestCase {
   }
 
   private func firstBaseTextView(in view: ComposeView) -> BaseTextView? {
-    view.contentView().subviews.compactMap { $0 as? BaseTextView }.first
+    view.contentContainerView.subviews.compactMap { $0 as? BaseTextView }.first
   }
 
   private func contentSublayers(in view: ComposeView) -> [CALayer]? {
     #if canImport(AppKit)
-    return view.contentView().layer?.sublayers
+    return view.contentContainerView.layer?.sublayers
     #endif
     #if canImport(UIKit)
-    return view.contentView().layer.sublayers
+    return view.contentContainerView.layer.sublayers
     #endif
   }
 }

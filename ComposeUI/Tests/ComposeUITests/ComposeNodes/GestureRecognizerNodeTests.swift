@@ -291,7 +291,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     var renderedGestureView: View?
     var updateType: RenderableUpdateType?
     let contentView = ComposeView { contentView in
-      let isNarrow = contentView.bounds().width < 150
+      let isNarrow = contentView.visibleSize.width < 150
       let color: Color = isNarrow ? .red : .blue
       VStack(alignment: .left) {
         LayerNode()
@@ -373,7 +373,7 @@ class GestureRecognizerNodeTests: XCTestCase {
 
     // when: scrolling with changed data but without an explicit refresh
     additionalTapCount = 1
-    contentView.setContentOffset(CGPoint(x: 0, y: 50))
+    contentView.contentOffset = CGPoint(x: 0, y: 50)
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
@@ -562,7 +562,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     expect(gestureView.layer().backgroundColor) == Color.green.cgColor
 
     // when: scrolling during the active pan
-    contentView.setContentOffset(CGPoint(x: 0, y: 30))
+    contentView.contentOffset = CGPoint(x: 0, y: 30)
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 

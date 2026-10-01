@@ -56,7 +56,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     expect(state.renderCount) == 1 // initial render
 
     // when: the view scrolls
-    view.setContentOffset(CGPoint(x: 0, y: 100))
+    view.contentOffset = CGPoint(x: 0, y: 100)
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
@@ -66,7 +66,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     expect(state.renderCount) == 2 // scroll should trigger render
 
     // when: the view scrolls again
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
@@ -96,7 +96,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     expect(state.renderCount) == 5 // size change should trigger render
 
     // when: the view scrolls after the size change
-    view.setContentOffset(CGPoint(x: 0, y: 110))
+    view.contentOffset = CGPoint(x: 0, y: 110)
     view.setNeedsLayout()
     view.layoutIfNeeded()
 

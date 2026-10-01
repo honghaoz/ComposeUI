@@ -745,10 +745,10 @@ class InnerShadowNodeTests: XCTestCase {
 
     // then: the first inner shadow layer is configured with a full clip mask
     #if canImport(AppKit)
-    let shadowLayer1 = try unwrap(view.contentView().layer?.sublayers?[0])
+    let shadowLayer1 = try unwrap(view.contentContainerView.layer?.sublayers?[0])
     #endif
     #if canImport(UIKit)
-    let shadowLayer1 = try unwrap(view.contentView().layer.sublayers?[0])
+    let shadowLayer1 = try unwrap(view.contentContainerView.layer.sublayers?[0])
     #endif
 
     expect(shadowLayer1.shadowColor) == Color.black.cgColor
@@ -763,10 +763,10 @@ class InnerShadowNodeTests: XCTestCase {
 
     // then: the second inner shadow layer is configured with an inset clip mask
     #if canImport(AppKit)
-    let shadowLayer2 = try unwrap(view.contentView().layer?.sublayers?[1])
+    let shadowLayer2 = try unwrap(view.contentContainerView.layer?.sublayers?[1])
     #endif
     #if canImport(UIKit)
-    let shadowLayer2 = try unwrap(view.contentView().layer.sublayers?[1])
+    let shadowLayer2 = try unwrap(view.contentContainerView.layer.sublayers?[1])
     #endif
 
     expect(shadowLayer2.shadowColor) == Color.black.cgColor

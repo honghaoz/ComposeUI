@@ -68,7 +68,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(layer2Context) == nil
 
     // when: scrolling
-    view.setContentOffset(CGPoint(x: 0, y: 4))
+    view.contentOffset = CGPoint(x: 0, y: 4)
     view.layoutIfNeeded()
 
     // then: reused renderables follow scrolling immediately, and insertion has no frame animation
@@ -393,7 +393,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(layer2Context) == nil
 
     // when: scrolling
-    view.setContentOffset(CGPoint(x: 0, y: 4))
+    view.contentOffset = CGPoint(x: 0, y: 4)
     view.layoutIfNeeded()
 
     // then: no animation for scrolling or insertion
@@ -465,7 +465,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     calledPreviousBounds = nil
 
     // when: scrolling to the offset the behavior rejects
-    view.setContentOffset(CGPoint(x: 0, y: 4))
+    view.contentOffset = CGPoint(x: 0, y: 4)
     view.layoutIfNeeded()
 
     // then: no animation for scrolling or insertion, the behavior receives the previous bounds
@@ -478,7 +478,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     calledPreviousBounds = nil
 
     // when: scrolling to an offset the behavior accepts
-    view.setContentOffset(CGPoint(x: 0, y: 5))
+    view.contentOffset = CGPoint(x: 0, y: 5)
     view.layoutIfNeeded()
 
     // then: has animation for scrolling, the behavior receives the previous bounds
@@ -491,7 +491,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     calledPreviousBounds = nil
 
     // when: scrolling again
-    view.setContentOffset(CGPoint(x: 0, y: 6))
+    view.contentOffset = CGPoint(x: 0, y: 6)
     view.layoutIfNeeded()
 
     // then: has animation for scrolling, the behavior receives the previous bounds
@@ -546,7 +546,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     }
 
     // when: one scroll removes a row, reuses a row, and reveals a row
-    view.setContentOffset(CGPoint(x: 0, y: 100))
+    view.contentOffset = CGPoint(x: 0, y: 100)
     view.layoutIfNeeded()
 
     // then: the behavior is asked once and its answer applies to the removal, the reused row's update, and the insertion
@@ -563,7 +563,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     expect(thirdRow.animation(forKey: "opacity")) != nil
 
     // when: the next scroll removes, reuses, and reveals again
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.layoutIfNeeded()
 
     // then: the flipped answer applies to the whole pass, so nothing animates
@@ -688,7 +688,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
 
     #if canImport(AppKit)
     view.scrollIndicatorBehavior = .auto
-    // use legacy scrollers so the scroller thickness affects bounds().
+    // use legacy scrollers so the scroller thickness affects the visible size.
     view.scrollerStyle = .legacy
     view.hasHorizontalScroller = true
     view.hasVerticalScroller = true
@@ -696,36 +696,38 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
 
     view.layoutIfNeeded()
 
+    expect(view.contentOffset) == .zero
     #if canImport(AppKit)
     // verify the scrollers does affect the bounds
     if #available(macOS 26.0, *) {
-      expect(view.bounds()) == CGRect(x: 0, y: 0, width: 103, height: 63)
+      expect(view.visibleSize) == CGSize(width: 103, height: 63)
     } else {
-      expect(view.bounds()) == CGRect(x: 0, y: 0, width: 105, height: 65)
+      expect(view.visibleSize) == CGSize(width: 105, height: 65)
     }
     #endif
     #if canImport(UIKit)
-    expect(view.bounds()) == CGRect(x: 0, y: 0, width: 120, height: 80)
+    expect(view.visibleSize) == CGSize(width: 120, height: 80)
     #endif
 
     // with default animation behavior
     view.animationBehavior = .default
 
     // when: scroll the view
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: the bounds reflect the scroll while the reused renderable's update stays immediate
+    expect(view.contentOffset) == CGPoint(x: 0, y: 10)
     #if canImport(AppKit)
     // verify the scrollers does affect the bounds
     if #available(macOS 26.0, *) {
-      expect(view.bounds()) == CGRect(x: 0, y: 10, width: 103, height: 63)
+      expect(view.visibleSize) == CGSize(width: 103, height: 63)
     } else {
-      expect(view.bounds()) == CGRect(x: 0, y: 10, width: 105, height: 65)
+      expect(view.visibleSize) == CGSize(width: 105, height: 65)
     }
     #endif
     #if canImport(UIKit)
-    expect(view.bounds()) == CGRect(x: 0, y: 10, width: 120, height: 80)
+    expect(view.visibleSize) == CGSize(width: 120, height: 80)
     #endif
 
     // the reused renderable's update does not animate
@@ -738,7 +740,7 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       return false
     }
 
-    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
 
     // then: the render type should have correct previous bounds

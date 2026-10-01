@@ -752,10 +752,10 @@ class DropShadowNodeTests: XCTestCase {
 
     // then: the first shadow layer is configured with the shadow path
     #if canImport(AppKit)
-    let shadowLayer1 = try unwrap(view.contentView().layer?.sublayers?.first)
+    let shadowLayer1 = try unwrap(view.contentContainerView.layer?.sublayers?.first)
     #endif
     #if canImport(UIKit)
-    let shadowLayer1 = try unwrap(view.contentView().layer.sublayers?.first)
+    let shadowLayer1 = try unwrap(view.contentContainerView.layer.sublayers?.first)
     #endif
 
     expect(shadowLayer1.shadowColor) == Color.black.cgColor
@@ -766,10 +766,10 @@ class DropShadowNodeTests: XCTestCase {
 
     // then: the second shadow layer is configured with a cutout mask
     #if canImport(AppKit)
-    let shadowLayer2 = try unwrap(view.contentView().layer?.sublayers?[1])
+    let shadowLayer2 = try unwrap(view.contentContainerView.layer?.sublayers?[1])
     #endif
     #if canImport(UIKit)
-    let shadowLayer2 = try unwrap(view.contentView().layer.sublayers?[1])
+    let shadowLayer2 = try unwrap(view.contentContainerView.layer.sublayers?[1])
     #endif
 
     expect(shadowLayer2.shadowColor) == Color.black.cgColor

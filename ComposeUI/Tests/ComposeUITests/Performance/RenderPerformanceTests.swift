@@ -214,7 +214,7 @@ class RenderPerformanceTests: XCTestCase {
     var offset: CGFloat = 0
     for _ in 0 ..< Constants.scrollSteps {
       offset += Constants.scrollStep
-      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.contentOffset = CGPoint(x: 0, y: offset)
       view.layoutIfNeeded()
     }
 
@@ -310,14 +310,14 @@ class RenderPerformanceTests: XCTestCase {
 
     // when: scrolling continuously for 30 seconds so a sampling profiler can attach
     var offset: CGFloat = 0
-    let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
+    let maxOffset = view.contentSize.height - Constants.viewSize.height - 1000
     let deadline = Date().addingTimeInterval(30)
     while Date() < deadline {
       offset += Constants.scrollStep
       if offset > maxOffset {
         offset = 0
       }
-      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.contentOffset = CGPoint(x: 0, y: offset)
       view.layoutIfNeeded()
     }
   }
@@ -353,14 +353,14 @@ class RenderPerformanceTests: XCTestCase {
 
     // when: scrolling continuously for 30 seconds so a sampling profiler can attach
     var offset: CGFloat = 0
-    let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
+    let maxOffset = view.contentSize.height - Constants.viewSize.height - 1000
     let deadline = Date().addingTimeInterval(30)
     while Date() < deadline {
       offset += Constants.scrollStep
       if offset > maxOffset {
         offset = 0
       }
-      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.contentOffset = CGPoint(x: 0, y: offset)
       view.layoutIfNeeded()
     }
   }
@@ -395,14 +395,14 @@ class RenderPerformanceTests: XCTestCase {
 
     // when: scrolling continuously for 30 seconds so a sampling profiler can attach
     var offset: CGFloat = 0
-    let maxOffset = view.contentSize().height - Constants.viewSize.height - 1000
+    let maxOffset = view.contentSize.height - Constants.viewSize.height - 1000
     let deadline = Date().addingTimeInterval(30)
     while Date() < deadline {
       offset += Constants.scrollStep
       if offset > maxOffset {
         offset = 0
       }
-      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.contentOffset = CGPoint(x: 0, y: offset)
       view.layoutIfNeeded()
     }
   }
@@ -537,7 +537,7 @@ class RenderPerformanceTests: XCTestCase {
     var offset: CGFloat = scrollUp ? maxOffset : 0
     let result = measure(warmup: 20, iterations: 120) { _ in
       offset += scrollUp ? -Constants.scrollStep : Constants.scrollStep
-      view.setContentOffset(CGPoint(x: 0, y: offset)) // on AppKit, this triggers the render synchronously
+      view.contentOffset = CGPoint(x: 0, y: offset) // on AppKit, this triggers the render synchronously
       view.layoutIfNeeded() // on UIKit, this triggers the render
     }
 
@@ -554,7 +554,7 @@ class RenderPerformanceTests: XCTestCase {
       }
     }
     offset += Constants.scrollStep
-    view.setContentOffset(CGPoint(x: 0, y: offset))
+    view.contentOffset = CGPoint(x: 0, y: offset)
     view.layoutIfNeeded()
     #endif
 
