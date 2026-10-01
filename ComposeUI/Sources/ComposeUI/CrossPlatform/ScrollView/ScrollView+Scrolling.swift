@@ -64,22 +64,22 @@ public extension ScrollView {
 
   /// Whether the scroll view can scroll to the left.
   var canScrollToLeft: Bool {
-    contentOffset.x > minOffsetX + pixelLength
+    contentOffset.x > minOffsetX + pixelSize.width
   }
 
   /// Whether the scroll view can scroll to the right.
   var canScrollToRight: Bool {
-    contentOffset.x < maxOffsetX - pixelLength
+    contentOffset.x < maxOffsetX - pixelSize.width
   }
 
   /// Whether the scroll view can scroll to the top.
   var canScrollToTop: Bool {
-    contentOffset.y > minOffsetY + pixelLength
+    contentOffset.y > minOffsetY + pixelSize.height
   }
 
   /// Whether the scroll view can scroll to the bottom.
   var canScrollToBottom: Bool {
-    contentOffset.y < maxOffsetY - pixelLength
+    contentOffset.y < maxOffsetY - pixelSize.height
   }
 
   #if canImport(UIKit)

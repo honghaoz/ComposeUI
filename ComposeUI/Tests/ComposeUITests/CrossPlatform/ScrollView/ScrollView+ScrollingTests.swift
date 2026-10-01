@@ -136,6 +136,93 @@ class ScrollView_ScrollingTests: XCTestCase {
     expect(scrollView.canScrollToBottom) == true
   }
 
+  #if canImport(AppKit)
+  func test_canScroll_magnified_withinAPixelOfAnEdge() {
+    for (magnification, withinAPixel, beyondAPixel) in [(CGFloat(4), CGFloat(0.1), CGFloat(0.3)), (0.25, 1.5, 5)] {
+      // given: a 100 × 100 scroll view showing 2000 × 2000 content, magnified, so that a pixel covers 1 / (scale ×
+      // magnification) points of content: at most 0.25 at 4 times, and at least 2 at a quarter, at 1x or 2x
+      let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      scrollView.contentSize = CGSize(width: 2000, height: 2000)
+      scrollView.magnification = magnification
+
+      // when: the offset is within a pixel of the minimum offset
+      scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + withinAPixel, y: scrollView.minOffsetY + withinAPixel)
+
+      // then: it counts as at the left and top edges
+      expect(scrollView.canScrollToLeft) == false
+      expect(scrollView.canScrollToTop) == false
+
+      // when: the offset is within a pixel of the maximum offset
+      scrollView.contentOffset = CGPoint(x: scrollView.maxOffsetX - withinAPixel, y: scrollView.maxOffsetY - withinAPixel)
+
+      // then: it counts as at the right and bottom edges
+      expect(scrollView.canScrollToRight) == false
+      expect(scrollView.canScrollToBottom) == false
+
+      // when: the offset is more than a pixel from the minimum offset
+      scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + beyondAPixel, y: scrollView.minOffsetY + beyondAPixel)
+
+      // then: it can scroll to the left and to the top
+      expect(scrollView.canScrollToLeft) == true
+      expect(scrollView.canScrollToTop) == true
+
+      // when: the offset is more than a pixel from the maximum offset
+      scrollView.contentOffset = CGPoint(x: scrollView.maxOffsetX - beyondAPixel, y: scrollView.maxOffsetY - beyondAPixel)
+
+      // then: it can scroll to the right and to the bottom
+      expect(scrollView.canScrollToRight) == true
+      expect(scrollView.canScrollToBottom) == true
+    }
+  }
+
+  func test_canScroll_nonUniformlyScaledBounds_usesEachAxisPixel() {
+    // given: a 100 × 100 scroll view showing 2000 × 2000 content, with its bounds scaled 4 times along x and a quarter
+    // along y, so that a pixel covers at most 0.25 points of content along x and at least 2 along y, at 1x or 2x
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 2000, height: 2000)
+    scrollView.scaleUnitSquare(to: NSSize(width: 4, height: 0.25))
+    scrollView.tile()
+
+    // when: the offset is 1.5 points from the minimum offset along both axes
+    scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + 1.5, y: scrollView.minOffsetY + 1.5)
+
+    // then: it can scroll to the left, more than a pixel away along x, and counts as at the top, within a pixel along y
+    expect(scrollView.canScrollToLeft) == true
+    expect(scrollView.canScrollToTop) == false
+
+    // when: the offset is 1.5 points from the maximum offset along both axes
+    scrollView.contentOffset = CGPoint(x: scrollView.maxOffsetX - 1.5, y: scrollView.maxOffsetY - 1.5)
+
+    // then: it can scroll to the right, and counts as at the bottom
+    expect(scrollView.canScrollToRight) == true
+    expect(scrollView.canScrollToBottom) == false
+  }
+
+  func test_canScroll_rotated_withinAPixelOfAnEdge() {
+    // given: a 100 × 100 scroll view showing 2000 × 2000 content, rotated 45 degrees in a window, where converting a
+    // whole size to pixels would mix the axes
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 200, y: 200, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 2000, height: 2000)
+    window.contentView().addSubview(scrollView)
+    scrollView.frameCenterRotation = 45
+
+    // when: the offset is within a pixel of the minimum offset, at any display scale
+    scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + 0.3, y: scrollView.minOffsetY + 0.3)
+
+    // then: it counts as at the left and top edges
+    expect(scrollView.canScrollToLeft) == false
+    expect(scrollView.canScrollToTop) == false
+
+    // when: the offset is more than a pixel from the minimum offset, at any display scale
+    scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + 1.5, y: scrollView.minOffsetY + 1.5)
+
+    // then: it can scroll to the left and to the top
+    expect(scrollView.canScrollToLeft) == true
+    expect(scrollView.canScrollToTop) == true
+  }
+  #endif
+
   // MARK: - Helpers
 
   /// Sets the content offset exactly, since UIKit snaps a set `contentOffset` to whole pixels, while assigning
