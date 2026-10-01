@@ -52,13 +52,16 @@ open class ScrollView: NSScrollView {
 
   /// The offset of the visible area's origin from the content's origin, like `UIScrollView`'s `contentOffset`.
   ///
-  /// Unlike on UIKit, setting it keeps the offset within the scrollable range.
+  /// As on UIKit, setting it keeps the offset as set, even outside the scrollable range.
   public var contentOffset: CGPoint {
     get {
       contentView.bounds.origin
     }
     set {
-      contentView.scroll(newValue)
+      // `NSClipView.scroll(to:)` keeps the point as given, while `NSView.scroll(_:)` clamps it into the scrollable
+      // range and adds floating-point noise
+      contentView.scroll(to: newValue)
+      reflectScrolledClipView(contentView)
     }
   }
 

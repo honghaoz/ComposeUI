@@ -62,6 +62,20 @@ class ScrollViewTests: XCTestCase {
     #endif
   }
 
+  #if canImport(AppKit)
+  func test_contentOffset_fractional() {
+    // given: a 100 × 200 scroll view showing a 300 × 500 content
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
+    scrollView.contentSize = CGSize(width: 300, height: 500)
+
+    // when: setting a fractional content offset
+    scrollView.contentOffset = CGPoint(x: 10.3, y: 20.3)
+
+    // then: the offset reads back exactly as set
+    expect(scrollView.contentOffset) == CGPoint(x: 10.3, y: 20.3)
+  }
+  #endif
+
   func test_contentOffset_outsideScrollableRange() {
     // given: a 100 × 200 scroll view showing a 300 × 500 content
     let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
@@ -70,14 +84,60 @@ class ScrollViewTests: XCTestCase {
     // when: setting a content offset past the start of the horizontal range and the end of the vertical range
     scrollView.contentOffset = CGPoint(x: -50, y: 1000)
 
-    // then: AppKit keeps the offset within the scrollable range, and UIKit keeps it as set
-    #if canImport(AppKit)
-    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 300)
-    #endif
-    #if canImport(UIKit)
+    // then: the offset stays as set
     expect(scrollView.contentOffset) == CGPoint(x: -50, y: 1000)
-    #endif
+
+    // when: the scroll view resizes
+    scrollView.frame.size = CGSize(width: 100, height: 210)
+
+    // then: the offset comes back into the scrollable range
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 290)
   }
+
+  #if canImport(AppKit)
+  func test_contentOffset_outsideScrollableRange_scrollWheel() throws {
+    // given: a 100 × 200 scroll view in a window, showing content 500 tall, so it scrolls 300
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
+    scrollView.contentSize = CGSize(width: 100, height: 500)
+    window.contentView().addSubview(scrollView)
+    let cgEvent = try unwrap(CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -1, wheel2: 0, wheel3: 0))
+    let event = try unwrap(NSEvent(cgEvent: cgEvent))
+
+    // when: the offset is past the end, and the run loop turns
+    scrollView.contentOffset = CGPoint(x: 0, y: 1000)
+    wait(timeout: 0.05)
+
+    // then: the offset stays as set
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 1000)
+
+    // when: the scroll view gets a one-line mouse wheel scroll
+    scrollView.scrollWheel(with: event)
+
+    // then: the offset comes back to the end of the scrollable range, once AppKit applies the scroll on the run loop
+    expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 300)))
+
+    // when: the offset is before the start, and the scroll view gets the scroll again
+    scrollView.contentOffset = CGPoint(x: 0, y: -100)
+    scrollView.scrollWheel(with: event)
+
+    // then: the offset comes back to the start of the scrollable range
+    expect(scrollView.contentOffset).toEventually(beEqual(to: .zero))
+  }
+
+  func test_contentOffset_movesTheScroller() {
+    // given: a 100 × 200 scroll view with a vertical scroller, showing content 500 tall, so it scrolls 300
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
+    scrollView.contentSize = CGSize(width: 100, height: 500)
+    scrollView.hasVerticalScroller = true
+
+    // when: scrolling halfway
+    scrollView.contentOffset = CGPoint(x: 0, y: 150)
+
+    // then: the scroller's knob is halfway along its track
+    expect(scrollView.verticalScroller?.doubleValue) == 0.5
+  }
+  #endif
 
   // MARK: - Content Size
 
@@ -246,9 +306,11 @@ class ScrollViewTests: XCTestCase {
     let cgEvent = try unwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -30, wheel2: 0, wheel3: 0))
     let event = try unwrap(NSEvent(cgEvent: cgEvent))
 
-    // when: scrolling is disabled and the scroll view gets a scroll wheel event
+    // when: scrolling is disabled, the scroll view gets a scroll wheel event, and the run loop turns, which is when
+    // AppKit applies a scroll
     scrollView.isScrollEnabled = false
     scrollView.scrollWheel(with: event)
+    wait(timeout: 0.1)
 
     // then: the event passes to the next responder, and the scroll view doesn't scroll
     expect(container.scrollWheelEventCount) == 1
@@ -258,8 +320,9 @@ class ScrollViewTests: XCTestCase {
     scrollView.isScrollEnabled = true
     scrollView.scrollWheel(with: event)
 
-    // then: the scroll view handles the event instead of passing it on
+    // then: the scroll view scrolls instead of passing the event on
     expect(container.scrollWheelEventCount) == 1
+    expect(scrollView.contentOffset).toEventuallyNot(beEqual(to: .zero))
   }
   #endif
 

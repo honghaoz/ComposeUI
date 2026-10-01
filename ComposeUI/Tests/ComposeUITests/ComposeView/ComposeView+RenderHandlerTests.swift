@@ -311,9 +311,20 @@ class ComposeView_RenderHandlerTests: XCTestCase {
 
     // when: the view is resized
     view.frame.size = CGSize(width: 150, height: 150)
+
+    // then: AppKit renders the resize right away, where the handler moves the offset past the new end, and UIKit waits
+    // for the next layout pass, keeping the offset within the new range until then
+    #if canImport(AppKit)
+    expect(willRenderCallCount) == 3
+    expect(view.contentOffset) == CGPoint(x: 0, y: 100)
+    #endif
+    #if canImport(UIKit)
+    expect(willRenderCallCount) == 2
     expect(view.contentOffset) == CGPoint(x: 0, y: 50) // y: 50 (maxOffsetY) = 200 - 150
+    #endif
     expect(view.visibleSize) == CGSize(width: 150, height: 150)
 
+    // when: the view lays out
     view.layoutIfNeeded()
 
     // then: the will-render handler should be called with the correct arguments
@@ -321,22 +332,13 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(willRenderContentSize) == CGSize(width: 150, height: 200)
     expect(willRenderRenderBounds) == CGRect(x: 0, y: 50, width: 150, height: 150)
     expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 100, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 150, height: 150))
-    #if canImport(AppKit)
-    expect(view.contentOffset.y) == 50 // AppKit doesn't allow over scroll
-    #endif
-    #if canImport(UIKit)
+    // the handler's offset is past the new end, and setting it keeps it as set
     expect(view.contentOffset.y) == 100
-    #endif
 
     expect(eventOrder) == [
       "willRender", "renderItems", "willRender", "renderItems", "willRender", "renderItems",
     ]
-    #if canImport(AppKit)
-    expect(requestedVisibleBounds) == CGRect(x: -25, y: 50, width: 150, height: 150) // AppKit doesn't allow over scroll
-    #endif
-    #if canImport(UIKit)
     expect(requestedVisibleBounds) == CGRect(x: -25, y: 100, width: 150, height: 150)
-    #endif
   }
 
   func test_boundsChange_renderTypeMatchesTheViewportWhenReported() throws {
