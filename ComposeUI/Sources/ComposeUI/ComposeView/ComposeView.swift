@@ -242,6 +242,10 @@ open class ComposeView: BaseScrollView {
     #if canImport(AppKit)
     drawsBackground = false // make the view transparent
     automaticallyAdjustsContentInsets = false
+    // AppKit clamps every way of magnifying to this range, including the animator's `magnify(toFit:)` and
+    // `setMagnification(_:centeredAt:)`, which change the magnification without calling the overrides
+    minMagnification = 1
+    maxMagnification = 1
 
     // set the scroll indicators to be shown by default
     // this is to make the scroll indicators are visible immediately when scrolling for the first time
@@ -769,6 +773,32 @@ open class ComposeView: BaseScrollView {
   /// Keeps the magnification at 1 and asserts, since `ComposeView` doesn't support magnification.
   override public final func magnify(toFit rect: CGRect) {
     ComposeUI.assertFailure("ComposeView doesn't support magnification")
+  }
+
+  /// Always 1, since `ComposeView` doesn't support magnification.
+  ///
+  /// Setting another value asserts and keeps 1.
+  override public final var minMagnification: CGFloat {
+    get {
+      super.minMagnification
+    }
+    set {
+      ComposeUI.assert(newValue == 1, "ComposeView doesn't support magnification")
+      super.minMagnification = 1
+    }
+  }
+
+  /// Always 1, since `ComposeView` doesn't support magnification.
+  ///
+  /// Setting another value asserts and keeps 1.
+  override public final var maxMagnification: CGFloat {
+    get {
+      super.maxMagnification
+    }
+    set {
+      ComposeUI.assert(newValue == 1, "ComposeView doesn't support magnification")
+      super.maxMagnification = 1
+    }
   }
 
   /// Always `.noBorder`, since the content lays out for the view's whole bounds.

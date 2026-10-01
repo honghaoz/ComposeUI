@@ -420,10 +420,12 @@ class ComposeViewTests: XCTestCase {
       ComposeUI.Assert.resetTestAssertionFailureHandler()
     }
 
-    // when: magnification is disallowed and set to 1
+    // when: magnification is disallowed, and the magnification and its range are set to 1
     view.allowsMagnification = false
     view.magnification = 1
     view.setMagnification(1, centeredAt: CGPoint(x: 50, y: 50))
+    view.minMagnification = 1
+    view.maxMagnification = 1
 
     // then: nothing asserts
     expect(assertionMessages) == []
@@ -435,15 +437,72 @@ class ComposeViewTests: XCTestCase {
     expect(assertionMessages) == ["ComposeView doesn't support magnification"]
     expect(view.allowsMagnification) == false
 
+    // when: the magnification range is widened
+    view.minMagnification = 0.25
+    view.maxMagnification = 4
+
+    // then: each asserts, and the range stays at 1
+    expect(assertionMessages) == Array(repeating: "ComposeView doesn't support magnification", count: 3)
+    expect(view.minMagnification) == 1
+    expect(view.maxMagnification) == 1
+
     // when: the view is magnified through each of AppKit's magnifying APIs
     view.magnification = 2
     view.setMagnification(2, centeredAt: CGPoint(x: 50, y: 50))
     view.magnify(toFit: CGRect(x: 0, y: 0, width: 400, height: 400))
 
     // then: each asserts, and the magnification stays 1, so the visible area keeps the view's size
-    expect(assertionMessages) == Array(repeating: "ComposeView doesn't support magnification", count: 4)
+    expect(assertionMessages) == Array(repeating: "ComposeView doesn't support magnification", count: 6)
     expect(view.magnification) == 1
     expect(view.visibleSize) == CGSize(width: 100, height: 100)
+  }
+
+  func test_magnification_animator_staysOne() {
+    // given: a 100 × 100 compose view in a window, showing fifty 10 pt rows, referenced as an `NSScrollView`, where the
+    // animator's magnifying methods don't call the view's overrides
+    let window = TestWindow()
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 50 {
+          LayerNode().frame(width: .flexible, height: 10)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    let scrollView: NSScrollView = view
+
+    ComposeUI.Assert.setTestAssertionFailureHandler { _, _, _, _ in }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    let magnifyingCalls: [(NSScrollView) -> Void] = [
+      { $0.animator().setMagnification(0.25, centeredAt: CGPoint(x: 50, y: 50)) },
+      { $0.animator().magnify(toFit: CGRect(x: 0, y: 0, width: 400, height: 400)) },
+    ]
+    for magnify in magnifyingCalls {
+      // when: the view is magnified through the animator, and the animation finishes
+      var isFinished = false
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = 0.05
+        magnify(scrollView)
+      } completionHandler: {
+        isFinished = true
+      }
+      expect(isFinished).toEventually(beTrue())
+      view.refresh(animated: false)
+
+      // then: the magnification stays 1, so the clip view keeps the view's size, and the rendered rows are the visible
+      // ones at their full width
+      expect(view.magnification) == 1
+      expect(view.contentView.bounds.size) == CGSize(width: 100, height: 100)
+      let visibleBounds = view.contentView.bounds
+      let rowFrames = (view.documentView?.layer?.sublayers ?? []).map(\.frame).filter { $0.height == 10 }
+      let visibleRows = Int((visibleBounds.minY / 10).rounded(.down)) ..< Int((visibleBounds.maxY / 10).rounded(.up))
+      expect(rowFrames.sorted { $0.minY < $1.minY }) == visibleRows.map { CGRect(x: 0, y: CGFloat($0) * 10, width: 100, height: 10) }
+    }
   }
 
   func test_borderType_staysNoBorder() {
