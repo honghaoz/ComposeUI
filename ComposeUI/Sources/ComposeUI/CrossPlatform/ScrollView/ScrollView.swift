@@ -396,10 +396,10 @@ private extension ScrollView {
     let offset = contentOffset
     // AppKit aligns where scrolling comes to rest to the window's pixels, which can leave the offset up to about a
     // pixel past an end of the exact range, so an offset within a pixel of the range counts as inside it
-    let pixel = pixelLength
+    let pixel = pixelSize
     let minX = minOffsetX
     let minY = minOffsetY
-    return offset.x < minX - pixel || offset.x > max(minX, maxOffsetX) + pixel || offset.y < minY - pixel || offset.y > max(minY, maxOffsetY) + pixel
+    return offset.x < minX - pixel.width || offset.x > max(minX, maxOffsetX) + pixel.width || offset.y < minY - pixel.height || offset.y > max(minY, maxOffsetY) + pixel.height
   }
 
   /// Whether the view has a parent scroll view that satisfies the condition.
@@ -451,8 +451,21 @@ extension ScrollView {
     #endif
   }
 
-  /// The length of a pixel, in points.
-  var pixelLength: CGFloat {
-    1 / windowScaleFactor
+  /// The size of a pixel in content coordinates.
+  var pixelSize: CGSize {
+    #if canImport(AppKit)
+    // the clip view's coordinates are the content coordinates, so converting from them includes the magnification and
+    // any scaling of the bounds. each axis converts a unit vector and takes its length, since a rotation would mix the
+    // axes of a converted size.
+    let unitX = contentView.convertToBacking(CGSize(width: 1, height: 0))
+    let unitY = contentView.convertToBacking(CGSize(width: 0, height: 1))
+    return CGSize(width: 1 / hypot(unitX.width, unitX.height), height: 1 / hypot(unitY.width, unitY.height))
+    #endif
+
+    #if canImport(UIKit)
+    // the content offset is in the scroll view's own points, which zooming doesn't scale
+    let length = 1 / windowScaleFactor
+    return CGSize(width: length, height: length)
+    #endif
   }
 }

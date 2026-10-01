@@ -462,6 +462,34 @@ class ScrollViewTests: XCTestCase {
     }
   }
 
+  func test_scrollGesture_nested_nonUniformlyScaledBounds_usesEachAxisPixel() throws {
+    // given: a scroll view showing 300 × 1000 content, with its bounds scaled 4 times along x and a quarter along y, so
+    // that a pixel covers at most 0.25 points of content along x and at least 2 along y, at 1x or 2x, nested in a parent
+    // scroll view that can scroll in every direction
+    let window = TestWindow()
+    let (parent, scrollView) = Self.makeNestedScrollViews(in: window)
+    scrollView.contentSize = CGSize(width: 300, height: 1000)
+    scrollView.scaleUnitSquare(to: NSSize(width: 4, height: 0.25))
+    scrollView.tile()
+
+    // when: the offset rests 1.5 points past the bottom end, within a pixel along y, and a gesture scrolls toward the
+    // bottom
+    scrollView.contentOffset = CGPoint(x: 0, y: scrollView.maxOffsetY + 1.5)
+    try Self.sendScrollGesture(to: scrollView, deltaY: -10)
+
+    // then: the offset counts as inside the scrollable range, so the scroll view passes the gesture to the parent
+    expect(parent.scrollWheelEventCount) == 3
+
+    // when: the offset rests 0.3 points past the right end, more than a pixel along x, and a gesture scrolls toward the
+    // right
+    scrollView.contentOffset = CGPoint(x: scrollView.maxOffsetX + 0.3, y: 0)
+    try Self.sendScrollGesture(to: scrollView, deltaX: -10)
+
+    // then: the offset counts as outside the scrollable range, so the scroll view handles the gesture instead of the
+    // parent
+    expect(parent.scrollWheelEventCount) == 3
+  }
+
   func test_scrollGesture_nested_contentSmallerThanTheScrollView_passesToTheParent() throws {
     // given: a scroll view showing content smaller than it, nested in a parent scroll view that can scroll in every
     // direction
