@@ -1515,10 +1515,10 @@ open class ComposeView: BaseScrollView {
   /// renderable's kind (view or layer).
   ///
   /// View items are rendered as subviews while layer items are rendered as standalone sublayers. Both kinds share the
-  /// content view layer's sublayer list, but keeping that list interleaved in the items order is not possible on
-  /// AppKit: AppKit re-stacks the subviews' backing layers above the standalone sublayers at display time. `zPosition`
-  /// drives the render order among sibling layers regardless of the sublayer list order (and survives AppKit's
-  /// re-stacking), so the render pass maintains the cross-kind z-order with `zPosition`.
+  /// sublayer list of `contentContainerView`'s layer, but keeping that list interleaved in the items order is not
+  /// possible on AppKit: AppKit re-stacks the subviews' backing layers above the standalone sublayers at display time.
+  /// `zPosition` drives the render order among sibling layers regardless of the sublayer list order (and survives
+  /// AppKit's re-stacking), so the render pass maintains the cross-kind z-order with `zPosition`.
   ///
   /// The effective z-position is the item's z-index band (see `ComposeNode.zIndex(_:)`, defaulting to 0) plus a small
   /// items-order fraction, so that renderables stack in the items order within the same z-index band.

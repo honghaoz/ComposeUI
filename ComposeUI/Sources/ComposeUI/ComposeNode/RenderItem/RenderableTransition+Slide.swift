@@ -43,8 +43,8 @@ public extension RenderableTransition {
 
   /// Creates a slide transition.
   ///
-  /// For insertion, the renderable starts outside the content view on the `from` side (with `overshoot` applied) and
-  /// slides into `targetFrame`. For removal, the renderable slides from its current frame to outside the content view
+  /// For insertion, the renderable starts outside the `ComposeView` on the `from` side (with `overshoot` applied) and
+  /// slides into `targetFrame`. For removal, the renderable slides from its current frame to outside the `ComposeView`
   /// on the `to` side, or the `from` side when `to` is nil.
   ///
   /// Reviving a renderable while its slide-out is in flight continues the motion from wherever the removal left it, so

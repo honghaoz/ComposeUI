@@ -46,7 +46,8 @@ public extension ComposeView {
 
     /// The dynamic animation behavior.
     ///
-    /// The closure is called once per render pass and determines whether the transitions and animations are enabled.
+    /// The closure is called once per render pass with the `ComposeView` performing it and the render type, and
+    /// determines whether the transitions and animations are enabled.
     ///
     /// Note: For render type `boundsChange`, returning `true` will also animate the reused renderables' updates, so
     /// their frame can lag behind scrolling and live resizing.

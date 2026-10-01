@@ -38,7 +38,7 @@ public struct RenderableMakeContext {
   /// The initial frame of the new renderable if has one.
   public let initialFrame: CGRect?
 
-  /// The content view that contains the renderable.
+  /// The `ComposeView` that the renderable is made for.
   public private(set) weak var contentView: ComposeView?
 }
 
@@ -53,7 +53,7 @@ public struct RenderableInsertContext {
   /// The new frame that the renderable should be set to after the insertion.
   public let newFrame: CGRect
 
-  /// The content view that contains the renderable.
+  /// The `ComposeView` that the renderable is inserted into.
   public private(set) weak var contentView: ComposeView!
 }
 
@@ -86,10 +86,10 @@ public struct RenderableUpdateContext: Equatable {
   /// The new frame that the renderable should be set to after the update.
   public let newFrame: CGRect
 
-  /// The content view's bounds from its last completed render, or nil before its first render.
+  /// The `ComposeView`'s bounds from its last completed render, or nil before its first render.
   public let previousRenderBounds: CGRect?
 
-  /// The content view's bounds used to select and position the renderables of this render pass, before applying `visibleBoundsInsets`.
+  /// The `ComposeView`'s bounds used to select and position the renderables of this render pass, before applying `visibleBoundsInsets`.
   public let renderBounds: CGRect
 
   /// The timing to use for this renderable update, or nil to apply the changes without starting an animation.
@@ -98,7 +98,7 @@ public struct RenderableUpdateContext: Equatable {
   /// continue an in-flight animation toward a new value, set the value with `CALayer.retarget(keyPath:to:)`.
   public let animationTiming: AnimationTiming?
 
-  /// The content view that contains the renderable.
+  /// The `ComposeView` that contains the renderable.
   public private(set) weak var contentView: ComposeView!
 
   /// The content evaluation of this render pass.
@@ -113,11 +113,11 @@ public struct RenderableUpdateContext: Equatable {
   ///   - updateType: The reason for the update.
   ///   - oldFrame: The old frame of the renderable before the update.
   ///   - newFrame: The new frame that the renderable should be set to after the update.
-  ///   - previousRenderBounds: The content view's last completed render bounds, or nil if it has not rendered.
-  ///   - renderBounds: The content view's bounds used for this render pass.
+  ///   - previousRenderBounds: The `ComposeView`'s last completed render bounds, or nil if it has not rendered.
+  ///   - renderBounds: The `ComposeView`'s bounds used for this render pass.
   ///   - animationTiming: The timing to use for this renderable update, or nil to apply the changes without starting
   ///     an animation.
-  ///   - contentView: The content view that contains the renderable.
+  ///   - contentView: The `ComposeView` that contains the renderable.
   ///   - contentEvaluation: The content evaluation of this render pass.
   ///   - animationDecision: Whether transitions and update animations are enabled.
   init(updateType: RenderableUpdateType,
@@ -165,6 +165,6 @@ public struct RenderableRemoveContext {
   /// The frame of the renderable before it is removed.
   public let oldFrame: CGRect
 
-  /// The content view that contains the renderable.
+  /// The `ComposeView` that the renderable is removed from.
   public private(set) weak var contentView: ComposeView!
 }

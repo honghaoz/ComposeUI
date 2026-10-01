@@ -72,7 +72,7 @@ extension ComposeView.AnimationBehavior {
   ///
   /// - Parameters:
   ///   - renderType: The render type with the pass's final render bounds.
-  ///   - contentView: The content view performing the render pass.
+  ///   - contentView: The `ComposeView` performing the render pass.
   /// - Returns: The animation types this behavior allows for the render pass.
   func animationDecision(renderType: ComposeView.RenderType, contentView: ComposeView) -> ComposeView.AnimationDecision {
     switch self {

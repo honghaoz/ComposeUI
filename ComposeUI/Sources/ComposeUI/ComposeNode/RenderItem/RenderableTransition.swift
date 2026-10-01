@@ -33,7 +33,7 @@ import QuartzCore
 /// A model contains the view insert and remove transition.
 public struct RenderableTransition {
 
-  /// A transition for inserting a renderable into a content view.
+  /// A transition for inserting a renderable into a `ComposeView`.
   public struct InsertTransition {
 
     /// The context for the insert transition.
@@ -52,7 +52,7 @@ public struct RenderableTransition {
       /// `nil` for a fresh insertion, or a revival that was reset.
       public let revivalTransform: CATransform3D?
 
-      /// The content view that the renderable is being inserted into.
+      /// The `ComposeView` that the renderable is being inserted into.
       public private(set) weak var contentView: ComposeView!
 
       init(targetFrame: CGRect, revivalPosition: CGPoint? = nil, revivalTransform: CATransform3D? = nil, contentView: ComposeView!) {
@@ -126,13 +126,13 @@ public struct RenderableTransition {
     }
   }
 
-  /// A transition for removing a renderable from a content view.
+  /// A transition for removing a renderable from a `ComposeView`.
   public struct RemoveTransition {
 
     /// The context for the remove transition.
     public struct Context {
 
-      /// The content view that the renderable is being removed from.
+      /// The `ComposeView` that the renderable is being removed from.
       public private(set) weak var contentView: ComposeView!
     }
 
