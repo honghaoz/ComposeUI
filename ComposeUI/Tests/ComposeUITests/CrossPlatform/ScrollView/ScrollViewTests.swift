@@ -326,6 +326,87 @@ class ScrollViewTests: XCTestCase {
   }
   #endif
 
+  // MARK: - Scroll Routing
+
+  #if canImport(AppKit)
+  func test_scrollGesture_nested_outsideScrollableRange_comesBackIntoRange() throws {
+    // given: a scroll view that scrolls from 0 to 200 along both axes, nested in a parent scroll view that can scroll in
+    // every direction
+    let window = TestWindow()
+    let (parent, scrollView) = Self.makeNestedScrollViews(in: window)
+
+    // when: the offset is past the bottom end, and a gesture scrolls further toward the bottom
+    scrollView.contentOffset = CGPoint(x: 0, y: 300)
+    try Self.sendScrollGesture(to: scrollView, deltaY: -10)
+
+    // then: the scroll view handles the gesture instead of the parent, and AppKit brings the offset back to the end
+    expect(parent.scrollWheelEventCount) == 0
+    expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 200)))
+
+    // when: the offset is before the top end, and a gesture scrolls further toward the top
+    scrollView.contentOffset = CGPoint(x: 0, y: -100)
+    try Self.sendScrollGesture(to: scrollView, deltaY: 10)
+
+    // then: the scroll view handles the gesture, and AppKit brings the offset back to the start
+    expect(parent.scrollWheelEventCount) == 0
+    expect(scrollView.contentOffset).toEventually(beEqual(to: .zero))
+
+    // when: the offset is past the right end, and a gesture scrolls further toward the right
+    scrollView.contentOffset = CGPoint(x: 300, y: 0)
+    try Self.sendScrollGesture(to: scrollView, deltaX: -10)
+
+    // then: the scroll view handles the gesture, and AppKit brings the offset back to the end
+    expect(parent.scrollWheelEventCount) == 0
+    expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 200, y: 0)))
+
+    // when: the offset is before the left end, and a gesture scrolls further toward the left
+    scrollView.contentOffset = CGPoint(x: -100, y: 0)
+    try Self.sendScrollGesture(to: scrollView, deltaX: 10)
+
+    // then: the scroll view handles the gesture, and AppKit brings the offset back to the start
+    expect(parent.scrollWheelEventCount) == 0
+    expect(scrollView.contentOffset).toEventually(beEqual(to: .zero))
+  }
+
+  func test_scrollGesture_nested_atTheEnd_passesToTheParent() throws {
+    // given: a scroll view at the bottom end of its range, nested in a parent scroll view that can scroll in every
+    // direction
+    let window = TestWindow()
+    let (parent, scrollView) = Self.makeNestedScrollViews(in: window)
+    scrollView.contentOffset = CGPoint(x: 0, y: 200)
+
+    // when: a gesture scrolls toward the bottom
+    try Self.sendScrollGesture(to: scrollView, deltaY: -10)
+
+    // then: the parent gets every event of the gesture, and the scroll view stays at the end
+    expect(parent.scrollWheelEventCount) == 3
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 200)
+
+    // when: a gesture scrolls toward the top, which the scroll view can scroll to
+    try Self.sendScrollGesture(to: scrollView, deltaY: 10)
+
+    // then: the scroll view handles the gesture instead of the parent
+    expect(parent.scrollWheelEventCount) == 3
+  }
+
+  func test_scrollGesture_nested_contentSmallerThanTheScrollView_passesToTheParent() throws {
+    // given: a scroll view showing content smaller than it, nested in a parent scroll view that can scroll in every
+    // direction
+    let window = TestWindow()
+    let (parent, scrollView) = Self.makeNestedScrollViews(in: window)
+    scrollView.contentSize = CGSize(width: 50, height: 50)
+
+    // when: a gesture scrolls toward the bottom
+    try Self.sendScrollGesture(to: scrollView, deltaY: -10)
+
+    // then: the maximum offset is below the minimum, and the offset at the minimum is within the scrollable range, so
+    // the parent gets the gesture
+    expect(scrollView.maxOffsetY) < scrollView.minOffsetY
+    expect(scrollView.contentOffset) == .zero
+    expect(parent.scrollWheelEventCount) == 3
+  }
+  #endif
+
   // MARK: - Scroll Elasticity
 
   #if canImport(AppKit)
@@ -382,10 +463,46 @@ class ScrollViewTests: XCTestCase {
   private static func components(of insets: EdgeInsets) -> [CGFloat] {
     [insets.top, insets.left, insets.bottom, insets.right]
   }
+
+  #if canImport(AppKit)
+  /// Makes a 100 × 100 scroll view showing 300 × 300 content, so it scrolls from 0 to 200 along both axes, nested in
+  /// a 200 × 200 parent scroll view scrolled to the middle of its 1000 × 1000 content.
+  private static func makeNestedScrollViews(in window: TestWindow) -> (parent: ScrollWheelRecordingScrollView, scrollView: ScrollView) {
+    let parent = ScrollWheelRecordingScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    parent.contentSize = CGSize(width: 1000, height: 1000)
+    parent.contentOffset = CGPoint(x: 400, y: 400)
+    window.contentView().addSubview(parent)
+
+    let scrollView = ScrollView(frame: CGRect(x: 400, y: 400, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 300, height: 300)
+    parent.documentView?.addSubview(scrollView)
+    return (parent, scrollView)
+  }
+
+  /// Sends the events of a trackpad scroll gesture to the scroll view: one that begins and one that changes, both with
+  /// the deltas, then one that ends.
+  private static func sendScrollGesture(to scrollView: ScrollView, deltaX: Int32 = 0, deltaY: Int32 = 0) throws {
+    for phase in [CGScrollPhase.began, .changed, .ended] {
+      let isEnded = phase == .ended
+      let cgEvent = try unwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: isEnded ? 0 : deltaY, wheel2: isEnded ? 0 : deltaX, wheel3: 0))
+      cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+      try scrollView.scrollWheel(with: unwrap(NSEvent(cgEvent: cgEvent)))
+    }
+  }
+  #endif
 }
 
 #if canImport(AppKit)
 private final class ScrollWheelRecordingView: NSView {
+
+  private(set) var scrollWheelEventCount = 0
+
+  override func scrollWheel(with event: NSEvent) {
+    scrollWheelEventCount += 1
+  }
+}
+
+private final class ScrollWheelRecordingScrollView: ScrollView {
 
   private(set) var scrollWheelEventCount = 0
 

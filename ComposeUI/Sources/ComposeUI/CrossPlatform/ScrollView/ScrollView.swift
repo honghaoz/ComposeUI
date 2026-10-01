@@ -337,11 +337,18 @@ private final class ScrollSession {
 
       // decide if the scroll view should handle the scroll event by itself
       //
-      // the core logic is: given the scrolling direction, if the scroll view is configured to always bounce, or can scroll to the direction, let it handle the scroll event.
-      // otherwise, if the scroll view has a parent scroll view that can scroll to the direction, let the parent scroll view handle the scroll event.
-      // if there's no parent scroll view that can scroll to the direction, let the scroll view handle the scroll event by itself so that it can bounce (elasticity).
+      // the core logic is: if the scroll view's offset is outside its scrollable range, for example set so in code or
+      // still bouncing back, let it handle the scroll event, so that AppKit brings the offset back into the range. a
+      // parent scroll view handling the event would leave the offset outside the range.
+      // otherwise, given the scrolling direction, if the scroll view is configured to always bounce, or can scroll to
+      // the direction, let it handle the scroll event.
+      // otherwise, if the scroll view has a parent scroll view that can scroll to the direction, let the parent scroll
+      // view handle the scroll event.
+      // if there's no parent scroll view that can scroll to the direction, let the scroll view handle the scroll event
+      // by itself so that it can bounce (elasticity).
 
-      if (event.scrollingDeltaY > 0 && (scrollView.alwaysBounceVertical || scrollView.canScrollToTop || !scrollView.hasParentScrollView { $0.canScrollToTop })) ||
+      if scrollView.isContentOffsetOutsideScrollableRange ||
+        (event.scrollingDeltaY > 0 && (scrollView.alwaysBounceVertical || scrollView.canScrollToTop || !scrollView.hasParentScrollView { $0.canScrollToTop })) ||
         (event.scrollingDeltaY < 0 && (scrollView.alwaysBounceVertical || scrollView.canScrollToBottom || !scrollView.hasParentScrollView { $0.canScrollToBottom })) ||
         (event.scrollingDeltaX > 0 && (scrollView.alwaysBounceHorizontal || scrollView.canScrollToLeft || !scrollView.hasParentScrollView { $0.canScrollToLeft })) ||
         (event.scrollingDeltaX < 0 && (scrollView.alwaysBounceHorizontal || scrollView.canScrollToRight || !scrollView.hasParentScrollView { $0.canScrollToRight }))
@@ -372,6 +379,17 @@ private final class ScrollSession {
 }
 
 private extension ScrollView {
+
+  /// Whether the content offset is outside the scrollable range along either axis.
+  ///
+  /// Along an axis where the content is smaller than the visible size, the maximum offset is below the minimum, and the
+  /// scrollable range is the minimum offset alone.
+  var isContentOffsetOutsideScrollableRange: Bool {
+    let offset = contentOffset
+    let minX = minOffsetX
+    let minY = minOffsetY
+    return offset.x < minX || offset.x > max(minX, maxOffsetX) || offset.y < minY || offset.y > max(minY, maxOffsetY)
+  }
 
   /// Whether the view has a parent scroll view that satisfies the condition.
   func hasParentScrollView(_ condition: (ScrollView) -> Bool) -> Bool {
