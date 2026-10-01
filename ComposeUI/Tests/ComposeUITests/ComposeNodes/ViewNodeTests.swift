@@ -460,8 +460,8 @@ class ViewNodeTests: XCTestCase {
     view.refresh(animated: false)
 
     // then: the view is added and centered
-    expect(view.contentView().subviews.count) == 1
-    expect(view.contentView().subviews[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
+    expect(view.contentContainerView.subviews.count) == 1
+    expect(view.contentContainerView.subviews[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
   }
 
   func test_renderableItems() throws {
@@ -570,7 +570,7 @@ class ViewNodeTests: XCTestCase {
     let contentView = ComposeView {
       ViewNode<BaseView>(update: { view, context in
         view.layer().cornerRadius = context.newFrame.width / 4
-        view.layer().backgroundColor = context.contentView.contentOffset().y > 0 ? Color.blue.cgColor : Color.red.cgColor
+        view.layer().backgroundColor = context.contentView.contentOffset.y > 0 ? Color.blue.cgColor : Color.red.cgColor
         renderedView = view
         updateType = context.updateType
       })
@@ -599,7 +599,7 @@ class ViewNodeTests: XCTestCase {
     expect(updateType) == .boundsChange
 
     // when: the container scrolls
-    contentView.setContentOffset(CGPoint(x: 0, y: 20))
+    contentView.contentOffset = CGPoint(x: 0, y: 20)
     contentView.layoutIfNeeded()
 
     // then: custom updates can also apply scroll-dependent configuration

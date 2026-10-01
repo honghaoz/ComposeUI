@@ -105,46 +105,6 @@ open class BaseScrollView: ScrollView {
   }
   #endif
 
-  // MARK: - Scroll
-
-  /// Whether the scroll view is scrollable.
-  public var isScrollable: Bool {
-    get {
-      #if canImport(UIKit)
-      return isScrollEnabled
-      #endif
-
-      #if canImport(AppKit)
-      return _isScrollable
-      #endif
-    }
-    set {
-      #if canImport(UIKit)
-      isScrollEnabled = newValue
-      #endif
-
-      #if canImport(AppKit)
-      _isScrollable = newValue
-      #endif
-    }
-  }
-
-  #if canImport(AppKit)
-  private var _isScrollable: Bool = true
-
-  override open func scrollWheel(with event: NSEvent) {
-    // https://apptyrant.com/2015/05/18/how-to-disable-nsscrollview-scrolling/
-    guard _isScrollable else {
-      // send the event to outside of the scroll view.
-      // https://github.com/onmyway133/blog/issues/733
-      nextResponder?.scrollWheel(with: event)
-      return
-    }
-
-    super.scrollWheel(with: event)
-  }
-  #endif
-
   // MARK: - Theme
 
   /// A publisher that emits the theme of the view.

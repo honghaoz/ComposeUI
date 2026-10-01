@@ -331,7 +331,7 @@ class ColorNodeTests: XCTestCase {
     var renderedLayer: CALayer?
     var updateType: RenderableUpdateType?
     let contentView = ComposeView { contentView in
-      let color: Color = contentView.bounds().width < 150 ? .red : .blue
+      let color: Color = contentView.visibleSize.width < 150 ? .red : .blue
       ColorNode(color)
         .fixedId("color")
         .frame(width: 40, height: 40)
@@ -475,7 +475,7 @@ class ColorNodeTests: XCTestCase {
     // when: scrolling to reveal the second row without refreshing changed data
     firstColor = .green
     secondColor = .yellow
-    contentView.setContentOffset(CGPoint(x: 0, y: 50))
+    contentView.contentOffset = CGPoint(x: 0, y: 50)
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 

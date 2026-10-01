@@ -60,7 +60,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     let reused = try unwrap(layers[1])
 
     // when: scrolling removes a row, reuses a row, and inserts another
-    view.setContentOffset(CGPoint(x: 0, y: 100))
+    view.contentOffset = CGPoint(x: 0, y: 100)
     view.layoutIfNeeded()
 
     // then: the leaving and entering rows transition while the reused row updates immediately
@@ -85,7 +85,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     // when: another scroll reuses the entering row during its insertion transition
     let insertionBeginTime = insertion.beginTime
     let insertionKeys = entering.animationKeys()
-    view.setContentOffset(CGPoint(x: 0, y: 110))
+    view.contentOffset = CGPoint(x: 0, y: 110)
     view.layoutIfNeeded()
 
     // then: the existing transition continues without restarting or adding update animations
@@ -269,7 +269,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
 
     // when: repeated scroll positions change the renderable's frame
     for offset: CGFloat in [20, 40, 10] {
-      view.setContentOffset(CGPoint(x: 0, y: offset))
+      view.contentOffset = CGPoint(x: 0, y: offset)
       view.layoutIfNeeded()
 
       // then: the frame follows the offset without creating additive frame animations
@@ -515,7 +515,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     }
 
     // when: the same reused item scrolls
-    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
 
     // then: scroll also leaves the existing animations running unchanged

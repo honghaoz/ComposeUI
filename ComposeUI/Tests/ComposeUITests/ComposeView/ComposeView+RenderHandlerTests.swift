@@ -191,7 +191,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     didRenderRenderBounds = nil
     didRenderRenderType = nil
 
-    view.setContentOffset(CGPoint(x: 0, y: 50))
+    view.contentOffset = CGPoint(x: 0, y: 50)
     view.layoutIfNeeded()
 
     // then: all handlers should be called with scroll render type
@@ -263,7 +263,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
       willRenderRenderType = context.renderType
 
       // when: adjust the content offset to be at the bottom
-      view.setContentOffset(CGPoint(x: 0, y: 100))
+      view.contentOffset = CGPoint(x: 0, y: 100)
     }
 
     var requestedVisibleBounds: CGRect?
@@ -287,13 +287,13 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(willRenderRenderType) == .refresh(isAnimated: false)
 
     // then: the content offset should be updated
-    expect(view.contentOffset().y) == 100
+    expect(view.contentOffset.y) == 100
 
     expect(eventOrder) == ["willRender", "renderItems"]
     expect(requestedVisibleBounds) == CGRect(x: 0, y: 100, width: 100, height: 100)
 
     // when: the view is scrolled
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: the will-render handler should be called with the correct arguments
@@ -301,16 +301,18 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(willRenderContentSize) == CGSize(width: 100, height: 200)
     expect(willRenderRenderBounds) == CGRect(x: 0, y: 10, width: 100, height: 100)
     expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 100, width: 100, height: 100), bounds: CGRect(x: 0, y: 10, width: 100, height: 100))
-    expect(view.contentOffset().y) == 100
+    expect(view.contentOffset.y) == 100
 
     expect(eventOrder) == ["willRender", "renderItems", "willRender", "renderItems"]
     expect(requestedVisibleBounds) == CGRect(x: 0, y: 100, width: 100, height: 100)
 
-    expect(view.bounds()) == CGRect(x: 0, y: 100, width: 100, height: 100)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 100)
+    expect(view.visibleSize) == CGSize(width: 100, height: 100)
 
     // when: the view is resized
     view.frame.size = CGSize(width: 150, height: 150)
-    expect(view.bounds()) == CGRect(x: 0, y: 50, width: 150, height: 150) // y: 50 (maxOffsetY) = 200 - 150
+    expect(view.contentOffset) == CGPoint(x: 0, y: 50) // y: 50 (maxOffsetY) = 200 - 150
+    expect(view.visibleSize) == CGSize(width: 150, height: 150)
 
     view.layoutIfNeeded()
 
@@ -320,10 +322,10 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(willRenderRenderBounds) == CGRect(x: 0, y: 50, width: 150, height: 150)
     expect(willRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 100, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 150, height: 150))
     #if canImport(AppKit)
-    expect(view.contentOffset().y) == 50 // AppKit doesn't allow over scroll
+    expect(view.contentOffset.y) == 50 // AppKit doesn't allow over scroll
     #endif
     #if canImport(UIKit)
-    expect(view.contentOffset().y) == 100
+    expect(view.contentOffset.y) == 100
     #endif
 
     expect(eventOrder) == [
@@ -363,7 +365,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     view.onWillRender { contentView, context in
       willRenderContext = context
       if let adjustedOffset {
-        contentView.setContentOffset(CGPoint(x: 0, y: adjustedOffset))
+        contentView.contentOffset = CGPoint(x: 0, y: adjustedOffset)
       }
     }
     view.onDidRender { _, context in
@@ -430,7 +432,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     // when: a later scroll uses the completed adjusted viewport as history
     adjustedOffset = nil
     animationTypes.removeAll()
-    view.setContentOffset(CGPoint(x: 0, y: 60))
+    view.contentOffset = CGPoint(x: 0, y: 60)
     view.layoutIfNeeded()
 
     // then: scrolling uses the same public case and the dynamic policy can reject its new bounds
@@ -458,7 +460,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
           LayerNode<CALayer>(update: { renderable, context in
             if index == 0, changesOffset {
               changesOffset = false
-              context.contentView.setContentOffset(CGPoint(x: 0, y: 40))
+              context.contentView.contentOffset = CGPoint(x: 0, y: 40)
             }
             renderable.cornerRadius = context.renderBounds.minY
             layers.append(renderable)
@@ -490,7 +492,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     let initialBounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let passBounds = CGRect(x: 0, y: 0, width: 150, height: 100)
     let expectedType = ComposeView.RenderType.boundsChange(previousBounds: initialBounds, bounds: passBounds)
-    expect(view.contentOffset().y) == 40
+    expect(view.contentOffset.y) == 40
     expect(animationTypes) == [expectedType]
     expect(didRenderContext?.renderType) == expectedType
     expect(didRenderContext?.renderBounds) == passBounds
@@ -561,7 +563,8 @@ class ComposeView_RenderHandlerTests: XCTestCase {
 
     // set up the will-render handler that changes the bounds size
     view.onWillRender { view, _ in
-      view.setBounds(CGRect(x: 0, y: 10, width: 150, height: 150))
+      view.frame.size = CGSize(width: 150, height: 150)
+      view.contentOffset = CGPoint(x: 0, y: 10)
     }
 
     // when: the view is refreshed
@@ -604,7 +607,8 @@ class ComposeView_RenderHandlerTests: XCTestCase {
         return
       }
       changesBounds = false
-      view.setBounds(CGRect(x: 0, y: 10, width: 160, height: 100))
+      view.frame.size = CGSize(width: 160, height: 100)
+      view.contentOffset = CGPoint(x: 0, y: 10)
       view.setNeedsLayout()
       view.layoutIfNeeded()
     }

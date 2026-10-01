@@ -147,7 +147,7 @@ extension ComposeView {
   ///   - renderableItemIds: The ids of the renderables being rendered, in z-order (back to front).
   ///   - renderableMap: The map of the renderables being rendered, keyed by id.
   func placeNewRenderables(reusingIds: Set<ComposeNodeId>, renderableItemIds: [ComposeNodeId], renderableMap: [ComposeNodeId: Renderable]) {
-    let parent: View = contentView()
+    let parent = contentContainerView
 
     // the next view sibling (already placed correctly), while walking from front to back
     var nextViewSibling: View?

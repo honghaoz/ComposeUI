@@ -209,7 +209,7 @@ class ComposeViewTests: XCTestCase {
     expect(layer?.backgroundColor) == Color.red.cgColor
 
     // when: the displayed content scrolls and resizes after measurement
-    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
     view.frame.size.width = 150
     view.setNeedsLayout()
@@ -344,12 +344,12 @@ class ComposeViewTests: XCTestCase {
     // then: the nested content renders the mounted proposal rather than the measurement proposal
     expect(nestedView) === nested
     expect(layer) === originalLayer
-    expect(nested.bounds().size) == CGSize(width: 180, height: 300)
+    expect(nested.visibleSize) == CGSize(width: 180, height: 300)
     expect(layer?.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
     expect(layer?.backgroundColor) == Color.red.cgColor
 
     // when: the outer view scrolls without another layout proposal
-    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
 
     // then: the nested frames remain consistent

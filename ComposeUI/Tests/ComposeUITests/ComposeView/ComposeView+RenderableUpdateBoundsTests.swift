@@ -79,7 +79,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(layer.backgroundColor) == Color.red.cgColor
 
     // when: only the viewport origin changes
-    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
     let scrolledBounds = CGRect(x: 0, y: 20, width: 100, height: 100)
 
@@ -114,7 +114,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
 
     // when: a resize and an offset adjustment happen in the same pass
     view.onWillRender { contentView, _ in
-      contentView.setContentOffset(CGPoint(x: 0, y: 40))
+      contentView.contentOffset = CGPoint(x: 0, y: 40)
     }
     view.frame.size.width = 180
     view.setNeedsLayout()
@@ -155,7 +155,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     // when: a pending non-animated refresh is combined with a resize and scroll
     color = .blue
     view.onWillRender { contentView, _ in
-      contentView.setContentOffset(CGPoint(x: 0, y: 30))
+      contentView.contentOffset = CGPoint(x: 0, y: 30)
     }
     view.setNeedsRefresh(animated: false)
     view.frame.size.width = 150
@@ -202,7 +202,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     view.visibleBoundsInsets = EdgeInsets(top: -20, left: -10, bottom: -30, right: -10)
     view.onWillRender { contentView, _ in
-      contentView.setContentOffset(CGPoint(x: 0, y: 50))
+      contentView.contentOffset = CGPoint(x: 0, y: 50)
     }
 
     // when: the adjusted viewport is rendered
@@ -240,7 +240,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
           LayerNode<CALayer>(update: { layer, context in
             if index == 0, changesOffset {
               changesOffset = false
-              context.contentView.setContentOffset(CGPoint(x: 0, y: 40))
+              context.contentView.contentOffset = CGPoint(x: 0, y: 40)
             }
             layer.cornerRadius = context.renderBounds.minY
             contexts.append(context)
@@ -403,7 +403,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(layer) == nil
 
     // when: scrolling reveals the layer
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.layoutIfNeeded()
     let originalLayer = try unwrap(layer)
 
@@ -414,11 +414,11 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(originalLayer.backgroundColor) == Color.blue.cgColor
 
     // when: the layer is removed and revealed again
-    view.setContentOffset(CGPoint(x: 0, y: 350))
+    view.contentOffset = CGPoint(x: 0, y: 350)
     view.layoutIfNeeded()
     expect(originalLayer.superlayer) == nil
     context = nil
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.layoutIfNeeded()
 
     // then: a later insertion still reports the immediately preceding viewport
@@ -462,7 +462,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(childContext?.renderBounds) == CGRect(x: 0, y: 0, width: 100, height: 100)
 
     // when: only the child scrolls
-    child.setContentOffset(CGPoint(x: 0, y: 30))
+    child.contentOffset = CGPoint(x: 0, y: 30)
     child.layoutIfNeeded()
 
     // then: the child's snapshots and output reflect its independent position
@@ -509,7 +509,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     requestsRefresh = true
 
     // when: scrolling starts the pass that requests another refresh
-    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
     expect(contexts.last?.updateType).toEventually(beEqual(to: .refresh))
 
@@ -548,7 +548,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     expect(firstLayer.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
 
     // when: scrolling replaces the visible row
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.layoutIfNeeded()
 
     // then: the recycled layer is initialized with the new row's color and the host's viewports, not its own frames
@@ -582,11 +582,11 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     let originalLayer = try unwrap(layer)
 
     // when: the row scrolls out of view and returns before removal completes
-    view.setContentOffset(CGPoint(x: 0, y: 200))
+    view.contentOffset = CGPoint(x: 0, y: 200)
     view.layoutIfNeeded()
     expect(originalLayer.superlayer) != nil
     context = nil
-    view.setContentOffset(.zero)
+    view.contentOffset = .zero
     view.layoutIfNeeded()
 
     // then: the revived layer receives insertion with the immediately preceding viewport
@@ -615,7 +615,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     view.refresh(animated: false)
-    view.setContentOffset(CGPoint(x: 0, y: 350))
+    view.contentOffset = CGPoint(x: 0, y: 350)
     view.layoutIfNeeded()
     let previousBounds = CGRect(x: 0, y: 350, width: 100, height: 100)
     expect(try unwrap(context).renderBounds) == previousBounds
@@ -627,7 +627,7 @@ class ComposeView_RenderableUpdateBoundsTests: XCTestCase {
 
     // then: the scroll view clamps the offset to the new content size, and the pass renders the clamped viewport
     let clampedBounds = CGRect(x: 0, y: 50, width: 100, height: 100)
-    expect(view.contentOffset()) == clampedBounds.origin
+    expect(view.contentOffset) == clampedBounds.origin
     let update = try unwrap(context)
     expect(update.updateType) == .refresh
     expect(update.previousRenderBounds) == previousBounds

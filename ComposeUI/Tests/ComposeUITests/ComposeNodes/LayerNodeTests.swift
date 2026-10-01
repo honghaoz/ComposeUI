@@ -404,7 +404,7 @@ class LayerNodeTests: XCTestCase {
     let contentView = ComposeView {
       LayerNode<CALayer>(update: { layer, context in
         layer.cornerRadius = context.newFrame.width / 4
-        layer.backgroundColor = context.contentView.contentOffset().y > 0 ? Color.blue.cgColor : Color.red.cgColor
+        layer.backgroundColor = context.contentView.contentOffset.y > 0 ? Color.blue.cgColor : Color.red.cgColor
         renderedLayer = layer
         updateType = context.updateType
       })
@@ -435,7 +435,7 @@ class LayerNodeTests: XCTestCase {
     expect(updateType) == .boundsChange
 
     // when: the container scrolls
-    contentView.setContentOffset(CGPoint(x: 0, y: 20))
+    contentView.contentOffset = CGPoint(x: 0, y: 20)
     contentView.layoutIfNeeded()
 
     // then: custom updates can also apply scroll-dependent configuration without changing the content-space frame
@@ -461,12 +461,12 @@ class LayerNodeTests: XCTestCase {
 
     // then: the layer is rendered centered at its fixed size
     #if canImport(AppKit)
-    expect(view.contentView().layer?.sublayers?.count) == 1
-    expect(view.contentView().layer?.sublayers?[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
+    expect(view.contentContainerView.layer?.sublayers?.count) == 1
+    expect(view.contentContainerView.layer?.sublayers?[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
     #endif
     #if canImport(UIKit)
-    expect(view.contentView().layer.sublayers?.count) == 1
-    expect(view.contentView().layer.sublayers?[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
+    expect(view.contentContainerView.layer.sublayers?.count) == 1
+    expect(view.contentContainerView.layer.sublayers?[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
     #endif
   }
 }

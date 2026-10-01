@@ -45,14 +45,14 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view is not scrollable since the content size is smaller than bounds size
-      expect(contentView.isScrollable) == false
+      expect(contentView.isScrollEnabled) == false
 
       // when: set to always scrollable
       contentView.scrollBehavior = .always
       contentView.refresh(animated: false)
 
       // then: the view is scrollable and always bounces
-      expect(contentView.isScrollable) == true
+      expect(contentView.isScrollEnabled) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
 
@@ -61,7 +61,7 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view is not scrollable and does not bounce
-      expect(contentView.isScrollable) == false
+      expect(contentView.isScrollEnabled) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
@@ -70,19 +70,19 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view's scrollable behavior is not changed
-      expect(contentView.isScrollable) == false
+      expect(contentView.isScrollEnabled) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
       // when: manually set the scrollable behavior and refresh
-      contentView.isScrollable = true
+      contentView.isScrollEnabled = true
       contentView.alwaysBounceHorizontal = true
       contentView.alwaysBounceVertical = true
 
       contentView.refresh(animated: false)
 
       // then: the view's scrollable behavior is not changed after refresh
-      expect(contentView.isScrollable) == true
+      expect(contentView.isScrollEnabled) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
     }
@@ -97,14 +97,14 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view is not scrollable since the content size is equal to bounds size
-      expect(contentView.isScrollable) == false
+      expect(contentView.isScrollEnabled) == false
 
       // when: set to always scrollable
       contentView.scrollBehavior = .always
       contentView.refresh(animated: false)
 
       // then: the view is scrollable and always bounces
-      expect(contentView.isScrollable) == true
+      expect(contentView.isScrollEnabled) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
 
@@ -113,7 +113,7 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view is not scrollable and does not bounce
-      expect(contentView.isScrollable) == false
+      expect(contentView.isScrollEnabled) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
@@ -122,19 +122,19 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view's scrollable behavior is not changed
-      expect(contentView.isScrollable) == false
+      expect(contentView.isScrollEnabled) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
       // when: manually set the scrollable behavior and refresh
-      contentView.isScrollable = true
+      contentView.isScrollEnabled = true
       contentView.alwaysBounceHorizontal = true
       contentView.alwaysBounceVertical = true
 
       contentView.refresh(animated: false)
 
       // then: the view's scrollable behavior is not changed after refresh
-      expect(contentView.isScrollable) == true
+      expect(contentView.isScrollEnabled) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
     }
@@ -149,14 +149,14 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view is scrollable since the content size is larger than bounds size
-      expect(contentView.isScrollable) == true
+      expect(contentView.isScrollEnabled) == true
 
       // when: set to never scrollable
       contentView.scrollBehavior = .never
       contentView.refresh(animated: false)
 
       // then: the view is not scrollable and does not bounce
-      expect(contentView.isScrollable) == false
+      expect(contentView.isScrollEnabled) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
 
@@ -165,7 +165,7 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view is scrollable and always bounces
-      expect(contentView.isScrollable) == true
+      expect(contentView.isScrollEnabled) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
 
@@ -174,19 +174,19 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: the view's scrollable behavior is not changed
-      expect(contentView.isScrollable) == true
+      expect(contentView.isScrollEnabled) == true
       expect(contentView.alwaysBounceHorizontal) == true
       expect(contentView.alwaysBounceVertical) == true
 
       // when: manually set the scrollable behavior and refresh
-      contentView.isScrollable = false
+      contentView.isScrollEnabled = false
       contentView.alwaysBounceHorizontal = false
       contentView.alwaysBounceVertical = false
 
       contentView.refresh(animated: false)
 
       // then: the view's scrollable behavior is not changed after refresh
-      expect(contentView.isScrollable) == false
+      expect(contentView.isScrollEnabled) == false
       expect(contentView.alwaysBounceHorizontal) == false
       expect(contentView.alwaysBounceVertical) == false
     }
@@ -217,7 +217,7 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
     expect(contentWidth).to(beApproximatelyEqual(to: 100, within: 1e-9))
 
     // then: the content fits, so the view neither scrolls nor clips, and has nothing to scroll horizontally
-    expect(contentView.isScrollable) == false
+    expect(contentView.isScrollEnabled) == false
     expect(contentView.clipsToBounds) == false
     expect(contentView.contentSize.width) == 100
   }
@@ -235,7 +235,7 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the view scrolls, but its content is as wide as the view, so it scrolls only vertically
-    expect(contentView.isScrollable) == true
+    expect(contentView.isScrollEnabled) == true
     expect(contentView.contentSize) == CGSize(width: 100, height: 300)
 
     #if canImport(AppKit)
@@ -260,7 +260,7 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the content overflows, so the view scrolls and clips
-    expect(contentView.isScrollable) == true
+    expect(contentView.isScrollEnabled) == true
     expect(contentView.clipsToBounds) == true
   }
 }

@@ -103,7 +103,7 @@ class ComposeView_RenderableTests: XCTestCase {
 
     #if canImport(AppKit)
     view.scrollIndicatorBehavior = .auto
-    // use legacy scrollers so the scroller thickness affects bounds().
+    // use legacy scrollers so the scroller thickness affects the visible size.
     view.scrollerStyle = .legacy
     view.hasHorizontalScroller = true
     view.hasVerticalScroller = true
@@ -187,7 +187,7 @@ class ComposeView_RenderableTests: XCTestCase {
     expect(willUpdateContext?.contentEvaluation) === refreshedEvaluation
 
     // when: scroll the view
-    view.setContentOffset(CGPoint(x: 0, y: 10))
+    view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
     // then: expect the update context is correct, a scroll pass allows transitions only by default
@@ -229,7 +229,7 @@ class ComposeView_RenderableTests: XCTestCase {
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
       previousRenderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
-      renderBounds: CGRect(origin: view.contentOffset(), size: CGSize(width: 200, height: 200)),
+      renderBounds: CGRect(origin: view.contentOffset, size: CGSize(width: 200, height: 200)),
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
@@ -240,7 +240,7 @@ class ComposeView_RenderableTests: XCTestCase {
       oldFrame: CGRect(x: 0, y: 0, width: 100, height: 200),
       newFrame: CGRect(x: 50, y: 0, width: 100, height: 200),
       previousRenderBounds: CGRect(x: 0, y: 10, width: 100, height: 150),
-      renderBounds: CGRect(origin: view.contentOffset(), size: CGSize(width: 200, height: 200)),
+      renderBounds: CGRect(origin: view.contentOffset, size: CGSize(width: 200, height: 200)),
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,

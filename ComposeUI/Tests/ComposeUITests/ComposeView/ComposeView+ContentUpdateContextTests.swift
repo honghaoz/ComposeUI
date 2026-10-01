@@ -111,7 +111,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(originalLayer.bounds.size) == CGSize(width: 150, height: 300)
 
     // when: the view scrolls
-    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
 
     // then: scrolling also reuses the pair and forwards its evaluation
@@ -199,7 +199,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     }
 
     // when: the view scrolls
-    view.setContentOffset(CGPoint(x: 0, y: 20))
+    view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
 
     // then: scroll updates of reused renderables are immediate by default
@@ -242,7 +242,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     expect(itemContext?.animationTiming) == nil
 
     // when: the view scrolls under the dynamic behavior
-    view.setContentOffset(CGPoint(x: 0, y: 40))
+    view.contentOffset = CGPoint(x: 0, y: 40)
     view.layoutIfNeeded()
 
     // then: the closure sees the scroll and its decision reaches the item

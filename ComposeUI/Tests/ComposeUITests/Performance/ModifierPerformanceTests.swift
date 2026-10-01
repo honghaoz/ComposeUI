@@ -234,7 +234,7 @@ class ModifierPerformanceTests: XCTestCase {
       var offset: CGFloat = 0
       let scroll = {
         offset += Constants.scrollStep
-        view.setContentOffset(CGPoint(x: 0, y: offset)) // on AppKit, this triggers the render synchronously
+        view.contentOffset = CGPoint(x: 0, y: offset) // on AppKit, this triggers the render synchronously
         view.layoutIfNeeded() // on UIKit, this triggers the render
       }
       let result = measure(warmup: Constants.scrollWarmup, iterations: Constants.scrollIterations) { _ in

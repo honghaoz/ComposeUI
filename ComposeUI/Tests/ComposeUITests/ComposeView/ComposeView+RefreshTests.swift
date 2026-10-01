@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 import ChouTi
 
 class ComposeView_RefreshTests: XCTestCase {
@@ -376,13 +376,13 @@ class ComposeView_RefreshTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the subviews are in the content order
-    expect(contentView.contentView().subviews) == [view1, view2, view3]
+    expect(contentView.contentContainerView.subviews) == [view1, view2, view3]
 
     // when: the view is refreshed again
     contentView.refresh(animated: false)
 
     // then: the subviews keep the same order
-    expect(contentView.contentView().subviews) == [view1, view2, view3]
+    expect(contentView.contentContainerView.subviews) == [view1, view2, view3]
 
     // when: the content changes the order of the views and the view is refreshed
     contentView.setContent {
@@ -397,6 +397,6 @@ class ComposeView_RefreshTests: XCTestCase {
     contentView.refresh(animated: false)
 
     // then: the subviews are in the new order
-    expect(contentView.contentView().subviews) == [view3, view2]
+    expect(contentView.contentContainerView.subviews) == [view3, view2]
   }
 }

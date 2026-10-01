@@ -295,7 +295,7 @@ class ComposeViewNodeTests: XCTestCase {
       do {
         let composeView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
         let renderable = Renderable.view(composeView)
-        let layer = composeView.contentView().layer()
+        let layer = composeView.contentContainerView.layer()
 
         // when: the view is inserted
         item.update(renderable, RenderableUpdateContext(updateType: .insert, oldFrame: .zero, newFrame: composeView.frame, previousRenderBounds: .zero, renderBounds: .zero, animationTiming: nil, contentView: nil, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.disabled))
@@ -339,7 +339,7 @@ class ComposeViewNodeTests: XCTestCase {
     }
     nestedView.frame = frame
     nestedView.refresh(animated: false)
-    let layer = try (nestedView.contentView().layer().sublayers?.first).unwrap()
+    let layer = try (nestedView.contentContainerView.layer().sublayers?.first).unwrap()
     let renderable = Renderable.view(nestedView)
 
     for renderBounds in [frame.offsetBy(dx: 0, dy: 20), CGRect(x: 0, y: 0, width: 100, height: 60)] {
@@ -357,7 +357,7 @@ class ComposeViewNodeTests: XCTestCase {
 
     // then: the new color is applied immediately without replacing the layer
     expect(layer.backgroundColor) == Color.blue.cgColor
-    expect(nestedView.contentView().layer().sublayers?.first) === layer
+    expect(nestedView.contentContainerView.layer().sublayers?.first) === layer
   }
 
   func test_refresh_updatesMountedContentWithUnchangedSize() throws {
@@ -513,7 +513,7 @@ class ComposeViewNodeTests: XCTestCase {
     // then: the pass completes with its own content, one nested view, and no assertion
     expect(assertionMessages) == []
     expect(nestedViews.count) == 1
-    expect(parent.contentView().subviews.filter { $0 is ComposeView }.count) == 1
+    expect(parent.contentContainerView.subviews.filter { $0 is ComposeView }.count) == 1
     expect(colorLayer?.backgroundColor) == Color.red.cgColor
     expect(parentRefreshesFromChild) == 1
 
@@ -525,7 +525,7 @@ class ComposeViewNodeTests: XCTestCase {
     // then: the nested view shows the new configuration and is still the only nested view
     expect(assertionMessages) == []
     expect(nestedViews.count) == 1
-    expect(parent.contentView().subviews.filter { $0 is ComposeView }.count) == 1
+    expect(parent.contentContainerView.subviews.filter { $0 is ComposeView }.count) == 1
     expect(colorLayer?.backgroundColor) == Color.blue.cgColor
   }
 
@@ -618,11 +618,11 @@ class ComposeViewNodeTests: XCTestCase {
       contentView.refresh(animated: false)
       let child = try unwrap(nestedView)
       child.scrollBehavior = .always
-      child.setContentInsets(EdgeInsets(top: 0, left: 0, bottom: 50, right: 0))
+      child.contentInset = EdgeInsets(top: 0, left: 0, bottom: 50, right: 0)
       child.setNeedsLayout()
       child.layoutIfNeeded()
       let layer = try unwrap(colorLayer)
-      expect(child.bounds().size) == CGSize(width: 100, height: 300)
+      expect(child.visibleSize) == CGSize(width: 100, height: 300)
       expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 300)
 
       // when: the parent resizes, measuring its own copy of the content at the new size, while the nested view keeps
@@ -635,17 +635,17 @@ class ComposeViewNodeTests: XCTestCase {
 
       // then: the nested view keeps its original bounds
       expect(nestedView) === child
-      expect(child.bounds().size) == CGSize(width: 100, height: 300)
+      expect(child.visibleSize) == CGSize(width: 100, height: 300)
 
       // when: scrolling causes the nested view to render from its cached layout
       colorUpdateType = nil
-      child.setContentOffset(CGPoint(x: 0, y: 10))
+      child.contentOffset = CGPoint(x: 0, y: 10)
       child.setNeedsLayout()
       child.layoutIfNeeded()
 
       // then: the reused content keeps the nested view's frame, not the parent's measurement size
       expect(colorUpdateType) == .boundsChange
-      expect(child.contentOffset().y) == 10
+      expect(child.contentOffset.y) == 10
       expect(colorLayer) === layer
       expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 300)
       expect(layer.backgroundColor) == Color.red.cgColor
@@ -691,7 +691,7 @@ class ComposeViewNodeTests: XCTestCase {
     contentView.frame.size.width = 160
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
-    contentView.setContentOffset(CGPoint(x: 0, y: 125))
+    contentView.contentOffset = CGPoint(x: 0, y: 125)
     contentView.layoutIfNeeded()
 
     // then: delayed insertion renders the reused content within the scroll pass
@@ -701,7 +701,7 @@ class ComposeViewNodeTests: XCTestCase {
     expect(colorLayer?.backgroundColor) == Color.red.cgColor
 
     // when: scrolling the nested view offscreen removes it
-    contentView.setContentOffset(.zero)
+    contentView.contentOffset = .zero
     contentView.layoutIfNeeded()
 
     // then: the first nested view is detached
@@ -711,7 +711,7 @@ class ComposeViewNodeTests: XCTestCase {
     nestedView = nil
     textView = nil
     colorLayer = nil
-    contentView.setContentOffset(CGPoint(x: 0, y: 125))
+    contentView.contentOffset = CGPoint(x: 0, y: 125)
     contentView.layoutIfNeeded()
 
     // then: reinsertion initializes the nested content without reevaluating application data

@@ -118,7 +118,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
 
     // when: the node first becomes visible after external data changes
     suppliedWidth = 90
-    contentView.setContentOffset(CGPoint(x: 0, y: 150))
+    contentView.contentOffset = CGPoint(x: 0, y: 150)
     contentView.layoutIfNeeded()
 
     // then: insertion evaluates the current provider exactly once
@@ -131,7 +131,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     contentView.frame.size.width = 160
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
-    contentView.setContentOffset(CGPoint(x: 0, y: 160))
+    contentView.contentOffset = CGPoint(x: 0, y: 160)
     contentView.layoutIfNeeded()
 
     // then: resizing and scrolling keep the resolved value
@@ -140,11 +140,11 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     expect(providerCalls) == 1
 
     // when: the same node is removed and inserted again before a refresh
-    contentView.setContentOffset(.zero)
+    contentView.contentOffset = .zero
     contentView.layoutIfNeeded()
     expect(view.superview) == nil
     renderedView = nil
-    contentView.setContentOffset(CGPoint(x: 0, y: 150))
+    contentView.contentOffset = CGPoint(x: 0, y: 150)
     contentView.layoutIfNeeded()
 
     // then: the new host receives the existing resolved content
@@ -235,7 +235,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
 
     // when: scrolling reveals the node after its external data changes again
     suppliedSize = CGSize(width: 160, height: 90)
-    contentView.setContentOffset(CGPoint(x: 0, y: 100))
+    contentView.contentOffset = CGPoint(x: 0, y: 100)
     contentView.layoutIfNeeded()
 
     // then: late insertion mounts the same content that determined its intrinsic size
@@ -328,7 +328,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     // when: measuring fresh content after external data changes
     width = 140
     let measuredSize = contentView.sizeThatFits(CGSize(width: 240, height: 100))
-    contentView.setContentOffset(CGPoint(x: 0, y: 20))
+    contentView.contentOffset = CGPoint(x: 0, y: 20)
     contentView.layoutIfNeeded()
     contentView.frame.size.width = 240
     contentView.setNeedsLayout()
@@ -402,7 +402,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     first.frame.size.width = 240
     first.setNeedsLayout()
     first.layoutIfNeeded()
-    first.setContentOffset(CGPoint(x: 0, y: 20))
+    first.contentOffset = CGPoint(x: 0, y: 20)
     first.layoutIfNeeded()
 
     // then: another host's evaluation does not invalidate the first host's value
@@ -526,7 +526,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     let view = try innerHost.unwrap()
 
     // then: the nested host renders the value used to measure its parent's frame
-    expect(nestedView?.bounds().size) == CGSize(width: 80, height: 50)
+    expect(nestedView?.visibleSize) == CGSize(width: 80, height: 50)
     expect(view.content.sizeThatFits(view.bounds.size)) == CGSize(width: 80, height: 50)
     expect(providerCalls) == 1
 
@@ -573,7 +573,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
 
       // then: the child uses the value measured by the pass rather than evaluating against the new host state
       let host = try unwrap(innerHost)
-      expect(child.bounds().size) == CGSize(width: 80, height: 50)
+      expect(child.visibleSize) == CGSize(width: 80, height: 50)
       expect(host.content.sizeThatFits(host.bounds.size)) == CGSize(width: 80, height: 50)
       expect(providerCalls) == 1
     }
