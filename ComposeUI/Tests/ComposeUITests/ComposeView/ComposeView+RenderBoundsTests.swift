@@ -327,27 +327,23 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(renderBounds) == [CGRect(x: 0, y: view.maxOffsetY, width: 100, height: 100)]
   }
 
-  func test_renderBounds_legacyScrollers_sizeFollowsTheFrameBorderAndMagnification() {
-    // given: a view with a line border, content insets, and a magnification of 2, showing both legacy scrollers
+  func test_renderBounds_legacyScrollers_sizeFollowsTheFrame() {
+    // given: a 120 × 80 view with content insets, showing both legacy scrollers
     let view = ComposeView {
       LayerNode().frame(width: 300, height: 300)
     }
-    view.frame = CGRect(x: 0, y: 0, width: 122, height: 82)
+    view.frame = CGRect(x: 0, y: 0, width: 120, height: 80)
     useLegacyScrollers(view)
-    view.borderType = .lineBorder
     view.contentInsets = NSEdgeInsets(top: 10, left: 5, bottom: 7, right: 3)
-    view.allowsMagnification = true
-    view.magnification = 2
 
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the scrollers show over the clip view with the insets, and the content lays out for the frame inside the
-    // 1 pt border, in the document's magnified coordinates
+    // then: the scrollers show over the clip view with the insets, and the content lays out for the frame
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == true
     expect(view.contentView.frame.size) == CGSize(width: 120, height: 80)
-    expect(view.test.lastRenderBounds?.size) == CGSize(width: 60, height: 40)
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120, height: 80)
 
     // when: the insets are removed, so the scrollers take space from the clip view, and the view refreshes
     view.contentInsets = NSEdgeInsetsZero
@@ -356,53 +352,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // then: the size stays
     let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     expect(view.contentView.frame.size) == CGSize(width: 120 - thickness, height: 80 - thickness)
-    expect(view.test.lastRenderBounds?.size) == CGSize(width: 60, height: 40)
-  }
-
-  func test_renderBounds_borderTypes_matchTheClipViewWithoutScrollers() {
-    for borderType in [NSBorderType.noBorder, .lineBorder, .bezelBorder, .grooveBorder] {
-      // given: a 240 × 180 view with the border and no scrollers
-      let view = ComposeView {
-        LayerNode().frame(width: 10, height: 10)
-      }
-      view.frame = CGRect(x: 0, y: 0, width: 240, height: 180)
-      view.borderType = borderType
-
-      // when: the view refreshes
-      view.refresh(animated: false)
-
-      // then: the content lays out for the area AppKit tiles the clip view in
-      expect(view.test.lastRenderBounds?.size) == view.contentView.bounds.size
-    }
-  }
-
-  func test_renderBounds_grooveBorder_contentOverflowingTheTiledBorderScrolls() {
-    // given: a 240 × 180 view with a groove border, which AppKit tiles 2 pt wide on each side, leaving 236 × 176 without
-    // scrollers, showing 237 × 177 content that overflows that area, though not the 238 × 178 AppKit calculates for the
-    // frame
-    let view = ComposeView {
-      LayerNode().frame(width: 237, height: 177)
-    }
-    view.frame = CGRect(x: 0, y: 0, width: 240, height: 180)
-    useLegacyScrollers(view)
-    view.borderType = .grooveBorder
-
-    // when: the view refreshes
-    view.refresh(animated: false)
-
-    // then: the content lays out for the area inside the tiled border, so it scrolls, with both scrollers shown
-    expect(view.test.lastRenderBounds?.size) == CGSize(width: 236, height: 176)
-    expect(view.isScrollEnabled) == true
-    expect(view.hasHorizontalScroller) == true
-    expect(view.hasVerticalScroller) == true
-
-    // when: the scrollers hide
-    view.scrollIndicatorBehavior = .never
-    view.refresh(animated: false)
-
-    // then: the size stays, and it's the area the view shows
-    expect(view.test.lastRenderBounds?.size) == CGSize(width: 236, height: 176)
-    expect(view.contentView.bounds.size) == CGSize(width: 236, height: 176)
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120, height: 80)
   }
 
   func test_renderBounds_scaledBounds_rendersTheScaledViewport() {
@@ -544,18 +494,18 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(view.hasHorizontalScroller) == false
   }
 
-  func test_renderBounds_scaledBoundsWithBorder_matchesTheClipView() {
-    for (borderType, boundsLength, contentLength) in [(NSBorderType.lineBorder, CGFloat(150), CGFloat(148)), (.grooveBorder, 300, 296)] {
-      // given: a 100 × 100 view in a window, with the border and scaled bounds, showing content as large as the area
-      // inside the border before AppKit rounds it to the pixels of the scaled bounds
+  func test_renderBounds_scaledBounds_fractionalViewSize_matchesTheClipView() {
+    for (frameLength, contentLength) in [(CGFloat(99.2), CGFloat(148.8)), (99.8, 149.8)] {
+      // given: a view in a window with a fractional frame and bounds 1.5 times as large, showing content between the
+      // bounds' size and the size AppKit rounds the clip view to, at both 1x and 2x: down to 148.5 units for a 99.2 pt
+      // frame, and up to 150 for a 99.8 pt one
       let window = TestWindow()
       let view = ComposeView {
         LayerNode().frame(width: contentLength, height: contentLength)
       }
-      view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-      view.borderType = borderType
+      view.frame = CGRect(x: 0, y: 0, width: frameLength, height: frameLength)
       window.contentView().addSubview(view)
-      view.setBoundsSize(CGSize(width: boundsLength, height: boundsLength))
+      view.setBoundsSize(CGSize(width: frameLength * 1.5, height: frameLength * 1.5))
 
       // when: the view refreshes
       view.refresh(animated: false)
@@ -565,21 +515,6 @@ class ComposeView_RenderBoundsTests: XCTestCase {
       expectSize(view.test.lastRenderBounds?.size, approximatelyEquals: clipSize)
       expect(view.isScrollEnabled) == (contentLength > clipSize.width)
     }
-  }
-
-  func test_renderBounds_viewSmallerThanItsBorder_laysOutForAnEmptySize() {
-    // given: a 3 × 3 view with a groove border, which is 2 pt wide on each side
-    let view = ComposeView {
-      LayerNode().frame(width: 10, height: 10)
-    }
-    view.frame = CGRect(x: 0, y: 0, width: 3, height: 3)
-    view.borderType = .grooveBorder
-
-    // when: the view refreshes
-    view.refresh(animated: false)
-
-    // then: the content lays out for an empty size rather than a negative one
-    expect(view.test.lastRenderBounds?.size) == .zero
   }
 
   func test_renderBounds_rotatedView_laysOutForItsOwnSize() {

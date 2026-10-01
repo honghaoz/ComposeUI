@@ -242,6 +242,10 @@ open class ComposeView: BaseScrollView {
     #if canImport(AppKit)
     drawsBackground = false // make the view transparent
     automaticallyAdjustsContentInsets = false
+    // AppKit clamps every way of magnifying to this range, including the animator's `magnify(toFit:)` and
+    // `setMagnification(_:centeredAt:)`, which change the magnification without calling the overrides
+    minMagnification = 1
+    maxMagnification = 1
 
     // set the scroll indicators to be shown by default
     // this is to make the scroll indicators are visible immediately when scrolling for the first time
@@ -710,16 +714,105 @@ open class ComposeView: BaseScrollView {
   }
   #endif
 
+  #if canImport(AppKit)
+
   // MARK: - Tiling
 
-  #if canImport(AppKit)
   /// Tiles the clip view and the scrollers.
   ///
-  /// It's final because the content lays out for the view's bounds inside the border, so space that custom tiling takes
-  /// from the clip view would cover the content.
+  /// It's final because the content lays out for the view's bounds, so space that custom tiling takes from the clip view
+  /// would cover the content.
   override public final func tile() { // swiftlint:disable:this unneeded_override
     super.tile()
   }
+
+  // MARK: - Locked Scroll View Settings
+
+  /// Always `false`, so the content insets stay the same under the window's title bar and toolbar.
+  ///
+  /// Setting it to `true` asserts and keeps it `false`.
+  override public final var automaticallyAdjustsContentInsets: Bool {
+    get {
+      super.automaticallyAdjustsContentInsets
+    }
+    set {
+      ComposeUI.assert(!newValue, "ComposeView doesn't support adjusting the content insets automatically")
+      super.automaticallyAdjustsContentInsets = false
+    }
+  }
+
+  /// Always `false`, since `ComposeView` doesn't support magnification.
+  ///
+  /// Setting it to `true` asserts and keeps it `false`.
+  override public final var allowsMagnification: Bool {
+    get {
+      super.allowsMagnification
+    }
+    set {
+      ComposeUI.assert(!newValue, "ComposeView doesn't support magnification")
+    }
+  }
+
+  /// Always 1, since `ComposeView` doesn't support magnification.
+  ///
+  /// Setting another value asserts and keeps 1.
+  override public final var magnification: CGFloat {
+    get {
+      super.magnification
+    }
+    set {
+      ComposeUI.assert(newValue == 1, "ComposeView doesn't support magnification")
+    }
+  }
+
+  /// Keeps the magnification at 1, since `ComposeView` doesn't support magnification. Another magnification asserts.
+  override public final func setMagnification(_ magnification: CGFloat, centeredAt point: CGPoint) {
+    ComposeUI.assert(magnification == 1, "ComposeView doesn't support magnification")
+  }
+
+  /// Keeps the magnification at 1 and asserts, since `ComposeView` doesn't support magnification.
+  override public final func magnify(toFit rect: CGRect) {
+    ComposeUI.assertFailure("ComposeView doesn't support magnification")
+  }
+
+  /// Always 1, since `ComposeView` doesn't support magnification.
+  ///
+  /// Setting another value asserts and keeps 1.
+  override public final var minMagnification: CGFloat {
+    get {
+      super.minMagnification
+    }
+    set {
+      ComposeUI.assert(newValue == 1, "ComposeView doesn't support magnification")
+      super.minMagnification = 1
+    }
+  }
+
+  /// Always 1, since `ComposeView` doesn't support magnification.
+  ///
+  /// Setting another value asserts and keeps 1.
+  override public final var maxMagnification: CGFloat {
+    get {
+      super.maxMagnification
+    }
+    set {
+      ComposeUI.assert(newValue == 1, "ComposeView doesn't support magnification")
+      super.maxMagnification = 1
+    }
+  }
+
+  /// Always `.noBorder`, since the content lays out for the view's whole bounds.
+  ///
+  /// Setting another border type asserts and keeps `.noBorder`.
+  override public final var borderType: NSBorderType {
+    get {
+      super.borderType
+    }
+    set {
+      ComposeUI.assert(newValue == .noBorder, "ComposeView doesn't support borders")
+    }
+  }
+
   #endif
 
   // MARK: - Render
@@ -1549,19 +1642,9 @@ open class ComposeView: BaseScrollView {
   /// Returns the bounds used for layout and rendering.
   private func renderBounds() -> CGRect {
     #if canImport(AppKit)
-    // a legacy scroller shrinks the clip view (`visibleSize`), so the size comes from the view's bounds inside the border,
-    // where AppKit tiles the clip view without scrollers. it then depends only on the bounds, the border, and the
-    // magnification, so showing or hiding a scroller never changes the layout.
-    let borderWidth: CGFloat
-    switch borderType {
-    case .noBorder:
-      borderWidth = 0
-    case .grooveBorder:
-      // `NSScrollView.contentSize(forFrameSize:...)` assumes 1 pt here, but AppKit tiles a 2 pt groove
-      borderWidth = 2
-    default:
-      borderWidth = 1
-    }
+    // a legacy scroller shrinks the clip view (`visibleSize`), so the size comes from the view's bounds, where AppKit
+    // tiles the clip view without scrollers. it then depends only on the bounds, so showing or hiding a scroller never
+    // changes the layout.
     // AppKit rounds the clip view's size, not its edges, to whole backing pixels, through any bounds scaling, so the size
     // rounds the same way to match the area the view shows. each dimension rounds with the pixel scale along its own axis,
     // the length of a converted unit vector, since converting the size itself would mix the dimensions under rotation.
@@ -1569,9 +1652,9 @@ open class ComposeView: BaseScrollView {
     let unitY = convertToBacking(CGSize(width: 0, height: 1))
     let pixelsPerUnitX = hypot(unitX.width, unitX.height)
     let pixelsPerUnitY = hypot(unitY.width, unitY.height)
-    let width = (max(self.bounds.width - 2 * borderWidth, 0) * pixelsPerUnitX).rounded() / pixelsPerUnitX
-    let height = (max(self.bounds.height - 2 * borderWidth, 0) * pixelsPerUnitY).rounded() / pixelsPerUnitY
-    return CGRect(origin: contentOffset, size: CGSize(width: width / magnification, height: height / magnification))
+    let width = (self.bounds.width * pixelsPerUnitX).rounded() / pixelsPerUnitX
+    let height = (self.bounds.height * pixelsPerUnitY).rounded() / pixelsPerUnitY
+    return CGRect(origin: contentOffset, size: CGSize(width: width, height: height))
     #endif
 
     #if canImport(UIKit)

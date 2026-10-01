@@ -357,7 +357,7 @@ class ComposeViewTests: XCTestCase {
     expect(nested.frame) == CGRect(x: 0, y: 0, width: 180, height: 300)
   }
 
-  // MARK: -
+  // MARK: - Scroll View Settings
 
   func test_contentInsetAdjustmentBehavior() {
     // then: automatic content inset adjustment is disabled
@@ -368,4 +368,205 @@ class ComposeViewTests: XCTestCase {
     expect(contentView.contentInsetAdjustmentBehavior) == .never
     #endif
   }
+
+  #if canImport(AppKit)
+  func test_automaticallyAdjustsContentInsets_staysOff() {
+    // given: a compose view filling a window whose title bar and toolbar overlap it, and a handler that records the
+    // assertions
+    let window = NSWindow(
+      contentRect: CGRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [.titled, .fullSizeContentView],
+      backing: .buffered,
+      defer: false
+    )
+    window.toolbar = NSToolbar(identifier: "ComposeViewTests")
+    let view = ComposeView()
+    window.contentView = view
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the automatic adjustment is turned off
+    view.automaticallyAdjustsContentInsets = false
+
+    // then: nothing asserts
+    expect(assertionMessages) == []
+
+    // when: the automatic adjustment is turned on, and the window lays out
+    view.automaticallyAdjustsContentInsets = true
+    window.layoutIfNeeded()
+
+    // then: it asserts and stays off, so the content insets leave out the overlap
+    expect(assertionMessages) == ["ComposeView doesn't support adjusting the content insets automatically"]
+    expect(view.automaticallyAdjustsContentInsets) == false
+    expect(view.bounds.height - window.contentLayoutRect.height) > 0
+    expect(view.contentInset.top) == 0
+  }
+
+  func test_magnification_staysOne() {
+    // given: a 100 × 100 compose view, and a handler that records the assertions
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: magnification is disallowed, and the magnification and its range are set to 1
+    view.allowsMagnification = false
+    view.magnification = 1
+    view.setMagnification(1, centeredAt: CGPoint(x: 50, y: 50))
+    view.minMagnification = 1
+    view.maxMagnification = 1
+
+    // then: nothing asserts
+    expect(assertionMessages) == []
+
+    // when: magnification is allowed
+    view.allowsMagnification = true
+
+    // then: it asserts and stays disallowed
+    expect(assertionMessages) == ["ComposeView doesn't support magnification"]
+    expect(view.allowsMagnification) == false
+
+    // when: the magnification range is widened
+    view.minMagnification = 0.25
+    view.maxMagnification = 4
+
+    // then: each asserts, and the range stays at 1
+    expect(assertionMessages) == Array(repeating: "ComposeView doesn't support magnification", count: 3)
+    expect(view.minMagnification) == 1
+    expect(view.maxMagnification) == 1
+
+    // when: the view is magnified through each of AppKit's magnifying APIs
+    view.magnification = 2
+    view.setMagnification(2, centeredAt: CGPoint(x: 50, y: 50))
+    view.magnify(toFit: CGRect(x: 0, y: 0, width: 400, height: 400))
+
+    // then: each asserts, and the magnification stays 1, so the visible area keeps the view's size
+    expect(assertionMessages) == Array(repeating: "ComposeView doesn't support magnification", count: 6)
+    expect(view.magnification) == 1
+    expect(view.visibleSize) == CGSize(width: 100, height: 100)
+  }
+
+  func test_magnification_animator_staysOne() {
+    // given: a 100 × 100 compose view in a window, showing fifty 10 pt rows, referenced as an `NSScrollView`, where the
+    // animator's magnifying methods don't call the view's overrides
+    let window = TestWindow()
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 50 {
+          LayerNode().frame(width: .flexible, height: 10)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    let scrollView: NSScrollView = view
+
+    ComposeUI.Assert.setTestAssertionFailureHandler { _, _, _, _ in }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    let magnifyingCalls: [(NSScrollView) -> Void] = [
+      { $0.animator().setMagnification(0.25, centeredAt: CGPoint(x: 50, y: 50)) },
+      { $0.animator().magnify(toFit: CGRect(x: 0, y: 0, width: 400, height: 400)) },
+    ]
+    for magnify in magnifyingCalls {
+      // when: the view is magnified through the animator, and the animation finishes
+      var isFinished = false
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = 0.05
+        magnify(scrollView)
+      } completionHandler: {
+        isFinished = true
+      }
+      expect(isFinished).toEventually(beTrue())
+      view.refresh(animated: false)
+
+      // then: the magnification stays 1, so the clip view keeps the view's size, and the rendered rows are the visible
+      // ones at their full width
+      expect(view.magnification) == 1
+      expect(view.contentView.bounds.size) == CGSize(width: 100, height: 100)
+      let visibleBounds = view.contentView.bounds
+      let rowFrames = (view.documentView?.layer?.sublayers ?? []).map(\.frame).filter { $0.height == 10 }
+      let visibleRows = Int((visibleBounds.minY / 10).rounded(.down)) ..< Int((visibleBounds.maxY / 10).rounded(.up))
+      expect(rowFrames.sorted { $0.minY < $1.minY }) == visibleRows.map { CGRect(x: 0, y: CGFloat($0) * 10, width: 100, height: 10) }
+    }
+  }
+
+  func test_borderType_staysNoBorder() {
+    // given: a 100 × 100 compose view, and a handler that records the assertions
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view is set to have no border
+    view.borderType = .noBorder
+
+    // then: nothing asserts
+    expect(assertionMessages) == []
+
+    // when: the view is given each border, and it tiles
+    for borderType in [NSBorderType.lineBorder, .bezelBorder, .grooveBorder] {
+      view.borderType = borderType
+    }
+    view.tile()
+
+    // then: each asserts, and the view stays borderless, so the clip view fills it
+    expect(assertionMessages) == Array(repeating: "ComposeView doesn't support borders", count: 3)
+    expect(view.borderType) == .noBorder
+    expect(view.contentView.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+  }
+  #endif
+
+  #if os(iOS)
+  func test_contentInsetAdjustmentBehavior_automatic_rendersTheVisibleRows() {
+    // given: a compose view showing fifty 20 pt rows, set to adjust its content insets automatically, as the root view
+    // of a view controller in a navigation controller
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 50 {
+          LayerNode().frame(width: .flexible, height: 20)
+        }
+      }
+    }
+    view.contentInsetAdjustmentBehavior = .automatic
+    let viewController = UIViewController()
+    viewController.view = view
+    let window = TestWindow()
+    window.rootViewController = UINavigationController(rootViewController: viewController)
+
+    // when: the window shows and lays out
+    window.makeKeyAndVisible()
+    window.layoutIfNeeded()
+    view.layoutIfNeeded()
+
+    // then: UIKit insets the content by the navigation bar, and shows its top right below the bar
+    expect(view.contentInsetAdjustmentBehavior) == .automatic
+    expect(view.adjustedContentInset.top) > 0
+    expect(view.contentOffset.y) == -view.adjustedContentInset.top
+
+    // then: the rendered rows are the ones in the visible area
+    let rowFrames = (view.layer.sublayers ?? []).map(\.frame).filter { $0.size == CGSize(width: view.bounds.width, height: 20) }
+    let visibleRowCount = Int((view.bounds.maxY / 20).rounded(.up))
+    expect(rowFrames.sorted { $0.minY < $1.minY }) == (0 ..< visibleRowCount).map { CGRect(x: 0, y: CGFloat($0) * 20, width: view.bounds.width, height: 20) }
+  }
+  #endif
 }
