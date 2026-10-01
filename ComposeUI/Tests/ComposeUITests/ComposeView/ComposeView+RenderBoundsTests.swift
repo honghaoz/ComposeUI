@@ -445,7 +445,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(renderedFrames(in: view)) == (0 ..< 5).map { CGRect(x: 0, y: 65 + CGFloat($0) * 10, width: 400, height: 10) }
   }
 
-  func test_renderBounds_fractionalViewSize_roundsDownWithTheClipView() {
+  func test_renderBounds_fractionalViewSize_clipViewRoundsDown_staysExact() {
     // given: a 99.2 × 99.2 view in a window, with overlay scrollers, showing flexible rows that overflow vertically
     let window = TestWindow()
     let view = ComposeView {
@@ -460,19 +460,29 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.scrollerStyle = .overlay
     window.contentView().addSubview(view)
 
-    // when: the view refreshes
+    // when: the view refreshes, and its scroll elasticity updates
     view.refresh(animated: false)
+    view.invalidateScrollElasticity()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
 
-    // then: the rows lay out for the size AppKit rounds the clip view down to, so the content is no wider than the
-    // visible area, and only the vertical scroller shows
-    expect(view.visibleSize) == CGSize(width: 99, height: 99)
-    expect(view.test.lastRenderBounds?.size) == CGSize(width: 99, height: 99)
-    expect(view.contentSize) == CGSize(width: 99, height: 400)
+    // then: the rows lay out for the exact size, while AppKit rounds the clip view down to whole pixels, at both 1x and
+    // 2x
+    expect(view.visibleSize) == CGSize(width: 99.2, height: 99.2)
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 99.2, height: 99.2)
+    expect(view.contentView.frame.size) == CGSize(width: 99, height: 99)
+
+    // then: the document keeps the exact width, which fits the exact visible size even though it's wider than the clip
+    // view, so the maximum horizontal offset is 0, the view doesn't bounce sideways, and only the vertical scroller shows
+    expect(view.contentSize) == CGSize(width: 99.2, height: 400)
+    expect(view.maxOffsetX) == 0
+    expect(view.canScrollToRight) == false
+    expect(view.horizontalScrollElasticity) == .none
+    expect(view.verticalScrollElasticity) == .allowed
     expect(view.hasVerticalScroller) == true
     expect(view.hasHorizontalScroller) == false
   }
 
-  func test_renderBounds_fractionalViewSize_roundsUpWithTheClipView() {
+  func test_renderBounds_fractionalViewSize_clipViewRoundsUp_staysExact() {
     // given: a 99.8 × 99.8 view at (0.4, 0.4) in a window, with legacy scrollers, showing 99.7 × 99.7 content
     let window = TestWindow()
     let view = ComposeView {
@@ -485,20 +495,22 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the content lays out for the size AppKit rounds the clip view up to, which it fits, so the view neither
-    // scrolls nor shows scrollers
-    expectSize(view.visibleSize, approximatelyEquals: CGSize(width: 100, height: 100))
-    expectSize(view.test.lastRenderBounds?.size, approximatelyEquals: CGSize(width: 100, height: 100))
+    // then: the content lays out for the exact size, which it fits, while AppKit rounds the clip view up to whole pixels,
+    // and the document keeps the exact size, so the view neither scrolls nor shows scrollers
+    expect(view.visibleSize) == CGSize(width: 99.8, height: 99.8)
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 99.8, height: 99.8)
+    expectSize(view.contentView.frame.size, approximatelyEquals: CGSize(width: 100, height: 100))
+    expect(view.contentSize) == CGSize(width: 99.8, height: 99.8)
     expect(view.isScrollEnabled) == false
     expect(view.hasVerticalScroller) == false
     expect(view.hasHorizontalScroller) == false
   }
 
-  func test_renderBounds_scaledBounds_fractionalViewSize_matchesTheClipView() {
-    for (frameLength, contentLength) in [(CGFloat(99.2), CGFloat(148.8)), (99.8, 149.8)] {
-      // given: a view in a window with a fractional frame and bounds 1.5 times as large, showing content between the
-      // bounds' size and the size AppKit rounds the clip view to, at both 1x and 2x: down to 148.5 units for a 99.2 pt
-      // frame, and up to 150 for a 99.8 pt one
+  func test_renderBounds_scaledBounds_fractionalViewSize_fittingContentDoesNotScroll() {
+    for (frameLength, contentLength) in [(CGFloat(99.2), CGFloat(148.6)), (99.8, 149.6)] {
+      // given: a view in a window with a fractional frame and bounds 1.5 times as large, so AppKit rounds the clip view
+      // to whole pixels through the scaling, at both 1x and 2x: down to 148.5 units for a 99.2 pt frame, and up to 150
+      // for a 99.8 pt one, showing content that fits the exact bounds, even where it's larger than the rounded clip view
       let window = TestWindow()
       let view = ComposeView {
         LayerNode().frame(width: contentLength, height: contentLength)
@@ -510,10 +522,14 @@ class ComposeView_RenderBoundsTests: XCTestCase {
       // when: the view refreshes
       view.refresh(animated: false)
 
-      // then: the content lays out for the clip view's size, so the view scrolls exactly when the content doesn't fit it
-      let clipSize = view.contentView.frame.size
-      expectSize(view.test.lastRenderBounds?.size, approximatelyEquals: clipSize)
-      expect(view.isScrollEnabled) == (contentLength > clipSize.width)
+      // then: the content lays out for the exact bounds, and the document keeps the exact size, so the view doesn't
+      // scroll
+      let boundsLength = frameLength * 1.5
+      expectSize(view.test.lastRenderBounds?.size, approximatelyEquals: CGSize(width: boundsLength, height: boundsLength))
+      expectSize(view.contentSize, approximatelyEquals: CGSize(width: boundsLength, height: boundsLength))
+      expect(view.isScrollEnabled) == false
+      expect(view.maxOffsetX).to(beApproximatelyEqual(to: 0, within: 1e-9))
+      expect(view.maxOffsetY).to(beApproximatelyEqual(to: 0, within: 1e-9))
     }
   }
 

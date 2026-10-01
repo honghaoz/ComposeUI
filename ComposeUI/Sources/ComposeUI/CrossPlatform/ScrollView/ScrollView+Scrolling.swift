@@ -58,24 +58,28 @@ public extension ScrollView {
     contentSize.height - visibleSize.height + adjustedContentInset.bottom
   }
 
+  // Scrolling comes to rest on whole pixels, since AppKit aligns the content to the window's pixels and UIKit snaps the
+  // offset to them, which can leave it up to about a pixel from an edge computed from the exact sizes. So the
+  // properties below count an offset within a pixel of an edge as at the edge.
+
   /// Whether the scroll view can scroll to the left.
   var canScrollToLeft: Bool {
-    contentOffset.x > minOffsetX
+    contentOffset.x > minOffsetX + pixelLength
   }
 
   /// Whether the scroll view can scroll to the right.
   var canScrollToRight: Bool {
-    contentOffset.x < maxOffsetX
+    contentOffset.x < maxOffsetX - pixelLength
   }
 
   /// Whether the scroll view can scroll to the top.
   var canScrollToTop: Bool {
-    contentOffset.y > minOffsetY
+    contentOffset.y > minOffsetY + pixelLength
   }
 
   /// Whether the scroll view can scroll to the bottom.
   var canScrollToBottom: Bool {
-    contentOffset.y < maxOffsetY
+    contentOffset.y < maxOffsetY - pixelLength
   }
 
   #if canImport(UIKit)
