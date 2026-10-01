@@ -247,6 +247,40 @@ class ScrollViewTests: XCTestCase {
     // then: the visible area covers half as much content along each axis
     expect(scrollView.visibleSize) == CGSize(width: 50, height: 100)
   }
+
+  func test_visibleSize_fractionalSize_isExact() {
+    // given: a 99.2 × 99.2 scroll view showing a 300 × 500 content, whose clip view AppKit rounds to whole pixels
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 99.2, height: 99.2))
+    scrollView.contentSize = CGSize(width: 300, height: 500)
+
+    // then: the visible size is exact, and so is the scroll range, as on UIKit, while AppKit rounds the clip view
+    expect(scrollView.contentView.bounds.size) == CGSize(width: 99, height: 99)
+    expect(scrollView.visibleSize) == CGSize(width: 99.2, height: 99.2)
+    expect(scrollView.maxOffsetX) == 300 - 99.2
+    expect(scrollView.maxOffsetY) == 500 - 99.2
+
+    // when: a legacy vertical scroller shows, and the scroll view tiles
+    scrollView.scrollerStyle = .legacy
+    scrollView.hasVerticalScroller = true
+    scrollView.tile()
+
+    // then: the visible size is the exact width beside the scroller
+    let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    expect(scrollView.visibleSize) == CGSize(width: 99.2 - scrollerWidth, height: 99.2)
+  }
+
+  func test_visibleSize_replacedClipView_isTheClipViewSize() {
+    // given: a 99.2 × 99.2 scroll view
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 99.2, height: 99.2))
+
+    // when: the clip view is replaced with a plain one, and the scroll view tiles
+    scrollView.contentView = NSClipView()
+    scrollView.tile()
+
+    // then: the visible size is the new clip view's size, which AppKit rounds to whole pixels
+    expect(scrollView.visibleSize) == CGSize(width: 99, height: 99)
+    expect(scrollView.visibleSize) == scrollView.contentView.bounds.size
+  }
   #endif
 
   #if canImport(UIKit)
@@ -389,6 +423,45 @@ class ScrollViewTests: XCTestCase {
     expect(parent.scrollWheelEventCount) == 3
   }
 
+  func test_scrollGesture_nested_withinAPixelOfAnEnd_passesToTheParent() throws {
+    for restingDistance in [CGFloat(0.3), -0.3] {
+      // given: a 99.2 × 99.2 scroll view nested in a parent scroll view that can scroll in every direction. AppKit aligns
+      // where scrolling comes to rest to the window's pixels, so it rests a fraction of a pixel past or short of an end.
+      let window = TestWindow()
+      let (parent, scrollView) = Self.makeNestedScrollViews(in: window)
+      scrollView.frame.size = CGSize(width: 99.2, height: 99.2)
+
+      // when: the offset rests within a pixel of the bottom end, at any display scale, and a gesture scrolls toward the
+      // bottom
+      scrollView.contentOffset = CGPoint(x: 0, y: scrollView.maxOffsetY + restingDistance)
+      try Self.sendScrollGesture(to: scrollView, deltaY: -10)
+
+      // then: the scroll view counts as at the end, and passes the gesture to the parent
+      expect(parent.scrollWheelEventCount) == 3
+
+      // when: the offset rests within a pixel of the top end, and a gesture scrolls toward the top
+      scrollView.contentOffset = CGPoint(x: 0, y: scrollView.minOffsetY - restingDistance)
+      try Self.sendScrollGesture(to: scrollView, deltaY: 10)
+
+      // then: the scroll view passes the gesture to the parent
+      expect(parent.scrollWheelEventCount) == 6
+
+      // when: the offset rests within a pixel of the right end, and a gesture scrolls toward the right
+      scrollView.contentOffset = CGPoint(x: scrollView.maxOffsetX + restingDistance, y: 0)
+      try Self.sendScrollGesture(to: scrollView, deltaX: -10)
+
+      // then: the scroll view passes the gesture to the parent
+      expect(parent.scrollWheelEventCount) == 9
+
+      // when: the offset rests within a pixel of the left end, and a gesture scrolls toward the left
+      scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX - restingDistance, y: 0)
+      try Self.sendScrollGesture(to: scrollView, deltaX: 10)
+
+      // then: the scroll view passes the gesture to the parent
+      expect(parent.scrollWheelEventCount) == 12
+    }
+  }
+
   func test_scrollGesture_nested_contentSmallerThanTheScrollView_passesToTheParent() throws {
     // given: a scroll view showing content smaller than it, nested in a parent scroll view that can scroll in every
     // direction
@@ -452,6 +525,23 @@ class ScrollViewTests: XCTestCase {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
 
     // then: the document fits, so the scroll view doesn't bounce
+    expect(scrollView.horizontalScrollElasticity) == .none
+    expect(scrollView.verticalScrollElasticity) == .none
+  }
+
+  func test_scrollElasticity_fractionalSize_documentAsLargeAsTheView() {
+    // given: a 99.2 × 99.2 scroll view, whose clip view AppKit rounds down to 99 pt, showing a document as large as the
+    // scroll view
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 99.2, height: 99.2))
+    scrollView.contentSize = CGSize(width: 99.2, height: 99.2)
+
+    // when: the scroll elasticity updates
+    scrollView.invalidateScrollElasticity()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+
+    // then: the document fits the exact visible size, so the scroll view doesn't bounce, even though the document is
+    // larger than the clip view
+    expect(scrollView.contentView.bounds.size) == CGSize(width: 99, height: 99)
     expect(scrollView.horizontalScrollElasticity) == .none
     expect(scrollView.verticalScrollElasticity) == .none
   }

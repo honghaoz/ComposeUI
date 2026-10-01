@@ -93,4 +93,59 @@ class ScrollView_ScrollingTests: XCTestCase {
     expect(scrollView.canScrollToTop) == true
     expect(scrollView.canScrollToBottom) == false
   }
+
+  func test_canScroll_withinAPixelOfAnEdge() {
+    // given: a scroll view with content size and insets, automatic inset adjustment disabled
+    let scrollView = ScrollView()
+    scrollView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    scrollView.contentSize = CGSize(width: 180, height: 220)
+    scrollView.contentInset = EdgeInsets(top: 8, left: 6, bottom: 4, right: 2)
+    #if canImport(AppKit)
+    scrollView.automaticallyAdjustsContentInsets = false
+    #endif
+    #if canImport(UIKit)
+    scrollView.contentInsetAdjustmentBehavior = .never
+    #endif
+
+    // when: the offset is within a pixel of the minimum offset, at any display scale
+    setExactOffset(CGPoint(x: scrollView.minOffsetX + 0.3, y: scrollView.minOffsetY + 0.3), of: scrollView)
+
+    // then: it counts as at the left and top edges
+    expect(scrollView.canScrollToLeft) == false
+    expect(scrollView.canScrollToTop) == false
+
+    // when: the offset is within a pixel of the maximum offset
+    setExactOffset(CGPoint(x: scrollView.maxOffsetX - 0.3, y: scrollView.maxOffsetY - 0.3), of: scrollView)
+
+    // then: it counts as at the right and bottom edges
+    expect(scrollView.canScrollToRight) == false
+    expect(scrollView.canScrollToBottom) == false
+
+    // when: the offset is more than a pixel from the minimum offset, at any display scale
+    setExactOffset(CGPoint(x: scrollView.minOffsetX + 1.5, y: scrollView.minOffsetY + 1.5), of: scrollView)
+
+    // then: it can scroll to the left and to the top
+    expect(scrollView.canScrollToLeft) == true
+    expect(scrollView.canScrollToTop) == true
+
+    // when: the offset is more than a pixel from the maximum offset
+    setExactOffset(CGPoint(x: scrollView.maxOffsetX - 1.5, y: scrollView.maxOffsetY - 1.5), of: scrollView)
+
+    // then: it can scroll to the right and to the bottom
+    expect(scrollView.canScrollToRight) == true
+    expect(scrollView.canScrollToBottom) == true
+  }
+
+  // MARK: - Helpers
+
+  /// Sets the content offset exactly, since UIKit snaps a set `contentOffset` to whole pixels, while assigning
+  /// `bounds.origin` keeps it.
+  private func setExactOffset(_ offset: CGPoint, of scrollView: ScrollView) {
+    #if canImport(AppKit)
+    scrollView.contentOffset = offset
+    #endif
+    #if canImport(UIKit)
+    scrollView.bounds.origin = offset
+    #endif
+  }
 }

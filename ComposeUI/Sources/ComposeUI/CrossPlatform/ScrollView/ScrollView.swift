@@ -85,8 +85,13 @@ open class ScrollView: NSScrollView {
   }
 
   /// The size of the visible area in content coordinates, like `UIScrollView`'s `visibleSize`.
+  ///
+  /// It's exact, while the clip view rounds its own size to whole pixels.
   public var visibleSize: CGSize {
-    contentView.bounds.size
+    guard let size = (contentView as? ScrollClipView)?.unroundedSize else {
+      return contentView.bounds.size
+    }
+    return CGSize(width: size.width / magnification, height: size.height / magnification)
   }
 
   override public init(frame: CGRect) {
@@ -94,6 +99,7 @@ open class ScrollView: NSScrollView {
 
     updateCommonSettings()
 
+    contentView = ScrollClipView()
     documentView = BaseView()
 
     startObservingBoundsChange()
@@ -265,10 +271,12 @@ open class ScrollView: NSScrollView {
   }
 
   private func updateScrollElasticity() {
+    // compare the document with the exact visible size: the clip view rounds its size to whole pixels, so content as
+    // large as the view would otherwise bounce by the leftover fraction
     if alwaysBounceHorizontal {
       horizontalScrollElasticity = .allowed
     } else {
-      if contentContainerView.frame.width.extends(beyond: super.contentSize.width) {
+      if contentContainerView.frame.width.extends(beyond: visibleSize.width) {
         horizontalScrollElasticity = .allowed
       } else {
         horizontalScrollElasticity = .none
@@ -278,7 +286,7 @@ open class ScrollView: NSScrollView {
     if alwaysBounceVertical {
       verticalScrollElasticity = .allowed
     } else {
-      if contentContainerView.frame.height.extends(beyond: super.contentSize.height) {
+      if contentContainerView.frame.height.extends(beyond: visibleSize.height) {
         verticalScrollElasticity = .allowed
       } else {
         verticalScrollElasticity = .none
@@ -380,15 +388,18 @@ private final class ScrollSession {
 
 private extension ScrollView {
 
-  /// Whether the content offset is outside the scrollable range along either axis.
+  /// Whether the content offset is outside the scrollable range along either axis, by more than a pixel.
   ///
   /// Along an axis where the content is smaller than the visible size, the maximum offset is below the minimum, and the
   /// scrollable range is the minimum offset alone.
   var isContentOffsetOutsideScrollableRange: Bool {
     let offset = contentOffset
+    // AppKit aligns where scrolling comes to rest to the window's pixels, which can leave the offset up to about a
+    // pixel past an end of the exact range, so an offset within a pixel of the range counts as inside it
+    let pixel = pixelLength
     let minX = minOffsetX
     let minY = minOffsetY
-    return offset.x < minX || offset.x > max(minX, maxOffsetX) || offset.y < minY || offset.y > max(minY, maxOffsetY)
+    return offset.x < minX - pixel || offset.x > max(minX, maxOffsetX) + pixel || offset.y < minY - pixel || offset.y > max(minY, maxOffsetY) + pixel
   }
 
   /// Whether the view has a parent scroll view that satisfies the condition.
@@ -401,6 +412,19 @@ private extension ScrollView {
       parent = view.superview
     }
     return false
+  }
+}
+
+/// A clip view that keeps the size AppKit tiles it to, before it rounds that size to whole pixels.
+private final class ScrollClipView: NSClipView {
+
+  /// The size AppKit last set, before the clip view rounded it.
+  private(set) var unroundedSize: CGSize?
+
+  override func setFrameSize(_ newSize: NSSize) {
+    unroundedSize = newSize
+
+    super.setFrameSize(newSize)
   }
 }
 
@@ -425,5 +449,10 @@ extension ScrollView {
     #if canImport(UIKit)
     return self
     #endif
+  }
+
+  /// The length of a pixel, in points.
+  var pixelLength: CGFloat {
+    1 / windowScaleFactor
   }
 }

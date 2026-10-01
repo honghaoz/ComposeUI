@@ -1645,16 +1645,7 @@ open class ComposeView: BaseScrollView {
     // a legacy scroller shrinks the clip view (`visibleSize`), so the size comes from the view's bounds, where AppKit
     // tiles the clip view without scrollers. it then depends only on the bounds, so showing or hiding a scroller never
     // changes the layout.
-    // AppKit rounds the clip view's size, not its edges, to whole backing pixels, through any bounds scaling, so the size
-    // rounds the same way to match the area the view shows. each dimension rounds with the pixel scale along its own axis,
-    // the length of a converted unit vector, since converting the size itself would mix the dimensions under rotation.
-    let unitX = convertToBacking(CGSize(width: 1, height: 0))
-    let unitY = convertToBacking(CGSize(width: 0, height: 1))
-    let pixelsPerUnitX = hypot(unitX.width, unitX.height)
-    let pixelsPerUnitY = hypot(unitY.width, unitY.height)
-    let width = (self.bounds.width * pixelsPerUnitX).rounded() / pixelsPerUnitX
-    let height = (self.bounds.height * pixelsPerUnitY).rounded() / pixelsPerUnitY
-    return CGRect(origin: contentOffset, size: CGSize(width: width, height: height))
+    return CGRect(origin: contentOffset, size: self.bounds.size)
     #endif
 
     #if canImport(UIKit)
