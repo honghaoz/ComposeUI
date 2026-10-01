@@ -88,10 +88,14 @@ open class ScrollView: NSScrollView {
   ///
   /// It's exact, while the clip view rounds its own size to whole pixels.
   public var visibleSize: CGSize {
-    guard let size = (contentView as? ScrollClipView)?.unroundedSize else {
-      return contentView.bounds.size
+    let boundsSize = contentView.bounds.size
+    let frameSize = contentView.frame.size
+    guard let size = (contentView as? ScrollClipView)?.unroundedSize, frameSize.width > 0, frameSize.height > 0 else {
+      return boundsSize
     }
-    return CGSize(width: size.width / magnification, height: size.height / magnification)
+    // the clip view's bounds are its frame in content coordinates, which magnification or a caller can scale differently
+    // along each axis, so the size the clip view was given scales the same way
+    return CGSize(width: size.width * (boundsSize.width / frameSize.width), height: size.height * (boundsSize.height / frameSize.height))
   }
 
   override public init(frame: CGRect) {
