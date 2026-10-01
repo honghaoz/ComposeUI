@@ -281,6 +281,30 @@ class ScrollViewTests: XCTestCase {
     expect(scrollView.visibleSize) == CGSize(width: 99, height: 99)
     expect(scrollView.visibleSize) == scrollView.contentView.bounds.size
   }
+
+  func test_visibleSize_clipBoundsScaledDifferentlyAlongEachAxis_followsTheClipView() {
+    // given: a 99.2 × 99.2 scroll view, whose clip view AppKit rounds to 99 pt
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 99.2, height: 99.2))
+
+    // when: the clip view's bounds scale by 2 along x and by a half along y, which the magnification can't express
+    scrollView.contentView.scaleUnitSquare(to: NSSize(width: 2, height: 0.5))
+
+    // then: the visible size scales the exact size by the clip view's scale along each axis
+    expect(scrollView.visibleSize) == CGSize(width: 49.6, height: 198.4)
+  }
+
+  func test_visibleSize_zeroSize_isZero() {
+    // given: a 100 × 100 scroll view
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    // when: the scroll view shrinks to zero, and tiles
+    scrollView.frame.size = .zero
+    scrollView.tile()
+
+    // then: the visible size is zero, instead of dividing by the clip view's zero size
+    expect(scrollView.contentView.frame.size) == .zero
+    expect(scrollView.visibleSize) == .zero
+  }
   #endif
 
   #if canImport(UIKit)
