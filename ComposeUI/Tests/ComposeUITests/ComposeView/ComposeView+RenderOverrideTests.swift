@@ -282,6 +282,50 @@ class ComposeView_RenderOverrideTests: XCTestCase {
     expect(row.backgroundColor) == Color.blue.cgColor
     expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
   }
+
+  #if canImport(AppKit)
+  func test_render_heldByAnOverride_afterTheViewResized_withLegacyScrollBar_rendersBesideTheScrollBar() throws {
+    // given: a view showing a legacy vertical scroll bar, holding a render pass prepared with new content, then resized
+    // and laid out while holding it
+    var color = Color.red
+    var layer: CALayer?
+    let view = RenderHoldingView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.scrollIndicatorBehavior = .manual
+    view.scrollerStyle = .legacy
+    view.hasVerticalScroller = true
+    view.setContent {
+      ColorNode(color)
+        .frame(width: .flexible, height: 100)
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    view.refresh(animated: false)
+    let row = try unwrap(layer)
+    view.holdsRenderPass = true
+    color = .blue
+    view.refresh(animated: false)
+    view.frame.size.width = 160
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // when: the held pass is released
+    view.releaseRenderPass()
+
+    // then: the held pass renders its content for the bounds it was prepared with, less the space the scroll bar takes
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    expect(row.backgroundColor) == Color.blue.cgColor
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100 - thickness, height: 100)
+
+    // when: the run loop performs the follow-up layout
+    var isDrained = false
+    RunLoop.main.perform { isDrained = true }
+    expect(isDrained).toEventually(beTrue())
+
+    // then: the new size renders beside the scroll bar
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160 - thickness, height: 100)
+  }
+  #endif
 }
 
 /// A view whose `render()` override can hold a prepared render pass until released, as a subclass may.

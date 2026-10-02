@@ -843,8 +843,8 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
 
   #if canImport(AppKit)
   func test_parentResize_capsEveryNestedLayoutTheResizeTriggers_withLegacyScrollers() throws {
-    // given: a parent without animations and a scrolled nested view with legacy scrollers, whose dynamic behavior always
-    // animates. growing the nested view also clamps its scroll offset near the end.
+    // given: a parent without animations and a scrolled nested view with legacy scrollers, which its row lays out beside,
+    // and whose dynamic behavior always animates. growing the nested view also clamps its scroll offset near the end.
     let timing = AnimationTiming.linear(duration: 10)
     var childView: ComposeView?
     var childRenderTypes: [ComposeView.RenderType] = []
@@ -882,8 +882,9 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     let row = try unwrap(layer)
     child.contentOffset = CGPoint(x: 0, y: 290)
     child.layoutIfNeeded()
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     expect(child.contentOffset) == CGPoint(x: 0, y: 290)
-    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 400)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100 - thickness, height: 400)
     row.removeAllAnimations()
     childRenderTypes.removeAll()
     layerContexts.removeAll()
@@ -896,14 +897,14 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     // then: the resize clamps the offset to the end of the content and lays the nested view out once, for its new size at
     // that offset, and the layout is capped by the parent's decision, so the row snaps
     expect(child.frame) == CGRect(x: 0, y: 0, width: 140, height: 140)
-    expect(row.frame) == CGRect(x: 0, y: 0, width: 140, height: 400)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 140 - thickness, height: 400)
     expect(row.animationKeys()) == nil
     expect(child.contentOffset) == CGPoint(x: 0, y: child.maxOffsetY)
     expect(child.contentOffset.y) < 290
     expect(childRenderTypes) == [
       .boundsChange(
-        previousBounds: CGRect(x: 0, y: 290, width: 100, height: 100),
-        bounds: CGRect(origin: child.contentOffset, size: CGSize(width: 140, height: 140))
+        previousBounds: CGRect(x: 0, y: 290, width: 100 - thickness, height: 100 - thickness),
+        bounds: CGRect(origin: child.contentOffset, size: CGSize(width: 140 - thickness, height: 140 - thickness))
       ),
     ]
     expect(childRenderTypes.count) == layerContexts.count

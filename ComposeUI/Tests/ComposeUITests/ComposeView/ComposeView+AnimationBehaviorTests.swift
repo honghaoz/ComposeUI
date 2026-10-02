@@ -740,17 +740,19 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       return false
     }
 
+    let visibleSize = view.visibleSize
     view.contentOffset = CGPoint(x: 0, y: 20)
     view.layoutIfNeeded()
 
-    // then: the render type should have correct previous bounds
-    expect(calledRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 10, width: 120, height: 80), bounds: CGRect(x: 0, y: 20, width: 120, height: 80))
+    // then: the render type should have correct previous bounds, the visible areas, which the scrollers take space from
+    // on AppKit
+    expect(calledRenderType) == .boundsChange(previousBounds: CGRect(origin: CGPoint(x: 0, y: 10), size: visibleSize), bounds: CGRect(origin: CGPoint(x: 0, y: 20), size: visibleSize))
 
     // when: resize the view
     view.frame.size = CGSize(width: 140, height: 90)
     view.layoutIfNeeded()
 
     // then: the render type should have correct previous bounds
-    expect(calledRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 20, width: 120, height: 80), bounds: CGRect(x: 0, y: 20, width: 140, height: 90))
+    expect(calledRenderType) == .boundsChange(previousBounds: CGRect(origin: CGPoint(x: 0, y: 20), size: visibleSize), bounds: CGRect(origin: CGPoint(x: 0, y: 20), size: view.visibleSize))
   }
 }

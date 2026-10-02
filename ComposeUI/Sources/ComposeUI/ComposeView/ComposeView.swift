@@ -380,6 +380,10 @@ open class ComposeView: BaseScrollView {
   ///
   /// This handler runs before the content size is updated.
   ///
+  /// It runs before each layout of a render pass. Usually, the layout is performed once, but on macOS, with the legacy
+  /// scroll bar style (`NSScrollView.scrollerStyle == .legacy`), if the content is larger than the view's bounds, the
+  /// layout is performed twice: once for the full view size, then once for the view size minus the scroll bar width.
+  ///
   /// This handler runs inside the render pass, so a refresh or layout it requests for this view, or for a view
   /// containing it, waits until the pass ends (see `refresh(animated:)`).
   ///
@@ -718,12 +722,15 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Tiling
 
-  /// Tiles the clip view and the scrollers.
-  ///
-  /// It's final because the content lays out for the view's bounds, so space that custom tiling takes from the clip view
-  /// would cover the content.
-  override public final func tile() { // swiftlint:disable:this unneeded_override
+  override open func tile() {
     super.tile()
+
+    // AppKit re-tiles without laying the view out when the scroller style changes or a scroll bar shows or hides, so ask
+    // for a layout when that changes the visible size the content rendered for. a render pass renders for the visible
+    // size its own re-tiles leave, and AppKit ignores the request during a layout, which renders next anyway.
+    if !isRendering, renderBounds() != lastRenderBounds {
+      needsLayout = true
+    }
   }
 
   // MARK: - Locked Scroll View Settings
@@ -849,7 +856,7 @@ open class ComposeView: BaseScrollView {
       contentEvaluation: contentEvaluation,
       updateType: .refresh(isAnimated: animated),
       previousRenderBounds: lastRenderBounds,
-      renderBounds: renderBounds(),
+      bounds: CGRect(origin: contentOffset, size: bounds.size),
       preparedAnimationDecision: preparedContent?.animationDecision ?? .all
     )
 
@@ -951,7 +958,7 @@ open class ComposeView: BaseScrollView {
         contentEvaluation: contentEvaluation,
         updateType: .boundsChange,
         previousRenderBounds: lastRenderBounds,
-        renderBounds: renderBounds,
+        bounds: CGRect(origin: contentOffset, size: bounds.size),
         preparedAnimationDecision: .all
       )
     }
@@ -1039,39 +1046,25 @@ open class ComposeView: BaseScrollView {
     let contentNode = context.contentNode
     let contentEvaluation = context.contentEvaluation
 
-    var bounds = context.renderBounds
-    let boundsSize = bounds.size
-
     #if DEBUG
     debug?.onEvent(.renderWillBegin(contentNode: contentNode))
     #endif
 
-    willLayoutHandler?(self, WillLayoutContext(containerSize: boundsSize, renderType: context.renderType(bounds: bounds)))
-
-    #if DEBUG
-    let layoutVisibleBounds = bounds.inset(by: visibleBoundsInsets)
-    debug?.onEvent(.renderWillLayout(contentNode: contentNode, bounds: bounds, visibleBounds: layoutVisibleBounds))
-    #endif
-
-    // do the layout
-    let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: contentEvaluation)
-    _ = contentNode.layout(containerSize: boundsSize, context: layoutContext)
+    // perform the layout
+    let renderSize = layout(context)
+    var renderBounds = CGRect(origin: context.bounds.origin, size: renderSize)
     var contentSize = contentNode.size
 
-    #if DEBUG
-    debug?.onEvent(.renderDidLayout(contentSize: contentSize))
-    #endif
-
-    // the layout and the render bounds compute their sizes with different arithmetic, so content that fits the bounds
-    // exactly can differ from them by floating-point noise. compare them with `extends(beyond:)` instead of `<` and `>`,
-    // so the noise doesn't center, scroll, clip, or show scroll indicators.
+    // the layout and the render bounds compute their sizes with different arithmetic, so content that fits the render
+    // bounds exactly can differ from them by floating-point noise. compare them with `extends(beyond:)` instead of `<`
+    // and `>`, so the noise doesn't center, scroll, clip, or show scroll indicators.
     var centeredChildFrame: CGRect?
-    if boundsSize.width.extends(beyond: contentSize.width) || boundsSize.height.extends(beyond: contentSize.height) {
-      // if content is smaller than the bounds in either dimension, should center the content
+    if renderSize.width.extends(beyond: contentSize.width) || renderSize.height.extends(beyond: contentSize.height) {
+      // if content is smaller than the render bounds in either dimension, should center the content
 
       let adjustedContentSize = CGSize(
-        width: max(contentSize.width, boundsSize.width),
-        height: max(contentSize.height, boundsSize.height)
+        width: max(contentSize.width, renderSize.width),
+        height: max(contentSize.height, renderSize.height)
       )
 
       // logic copied from FrameNode.renderableItems(in:) (part 1)
@@ -1079,17 +1072,17 @@ open class ComposeView: BaseScrollView {
       contentSize = adjustedContentSize
     }
 
-    let overflowsHorizontally = contentSize.width.extends(beyond: boundsSize.width)
-    let overflowsVertically = contentSize.height.extends(beyond: boundsSize.height)
+    let overflowsHorizontally = contentSize.width.extends(beyond: renderSize.width)
+    let overflowsVertically = contentSize.height.extends(beyond: renderSize.height)
 
-    // round the content up to whole pixels, except along an axis it fits: there it can still exceed the bounds by
-    // floating-point noise, which rounding up would turn into a pixel to scroll, so use the bounds instead.
+    // round the content up to whole pixels, except along an axis it fits: there it can still exceed the render size by
+    // floating-point noise, which rounding up would turn into a pixel to scroll, so use the render size instead.
     var roundedContentSize = contentSize.roundedUp(scaleFactor: contentScaleFactor)
     if !overflowsHorizontally {
-      roundedContentSize.width = boundsSize.width
+      roundedContentSize.width = renderSize.width
     }
     if !overflowsVertically {
-      roundedContentSize.height = boundsSize.height
+      roundedContentSize.height = renderSize.height
     }
 
     // set content size
@@ -1132,65 +1125,38 @@ open class ComposeView: BaseScrollView {
     debug?.onEvent(.renderDidUpdateClippingBehavior(clipsToBounds: clipsToBounds))
     #endif
 
-    // update scroll indicator behavior
-    let oldShowsHorizontalScrollIndicator = showsHorizontalScrollIndicator
-    let oldShowsVerticalScrollIndicator = showsVerticalScrollIndicator
-
-    switch scrollIndicatorBehavior {
-    case .auto:
-      showsHorizontalScrollIndicator = overflowsHorizontally
-      showsVerticalScrollIndicator = overflowsVertically
-    case .manual:
-      break
-    case .always:
-      showsHorizontalScrollIndicator = true
-      showsVerticalScrollIndicator = true
-    case .never:
-      showsHorizontalScrollIndicator = false
-      showsVerticalScrollIndicator = false
-    }
-
-    if (oldShowsHorizontalScrollIndicator == false && showsHorizontalScrollIndicator == true) ||
-      (oldShowsVerticalScrollIndicator == false && showsVerticalScrollIndicator == true)
-    {
-      flashScrollIndicators()
-    }
-
-    #if DEBUG
-    debug?.onEvent(.renderDidUpdateScrollIndicatorBehavior(showsHorizontalScrollIndicator: showsHorizontalScrollIndicator, showsVerticalScrollIndicator: showsVerticalScrollIndicator))
-    #endif
-
     #if canImport(AppKit)
     invalidateScrollElasticity()
     #endif
 
+    // adjust content offset
+
     // updating the content size or the scroll indicators can move the scroll offset: on AppKit, hiding a legacy
     // scroller grows the clip view, which can clamp the offset. so read the offset after both, to render the viewport
     // the view ends up with.
-    bounds.origin = contentOffset
+    renderBounds.origin = contentOffset
 
     if let willRenderHandler {
-      willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: bounds, renderType: context.renderType(bounds: bounds)))
+      willRenderHandler(self, WillRenderContext(contentSize: roundedContentSize, renderBounds: renderBounds, renderType: context.renderType(bounds: renderBounds)))
 
-      // the will-render handler may change the bounds, so read them again.
-      // only the origin is picked to ensure the correct content offset is used for rendering.
+      // the will-render handler may change the bounds, so read the content offset again.
       // ignoring the size change because the layout above already used the old size. if the size changes, the render
       // pass will be triggered again after the pass ends (see `render()`).
-      bounds.origin = renderBounds().origin
+      renderBounds.origin = contentOffset
     }
 
-    // the bounds are final from here on, so the render type and the animation decision are made once for the render pass.
+    // the render bounds are final from here on, so the render type and the animation decision are made once per pass.
     // a pass within a parent's render pass is capped by the parent's animation decision: the view's animation behavior
     // can lower it but never raise it. the view's own updates carry `.all`, which caps nothing. nested views rendering
     // within this pass inherit the animation decision in turn, so a cap reaches every depth.
-    let renderType = context.renderType(bounds: bounds)
+    let renderType = context.renderType(bounds: renderBounds)
     let animationDecision = animationBehavior
       .animationDecision(renderType: renderType, contentView: self)
       .capped(by: animationDecisionCap)
 
     renderingAnimationDecision = animationDecision
 
-    let visibleBounds = bounds.inset(by: visibleBoundsInsets)
+    let visibleBounds = renderBounds.inset(by: visibleBoundsInsets)
 
     // get renderable items
     let renderableItems: [RenderableItem]
@@ -1420,7 +1386,7 @@ open class ComposeView: BaseScrollView {
           oldFrame: oldFrame,
           newFrame: newFrame,
           previousRenderBounds: context.previousRenderBounds,
-          renderBounds: bounds,
+          renderBounds: renderBounds,
           animationTiming: animationTiming,
           contentView: self,
           contentEvaluation: contentEvaluation,
@@ -1504,7 +1470,7 @@ open class ComposeView: BaseScrollView {
           oldFrame: frameAfterWillInsert,
           newFrame: newFrame,
           previousRenderBounds: context.previousRenderBounds,
-          renderBounds: bounds,
+          renderBounds: renderBounds,
           animationTiming: nil, // no animation for insertion
           contentView: self,
           contentEvaluation: contentEvaluation,
@@ -1594,14 +1560,136 @@ open class ComposeView: BaseScrollView {
     #endif
 
     if let didRenderHandler {
-      didRenderHandler(self, DidRenderContext(contentSize: contentSize, renderBounds: bounds, renderType: renderType))
+      didRenderHandler(self, DidRenderContext(contentSize: contentSize, renderBounds: renderBounds, renderType: renderType))
     }
 
     #if DEBUG
     debug?.onEvent(.renderDidFinish(renderableItemIds: renderableItemIds, renderableItemMap: renderableItemMap, renderableMap: renderableMap))
     #endif
 
-    lastRenderBounds = bounds
+    lastRenderBounds = renderBounds
+  }
+
+  /// Performs the layout for a content update, updating the scroll indicators and returns the size the content laid out for.
+  ///
+  /// - Parameter context: The content update being rendered.
+  /// - Returns: The render size the content laid out for.
+  private func layout(_ context: ContentUpdateContext) -> CGSize {
+    let contentNode = context.contentNode
+    let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: context.contentEvaluation)
+
+    var laidOutSize: CGSize?
+    func layout(for containerSize: CGSize) {
+      guard containerSize != laidOutSize else {
+        return
+      }
+
+      let bounds = CGRect(origin: context.bounds.origin, size: containerSize)
+      willLayoutHandler?(self, WillLayoutContext(containerSize: containerSize, renderType: context.renderType(bounds: bounds)))
+
+      #if DEBUG
+      debug?.onEvent(.renderWillLayout(contentNode: contentNode, bounds: bounds, visibleBounds: bounds.inset(by: visibleBoundsInsets)))
+      #endif
+
+      _ = contentNode.layout(containerSize: containerSize, context: layoutContext)
+      laidOutSize = containerSize
+
+      #if DEBUG
+      debug?.onEvent(.renderDidLayout(contentSize: contentNode.size))
+      #endif
+    }
+
+    let boundsSize = context.bounds.size
+    let oldShowsHorizontalScrollIndicator = showsHorizontalScrollIndicator
+    let oldShowsVerticalScrollIndicator = showsVerticalScrollIndicator
+
+    switch scrollIndicatorBehavior {
+    case .auto:
+      let keepsScrollIndicators: Bool
+      switch context.updateType {
+      case .refresh:
+        keepsScrollIndicators = false
+      case .boundsChange:
+        // a scroll changes neither the content nor the render size, so it keeps the scroll indicators the last pass
+        // decided, and the content lays out once, for the render size the cached layout already has
+        keepsScrollIndicators = context.previousRenderBounds?.size == renderSize(for: boundsSize)
+      }
+
+      if !keepsScrollIndicators {
+        // the content or its container size changed, so need to do a layout with the view's full size to check if needs
+        // to update the scroll indicators again.
+        layout(for: boundsSize)
+        showsHorizontalScrollIndicator = contentNode.size.width.extends(beyond: boundsSize.width)
+        showsVerticalScrollIndicator = contentNode.size.height.extends(beyond: boundsSize.height)
+
+        // after updating the scroll indicators, the render size leaves out the space the legacy scroll bars take.
+        // if it's smaller, lay out again for it, and show a scroll indicator for any axis the content now overflows.
+        let renderSize = self.renderSize(for: boundsSize)
+        if renderSize != boundsSize {
+          layout(for: renderSize)
+          if contentNode.size.width.extends(beyond: renderSize.width) {
+            showsHorizontalScrollIndicator = true
+          }
+          if contentNode.size.height.extends(beyond: renderSize.height) {
+            showsVerticalScrollIndicator = true
+          }
+        }
+      }
+    case .manual:
+      break
+    case .always:
+      showsHorizontalScrollIndicator = true
+      showsVerticalScrollIndicator = true
+    case .never:
+      showsHorizontalScrollIndicator = false
+      showsVerticalScrollIndicator = false
+    }
+
+    if (oldShowsHorizontalScrollIndicator == false && showsHorizontalScrollIndicator == true) ||
+      (oldShowsVerticalScrollIndicator == false && showsVerticalScrollIndicator == true)
+    {
+      flashScrollIndicators()
+    }
+
+    #if DEBUG
+    debug?.onEvent(.renderDidUpdateScrollIndicatorBehavior(showsHorizontalScrollIndicator: showsHorizontalScrollIndicator, showsVerticalScrollIndicator: showsVerticalScrollIndicator))
+    #endif
+
+    let renderSize = self.renderSize(for: boundsSize)
+    layout(for: renderSize)
+    return renderSize
+  }
+
+  /// Returns the size the content lays out and renders for: the bounds size less the space that legacy scroll bars take
+  /// on macOS.
+  ///
+  /// - Parameter boundsSize: The bounds size the render pass was made for.
+  /// - Returns: The render size.
+  private func renderSize(for boundsSize: CGSize) -> CGSize {
+    let currentBoundsSize = bounds.size
+    let visibleSize = self.visibleSize
+
+    if boundsSize == currentBoundsSize {
+      // the view hasn't resized since the pass was made, so the visible size is the render size.
+      // use it as is rather than the math below, so the render size always matches `renderBounds()`.
+      return visibleSize
+    } else {
+      // the view resized after the pass was made: render for the earlier size, minus the space the scroll bars take now
+      let scrollBarSpace = currentBoundsSize - visibleSize
+      return boundsSize - scrollBarSpace
+    }
+  }
+
+  /// Returns the bounds used for layout and rendering.
+  private func renderBounds() -> CGRect {
+    #if canImport(AppKit)
+    // legacy scroll bar shrinks the visible size, so visibleSize could be smaller than the bounds.size
+    return CGRect(origin: contentOffset, size: visibleSize)
+    #endif
+
+    #if canImport(UIKit)
+    return bounds
+    #endif
   }
 
   /// Updates the renderable layer's `zPosition` so that renderables render in the items order, regardless of the
@@ -1637,20 +1725,6 @@ open class ComposeView: BaseScrollView {
     layer.disableActions(for: "zPosition") {
       layer.zPosition = zPosition
     }
-  }
-
-  /// Returns the bounds used for layout and rendering.
-  private func renderBounds() -> CGRect {
-    #if canImport(AppKit)
-    // a legacy scroller shrinks the clip view (`visibleSize`), so the size comes from the view's bounds, where AppKit
-    // tiles the clip view without scrollers. it then depends only on the bounds, so showing or hiding a scroller never
-    // changes the layout.
-    return CGRect(origin: contentOffset, size: self.bounds.size)
-    #endif
-
-    #if canImport(UIKit)
-    return bounds
-    #endif
   }
 
   // MARK: - Constants

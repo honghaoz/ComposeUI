@@ -238,6 +238,40 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(didRenderRenderType) == .boundsChange(previousBounds: CGRect(x: 0, y: 50, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 150, height: 150))
   }
 
+  func test_willLayoutHandler_autoScrollIndicatorBehavior_runsOncePerPass() {
+    // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, with
+    // content taller than the view
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 200)
+    }
+    view.scrollIndicatorBehavior = .auto
+    #if canImport(AppKit)
+    view.scrollerStyle = .overlay
+    #endif
+
+    var containerSizes: [CGSize] = []
+    view.onWillLayout { _, context in
+      containerSizes.append(context.containerSize)
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the vertical scroll indicator shows without taking space, so the layout that decides it is the pass's only
+    // layout, and the handler runs once
+    expect(view.showsVerticalScrollIndicator) == true
+    expect(containerSizes) == [CGSize(width: 100, height: 100)]
+
+    // when: the view resizes
+    view.frame.size = CGSize(width: 100, height: 150)
+    view.layoutIfNeeded()
+
+    // then: the handler runs once more, for the new size
+    expect(containerSizes) == [CGSize(width: 100, height: 100), CGSize(width: 100, height: 150)]
+  }
+
   func test_willRenderHandler() {
     // given: a compose view with a content
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))

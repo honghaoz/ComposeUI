@@ -326,13 +326,17 @@ class ComposeView_ScrollIndicatorBehaviorTests: XCTestCase {
   }
 
   func test_scrollIndicatorBehavior_auto_contentOverflowingByLessThanAPixel() {
-    // given: a view whose content is a tenth of a point wider than the view, less than a pixel
+    // given: a view whose content is a tenth of a point wider than the view, less than a pixel, with scroll bars that
+    // take no space, since a legacy horizontal scroll bar on macOS would take height the content needs
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     contentView.setContent {
       ColorNode(.red)
         .frame(width: 100.1, height: 100)
     }
     contentView.scrollIndicatorBehavior = .auto
+    #if canImport(AppKit)
+    contentView.scrollerStyle = .overlay
+    #endif
 
     // when: the view refreshes
     contentView.refresh(animated: false)
