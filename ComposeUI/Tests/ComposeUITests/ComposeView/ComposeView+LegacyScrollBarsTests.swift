@@ -538,29 +538,37 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 40)
   }
 
-  func test_willLayoutHandlerSwitchingToManualBesideTheScrollBars_keepsItsScrollIndicators() {
-    // given: a 120 × 200 view with legacy scroll bars, showing content larger than the view, and a will-layout handler
-    // that, on the second layout, beside the scroll bars, switches to manual scroll indicators and hides them
+  func test_willLayoutHandlerChangingTheBehaviorOnTheSecondLayout_assertsAndKeepsIt() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content larger than the view, a will-layout handler that
+    // switches to never showing the scroll indicators on the second layout, after the scroll bars take space, and a
+    // handler that records the assertions
     let view = makeView { LayerNode().frame(width: 300, height: 300) }
     var layoutCount = 0
     view.onWillLayout { view, _ in
       layoutCount += 1
-      guard layoutCount == 2 else {
-        return
+      if layoutCount == 2 {
+        view.scrollIndicatorBehavior = .never
       }
-      view.scrollIndicatorBehavior = .manual
-      view.showsHorizontalScrollIndicator = false
-      view.showsVerticalScrollIndicator = false
+    }
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
     }
 
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the automatic update stops when the handler switches to manual, so the scroll bars stay hidden
-    expect(layoutCount) == 3
-    expect(view.scrollIndicatorBehavior) == .manual
-    expect(view.hasHorizontalScroller) == false
-    expect(view.hasVerticalScroller) == false
+    // then: the change asserts, and the pass keeps the automatic behavior, so both scroll bars show and the content lays
+    // out for the space they leave
+    expect(assertionMessages) == ["onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior"]
+    expect(view.scrollIndicatorBehavior) == .auto
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120 - thickness, height: 200 - thickness)
   }
 
   // MARK: - Helpers

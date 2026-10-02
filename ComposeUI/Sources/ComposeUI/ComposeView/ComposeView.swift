@@ -392,6 +392,9 @@ open class ComposeView: BaseScrollView {
   /// This handler runs inside the render pass, so a refresh or layout it requests for this view, or for a view
   /// containing it, waits until the pass ends (see `refresh(animated:)`).
   ///
+  /// The render pass applies the scroll settings it started with, so the handler can't change `scrollBehavior`,
+  /// `scrollIndicatorBehavior` or `clippingBehavior`. Changing them asserts and keeps the current values.
+  ///
   /// Calling this replaces any previously set handler.
   ///
   /// - Parameter handler: The will-layout handler.
@@ -491,7 +494,10 @@ open class ComposeView: BaseScrollView {
   /// The view's scrollable behavior.
   public enum ScrollBehavior {
 
-    /// The view is scrollable if the content is larger than the view's bounds. Otherwise, the view is not scrollable.
+    /// The view is scrollable if the content is larger than the visible size. Otherwise, the view is not scrollable.
+    ///
+    /// On macOS, with the legacy scroll bar style (`NSScrollView.scrollerStyle == .legacy`), the scroll bars take space
+    /// from the visible size.
     case auto
 
     /// The view does not modify scroll settings. `isScrollEnabled` and `alwaysBounceHorizontal`/`alwaysBounceVertical` are managed by you.
@@ -510,7 +516,10 @@ open class ComposeView: BaseScrollView {
   /// The view's scroll indicator behavior.
   public enum ScrollIndicatorBehavior {
 
-    /// The scroll indicators are shown if the content is larger than the view's bounds. Otherwise, the scroll indicators are hidden.
+    /// A scroll indicator is shown for each axis where the content is larger than the view's bounds, and hidden otherwise.
+    ///
+    /// On macOS, with the legacy scroll bar style (`NSScrollView.scrollerStyle == .legacy`), a scroll bar takes space,
+    /// so the other axis's scroll indicator also shows if the content overflows the space that remains.
     case auto
 
     /// The view does not modify scroll indicator settings. `showsHorizontalScrollIndicator` and `showsVerticalScrollIndicator` are managed by you.
@@ -1633,7 +1642,15 @@ open class ComposeView: BaseScrollView {
       }
 
       let bounds = CGRect(origin: context.bounds.origin, size: containerSize)
-      willLayoutHandler?(self, WillLayoutContext(containerSize: containerSize, renderType: context.renderType(bounds: bounds)))
+      if let willLayoutHandler {
+        let scrollSettings = (scrollBehavior, scrollIndicatorBehavior, clippingBehavior)
+        willLayoutHandler(self, WillLayoutContext(containerSize: containerSize, renderType: context.renderType(bounds: bounds)))
+        // the render pass applies the scroll settings it started with, so the handler can't change them
+        if (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) != scrollSettings {
+          ComposeUI.assertFailure("onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior")
+          (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) = scrollSettings
+        }
+      }
 
       #if DEBUG
       debug?.onEvent(.renderWillLayout(contentNode: contentNode, bounds: bounds, visibleBounds: bounds.inset(by: visibleBoundsInsets)))
@@ -1662,74 +1679,51 @@ open class ComposeView: BaseScrollView {
       }
     }
 
-    func updateScrollIndicators(for behavior: ScrollIndicatorBehavior) {
-      switch behavior {
-      case .auto:
-        let keepsScrollIndicators: Bool
-        switch context.updateType {
-        case .refresh:
-          keepsScrollIndicators = false
-        case .boundsChange:
-          // a scroll changes neither the content nor the render size, so it keeps the scroll indicators, if the last
-          // update also decided them automatically. the content then lays out once, for the render size the cached
-          // layout already has.
-          let isScroll = context.previousRenderBounds?.size == self.renderSize(for: boundsSize)
-          keepsScrollIndicators = isScroll && lastScrollIndicatorBehavior == .auto
-        }
-
-        if !keepsScrollIndicators {
-          // the content or its container size changed, so lay out for the view's full size to check whether the scroll
-          // indicators need to change.
-          layout(for: boundsSize)
-
-          // the will-layout handler can change the behavior. stop, so the update for the new behavior starts from the
-          // scroll indicators the handler left.
-          guard scrollIndicatorBehavior == behavior else {
-            return
-          }
-
-          setScrollIndicators(
-            horizontal: contentNode.size.width.extends(beyond: boundsSize.width),
-            vertical: contentNode.size.height.extends(beyond: boundsSize.height)
-          )
-
-          // after updating the scroll indicators, the render size leaves out the space the legacy scroll bars take.
-          // if it's smaller, lay out again for it, and show a scroll indicator for any axis the content now overflows.
-          let renderSize = self.renderSize(for: boundsSize)
-          if renderSize != boundsSize {
-            layout(for: renderSize)
-            guard scrollIndicatorBehavior == behavior else {
-              return
-            }
-            setScrollIndicators(
-              horizontal: showsHorizontalScrollIndicator || contentNode.size.width.extends(beyond: renderSize.width),
-              vertical: showsVerticalScrollIndicator || contentNode.size.height.extends(beyond: renderSize.height)
-            )
-          }
-        }
-      case .manual:
-        break
-      case .always:
-        setScrollIndicators(horizontal: true, vertical: true)
-      case .never:
-        setScrollIndicators(horizontal: false, vertical: false)
+    switch scrollIndicatorBehavior {
+    case .auto:
+      let keepsScrollIndicators: Bool
+      switch context.updateType {
+      case .refresh:
+        keepsScrollIndicators = false
+      case .boundsChange:
+        // a scroll changes neither the content nor the render size, so it keeps the scroll indicators, if the last
+        // update also decided them automatically. the content then lays out once, for the render size the cached layout
+        // already has.
+        let isScroll = context.previousRenderBounds?.size == self.renderSize(for: boundsSize)
+        keepsScrollIndicators = isScroll && lastScrollIndicatorBehavior == .auto
       }
-      lastScrollIndicatorBehavior = behavior
-    }
 
-    let behavior = scrollIndicatorBehavior
-    updateScrollIndicators(for: behavior)
-    var renderSize = self.renderSize(for: boundsSize)
+      if !keepsScrollIndicators {
+        // the content or its container size changed, so lay out for the view's full size to check whether the scroll
+        // indicators need to change.
+        layout(for: boundsSize)
+        setScrollIndicators(
+          horizontal: contentNode.size.width.extends(beyond: boundsSize.width),
+          vertical: contentNode.size.height.extends(beyond: boundsSize.height)
+        )
+
+        // after updating the scroll indicators, the render size leaves out the space the legacy scroll bars take.
+        // if it's smaller, lay out again for it, and show a scroll indicator for any axis the content now overflows.
+        let renderSize = self.renderSize(for: boundsSize)
+        if renderSize != boundsSize {
+          layout(for: renderSize)
+          setScrollIndicators(
+            horizontal: showsHorizontalScrollIndicator || contentNode.size.width.extends(beyond: renderSize.width),
+            vertical: showsVerticalScrollIndicator || contentNode.size.height.extends(beyond: renderSize.height)
+          )
+        }
+      }
+    case .manual:
+      break
+    case .always:
+      setScrollIndicators(horizontal: true, vertical: true)
+    case .never:
+      setScrollIndicators(horizontal: false, vertical: false)
+    }
+    lastScrollIndicatorBehavior = scrollIndicatorBehavior
+
+    let renderSize = self.renderSize(for: boundsSize)
     layout(for: renderSize)
-
-    // the will-layout handler can change the scroll indicator behavior. if it did, update the scroll indicators again,
-    // so the new behavior applies to this pass. a change made during this second update applies to the next pass.
-    if scrollIndicatorBehavior != behavior {
-      updateScrollIndicators(for: scrollIndicatorBehavior)
-      renderSize = self.renderSize(for: boundsSize)
-      layout(for: renderSize)
-    }
-
     return renderSize
   }
 

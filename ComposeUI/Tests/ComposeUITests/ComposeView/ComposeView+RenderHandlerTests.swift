@@ -272,62 +272,52 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(containerSizes) == [CGSize(width: 100, height: 100), CGSize(width: 100, height: 150)]
   }
 
-  func test_willLayoutHandler_changingScrollIndicatorBehavior_appliesToTheSamePass() {
-    // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, with
-    // content taller than the view, and a will-layout handler that turns the scroll indicators off
+  func test_willLayoutHandler_changingTheScrollSettings_assertsAndKeepsThem() {
+    // given: a 100 × 100 view with automatic scroll settings, as overlay scroll bars on macOS, content taller than the
+    // view, a will-layout handler that sets the scroll settings, and a handler that records the assertions
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.setContent {
       ColorNode(.red)
         .frame(width: .flexible, height: 200)
     }
+    view.scrollBehavior = .auto
     view.scrollIndicatorBehavior = .auto
+    view.clippingBehavior = .auto
     #if canImport(AppKit)
     view.scrollerStyle = .overlay
     #endif
+    var settings: (ComposeView.ScrollBehavior, ComposeView.ScrollIndicatorBehavior, ComposeView.ClippingBehavior) = (.auto, .auto, .auto)
     view.onWillLayout { view, _ in
-      view.scrollIndicatorBehavior = .never
+      (view.scrollBehavior, view.scrollIndicatorBehavior, view.clippingBehavior) = settings
     }
 
-    // when: the view refreshes
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the handler sets the settings the view already has, and the view refreshes
     view.refresh(animated: false)
 
-    // then: the render pass hides the scroll indicators, as the behavior the handler set asks
-    expect(view.scrollIndicatorBehavior) == .never
-    expect(view.showsVerticalScrollIndicator) == false
-  }
+    // then: nothing asserts
+    expect(assertionMessages) == []
 
-  func test_willLayoutHandler_switchingToManualScrollIndicators_keepsTheHandlersScrollIndicators() {
-    // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, with
-    // content larger than the view, and a will-layout handler that, once, switches to manual scroll indicators and hides
-    // them
-    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
-    view.setContent {
-      ColorNode(.red)
-        .frame(width: 300, height: 300)
-    }
-    view.scrollIndicatorBehavior = .auto
-    #if canImport(AppKit)
-    view.scrollerStyle = .overlay
-    #endif
-    var isConfigured = false
-    view.onWillLayout { view, _ in
-      guard !isConfigured else {
-        return
-      }
-      isConfigured = true
-      view.scrollIndicatorBehavior = .manual
-      view.showsHorizontalScrollIndicator = false
-      view.showsVerticalScrollIndicator = false
-    }
-
-    // when: the view refreshes
+    // when: the handler sets other settings, and the view refreshes
+    settings = (.never, .never, .never)
     view.refresh(animated: false)
 
-    // then: the automatic update stops when the handler switches to manual, so the handler's hidden scroll indicators
-    // stay hidden
-    expect(view.scrollIndicatorBehavior) == .manual
-    expect(view.showsHorizontalScrollIndicator) == false
-    expect(view.showsVerticalScrollIndicator) == false
+    // then: it asserts and keeps the automatic settings, so the content taller than the view scrolls, shows the vertical
+    // scroll indicator, and clips
+    expect(assertionMessages) == ["onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior"]
+    expect(view.scrollBehavior) == .auto
+    expect(view.scrollIndicatorBehavior) == .auto
+    expect(view.clippingBehavior) == .auto
+    expect(view.isScrollEnabled) == true
+    expect(view.showsVerticalScrollIndicator) == true
+    expect(view.clipsToBounds) == true
   }
 
   func test_willRenderHandler() {
