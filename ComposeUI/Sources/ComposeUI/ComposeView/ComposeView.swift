@@ -144,6 +144,10 @@ open class ComposeView: BaseScrollView {
   /// The animation decision of the render pass in progress.
   private var renderingAnimationDecision: AnimationDecision?
 
+  /// Whether the render pass in progress kept the offset across a scroll bar change that AppKit clamped it for, so it
+  /// clamps the offset once the final content size is set.
+  private var needsContentOffsetClamp = false
+
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
 
@@ -824,6 +828,21 @@ open class ComposeView: BaseScrollView {
     }
   }
 
+  /// Always `false`, since `ComposeView` shows and hides its scroll bars itself (see `scrollIndicatorBehavior`).
+  ///
+  /// Setting it to `true` asserts and keeps it `false`.
+  override public final var autohidesScrollers: Bool {
+    get {
+      super.autohidesScrollers
+    }
+    set {
+      // a legacy scroll bar that AppKit hides on its own changes the size the content lays out for, which can change
+      // whether AppKit hides it, so the two would alternate
+      ComposeUI.assert(!newValue, "ComposeView doesn't support auto-hiding scrollers")
+      super.autohidesScrollers = false
+    }
+  }
+
   #endif
 
   // MARK: - Render
@@ -1100,6 +1119,15 @@ open class ComposeView: BaseScrollView {
 
     // set content size
     self.contentSize = roundedContentSize
+
+    #if canImport(AppKit)
+    if needsContentOffsetClamp {
+      // the layout kept the offset across its scroll bar changes. clamp it now, against the final content size and
+      // visible area, as AppKit clamps it.
+      needsContentOffsetClamp = false
+      contentOffset = contentView.constrainBoundsRect(CGRect(origin: contentOffset, size: contentView.bounds.size)).origin
+    }
+    #endif
 
     // update scrollable behavior
     switch scrollBehavior {
@@ -1621,6 +1649,19 @@ open class ComposeView: BaseScrollView {
 
     let boundsSize = context.bounds.size
 
+    // hiding a legacy scroll bar grows the visible area, and AppKit clamps the offset to it, against the old content size
+    // and even when the update shows the scroll bar again. keep the offset instead, and clamp it once the final content
+    // size is set (see `render(_:)`).
+    func setScrollIndicators(horizontal: Bool, vertical: Bool) {
+      let contentOffset = self.contentOffset
+      showsHorizontalScrollIndicator = horizontal
+      showsVerticalScrollIndicator = vertical
+      if self.contentOffset != contentOffset {
+        self.contentOffset = contentOffset
+        needsContentOffsetClamp = true
+      }
+    }
+
     func updateScrollIndicators(for behavior: ScrollIndicatorBehavior) {
       switch behavior {
       case .auto:
@@ -1640,30 +1681,38 @@ open class ComposeView: BaseScrollView {
           // the content or its container size changed, so need to do a layout with the view's full size to check if
           // needs to update the scroll indicators again.
           layout(for: boundsSize)
-          showsHorizontalScrollIndicator = contentNode.size.width.extends(beyond: boundsSize.width)
-          showsVerticalScrollIndicator = contentNode.size.height.extends(beyond: boundsSize.height)
+
+          // the will-layout handler can change the behavior. stop, so the update for the new behavior starts from the
+          // scroll indicators the handler left.
+          guard scrollIndicatorBehavior == behavior else {
+            return
+          }
+
+          setScrollIndicators(
+            horizontal: contentNode.size.width.extends(beyond: boundsSize.width),
+            vertical: contentNode.size.height.extends(beyond: boundsSize.height)
+          )
 
           // after updating the scroll indicators, the render size leaves out the space the legacy scroll bars take.
           // if it's smaller, lay out again for it, and show a scroll indicator for any axis the content now overflows.
           let renderSize = self.renderSize(for: boundsSize)
           if renderSize != boundsSize {
             layout(for: renderSize)
-            if contentNode.size.width.extends(beyond: renderSize.width) {
-              showsHorizontalScrollIndicator = true
+            guard scrollIndicatorBehavior == behavior else {
+              return
             }
-            if contentNode.size.height.extends(beyond: renderSize.height) {
-              showsVerticalScrollIndicator = true
-            }
+            setScrollIndicators(
+              horizontal: showsHorizontalScrollIndicator || contentNode.size.width.extends(beyond: renderSize.width),
+              vertical: showsVerticalScrollIndicator || contentNode.size.height.extends(beyond: renderSize.height)
+            )
           }
         }
       case .manual:
         break
       case .always:
-        showsHorizontalScrollIndicator = true
-        showsVerticalScrollIndicator = true
+        setScrollIndicators(horizontal: true, vertical: true)
       case .never:
-        showsHorizontalScrollIndicator = false
-        showsVerticalScrollIndicator = false
+        setScrollIndicators(horizontal: false, vertical: false)
       }
       lastScrollIndicatorBehavior = behavior
     }

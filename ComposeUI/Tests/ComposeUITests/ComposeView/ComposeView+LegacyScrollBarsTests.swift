@@ -367,6 +367,202 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.layoutCount) == 0
   }
 
+  // MARK: - Scroll Position
+
+  func test_refreshScrolledToTheBottom_keepsTheScrollPosition() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, so it
+    // shows the horizontal scroll bar only because the vertical one takes width, scrolled to the bottom
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let bottom = CGPoint(x: 0, y: 300 - (200 - thickness))
+    view.contentOffset = bottom
+    window.layoutIfNeeded()
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the horizontal scroll bar on the way and shows it again, and the view stays at the bottom
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == bottom
+    expect(view.test.lastRenderBounds?.origin) == bottom
+  }
+
+  func test_refreshScrolledToTheRightEnd_keepsTheScrollPosition() {
+    // given: a 200 × 120 view in a window, with legacy scroll bars, showing content 300 pt wide and 115 pt tall, so it
+    // shows the vertical scroll bar only because the horizontal one takes height, scrolled to the right end
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 300, height: 115) }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 120)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let rightEnd = CGPoint(x: 300 - (200 - thickness), y: 0)
+    view.contentOffset = rightEnd
+    window.layoutIfNeeded()
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the vertical scroll bar on the way and shows it again, and the view stays at the right end
+    expect(view.hasVerticalScroller) == true
+    expect(view.contentOffset) == rightEnd
+    expect(view.test.lastRenderBounds?.origin) == rightEnd
+  }
+
+  func test_refreshWithShorterContent_clampsTheScrollPosition() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall,
+    // scrolled to the bottom
+    var contentHeight: CGFloat = 300
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: contentHeight) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    view.contentOffset = CGPoint(x: 0, y: 300 - (200 - thickness))
+    window.layoutIfNeeded()
+
+    // when: the content gets 250 pt tall, and the view refreshes
+    contentHeight = 250
+    view.refresh(animated: false)
+
+    // then: the bottom moved up, so the offset clamps to the new bottom
+    expect(view.contentOffset) == CGPoint(x: 0, y: 250 - (200 - thickness))
+
+    // when: the content gets 190 pt tall, which fits the view, and the view refreshes
+    contentHeight = 190
+    view.refresh(animated: false)
+
+    // then: both scroll bars hide, and the offset clamps to the top
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+    expect(view.contentOffset) == .zero
+  }
+
+  func test_hidingTheScrollBarsAtTheBottom_clampsTheScrollPosition() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 300 pt wide and tall, scrolled to the
+    // bottom
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    view.contentOffset = CGPoint(x: 0, y: 300 - (200 - thickness))
+    window.layoutIfNeeded()
+
+    // when: the view stops showing scroll indicators, and refreshes
+    view.scrollIndicatorBehavior = .never
+    view.refresh(animated: false)
+
+    // then: the content size stays, but the visible area grew, so the offset clamps to the new bottom
+    expect(view.contentSize) == CGSize(width: 300, height: 300)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 300 - 200)
+  }
+
+  func test_refreshThatHidesTheHorizontalScrollBar_keepsAnOffsetTheNewContentAllows() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, scrolled
+    // to the bottom
+    var contentSize = CGSize(width: 115, height: 300)
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: contentSize.width, height: contentSize.height) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let offset = CGPoint(x: 0, y: 300 - (200 - thickness))
+    view.contentOffset = offset
+    window.layoutIfNeeded()
+
+    // when: the content gets 100 pt wide, which fits beside the vertical scroll bar, and 400 pt tall, and the view
+    // refreshes
+    contentSize = CGSize(width: 100, height: 400)
+    view.refresh(animated: false)
+
+    // then: the horizontal scroll bar hides, and the offset stays, since the taller content still allows it
+    expect(view.hasHorizontalScroller) == false
+    expect(view.contentOffset) == offset
+    expect(view.test.lastRenderBounds?.origin) == offset
+  }
+
+  func test_refreshThatHidesTheVerticalScrollBar_keepsAnOffsetTheNewContentAllows() {
+    // given: a 200 × 120 view in a window, with legacy scroll bars, showing content 300 pt wide and 115 pt tall, scrolled
+    // to the right end
+    var contentSize = CGSize(width: 300, height: 115)
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: contentSize.width, height: contentSize.height) }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 120)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let offset = CGPoint(x: 300 - (200 - thickness), y: 0)
+    view.contentOffset = offset
+    window.layoutIfNeeded()
+
+    // when: the content gets 400 pt wide and 100 pt tall, which fits above the horizontal scroll bar, and the view
+    // refreshes
+    contentSize = CGSize(width: 400, height: 100)
+    view.refresh(animated: false)
+
+    // then: the vertical scroll bar hides, and the offset stays, since the wider content still allows it
+    expect(view.hasVerticalScroller) == false
+    expect(view.contentOffset) == offset
+    expect(view.test.lastRenderBounds?.origin) == offset
+  }
+
+  func test_willLayoutHandlerSettingTheOffsetBesideTheScrollBar_keepsItsOffset() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, scrolled
+    // to the bottom, and a will-layout handler that sets the offset on the second layout, beside the vertical scroll bar
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    view.contentOffset = CGPoint(x: 0, y: 300 - (200 - thickness))
+    window.layoutIfNeeded()
+    var layoutCount = 0
+    view.onWillLayout { view, _ in
+      layoutCount += 1
+      if layoutCount == 2 {
+        view.contentOffset = CGPoint(x: 0, y: 40)
+      }
+    }
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the horizontal scroll bar on the way and shows it again, and the handler's offset stays
+    expect(layoutCount) == 3
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == CGPoint(x: 0, y: 40)
+    expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 40)
+  }
+
+  func test_willLayoutHandlerSwitchingToManualBesideTheScrollBars_keepsItsScrollIndicators() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content larger than the view, and a will-layout handler
+    // that, on the second layout, beside the scroll bars, switches to manual scroll indicators and hides them
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+    var layoutCount = 0
+    view.onWillLayout { view, _ in
+      layoutCount += 1
+      guard layoutCount == 2 else {
+        return
+      }
+      view.scrollIndicatorBehavior = .manual
+      view.showsHorizontalScrollIndicator = false
+      view.showsVerticalScrollIndicator = false
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the automatic update stops when the handler switches to manual, so the scroll bars stay hidden
+    expect(layoutCount) == 3
+    expect(view.scrollIndicatorBehavior) == .manual
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+  }
+
   // MARK: - Helpers
 
   /// Makes a 120 × 200 view that shows scroll bars of the style for the axes its content overflows.

@@ -296,6 +296,40 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(view.showsVerticalScrollIndicator) == false
   }
 
+  func test_willLayoutHandler_switchingToManualScrollIndicators_keepsTheHandlersScrollIndicators() {
+    // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, with
+    // content larger than the view, and a will-layout handler that, once, switches to manual scroll indicators and hides
+    // them
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      ColorNode(.red)
+        .frame(width: 300, height: 300)
+    }
+    view.scrollIndicatorBehavior = .auto
+    #if canImport(AppKit)
+    view.scrollerStyle = .overlay
+    #endif
+    var isConfigured = false
+    view.onWillLayout { view, _ in
+      guard !isConfigured else {
+        return
+      }
+      isConfigured = true
+      view.scrollIndicatorBehavior = .manual
+      view.showsHorizontalScrollIndicator = false
+      view.showsVerticalScrollIndicator = false
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the automatic update stops when the handler switches to manual, so the handler's hidden scroll indicators
+    // stay hidden
+    expect(view.scrollIndicatorBehavior) == .manual
+    expect(view.showsHorizontalScrollIndicator) == false
+    expect(view.showsVerticalScrollIndicator) == false
+  }
+
   func test_willRenderHandler() {
     // given: a compose view with a content
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
