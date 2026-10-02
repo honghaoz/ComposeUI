@@ -345,4 +345,76 @@ class ComposeView_ScrollIndicatorBehaviorTests: XCTestCase {
     expect(contentView.showsHorizontalScrollIndicator) == true
     expect(contentView.showsVerticalScrollIndicator) == false
   }
+
+  func test_scrollIndicatorBehavior_auto_flashesAShownScrollIndicatorAfterTheContentSizeIsSet() {
+    // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, and
+    // rendered content that fits it
+    var contentHeight: CGFloat = 50
+    let contentView = FlashRecordingComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: .flexible, height: contentHeight)
+    }
+    contentView.scrollIndicatorBehavior = .auto
+    #if canImport(AppKit)
+    contentView.scrollerStyle = .overlay
+    #endif
+    contentView.refresh(animated: false)
+    expect(contentView.contentSizesWhenFlashing) == []
+
+    // when: the content gets taller than the view, and the view refreshes
+    contentHeight = 300
+    contentView.refresh(animated: false)
+
+    // then: the vertical scroll indicator flashes once, when the view already has the new content size, so the flash
+    // shows the new scroll range
+    expect(contentView.showsVerticalScrollIndicator) == true
+    expect(contentView.contentSizesWhenFlashing) == [CGSize(width: 100, height: 300)]
+  }
+
+  func test_scrollIndicatorBehavior_changedToAuto_scrollDecidesTheScrollIndicators() {
+    // given: a 100 × 100 view that never shows its scroll indicators, as overlay scroll bars on macOS, and rendered
+    // content taller than it, then switched to showing them automatically
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 300)
+    }
+    contentView.scrollIndicatorBehavior = .never
+    #if canImport(AppKit)
+    contentView.scrollerStyle = .overlay
+    #endif
+    contentView.refresh(animated: false)
+    expect(contentView.showsVerticalScrollIndicator) == false
+    contentView.scrollIndicatorBehavior = .auto
+
+    // when: the view scrolls
+    contentView.contentOffset = CGPoint(x: 0, y: 50)
+    contentView.layoutIfNeeded()
+
+    // then: the scroll is the first render pass under the automatic behavior, so it decides the scroll indicators instead
+    // of keeping the hidden ones, and shows the vertical one
+    expect(contentView.showsVerticalScrollIndicator) == true
+  }
+}
+
+/// A view that records its content size each time it flashes its scroll indicators.
+private final class FlashRecordingComposeView: ComposeView {
+
+  /// The content sizes the view had when it flashed its scroll indicators, in order.
+  var contentSizesWhenFlashing: [CGSize] = []
+
+  #if canImport(AppKit)
+  override func flashScrollers() {
+    contentSizesWhenFlashing.append(contentSize)
+    super.flashScrollers()
+  }
+  #endif
+
+  #if canImport(UIKit)
+  override func flashScrollIndicators() {
+    contentSizesWhenFlashing.append(contentSize)
+    super.flashScrollIndicators()
+  }
+  #endif
 }

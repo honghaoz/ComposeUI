@@ -325,6 +325,41 @@ class ComposeView_RenderOverrideTests: XCTestCase {
     // then: the new size renders beside the scroll bar
     expect(row.frame) == CGRect(x: 0, y: 0, width: 160 - thickness, height: 100)
   }
+
+  func test_render_heldByAnOverride_preparedNarrowerThanTheScrollBar_rendersAtZeroWidth() throws {
+    // given: a 10 pt wide view showing a legacy vertical scroll bar, which is wider than the view, holding a render pass
+    // prepared at that width, then widened to 30 pt and laid out while holding it
+    let view = RenderHoldingView(frame: CGRect(x: 0, y: 0, width: 10, height: 100))
+    view.scrollIndicatorBehavior = .manual
+    view.scrollerStyle = .legacy
+    view.hasVerticalScroller = true
+    view.setContent {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 100)
+    }
+    view.refresh(animated: false)
+    view.holdsRenderPass = true
+    view.refresh(animated: false)
+    view.frame.size.width = 30
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+
+    // when: the held pass is released
+    view.releaseRenderPass()
+
+    // then: the earlier width minus the space the scroll bar takes now is below zero, so the held pass renders at zero
+    // width
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 0, height: 100)
+
+    // when: the run loop performs the follow-up layout
+    var isDrained = false
+    RunLoop.main.perform { isDrained = true }
+    expect(isDrained).toEventually(beTrue())
+
+    // then: the new size renders beside the scroll bar
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 30 - thickness, height: 100)
+  }
   #endif
 }
 

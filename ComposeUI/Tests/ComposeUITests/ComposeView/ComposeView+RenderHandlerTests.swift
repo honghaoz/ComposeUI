@@ -272,6 +272,30 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(containerSizes) == [CGSize(width: 100, height: 100), CGSize(width: 100, height: 150)]
   }
 
+  func test_willLayoutHandler_changingScrollIndicatorBehavior_appliesToTheSamePass() {
+    // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, with
+    // content taller than the view, and a will-layout handler that turns the scroll indicators off
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 200)
+    }
+    view.scrollIndicatorBehavior = .auto
+    #if canImport(AppKit)
+    view.scrollerStyle = .overlay
+    #endif
+    view.onWillLayout { view, _ in
+      view.scrollIndicatorBehavior = .never
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the render pass hides the scroll indicators, as the behavior the handler set asks
+    expect(view.scrollIndicatorBehavior) == .never
+    expect(view.showsVerticalScrollIndicator) == false
+  }
+
   func test_willRenderHandler() {
     // given: a compose view with a content
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
