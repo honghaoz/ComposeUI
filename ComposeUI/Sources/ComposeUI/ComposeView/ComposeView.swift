@@ -1618,7 +1618,7 @@ open class ComposeView: BaseScrollView {
     lastRenderBounds = renderBounds
   }
 
-  /// Performs the layout for a content update, updating the scroll indicators and returns the size the content laid out for.
+  /// Performs the layout for a content update, which also updates the scroll indicators.
   ///
   /// - Parameter context: The content update being rendered.
   /// - Returns: The render size the content laid out for.
@@ -1678,8 +1678,8 @@ open class ComposeView: BaseScrollView {
         }
 
         if !keepsScrollIndicators {
-          // the content or its container size changed, so need to do a layout with the view's full size to check if
-          // needs to update the scroll indicators again.
+          // the content or its container size changed, so lay out for the view's full size to check whether the scroll
+          // indicators need to change.
           layout(for: boundsSize)
 
           // the will-layout handler can change the behavior. stop, so the update for the new behavior starts from the
