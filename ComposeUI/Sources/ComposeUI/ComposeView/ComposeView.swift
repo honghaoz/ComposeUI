@@ -144,10 +144,6 @@ open class ComposeView: BaseScrollView {
   /// The animation decision of the render pass in progress.
   private var renderingAnimationDecision: AnimationDecision?
 
-  /// Whether the render pass in progress kept the offset across a scroll bar change that AppKit clamped it for, so it
-  /// clamps the offset once the final content size is set.
-  private var needsContentOffsetClamp = false
-
   /// The context of the current content update.
   private var contentUpdateContext: ContentUpdateContext?
 
@@ -1086,7 +1082,8 @@ open class ComposeView: BaseScrollView {
     let oldShowsVerticalScrollIndicator = showsVerticalScrollIndicator
 
     // perform the layout
-    let renderSize = layout(context)
+    let layoutResult = layout(context)
+    let renderSize = layoutResult.renderSize
     var renderBounds = CGRect(origin: context.bounds.origin, size: renderSize)
     var contentSize = contentNode.size
 
@@ -1130,10 +1127,9 @@ open class ComposeView: BaseScrollView {
     self.contentSize = roundedContentSize
 
     #if canImport(AppKit)
-    if needsContentOffsetClamp {
+    if layoutResult.needsContentOffsetClamp {
       // the layout kept the offset across its scroll bar changes. clamp it now, against the final content size and
       // visible area, as AppKit clamps it.
-      needsContentOffsetClamp = false
       contentOffset = contentView.constrainBoundsRect(CGRect(origin: contentOffset, size: contentView.bounds.size)).origin
     }
     #endif
@@ -1630,8 +1626,9 @@ open class ComposeView: BaseScrollView {
   /// Performs the layout for a content update, which also updates the scroll indicators.
   ///
   /// - Parameter context: The content update being rendered.
-  /// - Returns: The render size the content laid out for.
-  private func layout(_ context: ContentUpdateContext) -> CGSize {
+  /// - Returns: The render size the content laid out for, and whether the offset needs a clamp once the content size is
+  ///   set, since the layout kept it across a scroll bar change that AppKit clamped it for.
+  private func layout(_ context: ContentUpdateContext) -> (renderSize: CGSize, needsContentOffsetClamp: Bool) {
     let contentNode = context.contentNode
     let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: context.contentEvaluation)
 
@@ -1669,6 +1666,7 @@ open class ComposeView: BaseScrollView {
     // hiding a legacy scroll bar grows the visible area, and AppKit clamps the offset to it, against the old content size
     // and even when the update shows the scroll bar again. keep the offset instead, and clamp it once the final content
     // size is set (see `render(_:)`).
+    var needsContentOffsetClamp = false
     func setScrollIndicators(horizontal: Bool, vertical: Bool) {
       let contentOffset = self.contentOffset
       showsHorizontalScrollIndicator = horizontal
@@ -1724,7 +1722,7 @@ open class ComposeView: BaseScrollView {
 
     let renderSize = self.renderSize(for: boundsSize)
     layout(for: renderSize)
-    return renderSize
+    return (renderSize, needsContentOffsetClamp)
   }
 
   /// Returns the size the content lays out and renders for: the bounds size less the space that legacy scroll bars take

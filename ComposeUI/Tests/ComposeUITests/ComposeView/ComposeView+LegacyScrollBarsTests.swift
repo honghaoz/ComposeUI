@@ -370,10 +370,17 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
   // MARK: - Scroll Position
 
   func test_refreshScrolledToTheBottom_keepsTheScrollPosition() {
-    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, so it
-    // shows the horizontal scroll bar only because the vertical one takes width, scrolled to the bottom
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing thirty rows 115 pt wide and 10 pt tall, so
+    // it shows the horizontal scroll bar only because the vertical one takes width, scrolled to the bottom. the rows are
+    // shorter than the scroll bar, so a position off by the scroll bar's height leaves the last row out.
     let window = TestWindow()
-    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    let view = makeView {
+      VStack {
+        for _ in 0 ..< 30 {
+          LayerNode().frame(width: 115, height: 10)
+        }
+      }
+    }
     window.contentView().addSubview(view)
     view.refresh(animated: false)
     window.layoutIfNeeded()
@@ -384,17 +391,27 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     // when: the view refreshes with the same content
     view.refresh(animated: false)
 
-    // then: the update hides the horizontal scroll bar on the way and shows it again, and the view stays at the bottom
+    // then: the update hides the horizontal scroll bar on the way and shows it again, and the view stays at the bottom,
+    // with the last row rendered and fully visible
     expect(view.hasHorizontalScroller) == true
     expect(view.contentOffset) == bottom
     expect(view.test.lastRenderBounds?.origin) == bottom
+    expect(view.test.lastRenderBounds?.maxY) == 300
+    expect(renderedFrames(in: view).last) == CGRect(x: 0, y: 290, width: 115, height: 10)
   }
 
   func test_refreshScrolledToTheRightEnd_keepsTheScrollPosition() {
-    // given: a 200 × 120 view in a window, with legacy scroll bars, showing content 300 pt wide and 115 pt tall, so it
-    // shows the vertical scroll bar only because the horizontal one takes height, scrolled to the right end
+    // given: a 200 × 120 view in a window, with legacy scroll bars, showing thirty columns 10 pt wide and 115 pt tall,
+    // so it shows the vertical scroll bar only because the horizontal one takes height, scrolled to the right end. the
+    // columns are narrower than the scroll bar, so a position off by the scroll bar's width leaves the last column out.
     let window = TestWindow()
-    let view = makeView { LayerNode().frame(width: 300, height: 115) }
+    let view = makeView {
+      HStack {
+        for _ in 0 ..< 30 {
+          LayerNode().frame(width: 10, height: 115)
+        }
+      }
+    }
     view.frame = CGRect(x: 0, y: 0, width: 200, height: 120)
     window.contentView().addSubview(view)
     view.refresh(animated: false)
@@ -406,10 +423,13 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     // when: the view refreshes with the same content
     view.refresh(animated: false)
 
-    // then: the update hides the vertical scroll bar on the way and shows it again, and the view stays at the right end
+    // then: the update hides the vertical scroll bar on the way and shows it again, and the view stays at the right end,
+    // with the last column rendered and fully visible
     expect(view.hasVerticalScroller) == true
     expect(view.contentOffset) == rightEnd
     expect(view.test.lastRenderBounds?.origin) == rightEnd
+    expect(view.test.lastRenderBounds?.maxX) == 300
+    expect(renderedFrames(in: view).last) == CGRect(x: 290, y: 0, width: 10, height: 115)
   }
 
   func test_refreshWithShorterContent_clampsTheScrollPosition() {
@@ -580,6 +600,12 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     view.scrollIndicatorBehavior = .auto
     view.scrollerStyle = scrollerStyle
     return view
+  }
+
+  /// Returns the frames of the view's rendered layers in content coordinates, ordered by position.
+  private func renderedFrames(in view: ComposeView) -> [CGRect] {
+    let frames = view.contentContainerView.layer?.sublayers?.map(\.frame) ?? []
+    return frames.sorted { ($0.minY, $0.minX) < ($1.minY, $1.minX) }
   }
 }
 

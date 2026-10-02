@@ -348,17 +348,19 @@ class ComposeView_RenderOverrideTests: XCTestCase {
     view.releaseRenderPass()
 
     // then: the earlier width minus the space the scroll bar takes now is below zero, so the held pass renders at zero
-    // width
+    // width, and the document keeps its origin at zero
     expect(view.test.lastRenderBounds?.size) == CGSize(width: 0, height: 100)
+    expect(view.contentContainerView.frame) == CGRect(x: 0, y: 0, width: 0, height: 100)
 
     // when: the run loop performs the follow-up layout
     var isDrained = false
     RunLoop.main.perform { isDrained = true }
     expect(isDrained).toEventually(beTrue())
 
-    // then: the new size renders beside the scroll bar
+    // then: the new size renders beside the scroll bar, with the document still at the origin
     let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     expect(view.test.lastRenderBounds?.size) == CGSize(width: 30 - thickness, height: 100)
+    expect(view.contentContainerView.frame) == CGRect(x: 0, y: 0, width: 30 - thickness, height: 100)
   }
   #endif
 }
