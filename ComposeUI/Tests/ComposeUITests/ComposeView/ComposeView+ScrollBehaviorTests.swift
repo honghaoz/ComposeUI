@@ -274,11 +274,16 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
     // when: the view refreshes
     contentView.refresh(animated: false)
 
-    // then: no space is left between the insets, so the content overflows it: the view scrolls by the 30 pt the content
-    // and the insets exceed its height by, and the content starts at the top of the scroll range
+    // then: no space is left between the insets, so the content overflows it and starts at the top of the scroll range.
+    // the view scrolls by the 30 pt the content and the insets exceed its height by, or by 10 pt on macOS, where AppKit
+    // shrinks the bottom inset to 40 pt once the insets exceed the height
     expect(contentView.isScrollEnabled) == true
     expect(contentView.minOffsetY) == -60
+    #if canImport(AppKit)
+    expect(contentView.maxOffsetY) == -50
+    #else
     expect(contentView.maxOffsetY) == -30
+    #endif
     expect(contentLayer?.frame) == CGRect(x: 25, y: 0, width: 50, height: 10)
   }
 

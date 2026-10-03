@@ -323,6 +323,35 @@ class ScrollViewTests: XCTestCase {
     expect(scrollView.adjustedContentInset.top) == overlap
     expect(scrollView.contentInset.top) == overlap
   }
+
+  func test_adjustedContentInset_legacyScrollBars_includesTheThicknessOfTheOnesOverTheContent() {
+    // given: a 120 × 200 scroll view with legacy scroll bars and a 20 pt top inset, showing content that overflows only
+    // vertically, with a vertical scroll bar
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 120, height: 200))
+    scrollView.automaticallyAdjustsContentInsets = false
+    scrollView.scrollerStyle = .legacy
+    scrollView.hasVerticalScroller = true
+    scrollView.contentSize = CGSize(width: 100, height: 300)
+    scrollView.contentInset = EdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+
+    // then: the scroll bar takes its width from the visible area, so the insets in effect are the set insets
+    expect(scrollView.visibleSize) == CGSize(width: 120 - thickness, height: 200)
+    expect(Self.components(of: scrollView.adjustedContentInset)) == [20, 0, 0, 0]
+
+    // when: the content overflows both axes, with both scroll bars
+    scrollView.hasHorizontalScroller = true
+    scrollView.contentSize = CGSize(width: 300, height: 300)
+
+    // then: both scroll bars show over the full visible area, the insets in effect add their thickness, and the
+    // scrollable range ends where AppKit stops scrolling
+    expect(scrollView.visibleSize) == CGSize(width: 120, height: 200)
+    expect(Self.components(of: scrollView.adjustedContentInset)) == [20, 0, thickness, thickness]
+    let clipView = scrollView.contentView
+    let end = clipView.constrainBoundsRect(CGRect(origin: CGPoint(x: 1000, y: 1000), size: clipView.bounds.size)).origin
+    expect(end) == CGPoint(x: 300 - 120 + thickness, y: 300 - 200 + thickness)
+    expect(CGPoint(x: scrollView.maxOffsetX, y: scrollView.maxOffsetY)) == end
+  }
   #endif
 
   // MARK: - Visible Size
