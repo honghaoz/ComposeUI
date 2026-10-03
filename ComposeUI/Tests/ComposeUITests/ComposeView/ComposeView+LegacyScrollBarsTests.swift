@@ -112,6 +112,22 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200 - thickness)
   }
 
+  func test_contentFitsBetweenTheInsetsButNotBesideTheVerticalScrollBar_showsTheHorizontalScrollBar() {
+    // given: a 120 × 200 view with legacy scroll bars and a 10 pt right inset, showing content 300 pt tall and 100 pt wide,
+    // which fits the 110 pt between the insets, but not the space between them beside a vertical scroll bar
+    let view = makeView { LayerNode().frame(width: 100, height: 300) }
+    view.contentInset = EdgeInsets(top: 0, left: 0, bottom: 0, right: 10)
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the vertical scroll bar makes the content overflow sideways between the insets, so the horizontal scroll bar
+    // shows too, for the overflow
+    expect(view.hasVerticalScroller) == true
+    expect(view.hasHorizontalScroller) == true
+    expect(view.maxOffsetX) == 100 + 10 - (120 - thickness)
+  }
+
   func test_contentOverflowsTheBoundsButFitsBesideTheScrollBar_keepsTheScrollBar() {
     // given: a 120 × 200 view with legacy scroll bars, showing content as wide as the view and 1.75 times as tall, which
     // overflows the view's height but fits beside a vertical scroll bar

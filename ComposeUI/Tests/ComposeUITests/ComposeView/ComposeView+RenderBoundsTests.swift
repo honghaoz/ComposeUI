@@ -139,6 +139,62 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(view.test.lastRenderBounds) == CGRect(origin: CGPoint(x: 0, y: 10), size: visibleSize)
   }
 
+  func test_renderBounds_contentInsetChange_keepsTheRenderedViewport() {
+    // given: a 100 × 100 view that rendered rows overflowing it vertically, and records the render bounds of each pass
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 30 {
+          LayerNode().frame(width: .flexible, height: 10)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    var renderBounds: [CGRect] = []
+    view.onDidRender { _, context in
+      renderBounds.append(context.renderBounds)
+    }
+
+    // when: the view gets a 30 pt top inset, and lays out
+    view.contentInset = EdgeInsets(top: 30, left: 0, bottom: 0, right: 0)
+    view.layoutIfNeeded()
+
+    // then: the offset stays, so the view renders once for the new insets, at the same viewport, and not for the offset
+    // AppKit moves the content to before the view puts it back
+    expect(view.contentOffset) == .zero
+    expect(renderBounds) == [CGRect(x: 0, y: 0, width: 100, height: 100)]
+  }
+
+  func test_renderBounds_contentInsetChange_laysOutTheContentBetweenTheNewInsets() {
+    // given: a 100 × 100 view that rendered content filling the container it lays out in
+    var contentLayer: CALayer?
+    let view = ComposeView {
+      LayerNode<CALayer>(update: { layer, _ in contentLayer = layer })
+        .frame(width: .flexible, height: .flexible)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    expect(contentLayer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the view gets a 30 pt bottom inset, which moves neither the offset nor the view, and lays out without a
+    // refresh
+    view.contentInset = EdgeInsets(top: 0, left: 0, bottom: 30, right: 0)
+    view.layoutIfNeeded()
+
+    // then: the insets changed, so the view renders again, with the content in the 70 pt above the inset
+    expect(view.contentOffset) == .zero
+    expect(contentLayer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 70)
+
+    #if canImport(AppKit)
+    // when: AppKit's `contentInsets` gets a 40 pt bottom inset, and the view lays out
+    view.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 40, right: 0)
+    view.layoutIfNeeded()
+
+    // then: the view renders again for these insets too, with the content in the 60 pt above the inset
+    expect(contentLayer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+    #endif
+  }
+
   #if canImport(AppKit)
   func test_renderBounds_hidingLegacyScroller_scrolledToBottom() {
     // given: a view with legacy scrollers, scrolled to the bottom of rows that overflow both axes
@@ -411,29 +467,31 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the rows lay out for the visible width beside the vertical scroller, and only the vertical scroller shows
+    // then: the rows lay out between the visible area's left edge and the inset, beside the vertical scroller, and only
+    // the vertical scroller shows
     let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     let verticalScroller = try view.verticalScroller.unwrap()
     expect(view.contentView.frame.width) == 240 - thickness
     expect(verticalScroller.frame.maxX) < view.contentView.frame.maxX
     expect(view.hasVerticalScroller) == true
     expect(view.hasHorizontalScroller) == false
-    expect(renderedFrames(in: view)) == (0 ..< 18).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 240 - thickness, height: 10) }
+    expect(renderedFrames(in: view)) == (0 ..< 18).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 240 - thickness - 30, height: 10) }
 
-    // when: the rows become 230 pt wide, which fits the view width but not the visible width beside the vertical scroller
-    rowWidth = 230
+    // when: the rows become 200 pt wide, which fits between the view's left edge and the inset, but not between the
+    // inset and the left edge of the visible area beside the vertical scroller
+    rowWidth = 200
     view.refresh(animated: false)
 
     // then: the rows overflow beside the vertical scroller, so the horizontal scroller shows too, and the rows lay out for
     // the visible height above it
     expect(view.hasHorizontalScroller) == true
-    expect(renderedFrames(in: view)) == (0 ..< 17).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 230, height: 10) }
+    expect(renderedFrames(in: view)) == (0 ..< 17).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
   }
 
-  func test_renderBounds_legacyScrollerMovedInByTheBottomContentInset_centersInTheVisibleHeight() throws {
+  func test_renderBounds_legacyScrollerMovedInByTheBottomContentInset_centersAboveTheInsetInTheVisibleHeight() throws {
     // given: a 240 × 180 view with a 30 pt bottom content inset and legacy scrollers, showing five 400 pt wide rows that
-    // overflow horizontally, so AppKit shrinks the clip view by the horizontal scroller and moves the scroller inside it
-    // by the inset
+    // overflow horizontally, and fit vertically with the inset, so AppKit shrinks the clip view by the horizontal
+    // scroller and moves the scroller inside it by the inset
     let view = ComposeView {
       VStack {
         for _ in 0 ..< 5 {
@@ -448,14 +506,15 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the rows center in the visible height above the horizontal scroller, and only the horizontal scroller shows
+    // then: only the horizontal scroller shows, and the rows center between the top of the visible height above the
+    // horizontal scroller and the inset
     let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     let horizontalScroller = try view.horizontalScroller.unwrap()
     expect(view.contentView.frame.height) == 180 - thickness
     expect(horizontalScroller.frame.maxY) < view.contentView.frame.maxY
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == false
-    let top = (180 - thickness - 50) / 2
+    let top = (180 - thickness - 30 - 50) / 2
     let scale = view.contentScaleFactor
     expect(renderedFrames(in: view)) == (0 ..< 5).map { CGRect(x: 0, y: ((top + CGFloat($0) * 10) * scale).rounded() / scale, width: 400, height: 10) }
   }

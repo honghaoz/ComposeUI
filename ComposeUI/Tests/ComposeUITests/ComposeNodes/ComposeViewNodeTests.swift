@@ -623,7 +623,9 @@ class ComposeViewNodeTests: XCTestCase {
       child.layoutIfNeeded()
       let layer = try unwrap(colorLayer)
       expect(child.visibleSize) == CGSize(width: 100, height: 300)
-      expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 300)
+      // the nested view lays out above its 50 pt bottom inset, so the color fills 250 pt, centered in the 300 pt stack
+      let nestedLayoutFrame = CGRect(x: 0, y: 25, width: 100, height: 250)
+      expect(layer.frame) == nestedLayoutFrame
 
       // when: the parent resizes, measuring its own copy of the content at the new size, while the nested view keeps
       // its intrinsic size
@@ -647,7 +649,7 @@ class ComposeViewNodeTests: XCTestCase {
       expect(colorUpdateType) == .boundsChange
       expect(child.contentOffset.y) == 10
       expect(colorLayer) === layer
-      expect(layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 300)
+      expect(layer.frame) == nestedLayoutFrame
       expect(layer.backgroundColor) == Color.red.cgColor
     }
   }
