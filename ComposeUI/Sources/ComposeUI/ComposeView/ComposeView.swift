@@ -150,6 +150,9 @@ open class ComposeView: BaseScrollView {
   /// The bounds from the last completed render pass, or nil before the first render.
   private var lastRenderBounds: CGRect?
 
+  /// The view's size from the last completed render pass, or nil before the first render.
+  private var lastBoundsSize: CGSize?
+
   /// The ids of the renderable items that are being rendered.
   private var renderableItemIds: [ComposeNodeId] = []
 
@@ -388,9 +391,8 @@ open class ComposeView: BaseScrollView {
   /// This handler runs inside the render pass, so a refresh or layout it requests for this view, or for a view
   /// containing it, waits until the pass ends (see `refresh(animated:)`).
   ///
-  /// The render pass uses the scroll settings it started with, so the handler can't change `scrollBehavior`,
-  /// `scrollIndicatorBehavior`, `clippingBehavior`, `showsHorizontalScrollIndicator` or `showsVerticalScrollIndicator`.
-  /// Changing them asserts and keeps the current values.
+  /// The handler can adjust things like the content offset, but it can't change the view's size, its visible size or its
+  /// scroll settings, such as `scrollBehavior`, `scrollIndicatorBehavior` or `clippingBehavior`, etc.
   ///
   /// Calling this replaces any previously set handler.
   ///
@@ -743,7 +745,7 @@ open class ComposeView: BaseScrollView {
     // AppKit re-tiles without laying the view out when the scroller style changes or a scroll bar shows or hides, so ask
     // for a layout when that changes the visible size the content rendered for. a render pass renders for the visible
     // size its own re-tiles leave, and AppKit ignores the request during a layout, which renders next anyway.
-    if !isRendering, renderBounds() != lastRenderBounds {
+    if !isRendering, boundsChangedSinceLastRender() {
       needsLayout = true
     }
   }
@@ -972,10 +974,7 @@ open class ComposeView: BaseScrollView {
       return
     }
 
-    let renderBounds = renderBounds()
-    // `lastRenderBounds` is nil before the first render. compare against `.zero` in that case, so that the view does not
-    // render while its size is still zero, and renders once it gets a non-zero size.
-    if contentUpdateContext == nil, renderBounds != (lastRenderBounds ?? .zero) {
+    if contentUpdateContext == nil, boundsChangedSinceLastRender() {
       // no pending render request but bounds changed, should re-render the content
 
       let contentNode = contentNode ?? LayoutCacheNode(node: _makeContent())
@@ -1060,7 +1059,7 @@ open class ComposeView: BaseScrollView {
 
     // a render handler or a renderable lifecycle block can change the bounds after the pass read them, so render the
     // current bounds after the pass if they differ
-    if renderBounds() != lastRenderBounds {
+    if boundsChangedSinceLastRender() {
       onNextRunLoop { [weak self] in
         self?.renderBoundsChangeIfNeeded()
       }
@@ -1623,6 +1622,7 @@ open class ComposeView: BaseScrollView {
     #endif
 
     lastRenderBounds = renderBounds
+    lastBoundsSize = context.bounds.size
   }
 
   /// Performs the layout for a content update, which also updates the scroll indicators.
@@ -1632,20 +1632,25 @@ open class ComposeView: BaseScrollView {
   ///   set, since the layout changed the scroll bars and undid the clamp AppKit applied for them.
   private func layout(_ context: ContentUpdateContext) -> (renderSize: CGSize, needsContentOffsetClamp: Bool) {
     let contentNode = context.contentNode
-    let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: context.contentEvaluation)
+    let boundsSize = context.bounds.size
 
     // hiding a legacy scroll bar grows the visible area, and AppKit clamps the offset to it, against the old content size
     // and even when the update shows the scroll bar again. keep the offset instead, and clamp it once the final content
     // size is set (see `render(_:)`).
     let oldScrollIndicators = (showsHorizontalScrollIndicator, showsVerticalScrollIndicator)
     var didKeepContentOffset = false
-    func setScrollIndicators(horizontal: Bool, vertical: Bool) {
+    func keepingContentOffset(_ change: () -> Void) {
       let contentOffset = self.contentOffset
-      showsHorizontalScrollIndicator = horizontal
-      showsVerticalScrollIndicator = vertical
+      change()
       if self.contentOffset != contentOffset {
         self.contentOffset = contentOffset
         didKeepContentOffset = true
+      }
+    }
+    func setScrollIndicators(horizontal: Bool, vertical: Bool) {
+      keepingContentOffset {
+        showsHorizontalScrollIndicator = horizontal
+        showsVerticalScrollIndicator = vertical
       }
     }
 
@@ -1661,16 +1666,27 @@ open class ComposeView: BaseScrollView {
       if let willLayoutHandler {
         let scrollSettings = (scrollBehavior, scrollIndicatorBehavior, clippingBehavior)
         let scrollIndicators = (horizontal: showsHorizontalScrollIndicator, vertical: showsVerticalScrollIndicator)
+        #if canImport(AppKit)
+        let scrollerStyle = self.scrollerStyle
+        #endif
+        let renderSize = self.renderSize(for: boundsSize)
+
         willLayoutHandler(self, WillLayoutContext(containerSize: containerSize, renderType: context.renderType(bounds: bounds)))
-        // the render pass uses the scroll settings it started with, so the handler can't change them
-        if (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) != scrollSettings ||
-          (showsHorizontalScrollIndicator, showsVerticalScrollIndicator) != scrollIndicators
-        {
-          ComposeUI.assertFailure(
-            "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator"
-          )
+
+        // the handler can't change the scroll settings or the visible size
+        if (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) != scrollSettings {
+          ComposeUI.assertFailure("onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior")
           (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) = scrollSettings
-          setScrollIndicators(horizontal: scrollIndicators.horizontal, vertical: scrollIndicators.vertical)
+        }
+        if self.renderSize(for: boundsSize) != renderSize {
+          ComposeUI.assertFailure("onWillLayout can't change the visible size")
+          keepingContentOffset {
+            #if canImport(AppKit)
+            self.scrollerStyle = scrollerStyle
+            #endif
+            showsHorizontalScrollIndicator = scrollIndicators.horizontal
+            showsVerticalScrollIndicator = scrollIndicators.vertical
+          }
         }
       }
 
@@ -1678,6 +1694,8 @@ open class ComposeView: BaseScrollView {
       debug?.onEvent(.renderWillLayout(contentNode: contentNode, bounds: bounds, visibleBounds: bounds.inset(by: visibleBoundsInsets)))
       #endif
 
+      // made after the handler, which can change the scale
+      let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: context.contentEvaluation)
       _ = contentNode.layout(containerSize: containerSize, context: layoutContext)
       laidOutSize = containerSize
 
@@ -1686,8 +1704,6 @@ open class ComposeView: BaseScrollView {
       #endif
     }
 
-    let boundsSize = context.bounds.size
-
     switch scrollIndicatorBehavior {
     case .auto:
       let keepsScrollIndicators: Bool
@@ -1695,10 +1711,10 @@ open class ComposeView: BaseScrollView {
       case .refresh:
         keepsScrollIndicators = false
       case .boundsChange:
-        // a scroll changes neither the content nor the render size, so it keeps the scroll indicators, if the last
-        // update also decided them automatically. the content then lays out once, for the render size the cached layout
-        // already has.
-        let isScroll = context.previousRenderBounds?.size == self.renderSize(for: boundsSize)
+        // a scroll changes neither the content, the view's size nor the render size, so it keeps the scroll indicators,
+        // if the last update also decided them automatically. the content then lays out once, for the render size the
+        // cached layout already has.
+        let isScroll = boundsSize == lastBoundsSize && context.previousRenderBounds?.size == self.renderSize(for: boundsSize)
         keepsScrollIndicators = isScroll && lastScrollIndicatorBehavior == .auto
       }
 
@@ -1772,6 +1788,16 @@ open class ComposeView: BaseScrollView {
     #if canImport(UIKit)
     return bounds
     #endif
+  }
+
+  /// Returns whether the render bounds or the view's size changed since the last render pass.
+  ///
+  /// Before the first render, they count as changed once the view has a size, so the view doesn't render while its size
+  /// is still zero.
+  private func boundsChangedSinceLastRender() -> Bool {
+    // compare the view's size too: with legacy scroll bars on macOS, a resize can leave the render bounds the same while
+    // the scroll bars it needs change
+    renderBounds() != (lastRenderBounds ?? .zero) || bounds.size != (lastBoundsSize ?? .zero)
   }
 
   /// Updates the renderable layer's `zPosition` so that renderables render in the items order, regardless of the

@@ -311,9 +311,7 @@ class ComposeView_RenderHandlerTests: XCTestCase {
 
     // then: it asserts and keeps the automatic settings, so the content taller than the view scrolls, shows the vertical
     // scroll indicator, and clips
-    expect(assertionMessages) == [
-      "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator",
-    ]
+    expect(assertionMessages) == ["onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior"]
     expect(view.scrollBehavior) == .auto
     expect(view.scrollIndicatorBehavior) == .auto
     expect(view.clippingBehavior) == .auto
@@ -322,9 +320,10 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(view.clipsToBounds) == true
   }
 
-  func test_willLayoutHandler_changingTheScrollIndicators_assertsAndKeepsThem() {
-    // given: a 100 × 100 view with manual scroll indicators, both hidden, as overlay scroll bars on macOS, content taller
-    // than the view, a will-layout handler that sets the scroll indicators, and a handler that records the assertions
+  func test_willLayoutHandler_showingScrollIndicatorsThatTakeNoSpace_keepsThem() {
+    // given: a 100 × 100 view with manual scroll indicators, both hidden, as overlay scroll bars on macOS, which take no
+    // space, content taller than the view, a will-layout handler that shows the scroll indicators, and a handler that
+    // records the assertions
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.setContent {
       ColorNode(.red)
@@ -336,10 +335,9 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     #if canImport(AppKit)
     view.scrollerStyle = .overlay
     #endif
-    var showsScrollIndicators = false
     view.onWillLayout { view, _ in
-      view.showsHorizontalScrollIndicator = showsScrollIndicators
-      view.showsVerticalScrollIndicator = showsScrollIndicators
+      view.showsHorizontalScrollIndicator = true
+      view.showsVerticalScrollIndicator = true
     }
 
     var assertionMessages: [String] = []
@@ -350,22 +348,33 @@ class ComposeView_RenderHandlerTests: XCTestCase {
       ComposeUI.Assert.resetTestAssertionFailureHandler()
     }
 
-    // when: the handler sets the scroll indicators the view already has, and the view refreshes
+    // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: nothing asserts
+    // then: the scroll indicators leave the visible size as it was, so nothing asserts, and they show
     expect(assertionMessages) == []
+    expect(view.showsHorizontalScrollIndicator) == true
+    expect(view.showsVerticalScrollIndicator) == true
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 100, height: 100)
+  }
 
-    // when: the handler shows the scroll indicators, and the view refreshes
-    showsScrollIndicators = true
+  func test_willLayoutHandler_changingTheContentScaleFactor_laysOutAtTheNewScale() {
+    // given: a 100 × 100 view at scale 1, showing a node 100.25 pt square that rounds its size up to whole pixels, and a
+    // will-layout handler that sets the scale to 2
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      PixelRoundedNode(size: CGSize(width: 100.25, height: 100.25))
+    }
+    view.contentScaleFactor = 1
+    view.onWillLayout { view, _ in
+      view.contentScaleFactor = 2
+    }
+
+    // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: it asserts and keeps them hidden
-    expect(assertionMessages) == [
-      "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator",
-    ]
-    expect(view.showsHorizontalScrollIndicator) == false
-    expect(view.showsVerticalScrollIndicator) == false
+    // then: the node lays out at the new scale, so its size rounds up to the next half point
+    expect(view.contentSize) == CGSize(width: 100.5, height: 100.5)
   }
 
   func test_willRenderHandler() {
@@ -778,5 +787,30 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     expect(layerContexts.count) == 1
     expect(layerContexts.first?.animationTiming) == timing
     expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.all
+  }
+}
+
+/// A node that lays out to its size rounded up to whole pixels at the scale of its layout context.
+private struct PixelRoundedNode: ComposeNode {
+
+  private let fixedSize: CGSize
+
+  init(size: CGSize) {
+    self.fixedSize = size
+  }
+
+  // MARK: - ComposeNode
+
+  var id: ComposeNodeId = .custom("pixel-rounded", isFixed: false)
+
+  private(set) var size: CGSize = .zero
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    size = fixedSize.roundedUp(scaleFactor: context.scaleFactor)
+    return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+  }
+
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    []
   }
 }

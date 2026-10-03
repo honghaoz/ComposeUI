@@ -279,6 +279,32 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200 - thickness)
   }
 
+  func test_resizeWithAScrollerStyleChangeThatKeepsTheVisibleSize_decidesTheScrollBarsAgain() {
+    // given: a 100 × 100 view in a window, with overlay scroll bars, showing content 110 pt wide and tall, so both scroll
+    // bars show, and the window laid out
+    let window = TestWindow()
+    let view = makeView(scrollerStyle: .overlay) { LayerNode().frame(width: 110, height: 110) }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+
+    // when: the view grows by a legacy scroll bar's width in each direction and switches to legacy scroll bars, which
+    // take that space, so the visible size stays 100 × 100, and the window lays out
+    view.frame = CGRect(x: 0, y: 0, width: 100 + thickness, height: 100 + thickness)
+    view.scrollerStyle = .legacy
+    expect(view.visibleSize) == CGSize(width: 100, height: 100)
+    window.layoutIfNeeded()
+
+    // then: the view renders for its new size, where the content fits, so both scroll bars hide and the content lays out
+    // for the whole view
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 100 + thickness, height: 100 + thickness)
+  }
+
   // MARK: - Re-tiling
 
   func test_manuallyShowingAScrollBar_rendersBesideIt() {
@@ -654,9 +680,7 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
 
     // then: the change asserts, and the pass keeps the automatic behavior, so both scroll bars show and the content lays
     // out for the space they leave
-    expect(assertionMessages) == [
-      "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator",
-    ]
+    expect(assertionMessages) == ["onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior"]
     expect(view.scrollIndicatorBehavior) == .auto
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == true
@@ -695,14 +719,87 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
       expect(isDrained).toEventually(beTrue())
     }
 
-    // then: the change asserts, and the pass keeps the scroll bar hidden and lays out once, for the whole view, so no
-    // follow-up pass shows it
-    expect(assertionMessages) == [
-      "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator",
-    ]
+    // then: the change of the visible size asserts, and the pass keeps the scroll bar hidden and lays out once, for the
+    // whole view, so no follow-up pass shows it
+    expect(assertionMessages) == ["onWillLayout can't change the visible size"]
     expect(view.hasVerticalScroller) == false
     expect(layoutCount) == 1
     expect(view.test.lastRenderBounds?.size) == CGSize(width: 120, height: 200)
+  }
+
+  func test_willLayoutHandlerSwitchingTheScrollerStyleForTheContainerSize_assertsAndKeepsIt() {
+    // given: a 120 × 200 view in a window, with overlay scroll bars, showing content 100 pt wide and 300 pt tall, so it
+    // shows the vertical scroll bar, a will-layout handler that switches to legacy scroll bars for the view's full width
+    // and back to overlay ones otherwise, and a handler that records the assertions
+    let window = TestWindow()
+    let view = makeView(scrollerStyle: .overlay) { LayerNode().frame(width: 100, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    var layoutCount = 0
+    view.onWillLayout { view, context in
+      layoutCount += 1
+      view.scrollerStyle = context.containerSize.width == 120 ? .legacy : .overlay
+    }
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view refreshes, and the run loop runs twice
+    view.refresh(animated: false)
+    for _ in 0 ..< 2 {
+      var isDrained = false
+      RunLoop.main.perform { isDrained = true }
+      expect(isDrained).toEventually(beTrue())
+    }
+
+    // then: the change of the visible size asserts, and the pass keeps the overlay scroll bars and lays out once, for the
+    // whole view, so no follow-up pass switches the style again
+    expect(assertionMessages) == ["onWillLayout can't change the visible size"]
+    expect(view.scrollerStyle) == .overlay
+    expect(layoutCount) == 1
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120, height: 200)
+  }
+
+  func test_didRenderHandlerResizingWithAScrollerStyleChangeThatKeepsTheVisibleSize_rendersAgain() {
+    // given: a 100 × 100 view in a window, with overlay scroll bars, showing content 110 pt wide and tall, so both scroll
+    // bars show, the window laid out, and a did-render handler that once grows the view by a legacy scroll bar's width in
+    // each direction and switches to legacy scroll bars, which take that space, so the visible size stays 100 × 100
+    let window = TestWindow()
+    let view = makeView(scrollerStyle: .overlay) { LayerNode().frame(width: 110, height: 110) }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let grownFrame = CGRect(x: 0, y: 0, width: 100 + thickness, height: 100 + thickness)
+    var resizes = true
+    view.onDidRender { view, _ in
+      guard resizes else {
+        return
+      }
+      resizes = false
+      view.frame = grownFrame
+      view.scrollerStyle = .legacy
+    }
+
+    // when: the view refreshes during the window's layout, which ignores the layout the resize requests, and the run loop
+    // runs the pass that follows it
+    view.setNeedsRefresh(animated: false)
+    window.layoutIfNeeded()
+    var isDrained = false
+    RunLoop.main.perform { isDrained = true }
+    expect(isDrained).toEventually(beTrue())
+
+    // then: the view renders again for its new size, where the content fits, so both scroll bars hide and the content
+    // lays out for the whole view
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+    expect(view.test.lastRenderBounds) == grownFrame
   }
 
   // MARK: - Helpers
