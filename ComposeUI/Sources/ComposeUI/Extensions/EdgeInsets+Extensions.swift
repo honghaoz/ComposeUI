@@ -50,4 +50,12 @@ extension EdgeInsets {
   init(inset: CGFloat) {
     self.init(top: inset, left: inset, bottom: inset, right: inset)
   }
+
+  /// Returns whether the insets are equal to other insets on every side.
+  ///
+  /// - Parameter other: The insets to compare with.
+  /// - Returns: `true` if every side is equal.
+  func isEqual(to other: EdgeInsets) -> Bool {
+    top == other.top && left == other.left && bottom == other.bottom && right == other.right
+  }
 }

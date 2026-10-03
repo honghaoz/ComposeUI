@@ -184,7 +184,104 @@ class ScrollViewTests: XCTestCase {
     #endif
   }
 
+  func test_contentInset_keepsAContentOffsetInsideTheNewRange() {
+    // given: a 100 × 200 scroll view without automatic inset adjustments, showing 100 × 500 content, scrolled to 30 pt
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
+    #if canImport(AppKit)
+    scrollView.automaticallyAdjustsContentInsets = false
+    #endif
+    #if canImport(UIKit)
+    scrollView.contentInsetAdjustmentBehavior = .never
+    #endif
+    scrollView.contentSize = CGSize(width: 100, height: 500)
+    scrollView.contentOffset = CGPoint(x: 0, y: 30)
+
+    // when: a 50 pt top inset is set
+    scrollView.contentInset = EdgeInsets(top: 50, left: 0, bottom: 0, right: 0)
+
+    // then: the inset only adds scroll space above the content, so the offset stays, as on UIKit
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 30)
+
+    // when: the view scrolls to the top of the inset, and the insets grow at the top and the left
+    scrollView.contentOffset = CGPoint(x: 0, y: -50)
+    scrollView.contentInset = EdgeInsets(top: 80, left: 20, bottom: 0, right: 0)
+
+    // then: the offset stays at the old top of the inset
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: -50)
+
+    // when: the top inset shrinks to where the view is scrolled, and the left inset goes away
+    scrollView.contentInset = EdgeInsets(top: 50, left: 0, bottom: 0, right: 0)
+
+    // then: the offset is at the top of the new range, so it stays
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: -50)
+  }
+
+  func test_contentInset_clampsAContentOffsetOutsideTheNewRange() {
+    // given: a 100 × 200 scroll view without automatic inset adjustments, showing 100 × 500 content, with an 80 pt top
+    // inset, scrolled 50 pt into it
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
+    #if canImport(AppKit)
+    scrollView.automaticallyAdjustsContentInsets = false
+    #endif
+    #if canImport(UIKit)
+    scrollView.contentInsetAdjustmentBehavior = .never
+    #endif
+    scrollView.contentSize = CGSize(width: 100, height: 500)
+    scrollView.contentInset = EdgeInsets(top: 80, left: 0, bottom: 0, right: 0)
+    scrollView.contentOffset = CGPoint(x: 0, y: -50)
+
+    // when: the inset is removed
+    scrollView.contentInset = EdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+
+    // then: the offset is above the new range, so it moves to the top of the content, as on UIKit
+    expect(scrollView.contentOffset) == .zero
+
+    // when: a 30 pt bottom inset is set, the view scrolls to its end, and the inset shrinks to 10 pt
+    scrollView.contentInset = EdgeInsets(top: 0, left: 0, bottom: 30, right: 0)
+    scrollView.contentOffset = CGPoint(x: 0, y: 330)
+    scrollView.contentInset = EdgeInsets(top: 0, left: 0, bottom: 10, right: 0)
+
+    // then: the offset is past the new end, so it moves to the end
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 310)
+
+    // when: a 20 pt left inset is set, the view scrolls to its left edge and to 100 pt, and the left inset is removed
+    scrollView.contentInset = EdgeInsets(top: 0, left: 20, bottom: 10, right: 0)
+    scrollView.contentOffset = CGPoint(x: -20, y: 100)
+    scrollView.contentInset = EdgeInsets(top: 0, left: 0, bottom: 10, right: 0)
+
+    // then: only the horizontal offset is outside the new range, so only it moves
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 100)
+
+    // when: the view is scrolled in code 50 pt above its range, and gets the insets it already has
+    scrollView.contentOffset = CGPoint(x: 0, y: -50)
+    scrollView.contentInset = EdgeInsets(top: 0, left: 0, bottom: 10, right: 0)
+
+    // then: the insets don't change, so the offset stays outside the range
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: -50)
+
+    // when: the bottom inset changes
+    scrollView.contentInset = EdgeInsets(top: 0, left: 0, bottom: 20, right: 0)
+
+    // then: the new insets bring the offset into the range, even though it was outside it before
+    expect(scrollView.contentOffset) == .zero
+  }
+
   #if canImport(AppKit)
+  func test_contentInsets_movesTheContentOffsetByTheChange() {
+    // given: a 100 × 200 scroll view without automatic inset adjustments, showing 100 × 500 content, scrolled to 30 pt
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
+    scrollView.automaticallyAdjustsContentInsets = false
+    scrollView.contentSize = CGSize(width: 100, height: 500)
+    scrollView.contentOffset = CGPoint(x: 0, y: 30)
+
+    // when: AppKit's `contentInsets` gets a 50 pt top inset
+    scrollView.contentInsets = NSEdgeInsets(top: 50, left: 0, bottom: 0, right: 0)
+
+    // then: AppKit moves the offset by the change, keeping the content where it was relative to the insets, unlike
+    // `contentInset`
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: -20)
+  }
+
   func test_adjustedContentInset_automaticAdjustment() {
     // given: a scroll view with automatic inset adjustments, filling a window whose title bar and toolbar overlap it
     let window = NSWindow(

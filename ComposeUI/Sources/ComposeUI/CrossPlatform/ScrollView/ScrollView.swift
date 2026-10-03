@@ -73,12 +73,45 @@ open class ScrollView: NSScrollView {
   /// The custom distance that the content is inset from the scroll view's edges, like `UIScrollView`'s `contentInset`.
   ///
   /// This is `contentInsets`, which includes the automatic adjustments while `automaticallyAdjustsContentInsets` is on.
+  ///
+  /// Prefer this over AppKit's `contentInsets` to match UIKit's behavior: setting new insets keeps the content offset,
+  /// or clamps it into the new scrollable range if it's outside, while setting `contentInsets` moves the offset by the
+  /// change.
   public var contentInset: EdgeInsets {
     get {
       contentInsets
     }
     set {
+      // UIKit leaves the offset alone for the insets the view already has, even an offset outside the scrollable range
+      guard !newValue.isEqual(to: contentInsets) else {
+        return
+      }
+
+      // AppKit moves the offset by the inset change, while UIKit keeps it and clamps each axis it leaves outside the new
+      // range, so put the offset back and clamp it. bounds notifications stay off meanwhile, so the view doesn't render
+      // for the offset AppKit moved to: turning them back on posts one notification if the bounds changed.
+      let contentOffset = self.contentOffset
+
+      let postsBoundsChangedNotifications = contentView.postsBoundsChangedNotifications
+      contentView.postsBoundsChangedNotifications = false
+
       contentInsets = newValue
+
+      if self.contentOffset != contentOffset {
+        setContentOffsetExactly(contentOffset)
+      }
+
+      let isOutsideHorizontally = isContentOffsetOutsideHorizontalScrollableRange
+      let isOutsideVertically = isContentOffsetOutsideVerticalScrollableRange
+      if isOutsideHorizontally || isOutsideVertically {
+        // clamp as AppKit does, so the offset rests where AppKit's own scrolling would bring it
+        let clampedOffset = contentView.constrainBoundsRect(CGRect(origin: contentOffset, size: contentView.bounds.size)).origin
+        setContentOffsetExactly(
+          CGPoint(x: isOutsideHorizontally ? clampedOffset.x : contentOffset.x, y: isOutsideVertically ? clampedOffset.y : contentOffset.y)
+        )
+      }
+
+      contentView.postsBoundsChangedNotifications = postsBoundsChangedNotifications
     }
   }
 
