@@ -870,6 +870,34 @@ open class ComposeView: BaseScrollView {
     }
   }
 
+  /// Always `false`, since `ComposeView` doesn't support rulers.
+  ///
+  /// Setting it to `true` asserts and keeps it `false`.
+  override public final var rulersVisible: Bool {
+    get {
+      super.rulersVisible
+    }
+    set {
+      // AppKit makes room for rulers in the insets it scrolls with, which the scroll bar decision doesn't count, so content
+      // overflowing only beside a ruler would get no scroll bar
+      ComposeUI.assert(!newValue, "ComposeView doesn't support rulers")
+    }
+  }
+
+  /// Always `false`, since `ComposeView` doesn't support the find bar.
+  ///
+  /// Setting it to `true` asserts and keeps it `false`.
+  override public final var isFindBarVisible: Bool {
+    get {
+      super.isFindBarVisible
+    }
+    set {
+      // AppKit makes room for the find bar in the insets it scrolls with, which the scroll bar decision doesn't count, so
+      // content overflowing only below the find bar would get no scroll bar
+      ComposeUI.assert(!newValue, "ComposeView doesn't support the find bar")
+    }
+  }
+
   #endif
 
   // MARK: - Render
