@@ -537,8 +537,8 @@ class RenderPerformanceTests: XCTestCase {
     var offset: CGFloat = scrollUp ? maxOffset : 0
     let result = measure(warmup: 20, iterations: 120) { _ in
       offset += scrollUp ? -Constants.scrollStep : Constants.scrollStep
-      view.contentOffset = CGPoint(x: 0, y: offset) // on AppKit, this triggers the render synchronously
-      view.layoutIfNeeded() // on UIKit, this triggers the render
+      view.contentOffset = CGPoint(x: 0, y: offset)
+      view.layoutIfNeeded() // renders the scroll
     }
 
     // sample the rendered item count with one extra scroll step, outside of the measured loop,

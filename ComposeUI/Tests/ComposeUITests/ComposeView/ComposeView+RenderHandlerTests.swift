@@ -451,16 +451,9 @@ class ComposeView_RenderHandlerTests: XCTestCase {
     // when: the view is resized
     view.frame.size = CGSize(width: 150, height: 150)
 
-    // then: AppKit renders the resize right away, where the handler moves the offset past the new end, and UIKit waits
-    // for the next layout pass, keeping the offset within the new range until then
-    #if canImport(AppKit)
-    expect(willRenderCallCount) == 3
-    expect(view.contentOffset) == CGPoint(x: 0, y: 100)
-    #endif
-    #if canImport(UIKit)
+    // then: the view waits for the next layout pass to render the resize, keeping the offset within the new range until then
     expect(willRenderCallCount) == 2
     expect(view.contentOffset) == CGPoint(x: 0, y: 50) // y: 50 (maxOffsetY) = 200 - 150
-    #endif
     expect(view.visibleSize) == CGSize(width: 150, height: 150)
 
     // when: the view lays out

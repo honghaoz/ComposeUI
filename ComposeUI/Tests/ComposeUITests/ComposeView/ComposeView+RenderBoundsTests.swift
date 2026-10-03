@@ -139,6 +139,55 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(view.test.lastRenderBounds) == CGRect(origin: CGPoint(x: 0, y: 10), size: visibleSize)
   }
 
+  func test_renderBounds_scroll_rendersOnceAtTheNextLayout() {
+    // given: a laid out 100 × 100 view showing content taller than it, with a hook counting render passes
+    let view = ComposeView {
+      LayerNode()
+        .frame(width: .flexible, height: 400)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.layoutIfNeeded()
+
+    var renderCount = 0
+    view.debug(eventHandler: { _, event in
+      switch event {
+      case .renderWillBegin:
+        renderCount += 1
+      default:
+        break
+      }
+    })
+
+    // when: the view scrolls
+    view.contentOffset = CGPoint(x: 0, y: 50)
+
+    // then: it doesn't render until the next layout pass, on every platform
+    expect(renderCount) == 0
+    expect(view.test.lastRenderBounds?.origin) == .zero
+
+    // when: the view lays out
+    view.layoutIfNeeded()
+
+    // then: it renders the scrolled bounds
+    expect(renderCount) == 1
+    expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 50)
+
+    // when: the view scrolls three times
+    view.contentOffset = CGPoint(x: 0, y: 100)
+    view.contentOffset = CGPoint(x: 0, y: 150)
+    view.contentOffset = CGPoint(x: 0, y: 200)
+
+    // then: it still doesn't render
+    expect(renderCount) == 1
+
+    // when: the view lays out
+    view.layoutIfNeeded()
+
+    // then: it renders once, for the last offset
+    expect(renderCount) == 2
+    expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 200)
+  }
+
   #if canImport(AppKit)
   func test_renderBounds_hidingLegacyScroller_scrolledToBottom() {
     // given: a view with legacy scrollers, scrolled to the bottom of rows that overflow both axes
@@ -346,8 +395,9 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     useLegacyScrollers(view)
     view.contentInsets = NSEdgeInsets(top: 10, left: 5, bottom: 7, right: 3)
 
-    // when: the view refreshes
+    // when: the view refreshes, and lays out, which renders the visible size that AppKit's tiling of the scrollers leaves
     view.refresh(animated: false)
+    view.layoutIfNeeded()
 
     // then: the scrollers show over the clip view with the insets, so the content lays out for the whole frame
     expect(view.hasHorizontalScroller) == true
@@ -534,8 +584,8 @@ class ComposeView_RenderBoundsTests: XCTestCase {
       window.contentView().addSubview(view)
       view.setBoundsSize(CGSize(width: frameLength * 1.5, height: frameLength * 1.5))
 
-      // when: the view refreshes
-      view.refresh(animated: false)
+      // when: the view lays out, which tiles the clip view for the scaled bounds before rendering
+      view.layoutIfNeeded()
 
       // then: the content lays out for the exact bounds, and the document keeps the exact size, so the view doesn't
       // scroll

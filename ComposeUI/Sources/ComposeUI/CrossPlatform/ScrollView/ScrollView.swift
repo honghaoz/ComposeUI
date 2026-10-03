@@ -146,11 +146,9 @@ open class ScrollView: NSScrollView {
       object: contentView,
       queue: nil,
       using: { [weak self] notification in
-        guard let self else {
-          return
-        }
-        ComposeUI.assert((notification.object as? NSClipView) === self.contentView)
-        self.layoutSubviews()
+        ComposeUI.assert((notification.object as? NSClipView) === self?.contentView)
+
+        self?.needsLayout = true // to match UIKit, a scroll lays out at the next layout pass
       }
     )
   }
@@ -318,8 +316,14 @@ open class ScrollView: NSScrollView {
   }
 
   private func updateScrollElasticity() {
-    horizontalScrollElasticity = alwaysBounceHorizontal || hasHorizontalScrollRange ? .allowed : .none
-    verticalScrollElasticity = alwaysBounceVertical || hasVerticalScrollRange ? .allowed : .none
+    let horizontal: NSScrollView.Elasticity = alwaysBounceHorizontal || hasHorizontalScrollRange ? .allowed : .none
+    if horizontalScrollElasticity != horizontal {
+      horizontalScrollElasticity = horizontal
+    }
+    let vertical: NSScrollView.Elasticity = alwaysBounceVertical || hasVerticalScrollRange ? .allowed : .none
+    if verticalScrollElasticity != vertical {
+      verticalScrollElasticity = vertical
+    }
   }
 
   // The properties below use the scroll range, which counts the content insets and the exact visible size: the clip
