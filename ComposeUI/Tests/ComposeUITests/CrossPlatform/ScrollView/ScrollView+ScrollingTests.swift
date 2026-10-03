@@ -146,28 +146,28 @@ class ScrollView_ScrollingTests: XCTestCase {
       scrollView.magnification = magnification
 
       // when: the offset is within a pixel of the minimum offset
-      scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + withinAPixel, y: scrollView.minOffsetY + withinAPixel)
+      setExactOffset(CGPoint(x: scrollView.minOffsetX + withinAPixel, y: scrollView.minOffsetY + withinAPixel), of: scrollView)
 
       // then: it counts as at the left and top edges
       expect(scrollView.canScrollToLeft) == false
       expect(scrollView.canScrollToTop) == false
 
       // when: the offset is within a pixel of the maximum offset
-      scrollView.contentOffset = CGPoint(x: scrollView.maxOffsetX - withinAPixel, y: scrollView.maxOffsetY - withinAPixel)
+      setExactOffset(CGPoint(x: scrollView.maxOffsetX - withinAPixel, y: scrollView.maxOffsetY - withinAPixel), of: scrollView)
 
       // then: it counts as at the right and bottom edges
       expect(scrollView.canScrollToRight) == false
       expect(scrollView.canScrollToBottom) == false
 
       // when: the offset is more than a pixel from the minimum offset
-      scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + beyondAPixel, y: scrollView.minOffsetY + beyondAPixel)
+      setExactOffset(CGPoint(x: scrollView.minOffsetX + beyondAPixel, y: scrollView.minOffsetY + beyondAPixel), of: scrollView)
 
       // then: it can scroll to the left and to the top
       expect(scrollView.canScrollToLeft) == true
       expect(scrollView.canScrollToTop) == true
 
       // when: the offset is more than a pixel from the maximum offset
-      scrollView.contentOffset = CGPoint(x: scrollView.maxOffsetX - beyondAPixel, y: scrollView.maxOffsetY - beyondAPixel)
+      setExactOffset(CGPoint(x: scrollView.maxOffsetX - beyondAPixel, y: scrollView.maxOffsetY - beyondAPixel), of: scrollView)
 
       // then: it can scroll to the right and to the bottom
       expect(scrollView.canScrollToRight) == true

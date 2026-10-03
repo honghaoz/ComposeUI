@@ -206,16 +206,27 @@ open class ScrollView: NSScrollView {
     }
   }
 
-  /// Returns the event without its scroll delta along an axis the content can't move along.
+  /// Returns the event without its scroll delta along an axis the scroll view has no room to scroll along, while the
+  /// content offset is inside the scrollable range.
   ///
   /// AppKit compares the content with the clip view, which it rounds to whole pixels, so content that fits the exact
   /// visible size can look a fraction of a point larger, and AppKit would scroll it by a pixel.
   private func droppingDeltasAlongFixedAxes(of event: NSEvent) -> NSEvent {
-    // a mouse wheel event has no phase and can't spring back, so along an axis where the content fits, it would only
-    // move the content by that pixel, even when the axis bounces
+    // a mouse wheel event has no phase and can't spring back, so along an axis without room, it would only move the
+    // content by that pixel, even when the axis bounces. an offset outside the range, for example set in code, keeps
+    // the delta, since AppKit then moves the content to bring it back into the range, not by the rounding
     let isMouseWheel = event.phase.isEmpty && event.momentumPhase.isEmpty
-    let dropsHorizontalDelta = event.scrollingDeltaX != 0 && !contentOverflowsHorizontally && (isMouseWheel || !alwaysBounceHorizontal)
-    let dropsVerticalDelta = event.scrollingDeltaY != 0 && !contentOverflowsVertically && (isMouseWheel || !alwaysBounceVertical)
+
+    let dropsHorizontalDelta = event.scrollingDeltaX != 0 &&
+      (isMouseWheel || !alwaysBounceHorizontal) &&
+      !hasHorizontalScrollRange &&
+      !isContentOffsetOutsideHorizontalScrollableRange
+
+    let dropsVerticalDelta = event.scrollingDeltaY != 0 &&
+      (isMouseWheel || !alwaysBounceVertical) &&
+      !hasVerticalScrollRange &&
+      !isContentOffsetOutsideVerticalScrollableRange
+
     guard dropsHorizontalDelta || dropsVerticalDelta, let cgEvent = event.cgEvent?.copy() else {
       return event
     }
@@ -307,21 +318,22 @@ open class ScrollView: NSScrollView {
   }
 
   private func updateScrollElasticity() {
-    horizontalScrollElasticity = alwaysBounceHorizontal || contentOverflowsHorizontally ? .allowed : .none
-    verticalScrollElasticity = alwaysBounceVertical || contentOverflowsVertically ? .allowed : .none
+    horizontalScrollElasticity = alwaysBounceHorizontal || hasHorizontalScrollRange ? .allowed : .none
+    verticalScrollElasticity = alwaysBounceVertical || hasVerticalScrollRange ? .allowed : .none
   }
 
-  // The properties below compare the document with the exact visible size: the clip view rounds its size to whole
-  // pixels, so content as large as the view would otherwise look a fraction of a point larger.
+  // The properties below use the scroll range, which counts the content insets and the exact visible size: the clip
+  // view rounds its size to whole pixels, so content as large as the view would otherwise look a fraction of a point
+  // larger.
 
-  /// Whether the content is wider than the visible area.
-  private var contentOverflowsHorizontally: Bool {
-    contentContainerView.frame.width.extends(beyond: visibleSize.width)
+  /// Whether the scroll view has room to scroll horizontally.
+  private var hasHorizontalScrollRange: Bool {
+    maxOffsetX.extends(beyond: minOffsetX)
   }
 
-  /// Whether the content is taller than the visible area.
-  private var contentOverflowsVertically: Bool {
-    contentContainerView.frame.height.extends(beyond: visibleSize.height)
+  /// Whether the scroll view has room to scroll vertically.
+  private var hasVerticalScrollRange: Bool {
+    maxOffsetY.extends(beyond: minOffsetY)
   }
 }
 
@@ -419,17 +431,29 @@ private final class ScrollSession {
 private extension ScrollView {
 
   /// Whether the content offset is outside the scrollable range along either axis, by more than a pixel.
-  ///
-  /// Along an axis where the content is smaller than the visible size, the maximum offset is below the minimum, and the
-  /// scrollable range is the minimum offset alone.
   var isContentOffsetOutsideScrollableRange: Bool {
-    let offset = contentOffset
-    // AppKit aligns where scrolling comes to rest to the window's pixels, which can leave the offset up to about a
-    // pixel past an end of the exact range, so an offset within a pixel of the range counts as inside it
-    let pixel = pixelSize
+    isContentOffsetOutsideHorizontalScrollableRange || isContentOffsetOutsideVerticalScrollableRange
+  }
+
+  // AppKit aligns where scrolling comes to rest to the window's pixels, which can leave the offset up to about a pixel
+  // past an end of the exact range, so the properties below count an offset within a pixel of the range as inside it.
+  // Along an axis where the content is smaller than the visible size, the maximum offset is below the minimum, and the
+  // scrollable range is the minimum offset alone.
+
+  /// Whether the content offset is outside the horizontal scrollable range, by more than a pixel.
+  var isContentOffsetOutsideHorizontalScrollableRange: Bool {
+    let x = contentOffset.x
+    let pixel = pixelSize.width
     let minX = minOffsetX
+    return x < minX - pixel || x > max(minX, maxOffsetX) + pixel
+  }
+
+  /// Whether the content offset is outside the vertical scrollable range, by more than a pixel.
+  var isContentOffsetOutsideVerticalScrollableRange: Bool {
+    let y = contentOffset.y
+    let pixel = pixelSize.height
     let minY = minOffsetY
-    return offset.x < minX - pixel.width || offset.x > max(minX, maxOffsetX) + pixel.width || offset.y < minY - pixel.height || offset.y > max(minY, maxOffsetY) + pixel.height
+    return y < minY - pixel || y > max(minY, maxOffsetY) + pixel
   }
 
   /// Whether the view has a parent scroll view that satisfies the condition.
