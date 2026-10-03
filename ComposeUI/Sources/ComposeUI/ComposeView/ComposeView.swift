@@ -356,7 +356,8 @@ open class ComposeView: BaseScrollView {
 
     /// The bounds that will be used for rendering.
     ///
-    /// The bounds's size is the layout container size (`WillLayoutContext.containerSize`).
+    /// The bounds' size is the visible size, while the content lays out in that size minus the content insets
+    /// (`WillLayoutContext.containerSize`).
     public let renderBounds: CGRect
 
     /// The render type for this render pass.
@@ -371,7 +372,8 @@ open class ComposeView: BaseScrollView {
 
     /// The bounds used for rendering.
     ///
-    /// The bounds's size is the layout container size (`WillLayoutContext.containerSize`).
+    /// The bounds' size is the visible size, while the content lays out in that size minus the content insets
+    /// (`WillLayoutContext.containerSize`).
     public let renderBounds: CGRect
 
     /// The render type for this render pass.
@@ -465,20 +467,24 @@ open class ComposeView: BaseScrollView {
   // MARK: - Size
 
   #if canImport(AppKit)
-  /// Returns the size that fits the content. This measures the latest content, it may not be the same as the displayed content.
+  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the same as the displayed content.
   ///
-  /// - Parameter size: The proposed layout container size.
-  /// - Returns: The size that fits the content.
+  /// As in a render pass, the content lays out in the proposed size minus the insets.
+  ///
+  /// - Parameter size: The proposed size.
+  /// - Returns: The size that fits the content and its insets.
   open func sizeThatFits(_ size: CGSize) -> CGSize {
     _sizeThatFits(size)
   }
   #endif
 
   #if canImport(UIKit)
-  /// Returns the size that fits the content. This measures the latest content, it may not be the same as the displayed content.
+  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the same as the displayed content.
   ///
-  /// - Parameter size: The proposed layout container size.
-  /// - Returns: The size that fits the content.
+  /// As in a render pass, the content lays out in the proposed size minus the insets.
+  ///
+  /// - Parameter size: The proposed size.
+  /// - Returns: The size that fits the content and its insets.
   override open func sizeThatFits(_ size: CGSize) -> CGSize {
     _sizeThatFits(size)
   }
@@ -487,8 +493,14 @@ open class ComposeView: BaseScrollView {
   private func _sizeThatFits(_ size: CGSize) -> CGSize {
     var contentNode = _makeContent()
     let context = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: ContentEvaluation())
-    _ = contentNode.layout(containerSize: size, context: context)
-    return contentNode.size.roundedUp(scaleFactor: contentScaleFactor)
+
+    // the content lays out between the insets, as in a render pass, so the view fits it with the insets added back
+    let insets = adjustedContentInset
+    let sizeBetweenInsets = Self.sizeBetweenInsets(insets, in: size)
+    _ = contentNode.layout(containerSize: CGSize(width: max(sizeBetweenInsets.width, 0), height: max(sizeBetweenInsets.height, 0)), context: context)
+
+    let fittingSize = CGSize(width: contentNode.size.width + insets.left + insets.right, height: contentNode.size.height + insets.top + insets.bottom)
+    return fittingSize.roundedUp(scaleFactor: contentScaleFactor)
   }
 
   // MARK: - Scroll

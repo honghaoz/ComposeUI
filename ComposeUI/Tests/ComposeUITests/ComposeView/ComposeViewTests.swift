@@ -180,6 +180,45 @@ class ComposeViewTests: XCTestCase {
     expect(contentView.sizeThatFits(CGSize(width: 50, height: 50))) == CGSize(width: 50, height: 30)
   }
 
+  func test_sizeThatFits_contentInsets_includesThem() {
+    // given: a view with 10 pt content insets, showing 50 × 50 content
+    let view = ComposeView {
+      LayerNode()
+        .frame(width: 50, height: 50)
+    }
+    view.contentInset = EdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+
+    // when: measuring a 200 × 200 proposal
+    let size = view.sizeThatFits(CGSize(width: 200, height: 200))
+
+    // then: the fitting size is the content plus the insets
+    expect(size) == CGSize(width: 70, height: 70)
+
+    // when: the view takes that size and renders
+    view.frame = CGRect(origin: .zero, size: size)
+    view.refresh(animated: false)
+
+    // then: the content fits between the insets, so the view doesn't scroll
+    expect(view.isScrollEnabled) == false
+  }
+
+  func test_sizeThatFits_contentInsets_laysOutTheContentBetweenThem() {
+    // given: a view with 20 pt side insets and 5 pt top and bottom insets, whose content is half as tall as the width it
+    // lays out in
+    let view = ComposeView {
+      ViewNode<BaseView>(intrinsicSize: { CGSize(width: $0.width, height: $0.width / 2) })
+        .fixedSize(width: false, height: true)
+    }
+    view.contentInset = EdgeInsets(top: 5, left: 20, bottom: 5, right: 20)
+
+    // then: for a 100 pt wide proposal, the content lays out in the 60 pt between the side insets, so it's 30 pt tall,
+    // and the fitting size adds the insets
+    expect(view.sizeThatFits(CGSize(width: 100, height: 300))) == CGSize(width: 100, height: 40)
+
+    // then: for a proposal narrower than the side insets, the content lays out in no width
+    expect(view.sizeThatFits(CGSize(width: 30, height: 300))) == CGSize(width: 40, height: 10)
+  }
+
   func test_sizeThatFits_doesNotReplaceReusedContent() throws {
     // given: rendered content whose next configuration has a different color and height
     var color = Color.red

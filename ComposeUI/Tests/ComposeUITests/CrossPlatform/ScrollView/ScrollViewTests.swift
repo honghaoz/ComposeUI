@@ -267,6 +267,24 @@ class ScrollViewTests: XCTestCase {
   }
 
   #if canImport(AppKit)
+  func test_contentInset_insetShrinkingByLessThanAPixel_clampsTheOffsetToTheNewEdge() {
+    // given: a 100 × 200 scroll view in a window, without automatic inset adjustments, showing 100 × 500 content, with a
+    // 10 pt top inset, scrolled to its top
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
+    scrollView.automaticallyAdjustsContentInsets = false
+    scrollView.contentSize = CGSize(width: 100, height: 500)
+    window.contentView().addSubview(scrollView)
+    scrollView.contentInset = EdgeInsets(top: 10, left: 0, bottom: 0, right: 0)
+    scrollView.contentOffset = CGPoint(x: 0, y: -10)
+
+    // when: the top inset shrinks by half a point, at most a pixel
+    scrollView.contentInset = EdgeInsets(top: 9.5, left: 0, bottom: 0, right: 0)
+
+    // then: the offset moves to the new top of the range, as on UIKit, even though it was at most a pixel outside it
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: -9.5)
+  }
+
   func test_contentInsets_movesTheContentOffsetByTheChange() {
     // given: a 100 × 200 scroll view without automatic inset adjustments, showing 100 × 500 content, scrolled to 30 pt
     let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
