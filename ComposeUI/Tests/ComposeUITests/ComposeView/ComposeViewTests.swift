@@ -600,6 +600,68 @@ class ComposeViewTests: XCTestCase {
     expect(assertionMessages) == ["ComposeView doesn't support auto-hiding scrollers"]
     expect(view.autohidesScrollers) == false
   }
+
+  func test_rulersVisible_staysOff() {
+    // given: a 100 × 100 compose view with a vertical ruler, and a handler that records the assertions
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.hasVerticalRuler = true
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the rulers are hidden
+    view.rulersVisible = false
+
+    // then: nothing asserts, and they're hidden
+    expect(assertionMessages) == []
+    expect(view.rulersVisible) == false
+
+    // when: the rulers are shown, and the view tiles
+    view.rulersVisible = true
+    view.tile()
+
+    // then: it asserts, and the rulers stay hidden, so they take no room from the content
+    expect(assertionMessages) == ["ComposeView doesn't support rulers"]
+    expect(view.rulersVisible) == false
+    let insets = view.adjustedContentInset
+    expect([insets.top, insets.left, insets.bottom, insets.right]) == [0, 0, 0, 0]
+  }
+
+  func test_isFindBarVisible_staysOff() {
+    // given: a 100 × 100 compose view with a 30 pt tall find bar view, and a handler that records the assertions
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.findBarView = NSView(frame: CGRect(x: 0, y: 0, width: 100, height: 30))
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the find bar is hidden
+    view.isFindBarVisible = false
+
+    // then: nothing asserts, and it's hidden
+    expect(assertionMessages) == []
+    expect(view.isFindBarVisible) == false
+
+    // when: the find bar is shown, and the view tiles
+    view.isFindBarVisible = true
+    view.tile()
+
+    // then: it asserts, and the find bar stays hidden, so it takes no room from the content
+    expect(assertionMessages) == ["ComposeView doesn't support the find bar"]
+    expect(view.isFindBarVisible) == false
+    let insets = view.adjustedContentInset
+    expect([insets.top, insets.left, insets.bottom, insets.right]) == [0, 0, 0, 0]
+  }
   #endif
 
   #if os(iOS)
