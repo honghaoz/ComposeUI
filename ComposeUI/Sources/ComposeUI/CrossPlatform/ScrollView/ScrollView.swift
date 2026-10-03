@@ -88,8 +88,10 @@ open class ScrollView: NSScrollView {
       }
 
       // AppKit moves the offset by the inset change, while UIKit keeps it and clamps each axis it leaves outside the new
-      // range, so put the offset back and clamp it. bounds notifications stay off meanwhile, so the view doesn't render
-      // for the offset AppKit moved to: turning them back on posts one notification if the bounds changed.
+      // range, so put the old offset back as AppKit clamps it: AppKit leaves an offset inside the range exactly where it
+      // is, between pixels too, and moves one outside it, by any amount, to where AppKit's own scrolling would rest.
+      // bounds notifications stay off meanwhile, so the view doesn't render for the offset AppKit moved to: turning them
+      // back on posts one notification if the bounds changed.
       let contentOffset = self.contentOffset
 
       let postsBoundsChangedNotifications = contentView.postsBoundsChangedNotifications
@@ -97,18 +99,9 @@ open class ScrollView: NSScrollView {
 
       contentInsets = newValue
 
-      if self.contentOffset != contentOffset {
-        setContentOffsetExactly(contentOffset)
-      }
-
-      let isOutsideHorizontally = isContentOffsetOutsideHorizontalScrollableRange
-      let isOutsideVertically = isContentOffsetOutsideVerticalScrollableRange
-      if isOutsideHorizontally || isOutsideVertically {
-        // clamp as AppKit does, so the offset rests where AppKit's own scrolling would bring it
-        let clampedOffset = contentView.constrainBoundsRect(CGRect(origin: contentOffset, size: contentView.bounds.size)).origin
-        setContentOffsetExactly(
-          CGPoint(x: isOutsideHorizontally ? clampedOffset.x : contentOffset.x, y: isOutsideVertically ? clampedOffset.y : contentOffset.y)
-        )
+      let keptContentOffset = contentView.constrainBoundsRect(CGRect(origin: contentOffset, size: contentView.bounds.size)).origin
+      if self.contentOffset != keptContentOffset {
+        setContentOffsetExactly(keptContentOffset)
       }
 
       contentView.postsBoundsChangedNotifications = postsBoundsChangedNotifications
