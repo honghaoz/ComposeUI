@@ -195,6 +195,38 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     #endif
   }
 
+  func test_renderBounds_willLayoutHandlerChangingTheContentInsets_rendersTheChangeAfterThePass() {
+    // given: a 100 × 100 view showing content that fills the container it lays out in, whose will-layout handler sets a
+    // 30 pt bottom inset the first time it runs
+    var contentLayer: CALayer?
+    let view = ComposeView {
+      LayerNode<CALayer>(update: { layer, _ in contentLayer = layer })
+        .frame(width: .flexible, height: .flexible)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.scrollIndicatorBehavior = .auto
+    var didSetInsets = false
+    view.onWillLayout { view, _ in
+      guard !didSetInsets else {
+        return
+      }
+      didSetInsets = true
+      view.contentInset = EdgeInsets(top: 0, left: 0, bottom: 30, right: 0)
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the content lays out between the insets the pass started with
+    expect(contentLayer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the run loop turns
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+
+    // then: the view renders again, with the content in the 70 pt above the new inset
+    expect(contentLayer?.frame) == CGRect(x: 0, y: 0, width: 100, height: 70)
+  }
+
   #if canImport(AppKit)
   func test_renderBounds_hidingLegacyScroller_scrolledToBottom() {
     // given: a view with legacy scrollers, scrolled to the bottom of rows that overflow both axes

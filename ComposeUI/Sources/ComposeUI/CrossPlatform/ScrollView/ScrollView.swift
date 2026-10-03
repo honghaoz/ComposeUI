@@ -110,9 +110,9 @@ open class ScrollView: NSScrollView {
 
   /// The insets in effect, including the automatic adjustments, like `UIScrollView`'s `adjustedContentInset`.
   ///
-  /// AppKit applies the automatic adjustments to `contentInsets` itself, so this is `contentInsets`.
+  /// It also includes the thickness of legacy scroll bars that AppKit places over the content.
   public var adjustedContentInset: EdgeInsets {
-    contentInsets
+    contentView.contentInsets
   }
 
   /// The size of the visible area in content coordinates, like `UIScrollView`'s `visibleSize`.

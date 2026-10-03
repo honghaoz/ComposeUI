@@ -128,6 +128,78 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.maxOffsetX) == 100 + 10 - (120 - thickness)
   }
 
+  func test_scrollBarsOverTheContent_contentLaysOutBesideThemAndScrollsToTheirEdge() {
+    // given: a 120 × 200 view with legacy scroll bars and a 20 pt top inset, showing content 300 pt wide and tall, and
+    // records the container sizes the content lays out in
+    var containerSizes: [CGSize] = []
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+    view.contentInset = EdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+    view.onWillLayout { _, context in
+      containerSizes.append(context.containerSize)
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: both scroll bars show over the full visible area, the content lays out beside them, between the insets, and
+    // the scrollable range ends where AppKit stops scrolling
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+    expect(view.visibleSize) == CGSize(width: 120, height: 200)
+    expect(containerSizes) == [CGSize(width: 120, height: 180), CGSize(width: 120 - thickness, height: 180 - thickness)]
+    expect(view.maxOffsetX) == 300 - 120 + thickness
+    expect(view.maxOffsetY) == 300 - 200 + thickness
+    let clipView = view.contentView
+    let end = clipView.constrainBoundsRect(CGRect(origin: CGPoint(x: 1000, y: 1000), size: clipView.bounds.size)).origin
+    expect(end) == CGPoint(x: view.maxOffsetX, y: view.maxOffsetY)
+
+    // when: the view scrolls to where the content's edges reach the visible area's edges, under the scroll bars
+    view.contentOffset = CGPoint(x: 300 - 120, y: 300 - 200)
+
+    // then: the view can still scroll by the scroll bars' thickness along both axes
+    expect(view.canScrollToRight) == true
+    expect(view.canScrollToBottom) == true
+
+    // when: the view scrolls to the end of the scrollable range
+    view.contentOffset = end
+
+    // then: the view can't scroll further along either axis
+    expect(view.canScrollToRight) == false
+    expect(view.canScrollToBottom) == false
+  }
+
+  func test_scrollBarsOverTheContent_contentFittingBetweenTheInsets_hidesThem() {
+    // given: a 120 × 200 view with legacy scroll bars and a 20 pt top inset, showing content 300 pt wide and tall, with
+    // both scroll bars over it
+    var contentSize = CGSize(width: 300, height: 300)
+    let view = makeView { LayerNode().frame(width: contentSize.width, height: contentSize.height) }
+    view.contentInset = EdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+    view.refresh(animated: false)
+    expect(view.adjustedContentInset.right) == thickness
+
+    // when: the content becomes 50 pt wide and 170 pt tall, which fits the 180 pt between the insets, but not that space
+    // without the scroll bars' thickness, and the view refreshes
+    contentSize = CGSize(width: 50, height: 170)
+    view.refresh(animated: false)
+
+    // then: both scroll bars hide, and the view doesn't scroll
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+    expect(view.isScrollEnabled) == false
+  }
+
+  func test_scrollBarsOverTheContent_sizeThatFits_leavesOutTheirThickness() {
+    // given: a 120 × 200 view with legacy scroll bars and a 20 pt top inset, showing content 300 pt wide and tall, with
+    // both scroll bars over it
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+    view.contentInset = EdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+    view.refresh(animated: false)
+    expect(view.adjustedContentInset.right) == thickness
+
+    // then: the size that fits is the content and the set insets, since a view of that size has no scroll bars
+    expect(view.sizeThatFits(CGSize(width: 1000, height: 1000))) == CGSize(width: 300, height: 320)
+  }
+
   func test_contentOverflowsTheBoundsButFitsBesideTheScrollBar_keepsTheScrollBar() {
     // given: a 120 × 200 view with legacy scroll bars, showing content as wide as the view and 1.75 times as tall, which
     // overflows the view's height but fits beside a vertical scroll bar
@@ -264,6 +336,26 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.test.lastRenderBounds) == CGRect(origin: CGPoint(x: 0, y: 50), size: renderSize)
     expect(state.layoutContainerSizes) == [CGSize(width: 120, height: 200), renderSize]
     expect(containerSizes) == [CGSize(width: 120, height: 200), renderSize, renderSize]
+  }
+
+  func test_scrollBarsOverTheContent_scrolling_keepsThem() {
+    // given: a 120 × 200 view with legacy scroll bars and a 20 pt top inset, that rendered content 300 pt wide and tall,
+    // with both scroll bars over it, and records the container sizes the content lays out in
+    var containerSizes: [CGSize] = []
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+    view.contentInset = EdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+    view.refresh(animated: false)
+    view.onWillLayout { _, context in
+      containerSizes.append(context.containerSize)
+    }
+
+    // when: the view scrolls
+    view.contentOffset = CGPoint(x: 50, y: 50)
+    view.layoutIfNeeded()
+
+    // then: the view keeps the scroll bars, and the content lays out once, beside them
+    expect(view.test.lastRenderBounds) == CGRect(x: 50, y: 50, width: 120, height: 200)
+    expect(containerSizes) == [CGSize(width: 120 - thickness, height: 180 - thickness)]
   }
 
   func test_resizing_decidesTheScrollBarsAgain() {
