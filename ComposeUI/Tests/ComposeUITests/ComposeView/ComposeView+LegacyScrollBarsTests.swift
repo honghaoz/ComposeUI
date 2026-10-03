@@ -432,6 +432,39 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(renderedFrames(in: view).last) == CGRect(x: 290, y: 0, width: 10, height: 115)
   }
 
+  func test_refreshWithTheSameContent_keepsAnOffsetOutsideTheScrollableRange() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, so it
+    // shows the horizontal scroll bar only because the vertical one takes width, with the offset 30 pt past the bottom
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let pastTheBottom = CGPoint(x: 0, y: 300 - (200 - thickness) + 30)
+    view.contentOffset = pastTheBottom
+    window.layoutIfNeeded()
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the horizontal scroll bar on the way and shows it again, and the offset stays past the
+    // bottom, as the view keeps an offset set outside the scrollable range
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == pastTheBottom
+    expect(view.test.lastRenderBounds?.origin) == pastTheBottom
+
+    // when: the offset is set 30 pt above the top, and the view refreshes with the same content
+    let aboveTheTop = CGPoint(x: 0, y: -30)
+    view.contentOffset = aboveTheTop
+    window.layoutIfNeeded()
+    view.refresh(animated: false)
+
+    // then: the offset stays above the top
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == aboveTheTop
+    expect(view.test.lastRenderBounds?.origin) == aboveTheTop
+  }
+
   func test_refreshWithShorterContent_clampsTheScrollPosition() {
     // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall,
     // scrolled to the bottom
@@ -555,6 +588,43 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(layoutCount) == 3
     expect(view.hasHorizontalScroller) == true
     expect(view.contentOffset) == CGPoint(x: 0, y: 40)
+    expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 40)
+  }
+
+  func test_willLayoutHandlerSettingTheOffsetOnTheFirstLayout_laterLayoutsReportIt() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, so it
+    // shows the horizontal scroll bar only because the vertical one takes width, and a will-layout handler that records
+    // the viewports it gets and sets the offset on the first layout
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    var reportedBounds: [CGRect] = []
+    view.onWillLayout { view, context in
+      switch context.renderType {
+      case .refresh:
+        break
+      case .boundsChange(_, let bounds):
+        reportedBounds.append(bounds)
+        if reportedBounds.count == 1 {
+          view.contentOffset = CGPoint(x: 0, y: 40)
+        }
+      }
+    }
+
+    // when: the view gets 1 pt wider, so it lays out for its full size, then beside the vertical scroll bar, then beside
+    // both scroll bars
+    view.frame = CGRect(x: 0, y: 0, width: 121, height: 200)
+    window.layoutIfNeeded()
+
+    // then: each layout reports the current offset, so the layouts after the handler's change report its offset, which
+    // the pass renders
+    expect(reportedBounds) == [
+      CGRect(x: 0, y: 0, width: 121, height: 200),
+      CGRect(x: 0, y: 40, width: 121 - thickness, height: 200),
+      CGRect(x: 0, y: 40, width: 121 - thickness, height: 200 - thickness),
+    ]
     expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 40)
   }
 

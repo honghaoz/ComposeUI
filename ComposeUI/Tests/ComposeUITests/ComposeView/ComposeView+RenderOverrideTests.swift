@@ -283,6 +283,40 @@ class ComposeView_RenderOverrideTests: XCTestCase {
     expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
   }
 
+  func test_render_heldByAnOverride_scrolledWhileHeld_reportsTheCurrentOffsetToTheWillLayoutHandler() {
+    // given: a view, with overlay scroll bars on macOS so it lays out once, holding a render pass for a resize, then
+    // scrolled while holding it, with a will-layout handler that records the render types
+    var renderTypes: [ComposeView.RenderType] = []
+    let view = RenderHoldingView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    #if canImport(AppKit)
+    view.scrollerStyle = .overlay
+    #endif
+    view.setContent {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 300)
+    }
+    view.refresh(animated: false)
+    view.holdsRenderPass = true
+    view.frame.size.width = 160
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    view.contentOffset = CGPoint(x: 0, y: 50)
+    view.layoutIfNeeded()
+    view.onWillLayout { _, context in
+      renderTypes.append(context.renderType)
+    }
+
+    // when: the held pass is released
+    view.releaseRenderPass()
+
+    // then: the will-layout handler gets the offset the view scrolled to, where the pass renders, instead of the one the
+    // pass was prepared with
+    expect(renderTypes) == [
+      .boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 50, width: 160, height: 100)),
+    ]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 50, width: 160, height: 100)
+  }
+
   #if canImport(AppKit)
   func test_render_heldByAnOverride_afterTheViewResized_withLegacyScrollBar_rendersBesideTheScrollBar() throws {
     // given: a view showing a legacy vertical scroll bar, holding a render pass prepared with new content, then resized
