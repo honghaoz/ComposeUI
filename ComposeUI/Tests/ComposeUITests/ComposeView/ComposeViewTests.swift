@@ -595,5 +595,79 @@ class ComposeViewTests: XCTestCase {
     let visibleRowCount = Int((view.bounds.maxY / 20).rounded(.up))
     expect(rowFrames.sorted { $0.minY < $1.minY }) == (0 ..< visibleRowCount).map { CGRect(x: 0, y: CGFloat($0) * 20, width: view.bounds.width, height: 20) }
   }
+
+  func test_contentInsetAdjustmentBehavior_automatic_contentFittingTheViewButNotBetweenTheBars_scrollsIntoView() throws {
+    // given: a compose view set to adjust its content insets automatically, as the root view of a view controller in a
+    // navigation controller, laid out in a window, so UIKit insets it by the navigation bar and the home indicator
+    var rowCount = 0
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< rowCount {
+          LayerNode().frame(width: .flexible, height: 20)
+        }
+      }
+    }
+    view.contentInsetAdjustmentBehavior = .automatic
+    let viewController = UIViewController()
+    viewController.view = view
+    let window = TestWindow()
+    window.rootViewController = UINavigationController(rootViewController: viewController)
+    window.makeKeyAndVisible()
+    window.layoutIfNeeded()
+    let insets = view.adjustedContentInset
+    expect(insets.top) > 0
+    expect(insets.bottom) > 0
+
+    // when: the view shows 20 pt rows that fit its height, but not the height between the insets
+    let contentHeight = view.bounds.height - (insets.top + insets.bottom) / 2
+    rowCount = Int(contentHeight / 20)
+    view.refresh(animated: false)
+
+    // then: the rows overflow the space between the insets, so the view scrolls, and the rows start at the top of the
+    // content instead of centering, which at rest leaves the last one below the bottom inset
+    expect(view.isScrollEnabled) == true
+    let lastRowMaxY = CGFloat(rowCount) * 20
+    expect(lastRowMaxY - view.contentOffset.y) > view.bounds.height - insets.bottom
+
+    // when: the view scrolls to the end
+    view.contentOffset = CGPoint(x: 0, y: view.maxOffsetY)
+    view.layoutIfNeeded()
+
+    // then: the last row shows above the bottom inset
+    let renderedLastRowMaxY = try unwrap((view.layer.sublayers ?? []).map(\.frame).filter { $0.height == 20 }.map(\.maxY).max())
+    expect(renderedLastRowMaxY) == lastRowMaxY
+    expect(renderedLastRowMaxY - view.contentOffset.y) <= view.bounds.height - insets.bottom
+  }
+
+  func test_contentInsetAdjustmentBehavior_automatic_insetChange_laysOutTheContentBetweenTheNewInsets() {
+    // given: a compose view showing content that fills the container it lays out in, set to adjust its content insets
+    // automatically, as the root view of a view controller in a navigation controller, laid out in a window
+    var contentLayer: CALayer?
+    let view = ComposeView {
+      LayerNode<CALayer>(update: { layer, _ in contentLayer = layer })
+        .frame(width: .flexible, height: .flexible)
+    }
+    view.contentInsetAdjustmentBehavior = .automatic
+    let viewController = UIViewController()
+    viewController.view = view
+    let window = TestWindow()
+    window.rootViewController = UINavigationController(rootViewController: viewController)
+    window.makeKeyAndVisible()
+    window.layoutIfNeeded()
+    view.layoutIfNeeded()
+    let insets = view.adjustedContentInset
+    let boundsSize = view.bounds.size
+    expect(contentLayer?.frame.height) == boundsSize.height - insets.top - insets.bottom
+
+    // when: the view controller's top safe area grows by 30 pt, which changes the insets without resizing the view
+    viewController.additionalSafeAreaInsets.top = 30
+    window.layoutIfNeeded()
+    view.layoutIfNeeded()
+
+    // then: the view renders again, with the content in the space the larger insets leave
+    expect(view.bounds.size) == boundsSize
+    expect(view.adjustedContentInset.top) == insets.top + 30
+    expect(contentLayer?.frame.height) == boundsSize.height - insets.top - 30 - insets.bottom
+  }
   #endif
 }

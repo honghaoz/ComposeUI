@@ -153,6 +153,9 @@ open class ComposeView: BaseScrollView {
   /// The view's size from the last completed render pass, or nil before the first render.
   private var lastBoundsSize: CGSize?
 
+  /// The content insets from the last completed render pass, or nil before the first render.
+  private var lastRenderInsets: EdgeInsets?
+
   /// The ids of the renderable items that are being rendered.
   private var renderableItemIds: [ComposeNodeId] = []
 
@@ -336,7 +339,7 @@ open class ComposeView: BaseScrollView {
   /// The context for the will-layout handler.
   public struct WillLayoutContext {
 
-    /// The container size that will be used for layout.
+    /// The container size that will be used for layout: the visible size minus the content insets (`adjustedContentInset`).
     public let containerSize: CGSize
 
     /// The render type for this render pass.
@@ -493,7 +496,8 @@ open class ComposeView: BaseScrollView {
   /// The view's scrollable behavior.
   public enum ScrollBehavior {
 
-    /// The view is scrollable if the content is larger than the visible size. Otherwise, the view is not scrollable.
+    /// The view is scrollable if the content and its insets (`adjustedContentInset`) are larger than the visible size.
+    /// Otherwise, the view is not scrollable.
     ///
     /// On macOS, with the legacy scroll bar style (`NSScrollView.scrollerStyle == .legacy`), the scroll bars take space
     /// from the visible size.
@@ -515,10 +519,11 @@ open class ComposeView: BaseScrollView {
   /// The view's scroll indicator behavior.
   public enum ScrollIndicatorBehavior {
 
-    /// A scroll indicator is shown for each axis where the content is larger than the view's bounds, and hidden otherwise.
+    /// A scroll indicator is shown for each axis where the content and its insets (`adjustedContentInset`) are larger than
+    /// the view's bounds, and hidden otherwise.
     ///
     /// On macOS, with the legacy scroll bar style (`NSScrollView.scrollerStyle == .legacy`), a scroll bar takes space,
-    /// so the other axis's scroll indicator also shows if the content overflows the space that remains.
+    /// so the other axis's scroll indicator also shows if the content and its insets overflow the space that remains.
     case auto
 
     /// The view does not modify scroll indicator settings. `showsHorizontalScrollIndicator` and `showsVerticalScrollIndicator` are managed by you.
@@ -1082,22 +1087,28 @@ open class ComposeView: BaseScrollView {
     let oldShowsHorizontalScrollIndicator = showsHorizontalScrollIndicator
     let oldShowsVerticalScrollIndicator = showsVerticalScrollIndicator
 
+    // the content lays out, centers and scrolls between the insets, which add scroll space around it, as on UIKit.
+    // read them once, so a handler that changes them can't mix two values in the pass, and the next pass renders the change
+    let insets = adjustedContentInset
+
     // perform the layout
-    let layoutResult = layout(context)
+    let layoutResult = layout(context, insets: insets)
     let renderSize = layoutResult.renderSize
     var renderBounds = CGRect(origin: context.bounds.origin, size: renderSize)
     var contentSize = contentNode.size
+
+    let sizeBetweenInsets = Self.sizeBetweenInsets(insets, in: renderSize)
 
     // the layout and the render bounds compute their sizes with different arithmetic, so content that fits the render
     // bounds exactly can differ from them by floating-point noise. compare them with `extends(beyond:)` instead of `<`
     // and `>`, so the noise doesn't center, scroll, clip, or show scroll indicators.
     var centeredChildFrame: CGRect?
-    if renderSize.width.extends(beyond: contentSize.width) || renderSize.height.extends(beyond: contentSize.height) {
-      // if content is smaller than the render bounds in either dimension, should center the content
+    if sizeBetweenInsets.width.extends(beyond: contentSize.width) || sizeBetweenInsets.height.extends(beyond: contentSize.height) {
+      // if content is smaller than the container in either dimension, should center the content in it
 
       let adjustedContentSize = CGSize(
-        width: max(contentSize.width, renderSize.width),
-        height: max(contentSize.height, renderSize.height)
+        width: max(contentSize.width, sizeBetweenInsets.width),
+        height: max(contentSize.height, sizeBetweenInsets.height)
       )
 
       // logic copied from FrameNode.renderableItems(in:) (part 1)
@@ -1105,17 +1116,17 @@ open class ComposeView: BaseScrollView {
       contentSize = adjustedContentSize
     }
 
-    let overflowsHorizontally = contentSize.width.extends(beyond: renderSize.width)
-    let overflowsVertically = contentSize.height.extends(beyond: renderSize.height)
+    let overflowsHorizontally = contentSize.width.extends(beyond: sizeBetweenInsets.width)
+    let overflowsVertically = contentSize.height.extends(beyond: sizeBetweenInsets.height)
 
-    // round the content up to whole pixels, except along an axis it fits: there it can still exceed the render size by
-    // floating-point noise, which rounding up would turn into a pixel to scroll, so use the render size instead.
+    // round the content size up to whole pixels. along an axis the content fits, use the container size instead, since
+    // the content can exceed it by floating-point noise, and rounding that up would add a pixel to scroll.
     var roundedContentSize = contentSize.roundedUp(scaleFactor: contentScaleFactor)
     if !overflowsHorizontally {
-      roundedContentSize.width = renderSize.width
+      roundedContentSize.width = sizeBetweenInsets.width
     }
     if !overflowsVertically {
-      roundedContentSize.height = renderSize.height
+      roundedContentSize.height = sizeBetweenInsets.height
     }
 
     #if canImport(AppKit)
@@ -1625,14 +1636,17 @@ open class ComposeView: BaseScrollView {
 
     lastRenderBounds = renderBounds
     lastBoundsSize = context.bounds.size
+    lastRenderInsets = insets
   }
 
   /// Performs the layout for a content update, which also updates the scroll indicators.
   ///
-  /// - Parameter context: The content update being rendered.
-  /// - Returns: The render size the content laid out for, and whether the offset needs a clamp once the content size is
+  /// - Parameters:
+  ///   - context: The content update being rendered.
+  ///   - insets: The content insets the render pass lays out the content between.
+  /// - Returns: The render size the content laid out in, and whether the offset needs a clamp once the content size is
   ///   set, since the layout changed the scroll bars and undid the clamp AppKit applied for them.
-  private func layout(_ context: ContentUpdateContext) -> (renderSize: CGSize, needsContentOffsetClamp: Bool) {
+  private func layout(_ context: ContentUpdateContext, insets: EdgeInsets) -> (renderSize: CGSize, needsContentOffsetClamp: Bool) {
     let contentNode = context.contentNode
     let boundsSize = context.bounds.size
 
@@ -1658,7 +1672,9 @@ open class ComposeView: BaseScrollView {
 
     var laidOutSize: CGSize?
     func layout(for containerSize: CGSize) {
-      guard containerSize != laidOutSize else {
+      let sizeBetweenInsets = Self.sizeBetweenInsets(insets, in: containerSize)
+      let layoutSize = CGSize(width: max(sizeBetweenInsets.width, 0), height: max(sizeBetweenInsets.height, 0))
+      guard layoutSize != laidOutSize else {
         return
       }
 
@@ -1673,7 +1689,7 @@ open class ComposeView: BaseScrollView {
         #endif
         let renderSize = self.renderSize(for: boundsSize)
 
-        willLayoutHandler(self, WillLayoutContext(containerSize: containerSize, renderType: context.renderType(bounds: bounds)))
+        willLayoutHandler(self, WillLayoutContext(containerSize: layoutSize, renderType: context.renderType(bounds: bounds)))
 
         // the handler can't change the scroll settings or the visible size
         if (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) != scrollSettings {
@@ -1698,8 +1714,8 @@ open class ComposeView: BaseScrollView {
 
       // made after the handler, which can change the scale
       let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: context.contentEvaluation)
-      _ = contentNode.layout(containerSize: containerSize, context: layoutContext)
-      laidOutSize = containerSize
+      _ = contentNode.layout(containerSize: layoutSize, context: layoutContext)
+      laidOutSize = layoutSize
 
       #if DEBUG
       debug?.onEvent(.renderDidLayout(contentSize: contentNode.size))
@@ -1713,10 +1729,12 @@ open class ComposeView: BaseScrollView {
       case .refresh:
         keepsScrollIndicators = false
       case .boundsChange:
-        // a scroll changes neither the content, the view's size nor the render size, so it keeps the scroll indicators,
-        // if the last update also decided them automatically. the content then lays out once, for the render size the
-        // cached layout already has.
-        let isScroll = boundsSize == lastBoundsSize && context.previousRenderBounds?.size == self.renderSize(for: boundsSize)
+        // a scroll changes neither the content, the view's size, the render size nor the insets, so it keeps the scroll
+        // indicators, if the last update also decided them automatically. the content then lays out once, for the size
+        // the cached layout already has.
+        let isScroll = boundsSize == lastBoundsSize &&
+          context.previousRenderBounds?.size == self.renderSize(for: boundsSize) &&
+          lastRenderInsets?.isEqual(to: insets) == true
         keepsScrollIndicators = isScroll && lastScrollIndicatorBehavior == .auto
       }
 
@@ -1724,9 +1742,10 @@ open class ComposeView: BaseScrollView {
         // the content or its container size changed, so lay out for the view's full size to check whether the scroll
         // indicators need to change.
         layout(for: boundsSize)
+        let sizeBetweenInsets = Self.sizeBetweenInsets(insets, in: boundsSize)
         setScrollIndicators(
-          horizontal: contentNode.size.width.extends(beyond: boundsSize.width),
-          vertical: contentNode.size.height.extends(beyond: boundsSize.height)
+          horizontal: contentNode.size.width.extends(beyond: sizeBetweenInsets.width),
+          vertical: contentNode.size.height.extends(beyond: sizeBetweenInsets.height)
         )
 
         // after updating the scroll indicators, the render size leaves out the space the legacy scroll bars take.
@@ -1734,9 +1753,10 @@ open class ComposeView: BaseScrollView {
         let renderSize = self.renderSize(for: boundsSize)
         if renderSize != boundsSize {
           layout(for: renderSize)
+          let sizeBetweenInsets = Self.sizeBetweenInsets(insets, in: renderSize)
           setScrollIndicators(
-            horizontal: showsHorizontalScrollIndicator || contentNode.size.width.extends(beyond: renderSize.width),
-            vertical: showsVerticalScrollIndicator || contentNode.size.height.extends(beyond: renderSize.height)
+            horizontal: showsHorizontalScrollIndicator || contentNode.size.width.extends(beyond: sizeBetweenInsets.width),
+            vertical: showsVerticalScrollIndicator || contentNode.size.height.extends(beyond: sizeBetweenInsets.height)
           )
         }
       }
@@ -1759,7 +1779,17 @@ open class ComposeView: BaseScrollView {
     return (renderSize, needsContentOffsetClamp)
   }
 
-  /// Returns the size the content lays out and renders for: the bounds size less the space that legacy scroll bars take
+  /// Returns the size between the insets in a container, which the content lays out in, and centers in if it fits.
+  ///
+  /// - Parameters:
+  ///   - insets: The content insets.
+  ///   - containerSize: The size of the container.
+  /// - Returns: The container size minus the insets, negative along an axis where the insets exceed the container.
+  private static func sizeBetweenInsets(_ insets: EdgeInsets, in containerSize: CGSize) -> CGSize {
+    CGSize(width: containerSize.width - insets.left - insets.right, height: containerSize.height - insets.top - insets.bottom)
+  }
+
+  /// Returns the size the content lays out and renders for: the bounds size minus the space that legacy scroll bars take
   /// on macOS.
   ///
   /// - Parameter boundsSize: The bounds size the render pass was made for.
@@ -1792,14 +1822,16 @@ open class ComposeView: BaseScrollView {
     #endif
   }
 
-  /// Returns whether the render bounds or the view's size changed since the last render pass.
+  /// Returns whether the render bounds, the view's size or the content insets changed since the last render pass.
   ///
   /// Before the first render, they count as changed once the view has a size, so the view doesn't render while its size
   /// is still zero.
   private func boundsChangedSinceLastRender() -> Bool {
     // compare the view's size too: with legacy scroll bars on macOS, a resize can leave the render bounds the same while
-    // the scroll bars it needs change
-    renderBounds() != (lastRenderBounds ?? .zero) || bounds.size != (lastBoundsSize ?? .zero)
+    // the scroll bars it needs change. and compare the insets, since the content lays out between them.
+    renderBounds() != (lastRenderBounds ?? .zero) ||
+      bounds.size != (lastBoundsSize ?? .zero) ||
+      lastRenderInsets?.isEqual(to: adjustedContentInset) == false
   }
 
   /// Updates the renderable layer's `zPosition` so that renderables render in the items order, regardless of the

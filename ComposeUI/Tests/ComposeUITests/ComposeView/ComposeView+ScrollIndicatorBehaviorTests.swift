@@ -346,6 +346,70 @@ class ComposeView_ScrollIndicatorBehaviorTests: XCTestCase {
     expect(contentView.showsVerticalScrollIndicator) == false
   }
 
+  func test_scrollIndicatorBehavior_auto_contentInsets_showTheIndicatorAlongAnAxisTheContentOverflowsBetweenThem() {
+    // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, showing
+    // 50 × 50 content
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: 50, height: 50)
+    }
+    contentView.scrollIndicatorBehavior = .auto
+    #if canImport(AppKit)
+    contentView.scrollerStyle = .overlay
+    #endif
+
+    // when: the view gets a 20 pt top inset and a 30 pt bottom inset, which the content fits between, and refreshes
+    contentView.contentInset = EdgeInsets(top: 20, left: 0, bottom: 30, right: 0)
+    contentView.refresh(animated: false)
+
+    // then: the content and the insets fit the view, so both indicators are hidden
+    expect(contentView.showsHorizontalScrollIndicator) == false
+    expect(contentView.showsVerticalScrollIndicator) == false
+
+    // when: the bottom inset grows to 40 pt, which leaves 40 pt for the content between the insets, and the view refreshes
+    contentView.contentInset = EdgeInsets(top: 20, left: 0, bottom: 40, right: 0)
+    contentView.refresh(animated: false)
+
+    // then: the content overflows vertically between the insets, so only the vertical indicator shows
+    expect(contentView.showsHorizontalScrollIndicator) == false
+    expect(contentView.showsVerticalScrollIndicator) == true
+
+    // when: the insets move to the left and right edges, and the view refreshes
+    contentView.contentInset = EdgeInsets(top: 0, left: 20, bottom: 0, right: 40)
+    contentView.refresh(animated: false)
+
+    // then: the content overflows horizontally between the insets, so only the horizontal indicator shows
+    expect(contentView.showsHorizontalScrollIndicator) == true
+    expect(contentView.showsVerticalScrollIndicator) == false
+  }
+
+  func test_scrollIndicatorBehavior_auto_contentInsetChange_decidesTheScrollIndicatorsAgain() {
+    // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, and
+    // rendered 50 × 50 content, which fits it, without scroll indicators
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: 50, height: 50)
+    }
+    contentView.scrollIndicatorBehavior = .auto
+    #if canImport(AppKit)
+    contentView.scrollerStyle = .overlay
+    #endif
+    contentView.refresh(animated: false)
+    expect(contentView.showsVerticalScrollIndicator) == false
+
+    // when: the view gets a 30 pt top inset and a 30 pt bottom inset, which leave 40 pt for the content, and lays out
+    // without a refresh
+    contentView.contentInset = EdgeInsets(top: 30, left: 0, bottom: 30, right: 0)
+    contentView.layoutIfNeeded()
+
+    // then: the view renders again for the insets, which aren't a scroll, so it decides the scroll indicators again, and
+    // shows the vertical one for the content that now overflows
+    expect(contentView.isScrollEnabled) == true
+    expect(contentView.showsVerticalScrollIndicator) == true
+  }
+
   func test_scrollIndicatorBehavior_auto_flashesAShownScrollIndicatorAfterTheContentSizeIsSet() {
     // given: a 100 × 100 view that shows its scroll indicators automatically, as overlay scroll bars on macOS, and
     // rendered content that fits it
