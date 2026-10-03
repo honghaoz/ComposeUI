@@ -39,17 +39,17 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let node = ComposeView.LayoutCacheNode(node: ColorNode(.red))
     let evaluation = ContentEvaluation()
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let original = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: .all)
-    let same = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: .all)
+    let original = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: .all)
+    let same = ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: .all)
     let different = [
-      ComposeView.ContentUpdateContext(contentNode: ComposeView.LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: .all),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: ContentEvaluation(), updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: .all),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: true), previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: .all),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: .all),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: .zero, preparedAnimationDecision: .all),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: bounds, renderBounds: bounds, preparedAnimationDecision: .all),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: nil, renderBounds: bounds, preparedAnimationDecision: .all),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: ComposeView.AnimationDecision.transitionsOnly),
+      ComposeView.ContentUpdateContext(contentNode: ComposeView.LayoutCacheNode(node: ColorNode(.red)), contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: .all),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: ContentEvaluation(), updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: .all),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: true), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: .all),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .boundsChange, previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: .all),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: .zero, preparedAnimationDecision: .all),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: bounds, bounds: bounds, preparedAnimationDecision: .all),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: nil, bounds: bounds, preparedAnimationDecision: .all),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: ComposeView.AnimationDecision.transitionsOnly),
     ]
 
     // then: content identity and every update field participate in equality
@@ -142,7 +142,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let originalNode = contentNode
     let originalEvaluation = contentEvaluation
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
-    let pass = ComposeView.ContentUpdateContext(contentNode: contentNode, contentEvaluation: contentEvaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, renderBounds: bounds, preparedAnimationDecision: .all)
+    let pass = ComposeView.ContentUpdateContext(contentNode: contentNode, contentEvaluation: contentEvaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: .all)
     let originalValue = pass.contentEvaluation.lazyValue(for: provider)
 
     // when: a later refresh selects different content while the earlier pass is kept
@@ -275,7 +275,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
     let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
     let scrolledBounds = CGRect(x: 0, y: 20, width: 100, height: 100)
     func makeContext(_ updateType: ComposeView.ContentUpdateContext.ContentUpdateType, previousRenderBounds: CGRect?) -> ComposeView.ContentUpdateContext {
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: updateType, previousRenderBounds: previousRenderBounds, renderBounds: bounds, preparedAnimationDecision: .all)
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: updateType, previousRenderBounds: previousRenderBounds, bounds: bounds, preparedAnimationDecision: .all)
     }
     let animatedRefresh = makeContext(.refresh(isAnimated: true), previousRenderBounds: bounds)
     let refresh = makeContext(.refresh(isAnimated: false), previousRenderBounds: nil)

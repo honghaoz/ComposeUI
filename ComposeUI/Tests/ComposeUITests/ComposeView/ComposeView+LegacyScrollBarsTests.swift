@@ -1,0 +1,867 @@
+//
+//  ComposeView+LegacyScrollBarsTests.swift
+//  ComposéUI
+//
+//  Created by Honghao Zhang on 10/1/26.
+//  Copyright © 2024 Honghao Zhang.
+//
+//  MIT License
+//
+//  Copyright (c) 2024 Honghao Zhang (github.com/honghaoz)
+//
+//  Permission is hereby granted, free of charge, to any person obtaining a copy
+//  of this software and associated documentation files (the "Software"), to
+//  deal in the Software without restriction, including without limitation the
+//  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+//  sell copies of the Software, and to permit persons to whom the Software is
+//  furnished to do so, subject to the following conditions:
+//
+//  The above copyright notice and this permission notice shall be included in
+//  all copies or substantial portions of the Software.
+//
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+//  IN THE SOFTWARE.
+//
+
+#if canImport(AppKit)
+import AppKit
+
+import ChouTiTest
+
+@testable import ComposeUI
+
+class ComposeView_LegacyScrollBarsTests: XCTestCase {
+
+  private let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+
+  // MARK: - Layout
+
+  func test_verticalScrollBar_contentLaysOutBesideIt() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content as wide as the view and 300 pt tall
+    let state = WidthDependentNode.State()
+    let view = makeView { WidthDependentNode(state: state, height: { _ in 300 }) }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the vertical scroll bar shows, and the content lays out beside it, so it doesn't scroll sideways
+    expect(view.hasVerticalScroller) == true
+    expect(view.hasHorizontalScroller) == false
+    expect(view.visibleSize) == CGSize(width: 120 - thickness, height: 200)
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200)
+    expect(view.contentSize) == CGSize(width: 120 - thickness, height: 300)
+    expect(view.maxOffsetX) == 0
+  }
+
+  func test_horizontalScrollBar_contentLaysOutBesideIt() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content 300 pt wide and as tall as the view
+    let view = makeView { LayerNode().frame(width: 300, height: .flexible) }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the horizontal scroll bar shows, and the content lays out above it, so it doesn't scroll vertically
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == false
+    expect(view.visibleSize) == CGSize(width: 120, height: 200 - thickness)
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 200 - thickness)
+    expect(view.contentSize) == CGSize(width: 300, height: 200 - thickness)
+    expect(view.maxOffsetY) == 0
+  }
+
+  func test_bothScrollBars_contentLaysOutBesideThem() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content 300 pt wide and tall
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: both scroll bars show, and the content lays out for the space they leave
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200 - thickness)
+    expect(view.contentSize) == CGSize(width: 300, height: 300)
+  }
+
+  func test_contentFitsTheBoundsButNotBesideTheVerticalScrollBar_showsTheHorizontalScrollBar() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content 300 pt tall and 115 pt wide, which fits the view's
+    // width but not the width beside a vertical scroll bar
+    var containerSizes: [CGSize] = []
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    view.onWillLayout { _, context in
+      containerSizes.append(context.containerSize)
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the vertical scroll bar makes the content overflow sideways, so the horizontal scroll bar shows too, and the
+    // content lays out once more for the space both leave
+    expect(view.hasVerticalScroller) == true
+    expect(view.hasHorizontalScroller) == true
+    expect(containerSizes) == [
+      CGSize(width: 120, height: 200),
+      CGSize(width: 120 - thickness, height: 200),
+      CGSize(width: 120 - thickness, height: 200 - thickness),
+    ]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200 - thickness)
+  }
+
+  func test_contentOverflowsTheBoundsButFitsBesideTheScrollBar_keepsTheScrollBar() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content as wide as the view and 1.75 times as tall, which
+    // overflows the view's height but fits beside a vertical scroll bar
+    let state = WidthDependentNode.State()
+    var renderCount = 0
+    let view = makeView { WidthDependentNode(state: state, height: { $0 * 1.75 }) }
+    view.onDidRender { _, _ in
+      renderCount += 1
+    }
+
+    // when: the view refreshes, and the run loop turns, where a follow-up render pass would run
+    view.refresh(animated: false)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+
+    // then: the vertical scroll bar shows from the layout for the view's size, and stays though the content fits beside
+    // it, with nothing to scroll, so the view renders once
+    expect(view.hasVerticalScroller) == true
+    expect(state.layoutContainerSizes) == [CGSize(width: 120, height: 200), CGSize(width: 120 - thickness, height: 200)]
+    expect(renderCount) == 1
+    expect(view.isScrollEnabled) == false
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200)
+  }
+
+  func test_overlayScrollBars_layOutOnce() {
+    // given: a 120 × 200 view with overlay scroll bars, showing content as wide as the view and 300 pt tall
+    let state = WidthDependentNode.State()
+    let view = makeView(scrollerStyle: .overlay) { WidthDependentNode(state: state, height: { _ in 300 }) }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the vertical scroll bar shows over the content, which lays out once, for the view's size
+    expect(view.hasVerticalScroller) == true
+    expect(state.layoutContainerSizes) == [CGSize(width: 120, height: 200)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 200)
+  }
+
+  // MARK: - Scrolling and Resizing
+
+  func test_scrolling_keepsTheScrollBars() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content as wide as the view and 300 pt tall
+    let state = WidthDependentNode.State()
+    var containerSizes: [CGSize] = []
+    let view = makeView { WidthDependentNode(state: state, height: { _ in 300 }) }
+    view.onWillLayout { _, context in
+      containerSizes.append(context.containerSize)
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the content lays out for the view's size, which decides the scroll bars, then for the render size beside the
+    // vertical scroll bar, and the will-layout handler runs before each layout
+    let renderSize = CGSize(width: 120 - thickness, height: 200)
+    expect(state.layoutContainerSizes) == [CGSize(width: 120, height: 200), renderSize]
+    expect(containerSizes) == [CGSize(width: 120, height: 200), renderSize]
+
+    // when: the view scrolls
+    view.contentOffset = CGPoint(x: 0, y: 50)
+    view.layoutIfNeeded()
+
+    // then: the pass keeps the scroll bars and lays out for the render size, which the cached layout already has, without
+    // laying out for the view's size again
+    expect(view.test.lastRenderBounds) == CGRect(origin: CGPoint(x: 0, y: 50), size: renderSize)
+    expect(state.layoutContainerSizes) == [CGSize(width: 120, height: 200), renderSize]
+    expect(containerSizes) == [CGSize(width: 120, height: 200), renderSize, renderSize]
+  }
+
+  func test_resizing_decidesTheScrollBarsAgain() {
+    // given: a 120 × 200 view with legacy scroll bars that rendered content as wide as the view and 300 pt tall beside the
+    // vertical scroll bar
+    let view = makeView { WidthDependentNode(state: WidthDependentNode.State(), height: { _ in 300 }) }
+    view.refresh(animated: false)
+    expect(view.hasVerticalScroller) == true
+
+    // when: the view grows taller than the content
+    view.frame.size = CGSize(width: 120, height: 400)
+    view.layoutIfNeeded()
+
+    // then: the content fits, so the vertical scroll bar hides, and the content lays out for the whole view
+    expect(view.hasVerticalScroller) == false
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 400)
+  }
+
+  // MARK: - Scroll Indicator Behavior
+
+  func test_alwaysShownScrollBars_contentLaysOutBesideThemOnce() {
+    // given: a 120 × 200 view that always shows legacy scroll bars, showing content as wide as the view and 300 pt tall
+    let state = WidthDependentNode.State()
+    let view = makeView { WidthDependentNode(state: state, height: { _ in 300 }) }
+    view.scrollIndicatorBehavior = .always
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the content lays out once, beside both scroll bars
+    expect(state.layoutContainerSizes) == [CGSize(width: 120 - thickness, height: 200 - thickness)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200 - thickness)
+  }
+
+  func test_manuallyShownScrollBar_contentLaysOutBesideItOnce() {
+    // given: a 120 × 200 view that leaves its legacy scroll bars to the caller, which shows the vertical one, showing
+    // content as wide as the view and 300 pt tall
+    let state = WidthDependentNode.State()
+    let view = makeView { WidthDependentNode(state: state, height: { _ in 300 }) }
+    view.scrollIndicatorBehavior = .manual
+    view.hasVerticalScroller = true
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the content lays out once, beside the vertical scroll bar
+    expect(view.hasHorizontalScroller) == false
+    expect(state.layoutContainerSizes) == [CGSize(width: 120 - thickness, height: 200)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200)
+  }
+
+  // MARK: - Scroller Style
+
+  func test_scrollerStyleChange_rendersForTheNewVisibleSize() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, that rendered content as wide as the view and 300 pt
+    // tall, beside the vertical scroll bar, and the window laid out
+    let window = TestWindow()
+    let view = makeView { WidthDependentNode(state: WidthDependentNode.State(), height: { _ in 300 }) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200)
+
+    // when: the scroll bars switch to overlay, as when a mouse is disconnected, and the window lays out
+    view.scrollerStyle = .overlay
+    window.layoutIfNeeded()
+
+    // then: the content lays out for the whole view, which the scroll bars no longer take space from
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 200)
+    expect(view.contentSize) == CGSize(width: 120, height: 300)
+
+    // when: the scroll bars switch back to legacy, and the window lays out
+    view.scrollerStyle = .legacy
+    window.layoutIfNeeded()
+
+    // then: the content lays out beside the vertical scroll bar again
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200)
+    expect(view.contentSize) == CGSize(width: 120 - thickness, height: 300)
+  }
+
+  func test_scrollerStyleChangeToLegacy_decidesTheScrollBarsAgain() {
+    // given: a 120 × 200 view in a window, with overlay scroll bars, that rendered content 300 pt tall and 115 pt wide,
+    // which fits the view's width but not the width beside a legacy vertical scroll bar, and the window laid out
+    let window = TestWindow()
+    let view = makeView(scrollerStyle: .overlay) { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    expect(view.hasVerticalScroller) == true
+    expect(view.hasHorizontalScroller) == false
+
+    // when: the scroll bars switch to legacy, as when a mouse is connected, and the window lays out
+    view.scrollerStyle = .legacy
+    window.layoutIfNeeded()
+
+    // then: the vertical scroll bar now takes space, so the content overflows beside it and the horizontal scroll bar
+    // shows too
+    expect(view.hasHorizontalScroller) == true
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200 - thickness)
+  }
+
+  func test_resizeWithAScrollerStyleChangeThatKeepsTheVisibleSize_decidesTheScrollBarsAgain() {
+    // given: a 100 × 100 view in a window, with overlay scroll bars, showing content 110 pt wide and tall, so both scroll
+    // bars show, and the window laid out
+    let window = TestWindow()
+    let view = makeView(scrollerStyle: .overlay) { LayerNode().frame(width: 110, height: 110) }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+
+    // when: the view grows by a legacy scroll bar's width in each direction and switches to legacy scroll bars, which
+    // take that space, so the visible size stays 100 × 100, and the window lays out
+    view.frame = CGRect(x: 0, y: 0, width: 100 + thickness, height: 100 + thickness)
+    view.scrollerStyle = .legacy
+    expect(view.visibleSize) == CGSize(width: 100, height: 100)
+    window.layoutIfNeeded()
+
+    // then: the view renders for its new size, where the content fits, so both scroll bars hide and the content lays out
+    // for the whole view
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 100 + thickness, height: 100 + thickness)
+  }
+
+  // MARK: - Re-tiling
+
+  func test_manuallyShowingAScrollBar_rendersBesideIt() {
+    // given: a 120 × 200 view in a window that leaves its legacy scroll bars to the caller, and rendered content as wide
+    // as the view and 300 pt tall without a scroll bar, and the window laid out
+    let window = TestWindow()
+    let view = makeView { WidthDependentNode(state: WidthDependentNode.State(), height: { _ in 300 }) }
+    view.scrollIndicatorBehavior = .manual
+    view.hasVerticalScroller = false
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 200)
+
+    // when: the caller shows the vertical scroll bar, and the window lays out
+    view.hasVerticalScroller = true
+    window.layoutIfNeeded()
+
+    // then: the content lays out beside the scroll bar
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200)
+    expect(view.contentSize) == CGSize(width: 120 - thickness, height: 300)
+  }
+
+  func test_scrollerStyleChange_withoutScrollBars_doesNotLayOut() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, that rendered content that fits it, without scroll
+    // bars, and the window laid out
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 100, height: 100) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    expect(view.hasVerticalScroller) == false
+    expect(view.hasHorizontalScroller) == false
+    view.layoutCount = 0
+
+    // when: the scroll bars switch to overlay, and the window lays out
+    view.scrollerStyle = .overlay
+    window.layoutIfNeeded()
+
+    // then: no scroll bar takes space either way, so the visible size stays, and the view doesn't lay out
+    expect(view.visibleSize) == CGSize(width: 120, height: 200)
+    expect(view.layoutCount) == 0
+  }
+
+  func test_resizing_laysOutOnce() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, that rendered content as wide as the view and 300 pt
+    // tall, beside the vertical scroll bar, and the window laid out
+    let window = TestWindow()
+    let view = makeView { WidthDependentNode(state: WidthDependentNode.State(), height: { _ in 300 }) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    view.layoutCount = 0
+
+    // when: the view gets wider, the window lays out, and the run loop turns, where a follow-up layout would run
+    view.frame.size = CGSize(width: 150, height: 200)
+    window.layoutIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+    // then: the view re-tiles as it resizes and as it lays out, and lays out once, rendering for the new visible size
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 150 - thickness, height: 200)
+    expect(view.layoutCount) == 1
+  }
+
+  func test_refreshShowingAScrollBar_doesNotLayOutAgain() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, that rendered content as wide as the view and 100 pt
+    // tall, without scroll bars, and the window laid out
+    var contentHeight: CGFloat = 100
+    let window = TestWindow()
+    let view = makeView { WidthDependentNode(state: WidthDependentNode.State(), height: { _ in contentHeight }) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    expect(view.hasVerticalScroller) == false
+    view.layoutCount = 0
+
+    // when: the content gets taller than the view, the view refreshes, and the window lays out
+    contentHeight = 300
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+
+    // then: the refresh shows the vertical scroll bar and renders beside it, so the scroll bar's re-tile doesn't lay the
+    // view out again
+    expect(view.hasVerticalScroller) == true
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200)
+    expect(view.layoutCount) == 0
+  }
+
+  // MARK: - Scroll Position
+
+  func test_refreshScrolledToTheBottom_keepsTheScrollPosition() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing thirty rows 115 pt wide and 10 pt tall, so
+    // it shows the horizontal scroll bar only because the vertical one takes width, scrolled to the bottom. the rows are
+    // shorter than the scroll bar, so a position off by the scroll bar's height leaves the last row out.
+    let window = TestWindow()
+    let view = makeView {
+      VStack {
+        for _ in 0 ..< 30 {
+          LayerNode().frame(width: 115, height: 10)
+        }
+      }
+    }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let bottom = CGPoint(x: 0, y: 300 - (200 - thickness))
+    view.contentOffset = bottom
+    window.layoutIfNeeded()
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the horizontal scroll bar on the way and shows it again, and the view stays at the bottom,
+    // with the last row rendered and fully visible
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == bottom
+    expect(view.test.lastRenderBounds?.origin) == bottom
+    expect(view.test.lastRenderBounds?.maxY) == 300
+    expect(renderedFrames(in: view).last) == CGRect(x: 0, y: 290, width: 115, height: 10)
+  }
+
+  func test_refreshScrolledToTheRightEnd_keepsTheScrollPosition() {
+    // given: a 200 × 120 view in a window, with legacy scroll bars, showing thirty columns 10 pt wide and 115 pt tall,
+    // so it shows the vertical scroll bar only because the horizontal one takes height, scrolled to the right end. the
+    // columns are narrower than the scroll bar, so a position off by the scroll bar's width leaves the last column out.
+    let window = TestWindow()
+    let view = makeView {
+      HStack {
+        for _ in 0 ..< 30 {
+          LayerNode().frame(width: 10, height: 115)
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 120)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let rightEnd = CGPoint(x: 300 - (200 - thickness), y: 0)
+    view.contentOffset = rightEnd
+    window.layoutIfNeeded()
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the vertical scroll bar on the way and shows it again, and the view stays at the right end,
+    // with the last column rendered and fully visible
+    expect(view.hasVerticalScroller) == true
+    expect(view.contentOffset) == rightEnd
+    expect(view.test.lastRenderBounds?.origin) == rightEnd
+    expect(view.test.lastRenderBounds?.maxX) == 300
+    expect(renderedFrames(in: view).last) == CGRect(x: 290, y: 0, width: 10, height: 115)
+  }
+
+  func test_refreshWithTheSameContent_keepsAnOffsetOutsideTheScrollableRange() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, so it
+    // shows the horizontal scroll bar only because the vertical one takes width, with the offset 30 pt past the bottom
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let pastTheBottom = CGPoint(x: 0, y: 300 - (200 - thickness) + 30)
+    view.contentOffset = pastTheBottom
+    window.layoutIfNeeded()
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the horizontal scroll bar on the way and shows it again, and the offset stays past the
+    // bottom, as the view keeps an offset set outside the scrollable range
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == pastTheBottom
+    expect(view.test.lastRenderBounds?.origin) == pastTheBottom
+
+    // when: the offset is set 30 pt above the top, and the view refreshes with the same content
+    let aboveTheTop = CGPoint(x: 0, y: -30)
+    view.contentOffset = aboveTheTop
+    window.layoutIfNeeded()
+    view.refresh(animated: false)
+
+    // then: the offset stays above the top
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == aboveTheTop
+    expect(view.test.lastRenderBounds?.origin) == aboveTheTop
+  }
+
+  func test_refreshWithShorterContent_clampsTheScrollPosition() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall,
+    // scrolled to the bottom
+    var contentHeight: CGFloat = 300
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: contentHeight) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    view.contentOffset = CGPoint(x: 0, y: 300 - (200 - thickness))
+    window.layoutIfNeeded()
+
+    // when: the content gets 250 pt tall, and the view refreshes
+    contentHeight = 250
+    view.refresh(animated: false)
+
+    // then: the bottom moved up, so the offset clamps to the new bottom
+    expect(view.contentOffset) == CGPoint(x: 0, y: 250 - (200 - thickness))
+
+    // when: the content gets 190 pt tall, which fits the view, and the view refreshes
+    contentHeight = 190
+    view.refresh(animated: false)
+
+    // then: both scroll bars hide, and the offset clamps to the top
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+    expect(view.contentOffset) == .zero
+  }
+
+  func test_hidingTheScrollBarsAtTheBottom_clampsTheScrollPosition() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 300 pt wide and tall, scrolled to the
+    // bottom
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    view.contentOffset = CGPoint(x: 0, y: 300 - (200 - thickness))
+    window.layoutIfNeeded()
+
+    // when: the view stops showing scroll indicators, and refreshes
+    view.scrollIndicatorBehavior = .never
+    view.refresh(animated: false)
+
+    // then: the content size stays, but the visible area grew, so the offset clamps to the new bottom
+    expect(view.contentSize) == CGSize(width: 300, height: 300)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 300 - 200)
+  }
+
+  func test_refreshThatHidesTheHorizontalScrollBar_keepsAnOffsetTheNewContentAllows() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, scrolled
+    // to the bottom
+    var contentSize = CGSize(width: 115, height: 300)
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: contentSize.width, height: contentSize.height) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let offset = CGPoint(x: 0, y: 300 - (200 - thickness))
+    view.contentOffset = offset
+    window.layoutIfNeeded()
+
+    // when: the content gets 100 pt wide, which fits beside the vertical scroll bar, and 400 pt tall, and the view
+    // refreshes
+    contentSize = CGSize(width: 100, height: 400)
+    view.refresh(animated: false)
+
+    // then: the horizontal scroll bar hides, and the offset stays, since the taller content still allows it
+    expect(view.hasHorizontalScroller) == false
+    expect(view.contentOffset) == offset
+    expect(view.test.lastRenderBounds?.origin) == offset
+  }
+
+  func test_refreshThatHidesTheVerticalScrollBar_keepsAnOffsetTheNewContentAllows() {
+    // given: a 200 × 120 view in a window, with legacy scroll bars, showing content 300 pt wide and 115 pt tall, scrolled
+    // to the right end
+    var contentSize = CGSize(width: 300, height: 115)
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: contentSize.width, height: contentSize.height) }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 120)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let offset = CGPoint(x: 300 - (200 - thickness), y: 0)
+    view.contentOffset = offset
+    window.layoutIfNeeded()
+
+    // when: the content gets 400 pt wide and 100 pt tall, which fits above the horizontal scroll bar, and the view
+    // refreshes
+    contentSize = CGSize(width: 400, height: 100)
+    view.refresh(animated: false)
+
+    // then: the vertical scroll bar hides, and the offset stays, since the wider content still allows it
+    expect(view.hasVerticalScroller) == false
+    expect(view.contentOffset) == offset
+    expect(view.test.lastRenderBounds?.origin) == offset
+  }
+
+  func test_willLayoutHandlerSettingTheOffsetBesideTheScrollBar_keepsItsOffset() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, scrolled
+    // to the bottom, and a will-layout handler that sets the offset on the second layout, beside the vertical scroll bar
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    view.contentOffset = CGPoint(x: 0, y: 300 - (200 - thickness))
+    window.layoutIfNeeded()
+    var layoutCount = 0
+    view.onWillLayout { view, _ in
+      layoutCount += 1
+      if layoutCount == 2 {
+        view.contentOffset = CGPoint(x: 0, y: 40)
+      }
+    }
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the horizontal scroll bar on the way and shows it again, and the handler's offset stays
+    expect(layoutCount) == 3
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == CGPoint(x: 0, y: 40)
+    expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 40)
+  }
+
+  func test_willLayoutHandlerSettingTheOffsetOnTheFirstLayout_laterLayoutsReportIt() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, so it
+    // shows the horizontal scroll bar only because the vertical one takes width, and a will-layout handler that records
+    // the viewports it gets and sets the offset on the first layout
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    var reportedBounds: [CGRect] = []
+    view.onWillLayout { view, context in
+      switch context.renderType {
+      case .refresh:
+        break
+      case .boundsChange(_, let bounds):
+        reportedBounds.append(bounds)
+        if reportedBounds.count == 1 {
+          view.contentOffset = CGPoint(x: 0, y: 40)
+        }
+      }
+    }
+
+    // when: the view gets 1 pt wider, so it lays out for its full size, then beside the vertical scroll bar, then beside
+    // both scroll bars
+    view.frame = CGRect(x: 0, y: 0, width: 121, height: 200)
+    window.layoutIfNeeded()
+
+    // then: each layout reports the current offset, so the layouts after the handler's change report its offset, which
+    // the pass renders
+    expect(reportedBounds) == [
+      CGRect(x: 0, y: 0, width: 121, height: 200),
+      CGRect(x: 0, y: 40, width: 121 - thickness, height: 200),
+      CGRect(x: 0, y: 40, width: 121 - thickness, height: 200 - thickness),
+    ]
+    expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 40)
+  }
+
+  func test_willLayoutHandlerChangingTheBehaviorOnTheSecondLayout_assertsAndKeepsIt() {
+    // given: a 120 × 200 view with legacy scroll bars, showing content larger than the view, a will-layout handler that
+    // switches to never showing the scroll indicators on the second layout, after the scroll bars take space, and a
+    // handler that records the assertions
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+    var layoutCount = 0
+    view.onWillLayout { view, _ in
+      layoutCount += 1
+      if layoutCount == 2 {
+        view.scrollIndicatorBehavior = .never
+      }
+    }
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: the change asserts, and the pass keeps the automatic behavior, so both scroll bars show and the content lays
+    // out for the space they leave
+    expect(assertionMessages) == ["onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior"]
+    expect(view.scrollIndicatorBehavior) == .auto
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120 - thickness, height: 200 - thickness)
+  }
+
+  func test_willLayoutHandlerShowingAScrollBarForTheContainerSize_assertsAndKeepsIt() {
+    // given: a 120 × 200 view in a window, with manual legacy scroll bars, both hidden, showing content 100 pt wide and
+    // tall, a will-layout handler that shows the vertical scroll bar when the container is wider than 110 pt, which the
+    // scroll bar itself would make it not, and a handler that records the assertions
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 100, height: 100) }
+    view.scrollIndicatorBehavior = .manual
+    view.showsHorizontalScrollIndicator = false
+    view.showsVerticalScrollIndicator = false
+    window.contentView().addSubview(view)
+    var layoutCount = 0
+    view.onWillLayout { view, context in
+      layoutCount += 1
+      view.showsVerticalScrollIndicator = context.containerSize.width > 110
+    }
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view refreshes, and the run loop runs twice
+    view.refresh(animated: false)
+    for _ in 0 ..< 2 {
+      var isDrained = false
+      RunLoop.main.perform { isDrained = true }
+      expect(isDrained).toEventually(beTrue())
+    }
+
+    // then: the change of the visible size asserts, and the pass keeps the scroll bar hidden and lays out once, for the
+    // whole view, so no follow-up pass shows it
+    expect(assertionMessages) == ["onWillLayout can't change the visible size"]
+    expect(view.hasVerticalScroller) == false
+    expect(layoutCount) == 1
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120, height: 200)
+  }
+
+  func test_willLayoutHandlerSwitchingTheScrollerStyleForTheContainerSize_assertsAndKeepsIt() {
+    // given: a 120 × 200 view in a window, with overlay scroll bars, showing content 100 pt wide and 300 pt tall, so it
+    // shows the vertical scroll bar, a will-layout handler that switches to legacy scroll bars for the view's full width
+    // and back to overlay ones otherwise, and a handler that records the assertions
+    let window = TestWindow()
+    let view = makeView(scrollerStyle: .overlay) { LayerNode().frame(width: 100, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    var layoutCount = 0
+    view.onWillLayout { view, context in
+      layoutCount += 1
+      view.scrollerStyle = context.containerSize.width == 120 ? .legacy : .overlay
+    }
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view refreshes, and the run loop runs twice
+    view.refresh(animated: false)
+    for _ in 0 ..< 2 {
+      var isDrained = false
+      RunLoop.main.perform { isDrained = true }
+      expect(isDrained).toEventually(beTrue())
+    }
+
+    // then: the change of the visible size asserts, and the pass keeps the overlay scroll bars and lays out once, for the
+    // whole view, so no follow-up pass switches the style again
+    expect(assertionMessages) == ["onWillLayout can't change the visible size"]
+    expect(view.scrollerStyle) == .overlay
+    expect(layoutCount) == 1
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120, height: 200)
+  }
+
+  func test_didRenderHandlerResizingWithAScrollerStyleChangeThatKeepsTheVisibleSize_rendersAgain() {
+    // given: a 100 × 100 view in a window, with overlay scroll bars, showing content 110 pt wide and tall, so both scroll
+    // bars show, the window laid out, and a did-render handler that once grows the view by a legacy scroll bar's width in
+    // each direction and switches to legacy scroll bars, which take that space, so the visible size stays 100 × 100
+    let window = TestWindow()
+    let view = makeView(scrollerStyle: .overlay) { LayerNode().frame(width: 110, height: 110) }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let grownFrame = CGRect(x: 0, y: 0, width: 100 + thickness, height: 100 + thickness)
+    var resizes = true
+    view.onDidRender { view, _ in
+      guard resizes else {
+        return
+      }
+      resizes = false
+      view.frame = grownFrame
+      view.scrollerStyle = .legacy
+    }
+
+    // when: the view refreshes during the window's layout, which ignores the layout the resize requests, and the run loop
+    // runs the pass that follows it
+    view.setNeedsRefresh(animated: false)
+    window.layoutIfNeeded()
+    var isDrained = false
+    RunLoop.main.perform { isDrained = true }
+    expect(isDrained).toEventually(beTrue())
+
+    // then: the view renders again for its new size, where the content fits, so both scroll bars hide and the content
+    // lays out for the whole view
+    expect(view.hasHorizontalScroller) == false
+    expect(view.hasVerticalScroller) == false
+    expect(view.test.lastRenderBounds) == grownFrame
+  }
+
+  // MARK: - Helpers
+
+  /// Makes a 120 × 200 view that shows scroll bars of the style for the axes its content overflows.
+  private func makeView(scrollerStyle: NSScroller.Style = .legacy, @ComposeContentBuilder content: @escaping () -> ComposeContent) -> LayoutCountingComposeView {
+    let view = LayoutCountingComposeView(content: content)
+    view.frame = CGRect(x: 0, y: 0, width: 120, height: 200)
+    view.scrollIndicatorBehavior = .auto
+    view.scrollerStyle = scrollerStyle
+    return view
+  }
+
+  /// Returns the frames of the view's rendered layers in content coordinates, ordered by position.
+  private func renderedFrames(in view: ComposeView) -> [CGRect] {
+    let frames = view.contentContainerView.layer?.sublayers?.map(\.frame) ?? []
+    return frames.sorted { ($0.minY, $0.minX) < ($1.minY, $1.minX) }
+  }
+}
+
+/// A node as wide as its container, with a height that the width decides, that records the container sizes it lays out
+/// for.
+private struct WidthDependentNode: ComposeNode {
+
+  final class State {
+
+    /// The container sizes the node laid out for, in order.
+    var layoutContainerSizes: [CGSize] = []
+  }
+
+  private let state: State
+  private let height: (_ width: CGFloat) -> CGFloat
+
+  init(state: State, height: @escaping (_ width: CGFloat) -> CGFloat) {
+    self.state = state
+    self.height = height
+  }
+
+  var id: ComposeNodeId = .custom("width-dependent", isFixed: false)
+
+  var size: CGSize = .zero
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    state.layoutContainerSizes.append(containerSize)
+    size = CGSize(width: containerSize.width, height: height(containerSize.width))
+    return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
+  }
+
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    []
+  }
+}
+
+/// A view that counts its layouts.
+private final class LayoutCountingComposeView: ComposeView {
+
+  /// The number of times the view laid out.
+  var layoutCount = 0
+
+  override func layout() {
+    layoutCount += 1
+    super.layout()
+  }
+}
+#endif

@@ -534,6 +534,33 @@ class ComposeViewTests: XCTestCase {
     expect(view.borderType) == .noBorder
     expect(view.contentView.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
   }
+
+  func test_autohidesScrollers_staysOff() {
+    // given: a 100 × 100 compose view, and a handler that records the assertions
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: auto-hiding is turned off
+    view.autohidesScrollers = false
+
+    // then: nothing asserts, and it's off
+    expect(assertionMessages) == []
+    expect(view.autohidesScrollers) == false
+
+    // when: auto-hiding is turned on
+    view.autohidesScrollers = true
+
+    // then: it asserts and stays off
+    expect(assertionMessages) == ["ComposeView doesn't support auto-hiding scrollers"]
+    expect(view.autohidesScrollers) == false
+  }
   #endif
 
   #if os(iOS)

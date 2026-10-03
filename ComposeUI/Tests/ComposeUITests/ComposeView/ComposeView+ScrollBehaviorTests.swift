@@ -263,4 +263,45 @@ class ComposeView_ScrollBehaviorTests: XCTestCase {
     expect(contentView.isScrollEnabled) == true
     expect(contentView.clipsToBounds) == true
   }
+
+  #if canImport(AppKit)
+  func test_scrollElasticity_followsTheContentSizeAndTheRenderSize() {
+    // given: a 100 × 100 view with overlay scroll bars that rendered content that fits it
+    var contentHeight: CGFloat = 50
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    contentView.setContent {
+      ColorNode(.red)
+        .frame(width: 50, height: contentHeight)
+    }
+    contentView.scrollerStyle = .overlay
+    contentView.refresh(animated: false)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+    expect(contentView.verticalScrollElasticity) == .none
+
+    // when: the content gets taller than the view, the view refreshes, and the scroll elasticity updates
+    contentHeight = 300
+    contentView.refresh(animated: false)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+
+    // then: the content size changed, so the view bounces vertically
+    expect(contentView.contentSize) == CGSize(width: 100, height: 300)
+    expect(contentView.verticalScrollElasticity) == .allowed
+
+    // when: the view scrolls, which changes neither the content size nor the render size
+    contentView.contentOffset = CGPoint(x: 0, y: 50)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+
+    // then: the view still bounces vertically
+    expect(contentView.verticalScrollElasticity) == .allowed
+
+    // when: the view gets as tall as the content, which changes the render size but keeps the content size
+    contentView.frame.size = CGSize(width: 100, height: 300)
+    contentView.layoutIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+
+    // then: the content fits, so the view stops bouncing vertically
+    expect(contentView.contentSize) == CGSize(width: 100, height: 300)
+    expect(contentView.verticalScrollElasticity) == .none
+  }
+  #endif
 }

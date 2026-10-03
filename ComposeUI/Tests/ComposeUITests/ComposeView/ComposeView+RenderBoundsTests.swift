@@ -90,20 +90,21 @@ class ComposeView_RenderBoundsTests: XCTestCase {
 
     expect(updateCount) == 1
 
-    // then: expect the contentUpdateContext is set with correct render bounds
+    // then: expect the contentUpdateContext is set with the view's bounds at the content offset
+    let visibleSize = view.visibleSize
     let initialContext = try unwrap(invokedContentUpdateContext)
     var expectedContext = ComposeView.ContentUpdateContext(
       contentNode: initialContext.contentNode,
       contentEvaluation: initialContext.contentEvaluation,
       updateType: .boundsChange,
       previousRenderBounds: nil,
-      renderBounds: CGRect(x: 0, y: 0, width: 120, height: 80),
+      bounds: CGRect(x: 0, y: 0, width: 120, height: 80),
       preparedAnimationDecision: .all
     )
     expect(invokedContentUpdateContext) == expectedContext
 
-    // then: lastRenderBounds does not consider the scrollers
-    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
+    // then: lastRenderBounds is the visible area, which the scrollers take space from on AppKit
+    expect(view.test.lastRenderBounds) == CGRect(origin: .zero, size: visibleSize)
 
     // reset
     invokedContentUpdateContext = nil
@@ -115,7 +116,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // then: should not update as no bounds change
     expect(updateCount) == 1
     expect(invokedContentUpdateContext) == nil
-    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 80)
+    expect(view.test.lastRenderBounds) == CGRect(origin: .zero, size: visibleSize)
 
     // when: adjust scroll position and layout again
     view.contentOffset = CGPoint(x: 0, y: 10)
@@ -129,13 +130,13 @@ class ComposeView_RenderBoundsTests: XCTestCase {
       contentNode: initialContext.contentNode,
       contentEvaluation: initialContext.contentEvaluation,
       updateType: .boundsChange,
-      previousRenderBounds: CGRect(x: 0, y: 0, width: 120, height: 80),
-      renderBounds: CGRect(x: 0, y: 10, width: 120, height: 80),
+      previousRenderBounds: CGRect(origin: .zero, size: visibleSize),
+      bounds: CGRect(x: 0, y: 10, width: 120, height: 80),
       preparedAnimationDecision: .all
     )
     expect(invokedContentUpdateContext) == expectedContext
 
-    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 10, width: 120, height: 80)
+    expect(view.test.lastRenderBounds) == CGRect(origin: CGPoint(x: 0, y: 10), size: visibleSize)
   }
 
   #if canImport(AppKit)
@@ -159,15 +160,16 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(view.contentOffset) == CGPoint(x: 0, y: 200)
 
     // when: a refresh shortens the rows, so the clip view clamps the offset while the horizontal scroller shows, and
-    // fits them horizontally, which hides the scroller and clamps the offset again
-    contentSize = CGSize(width: 100, height: 250)
+    // narrows them to fit beside the vertical scroller, which hides the horizontal scroller and clamps the offset again
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    contentSize = CGSize(width: 100 - thickness, height: 250)
     view.refresh(animated: false)
 
-    // then: the pass renders the rows at the offset the view ends up with
+    // then: the pass renders the rows at the offset the view ends up with, beside the vertical scroller
     expect(view.hasHorizontalScroller) == false
     expect(view.contentOffset) == CGPoint(x: 0, y: 150)
-    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 150, width: 100, height: 100)
-    expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 100, height: 10) }
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 150, width: 100 - thickness, height: 100)
+    expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 100 - thickness, height: 10) }
   }
 
   func test_renderBounds_hidingLegacyScroller_scrolledToRightEdge() {
@@ -190,20 +192,23 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expect(view.contentOffset) == CGPoint(x: 200, y: 0)
 
     // when: a refresh narrows the columns, so the clip view clamps the offset while the vertical scroller shows, and
-    // fits them vertically, which hides the scroller and clamps the offset again
-    contentSize = CGSize(width: 250, height: 100)
+    // shortens them to fit beside the horizontal scroller, which hides the vertical scroller and clamps the offset again
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    contentSize = CGSize(width: 250, height: 100 - thickness)
     view.refresh(animated: false)
 
-    // then: the pass renders the columns at the offset the view ends up with
+    // then: the pass renders the columns at the offset the view ends up with, beside the horizontal scroller
     expect(view.hasVerticalScroller) == false
     expect(view.contentOffset) == CGPoint(x: 150, y: 0)
-    expect(view.test.lastRenderBounds) == CGRect(x: 150, y: 0, width: 100, height: 100)
-    expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: CGFloat($0) * 10, y: 0, width: 10, height: 100) }
+    expect(view.test.lastRenderBounds) == CGRect(x: 150, y: 0, width: 100, height: 100 - thickness)
+    expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: CGFloat($0) * 10, y: 0, width: 10, height: 100 - thickness) }
   }
 
   func test_renderBounds_showingLegacyScroller_scrolledToBottom() {
-    // given: a view with legacy scrollers, scrolled to the bottom of rows that overflow only vertically
-    var contentSize = CGSize(width: 100, height: 300)
+    // given: a view with legacy scrollers, scrolled to the bottom of rows that overflow only vertically, fitting beside
+    // the vertical scroller
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    var contentSize = CGSize(width: 100 - thickness, height: 300)
     let view = ComposeView {
       VStack {
         for _ in 0 ..< Int(contentSize.height / 10) {
@@ -225,11 +230,11 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     contentSize = CGSize(width: 200, height: 250)
     view.refresh(animated: false)
 
-    // then: the pass renders the rows at the offset the view ends up with
+    // then: the pass renders the rows at the offset the view ends up with, the new end beside both scrollers
     expect(view.hasHorizontalScroller) == true
-    expect(view.contentOffset) == CGPoint(x: 0, y: 150)
-    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 150, width: 100, height: 100)
-    expect(renderedFrames(in: view)) == (15 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
+    expect(view.contentOffset) == CGPoint(x: 0, y: 150 + thickness)
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 150 + thickness, width: 100 - thickness, height: 100 - thickness)
+    expect(renderedFrames(in: view)) == (16 ..< 25).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
   }
 
   func test_renderBounds_legacyScrollers_scrolledToTheEnd_keepsTheOffset() {
@@ -257,15 +262,18 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.contentOffset = CGPoint(x: 0, y: maxOffsetY)
     view.layoutIfNeeded()
 
-    // then: the view stays at the end, rendered once for the full view size, with the rows that fill the viewport
+    // then: the view stays at the end, rendered once for the visible area beside the scrollers, with the rows that fill
+    // the viewport
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     expect(view.contentOffset) == CGPoint(x: 0, y: maxOffsetY)
-    expect(renderBounds) == [CGRect(x: 0, y: maxOffsetY, width: 100, height: 100)]
+    expect(renderBounds) == [CGRect(x: 0, y: maxOffsetY, width: 100 - thickness, height: 100 - thickness)]
     expect(renderedFrames(in: view)) == (21 ..< 30).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 200, height: 10) }
   }
 
   func test_renderBounds_legacyScrollers_scrolledSideways_keepsTheOffset() {
-    // given: a view with legacy scrollers, showing rows as wide as the view that overflow only vertically, so the shown
-    // vertical scroller leaves a scroller thickness of the rows to scroll to sideways
+    // given: a view with legacy scrollers, showing rows as wide as the view that overflow vertically. they don't fit
+    // beside the vertical scroller, so the horizontal scroller shows too, with a scroller thickness of the rows to scroll
+    // to sideways
     let view = ComposeView {
       VStack {
         for _ in 0 ..< 30 {
@@ -276,7 +284,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     useLegacyScrollers(view)
     view.refresh(animated: false)
-    expect(view.hasHorizontalScroller) == false
+    expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == true
 
     var renderBounds: [CGRect] = []
@@ -288,9 +296,10 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.contentOffset = CGPoint(x: 10, y: 50)
     view.layoutIfNeeded()
 
-    // then: the view stays where it's scrolled to, rendered once for the full view size
+    // then: the view stays where it's scrolled to, rendered once for the visible area beside the scrollers
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     expect(view.contentOffset) == CGPoint(x: 10, y: 50)
-    expect(renderBounds) == [CGRect(x: 10, y: 50, width: 100, height: 100)]
+    expect(renderBounds) == [CGRect(x: 10, y: 50, width: 100 - thickness, height: 100 - thickness)]
   }
 
   func test_renderBounds_legacyScrollers_contentShrinksAtTheEnd_rendersOnce() {
@@ -320,14 +329,15 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     rowCount = 25
     view.refresh(animated: false)
 
-    // then: the view renders once, at the new end, for the full view size
+    // then: the view renders once, at the new end, for the visible area beside the scrollers
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == true
     expect(view.contentOffset) == CGPoint(x: 0, y: view.maxOffsetY)
-    expect(renderBounds) == [CGRect(x: 0, y: view.maxOffsetY, width: 100, height: 100)]
+    expect(renderBounds) == [CGRect(x: 0, y: view.maxOffsetY, width: 100 - thickness, height: 100 - thickness)]
   }
 
-  func test_renderBounds_legacyScrollers_sizeFollowsTheFrame() {
+  func test_renderBounds_legacyScrollers_sizeFollowsTheVisibleSize() {
     // given: a 120 × 80 view with content insets, showing both legacy scrollers
     let view = ComposeView {
       LayerNode().frame(width: 300, height: 300)
@@ -339,7 +349,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the scrollers show over the clip view with the insets, and the content lays out for the frame
+    // then: the scrollers show over the clip view with the insets, so the content lays out for the whole frame
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == true
     expect(view.contentView.frame.size) == CGSize(width: 120, height: 80)
@@ -349,10 +359,11 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.contentInsets = NSEdgeInsetsZero
     view.refresh(animated: false)
 
-    // then: the size stays
+    // then: the content lays out for the visible size beside the scrollers
     let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     expect(view.contentView.frame.size) == CGSize(width: 120 - thickness, height: 80 - thickness)
-    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120, height: 80)
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120 - thickness, height: 80 - thickness)
+    expect(view.visibleSize) == CGSize(width: 120 - thickness, height: 80 - thickness)
   }
 
   func test_renderBounds_scaledBounds_rendersTheScaledViewport() {
@@ -372,12 +383,13 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.setBoundsSize(CGSize(width: 400, height: 200))
     view.layoutIfNeeded()
 
-    // then: the content lays out and renders for the scaled viewport, 20 rows 400 pt wide
-    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 400, height: 200)
-    expect(renderedFrames(in: view)) == (0 ..< 20).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 400, height: 10) }
+    // then: the content lays out and renders for the scaled viewport beside the vertical scroller, 20 rows
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 400 - thickness, height: 200)
+    expect(renderedFrames(in: view)) == (0 ..< 20).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 400 - thickness, height: 10) }
   }
 
-  func test_renderBounds_legacyScrollerMovedInByTheRightContentInset_rendersTheFullWidth() throws {
+  func test_renderBounds_legacyScrollerMovedInByTheRightContentInset_rendersTheVisibleWidth() throws {
     // given: a 240 × 180 view with a 30 pt right content inset and legacy scrollers, showing flexible rows that overflow
     // vertically, so AppKit shrinks the clip view by the vertical scroller and moves the scroller inside it by the inset
     var rowWidth: CGFloat = 0
@@ -399,25 +411,26 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the rows lay out for the full view width, and only the vertical scroller shows
+    // then: the rows lay out for the visible width beside the vertical scroller, and only the vertical scroller shows
     let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     let verticalScroller = try view.verticalScroller.unwrap()
     expect(view.contentView.frame.width) == 240 - thickness
     expect(verticalScroller.frame.maxX) < view.contentView.frame.maxX
     expect(view.hasVerticalScroller) == true
     expect(view.hasHorizontalScroller) == false
-    expect(renderedFrames(in: view)) == (0 ..< 18).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 240, height: 10) }
+    expect(renderedFrames(in: view)) == (0 ..< 18).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 240 - thickness, height: 10) }
 
-    // when: the rows become 230 pt wide, which fits the view width but not the clip view
+    // when: the rows become 230 pt wide, which fits the view width but not the visible width beside the vertical scroller
     rowWidth = 230
     view.refresh(animated: false)
 
-    // then: the rows fit, centered in the view width, so the horizontal scroller stays hidden
-    expect(view.hasHorizontalScroller) == false
-    expect(renderedFrames(in: view)) == (0 ..< 18).map { CGRect(x: 5, y: CGFloat($0) * 10, width: 230, height: 10) }
+    // then: the rows overflow beside the vertical scroller, so the horizontal scroller shows too, and the rows lay out for
+    // the visible height above it
+    expect(view.hasHorizontalScroller) == true
+    expect(renderedFrames(in: view)) == (0 ..< 17).map { CGRect(x: 0, y: CGFloat($0) * 10, width: 230, height: 10) }
   }
 
-  func test_renderBounds_legacyScrollerMovedInByTheBottomContentInset_rendersTheFullHeight() throws {
+  func test_renderBounds_legacyScrollerMovedInByTheBottomContentInset_centersInTheVisibleHeight() throws {
     // given: a 240 × 180 view with a 30 pt bottom content inset and legacy scrollers, showing five 400 pt wide rows that
     // overflow horizontally, so AppKit shrinks the clip view by the horizontal scroller and moves the scroller inside it
     // by the inset
@@ -435,14 +448,16 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     // when: the view refreshes
     view.refresh(animated: false)
 
-    // then: the rows center in the full view height, and only the horizontal scroller shows
+    // then: the rows center in the visible height above the horizontal scroller, and only the horizontal scroller shows
     let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     let horizontalScroller = try view.horizontalScroller.unwrap()
     expect(view.contentView.frame.height) == 180 - thickness
     expect(horizontalScroller.frame.maxY) < view.contentView.frame.maxY
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == false
-    expect(renderedFrames(in: view)) == (0 ..< 5).map { CGRect(x: 0, y: 65 + CGFloat($0) * 10, width: 400, height: 10) }
+    let top = (180 - thickness - 50) / 2
+    let scale = view.contentScaleFactor
+    expect(renderedFrames(in: view)) == (0 ..< 5).map { CGRect(x: 0, y: ((top + CGFloat($0) * 10) * scale).rounded() / scale, width: 400, height: 10) }
   }
 
   func test_renderBounds_fractionalViewSize_clipViewRoundsDown_staysExact() {
@@ -616,9 +631,10 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     view.frame.size = CGSize(width: 140, height: 140)
     view.layoutIfNeeded()
 
-    // then: the view renders once, after the tiling, for the new size at the clamped offset
+    // then: the view renders once, after the tiling, for the visible area of the new size at the clamped offset
+    let thickness = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
     expect(view.contentOffset) == CGPoint(x: 0, y: view.maxOffsetY)
-    expect(renderBounds) == [CGRect(x: 0, y: view.maxOffsetY, width: 140, height: 140)]
+    expect(renderBounds) == [CGRect(x: 0, y: view.maxOffsetY, width: 140 - thickness, height: 140 - thickness)]
   }
 
   /// Makes the view show legacy scrollers for the axes its content overflows, so a shown scroller shrinks the clip view.

@@ -57,8 +57,11 @@ extension ComposeView {
     /// The bounds from the last completed render pass, or nil before the first render.
     let previousRenderBounds: CGRect?
 
-    /// The viewport bounds proposed for this render pass's layout.
-    let renderBounds: CGRect
+    /// The view's bounds when the update was made: the content offset as the origin and the view's size.
+    ///
+    /// The bounds.size is not always the same as the visible bounds, on macOS, the legacy scroll bar
+    /// (`NSScrollView.scrollerStyle == .legacy`) takes space from the view's size.
+    let bounds: CGRect
 
     /// The parent's animation decision handed over with prepared content, capping the render pass that applies it.
     /// `.all` for other updates, which caps nothing.
@@ -71,7 +74,7 @@ extension ComposeView {
         lhs.contentEvaluation === rhs.contentEvaluation &&
         lhs.updateType == rhs.updateType &&
         lhs.previousRenderBounds == rhs.previousRenderBounds &&
-        lhs.renderBounds == rhs.renderBounds &&
+        lhs.bounds == rhs.bounds &&
         lhs.preparedAnimationDecision == rhs.preparedAnimationDecision
     }
 
