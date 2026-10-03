@@ -311,13 +311,61 @@ class ComposeView_RenderHandlerTests: XCTestCase {
 
     // then: it asserts and keeps the automatic settings, so the content taller than the view scrolls, shows the vertical
     // scroll indicator, and clips
-    expect(assertionMessages) == ["onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior"]
+    expect(assertionMessages) == [
+      "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator",
+    ]
     expect(view.scrollBehavior) == .auto
     expect(view.scrollIndicatorBehavior) == .auto
     expect(view.clippingBehavior) == .auto
     expect(view.isScrollEnabled) == true
     expect(view.showsVerticalScrollIndicator) == true
     expect(view.clipsToBounds) == true
+  }
+
+  func test_willLayoutHandler_changingTheScrollIndicators_assertsAndKeepsThem() {
+    // given: a 100 × 100 view with manual scroll indicators, both hidden, as overlay scroll bars on macOS, content taller
+    // than the view, a will-layout handler that sets the scroll indicators, and a handler that records the assertions
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 200)
+    }
+    view.scrollIndicatorBehavior = .manual
+    view.showsHorizontalScrollIndicator = false
+    view.showsVerticalScrollIndicator = false
+    #if canImport(AppKit)
+    view.scrollerStyle = .overlay
+    #endif
+    var showsScrollIndicators = false
+    view.onWillLayout { view, _ in
+      view.showsHorizontalScrollIndicator = showsScrollIndicators
+      view.showsVerticalScrollIndicator = showsScrollIndicators
+    }
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the handler sets the scroll indicators the view already has, and the view refreshes
+    view.refresh(animated: false)
+
+    // then: nothing asserts
+    expect(assertionMessages) == []
+
+    // when: the handler shows the scroll indicators, and the view refreshes
+    showsScrollIndicators = true
+    view.refresh(animated: false)
+
+    // then: it asserts and keeps them hidden
+    expect(assertionMessages) == [
+      "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator",
+    ]
+    expect(view.showsHorizontalScrollIndicator) == false
+    expect(view.showsVerticalScrollIndicator) == false
   }
 
   func test_willRenderHandler() {

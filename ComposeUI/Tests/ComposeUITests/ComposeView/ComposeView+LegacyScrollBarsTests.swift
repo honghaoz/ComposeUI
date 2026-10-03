@@ -654,11 +654,55 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
 
     // then: the change asserts, and the pass keeps the automatic behavior, so both scroll bars show and the content lays
     // out for the space they leave
-    expect(assertionMessages) == ["onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior"]
+    expect(assertionMessages) == [
+      "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator",
+    ]
     expect(view.scrollIndicatorBehavior) == .auto
     expect(view.hasHorizontalScroller) == true
     expect(view.hasVerticalScroller) == true
     expect(view.test.lastRenderBounds?.size) == CGSize(width: 120 - thickness, height: 200 - thickness)
+  }
+
+  func test_willLayoutHandlerShowingAScrollBarForTheContainerSize_assertsAndKeepsIt() {
+    // given: a 120 × 200 view in a window, with manual legacy scroll bars, both hidden, showing content 100 pt wide and
+    // tall, a will-layout handler that shows the vertical scroll bar when the container is wider than 110 pt, which the
+    // scroll bar itself would make it not, and a handler that records the assertions
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 100, height: 100) }
+    view.scrollIndicatorBehavior = .manual
+    view.showsHorizontalScrollIndicator = false
+    view.showsVerticalScrollIndicator = false
+    window.contentView().addSubview(view)
+    var layoutCount = 0
+    view.onWillLayout { view, context in
+      layoutCount += 1
+      view.showsVerticalScrollIndicator = context.containerSize.width > 110
+    }
+
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view refreshes, and the run loop runs twice
+    view.refresh(animated: false)
+    for _ in 0 ..< 2 {
+      var isDrained = false
+      RunLoop.main.perform { isDrained = true }
+      expect(isDrained).toEventually(beTrue())
+    }
+
+    // then: the change asserts, and the pass keeps the scroll bar hidden and lays out once, for the whole view, so no
+    // follow-up pass shows it
+    expect(assertionMessages) == [
+      "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator",
+    ]
+    expect(view.hasVerticalScroller) == false
+    expect(layoutCount) == 1
+    expect(view.test.lastRenderBounds?.size) == CGSize(width: 120, height: 200)
   }
 
   // MARK: - Helpers

@@ -388,8 +388,9 @@ open class ComposeView: BaseScrollView {
   /// This handler runs inside the render pass, so a refresh or layout it requests for this view, or for a view
   /// containing it, waits until the pass ends (see `refresh(animated:)`).
   ///
-  /// The render pass applies the scroll settings it started with, so the handler can't change `scrollBehavior`,
-  /// `scrollIndicatorBehavior` or `clippingBehavior`. Changing them asserts and keeps the current values.
+  /// The render pass uses the scroll settings it started with, so the handler can't change `scrollBehavior`,
+  /// `scrollIndicatorBehavior`, `clippingBehavior`, `showsHorizontalScrollIndicator` or `showsVerticalScrollIndicator`.
+  /// Changing them asserts and keeps the current values.
   ///
   /// Calling this replaces any previously set handler.
   ///
@@ -735,7 +736,8 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Tiling
 
-  override open func tile() {
+  /// Final, because this method sets the visible size that the content lays out for.
+  override public final func tile() {
     super.tile()
 
     // AppKit re-tiles without laying the view out when the scroller style changes or a scroll bar shows or hides, so ask
@@ -1632,6 +1634,21 @@ open class ComposeView: BaseScrollView {
     let contentNode = context.contentNode
     let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: context.contentEvaluation)
 
+    // hiding a legacy scroll bar grows the visible area, and AppKit clamps the offset to it, against the old content size
+    // and even when the update shows the scroll bar again. keep the offset instead, and clamp it once the final content
+    // size is set (see `render(_:)`).
+    let oldScrollIndicators = (showsHorizontalScrollIndicator, showsVerticalScrollIndicator)
+    var didKeepContentOffset = false
+    func setScrollIndicators(horizontal: Bool, vertical: Bool) {
+      let contentOffset = self.contentOffset
+      showsHorizontalScrollIndicator = horizontal
+      showsVerticalScrollIndicator = vertical
+      if self.contentOffset != contentOffset {
+        self.contentOffset = contentOffset
+        didKeepContentOffset = true
+      }
+    }
+
     var laidOutSize: CGSize?
     func layout(for containerSize: CGSize) {
       guard containerSize != laidOutSize else {
@@ -1643,11 +1660,17 @@ open class ComposeView: BaseScrollView {
       let bounds = CGRect(origin: contentOffset, size: containerSize)
       if let willLayoutHandler {
         let scrollSettings = (scrollBehavior, scrollIndicatorBehavior, clippingBehavior)
+        let scrollIndicators = (horizontal: showsHorizontalScrollIndicator, vertical: showsVerticalScrollIndicator)
         willLayoutHandler(self, WillLayoutContext(containerSize: containerSize, renderType: context.renderType(bounds: bounds)))
-        // the render pass applies the scroll settings it started with, so the handler can't change them
-        if (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) != scrollSettings {
-          ComposeUI.assertFailure("onWillLayout can't change scrollBehavior, scrollIndicatorBehavior or clippingBehavior")
+        // the render pass uses the scroll settings it started with, so the handler can't change them
+        if (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) != scrollSettings ||
+          (showsHorizontalScrollIndicator, showsVerticalScrollIndicator) != scrollIndicators
+        {
+          ComposeUI.assertFailure(
+            "onWillLayout can't change scrollBehavior, scrollIndicatorBehavior, clippingBehavior, showsHorizontalScrollIndicator or showsVerticalScrollIndicator"
+          )
           (scrollBehavior, scrollIndicatorBehavior, clippingBehavior) = scrollSettings
+          setScrollIndicators(horizontal: scrollIndicators.horizontal, vertical: scrollIndicators.vertical)
         }
       }
 
@@ -1664,21 +1687,6 @@ open class ComposeView: BaseScrollView {
     }
 
     let boundsSize = context.bounds.size
-
-    // hiding a legacy scroll bar grows the visible area, and AppKit clamps the offset to it, against the old content size
-    // and even when the update shows the scroll bar again. keep the offset instead, and clamp it once the final content
-    // size is set (see `render(_:)`).
-    let oldScrollIndicators = (showsHorizontalScrollIndicator, showsVerticalScrollIndicator)
-    var didKeepContentOffset = false
-    func setScrollIndicators(horizontal: Bool, vertical: Bool) {
-      let contentOffset = self.contentOffset
-      showsHorizontalScrollIndicator = horizontal
-      showsVerticalScrollIndicator = vertical
-      if self.contentOffset != contentOffset {
-        self.contentOffset = contentOffset
-        didKeepContentOffset = true
-      }
-    }
 
     switch scrollIndicatorBehavior {
     case .auto:
