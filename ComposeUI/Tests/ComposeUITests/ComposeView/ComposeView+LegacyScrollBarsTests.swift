@@ -165,6 +165,76 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 200)
   }
 
+  func test_smallScrollBars_contentFittingBesideThem_showsOnlyTheVerticalScrollBar() {
+    // given: a 120 × 200 view with small legacy scroll bars, showing content 300 pt tall and 105 pt wide, which fits the
+    // width beside a small vertical scroll bar, but not the width beside a regular one
+    let smallThickness = NSScroller.scrollerWidth(for: .small, scrollerStyle: .legacy)
+    expect(120 - smallThickness) >= 105
+    expect(120 - thickness) < 105
+    let view = makeView { LayerNode().frame(width: 105, height: 300) }
+    view.verticalScroller?.controlSize = .small
+    view.horizontalScroller?.controlSize = .small
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: only the vertical scroll bar shows, and the content renders beside it
+    expect(view.hasVerticalScroller) == true
+    expect(view.hasHorizontalScroller) == false
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - smallThickness, height: 200)
+  }
+
+  func test_scrollersOfAThinnerClass_contentFittingBesideThem_showsOnlyTheVerticalScrollBar() {
+    // given: a 120 × 200 view with legacy scroll bars, whose scrollers are of a class that makes them 10 pt thick, showing
+    // content 300 pt tall and 105 pt wide, which fits the width beside a 10 pt vertical scroll bar, but not the width
+    // beside a regular one
+    expect(120 - thickness) < 105
+    let view = makeView { LayerNode().frame(width: 105, height: 300) }
+    view.verticalScroller = ThinScroller()
+    view.horizontalScroller = ThinScroller()
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: only the vertical scroll bar shows, and the content renders beside it
+    expect(view.hasVerticalScroller) == true
+    expect(view.hasHorizontalScroller) == false
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - ThinScroller.thickness, height: 200)
+  }
+
+  func test_removedScrollers_countTheRegularScrollBarsAppKitCreates() {
+    // given: a 120 × 200 view with legacy scroll bars, whose scrollers were removed, showing content 300 pt tall and 105 pt
+    // wide, which doesn't fit the width beside a regular vertical scroll bar
+    var contentSize = CGSize(width: 105, height: 300)
+    let view = makeView { LayerNode().frame(width: contentSize.width, height: contentSize.height) }
+    view.verticalScroller = nil
+    view.horizontalScroller = nil
+
+    // when: the view refreshes
+    view.refresh(animated: false)
+
+    // then: AppKit creates a regular vertical scroll bar, the content overflows beside it, and the horizontal scroll bar
+    // shows too
+    expect(view.verticalScroller?.controlSize) == .regular
+    expect(view.hasVerticalScroller) == true
+    expect(view.hasHorizontalScroller) == true
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200 - thickness)
+
+    // when: the scrollers are removed again while both scroll bars show, the content becomes 300 pt wide and 185 pt tall,
+    // which doesn't fit the height above a regular horizontal scroll bar, and the view refreshes
+    view.verticalScroller = nil
+    view.horizontalScroller = nil
+    contentSize = CGSize(width: 300, height: 185)
+    view.refresh(animated: false)
+
+    // then: AppKit keeps a regular scroll bar's space for the horizontal scroll bar without a scroller, so the vertical
+    // scroll bar shows too
+    expect(view.horizontalScroller) == nil
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200 - thickness)
+  }
+
   // MARK: - Scrolling and Resizing
 
   func test_scrolling_keepsTheScrollBars() {
@@ -407,6 +477,30 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.hasVerticalScroller) == true
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120 - thickness, height: 200)
     expect(view.layoutCount) == 0
+  }
+
+  func test_refreshKeepingBothScrollBars_doesNotResizeTheClipView() {
+    // given: a 120 × 200 view with legacy scroll bars, that rendered content 300 pt tall and 115 pt wide, which fits the
+    // view's width but not the width beside a vertical scroll bar, so both scroll bars show, and counts the clip view's
+    // resizes
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    view.refresh(animated: false)
+    var clipViewResizeCount = 0
+    view.contentView.postsFrameChangedNotifications = true
+    let observer = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: view.contentView, queue: nil) { _ in
+      clipViewResizeCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: the view refreshes again
+    view.refresh(animated: false)
+
+    // then: both scroll bars stay, and the clip view doesn't resize
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == true
+    expect(clipViewResizeCount) == 0
   }
 
   // MARK: - Scroll Position
@@ -909,6 +1003,17 @@ private struct WidthDependentNode: ComposeNode {
 
   func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     []
+  }
+}
+
+/// A scroller that makes legacy scroll bars thinner than regular ones.
+private final class ThinScroller: NSScroller {
+
+  /// The thickness of the scroller.
+  static let thickness: CGFloat = 10
+
+  override static func scrollerWidth(for controlSize: NSControl.ControlSize, scrollerStyle: NSScroller.Style) -> CGFloat {
+    thickness
   }
 }
 

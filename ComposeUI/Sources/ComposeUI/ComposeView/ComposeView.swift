@@ -1755,22 +1755,20 @@ open class ComposeView: BaseScrollView {
         // indicators need to change.
         layout(for: boundsSize)
         let sizeBetweenInsets = Self.sizeBetweenInsets(insets, in: boundsSize)
-        setScrollIndicators(
-          horizontal: contentNode.size.width.extends(beyond: sizeBetweenInsets.width),
-          vertical: contentNode.size.height.extends(beyond: sizeBetweenInsets.height)
-        )
+        var horizontal = contentNode.size.width.extends(beyond: sizeBetweenInsets.width)
+        var vertical = contentNode.size.height.extends(beyond: sizeBetweenInsets.height)
 
-        // after updating the scroll indicators, the render size leaves out the space the legacy scroll bars take.
-        // if it's smaller, lay out again for it, and show a scroll indicator for any axis the content now overflows.
-        let renderSize = self.renderSize(for: boundsSize)
+        // a legacy scroll bar takes space, which can make the content overflow the other axis. compute that space rather
+        // than set the scroll bars and read AppKit's tiling, which re-tiles twice when the pass hides a scroll bar and
+        // shows it again.
+        let renderSize = boundsSize - scrollBarSpace(horizontal: horizontal, vertical: vertical)
         if renderSize != boundsSize {
           layout(for: renderSize)
           let sizeBetweenInsets = Self.sizeBetweenInsets(insets, in: renderSize)
-          setScrollIndicators(
-            horizontal: showsHorizontalScrollIndicator || contentNode.size.width.extends(beyond: sizeBetweenInsets.width),
-            vertical: showsVerticalScrollIndicator || contentNode.size.height.extends(beyond: sizeBetweenInsets.height)
-          )
+          horizontal = horizontal || contentNode.size.width.extends(beyond: sizeBetweenInsets.width)
+          vertical = vertical || contentNode.size.height.extends(beyond: sizeBetweenInsets.height)
         }
+        setScrollIndicators(horizontal: horizontal, vertical: vertical)
       }
     case .manual:
       break
@@ -1799,6 +1797,32 @@ open class ComposeView: BaseScrollView {
   /// - Returns: The container size minus the insets, negative along an axis where the insets exceed the container.
   private static func sizeBetweenInsets(_ insets: EdgeInsets, in containerSize: CGSize) -> CGSize {
     CGSize(width: containerSize.width - insets.left - insets.right, height: containerSize.height - insets.top - insets.bottom)
+  }
+
+  /// Returns the space that the scroll bars take from the view when they show.
+  ///
+  /// - Parameters:
+  ///   - horizontal: Whether the horizontal scroll bar shows.
+  ///   - vertical: Whether the vertical scroll bar shows.
+  /// - Returns: The width the vertical scroll bar takes, and the height the horizontal one takes.
+  private func scrollBarSpace(horizontal: Bool, vertical: Bool) -> CGSize {
+    #if canImport(AppKit)
+    guard scrollerStyle == .legacy else {
+      return .zero
+    }
+
+    // AppKit sizes a scroll bar by its scroller's class, which a subclass can override, and as a regular `NSScroller`
+    // when it has no scroller
+    func thickness(of scroller: NSScroller?) -> CGFloat {
+      guard let scroller else {
+        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+      }
+      return type(of: scroller).scrollerWidth(for: scroller.controlSize, scrollerStyle: .legacy)
+    }
+    return CGSize(width: vertical ? thickness(of: verticalScroller) : 0, height: horizontal ? thickness(of: horizontalScroller) : 0)
+    #else
+    return .zero
+    #endif
   }
 
   /// Returns the size the content lays out and renders for: the bounds size minus the space that legacy scroll bars take
