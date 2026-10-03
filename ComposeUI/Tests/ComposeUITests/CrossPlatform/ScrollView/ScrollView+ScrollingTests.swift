@@ -184,14 +184,14 @@ class ScrollView_ScrollingTests: XCTestCase {
     scrollView.tile()
 
     // when: the offset is 1.5 points from the minimum offset along both axes
-    scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + 1.5, y: scrollView.minOffsetY + 1.5)
+    setExactOffset(CGPoint(x: scrollView.minOffsetX + 1.5, y: scrollView.minOffsetY + 1.5), of: scrollView)
 
     // then: it can scroll to the left, more than a pixel away along x, and counts as at the top, within a pixel along y
     expect(scrollView.canScrollToLeft) == true
     expect(scrollView.canScrollToTop) == false
 
     // when: the offset is 1.5 points from the maximum offset along both axes
-    scrollView.contentOffset = CGPoint(x: scrollView.maxOffsetX - 1.5, y: scrollView.maxOffsetY - 1.5)
+    setExactOffset(CGPoint(x: scrollView.maxOffsetX - 1.5, y: scrollView.maxOffsetY - 1.5), of: scrollView)
 
     // then: it can scroll to the right, and counts as at the bottom
     expect(scrollView.canScrollToRight) == true
@@ -208,14 +208,14 @@ class ScrollView_ScrollingTests: XCTestCase {
     scrollView.frameCenterRotation = 45
 
     // when: the offset is within a pixel of the minimum offset, at any display scale
-    scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + 0.3, y: scrollView.minOffsetY + 0.3)
+    setExactOffset(CGPoint(x: scrollView.minOffsetX + 0.3, y: scrollView.minOffsetY + 0.3), of: scrollView)
 
     // then: it counts as at the left and top edges
     expect(scrollView.canScrollToLeft) == false
     expect(scrollView.canScrollToTop) == false
 
     // when: the offset is more than a pixel from the minimum offset, at any display scale
-    scrollView.contentOffset = CGPoint(x: scrollView.minOffsetX + 1.5, y: scrollView.minOffsetY + 1.5)
+    setExactOffset(CGPoint(x: scrollView.minOffsetX + 1.5, y: scrollView.minOffsetY + 1.5), of: scrollView)
 
     // then: it can scroll to the left and to the top
     expect(scrollView.canScrollToLeft) == true
@@ -225,11 +225,12 @@ class ScrollView_ScrollingTests: XCTestCase {
 
   // MARK: - Helpers
 
-  /// Sets the content offset exactly, since UIKit snaps a set `contentOffset` to whole pixels, while assigning
-  /// `bounds.origin` keeps it.
+  /// Sets the content offset exactly, as the platform's own scrolling can leave it, since a set `contentOffset` rounds
+  /// to whole pixels, while scrolling the clip view on AppKit, or assigning `bounds.origin` on UIKit, keeps it.
   private func setExactOffset(_ offset: CGPoint, of scrollView: ScrollView) {
     #if canImport(AppKit)
-    scrollView.contentOffset = offset
+    scrollView.contentView.scroll(to: offset)
+    scrollView.reflectScrolledClipView(scrollView.contentView)
     #endif
     #if canImport(UIKit)
     scrollView.bounds.origin = offset

@@ -1131,7 +1131,9 @@ open class ComposeView: BaseScrollView {
     if layoutResult.needsContentOffsetClamp {
       // the layout kept the offset across its scroll bar changes. clamp it now, against the final content size and
       // visible area, as AppKit clamps it.
-      contentOffset = contentView.constrainBoundsRect(CGRect(origin: contentOffset, size: contentView.bounds.size)).origin
+      setContentOffsetExactly(
+        contentView.constrainBoundsRect(CGRect(origin: contentOffset, size: contentView.bounds.size)).origin
+      )
     }
     #endif
 
@@ -1643,7 +1645,7 @@ open class ComposeView: BaseScrollView {
       let contentOffset = self.contentOffset
       change()
       if self.contentOffset != contentOffset {
-        self.contentOffset = contentOffset
+        setContentOffsetExactly(contentOffset)
         didKeepContentOffset = true
       }
     }

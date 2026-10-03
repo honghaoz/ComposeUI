@@ -491,6 +491,49 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.test.lastRenderBounds?.origin) == aboveTheTop
   }
 
+  func test_refreshScrolledBetweenPixels_keepsTheScrollPositionExactly() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall, so it
+    // shows the horizontal scroll bar only because the vertical one takes width, scrolled to 100.25 pt, between pixels,
+    // as AppKit's own scrolling can leave it
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 115, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    let offset = CGPoint(x: 0, y: 100.25)
+    view.setContentOffsetExactly(offset)
+    window.layoutIfNeeded()
+
+    // when: the view refreshes with the same content
+    view.refresh(animated: false)
+
+    // then: the update hides the horizontal scroll bar on the way, which AppKit clamps the offset for, and shows it
+    // again, and the view keeps the offset exactly, without rounding it to a pixel
+    expect(view.hasHorizontalScroller) == true
+    expect(view.contentOffset) == offset
+    expect(view.test.lastRenderBounds?.origin) == offset
+  }
+
+  func test_hidingTheScrollBarsAtTheBottom_keepsAnOffsetBetweenPixelsAlongTheOtherAxis() {
+    // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 300 pt wide and tall, scrolled to the
+    // bottom and to 50.25 pt horizontally, between pixels, as AppKit's own scrolling can leave it
+    let window = TestWindow()
+    let view = makeView { LayerNode().frame(width: 300, height: 300) }
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    window.layoutIfNeeded()
+    view.setContentOffsetExactly(CGPoint(x: 50.25, y: 300 - (200 - thickness)))
+    window.layoutIfNeeded()
+
+    // when: the view stops showing scroll indicators, and refreshes
+    view.scrollIndicatorBehavior = .never
+    view.refresh(animated: false)
+
+    // then: the visible area grew, so the offset clamps to the new bottom, and keeps its horizontal position exactly,
+    // without rounding it to a pixel
+    expect(view.contentOffset) == CGPoint(x: 50.25, y: 300 - 200)
+  }
+
   func test_refreshWithShorterContent_clampsTheScrollPosition() {
     // given: a 120 × 200 view in a window, with legacy scroll bars, showing content 115 pt wide and 300 pt tall,
     // scrolled to the bottom

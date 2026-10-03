@@ -52,16 +52,21 @@ open class ScrollView: NSScrollView {
 
   /// The offset of the visible area's origin from the content's origin, like `UIScrollView`'s `contentOffset`.
   ///
-  /// As on UIKit, setting it keeps the offset as set, even outside the scrollable range.
+  /// As on UIKit, setting it rounds the offset to the nearest pixel, and keeps it there, even outside the scrollable range.
   public var contentOffset: CGPoint {
     get {
       contentView.bounds.origin
     }
     set {
-      // `NSClipView.scroll(to:)` keeps the point as given, while `NSView.scroll(_:)` clamps it into the scrollable
-      // range and adds floating-point noise
-      contentView.scroll(to: newValue)
-      reflectScrolledClipView(contentView)
+      // AppKit places the clip view on whole window pixels, so an offset on whole pixels draws the content on them,
+      // while one between pixels blurs it
+      let pixelSize = self.pixelSize
+      setContentOffsetExactly(
+        CGPoint(
+          x: (newValue.x / pixelSize.width).rounded() * pixelSize.width,
+          y: (newValue.y / pixelSize.height).rounded() * pixelSize.height
+        )
+      )
     }
   }
 
@@ -195,10 +200,37 @@ open class ScrollView: NSScrollView {
 
     switch scrollSession.target {
     case .handleBySelf:
-      super.scrollWheel(with: event)
+      super.scrollWheel(with: droppingDeltasAlongFixedAxes(of: event))
     case .passToOutside:
       nextResponder?.scrollWheel(with: event)
     }
+  }
+
+  /// Returns the event without its scroll delta along an axis the content can't move along.
+  ///
+  /// AppKit compares the content with the clip view, which it rounds to whole pixels, so content that fits the exact
+  /// visible size can look a fraction of a point larger, and AppKit would scroll it by a pixel.
+  private func droppingDeltasAlongFixedAxes(of event: NSEvent) -> NSEvent {
+    // a mouse wheel event has no phase and can't spring back, so along an axis where the content fits, it would only
+    // move the content by that pixel, even when the axis bounces
+    let isMouseWheel = event.phase.isEmpty && event.momentumPhase.isEmpty
+    let dropsHorizontalDelta = event.scrollingDeltaX != 0 && !contentOverflowsHorizontally && (isMouseWheel || !alwaysBounceHorizontal)
+    let dropsVerticalDelta = event.scrollingDeltaY != 0 && !contentOverflowsVertically && (isMouseWheel || !alwaysBounceVertical)
+    guard dropsHorizontalDelta || dropsVerticalDelta, let cgEvent = event.cgEvent?.copy() else {
+      return event
+    }
+
+    if dropsHorizontalDelta {
+      cgEvent.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: 0)
+      cgEvent.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: 0)
+      cgEvent.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: 0)
+    }
+    if dropsVerticalDelta {
+      cgEvent.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 0)
+      cgEvent.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: 0)
+      cgEvent.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: 0)
+    }
+    return NSEvent(cgEvent: cgEvent) ?? event
   }
 
   /// Whether the horizontal scroll indicator is shown. For UIKit compatibility, this is the same as `hasHorizontalScroller`.
@@ -275,27 +307,21 @@ open class ScrollView: NSScrollView {
   }
 
   private func updateScrollElasticity() {
-    // compare the document with the exact visible size: the clip view rounds its size to whole pixels, so content as
-    // large as the view would otherwise bounce by the leftover fraction
-    if alwaysBounceHorizontal {
-      horizontalScrollElasticity = .allowed
-    } else {
-      if contentContainerView.frame.width.extends(beyond: visibleSize.width) {
-        horizontalScrollElasticity = .allowed
-      } else {
-        horizontalScrollElasticity = .none
-      }
-    }
+    horizontalScrollElasticity = alwaysBounceHorizontal || contentOverflowsHorizontally ? .allowed : .none
+    verticalScrollElasticity = alwaysBounceVertical || contentOverflowsVertically ? .allowed : .none
+  }
 
-    if alwaysBounceVertical {
-      verticalScrollElasticity = .allowed
-    } else {
-      if contentContainerView.frame.height.extends(beyond: visibleSize.height) {
-        verticalScrollElasticity = .allowed
-      } else {
-        verticalScrollElasticity = .none
-      }
-    }
+  // The properties below compare the document with the exact visible size: the clip view rounds its size to whole
+  // pixels, so content as large as the view would otherwise look a fraction of a point larger.
+
+  /// Whether the content is wider than the visible area.
+  private var contentOverflowsHorizontally: Bool {
+    contentContainerView.frame.width.extends(beyond: visibleSize.width)
+  }
+
+  /// Whether the content is taller than the visible area.
+  private var contentOverflowsVertically: Bool {
+    contentContainerView.frame.height.extends(beyond: visibleSize.height)
   }
 }
 
@@ -452,6 +478,24 @@ extension ScrollView {
 
     #if canImport(UIKit)
     return self
+    #endif
+  }
+
+  /// Sets the content offset as given, without rounding it to whole pixels, to keep an offset that the platform's own
+  /// scrolling left between pixels.
+  ///
+  /// - Parameter offset: The content offset.
+  func setContentOffsetExactly(_ offset: CGPoint) {
+    #if canImport(AppKit)
+    // `NSClipView.scroll(to:)` keeps the point as given, while `NSView.scroll(_:)` clamps it into the scrollable range
+    // and adds floating-point noise
+    contentView.scroll(to: offset)
+    reflectScrolledClipView(contentView)
+    #endif
+
+    #if canImport(UIKit)
+    // UIKit rounds a set `contentOffset` to whole pixels, while assigning the bounds origin keeps it
+    bounds.origin = offset
     #endif
   }
 
