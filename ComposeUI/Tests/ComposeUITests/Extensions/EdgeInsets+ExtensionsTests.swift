@@ -62,4 +62,18 @@ class EdgeInsets_ExtensionsTests: XCTestCase {
     expect(insets.horizontal) == 16
     expect(insets.vertical) == 16
   }
+
+  func test_isEqual() {
+    // given: insets with different edge values
+    let insets = EdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
+
+    // then: insets with the same values are equal
+    expect(insets.isEqual(to: EdgeInsets(top: 1, left: 2, bottom: 3, right: 4))) == true
+
+    // then: a different value on any edge makes them unequal
+    expect(insets.isEqual(to: EdgeInsets(top: 0, left: 2, bottom: 3, right: 4))) == false
+    expect(insets.isEqual(to: EdgeInsets(top: 1, left: 0, bottom: 3, right: 4))) == false
+    expect(insets.isEqual(to: EdgeInsets(top: 1, left: 2, bottom: 0, right: 4))) == false
+    expect(insets.isEqual(to: EdgeInsets(top: 1, left: 2, bottom: 3, right: 0))) == false
+  }
 }
