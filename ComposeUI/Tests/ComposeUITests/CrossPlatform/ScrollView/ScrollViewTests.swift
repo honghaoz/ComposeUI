@@ -783,23 +783,51 @@ class ScrollViewTests: XCTestCase {
   }
 
   func test_scrollGesture_nested_gestureAfterRestingFingersLift_startsAScrollOfItsOwn() throws {
-    // given: a scroll view nested in a parent scroll view that scrolls, a flick that the parent took over its own
-    // content, and fingers that rest on the trackpad over the scroll view 68 ms after the glide's end
+    // AppKit ends the gesture of resting fingers that lift without moving with a `cancelled` event or an `ended` one
+    for liftPhase in [CGScrollPhase.cancelled, .ended] {
+      // given: a scroll view nested in a parent scroll view that scrolls, a flick that the parent took over its own
+      // content, and fingers that rest on the trackpad over the scroll view 68 ms after the glide's end
+      let window = TestWindow()
+      let views = Self.makeScrollingNestedScrollViews(in: window)
+      try Self.sendFlick(to: views.parentContent, deltaY: -10)
+      try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: 0.068))
+      expect(views.parent.scrollWheelEventCount) == 7
+
+      // when: the fingers lift without moving, and a swipe toward the bottom begins over the scroll view 50 ms later
+      try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: liftPhase, after: 0.5))
+      try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.05))
+      try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+      // then: the parent gets the lift, which ends its scroll, so the swipe starts a scroll of its own, which the scroll
+      // view takes, since it can scroll toward the bottom
+      expect(views.parent.scrollWheelEventCount) == 8
+      expect(views.container.scrollWheelEventCount) == 0
+    }
+  }
+
+  func test_scrollGesture_nested_restingFingersLiftOverAnotherScrollView_endTheParentsScroll() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, another scroll view beside the parent, a flick
+    // that the parent took over its own content, and fingers that rest on the trackpad over the nested scroll view 68 ms
+    // after the glide's end
     let window = TestWindow()
     let views = Self.makeScrollingNestedScrollViews(in: window)
+    let otherScrollView = ScrollView(frame: CGRect(x: 200, y: 0, width: 100, height: 100))
+    otherScrollView.contentSize = CGSize(width: 100, height: 500)
+    views.container.addSubview(otherScrollView)
     try Self.sendFlick(to: views.parentContent, deltaY: -10)
     try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: 0.068))
     expect(views.parent.scrollWheelEventCount) == 7
 
-    // when: the fingers lift without moving, and a swipe toward the bottom begins over the scroll view 50 ms later
-    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .cancelled, after: 0.5))
-    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.05))
+    // when: the pointer moves over the other scroll view, for example with a mouse, so AppKit sends the fingers' lift
+    // there, and a swipe toward the bottom begins over the nested scroll view a second later
+    try otherScrollView.scrollWheel(with: Self.makeScrollEvent(phase: .cancelled, after: 0.5))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
     try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
 
-    // then: the parent gets the lift, which ends its scroll, so the swipe starts a scroll of its own, which the scroll
-    // view takes, since it can scroll toward the bottom
-    expect(views.parent.scrollWheelEventCount) == 8
-    expect(views.container.scrollWheelEventCount) == 0
+    // then: the other scroll view passes the lift on, which still ends the parent's scroll, so the swipe starts a scroll
+    // of its own, which the nested scroll view takes
+    expect(views.container.scrollWheelEventCount) == 1
+    expect(views.parent.scrollWheelEventCount) == 7
   }
 
   func test_scrollGesture_nested_gestureAfterTheParentsScroll_startsAScrollOfItsOwn() throws {
