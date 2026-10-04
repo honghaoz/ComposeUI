@@ -430,6 +430,40 @@ class RenderPerformanceTests: XCTestCase {
     report(name: "refresh.nested.200", result: result)
   }
 
+  // MARK: - Frame Update (renderable-level, a reused renderable's frame update)
+
+  func test_updateFrame_nonAnimated_layer_unchanged() {
+    runFrameUpdateBenchmark(name: "updateFrame.layer.unchanged", renderable: .layer(CALayer()), state: .unchanged)
+  }
+
+  func test_updateFrame_nonAnimated_layer_changed() {
+    runFrameUpdateBenchmark(name: "updateFrame.layer.changed", renderable: .layer(CALayer()), state: .changed)
+  }
+
+  func test_updateFrame_nonAnimated_layer_changedInFlight() {
+    runFrameUpdateBenchmark(name: "updateFrame.layer.changedInFlight", renderable: .layer(CALayer()), state: .changedInFlight)
+  }
+
+  func test_updateFrame_nonAnimated_view_unchanged() {
+    runFrameUpdateBenchmark(name: "updateFrame.view.unchanged", renderable: .view(Self.makeLayerBackedView()), state: .unchanged)
+  }
+
+  func test_updateFrame_nonAnimated_view_changed() {
+    runFrameUpdateBenchmark(name: "updateFrame.view.changed", renderable: .view(Self.makeLayerBackedView()), state: .changed)
+  }
+
+  func test_updateFrame_nonAnimated_view_changedInFlight() {
+    runFrameUpdateBenchmark(name: "updateFrame.view.changedInFlight", renderable: .view(Self.makeLayerBackedView()), state: .changedInFlight)
+  }
+
+  func test_updateFrame_animated_layer() {
+    runAnimatedFrameUpdateBenchmark(name: "updateFrame.layer.animated", renderable: .layer(CALayer()))
+  }
+
+  func test_updateFrame_animated_view() {
+    runAnimatedFrameUpdateBenchmark(name: "updateFrame.view.animated", renderable: .view(Self.makeLayerBackedView()))
+  }
+
   // MARK: - Helpers
 
   private enum Constants {
@@ -438,6 +472,7 @@ class RenderPerformanceTests: XCTestCase {
     static let smallRowHeight: CGFloat = 8
     static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
     static let scrollSteps = 140 // mirrors the timed scroll benchmark's warmup (20) + iterations (120)
+    static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
   }
 
   /// A plain view-backed row, optionally opted into the recycle pool via `reuseId`.
@@ -559,6 +594,74 @@ class RenderPerformanceTests: XCTestCase {
     #endif
 
     report(name: name, result: result, extra: "initialRender: \(format(setupDuration)) ms | renderedItems: \(renderedItemsCount)")
+  }
+
+  /// The state a frame update benchmark updates the renderable in.
+  private enum FrameUpdateState {
+
+    /// The frame doesn't change, so the update returns early.
+    case unchanged
+
+    /// The frame changes on every update, with nothing animating.
+    case changed
+
+    /// The frame changes on every update while frame animations are in flight.
+    case changedInFlight
+  }
+
+  private func runFrameUpdateBenchmark(name: String, renderable: Renderable, state: FrameUpdateState) {
+    // given: a renderable at the first frame, and for the in-flight state, animating to the second frame over a second
+    // from 1000
+    let firstFrame = CGRect(x: 10, y: 20, width: 100, height: 50)
+    let secondFrame = CGRect(x: 30, y: 40, width: 160, height: 80)
+    renderable.updateFrame(firstFrame, animationTiming: nil)
+    if state == .changedInFlight {
+      AnimationClock.sharingTime(at: 1000) {
+        renderable.updateFrame(secondFrame, animationTiming: .linear(duration: 1))
+      }
+    }
+
+    // when: measuring batches of non-animated frame updates, alternating between the frames unless unchanged. the clock
+    // holds half way through the animation, so in flight, each update glides from the frame shown between the frames
+    // and folds the glides of the update before
+    let result = measure(warmup: 20, iterations: 200) { _ in
+      AnimationClock.sharingTime(at: 1000.5) {
+        for index in 0 ..< Constants.frameUpdatesPerIteration {
+          let frame = state == .unchanged || index.isMultiple(of: 2) ? firstFrame : secondFrame
+          renderable.updateFrame(frame, animationTiming: nil)
+        }
+      }
+    }
+
+    // then: report the timings
+    report(name: name, result: result, extra: "updates per iteration: \(Constants.frameUpdatesPerIteration)")
+  }
+
+  private func runAnimatedFrameUpdateBenchmark(name: String, renderable: Renderable) {
+    // given: a renderable at the first frame
+    let firstFrame = CGRect(x: 10, y: 20, width: 100, height: 50)
+    let secondFrame = CGRect(x: 30, y: 40, width: 160, height: 80)
+    renderable.updateFrame(firstFrame, animationTiming: nil)
+
+    // when: measuring batches of animated frame updates, alternating between frames that move and resize the renderable,
+    // each followed by removing the animations, so they don't pile up
+    let result = measure(warmup: 20, iterations: 200) { _ in
+      for index in 0 ..< Constants.frameUpdatesPerIteration {
+        renderable.updateFrame(index.isMultiple(of: 2) ? secondFrame : firstFrame, animationTiming: .linear(duration: 1))
+        renderable.layer.removeAllAnimations()
+      }
+    }
+
+    // then: report the timings
+    report(name: name, result: result, extra: "updates per iteration: \(Constants.frameUpdatesPerIteration)")
+  }
+
+  private static func makeLayerBackedView() -> View {
+    let view = View()
+    #if canImport(AppKit)
+    view.wantsLayer = true
+    #endif
+    return view
   }
 
   // MARK: - Measurement

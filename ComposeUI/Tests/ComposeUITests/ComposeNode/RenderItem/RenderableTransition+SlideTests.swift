@@ -819,6 +819,54 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(animation.isAdditive) == true
   }
 
+  func test_composeViewIntegration_nonAnimatedResizesDuringSlideIn_keepTheSlide() throws {
+    // given: a compose view sliding in a layer from the bottom over 10 seconds, with frame changes animating over 10
+    // seconds
+    let composeView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    composeView.setContent {
+      Empty()
+    }
+    composeView.refresh(animated: false)
+    var insertedLayer: CALayer?
+    func showLayer(height: CGFloat) {
+      composeView.setContent {
+        ColorNode(.red)
+          .transition(.slide(from: .bottom, timing: .linear(duration: 10), options: .insert))
+          .animation(.linear(duration: 10))
+          .willInsert { renderable, _ in
+            insertedLayer = renderable.layer
+          }
+          .frame(width: 40, height: height)
+      }
+    }
+    showLayer(height: 50)
+    composeView.refresh(animated: true)
+    let layer = try unwrap(insertedLayer)
+    let slide = try unwrap(layer.animation(forKey: "position"))
+
+    // when: a non-animated refresh makes the layer 80 points high while it slides in
+    showLayer(height: 80)
+    composeView.refresh(animated: false)
+
+    // then: the slide isn't a frame animation, so it keeps going as it is, delegate and all, while the frame is set
+    expect(layer.bounds.size) == CGSize(width: 40, height: 80)
+    expect(layer.animationKeys()) == ["position"]
+    expect(layer.animation(forKey: "position")) === slide
+
+    // when: an animated refresh makes the layer 120 points high, and a non-animated one 60 points high while the resize
+    // is in flight
+    showLayer(height: 120)
+    composeView.refresh(animated: true)
+    showLayer(height: 60)
+    composeView.refresh(animated: false)
+
+    // then: the resize, which moves the centered layer too, folds into glides of its position and size, and the slide
+    // still keeps going as it is
+    expect(layer.bounds.size) == CGSize(width: 40, height: 60)
+    expect(layer.animation(forKey: "position")) === slide
+    expect(Set(layer.animationKeys() ?? [])) == ["position", "position-1", "bounds.size"]
+  }
+
   // MARK: - Helpers
 
   /// Makes a compose view of `Constants.contentSize` showing 1000 × 1000 content, scrolled to (300, 400), so its visible

@@ -98,6 +98,44 @@ public extension CALayer {
       return
     }
   }
+
+  /// Set a path of the layer and retarget its changes in flight to it, so the path shown glides from where it is to the
+  /// new path and lands when the changes would have, as `retargetFrame(to:)` does for a frame.
+  ///
+  /// Each coordinate of the path's points is judged on its own, as an axis of a frame is: one that a change in flight
+  /// moves glides from where it shows, and one at rest takes its new value at once. When a changed coordinate is in
+  /// motion, the changes fold into one ease-out change, while a running spring keeps going with the glide stacked on it.
+  /// Otherwise, they keep going on the new path, as in `setPath(keyPath:to:)`. Without changes in flight, the path shows
+  /// at once.
+  ///
+  /// - Important: The key path must hold a `CGPath`, such as `shadowPath` or `CAShapeLayer`'s `path`. A key path that
+  ///   holds another value asserts, and the layer is left alone.
+  ///
+  /// - Parameters:
+  ///   - keyPath: The key path of the path.
+  ///   - path: The path to set.
+  @_spi(Private)
+  func retargetPath(keyPath: String, to path: CGPath) {
+    switch modelPath(forKeyPath: keyPath) {
+    case .path(let currentPath):
+      guard currentPath != path else {
+        return
+      }
+      let now = currentTime
+      var changes = pathChanges(forKeyPath: keyPath, at: now)
+      guard !changes.isEmpty else {
+        showPathAtOnce(path, forKeyPath: keyPath)
+        return
+      }
+      let points = PathPoints(path)
+      changes.retarget(from: PathPoints(currentPath), to: points, at: now)
+      showPath(path, points: points, forKeyPath: keyPath, changes: changes, at: now)
+    case .noValue:
+      showPathAtOnce(path, forKeyPath: keyPath)
+    case .notAPath:
+      return
+    }
+  }
 }
 
 private extension CALayer {

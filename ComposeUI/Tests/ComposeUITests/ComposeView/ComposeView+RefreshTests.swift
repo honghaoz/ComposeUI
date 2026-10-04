@@ -128,8 +128,12 @@ class ComposeView_RefreshTests: XCTestCase {
     height = 200
     view.refresh(animated: true)
     expect(renderable.animationKeys()?.sorted()) == ["backgroundColor", "bounds.size", "position"]
-    let sizeAnimation = try unwrap(renderable.animation(forKey: "bounds.size") as? CABasicAnimation)
-    let positionAnimation = try unwrap(renderable.animation(forKey: "position") as? CABasicAnimation)
+    let move = try unwrap(renderable.animation(forKey: "position") as? CABasicAnimation)
+
+    // the frame shown, which hasn't moved yet in this turn of the run loop: the model plus each animation's whole offset
+    let sizeOffset = try unwrap(renderable.animation(forKey: "bounds.size") as? CABasicAnimation).fromValue as? CGSize
+    let shownHeight = try renderable.bounds.height + unwrap(sizeOffset).height
+    let shownY = try renderable.position.y + unwrap(move.fromValue as? CGPoint).y
 
     // when: a non-animated refresh changes the height and the theme back while the animations are in flight
     view.overrideTheme = .light
@@ -140,19 +144,31 @@ class ComposeView_RefreshTests: XCTestCase {
     expect(renderable.bounds.size) == CGSize(width: 100, height: 120)
     expect(renderable.backgroundColor) == Color.red.cgColor
 
-    // then: the frame animations keep going and land on the new frame, and the color animation is retargeted to the
-    // new color over its remaining time instead of finishing towards the dark one
-    expect(renderable.animationKeys()?.sorted()) == ["backgroundColor", "bounds.size", "position"]
-    let continuedSizeAnimation = try unwrap(renderable.animation(forKey: "bounds.size") as? CABasicAnimation)
-    expect(continuedSizeAnimation.fromValue as? CGSize) == sizeAnimation.fromValue as? CGSize
-    expect(continuedSizeAnimation.toValue as? CGSize) == .zero
-    expect(continuedSizeAnimation.duration) == sizeAnimation.duration
-    expect(continuedSizeAnimation.isAdditive) == true
+    // then: the size glides from the height shown over the remaining time, so it doesn't jump
+    expect(renderable.animationKeys()?.sorted()) == ["backgroundColor", "bounds.size", "position", "position-1"]
+    let sizeGlide = try unwrap(renderable.animation(forKey: "bounds.size") as? CABasicAnimation)
+    expect(sizeGlide.fromValue as? CGSize) == CGSize(width: 0, height: shownHeight - 120)
+    expect(sizeGlide.toValue as? CGSize) == .zero
+    expect(sizeGlide.duration) == 10
+    expect(sizeGlide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(sizeGlide.isAdditive) == true
 
-    let continuedPositionAnimation = try unwrap(renderable.animation(forKey: "position") as? CABasicAnimation)
-    expect(continuedPositionAnimation.fromValue as? CGPoint) == positionAnimation.fromValue as? CGPoint
-    expect(continuedPositionAnimation.duration) == positionAnimation.duration
+    // then: the row moved from y 30, centered in the view, to the top, which the refresh keeps, so the origin's part of
+    // the move keeps going as it was, and the position's share of the size glides with the size
+    let originMove = try unwrap(renderable.animation(forKey: "position") as? CABasicAnimation)
+    expect(originMove.fromValue as? CGPoint) == CGPoint(x: 0, y: 30)
+    expect(originMove.beginTime) == move.beginTime
+    expect(originMove.duration) == 10
+    expect(originMove.timingFunction) == CAMediaTimingFunction(name: .linear)
 
+    let sizeShareGlide = try unwrap(renderable.animation(forKey: "position-1") as? CABasicAnimation)
+    expect(sizeShareGlide.fromValue as? CGPoint) == CGPoint(x: 0, y: (shownHeight - 120) / 2)
+    expect(sizeShareGlide.duration) == 10
+    expect(sizeShareGlide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(renderable.position.y + 30 + (shownHeight - 120) / 2) == shownY
+
+    // then: the color animation is retargeted to the new color over its remaining time instead of finishing towards the
+    // dark one
     let colorAnimation = try unwrap(renderable.animation(forKey: "backgroundColor") as? CABasicAnimation)
     expect(colorAnimation.duration) == 10
     expect(colorAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
@@ -230,10 +246,11 @@ class ComposeView_RefreshTests: XCTestCase {
     width = 200
     view.refresh(animated: true)
 
-    // then: the frame animations the pass adds, and the shadow path and mask animations the shadow's update adds, begin
-    // at one time
+    // then: the frame animations the pass adds, and the shadow path and mask path animations the shadow's update adds,
+    // begin at one time
     let beginTimes = try ["position", "bounds.size", "shadowPath"].map { try unwrap(shadowLayer.animation(forKey: $0)).beginTime }
-      + ["position", "bounds.size", "path"].map { try unwrap(mask.animation(forKey: $0)).beginTime }
+      + [unwrap(mask.animation(forKey: "path")).beginTime]
+    expect(beginTimes.count) == 4
     expect(Set(beginTimes).count) == 1
 
     // then: the time is read when the pass adds its first animation, after the layout, not when the pass starts

@@ -150,6 +150,11 @@ open class InnerShadowLayer: CALayer {
     // initialize mask layer if not initialized
     if mask !== maskLayer {
       mask = maskLayer
+    }
+    // the mask takes the layer's bounds at once, without frame animations, so its path, in the layer's coordinates, stays
+    // on the layer whatever the layer's frame does. a shape layer draws its path beyond its bounds, so the mask's size
+    // changing at once doesn't clip it
+    if !maskLayer.hasFrame(bounds) {
       maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
       }
@@ -169,9 +174,6 @@ open class InnerShadowLayer: CALayer {
       // only the properties whose model value differs from the target are animated: an unchanged additive one would
       // add a zero-delta animation that lives for the timing's duration and piles up on repeated passes, and an
       // unchanged non-additive one would replace an in-flight animation to the same target and restart its easing.
-      if !maskLayer.hasFrame(bounds) {
-        maskLayer.animateFrame(to: bounds, timing: animationTiming)
-      }
 
       maskLayer.animatePath(keyPath: "path", to: clipPath, timing: animationTiming)
 
@@ -202,20 +204,15 @@ open class InnerShadowLayer: CALayer {
       }
       animatePath(keyPath: "shadowPath", to: holePath, timing: animationTiming)
     } else {
-      // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
-      // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
-      // being retargeted, and the mask stays aligned with the layer
-      maskLayer.disableActions(for: "position", "bounds") {
-        maskLayer.frame = bounds
-      }
-      maskLayer.setPath(keyPath: "path", to: clipPath)
+      // no animation timing: continue the in-flight motion
+      maskLayer.retargetPath(keyPath: "path", to: clipPath)
 
       retarget(keyPath: "shadowColor", to: color)
       retarget(keyPath: "shadowOpacity", to: opacity)
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
 
-      setPath(keyPath: "shadowPath", to: holePath)
+      retargetPath(keyPath: "shadowPath", to: holePath)
     }
   }
 

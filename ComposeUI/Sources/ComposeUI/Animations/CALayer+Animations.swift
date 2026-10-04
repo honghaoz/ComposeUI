@@ -32,25 +32,6 @@ import QuartzCore
 
 public extension CALayer {
 
-  /// Animate the layer's frame additively.
-  ///
-  /// The timing's delay schedules the animations' begin time while the model frame updates immediately, see
-  /// `animate(key:keyPath:timing:from:to:model:updateAnimation:)`.
-  ///
-  /// - Parameters:
-  ///   - to: The frame to animate to.
-  ///   - timing: The animation timing.
-  @_spi(Private)
-  func animateFrame(to: CGRect, timing: AnimationTiming) {
-    // the `bounds.size` write syncs an AppKit backing view from both the position and the size, so the `position` write
-    // skips its own sync, which would set the view's frame to an intermediate frame, the new position with the old
-    // size, and post a frame-change notification for it
-    skippingViewSync {
-      animate(keyPath: "position", to: position(from: to), timing: timing)
-    }
-    animate(keyPath: "bounds.size", to: to.size, timing: timing)
-  }
-
   /// Animate the layer's value additively.
   ///
   /// - Important: You must make sure the value type matches the key path type. Otherwise, a crash will occur.

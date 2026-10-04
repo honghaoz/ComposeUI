@@ -129,13 +129,14 @@ public enum Renderable {
     }
   }
 
-  /// Applies the frame unless the renderable already has it, animating the change with the timing if given.
+  /// Applies the frame unless the renderable already has it, animating the change with the timing if given. Without a
+  /// timing, the frame animations in flight glide to the new frame, see `CALayer.retargetFrame(to:)`.
   ///
   /// - Precondition: The renderable layer's transform must be identity, see `Renderable`.
   ///
   /// - Parameters:
   ///   - frame: The frame to apply.
-  ///   - animationTiming: The timing to animate the change with, or `nil` to apply it immediately.
+  ///   - animationTiming: The timing to animate the change with, or `nil` to apply it without starting an animation.
   func updateFrame(_ frame: CGRect, animationTiming: AnimationTiming?) {
     assertIdentityTransform()
 
@@ -147,12 +148,19 @@ public enum Renderable {
     }
 
     // the layer is animated only when it moves. when it already has the frame and only an AppKit view's own frame
-    // copy is out of sync, setting the frame re-syncs the copy without adding zero-delta animations.
-    if let animationTiming, !layer.hasFrame(frame) {
-      layer.animateFrame(to: frame, timing: animationTiming)
-    } else {
-      setFrame(frame)
+    // copy is out of sync, setting the frame re-syncs the copy without adding zero-delta animations, and a retarget
+    // finds no change to glide. a layer usually has no animations, and then its frame is set directly.
+    let layer = self.layer
+    if let animationTiming {
+      if !layer.hasFrame(frame) {
+        layer.animateFrame(to: frame, timing: animationTiming)
+        return
+      }
+    } else if layer.animationKeys() != nil {
+      layer.retargetFrame(to: frame)
+      return
     }
+    setFrame(frame)
   }
 
   /// Asserts, in debug builds, that the renderable's transform is identity, as the render pass requires when it applies

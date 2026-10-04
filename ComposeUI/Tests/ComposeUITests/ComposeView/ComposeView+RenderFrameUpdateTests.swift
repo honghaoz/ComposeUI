@@ -276,6 +276,57 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(try unwrap(trackingView).frame) == CGRect(x: 0, y: 60, width: 100, height: 80)
   }
 
+  func test_reusedRenderable_nonAnimatedResizeDuringAnimatedResize_glidesFromTheShownHeight() throws {
+    // given: a hosted content view with a frame-tracking row, animating linearly over 1.5 seconds
+    let window = TestWindow()
+    var rowHeight: CGFloat = 50
+    var trackingView: FrameTrackingView?
+    let view = makeContentView(
+      spacerHeight: { 10 },
+      rowHeight: { rowHeight },
+      animationTiming: .linear(duration: 1.5),
+      captureView: { trackingView = $0 }
+    )
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    let layer = try unwrap(trackingView).layer()
+    CATransaction.flush()
+    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    // when: an animated refresh grows the row to 150 points high, and the resize is part way
+    rowHeight = 150
+    view.refresh(animated: true)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+
+    // when: a non-animated refresh sets the row 100 points high while the resize is in flight. the refresh glides from
+    // the clock's time for this turn, which the test reads first, see `AnimationClock`
+    func heightScalar(_ value: Any) throws -> CGFloat {
+      try (value as? CGSize).unwrap().height
+    }
+    let refreshTime = layer.currentTime
+    let heightAtRefresh = try layer.predictedValue(forKeyPath: "bounds.size", at: refreshTime, scalar: heightScalar)
+    expect(heightAtRefresh) > 50
+    expect(heightAtRefresh) < 100
+    rowHeight = 100
+    view.refresh(animated: false)
+
+    // then: the height glides from the height shown at the refresh's time instead of jumping to 100
+    expect(try layer.predictedValue(forKeyPath: "bounds.size", at: refreshTime, scalar: heightScalar))
+      .to(beApproximatelyEqual(to: heightAtRefresh, within: 1e-6))
+
+    // then: whenever the run loop lets the test look, the shown height is where the animations put it, until it lands on
+    // 100 when the resize would have ended
+    var landed = false
+    for _ in 0 ..< 100 where !landed {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+      let (shown, times) = try layer.readPresentation { $0.bounds.height }
+      try layer.expectShown(shown, forKeyPath: "bounds.size", between: times, scalar: heightScalar, within: 0.5)
+      landed = abs(shown - 100) < 0.01
+    }
+    expect(landed) == true
+    expect(try unwrap(trackingView).frame) == CGRect(x: 0, y: 10, width: 100, height: 100)
+  }
+
   func test_reusedRenderable_skipsFrameAnimation_whenFrameUnchanged_onAnimatedScroll() {
     // given: a content view animating every render pass, with an animated frame-tracking row, rendered
     var trackingView: FrameTrackingView?
