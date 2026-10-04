@@ -30,6 +30,7 @@
 		E5ED82002D8785AD00B3FE3A /* Playground+TransitionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */; };
 		D16BF3001FE4495099A8F9B3 /* Playground+TransitionRevivalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CCF14AA829B44068B356550 /* Playground+TransitionRevivalView.swift */; };
 		3B8F1C6E2A9D4C7B8E1F2A63 /* Playground+ScrolledSlideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4A7C2B5D1F4B8A6C3E9D84 /* Playground+ScrolledSlideView.swift */; };
+		4C9A2E7B1D3F4E8A9B6C5D73 /* Playground+FrameGlideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F3C8E5B2D74C9A8E6F1B84 /* Playground+FrameGlideView.swift */; };
 		F2A6E0283E57AB9F7C54F39E /* Playground+RenderPassLabContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005C35486A45820E0A1AF518 /* Playground+RenderPassLabContent.swift */; };
 		78D7F918B48CF90F91B4D988 /* Playground+RenderPassLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AC2E83CAFF200FFF51409B5 /* Playground+RenderPassLab.swift */; };
 		4A1D9C3E7B2F4E6A8C5D1F06 /* Playground+AdditivePathLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1D9C3E7B2F4E6A8C5D1F05 /* Playground+AdditivePathLab.swift */; };
@@ -66,6 +67,7 @@
 		E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionView.swift"; sourceTree = "<group>"; };
 		9CCF14AA829B44068B356550 /* Playground+TransitionRevivalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+TransitionRevivalView.swift"; sourceTree = "<group>"; };
 		9E4A7C2B5D1F4B8A6C3E9D84 /* Playground+ScrolledSlideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+ScrolledSlideView.swift"; sourceTree = "<group>"; };
+		A1F3C8E5B2D74C9A8E6F1B84 /* Playground+FrameGlideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+FrameGlideView.swift"; sourceTree = "<group>"; };
 		005C35486A45820E0A1AF518 /* Playground+RenderPassLabContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+RenderPassLabContent.swift"; sourceTree = "<group>"; };
 		8AC2E83CAFF200FFF51409B5 /* Playground+RenderPassLab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+RenderPassLab.swift"; sourceTree = "<group>"; };
 		4A1D9C3E7B2F4E6A8C5D1F05 /* Playground+AdditivePathLab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Playground+AdditivePathLab.swift"; sourceTree = "<group>"; };
@@ -145,6 +147,7 @@
 				E5ED81FF2D8785AD00B3FE3A /* Playground+TransitionView.swift */,
 				9CCF14AA829B44068B356550 /* Playground+TransitionRevivalView.swift */,
 				9E4A7C2B5D1F4B8A6C3E9D84 /* Playground+ScrolledSlideView.swift */,
+				A1F3C8E5B2D74C9A8E6F1B84 /* Playground+FrameGlideView.swift */,
 				005C35486A45820E0A1AF518 /* Playground+RenderPassLabContent.swift */,
 				8AC2E83CAFF200FFF51409B5 /* Playground+RenderPassLab.swift */,
 				4A1D9C3E7B2F4E6A8C5D1F05 /* Playground+AdditivePathLab.swift */,
@@ -246,6 +249,7 @@
 				E5ED82002D8785AD00B3FE3A /* Playground+TransitionView.swift in Sources */,
 				D16BF3001FE4495099A8F9B3 /* Playground+TransitionRevivalView.swift in Sources */,
 				3B8F1C6E2A9D4C7B8E1F2A63 /* Playground+ScrolledSlideView.swift in Sources */,
+				4C9A2E7B1D3F4E8A9B6C5D73 /* Playground+FrameGlideView.swift in Sources */,
 				F2A6E0283E57AB9F7C54F39E /* Playground+RenderPassLabContent.swift in Sources */,
 				78D7F918B48CF90F91B4D988 /* Playground+RenderPassLab.swift in Sources */,
 				4A1D9C3E7B2F4E6A8C5D1F06 /* Playground+AdditivePathLab.swift in Sources */,
