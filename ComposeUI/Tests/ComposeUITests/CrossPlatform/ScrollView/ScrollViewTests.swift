@@ -680,6 +680,229 @@ class ScrollViewTests: XCTestCase {
     expect(scrollView.contentOffset) == .zero
     expect(parent.scrollWheelEventCount) == 3
   }
+
+  func test_scrollGesture_nested_parentMovesTheScrollViewUnderThePointer_staysWithTheParent() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, beside the parent's own content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+
+    // when: a gesture toward the bottom begins over the parent's own content
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: the parent handles it
+    expect(views.parent.scrollWheelEventCount) == 2
+    expect(views.container.scrollWheelEventCount) == 0
+
+    // when: the parent's scrolling moves the scroll view under the pointer, so AppKit sends the rest of the gesture and
+    // its glide to the scroll view
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(momentumPhase: .begin, deltaY: -10, after: Constants.eventInterval))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(momentumPhase: .continuous, deltaY: -10, after: Constants.eventInterval))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(momentumPhase: .end, after: Constants.eventInterval))
+
+    // then: the scroll view passes every event to the parent, which handles them, even though the scroll view can
+    // scroll toward the bottom
+    expect(views.scrollView.canScrollToBottom) == true
+    expect(views.parent.scrollWheelEventCount) == 7
+    expect(views.container.scrollWheelEventCount) == 0
+  }
+
+  func test_scrollGesture_nested_parentMovesTheScrollViewUnderThePointer_scrollsOnlyTheParent() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, beside the parent's own content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+
+    // when: a swipe toward the bottom begins over the parent's own content and continues over the scroll view, turning
+    // the run loop after each event, since AppKit applies a swipe as the run loop turns
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
+    wait(timeout: 0.02)
+    for _ in 0 ..< 3 {
+      try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+      wait(timeout: 0.02)
+    }
+
+    // then: the parent scrolls toward the bottom, and the scroll view stays
+    expect(views.parent.contentOffset.y) > 400
+    expect(views.scrollView.contentOffset) == .zero
+  }
+
+  func test_scrollGesture_nested_gestureDuringTheParentsGlide_continuesTheParentsScroll() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, and a flick toward the bottom that the parent
+    // took over its own content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    try Self.sendFlick(to: views.parentContent, deltaY: -10)
+    expect(views.parent.scrollWheelEventCount) == 6
+
+    // when: a touch ends the glide, and its swipe toward the bottom begins over the scroll view 74 ms after the glide's
+    // end, the longest gap a trackpad sent
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.074))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+
+    // then: the swipe continues the parent's scroll, so the parent handles it instead of the scroll view
+    expect(views.parent.scrollWheelEventCount) == 9
+    expect(views.container.scrollWheelEventCount) == 0
+
+    // when: a swipe toward the top begins over the scroll view 42 ms after the latest swipe's end
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: 10, after: 0.042))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: 10, after: Constants.eventInterval))
+
+    // then: a swipe the other way continues the parent's scroll too
+    expect(views.parent.scrollWheelEventCount) == 11
+    expect(views.container.scrollWheelEventCount) == 0
+  }
+
+  func test_scrollGesture_nested_restingFingersDuringTheParentsGlide_goToTheParent() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, and a flick that the parent took
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    try Self.sendFlick(to: views.parentContent, deltaY: -10)
+
+    // when: fingers rest on the trackpad over the scroll view, which ends the glide and starts a gesture 68 ms after the
+    // glide's end, and they lift without moving
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: 0.068))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .cancelled, after: 1))
+
+    // then: the parent gets both events, as the scroll view that the fingers stopped
+    expect(views.parent.scrollWheelEventCount) == 8
+    expect(views.container.scrollWheelEventCount) == 0
+
+    // when: another flick that the parent took, then fingers rest during its glide, and move toward the bottom half a
+    // second later
+    try Self.sendFlick(to: views.parentContent, deltaY: -10)
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: 0.068))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.5))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: the gesture of the resting fingers continues the parent's scroll, however late it moves
+    expect(views.parent.scrollWheelEventCount) == 17
+    expect(views.container.scrollWheelEventCount) == 0
+  }
+
+  func test_scrollGesture_nested_gestureAfterTheParentsScroll_startsAScrollOfItsOwn() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, and a swipe that the parent took over its own
+    // content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    try Self.sendScrollGesture(to: views.parentContent, deltaY: -10)
+    expect(views.parent.scrollWheelEventCount) == 3
+
+    // when: a swipe toward the bottom begins over the scroll view 99 ms after the latest swipe's end
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.099))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+
+    // then: it continues the parent's scroll
+    expect(views.parent.scrollWheelEventCount) == 5
+
+    // when: a swipe toward the bottom begins over the scroll view 101 ms after the latest swipe's end
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.101))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: the parent's scroll is over, so the swipe starts a scroll of its own, which the scroll view takes, since it
+    // can scroll toward the bottom
+    expect(views.parent.scrollWheelEventCount) == 5
+    expect(views.container.scrollWheelEventCount) == 0
+  }
+
+  func test_scrollGesture_nested_restingFingersAtRest_goToTheScrollViewUnderThePointer() throws {
+    // given: a scroll view at the bottom end of its range, nested in a parent scroll view that scrolls, and a swipe that
+    // the parent took over its own content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 200)
+    try Self.sendScrollGesture(to: views.parentContent, deltaY: -10)
+    expect(views.parent.scrollWheelEventCount) == 3
+
+    // when: a second later, fingers rest on the trackpad over the scroll view, and lift without moving
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: Constants.scrollInterval))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .cancelled, after: 1))
+
+    // then: the scroll view under the pointer gets both events
+    expect(views.parent.scrollWheelEventCount) == 3
+
+    // when: fingers rest over the scroll view again, then move toward the bottom
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: Constants.scrollInterval))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.5))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: resting fingers don't choose a scroll view, so the moving gesture does, and goes to the parent, since the
+    // scroll view is at the end
+    expect(views.parent.scrollWheelEventCount) == 5
+    expect(views.container.scrollWheelEventCount) == 0
+  }
+
+  func test_scrollGesture_glideOverAnotherScrollView_isNotHandledByIt() throws {
+    // given: two scroll views side by side in a container, showing content taller than them
+    let window = TestWindow()
+    let container = ScrollWheelRecordingView(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+    window.contentView().addSubview(container)
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 500)
+    container.addSubview(scrollView)
+    let otherScrollView = ScrollView(frame: CGRect(x: 100, y: 0, width: 100, height: 100))
+    otherScrollView.contentSize = CGSize(width: 100, height: 500)
+    container.addSubview(otherScrollView)
+
+    // when: a flick toward the bottom begins over the scroll view, and the pointer moves over the other scroll view
+    // during the glide
+    try scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
+    try scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+    try scrollView.scrollWheel(with: Self.makeScrollEvent(momentumPhase: .begin, deltaY: -10, after: Constants.eventInterval))
+    try otherScrollView.scrollWheel(with: Self.makeScrollEvent(momentumPhase: .continuous, deltaY: -10, after: Constants.eventInterval))
+    try otherScrollView.scrollWheel(with: Self.makeScrollEvent(momentumPhase: .end, after: Constants.eventInterval))
+
+    // then: the glide belongs to the scroll view, so the other scroll view passes it on instead of handling it
+    expect(container.scrollWheelEventCount) == 2
+
+    // when: fingers rest on the trackpad over the other scroll view, then move toward the bottom
+    try otherScrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: Constants.scrollInterval))
+    try otherScrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.5))
+    try otherScrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: the gesture starts a scroll of its own, which the other scroll view takes
+    expect(container.scrollWheelEventCount) == 2
+  }
+
+  func test_scrollGesture_nested_latchedScrollViewRemoved_isNotHandledByTheParent() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, and a swipe toward the bottom that the scroll
+    // view took
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
+    expect(views.parent.scrollWheelEventCount) == 0
+
+    // when: the scroll view is removed during the swipe, so AppKit sends the rest of the swipe to the parent's content
+    // under the pointer
+    views.scrollView.removeFromSuperview()
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+
+    // then: the swipe belongs to the removed scroll view, so the parent passes it on instead of taking it over
+    expect(views.parent.scrollWheelEventCount) == 2
+    expect(views.container.scrollWheelEventCount) == 2
+  }
+
+  func test_scrollGesture_nested_parentDisabledDuringItsGlide_isNotHandledByTheScrollView() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, and a swipe toward the bottom that the parent
+    // took over its own content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+    expect(views.parent.scrollWheelEventCount) == 2
+
+    // when: the parent's scrolling is disabled, and its glide lands on the scroll view
+    views.parent.isScrollEnabled = false
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(momentumPhase: .begin, deltaY: -10, after: Constants.eventInterval))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(momentumPhase: .end, after: Constants.eventInterval))
+
+    // then: the scroll view doesn't take over the glide, but passes it to the parent, which passes it on
+    expect(views.parent.scrollWheelEventCount) == 4
+    expect(views.container.scrollWheelEventCount) == 2
+  }
   #endif
 
   // MARK: - Scroll Elasticity
@@ -972,6 +1195,113 @@ class ScrollViewTests: XCTestCase {
     // then: AppKit brings the document back from that side too
     expect(scrollView.contentOffset.y) == 0
   }
+
+  func test_scrollWheel_nested_atTheEnd_passesToTheParent() throws {
+    // given: a scroll view at the bottom end of its range, nested in a parent scroll view that can scroll in every
+    // direction
+    let window = TestWindow()
+    let (parent, scrollView) = Self.makeNestedScrollViews(in: window)
+    scrollView.contentOffset = CGPoint(x: 0, y: 200)
+
+    // when: the scroll view gets a mouse wheel event toward the bottom
+    try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaY: -10))
+
+    // then: the scroll view can't scroll toward the bottom, so the event goes to the parent
+    expect(parent.scrollWheelEventCount) == 1
+
+    // when: the scroll view gets a mouse wheel event toward the top
+    try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaY: 10))
+
+    // then: the scroll view can scroll toward the top, so it handles the event
+    expect(parent.scrollWheelEventCount) == 1
+  }
+
+  func test_scrollWheel_nested_atTheEnd_alwaysBounces_passesToTheParent() throws {
+    // given: a scroll view that always bounces, at the bottom right end of its range, nested in a parent scroll view
+    // that can scroll in every direction
+    let window = TestWindow()
+    let (parent, scrollView) = Self.makeNestedScrollViews(in: window)
+    scrollView.alwaysBounceHorizontal = true
+    scrollView.alwaysBounceVertical = true
+    scrollView.contentOffset = CGPoint(x: 200, y: 200)
+
+    // when: the scroll view gets mouse wheel events toward the bottom and toward the right
+    try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaY: -10))
+    try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaX: -10))
+
+    // then: a mouse wheel scroll can't bounce, so both events go to the parent
+    expect(parent.scrollWheelEventCount) == 2
+
+    // when: trackpad gestures scroll toward the bottom and toward the right
+    try Self.sendScrollGesture(to: scrollView, deltaY: -10)
+    try Self.sendScrollGesture(to: scrollView, deltaX: -10)
+
+    // then: a trackpad gesture can bounce, so the scroll view handles both
+    expect(parent.scrollWheelEventCount) == 2
+  }
+
+  func test_scrollWheel_nested_afterAGestureThatWentToTheParent_goesByItsOwnDirection() throws {
+    // given: a scroll view at the bottom end of its range, nested in a parent scroll view that can scroll in every
+    // direction, and a gesture toward the bottom that went to the parent
+    let window = TestWindow()
+    let (parent, scrollView) = Self.makeNestedScrollViews(in: window)
+    scrollView.contentOffset = CGPoint(x: 0, y: 200)
+    try Self.sendScrollGesture(to: scrollView, deltaY: -10)
+    expect(parent.scrollWheelEventCount) == 3
+
+    // when: the scroll view gets a mouse wheel event toward the top
+    try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaY: 10))
+
+    // then: the scroll view can scroll toward the top, so it handles the event, instead of sending it where the gesture
+    // went
+    expect(parent.scrollWheelEventCount) == 3
+  }
+
+  func test_scrollWheel_nested_duringTheParentsGesture_goesByItsOwnDirection() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, and a gesture toward the bottom in progress,
+    // which the parent took over its own content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
+    expect(views.parent.scrollWheelEventCount) == 1
+
+    // when: the scroll view gets a mouse wheel event toward the bottom during the gesture
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(deltaY: -10, after: Constants.eventInterval))
+
+    // then: the scroll view can scroll toward the bottom, so it handles the event, instead of following the gesture
+    expect(views.parent.scrollWheelEventCount) == 1
+
+    // when: the gesture's next event lands on the scroll view
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: the gesture still goes to the parent
+    expect(views.parent.scrollWheelEventCount) == 2
+    expect(views.container.scrollWheelEventCount) == 0
+  }
+
+  func test_scrollWheel_nested_atTheEnd_scrollsTheParent() throws {
+    // given: a scroll view at the bottom end of its range, nested in a parent scroll view that scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 200)
+
+    // when: the scroll view gets a mouse wheel event toward the bottom, and the run loop turns, which is when AppKit
+    // applies a scroll
+    try views.scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaY: -10))
+    wait(timeout: 0.1)
+
+    // then: the parent scrolls by the event's 10 pt, and the scroll view stays at the end
+    expect(views.parent.contentOffset.y) == 410
+    expect(views.scrollView.contentOffset.y) == 200
+
+    // when: the scroll view gets a mouse wheel event toward the top
+    try views.scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaY: 10))
+    wait(timeout: 0.1)
+
+    // then: the scroll view scrolls by the event's 10 pt, and the parent stays
+    expect(views.scrollView.contentOffset.y) == 190
+    expect(views.parent.contentOffset.y) == 410
+  }
   #endif
 
   // MARK: - Helpers
@@ -996,40 +1326,103 @@ class ScrollViewTests: XCTestCase {
     return (parent, scrollView)
   }
 
-  /// Sends the events of a trackpad scroll gesture to the scroll view: one that begins and one that changes, both with
-  /// the deltas, then one that ends.
-  private static func sendScrollGesture(to scrollView: ScrollView, deltaX: Int32 = 0, deltaY: Int32 = 0) throws {
-    for phase in [CGScrollPhase.began, .changed, .ended] {
-      let isEnded = phase == .ended
-      let cgEvent = try unwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: isEnded ? 0 : deltaY, wheel2: isEnded ? 0 : deltaX, wheel3: 0))
-      cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
-      try scrollView.scrollWheel(with: unwrap(NSEvent(cgEvent: cgEvent)))
-    }
+  /// Makes the nested scroll views of `makeNestedScrollViews(in:)` with a parent scroll view that scrolls, beside a view
+  /// of the parent's own content, inside a container.
+  private static func makeScrollingNestedScrollViews(in window: TestWindow) -> ScrollingNestedScrollViews {
+    let container = ScrollWheelRecordingView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    window.contentView().addSubview(container)
+
+    let parent = ScrollWheelCountingScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    parent.contentSize = CGSize(width: 1000, height: 1000)
+    parent.contentOffset = CGPoint(x: 400, y: 400)
+    container.addSubview(parent)
+
+    let scrollView = ScrollView(frame: CGRect(x: 400, y: 400, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 300, height: 300)
+    parent.documentView?.addSubview(scrollView)
+
+    let parentContent = NSView(frame: CGRect(x: 500, y: 400, width: 100, height: 100))
+    parent.documentView?.addSubview(parentContent)
+    return ScrollingNestedScrollViews(container: container, parent: parent, scrollView: scrollView, parentContent: parentContent)
   }
 
-  /// Makes a mouse wheel event, which has no phase, scrolling by the deltas in pixels.
-  private static func makeMouseWheelEvent(deltaX: Int32 = 0, deltaY: Int32 = 0) throws -> NSEvent {
+  /// The timestamp of the latest synthetic scroll event, in nanoseconds, as `CGEvent` keeps it.
+  ///
+  /// The helpers give the events increasing timestamps, as AppKit's events have, since a gesture that starts shortly
+  /// after a trackpad scroll's latest event continues the scroll.
+  private static var latestEventTimestamp: CGEventTimestamp = 0
+
+  /// Makes a scroll wheel event that scrolls by the deltas in pixels, with the phases, the interval after the latest
+  /// event. An event without phases is a mouse wheel event.
+  private static func makeScrollEvent(
+    phase: CGScrollPhase? = nil,
+    momentumPhase: CGMomentumScrollPhase? = nil,
+    deltaX: Int32 = 0,
+    deltaY: Int32 = 0,
+    after interval: TimeInterval
+  ) throws -> NSEvent {
     let cgEvent = try unwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: deltaY, wheel2: deltaX, wheel3: 0))
+    if let phase {
+      cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+    }
+    if let momentumPhase {
+      cgEvent.setIntegerValueField(.scrollWheelEventMomentumPhase, value: Int64(momentumPhase.rawValue))
+    }
+    latestEventTimestamp += CGEventTimestamp((interval * 1e9).rounded())
+    cgEvent.timestamp = latestEventTimestamp
     return try unwrap(NSEvent(cgEvent: cgEvent))
   }
 
-  /// Sends the start of a trackpad swipe to the scroll view: an event that begins and two that change, all with the
-  /// deltas, turning the run loop after each, since AppKit applies a swipe as the run loop turns.
+  /// Sends the events of a trackpad scroll gesture to the view, a second after the latest event: one that begins and
+  /// one that changes, both with the deltas, then one that ends.
+  private static func sendScrollGesture(to view: NSView, deltaX: Int32 = 0, deltaY: Int32 = 0) throws {
+    try view.scrollWheel(with: makeScrollEvent(phase: .began, deltaX: deltaX, deltaY: deltaY, after: Constants.scrollInterval))
+    try view.scrollWheel(with: makeScrollEvent(phase: .changed, deltaX: deltaX, deltaY: deltaY, after: Constants.eventInterval))
+    try view.scrollWheel(with: makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+  }
+
+  /// Sends a trackpad flick to the view, a second after the latest event: a gesture with the vertical delta, then its
+  /// glide, which ends with the momentum's end.
+  private static func sendFlick(to view: NSView, deltaY: Int32) throws {
+    try view.scrollWheel(with: makeScrollEvent(phase: .began, deltaY: deltaY, after: Constants.scrollInterval))
+    try view.scrollWheel(with: makeScrollEvent(phase: .changed, deltaY: deltaY, after: Constants.eventInterval))
+    try view.scrollWheel(with: makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+    try view.scrollWheel(with: makeScrollEvent(momentumPhase: .begin, deltaY: deltaY, after: Constants.eventInterval))
+    try view.scrollWheel(with: makeScrollEvent(momentumPhase: .continuous, deltaY: deltaY, after: Constants.eventInterval))
+    try view.scrollWheel(with: makeScrollEvent(momentumPhase: .end, after: Constants.eventInterval))
+  }
+
+  /// Makes a mouse wheel event, which has no phase, scrolling by the deltas in pixels, a second after the latest event.
+  private static func makeMouseWheelEvent(deltaX: Int32 = 0, deltaY: Int32 = 0) throws -> NSEvent {
+    try makeScrollEvent(deltaX: deltaX, deltaY: deltaY, after: Constants.scrollInterval)
+  }
+
+  /// Sends the start of a trackpad swipe to the scroll view, a second after the latest event: an event that begins and
+  /// two that change, all with the deltas, turning the run loop after each, since AppKit applies a swipe as the run loop
+  /// turns.
   private func beginTrackpadSwipe(on scrollView: ScrollView, deltaX: Int32 = 0, deltaY: Int32 = 0) throws {
     for phase in [CGScrollPhase.began, .changed, .changed] {
-      let cgEvent = try unwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: deltaY, wheel2: deltaX, wheel3: 0))
-      cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
-      try scrollView.scrollWheel(with: unwrap(NSEvent(cgEvent: cgEvent)))
+      let interval = phase == .began ? Constants.scrollInterval : Constants.eventInterval
+      try scrollView.scrollWheel(with: Self.makeScrollEvent(phase: phase, deltaX: deltaX, deltaY: deltaY, after: interval))
       wait(timeout: 0.02)
     }
   }
 
   /// Sends the end of a trackpad swipe to the scroll view, and turns the run loop.
   private func endTrackpadSwipe(on scrollView: ScrollView) throws {
-    let cgEvent = try unwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: 0, wheel2: 0, wheel3: 0))
-    cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(CGScrollPhase.ended.rawValue))
-    try scrollView.scrollWheel(with: unwrap(NSEvent(cgEvent: cgEvent)))
+    try scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .ended, after: Constants.eventInterval))
     wait(timeout: 0.1)
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The interval between the events of a trackpad gesture, which a trackpad sends at 120 Hz.
+    static let eventInterval: TimeInterval = 1.0 / 120
+
+    /// The interval before a scroll that doesn't continue the latest one.
+    static let scrollInterval: TimeInterval = 1
   }
   #endif
 }
@@ -1051,6 +1444,27 @@ private final class ScrollWheelRecordingScrollView: ScrollView {
   override func scrollWheel(with event: NSEvent) {
     scrollWheelEventCount += 1
   }
+}
+
+/// A scroll view that counts the scroll wheel events that reach it, then handles them as a scroll view does.
+private final class ScrollWheelCountingScrollView: ScrollView {
+
+  private(set) var scrollWheelEventCount = 0
+
+  override func scrollWheel(with event: NSEvent) {
+    scrollWheelEventCount += 1
+    super.scrollWheel(with: event)
+  }
+}
+
+/// A scroll view nested in a parent scroll view that scrolls, beside a view of the parent's own content, inside a
+/// container that records the scroll wheel events the parent passes on.
+private struct ScrollingNestedScrollViews {
+
+  let container: ScrollWheelRecordingView
+  let parent: ScrollWheelCountingScrollView
+  let scrollView: ScrollView
+  let parentContent: NSView
 }
 #endif
 

@@ -199,7 +199,36 @@ open class ScrollView: NSScrollView {
   /// While scrolling is disabled, the scroll view passes scroll wheel events to its next responder.
   public var isScrollEnabled: Bool = true
 
-  private var scrollSession: ScrollSession?
+  /// A trackpad or Magic Mouse scroll, latched to the scroll view that took it.
+  private struct ScrollLatch {
+
+    /// The scroll view that took the scroll, which gets all of the scroll's events.
+    weak var scrollView: ScrollView?
+
+    /// Whether the scroll view handles the scroll, instead of passing it to its next responder.
+    let handlesScroll: Bool
+
+    /// The timestamp of the latest event that the scroll view got.
+    var timestamp: TimeInterval
+
+    /// Whether the latest event that the scroll view got is a `mayBegin` event.
+    var isMayBegin: Bool
+
+    init(scrollView: ScrollView, handlesScroll: Bool, timestamp: TimeInterval) {
+      self.scrollView = scrollView
+      self.handlesScroll = handlesScroll
+      self.timestamp = timestamp
+      self.isMayBegin = false
+    }
+  }
+
+  /// The trackpad or Magic Mouse scroll in progress, latched to the scroll view that took it. Main thread only.
+  ///
+  /// Overriding `scrollWheel(with:)` opts the scroll views out of AppKit's responsive scrolling, so AppKit sends each
+  /// event to the view under the pointer, even in the middle of a gesture or its glide, instead of keeping the scroll
+  /// with the scroll view it started on, as it does for its own scroll views. The scroll views keep the scroll with that
+  /// scroll view themselves, so that a nested scroll view that the content moves under the pointer doesn't take it over.
+  private static var latch: ScrollLatch?
 
   override open func scrollWheel(with event: NSEvent) {
     // https://apptyrant.com/2015/05/18/how-to-disable-nsscrollview-scrolling/
@@ -210,26 +239,99 @@ open class ScrollView: NSScrollView {
       return
     }
 
-    let scrollSession: ScrollSession
-    if let currentScrollSession = self.scrollSession {
-      if ScrollSession.isNewSession(with: event) {
-        scrollSession = ScrollSession()
-      } else {
-        scrollSession = currentScrollSession
-      }
-    } else {
-      scrollSession = ScrollSession()
-    }
-    self.scrollSession = scrollSession
-
-    scrollSession.update(with: event, scrollView: self)
-
-    switch scrollSession.target {
-    case .handleBySelf:
+    if handles(event) {
       super.scrollWheel(with: droppingDeltasAlongFixedAxes(of: event))
-    case .passToOutside:
+    } else {
       nextResponder?.scrollWheel(with: event)
     }
+  }
+
+  /// Returns whether the scroll view handles the scroll wheel event, instead of passing it to its next responder.
+  private func handles(_ event: NSEvent) -> Bool {
+    let phase = event.phase
+
+    // a mouse wheel event has neither phase, and AppKit sends each one to the view under the pointer, even for its own
+    // scroll views, so each one starts a scroll of its own instead of following the latched scroll
+    guard !phase.isEmpty || !event.momentumPhase.isEmpty else {
+      return takesScroll(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY, canBounce: false)
+    }
+
+    guard var latch = Self.latch, let latchedScrollView = latch.scrollView, self.isDescendant(of: latchedScrollView) else {
+      switch phase {
+      case .mayBegin,
+           .began:
+        return startsScroll(with: event)
+      default:
+        // a scroll that a scroll view outside this one took isn't for this one, while a scroll that no scroll view took,
+        // such as resting fingers, goes to the scroll view under the pointer
+        return Self.latch?.scrollView == nil
+      }
+    }
+
+    switch phase {
+    case .mayBegin,
+         .began:
+      // a touch on the trackpad ends a glide before the touch's first event comes, so a gesture that starts shortly
+      // after the scroll's latest event continues the scroll, as a gesture during a glide does on AppKit's own scroll
+      // views and on UIKit. resting fingers start a gesture with a `mayBegin` event, and its `began` event follows when
+      // they move, however late.
+      guard event.timestamp - latch.timestamp < Constants.latchingInterval || (phase == .began && latch.isMayBegin) else {
+        return startsScroll(with: event)
+      }
+    default:
+      break
+    }
+
+    guard latchedScrollView === self else {
+      // the latched scroll view is an ancestor, which gets the event through the responder chain
+      return false
+    }
+
+    latch.timestamp = event.timestamp
+    latch.isMayBegin = phase == .mayBegin
+    Self.latch = latch
+    return latch.handlesScroll
+  }
+
+  /// Starts a scroll with the first event of a gesture, and returns whether the scroll view handles the event.
+  private func startsScroll(with event: NSEvent) -> Bool {
+    switch event.phase {
+    case .mayBegin:
+      // resting fingers have no direction to choose a scroll view by, so the scroll view under the pointer gets the
+      // event, and the gesture's `began` event chooses one if the fingers move
+      Self.latch = nil
+      return true
+    default:
+      // each scroll view that the event reaches latches the scroll in turn, so the scroll stays with the one that handles
+      // it, or with the outermost one, which passes it on to a responder outside the scroll views
+      let handlesScroll = takesScroll(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY, canBounce: true)
+      Self.latch = ScrollLatch(scrollView: self, handlesScroll: handlesScroll, timestamp: event.timestamp)
+      return handlesScroll
+    }
+  }
+
+  /// Returns whether the scroll view takes a scroll that starts with the deltas, instead of passing it to a parent
+  /// scroll view.
+  ///
+  /// - Parameters:
+  ///   - deltaX: The horizontal scroll delta.
+  ///   - deltaY: The vertical scroll delta.
+  ///   - canBounce: Whether the scroll can bounce past the ends of the scrollable range, which a mouse wheel scroll can't.
+  private func takesScroll(deltaX: CGFloat, deltaY: CGFloat, canBounce: Bool) -> Bool {
+    // the scroll view takes the scroll if any of these is true, and otherwise passes it to a parent scroll view:
+    // 1. its offset is outside the scrollable range, for example set in code or still bouncing back. AppKit brings the
+    //    offset back into the range only for the scroll view that handles the scroll.
+    // 2. it always bounces in the scroll's direction, and the scroll can bounce.
+    // 3. it can scroll in the scroll's direction.
+    // 4. no parent scroll view can scroll in the scroll's direction either, so it keeps the scroll and can bounce.
+    // a positive delta scrolls toward the top or the left.
+    let bouncesHorizontally = canBounce && alwaysBounceHorizontal
+    let bouncesVertically = canBounce && alwaysBounceVertical
+    return isContentOffsetOutsideScrollableRange ||
+      (deltaY > 0 && (bouncesVertically || canScrollToTop || !hasParentScrollView { $0.canScrollToTop })) ||
+      (deltaY < 0 && (bouncesVertically || canScrollToBottom || !hasParentScrollView { $0.canScrollToBottom })) ||
+      (deltaX > 0 && (bouncesHorizontally || canScrollToLeft || !hasParentScrollView { $0.canScrollToLeft })) ||
+      (deltaX < 0 && (bouncesHorizontally || canScrollToRight || !hasParentScrollView { $0.canScrollToRight }))
   }
 
   /// Returns the event without its scroll delta along an axis the scroll view has no room to scroll along, while the
@@ -361,96 +463,15 @@ open class ScrollView: NSScrollView {
   private var hasVerticalScrollRange: Bool {
     maxOffsetY.extends(beyond: minOffsetY)
   }
-}
 
-private final class ScrollSession {
+  // MARK: - Constants
 
-  /// Whether the event is a new scroll session.
-  static func isNewSession(with event: NSEvent) -> Bool {
-    return event.phase == .began
-  }
+  private enum Constants {
 
-  private enum Phase {
-
-    /// The phase of the scroll event.
+    /// How long after a latched scroll's latest event a gesture that starts continues the scroll.
     ///
-    /// `phase` | `momentumPhase`
-    /// --------+----------
-    /// began   | 0
-    /// changed | 0
-    /// ...
-    /// changed | 0
-    /// ended   | 0
-    /// 0       | began
-    /// 0       | changed
-    /// 0       | ...
-    /// 0       | changed
-    /// 0       | ended
-
-    case scrollBegan
-    case scrollChanged
-    case scrollEnded
-    case momentumBegan
-    case momentumChanged
-    case momentumEnded
-  }
-
-  private var phase: Phase = .scrollBegan
-
-  enum Target {
-    case handleBySelf
-    case passToOutside
-  }
-
-  private(set) var target: Target = .handleBySelf
-
-  init() {}
-
-  func update(with event: NSEvent, scrollView: ScrollView) {
-    switch event.phase {
-    case .began:
-      phase = .scrollBegan
-
-      // decide if the scroll view should handle the scroll event by itself
-      //
-      // the core logic is: if the scroll view's offset is outside its scrollable range, for example set so in code or
-      // still bouncing back, let it handle the scroll event, so that AppKit brings the offset back into the range. a
-      // parent scroll view handling the event would leave the offset outside the range.
-      // otherwise, given the scrolling direction, if the scroll view is configured to always bounce, or can scroll to
-      // the direction, let it handle the scroll event.
-      // otherwise, if the scroll view has a parent scroll view that can scroll to the direction, let the parent scroll
-      // view handle the scroll event.
-      // if there's no parent scroll view that can scroll to the direction, let the scroll view handle the scroll event
-      // by itself so that it can bounce (elasticity).
-
-      if scrollView.isContentOffsetOutsideScrollableRange ||
-        (event.scrollingDeltaY > 0 && (scrollView.alwaysBounceVertical || scrollView.canScrollToTop || !scrollView.hasParentScrollView { $0.canScrollToTop })) ||
-        (event.scrollingDeltaY < 0 && (scrollView.alwaysBounceVertical || scrollView.canScrollToBottom || !scrollView.hasParentScrollView { $0.canScrollToBottom })) ||
-        (event.scrollingDeltaX > 0 && (scrollView.alwaysBounceHorizontal || scrollView.canScrollToLeft || !scrollView.hasParentScrollView { $0.canScrollToLeft })) ||
-        (event.scrollingDeltaX < 0 && (scrollView.alwaysBounceHorizontal || scrollView.canScrollToRight || !scrollView.hasParentScrollView { $0.canScrollToRight }))
-      {
-        target = .handleBySelf
-      } else {
-        target = .passToOutside
-      }
-    case .changed:
-      phase = .scrollChanged
-    case .ended:
-      phase = .scrollEnded
-    default:
-      if event.phase.rawValue == 0 {
-        switch event.momentumPhase {
-        case .began:
-          phase = .momentumBegan
-        case .changed:
-          phase = .momentumChanged
-        case .ended:
-          phase = .momentumEnded
-        default:
-          break
-        }
-      }
-    }
+    /// A touch that ends a glide on a trackpad sends its first event 40 to 75 ms after the glide's end.
+    static let latchingInterval: TimeInterval = 0.1
   }
 }
 
