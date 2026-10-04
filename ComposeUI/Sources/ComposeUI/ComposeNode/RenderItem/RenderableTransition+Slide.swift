@@ -43,9 +43,9 @@ public extension RenderableTransition {
 
   /// Creates a slide transition.
   ///
-  /// For insertion, the renderable starts outside the `ComposeView` on the `from` side (with `overshoot` applied) and
-  /// slides into `targetFrame`. For removal, the renderable slides from its current frame to outside the `ComposeView`
-  /// on the `to` side, or the `from` side when `to` is nil.
+  /// For insertion, the renderable starts just outside the `ComposeView`'s visible area on the `from` side (with
+  /// `overshoot` applied) and slides into `targetFrame`. For removal, the renderable slides from its current frame to
+  /// just outside the visible area on the `to` side, or the `from` side when `to` is nil.
   ///
   /// Reviving a renderable while its slide-out is in flight continues the motion from wherever the removal left it, so
   /// the `from` side only applies to fresh insertions. A zero-duration timing applies the end frame and completes
@@ -88,17 +88,7 @@ public extension RenderableTransition {
             // offset keeps decaying on top
             startPosition = revivalPosition
           } else {
-            let startFrame: CGRect
-            switch fromSide {
-            case .top:
-              startFrame = targetFrame.translate(dy: -targetFrame.maxY - overshoot)
-            case .bottom:
-              startFrame = targetFrame.translate(dy: context.contentView.visibleSize.height - targetFrame.minY + overshoot)
-            case .left:
-              startFrame = targetFrame.translate(dx: -targetFrame.maxX - overshoot)
-            case .right:
-              startFrame = targetFrame.translate(dx: context.contentView.visibleSize.width - targetFrame.minX + overshoot)
-            }
+            let startFrame = frame(targetFrame, outsideVisibleAreaOf: context.contentView, on: fromSide, overshoot: overshoot)
             startPosition = layer.position(from: startFrame)
           }
 
@@ -123,19 +113,7 @@ public extension RenderableTransition {
         animatedKeyPaths: ["position"],
         animate: { renderable, context, completion in
           let layer = renderable.layer
-          let currentFrame = layer.frame
-
-          let targetFrame: CGRect
-          switch toSide ?? fromSide {
-          case .top:
-            targetFrame = currentFrame.translate(dy: -currentFrame.maxY - overshoot)
-          case .bottom:
-            targetFrame = currentFrame.translate(dy: context.contentView.visibleSize.height - currentFrame.minY + overshoot)
-          case .left:
-            targetFrame = currentFrame.translate(dx: -currentFrame.maxX - overshoot)
-          case .right:
-            targetFrame = currentFrame.translate(dx: context.contentView.visibleSize.width - currentFrame.minX + overshoot)
-          }
+          let targetFrame = frame(layer.frame, outsideVisibleAreaOf: context.contentView, on: toSide ?? fromSide, overshoot: overshoot)
 
           guard timing.timing.duration > 0 || timing.delay > 0 else {
             renderable.setFrame(targetFrame)
@@ -159,5 +137,30 @@ public extension RenderableTransition {
         }
       ) : nil
     )
+  }
+
+  /// Returns the frame moved along the side's axis to just outside the compose view's visible area on that side.
+  ///
+  /// Renderable frames are in content coordinates, so the visible area is the rect at the content offset, which moves
+  /// as the view scrolls.
+  ///
+  /// - Parameters:
+  ///   - frame: The frame to move.
+  ///   - contentView: The compose view whose visible area the frame moves outside of.
+  ///   - side: The side to move the frame to.
+  ///   - overshoot: The extra distance past the edge of the visible area.
+  /// - Returns: The moved frame.
+  private static func frame(_ frame: CGRect, outsideVisibleAreaOf contentView: ComposeView, on side: SlideSide, overshoot: CGFloat) -> CGRect {
+    let visibleArea = CGRect(origin: contentView.contentOffset, size: contentView.visibleSize)
+    switch side {
+    case .top:
+      return frame.translate(dy: visibleArea.minY - frame.maxY - overshoot)
+    case .bottom:
+      return frame.translate(dy: visibleArea.maxY - frame.minY + overshoot)
+    case .left:
+      return frame.translate(dx: visibleArea.minX - frame.maxX - overshoot)
+    case .right:
+      return frame.translate(dx: visibleArea.maxX - frame.minX + overshoot)
+    }
   }
 }
