@@ -96,6 +96,16 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
+      ViewNode<Playground.ScrolledSlideView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: Playground.ScrolledSlideView.preferredHeight)
+
+      Spacer(height: 16)
+
       ViewNode<Playground.AnimateLabView>()
         .underlay {
           LayerNode()
