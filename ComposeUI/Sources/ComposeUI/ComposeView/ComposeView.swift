@@ -1687,9 +1687,11 @@ open class ComposeView: BaseScrollView {
     let contentNode = context.contentNode
     let boundsSize = context.bounds.size
 
-    // the scroll bar decision models the scroll bars' space itself, so it reads the insets without it. read them once,
-    // so a handler that changes them can't mix two values in the pass, and the next pass renders the change.
-    let insetsExcludingScrollBars = contentInsetExcludingScrollBars
+    // read the insets once, so a handler that changes them can't mix two values in the pass, and the next pass renders the
+    // change. the insets in effect also count legacy scroll bars over the content, so a change shows in the insets without
+    // them.
+    let startInsets = adjustedContentInset
+    let startInsetsExcludingScrollBars = contentInsetExcludingScrollBars
 
     // hiding a legacy scroll bar grows the visible area, and AppKit clamps the offset to it, against the old content
     // size and even when the update shows the scroll bar again. keep the offset instead, and clamp it once the final
@@ -1711,11 +1713,12 @@ open class ComposeView: BaseScrollView {
       }
     }
 
+    var laidOutContainerSize: CGSize?
     var laidOutSize: CGSize?
-    func layout(for containerSize: CGSize, insets: EdgeInsets) {
-      let sizeBetweenInsets = Self.sizeBetweenInsets(insets, in: containerSize)
+    func layout(for containerSize: CGSize, sizeBetweenInsets: CGSize) {
       let layoutSize = CGSize(width: max(sizeBetweenInsets.width, 0), height: max(sizeBetweenInsets.height, 0))
-      guard layoutSize != laidOutSize else {
+      // the handler hears of each new viewport, even one with the same layout size, since it can adjust the layout to it
+      guard containerSize != laidOutContainerSize || layoutSize != laidOutSize else {
         return
       }
 
@@ -1756,6 +1759,7 @@ open class ComposeView: BaseScrollView {
       // made after the handler, which can change the scale
       let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: context.contentEvaluation)
       _ = contentNode.layout(containerSize: layoutSize, context: layoutContext)
+      laidOutContainerSize = containerSize
       laidOutSize = layoutSize
 
       #if DEBUG
@@ -1780,20 +1784,26 @@ open class ComposeView: BaseScrollView {
       }
 
       if !keepsScrollIndicators {
+        // the space between the insets AppKit leaves now, plus the space the scroll bars that show take from the visible
+        // size or the insets, is the space without scroll bars. it counts what else AppKit changes, such as the insets it
+        // scrolls with when they're taller than the view.
+        let shownScrollBarSpace = scrollBarSpace(horizontal: showsHorizontalScrollIndicator, vertical: showsVerticalScrollIndicator, in: bounds.size)
+        let sizeBetweenInsetsNow = Self.sizeBetweenInsets(startInsets, in: self.renderSize(for: boundsSize))
+        let sizeWithoutScrollBars = CGSize(width: sizeBetweenInsetsNow.width + shownScrollBarSpace.width, height: sizeBetweenInsetsNow.height + shownScrollBarSpace.height)
+
         // the content or its container size changed, so lay out for the view's full size to check whether the scroll
         // indicators need to change.
-        layout(for: boundsSize, insets: insetsExcludingScrollBars)
-        let sizeBetweenInsets = Self.sizeBetweenInsets(insetsExcludingScrollBars, in: boundsSize)
-        var horizontal = contentNode.size.width.extends(beyond: sizeBetweenInsets.width)
-        var vertical = contentNode.size.height.extends(beyond: sizeBetweenInsets.height)
+        layout(for: boundsSize, sizeBetweenInsets: sizeWithoutScrollBars)
+        var horizontal = contentNode.size.width.extends(beyond: sizeWithoutScrollBars.width)
+        var vertical = contentNode.size.height.extends(beyond: sizeWithoutScrollBars.height)
 
         // a legacy scroll bar takes space, which can make the content overflow the other axis. compute that space rather
         // than set the scroll bars and read AppKit's tiling, which re-tiles twice when the pass hides a scroll bar and
         // shows it again.
-        let renderSize = boundsSize - scrollBarSpace(horizontal: horizontal, vertical: vertical, in: boundsSize)
-        if renderSize != boundsSize {
-          layout(for: renderSize, insets: insetsExcludingScrollBars)
-          let sizeBetweenInsets = Self.sizeBetweenInsets(insetsExcludingScrollBars, in: renderSize)
+        let space = scrollBarSpace(horizontal: horizontal, vertical: vertical, in: boundsSize)
+        if space != .zero {
+          let sizeBetweenInsets = sizeWithoutScrollBars - space
+          layout(for: boundsSize - space, sizeBetweenInsets: sizeBetweenInsets)
           horizontal = horizontal || contentNode.size.width.extends(beyond: sizeBetweenInsets.width)
           vertical = vertical || contentNode.size.height.extends(beyond: sizeBetweenInsets.height)
         }
@@ -1808,12 +1818,11 @@ open class ComposeView: BaseScrollView {
     }
     lastScrollIndicatorBehavior = scrollIndicatorBehavior
 
-    // legacy scroll bars over the content move their thickness from the visible size to the insets, which keeps the size
-    // between the insets that the decision computed. use the insets read when the pass began, since reading the insets in
-    // effect would pick up a handler's change.
-    let insets = insetsExcludingScrollBars + (adjustedContentInset - contentInsetExcludingScrollBars)
+    // the insets in effect once the scroll bars are set, unless a handler changed the insets in this pass, which changed
+    // the insets in effect too. keep the ones the pass began with then, and the next pass renders the change.
+    let insets = contentInsetExcludingScrollBars.isEqual(to: startInsetsExcludingScrollBars) ? adjustedContentInset : startInsets
     let renderSize = self.renderSize(for: boundsSize)
-    layout(for: renderSize, insets: insets)
+    layout(for: renderSize, sizeBetweenInsets: Self.sizeBetweenInsets(insets, in: renderSize))
 
     // if the scroll bars end as they started, the visible area hasn't changed, so the offset needs no clamp, and AppKit
     // clamps it itself for a content size change. clamping anyway would move an offset set outside the scrollable range,

@@ -58,14 +58,4 @@ extension EdgeInsets {
   func isEqual(to other: EdgeInsets) -> Bool {
     top == other.top && left == other.left && bottom == other.bottom && right == other.right
   }
-
-  /// Returns the sum of two insets, side by side.
-  static func + (left: EdgeInsets, right: EdgeInsets) -> EdgeInsets {
-    EdgeInsets(top: left.top + right.top, left: left.left + right.left, bottom: left.bottom + right.bottom, right: left.right + right.right)
-  }
-
-  /// Returns the difference of two insets, side by side.
-  static func - (left: EdgeInsets, right: EdgeInsets) -> EdgeInsets {
-    EdgeInsets(top: left.top - right.top, left: left.left - right.left, bottom: left.bottom - right.bottom, right: left.right - right.right)
-  }
 }
