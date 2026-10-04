@@ -214,11 +214,15 @@ open class ScrollView: NSScrollView {
     /// Whether the latest event that the scroll view got is a `mayBegin` event.
     var isMayBegin: Bool
 
+    /// Whether the scroll ended without a glide, so that no gesture continues it.
+    var endedWithoutGlide: Bool
+
     init(scrollView: ScrollView, handlesScroll: Bool, timestamp: TimeInterval) {
       self.scrollView = scrollView
       self.handlesScroll = handlesScroll
       self.timestamp = timestamp
       self.isMayBegin = false
+      self.endedWithoutGlide = false
     }
   }
 
@@ -256,6 +260,13 @@ open class ScrollView: NSScrollView {
       return takesScroll(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY, canBounce: false)
     }
 
+    // a gesture that's cancelled, or that ends right after `mayBegin` because resting fingers lift without moving, ends
+    // the scroll without a glide, so the next gesture comes from a new touch. AppKit sends that last event to the view
+    // under the pointer, which can be outside the latched scroll view, so whichever scroll view gets it ends the scroll
+    if phase == .cancelled || (phase == .ended && Self.latch?.isMayBegin == true) {
+      Self.latch?.endedWithoutGlide = true
+    }
+
     guard var latch = Self.latch, let latchedScrollView = latch.scrollView, self.isDescendant(of: latchedScrollView) else {
       switch phase {
       case .mayBegin,
@@ -275,7 +286,9 @@ open class ScrollView: NSScrollView {
       // after the scroll's latest event continues the scroll, as a gesture during a glide does on AppKit's own scroll
       // views and on UIKit. resting fingers start a gesture with a `mayBegin` event, and its `began` event follows when
       // they move, however late.
-      guard event.timestamp - latch.timestamp < Constants.latchingInterval || (phase == .began && latch.isMayBegin) else {
+      guard !latch.endedWithoutGlide,
+            event.timestamp - latch.timestamp < Constants.latchingInterval || (phase == .began && latch.isMayBegin)
+      else {
         return startsScroll(with: event)
       }
     default:
@@ -287,16 +300,9 @@ open class ScrollView: NSScrollView {
       return false
     }
 
-    switch phase {
-    case .cancelled:
-      // a cancelled gesture, such as resting fingers that lift without moving, ends the scroll without a glide, so the
-      // next gesture comes from a new touch and starts a scroll of its own
-      Self.latch = nil
-    default:
-      latch.timestamp = event.timestamp
-      latch.isMayBegin = phase == .mayBegin
-      Self.latch = latch
-    }
+    latch.timestamp = event.timestamp
+    latch.isMayBegin = phase == .mayBegin
+    Self.latch = latch
     return latch.handlesScroll
   }
 
