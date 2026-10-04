@@ -106,6 +106,16 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
+      ViewNode<Playground.FrameGlideView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: Playground.FrameGlideView.preferredHeight)
+
+      Spacer(height: 16)
+
       ViewNode<Playground.AnimateLabView>()
         .underlay {
           LayerNode()
