@@ -160,7 +160,7 @@ open class DropShadowLayer: CALayer {
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
 
-      setPath(keyPath: "shadowPath", to: paths.shadowPath)
+      retargetPath(keyPath: "shadowPath", to: paths.shadowPath)
     }
 
     if let cutoutPath = paths.cutoutPath {
@@ -210,27 +210,24 @@ open class DropShadowLayer: CALayer {
     // initialize mask layer if not initialized
     if mask !== maskLayer {
       mask = maskLayer
+      maskLayer.fillRule = .evenOdd // to match the clip out path
+    }
+    // the mask takes the layer's bounds at once, without frame animations, so its path, in the layer's coordinates, stays
+    // on the layer whatever the layer's frame does. a shape layer draws its path beyond its bounds, so the mask's size
+    // changing at once doesn't clip it
+    if !maskLayer.hasFrame(bounds) {
       maskLayer.disableActions(for: "position", "bounds") {
         maskLayer.frame = bounds
       }
-      maskLayer.fillRule = .evenOdd // to match the clip out path
     }
 
     let maskPath = maskLayerPath(cutoutPath: cutoutPath)
 
     if let animationTiming {
-      if !maskLayer.hasFrame(bounds) {
-        maskLayer.animateFrame(to: bounds, timing: animationTiming)
-      }
       maskLayer.animatePath(keyPath: "path", to: maskPath, timing: animationTiming)
     } else {
-      // no animation timing: continue the in-flight motion. the mask's frame animations mirror the layer's own, which
-      // the render pass leaves as they are on a non-animated frame update, so they are left as they are too instead of
-      // being retargeted, and the mask stays aligned with the layer
-      maskLayer.disableActions(for: "position", "bounds") {
-        maskLayer.frame = bounds
-      }
-      maskLayer.setPath(keyPath: "path", to: maskPath)
+      // no animation timing: continue the in-flight motion
+      maskLayer.retargetPath(keyPath: "path", to: maskPath)
     }
   }
 

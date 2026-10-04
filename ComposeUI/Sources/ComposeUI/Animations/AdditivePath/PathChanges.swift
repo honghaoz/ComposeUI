@@ -174,6 +174,78 @@ struct PathChanges {
     )
   }
 
+  /// Retargets the changes in flight to a new path, so the path shown glides from where it is to the new path and lands
+  /// when the changes would have, see `CALayer.retargetPath(keyPath:to:)`.
+  ///
+  /// Each coordinate of the points is judged on its own, as an axis of a frame is in `CALayer.retargetFrame(to:)`: one
+  /// that a change in flight moves glides from where it shows, and one at rest takes its new value at once. When a
+  /// changed coordinate is in motion, the changes fold into one ease-out change, except a running spring, which keeps
+  /// going with the glide stacked on it. A change that never finishes folds too, as it can't overlap others, and the
+  /// glide then takes `Animations.defaultAnimationDuration`. Otherwise, the changes stay as they are, as they still
+  /// head to the new path.
+  ///
+  /// - Parameters:
+  ///   - oldPoints: The points of the model path before the change.
+  ///   - newPoints: The points of the new path.
+  ///   - now: The layer's current time.
+  mutating func retarget(from oldPoints: PathPoints, to newPoints: PathPoints, at now: TimeInterval) {
+    guard hasSameSegments(as: oldPoints), oldPoints.hasSameSegments(as: newPoints), oldPoints.isFinite, newPoints.isFinite else {
+      changes.removeAll()
+      return
+    }
+
+    // the part of each change's offset that it has left, or `nil` for a running spring, which isn't folded
+    var neverFinishes = false
+    let remainingFactors = changes.map { change -> CGFloat? in
+      let changeNeverFinishes = CAAnimation.neverFinishes(duration: change.curve.duration)
+      neverFinishes = neverFinishes || changeNeverFinishes
+      if change.animation is CASpringAnimation, !changeNeverFinishes, change.speed > 0, change.beginTime <= now {
+        return nil
+      }
+      return change.remainingFactor(at: 0, now: now)
+    }
+
+    // the glide starts from the new points, and a coordinate in motion starts where the folded changes show it instead
+    let tolerance = ComposeUI.Constants.geometryTolerance
+    var glidePoints = newPoints.points
+    var needsGlide = false
+    for index in glidePoints.indices {
+      var isMoving = (x: false, y: false)
+      var folded = CGPoint.zero
+      for (change, remainingFactor) in zip(changes, remainingFactors) {
+        let offset = change.offset.points[index]
+        isMoving.x = isMoving.x || abs(offset.x) > tolerance
+        isMoving.y = isMoving.y || abs(offset.y) > tolerance
+        if let remainingFactor {
+          folded.x += offset.x * remainingFactor
+          folded.y += offset.y * remainingFactor
+        }
+      }
+
+      let oldPoint = oldPoints.points[index]
+      if isMoving.x {
+        needsGlide = needsGlide || abs(oldPoint.x - glidePoints[index].x) > tolerance
+        glidePoints[index].x = oldPoint.x + folded.x
+      }
+      if isMoving.y {
+        needsGlide = needsGlide || abs(oldPoint.y - glidePoints[index].y) > tolerance
+        glidePoints[index].y = oldPoint.y + folded.y
+      }
+    }
+    guard needsGlide else {
+      return
+    }
+
+    let remainingTime = remainingTime(at: now)
+    changes = zip(changes, remainingFactors).compactMap { $1 == nil ? $0 : nil }
+    record(
+      from: PathPoints(kinds: newPoints.kinds, points: glidePoints),
+      to: newPoints,
+      timing: .easeOut(duration: neverFinishes ? Animations.defaultAnimationDuration : remainingTime),
+      at: now
+    )
+  }
+
   /// The keyframes of a path with the changes in flight.
   struct Keyframes {
 

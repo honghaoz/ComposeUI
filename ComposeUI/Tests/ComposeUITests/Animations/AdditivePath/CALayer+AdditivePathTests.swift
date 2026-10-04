@@ -657,6 +657,210 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(layer.animation(forKey: "path")) == nil
   }
 
+  // MARK: - Retarget Path
+
+  func test_retargetPath_changeInFlight_glidesFromTheShownPath() throws {
+    // given: a shape layer whose rect path widens from 100 to 200 points over 4 seconds from 1000
+    let layer = makeLayer()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(width: 200), timing: .linear(duration: 4))
+    }
+
+    // when: retargeting the path to 120 points wide a second in, when it shows 125 points wide
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetPath(keyPath: "path", to: rect(width: 120))
+    }
+
+    // then: the model has the new path, and the change folds into one ease-out from the path shown over the 3 seconds
+    // it had left
+    expect(layer.path) == rect(width: 120)
+    let glide = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try PathPoints(pathValue(glide.fromValue))) == PathPoints(rect(width: 125))
+    expect(try pathValue(glide.toValue)) == rect(width: 120)
+    expect(glide.beginTime) == 1001
+    expect(glide.duration) == 3
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+  }
+
+  func test_retargetPath_heightChangeInFlight_glidesTheBottomEdge() throws {
+    // given: a shape layer whose rect path grows from 50 to 100 points high over 4 seconds from 1000
+    let layer = makeLayer()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil), timing: .linear(duration: 4))
+    }
+
+    // when: retargeting the path to 80 points high a second in, when it shows 62.5 points high
+    let path = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 80), transform: nil)
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetPath(keyPath: "path", to: path)
+    }
+
+    // then: the bottom edge glides from where it shows over the 3 seconds the change had left
+    expect(layer.path) == path
+    let glide = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try PathPoints(pathValue(glide.fromValue))) == PathPoints(CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 62.5), transform: nil))
+    expect(glide.duration) == 3
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+  }
+
+  func test_retargetPath_coordinateAtRest_takesItsNewValueAtOnce() throws {
+    // given: a shape layer whose rect path widens from 100 to 200 points over 4 seconds from 1000
+    let layer = makeLayer()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(width: 200), timing: .linear(duration: 4))
+    }
+
+    // when: retargeting the path a second in to 120 points wide and 80 points high
+    let path = CGPath(rect: CGRect(x: 0, y: 0, width: 120, height: 80), transform: nil)
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetPath(keyPath: "path", to: path)
+    }
+
+    // then: the right edge glides from the 125 points shown, while the bottom edge, which isn't moving, takes its new
+    // value at once
+    expect(layer.path) == path
+    let glide = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try PathPoints(pathValue(glide.fromValue))) == PathPoints(CGPath(rect: CGRect(x: 0, y: 0, width: 125, height: 80), transform: nil))
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+  }
+
+  func test_retargetPath_noChangedCoordinateInMotion_keepsTheChange() throws {
+    // given: a shape layer whose rect path widens from 100 to 200 points over 4 seconds from 1000
+    let layer = makeLayer()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(width: 200), timing: .linear(duration: 4))
+    }
+
+    // when: retargeting the path a second in to 80 points high at the change's width
+    let path = CGPath(rect: CGRect(x: 0, y: 0, width: 200, height: 80), transform: nil)
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetPath(keyPath: "path", to: path)
+    }
+
+    // then: the bottom edge, which isn't moving, takes its new value at once, and the change keeps going as it is, as
+    // it still heads to the new width
+    expect(layer.path) == path
+    let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try PathPoints(pathValue(animation.fromValue))) == PathPoints(CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 80), transform: nil))
+    expect(animation.beginTime) == 1000
+    expect(animation.duration) == 4
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .linear)
+  }
+
+  func test_retargetPath_springInFlight_keepsTheSpringAndGlidesTheJump() throws {
+    // given: a shape layer whose rect path springs from 100 to 200 points wide from 1000
+    let layer = makeLayer()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(width: 200), timing: .spring(dampingRatio: 0.8, response: 0.5))
+    }
+    let spring = try (layer.animation(forKey: "path") as? CASpringAnimation).unwrap()
+
+    // when: retargeting the path to 120 points wide 0.1 seconds in
+    AnimationClock.sharingTime(at: 1000.1) {
+      layer.retargetPath(keyPath: "path", to: rect(width: 120))
+    }
+
+    // then: the spring keeps going, so its momentum carries on, with a glide stacked on it that covers the jump the
+    // model change would show, 80 points, over the spring's remaining time, so the path shown doesn't jump
+    let animation = try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(animation.duration).to(beApproximatelyEqual(to: spring.duration - 0.1, within: 1e-9))
+    let springOffset = 100 * (1 - spring.progress(forElapsedTime: 0.1))
+    let shownPoints = try PathPoints(pathValues(of: animation).first.unwrap())
+    expect(isPoints(shownPoints, closeTo: PathPoints(rect(width: 200 - springOffset)))) == true
+  }
+
+  func test_retargetPath_springThatNeverSettles_isFoldedIntoAGlideOfTheDefaultDuration() throws {
+    // given: a shape layer whose rect path springs from 100 to 200 points wide without damping from 1000, so it bounces
+    // forever
+    let layer = makeLayer()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(width: 200), timing: .spring(dampingRatio: 0, response: 0.5))
+    }
+
+    // when: retargeting the path to 120 points wide 0.3 seconds in
+    AnimationClock.sharingTime(at: 1000.3) {
+      layer.retargetPath(keyPath: "path", to: rect(width: 120))
+    }
+
+    // then: a change that never finishes can't overlap others, so the spring folds into the glide, which takes the
+    // default duration instead of forever
+    let glide = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(glide is CASpringAnimation) == false
+    expect(glide.duration) == Animations.defaultAnimationDuration
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+  }
+
+  func test_retargetPath_withoutChangesInFlight_setsThePath() {
+    // given: a shape layer with a rect path, without changes in flight
+    let layer = makeLayer()
+
+    // when: retargeting the path to an inset rect
+    layer.retargetPath(keyPath: "path", to: rect(inset: 10))
+
+    // then: the inset rect shows at once
+    expect(layer.path) == rect(inset: 10)
+    expect(layer.animationKeys()) == nil
+  }
+
+  func test_retargetPath_otherSegments_setsThePathAtOnce() {
+    // given: a shape layer whose rect path changes to an inset rect
+    let layer = makeLayer()
+    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+
+    // when: retargeting the path to a rounded rect
+    layer.retargetPath(keyPath: "path", to: roundedRect(width: 100))
+
+    // then: the rounded rect's points don't line up with the rects', so the change is dropped and it shows at once
+    expect(layer.path) == roundedRect(width: 100)
+    expect(layer.animation(forKey: "path")) == nil
+  }
+
+  func test_retargetPath_withoutPath_setsThePath() {
+    // given: a shape layer without a path
+    let layer = CAShapeLayer()
+
+    // when: retargeting the path to a rect
+    layer.retargetPath(keyPath: "path", to: rect())
+
+    // then: there is nothing to glide from, so the rect shows at once
+    expect(layer.path) == rect()
+    expect(layer.animationKeys()) == nil
+  }
+
+  func test_retargetPath_samePath_leavesTheChangeAlone() throws {
+    // given: a shape layer whose rect path changes to an inset rect
+    let layer = makeLayer()
+    layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    let animation = try layer.animation(forKey: "path").unwrap()
+
+    // when: retargeting the path to the inset rect
+    layer.retargetPath(keyPath: "path", to: rect(inset: 10))
+
+    // then: the change in flight is left alone
+    expect(layer.animation(forKey: "path")) === animation
+  }
+
+  func test_retargetPath_keyPathWithoutPath_asserts() {
+    // given: a layer with a number at a key path
+    let layer = CALayer()
+    layer.setValue(NSNumber(value: 1), forKey: "custom")
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: retargeting a path at the key path
+    layer.retargetPath(keyPath: "custom", to: rect())
+
+    // then: it asserts, as the key path doesn't hold a path, and leaves the layer alone
+    expect(assertionMessages) == ["expected a path at \"custom\", got 1"]
+    expect(layer.value(forKey: "custom") as? NSNumber) == 1
+  }
+
   // MARK: - Key Path Access
 
   func test_setPath_readsAndSetsPathsDirectly() throws {
@@ -717,6 +921,13 @@ class CALayer_AdditivePathTests: XCTestCase {
   /// A rounded rect of the given width and 50 points high at the origin, with a corner radius of 10.
   private func roundedRect(width: CGFloat) -> CGPath {
     CGPath(roundedRect: CGRect(x: 0, y: 0, width: width, height: 50), cornerWidth: 10, cornerHeight: 10, transform: nil)
+  }
+
+  /// Whether points have the segments of others, with each point within rounding error of the other's.
+  private func isPoints(_ points: PathPoints, closeTo other: PathPoints) -> Bool {
+    points.hasSameSegments(as: other) && zip(points.points, other.points).allSatisfy {
+      abs($0.x - $1.x) <= 1e-6 && abs($0.y - $1.y) <= 1e-6
+    }
   }
 
   /// The points a keyframe animation of paths shows at a time from its begin, interpolated the way Core Animation

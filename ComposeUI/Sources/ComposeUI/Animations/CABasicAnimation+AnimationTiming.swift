@@ -48,10 +48,21 @@ public extension CABasicAnimation {
   /// - Returns: The animation.
   @_spi(Private)
   static func makeAnimation(_ timing: AnimationTiming) -> CABasicAnimation {
+    makeAnimation(timing, basicAnimation: { CABasicAnimation() }, springAnimation: { CASpringAnimation() })
+  }
+
+  /// Make an animation based on the timing, from an animation the caller makes, see `makeAnimation(_:)`.
+  ///
+  /// - Parameters:
+  ///   - timing: The timing of the animation.
+  ///   - basicAnimation: Makes the animation for a timing function.
+  ///   - springAnimation: Makes the animation for a spring.
+  /// - Returns: The animation.
+  internal static func makeAnimation(_ timing: AnimationTiming, basicAnimation: () -> CABasicAnimation, springAnimation: () -> CASpringAnimation) -> CABasicAnimation {
     let animation: CABasicAnimation
     switch timing.timing {
     case .spring(let spring, let duration):
-      let springAnimation = CASpringAnimation()
+      let springAnimation = springAnimation()
       springAnimation.initialVelocity = spring.initialVelocity
 
       springAnimation.mass = spring.mass
@@ -63,7 +74,7 @@ public extension CABasicAnimation {
       animation = springAnimation
 
     case .timingFunction(let duration, let timingFunction):
-      animation = CABasicAnimation()
+      animation = basicAnimation()
       animation.timingFunction = timingFunction
       animation.duration = duration
     }

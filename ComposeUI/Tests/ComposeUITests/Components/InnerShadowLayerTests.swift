@@ -204,11 +204,9 @@ final class InnerShadowLayerTests: XCTestCase {
     layer.frame = CGRect(x: 0, y: 0, width: 150, height: 80)
     update(animationTiming: .easeInEaseOut())
 
-    // then: the mask follows the new bounds, animating its size, the position its center moved to, and its path
+    // then: the mask takes the new bounds at once, without frame animations, and only its path animates
     expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 150, height: 80)
-    expect(maskLayer.animation(forKey: "position")) != nil
-    expect(maskLayer.animation(forKey: "bounds.size")) != nil
-    expect(maskLayer.animation(forKey: "path")) != nil
+    expect(maskLayer.animationKeys()) == ["path"]
   }
 
   func test_update_withAnimation_animatesOnlyChangedProperties() throws {
@@ -426,7 +424,7 @@ final class InnerShadowLayerTests: XCTestCase {
     update(layer, blue, animationTiming: .linear(duration: 10))
     update(layer, blueWiderRadius, animationTiming: .linear(duration: 10, delay: 1))
     expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowOffset", "shadowPath"]
-    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
+    expect(maskLayer.animationKeys()) == ["path"]
     let delayedRadiusBeginTime = try layer.animation(forKey: "shadowRadius-1").unwrap().beginTime
 
     let opacityAnimation = CABasicAnimation(keyPath: "opacity")
@@ -452,7 +450,7 @@ final class InnerShadowLayerTests: XCTestCase {
 
     // then: the additive radius and offset animations are folded into one glide each, from the value shown to the new
     // value, the non-additive color and opacity animations are replaced by ones towards the new values over their
-    // remaining time, the path keeps its animation, and the other properties' animations are left alone
+    // remaining time, the path glides too, and the other properties' animations are left alone
     expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath", "opacity", "position"]
 
     // no radius or offset animation has begun, so the radius shows 10 and the offset zero. the radius glide lands when
@@ -485,27 +483,21 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(layer.animation(forKey: "opacity")?.duration) == 10
     expect(layer.animation(forKey: "position")?.duration) == 10
 
-    // then: the shadow path changes at once and keeps its change in flight, the hole's, shown on top of the new path,
-    // so it shows the hole the frame shows
+    // then: the shadow path glides from the hole shown, the red one at the old size as no time has passed, to the new
+    // hole over the remaining time
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-    let shownHolePath = CGPath(rect: CGRect(x: -2, y: -2, width: 104, height: 104), transform: nil)
+    let shownHolePath = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil)
     expect(shadowPathAnimation.duration) == 10
-    expect(shadowPathAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
+    expect(shadowPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     expect(try PathPoints(pathValue(shadowPathAnimation.fromValue))) == PathPoints(shownHolePath)
     expect(try pathValue(shadowPathAnimation.toValue)) == referenceShadowPath
 
-    // then: the mask keeps its frame animations, and its path, the hole, does as the shadow path
-    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
-    for key in ["position", "bounds.size"] {
-      let keptAnimation = try (maskLayer.animation(forKey: key) as? CABasicAnimation).unwrap()
-      expect(keptAnimation.isAdditive) == true
-      expect(keptAnimation.duration) == 10
-      expect(keptAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
-    }
+    // then: so does the mask's path, the hole, with the mask on the new bounds
+    expect(maskLayer.animationKeys()) == ["path"]
     let maskPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
     expect(maskPathAnimation.duration) == 10
-    expect(maskPathAnimation.timingFunction) == CAMediaTimingFunction(name: .linear)
-    expect(try PathPoints(pathValue(maskPathAnimation.fromValue))) == PathPoints(CGPath(rect: CGRect(x: -2, y: -2, width: 104, height: 104), transform: nil))
+    expect(maskPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(try PathPoints(pathValue(maskPathAnimation.fromValue))) == PathPoints(shownHolePath)
     expect(try pathValue(maskPathAnimation.toValue)) == referenceMaskPath
 
     // when: updating with animation timing and the same values
@@ -516,7 +508,7 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(layer.animation(forKey: "shadowColor")?.duration) == 10
     expect(layer.animation(forKey: "shadowColor")?.timingFunction) == CAMediaTimingFunction(name: .easeOut)
     expect(layer.animation(forKey: "shadowPath")) === shadowPathAnimation
-    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
+    expect(maskLayer.animationKeys()) == ["path"]
     expect(maskLayer.animation(forKey: "path")) === maskPathAnimation
 
     // when: updating with animation timing and the blue values again
@@ -536,7 +528,7 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(Set(layer.animationKeys() ?? [])) == ["shadowColor", "shadowOpacity", "shadowRadius", "shadowRadius-1", "shadowOffset", "shadowOffset-1", "shadowPath", "opacity", "position"]
     let stackedMaskPathAnimation = try (maskLayer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
     expect(stackedMaskPathAnimation.duration) == 10
-    expect(Set(maskLayer.animationKeys() ?? [])) == ["position", "bounds.size", "path"]
+    expect(maskLayer.animationKeys()) == ["path"]
   }
 
   func test_update_withoutAnimation_sameValues_keepsInFlightShadowAnimations() throws {
@@ -674,10 +666,11 @@ final class InnerShadowLayerTests: XCTestCase {
       expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: paths100.shadow), scenario) == true
       expect(try pathValue(shadowPathAnimation.toValue), scenario) == paths200.shadow
 
-      // then: so does the clip path, with the mask's frame
-      let maskSizeAnimation = try (maskLayer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+      // then: so does the clip path, with the mask on the new bounds
+      expect(maskLayer.frame, scenario) == CGRect(x: 0, y: 0, width: 200, height: 100)
+      expect(maskLayer.animationKeys(), scenario) == ["path"]
       let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-      expectSameTiming(clipPathAnimation, as: maskSizeAnimation)
+      expectSameTiming(clipPathAnimation, as: sizeAnimation)
       expect(try isPath(pathValue(clipPathAnimation.fromValue), closeTo: paths100.clip), scenario) == true
       expect(try pathValue(clipPathAnimation.toValue), scenario) == paths200.clip
     }
@@ -719,28 +712,28 @@ final class InnerShadowLayerTests: XCTestCase {
     let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
     resize(layer, toWidth: 200, timing: .linear(duration: 2))
 
-    // when: a non-animated update sets the frame 250 points wide while the resize is in flight
-    layer.disableActions {
-      layer.frame = CGRect(x: 0, y: 0, width: 250, height: 100)
-    }
+    // when: a non-animated update retargets the frame to 250 points wide while the resize is in flight, as the render
+    // pass does
+    layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 250, height: 100))
     updateRounded(layer, animationTiming: nil)
 
-    // then: the shadow path changes at once like the frame and keeps the resize going from the 150 points shown
-    let paths150 = try referencePaths(width: 150)
+    // then: the shadow path glides with the frame from the 100 points shown, as no time has passed
+    let paths100 = try referencePaths(width: 100)
     let paths250 = try referencePaths(width: 250)
-    let sizeAnimation = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    let sizeGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(sizeGlide.fromValue as? CGSize) == CGSize(width: -150, height: 0)
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-    expectSameTiming(shadowPathAnimation, as: sizeAnimation)
-    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: paths150.shadow)) == true
+    expectSameTiming(shadowPathAnimation, as: sizeGlide)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: paths100.shadow)) == true
     expect(try pathValue(shadowPathAnimation.toValue)) == paths250.shadow
     expect(layer.shadowPath) == paths250.shadow
 
-    // then: so does the clip path, and the mask's frame changes at once too, keeping its animations
+    // then: so does the clip path, with the mask on the new bounds
     expect(maskLayer.frame) == CGRect(x: 0, y: 0, width: 250, height: 100)
-    let maskSizeAnimation = try (maskLayer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(maskLayer.animationKeys()) == ["path"]
     let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expectSameTiming(clipPathAnimation, as: maskSizeAnimation)
-    expect(try isPath(pathValue(clipPathAnimation.fromValue), closeTo: paths150.clip)) == true
+    expectSameTiming(clipPathAnimation, as: sizeGlide)
+    expect(try isPath(pathValue(clipPathAnimation.fromValue), closeTo: paths100.clip)) == true
     expect(try pathValue(clipPathAnimation.toValue)) == paths250.clip
   }
 
@@ -785,7 +778,7 @@ final class InnerShadowLayerTests: XCTestCase {
 
   /// Expects an animation to have the timing of another.
   private func expectSameTiming(_ animation: CABasicAnimation, as other: CABasicAnimation) {
-    expect(type(of: animation) == type(of: other)) == true
+    expect(animation is CASpringAnimation) == (other is CASpringAnimation)
     expect(animation.duration) == other.duration
     expect(animation.speed) == other.speed
     expect(animation.beginTime) == other.beginTime

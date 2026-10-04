@@ -56,7 +56,12 @@ struct PathPoints: Equatable {
     self.points = points
   }
 
-  private init(kinds: [CGPathElementType], points: [CGPoint]) {
+  /// Creates the points of segments of the given kinds.
+  ///
+  /// - Parameters:
+  ///   - kinds: The kinds of the segments, in order.
+  ///   - points: The points of the segments, in order, as many as the kinds take, see `points`.
+  init(kinds: [CGPathElementType], points: [CGPoint]) {
     self.kinds = kinds
     self.points = points
   }
