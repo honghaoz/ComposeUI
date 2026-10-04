@@ -235,6 +235,15 @@ open class ScrollView: NSScrollView {
   private static var latch: ScrollLatch?
 
   override open func scrollWheel(with event: NSEvent) {
+    // a gesture that's cancelled, or that ends right after `mayBegin` because resting fingers lift without moving, ends
+    // the scroll without a glide, so the next gesture comes from a new touch. AppKit sends that last event to the view
+    // under the pointer, which can be outside the latched scroll view, or in a scroll view whose scrolling is disabled,
+    // so whichever scroll view gets it ends the scroll, before passing it on
+    let phase = event.phase
+    if phase == .cancelled || (phase == .ended && Self.latch?.isMayBegin == true) {
+      Self.latch?.endedWithoutGlide = true
+    }
+
     // https://apptyrant.com/2015/05/18/how-to-disable-nsscrollview-scrolling/
     guard isScrollEnabled else {
       // send the event to outside of the scroll view.
@@ -260,13 +269,6 @@ open class ScrollView: NSScrollView {
       return takesScroll(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY, canBounce: false)
     }
 
-    // a gesture that's cancelled, or that ends right after `mayBegin` because resting fingers lift without moving, ends
-    // the scroll without a glide, so the next gesture comes from a new touch. AppKit sends that last event to the view
-    // under the pointer, which can be outside the latched scroll view, so whichever scroll view gets it ends the scroll
-    if phase == .cancelled || (phase == .ended && Self.latch?.isMayBegin == true) {
-      Self.latch?.endedWithoutGlide = true
-    }
-
     guard var latch = Self.latch, let latchedScrollView = latch.scrollView, self.isDescendant(of: latchedScrollView) else {
       switch phase {
       case .mayBegin,
@@ -285,8 +287,9 @@ open class ScrollView: NSScrollView {
       // a touch on the trackpad ends a glide before the touch's first event comes, so a gesture that starts shortly
       // after the scroll's latest event continues the scroll, as a gesture during a glide does on AppKit's own scroll
       // views and on UIKit. resting fingers start a gesture with a `mayBegin` event, and its `began` event follows when
-      // they move, however late.
-      guard !latch.endedWithoutGlide,
+      // they move, however late. a latched scroll view whose scrolling is disabled can't take the gesture, so it starts
+      // a scroll of its own.
+      guard !latch.endedWithoutGlide, latchedScrollView.isScrollEnabled,
             event.timestamp - latch.timestamp < Constants.latchingInterval || (phase == .began && latch.isMayBegin)
       else {
         return startsScroll(with: event)

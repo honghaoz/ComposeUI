@@ -806,28 +806,32 @@ class ScrollViewTests: XCTestCase {
   }
 
   func test_scrollGesture_nested_restingFingersLiftOverAnotherScrollView_endTheParentsScroll() throws {
-    // given: a scroll view nested in a parent scroll view that scrolls, another scroll view beside the parent, a flick
-    // that the parent took over its own content, and fingers that rest on the trackpad over the nested scroll view 68 ms
-    // after the glide's end
-    let window = TestWindow()
-    let views = Self.makeScrollingNestedScrollViews(in: window)
-    let otherScrollView = ScrollView(frame: CGRect(x: 200, y: 0, width: 100, height: 100))
-    otherScrollView.contentSize = CGSize(width: 100, height: 500)
-    views.container.addSubview(otherScrollView)
-    try Self.sendFlick(to: views.parentContent, deltaY: -10)
-    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: 0.068))
-    expect(views.parent.scrollWheelEventCount) == 7
+    // a scroll view whose scrolling is disabled passes the events on before routing them
+    for isOtherScrollViewScrollEnabled in [true, false] {
+      // given: a scroll view nested in a parent scroll view that scrolls, another scroll view beside the parent, a
+      // flick that the parent took over its own content, and fingers that rest on the trackpad over the nested scroll
+      // view 68 ms after the glide's end
+      let window = TestWindow()
+      let views = Self.makeScrollingNestedScrollViews(in: window)
+      let otherScrollView = ScrollView(frame: CGRect(x: 200, y: 0, width: 100, height: 100))
+      otherScrollView.contentSize = CGSize(width: 100, height: 500)
+      otherScrollView.isScrollEnabled = isOtherScrollViewScrollEnabled
+      views.container.addSubview(otherScrollView)
+      try Self.sendFlick(to: views.parentContent, deltaY: -10)
+      try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: 0.068))
+      expect(views.parent.scrollWheelEventCount) == 7
 
-    // when: the pointer moves over the other scroll view, for example with a mouse, so AppKit sends the fingers' lift
-    // there, and a swipe toward the bottom begins over the nested scroll view a second later
-    try otherScrollView.scrollWheel(with: Self.makeScrollEvent(phase: .cancelled, after: 0.5))
-    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
-    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+      // when: the pointer moves over the other scroll view, for example with a mouse, so AppKit sends the fingers' lift
+      // there, and a swipe toward the bottom begins over the nested scroll view a second later
+      try otherScrollView.scrollWheel(with: Self.makeScrollEvent(phase: .cancelled, after: 0.5))
+      try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
+      try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
 
-    // then: the other scroll view passes the lift on, which still ends the parent's scroll, so the swipe starts a scroll
-    // of its own, which the nested scroll view takes
-    expect(views.container.scrollWheelEventCount) == 1
-    expect(views.parent.scrollWheelEventCount) == 7
+      // then: the other scroll view passes the lift on, which still ends the parent's scroll, so the swipe starts a
+      // scroll of its own, which the nested scroll view takes
+      expect(views.container.scrollWheelEventCount) == 1
+      expect(views.parent.scrollWheelEventCount) == 7
+    }
   }
 
   func test_scrollGesture_nested_gestureAfterTheParentsScroll_startsAScrollOfItsOwn() throws {
@@ -986,6 +990,38 @@ class ScrollViewTests: XCTestCase {
     // then: the scroll view doesn't take over the glide, but passes it to the parent, which passes it on
     expect(views.parent.scrollWheelEventCount) == 4
     expect(views.container.scrollWheelEventCount) == 2
+  }
+
+  func test_scrollGesture_nested_gestureAfterTheParentIsDisabled_startsAScrollOfItsOwn() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, and a flick that the parent took over its own
+    // content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    try Self.sendFlick(to: views.parentContent, deltaY: -10)
+    expect(views.parent.scrollWheelEventCount) == 6
+
+    // when: the parent's scrolling is disabled, and a swipe toward the bottom begins over the scroll view 74 ms after
+    // the glide's end
+    views.parent.isScrollEnabled = false
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.074))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: the parent can't continue its scroll, so the swipe starts a scroll of its own, which the scroll view takes
+    expect(views.parent.scrollWheelEventCount) == 6
+    expect(views.container.scrollWheelEventCount) == 0
+
+    // when: the parent's scrolling is enabled, it takes another flick, fingers rest over the scroll view 68 ms after
+    // the glide's end, the parent's scrolling is disabled, and the fingers move toward the bottom half a second later
+    views.parent.isScrollEnabled = true
+    try Self.sendFlick(to: views.parentContent, deltaY: -10)
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: 0.068))
+    views.parent.isScrollEnabled = false
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.5))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: the gesture of the resting fingers can't continue the parent's scroll either, so the scroll view takes it
+    expect(views.parent.scrollWheelEventCount) == 13
+    expect(views.container.scrollWheelEventCount) == 0
   }
   #endif
 
