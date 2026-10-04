@@ -782,6 +782,26 @@ class ScrollViewTests: XCTestCase {
     expect(views.container.scrollWheelEventCount) == 0
   }
 
+  func test_scrollGesture_nested_gestureAfterRestingFingersLift_startsAScrollOfItsOwn() throws {
+    // given: a scroll view nested in a parent scroll view that scrolls, a flick that the parent took over its own
+    // content, and fingers that rest on the trackpad over the scroll view 68 ms after the glide's end
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    try Self.sendFlick(to: views.parentContent, deltaY: -10)
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .mayBegin, after: 0.068))
+    expect(views.parent.scrollWheelEventCount) == 7
+
+    // when: the fingers lift without moving, and a swipe toward the bottom begins over the scroll view 50 ms later
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .cancelled, after: 0.5))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.05))
+    try views.scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+
+    // then: the parent gets the lift, which ends its scroll, so the swipe starts a scroll of its own, which the scroll
+    // view takes, since it can scroll toward the bottom
+    expect(views.parent.scrollWheelEventCount) == 8
+    expect(views.container.scrollWheelEventCount) == 0
+  }
+
   func test_scrollGesture_nested_gestureAfterTheParentsScroll_startsAScrollOfItsOwn() throws {
     // given: a scroll view nested in a parent scroll view that scrolls, and a swipe that the parent took over its own
     // content
@@ -882,6 +902,42 @@ class ScrollViewTests: XCTestCase {
 
     // then: the swipe belongs to the removed scroll view, so the parent passes it on instead of taking it over
     expect(views.parent.scrollWheelEventCount) == 2
+    expect(views.container.scrollWheelEventCount) == 2
+  }
+
+  func test_scrollGesture_nested_latchedScrollViewDeallocated_isNotHandledByTheParent() throws {
+    // given: a parent scroll view that scrolls, and a swipe toward the bottom that a scroll view nested in it took,
+    // which only its superview retains
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    weak var latchedScrollView: ScrollView?
+    try autoreleasepool {
+      let scrollView = ScrollView(frame: CGRect(x: 400, y: 500, width: 100, height: 100))
+      scrollView.contentSize = CGSize(width: 300, height: 300)
+      views.parent.documentView?.addSubview(scrollView)
+      try scrollView.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: Constants.scrollInterval))
+      latchedScrollView = scrollView
+    }
+    expect(views.parent.scrollWheelEventCount) == 0
+
+    // when: the scroll view is removed during the swipe and deallocated, so AppKit sends the rest of the swipe to the
+    // parent's content under the pointer
+    autoreleasepool {
+      latchedScrollView?.removeFromSuperview()
+    }
+    expect(latchedScrollView).to(beNil())
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .changed, deltaY: -10, after: Constants.eventInterval))
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .ended, after: Constants.eventInterval))
+
+    // then: the swipe still belongs to the deallocated scroll view, so the parent passes it on instead of taking it over
+    expect(views.parent.scrollWheelEventCount) == 2
+    expect(views.container.scrollWheelEventCount) == 2
+
+    // when: a swipe toward the bottom begins over the parent's content 50 ms later
+    try views.parentContent.scrollWheel(with: Self.makeScrollEvent(phase: .began, deltaY: -10, after: 0.05))
+
+    // then: it starts a scroll of its own, which the parent takes
+    expect(views.parent.scrollWheelEventCount) == 3
     expect(views.container.scrollWheelEventCount) == 2
   }
 

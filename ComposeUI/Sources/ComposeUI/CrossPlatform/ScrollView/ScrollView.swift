@@ -262,9 +262,9 @@ open class ScrollView: NSScrollView {
            .began:
         return startsScroll(with: event)
       default:
-        // a scroll that a scroll view outside this one took isn't for this one, while a scroll that no scroll view took,
-        // such as resting fingers, goes to the scroll view under the pointer
-        return Self.latch?.scrollView == nil
+        // a scroll that another scroll view took isn't for this one, even once that scroll view is deallocated, while a
+        // scroll that no scroll view took, such as resting fingers, goes to the scroll view under the pointer
+        return Self.latch == nil
       }
     }
 
@@ -287,9 +287,16 @@ open class ScrollView: NSScrollView {
       return false
     }
 
-    latch.timestamp = event.timestamp
-    latch.isMayBegin = phase == .mayBegin
-    Self.latch = latch
+    switch phase {
+    case .cancelled:
+      // a cancelled gesture, such as resting fingers that lift without moving, ends the scroll without a glide, so the
+      // next gesture comes from a new touch and starts a scroll of its own
+      Self.latch = nil
+    default:
+      latch.timestamp = event.timestamp
+      latch.isMayBegin = phase == .mayBegin
+      Self.latch = latch
+    }
     return latch.handlesScroll
   }
 
