@@ -76,26 +76,4 @@ class EdgeInsets_ExtensionsTests: XCTestCase {
     expect(insets.isEqual(to: EdgeInsets(top: 1, left: 2, bottom: 0, right: 4))) == false
     expect(insets.isEqual(to: EdgeInsets(top: 1, left: 2, bottom: 3, right: 0))) == false
   }
-
-  func test_add() {
-    // given: insets with different edge values
-    let insets = EdgeInsets(top: 1, left: 2, bottom: 3, right: 4)
-
-    // when: other insets are added
-    let sum = insets + EdgeInsets(top: 10, left: 20, bottom: 30, right: 40)
-
-    // then: each edge is the sum of the two edges
-    expect([sum.top, sum.left, sum.bottom, sum.right]) == [11, 22, 33, 44]
-  }
-
-  func test_subtract() {
-    // given: insets with different edge values
-    let insets = EdgeInsets(top: 10, left: 20, bottom: 30, right: 40)
-
-    // when: other insets are subtracted
-    let difference = insets - EdgeInsets(top: 1, left: 2, bottom: 3, right: 50)
-
-    // then: each edge is the difference of the two edges, negative where the subtracted edge is larger
-    expect([difference.top, difference.left, difference.bottom, difference.right]) == [9, 18, 27, -10]
-  }
 }
