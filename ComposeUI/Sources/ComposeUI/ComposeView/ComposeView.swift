@@ -1790,7 +1790,7 @@ open class ComposeView: BaseScrollView {
         // a legacy scroll bar takes space, which can make the content overflow the other axis. compute that space rather
         // than set the scroll bars and read AppKit's tiling, which re-tiles twice when the pass hides a scroll bar and
         // shows it again.
-        let renderSize = boundsSize - scrollBarSpace(horizontal: horizontal, vertical: vertical)
+        let renderSize = boundsSize - scrollBarSpace(horizontal: horizontal, vertical: vertical, in: boundsSize)
         if renderSize != boundsSize {
           layout(for: renderSize, insets: insetsExcludingScrollBars)
           let sizeBetweenInsets = Self.sizeBetweenInsets(insetsExcludingScrollBars, in: renderSize)
@@ -1837,22 +1837,25 @@ open class ComposeView: BaseScrollView {
   /// - Parameters:
   ///   - horizontal: Whether the horizontal scroll bar shows.
   ///   - vertical: Whether the vertical scroll bar shows.
+  ///   - boundsSize: The size of the view.
   /// - Returns: The width the vertical scroll bar takes, and the height the horizontal one takes.
-  private func scrollBarSpace(horizontal: Bool, vertical: Bool) -> CGSize {
+  private func scrollBarSpace(horizontal: Bool, vertical: Bool, in boundsSize: CGSize) -> CGSize {
     #if canImport(AppKit)
     guard scrollerStyle == .legacy else {
       return .zero
     }
 
     // AppKit sizes a scroll bar by its scroller's class, which a subclass can override, and as a regular `NSScroller`
-    // when it has no scroller
-    func thickness(of scroller: NSScroller?) -> CGFloat {
-      guard let scroller else {
-        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
-      }
-      return type(of: scroller).scrollerWidth(for: scroller.controlSize, scrollerStyle: .legacy)
+    // when it has no scroller. it leaves a view no thicker than the scroll bar whole, with the scroll bar partly outside.
+    func space(of scroller: NSScroller?, along length: CGFloat) -> CGFloat {
+      let thickness = scroller.map { type(of: $0).scrollerWidth(for: $0.controlSize, scrollerStyle: .legacy) }
+        ?? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+      return length > thickness ? thickness : 0
     }
-    return CGSize(width: vertical ? thickness(of: verticalScroller) : 0, height: horizontal ? thickness(of: horizontalScroller) : 0)
+    return CGSize(
+      width: vertical ? space(of: verticalScroller, along: boundsSize.width) : 0,
+      height: horizontal ? space(of: horizontalScroller, along: boundsSize.height) : 0
+    )
     #else
     return .zero
     #endif

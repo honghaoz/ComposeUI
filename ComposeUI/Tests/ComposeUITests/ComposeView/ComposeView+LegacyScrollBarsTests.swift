@@ -374,6 +374,96 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 400)
   }
 
+  func test_resizing_noWiderThanTheVerticalScrollBar_keepsTheWholeWidth() {
+    // given: a 120 × 200 view with legacy scroll bars that rendered content as wide as the view and 300 pt tall beside the
+    // vertical scroll bar, and records the bounds each layout reports
+    var layoutBounds: [CGRect] = []
+    let view = makeView { LayerNode().frame(width: .flexible, height: 300) }
+    view.refresh(animated: false)
+    view.onWillLayout { _, context in
+      switch context.renderType {
+      case .refresh:
+        break
+      case .boundsChange(_, let bounds):
+        layoutBounds.append(bounds)
+      }
+    }
+
+    // when: the view narrows to 10 pt, less than the vertical scroll bar's thickness
+    view.frame.size = CGSize(width: 10, height: 200)
+    view.layoutIfNeeded()
+
+    // then: AppKit leaves a view no wider than the scroll bar whole, so the content lays out once, for the whole width,
+    // and the horizontal scroll bar stays hidden
+    expect(view.hasVerticalScroller) == true
+    expect(view.hasHorizontalScroller) == false
+    expect(layoutBounds) == [CGRect(x: 0, y: 0, width: 10, height: 200)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 10, height: 200)
+
+    // when: the view widens to the scroll bar's thickness
+    layoutBounds = []
+    view.frame.size = CGSize(width: thickness, height: 200)
+    view.layoutIfNeeded()
+
+    // then: the view keeps its whole width
+    expect(layoutBounds) == [CGRect(x: 0, y: 0, width: thickness, height: 200)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: thickness, height: 200)
+
+    // when: the view widens by a point more
+    layoutBounds = []
+    view.frame.size = CGSize(width: thickness + 1, height: 200)
+    view.layoutIfNeeded()
+
+    // then: the scroll bar takes its thickness, leaving a point for the content
+    expect(layoutBounds) == [CGRect(x: 0, y: 0, width: thickness + 1, height: 200), CGRect(x: 0, y: 0, width: 1, height: 200)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 1, height: 200)
+  }
+
+  func test_resizing_noTallerThanTheHorizontalScrollBar_keepsTheWholeHeight() {
+    // given: a 120 × 200 view with legacy scroll bars that rendered content 300 pt wide and as tall as the view above the
+    // horizontal scroll bar, and records the bounds each layout reports
+    var layoutBounds: [CGRect] = []
+    let view = makeView { LayerNode().frame(width: 300, height: .flexible) }
+    view.refresh(animated: false)
+    view.onWillLayout { _, context in
+      switch context.renderType {
+      case .refresh:
+        break
+      case .boundsChange(_, let bounds):
+        layoutBounds.append(bounds)
+      }
+    }
+
+    // when: the view shortens to 10 pt, less than the horizontal scroll bar's thickness
+    view.frame.size = CGSize(width: 120, height: 10)
+    view.layoutIfNeeded()
+
+    // then: AppKit leaves a view no taller than the scroll bar whole, so the content lays out once, for the whole height,
+    // and the vertical scroll bar stays hidden
+    expect(view.hasHorizontalScroller) == true
+    expect(view.hasVerticalScroller) == false
+    expect(layoutBounds) == [CGRect(x: 0, y: 0, width: 120, height: 10)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 10)
+
+    // when: the view grows to the scroll bar's thickness
+    layoutBounds = []
+    view.frame.size = CGSize(width: 120, height: thickness)
+    view.layoutIfNeeded()
+
+    // then: the view keeps its whole height
+    expect(layoutBounds) == [CGRect(x: 0, y: 0, width: 120, height: thickness)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: thickness)
+
+    // when: the view grows by a point more
+    layoutBounds = []
+    view.frame.size = CGSize(width: 120, height: thickness + 1)
+    view.layoutIfNeeded()
+
+    // then: the scroll bar takes its thickness, leaving a point for the content
+    expect(layoutBounds) == [CGRect(x: 0, y: 0, width: 120, height: thickness + 1), CGRect(x: 0, y: 0, width: 120, height: 1)]
+    expect(view.test.lastRenderBounds) == CGRect(x: 0, y: 0, width: 120, height: 1)
+  }
+
   // MARK: - Scroll Indicator Behavior
 
   func test_alwaysShownScrollBars_contentLaysOutBesideThemOnce() {
