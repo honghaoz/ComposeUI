@@ -202,6 +202,35 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(animation.fillMode) == .both
   }
 
+  func test_insertTransition_scrolled_startsJustOutsideTheVisibleArea() throws {
+    // the visible area spans x 300 to 500 and y 400 to 520 of the content
+    let expectedInitialFrames: [(RenderableTransition.SlideSide, CGRect)] = [
+      (.top, CGRect(x: 320, y: 400 - Constants.overshoot - 50, width: 40, height: 50)),
+      (.bottom, CGRect(x: 320, y: 520 + Constants.overshoot, width: 40, height: 50)),
+      (.left, CGRect(x: 300 - Constants.overshoot - 40, y: 430, width: 40, height: 50)),
+      (.right, CGRect(x: 500 + Constants.overshoot, y: 430, width: 40, height: 50)),
+    ]
+    for (side, expectedInitialFrame) in expectedInitialFrames {
+      // given: a compose view scrolled into its content, a layer renderable with a target frame in the visible area,
+      // and a slide-in transition from the side
+      let contentView = Self.makeScrolledContentView()
+      let targetFrame = Constants.scrolledTargetFrame
+      let layer = TestLayer()
+      let transition = RenderableTransition.slide(from: side, overshoot: Constants.overshoot, timing: Constants.timing, options: .insert)
+      let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
+
+      // when: the insert transition animates the renderable
+      try transition.insert.unwrap().animate(renderable: .layer(layer), context: context, completion: {})
+
+      // then: the layer lands at the target frame, sliding in from just outside the visible area on the side
+      expect(layer.capturedFrame) == targetFrame
+      let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+      expect(animation.fromValue as? CGPoint) == layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame)
+      expect(animation.toValue as? CGPoint) == .zero
+      expect(animation.isAdditive) == true
+    }
+  }
+
   func test_insertTransition_revival_continuesFromRevivalPosition() throws {
     // given: a layer mid-removal with a leftover animation and the target frame applied as the model value
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
@@ -509,6 +538,36 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
+  func test_removeTransition_scrolled_endsJustOutsideTheVisibleArea() throws {
+    // the visible area spans x 300 to 500 and y 400 to 520 of the content
+    let expectedTargetFrames: [(RenderableTransition.SlideSide, CGRect)] = [
+      (.top, CGRect(x: 320, y: 400 - Constants.overshoot - 50, width: 40, height: 50)),
+      (.bottom, CGRect(x: 320, y: 520 + Constants.overshoot, width: 40, height: 50)),
+      (.left, CGRect(x: 300 - Constants.overshoot - 40, y: 430, width: 40, height: 50)),
+      (.right, CGRect(x: 500 + Constants.overshoot, y: 430, width: 40, height: 50)),
+    ]
+    for (side, expectedTargetFrame) in expectedTargetFrames {
+      // given: a compose view scrolled into its content, a layer in the visible area, and a slide-out transition
+      // towards the side
+      let contentView = Self.makeScrolledContentView()
+      let currentFrame = Constants.scrolledTargetFrame
+      let layer = TestLayer()
+      layer.frame = currentFrame
+      let transition = RenderableTransition.slide(from: side, overshoot: Constants.overshoot, timing: Constants.timing, options: .remove)
+      let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+      // when: the remove transition animates the renderable
+      try transition.remove.unwrap().animate(renderable: .layer(layer), context: context, completion: {})
+
+      // then: the layer slides from its current frame to just outside the visible area on the side
+      expect(layer.frame) == expectedTargetFrame
+      let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+      expect(animation.fromValue as? CGPoint) == layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame)
+      expect(animation.toValue as? CGPoint) == .zero
+      expect(animation.isAdditive) == true
+    }
+  }
+
   func test_insertTransition_zeroDuration_appliesTargetAndCompletes() throws {
     // given: a layer renderable and a zero-duration slide-in transition
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
@@ -727,12 +786,63 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(animation.fillMode) == .both
   }
 
+  func test_composeViewIntegration_layerScrollsIntoView_slidesInFromJustBelowTheVisibleArea() throws {
+    // given: a compose view showing a layer 400 pt down its content with a slide-in transition from the bottom, rendered
+    // at the top of its content, where the layer is out of view
+    let layer = TestLayer()
+    layer.bounds = CGRect(origin: .zero, size: Constants.targetFrame.size)
+    let composeView = ComposeView {
+      VStack(spacing: 0) {
+        Spacer(height: 400)
+        LayerNode(layer)
+          .transition(.slide(from: .bottom, overshoot: Constants.overshoot, timing: Constants.timing, options: .insert))
+        Spacer(height: 600)
+      }
+    }
+    composeView.frame = CGRect(origin: .zero, size: Constants.contentSize)
+    composeView.refresh(animated: false)
+    expect(layer.superlayer) == nil
+
+    // when: the view scrolls the layer into view, so the visible area spans y 380 to 500, and lays out, which renders the
+    // scroll and inserts the layer with its transition
+    composeView.contentOffset = CGPoint(x: 0, y: 380)
+    composeView.setNeedsLayout()
+    composeView.layoutIfNeeded()
+
+    // then: the layer slides in from just below the visible area
+    let targetFrame = try unwrap(layer.capturedFrame)
+    expect(targetFrame.minY) == 400
+    let expectedInitialFrame = targetFrame.translate(dy: 500 + Constants.overshoot - targetFrame.minY)
+    let animation = try unwrap(layer.addedAnimation as? CABasicAnimation)
+    expect(layer.addedAnimationKey) == "position"
+    expect(animation.fromValue as? CGPoint) == layer.position(from: expectedInitialFrame) - layer.position(from: targetFrame)
+    expect(animation.isAdditive) == true
+  }
+
+  // MARK: - Helpers
+
+  /// Makes a compose view of `Constants.contentSize` showing 1000 × 1000 content, scrolled to (300, 400), so its visible
+  /// area spans x 300 to 500 and y 400 to 520 of the content.
+  ///
+  /// The view renders again when it scrolls, which sets the content size from the content, so the content is that large
+  /// to keep the offset.
+  private static func makeScrolledContentView() -> ComposeView {
+    let contentView = ComposeView {
+      ColorNode(.clear).frame(width: 1000, height: 1000)
+    }
+    contentView.frame = CGRect(origin: .zero, size: Constants.contentSize)
+    contentView.refresh()
+    contentView.contentOffset = CGPoint(x: 300, y: 400)
+    return contentView
+  }
+
   // MARK: - Constants
 
   private enum Constants {
 
     static let contentSize = CGSize(width: 200, height: 120)
     static let targetFrame = CGRect(x: 20, y: 30, width: 40, height: 50)
+    static let scrolledTargetFrame = CGRect(x: 320, y: 430, width: 40, height: 50)
     static let overshoot: CGFloat = 12
     static let duration: TimeInterval = 0.5
     static let timing: AnimationTiming = .linear(duration: duration)
