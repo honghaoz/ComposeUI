@@ -118,6 +118,14 @@ class ViewController: UIViewController {
         .padding(horizontal: Constants.padding)
         .frame(width: .flexible, height: state.transitionRevivalView.preferredHeight)
 
+      ViewNode<Playground.ScrolledSlideView>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: Constants.padding)
+        .frame(width: .flexible, height: Playground.ScrolledSlideView.preferredHeight)
+
       ViewNode<Playground.AnimateLabView>()
         .underlay {
           LayerNode()
