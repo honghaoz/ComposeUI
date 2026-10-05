@@ -222,6 +222,9 @@ public extension CALayer {
     let rawKey = key ?? keyPath
     let animationKey = animation.isAdditive ? uniqueAnimationKey(key: rawKey) : rawKey
     add(animation, forKey: animationKey)
+    #if DEBUG
+    WorkCounter.count(.animation)
+    #endif
 
     setKeyPathValue(keyPath, model?(layer) ?? toValue)
   }

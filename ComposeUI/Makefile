@@ -51,6 +51,12 @@ test-visionOS: # Run tests on visionOS.
 test-ci: # Run tests with CI-optimized caching path. Usage: make test-ci OS=iOS [PHASE=pick|boot|build|test].
 	@$(REPO_ROOT)/scripts/swift-package/test-package-xcodebuild.sh --package "$(MAKEFILE_DIR)" --os "$(OS)" --derived-data-path "$(CURDIR)/.derived-data" $(if $(PHASE),--phase $(PHASE),)
 
+# The tests use debug-only hooks, so the release build defines DEBUG. Deterministic hashing keeps the instruction counts
+# from varying between runs.
+.PHONY: benchmark
+benchmark: # Run the benchmarks in release configuration on macOS. Usage: make benchmark [FILTER=RenderPerformanceTests].
+	@BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --package-path "$(MAKEFILE_DIR)" -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter "$(or $(FILTER),PerformanceTests)"
+
 .PHONY: test-codecov
 test-codecov: # Run tests with code coverage.
 	@$(REPO_ROOT)/scripts/swift-package/test-package.sh --package "$(MAKEFILE_DIR)" --max-attempts 3 --delay 3 --summary "$${GITHUB_STEP_SUMMARY:-}" --enable-code-coverage -Xswiftc -DTEST

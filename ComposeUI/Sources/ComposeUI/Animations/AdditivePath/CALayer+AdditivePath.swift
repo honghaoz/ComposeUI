@@ -307,6 +307,9 @@ private extension CALayer {
 
     animation.setValue(PathChangesBox(changes), forKey: PathChangesBox.key)
     add(animation, forKey: keyPath)
+    #if DEBUG
+    WorkCounter.count(.animation)
+    #endif
     setKeyPathValue(keyPath, path)
   }
 

@@ -40,18 +40,9 @@ import ChouTiTest
 /// These tests are skipped by default. To run them:
 ///
 /// ```bash
-/// cd ComposeUI && BENCHMARK=1 swift test -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter RenderPerformanceTests
+/// make -C ComposeUI benchmark FILTER=RenderPerformanceTests
 /// ```
-///
-/// Run in release configuration for meaningful numbers. `-DDEBUG` is required because the test
-/// target depends on debug-only test hooks; note this also compiles in the render path's debug
-/// assertions and event callbacks, so numbers include some debug instrumentation overhead.
-class RenderPerformanceTests: XCTestCase {
-
-  override func setUpWithError() throws {
-    try super.setUpWithError()
-    try XCTSkipUnless(ProcessInfo.processInfo.environment["BENCHMARK"] == "1", "benchmarks are skipped by default, run with BENCHMARK=1")
-  }
+class RenderPerformanceTests: BenchmarkTestCase {
 
   // MARK: - Scroll (view-level, full render pass per scroll step)
 
@@ -687,44 +678,8 @@ class RenderPerformanceTests: XCTestCase {
 
   // MARK: - Measurement
 
-  private struct BenchmarkResult {
-    let durations: [Double] // milliseconds, sorted ascending
-
-    var median: Double { durations[durations.count / 2] }
-    var mean: Double { durations.reduce(0, +) / Double(durations.count) }
-    var p90: Double { durations[Int(Double(durations.count) * 0.9)] }
-    var min: Double { durations.first ?? 0 }
-    var max: Double { durations.last ?? 0 }
-  }
-
-  private func measure(warmup: Int, iterations: Int, _ block: (Int) -> Void) -> BenchmarkResult {
-    for i in 0 ..< warmup {
-      block(i)
-    }
-
-    var durations: [Double] = []
-    durations.reserveCapacity(iterations)
-
-    for i in 0 ..< iterations {
-      let start = DispatchTime.now()
-      block(warmup + i)
-      let end = DispatchTime.now()
-      durations.append(durationInMilliseconds(from: start, to: end))
-    }
-
-    return BenchmarkResult(durations: durations.sorted())
-  }
-
   private func durationInMilliseconds(from start: DispatchTime, to end: DispatchTime) -> Double {
     Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1000000
-  }
-
-  private func report(name: String, result: BenchmarkResult, extra: String? = nil) {
-    var line = "[BENCHMARK] \(name) | iterations: \(result.durations.count) | median: \(format(result.median)) ms | mean: \(format(result.mean)) ms | p90: \(format(result.p90)) ms | min: \(format(result.min)) ms | max: \(format(result.max)) ms"
-    if let extra {
-      line += " | \(extra)"
-    }
-    print(line)
   }
 
   private func format(_ value: Double) -> String {

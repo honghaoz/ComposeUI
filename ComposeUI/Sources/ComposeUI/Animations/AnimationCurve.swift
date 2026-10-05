@@ -177,7 +177,16 @@ struct AnimationCurve {
     var upperBound: Double = 1
     var t = x
     var step: Double = 1
+    #if DEBUG
+    var stepCount = 0
+    defer {
+      WorkCounter.count(.bezierSolverStep, stepCount)
+    }
+    #endif
     for _ in 0 ..< Constants.maxSolverSteps {
+      #if DEBUG
+      stepCount += 1
+      #endif
       let error = ((ax * t + bx) * t + cx) * t - x
       if error < 0 {
         lowerBound = t

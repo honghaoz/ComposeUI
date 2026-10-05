@@ -29,7 +29,6 @@
 //
 
 import CoreGraphics
-import Darwin
 import Foundation
 
 import ChouTiTest
@@ -41,17 +40,12 @@ import ChouTiTest
 /// These tests are skipped by default. To run them:
 ///
 /// ```bash
-/// cd ComposeUI && BENCHMARK=1 swift test -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter ModifierPerformanceTests
+/// make -C ComposeUI benchmark FILTER=ModifierPerformanceTests
 /// ```
 ///
-/// Allocations are counted on the calling thread. The gross count includes the allocations freed before the measured
-/// work returns, so the gap between the gross and the retained counts is the churn.
-class ModifierPerformanceTests: XCTestCase {
-
-  override func setUpWithError() throws {
-    try super.setUpWithError()
-    try XCTSkipUnless(ProcessInfo.processInfo.environment["BENCHMARK"] == "1", "benchmarks are skipped by default, run with BENCHMARK=1")
-  }
+/// The allocation count includes the allocations freed before the measured work returns, so the gap between the
+/// allocations and the retained allocations is the churn.
+class ModifierPerformanceTests: BenchmarkTestCase {
 
   // MARK: - Construction
 
@@ -59,9 +53,6 @@ class ModifierPerformanceTests: XCTestCase {
     for workload in Workload.allCases {
       // when: building the rows
       let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { _ in
-        _ = Self.makeRows(workload, count: Constants.rowCount)
-      }
-      let grossAllocations = AllocationCounter.count {
         _ = Self.makeRows(workload, count: Constants.rowCount)
       }
       let retainedMemory = MemoryUsage.retained(by: {
@@ -72,9 +63,7 @@ class ModifierPerformanceTests: XCTestCase {
       report(
         name: "modifiers.construction.\(workload)",
         result: result,
-        grossAllocations: grossAllocations,
-        retainedMemory: retainedMemory,
-        unit: (name: "row", count: Constants.rowCount)
+        extra: perRow(result, retainedMemory: retainedMemory)
       )
     }
   }
@@ -96,17 +85,9 @@ class ModifierPerformanceTests: XCTestCase {
       let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { _ in
         _ = node.renderableItems(in: visibleBounds)
       }
-      let grossAllocations = AllocationCounter.count {
-        _ = node.renderableItems(in: visibleBounds)
-      }
 
       // then: report the timings and the allocations
-      report(
-        name: "modifiers.renderableItems.\(workload)",
-        result: result,
-        grossAllocations: grossAllocations,
-        unit: (name: "row", count: Constants.rowCount)
-      )
+      report(name: "modifiers.renderableItems.\(workload)", result: result, extra: perRow(result))
     }
   }
 
@@ -129,17 +110,9 @@ class ModifierPerformanceTests: XCTestCase {
       let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { _ in
         view.refresh(animated: false)
       }
-      let grossAllocations = AllocationCounter.count {
-        view.refresh(animated: false)
-      }
 
       // then: report the timings and the allocations
-      report(
-        name: "modifiers.refresh.\(workload)",
-        result: result,
-        grossAllocations: grossAllocations,
-        unit: (name: "row", count: Constants.rowCount)
-      )
+      report(name: "modifiers.refresh.\(workload)", result: result, extra: perRow(result))
     }
   }
 
@@ -161,18 +134,9 @@ class ModifierPerformanceTests: XCTestCase {
       isAlternate.toggle()
       view.refresh(animated: false)
     }
-    let grossAllocations = AllocationCounter.count {
-      isAlternate.toggle()
-      view.refresh(animated: false)
-    }
 
     // then: report the timings and the allocations
-    report(
-      name: "modifiers.refresh.changingValues",
-      result: result,
-      grossAllocations: grossAllocations,
-      unit: (name: "row", count: Constants.rowCount)
-    )
+    report(name: "modifiers.refresh.changingValues", result: result, extra: perRow(result))
   }
 
   func test_refresh_changingValues_whileAnimating() {
@@ -199,18 +163,9 @@ class ModifierPerformanceTests: XCTestCase {
       isAlternate.toggle()
       view.refresh(animated: false)
     }
-    let grossAllocations = AllocationCounter.count {
-      isAlternate.toggle()
-      view.refresh(animated: false)
-    }
 
     // then: report the timings and the allocations
-    report(
-      name: "modifiers.refresh.changingValues.whileAnimating",
-      result: result,
-      grossAllocations: grossAllocations,
-      unit: (name: "row", count: Constants.rowCount)
-    )
+    report(name: "modifiers.refresh.changingValues.whileAnimating", result: result, extra: perRow(result))
   }
 
   // MARK: - Scroll
@@ -232,27 +187,14 @@ class ModifierPerformanceTests: XCTestCase {
       // when: scrolling down, which makes the visible rows' render items and reuses the renderables of the rows that
       // leave for the rows that enter
       var offset: CGFloat = 0
-      let scroll = {
+      let result = measure(warmup: Constants.scrollWarmup, iterations: Constants.scrollIterations) { _ in
         offset += Constants.scrollStep
         view.contentOffset = CGPoint(x: 0, y: offset) // on AppKit, this triggers the render synchronously
         view.layoutIfNeeded() // on UIKit, this triggers the render
       }
-      let result = measure(warmup: Constants.scrollWarmup, iterations: Constants.scrollIterations) { _ in
-        scroll()
-      }
-      let grossAllocations = AllocationCounter.count {
-        for _ in 0 ..< Constants.scrollCountedSteps {
-          scroll()
-        }
-      }
 
-      // then: report the timings and the allocations
-      report(
-        name: "modifiers.scroll.\(workload)",
-        result: result,
-        grossAllocations: grossAllocations,
-        unit: (name: "step", count: Constants.scrollCountedSteps)
-      )
+      // then: report the timings and the allocations, per step
+      report(name: "modifiers.scroll.\(workload)", result: result)
     }
   }
 
@@ -353,52 +295,18 @@ class ModifierPerformanceTests: XCTestCase {
 
   // MARK: - Measurement
 
-  private struct BenchmarkResult {
-
-    let durations: [Double] // microseconds, sorted ascending
-
-    var median: Double { durations[durations.count / 2] }
-    var p90: Double { durations[Int(Double(durations.count) * 0.9)] }
-  }
-
-  /// Measures the block, each iteration in its own autorelease pool so that autoreleased objects don't pile up across
-  /// iterations.
-  private func measure(warmup: Int, iterations: Int, _ block: (Int) -> Void) -> BenchmarkResult {
-    for i in 0 ..< warmup {
-      autoreleasepool {
-        block(i)
-      }
+  /// The allocations per row of an iteration over all the rows, and the memory the rows retain per row, as extra
+  /// information for a report.
+  private func perRow(_ result: BenchmarkResult, retainedMemory: MemoryUsage? = nil) -> String {
+    func format(_ value: Double) -> String {
+      String(format: "%.2f", value / Double(Constants.rowCount))
     }
 
-    var durations: [Double] = []
-    durations.reserveCapacity(iterations)
-    for i in 0 ..< iterations {
-      autoreleasepool {
-        let start = DispatchTime.now()
-        block(warmup + i)
-        let end = DispatchTime.now()
-        durations.append(Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1000)
-      }
-    }
-    return BenchmarkResult(durations: durations.sorted())
-  }
-
-  private func report(name: String,
-                      result: BenchmarkResult,
-                      grossAllocations: Int?,
-                      retainedMemory: MemoryUsage? = nil,
-                      unit: (name: String, count: Int))
-  {
-    func perUnit(_ value: Int) -> String {
-      "\(value) (\(String(format: "%.2f", Double(value) / Double(unit.count)))/\(unit.name))"
-    }
-
-    var line = "[BENCHMARK] \(name) | median: \(String(format: "%.1f", result.median)) µs | p90: \(String(format: "%.1f", result.p90)) µs"
-    line += " | gross allocations: \(grossAllocations.map(perUnit) ?? "n/a")"
+    var extra = "allocations per row: \(result.allocationsPerIteration.map(format) ?? "n/a")"
     if let retainedMemory {
-      line += " | retained allocations: \(perUnit(retainedMemory.blocks)) | retained bytes: \(perUnit(retainedMemory.bytes))"
+      extra += " | retained allocations per row: \(format(Double(retainedMemory.blocks))) | retained bytes per row: \(format(Double(retainedMemory.bytes)))"
     }
-    print(line)
+    return extra
   }
 
   // MARK: - Constants
@@ -421,65 +329,5 @@ class ModifierPerformanceTests: XCTestCase {
     static let scrollStep: CGFloat = 137 // a non-multiple of the row height for varied row churn
     static let scrollWarmup = 20
     static let scrollIterations = 120
-    static let scrollCountedSteps = 20
-  }
-}
-
-// MARK: - Instrumentation
-
-/// The number of heap blocks and bytes in use.
-private struct MemoryUsage {
-
-  let blocks: Int
-  let bytes: Int
-
-  /// Returns the memory that the value the body makes keeps in use.
-  static func retained(by body: () -> some Any) -> MemoryUsage {
-    let before = current()
-    let value = body()
-    let after = current()
-    withExtendedLifetime(value) {}
-    return MemoryUsage(blocks: after.blocks - before.blocks, bytes: after.bytes - before.bytes)
-  }
-
-  private static func current() -> MemoryUsage {
-    var statistics = malloc_statistics_t()
-    malloc_zone_statistics(nil, &statistics) // all zones
-    return MemoryUsage(blocks: Int(statistics.blocks_in_use), bytes: Int(statistics.size_in_use))
-  }
-}
-
-/// Counts the allocations made on the calling thread, through libmalloc's `malloc_logger` hook, which libmalloc calls
-/// for every allocation while it is set.
-private enum AllocationCounter {
-
-  private typealias Logger = @convention(c) (_ type: UInt32, _ arg1: UInt, _ arg2: UInt, _ arg3: UInt, _ result: UInt, _ skippedFrames: UInt32) -> Void
-
-  /// The `malloc_logger` variable, `nil` if libmalloc doesn't export it.
-  private static let logger: UnsafeMutablePointer<Logger?>? = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "malloc_logger") // RTLD_DEFAULT
-    .map { $0.assumingMemoryBound(to: Logger?.self) }
-
-  /// The count and the counted thread, in memory that the logger reaches without capturing anything, since a C
-  /// function pointer can't capture.
-  private static let counter = UnsafeMutablePointer<Int>.allocate(capacity: 1)
-  private static let countedThread = UnsafeMutablePointer<pthread_t?>.allocate(capacity: 1)
-
-  /// Returns the number of allocations the body makes on the calling thread, `nil` if the allocations can't be counted.
-  static func count(_ body: () -> Void) -> Int? {
-    guard let logger, logger.pointee == nil else {
-      return nil
-    }
-
-    counter.pointee = 0
-    countedThread.pointee = pthread_self()
-    logger.pointee = { type, _, _, _, _, _ in
-      let allocateType: UInt32 = 2 // MALLOC_LOG_TYPE_ALLOCATE, also set for a reallocation
-      if type & allocateType != 0, pthread_equal(pthread_self(), AllocationCounter.countedThread.pointee) != 0 {
-        AllocationCounter.counter.pointee += 1
-      }
-    }
-    body()
-    logger.pointee = nil
-    return counter.pointee
   }
 }
