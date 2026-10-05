@@ -818,6 +818,52 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(try pathValue(clipPathAnimation.toValue)) == roundedRect(size: CGSize(width: 200, height: 100), cornerRadius: 30)
   }
 
+  func test_update_withoutAnimation_widthChangeDuringResizeOfBothDimensions_pathsKeepTheHeightsMotion() throws {
+    // given: an inner shadow layer whose paths are squares as high as its size at its right edge, so their left edges
+    // move with the height too, whose frame and paths grow from 100 by 100 to 400 by 400 points over 2 seconds from 1000
+    let layer = InnerShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    func update(animationTiming: AnimationTiming?) {
+      layer.update(
+        color: .black,
+        opacity: 0.5,
+        radius: 10,
+        offset: .zero,
+        paths: { InnerShadowPaths(shadowPath: rightSquare($0, inset: 5), clipPath: rightSquare($0)) },
+        animationTiming: animationTiming
+      )
+    }
+    update(animationTiming: nil)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 400, height: 400), timing: .linear(duration: 2))
+      update(animationTiming: .linear(duration: 2))
+    }
+
+    // when: the frame changes to 300 points wide without animation a second in, as the render pass does
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 300, height: 400))
+      update(animationTiming: nil)
+    }
+
+    // then: the width glides while the height keeps its motion, in the frame and in the paths alike, so each keyframe of
+    // the paths is the square for the size the frame shows at its time
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    let shadowPaths = try pathValues(of: shadowPathAnimation)
+    let clipPaths = try pathValues(of: clipPathAnimation)
+    expect(shadowPaths.count) == clipPaths.count
+    for index in shadowPaths.indices {
+      let keyTime = shadowPathAnimation.keyTimes.map { CGFloat(truncating: $0[index]) } ?? CGFloat(index) / CGFloat(shadowPaths.count - 1)
+      let time = 1001 + shadowPathAnimation.duration * keyTime
+      let width = try layer.predictedValue(forKeyPath: "bounds.size", at: time) { try ($0 as? CGSize).unwrap().width }
+      let height = try layer.predictedValue(forKeyPath: "bounds.size", at: time) { try ($0 as? CGSize).unwrap().height }
+      let size = CGSize(width: width, height: height)
+      expect(isPath(shadowPaths[index], closeTo: rightSquare(size, inset: 5)), "keyframe \(index)") == true
+      expect(isPath(clipPaths[index], closeTo: rightSquare(size)), "keyframe \(index)") == true
+    }
+  }
+
   // MARK: - Helpers
 
   /// An inner shadow layer of the given width and 100 points high, updated by `updateRounded` without animation.
@@ -855,6 +901,12 @@ final class InnerShadowLayerTests: XCTestCase {
   /// A rounded rect of the given size at the origin, inset by the given amount.
   private func roundedRect(size: CGSize, cornerRadius: CGFloat = 10, inset: CGFloat = 0) -> CGPath {
     CGPath(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: inset, dy: inset), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+  }
+
+  /// A square as high as a size at the size's right edge, inset by the given amount, so its left edge moves with the
+  /// size's height too.
+  private func rightSquare(_ size: CGSize, inset: CGFloat = 0) -> CGPath {
+    CGPath(rect: CGRect(x: size.width - size.height, y: 0, width: size.height, height: size.height).insetBy(dx: inset, dy: inset), transform: nil)
   }
 
   /// Expects an animation to have the timing of another.

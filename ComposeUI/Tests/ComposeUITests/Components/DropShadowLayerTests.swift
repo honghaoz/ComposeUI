@@ -850,6 +850,176 @@ final class DropShadowLayerTests: XCTestCase {
     expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: shownWidth))) == true
   }
 
+  func test_update_withoutAnimation_shapeChangeDuringSpringThatNeverSettles_pathsKeepTheFramesSpring() throws {
+    // given: a layer with a cutout whose frame and paths spring from 100 to 300 points wide while the corner radius goes
+    // from 12 to 24, without damping from 1000, so they bounce forever
+    let layer = makeLayer(width: 100, cornerRadius: 12)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    let spring = AnimationTiming.spring(dampingRatio: 0, response: 1.6)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 300, height: 100), timing: spring)
+      updateRounded(layer, cornerRadius: 24, animationTiming: spring)
+    }
+    let sizeSpring = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+
+    // when: the corner radius changes to 36 without animation 0.3 seconds in, which leaves the frame alone
+    AnimationClock.sharingTime(at: 1000.3) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 300, height: 100))
+      updateRounded(layer, cornerRadius: 36, animationTiming: nil)
+    }
+
+    // then: the frame keeps bouncing, and so do the paths, with the new corner radius at once, instead of stopping at the
+    // new width while the frame bounces on
+    expect(layer.animation(forKey: "bounds.size")) === sizeSpring
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expectSameTiming(shadowPathAnimation, as: sizeSpring)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(width: 100, cornerRadius: 24))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(width: 300, cornerRadius: 36)
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(maskPathAnimation, as: sizeSpring)
+    expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: 100, cornerRadius: 24))) == true
+    expect(try PathPoints(pathValue(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 300, cornerRadius: 36))
+  }
+
+  func test_update_withoutAnimation_resizeCanceledByAShapeChange_pathsGlideWithTheFrame() throws {
+    // given: a layer whose paths are rounded rects as wide as its size plus an extension, whose frame and paths animate
+    // linearly from 100 to 300 points wide over 2 seconds from 1000, without an extension
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    updateExtended(layer, by: 0, animationTiming: nil)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 300, height: 100), timing: .linear(duration: 2))
+      updateExtended(layer, by: 0, animationTiming: .linear(duration: 2))
+    }
+
+    // when: the frame changes to 200 points wide with an extension of 100 without animation half a second in, as the
+    // render pass does, which leaves the paths 300 points wide
+    AnimationClock.sharingTime(at: 1000.5) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100))
+      updateExtended(layer, by: 100, animationTiming: nil)
+    }
+
+    // then: the extension shows at once, and the paths glide with the frame from the 150 points it shows, so they stay
+    // the extension wider than the frame instead of going on to 300 points with the old resize
+    let sizeGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(sizeGlide.fromValue as? CGSize) == CGSize(width: -50, height: 0)
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expectSameTiming(shadowPathAnimation, as: sizeGlide)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(width: 250))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(width: 300)
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(maskPathAnimation, as: sizeGlide)
+    expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: 250))) == true
+    expect(try PathPoints(pathValue(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 300))
+  }
+
+  func test_update_withAnimation_resizeCanceledByAShapeChange_pathsKeepTheResize() throws {
+    // given: a layer whose paths are rounded rects as wide as its size plus an extension, 100 points wide with an
+    // extension of 200, whose frame animates linearly to 300 points wide over 2 seconds from 1000 while the extension
+    // animates to 0 with it, which leaves the paths 300 points wide
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    updateExtended(layer, by: 200, animationTiming: nil)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 300, height: 100), timing: .linear(duration: 2))
+      updateExtended(layer, by: 0, animationTiming: .linear(duration: 2))
+    }
+
+    // when: the frame changes to 200 points wide without animation half a second in, as the render pass does
+    AnimationClock.sharingTime(at: 1000.5) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100))
+      updateExtended(layer, by: 0, animationTiming: nil)
+    }
+
+    // then: the paths kept the resize that the extension canceled out, so they glide with the frame while the extension
+    // keeps shrinking: each keyframe is as wide as the frame at its time plus the extension shown then
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    let shadowPaths = try pathValues(of: shadowPathAnimation)
+    let maskPaths = try pathValues(of: maskPathAnimation)
+    expect(shadowPaths.count) == maskPaths.count
+    for index in shadowPaths.indices {
+      let keyTime = shadowPathAnimation.keyTimes.map { CGFloat(truncating: $0[index]) } ?? CGFloat(index) / CGFloat(shadowPaths.count - 1)
+      let time = 1000.5 + shadowPathAnimation.duration * keyTime
+      let frameWidth = try layer.predictedValue(forKeyPath: "bounds.size", at: time) { try ($0 as? CGSize).unwrap().width }
+      let shownExtension = 200 * (1 - (time - 1000) / 2)
+      expect(isPath(shadowPaths[index], closeTo: roundedRect(width: frameWidth + shownExtension)), "keyframe \(index)") == true
+      expect(isPath(maskPaths[index], closeTo: maskPath(width: frameWidth + shownExtension)), "keyframe \(index)") == true
+    }
+  }
+
+  func test_update_withoutAnimation_widthChangeDuringResizeOfBothDimensions_pathsKeepTheHeightsMotion() throws {
+    // given: a layer whose paths are squares as high as its size at its right edge, so their left edges move with the
+    // height too, whose frame and paths grow from 100 by 100 to 400 by 400 points over 2 seconds from 1000
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    func update(animationTiming: AnimationTiming?) {
+      layer.update(
+        color: .black,
+        opacity: 0.5,
+        radius: 4,
+        offset: .zero,
+        paths: { DropShadowPaths(shadowPath: rightSquare($0), cutoutPath: rightSquare($0, inset: 10)) },
+        animationTiming: animationTiming
+      )
+    }
+    update(animationTiming: nil)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 400, height: 400), timing: .linear(duration: 2))
+      update(animationTiming: .linear(duration: 2))
+    }
+
+    // when: the frame changes to 300 points wide without animation a second in, as the render pass does
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 300, height: 400))
+      update(animationTiming: nil)
+    }
+
+    // then: the width glides while the height keeps its motion, in the frame and in the paths alike, so each keyframe of
+    // the paths is the square for the size the frame shows at its time
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    let shadowPaths = try pathValues(of: shadowPathAnimation)
+    let maskPaths = try pathValues(of: maskPathAnimation)
+    expect(shadowPaths.count) == maskPaths.count
+    for index in shadowPaths.indices {
+      let keyTime = shadowPathAnimation.keyTimes.map { CGFloat(truncating: $0[index]) } ?? CGFloat(index) / CGFloat(shadowPaths.count - 1)
+      let time = 1001 + shadowPathAnimation.duration * keyTime
+      let width = try layer.predictedValue(forKeyPath: "bounds.size", at: time) { try ($0 as? CGSize).unwrap().width }
+      let height = try layer.predictedValue(forKeyPath: "bounds.size", at: time) { try ($0 as? CGSize).unwrap().height }
+      let size = CGSize(width: width, height: height)
+      expect(isPath(shadowPaths[index], closeTo: rightSquare(size)), "keyframe \(index)") == true
+      expect(isPath(maskPaths[index], closeTo: maskPath(cutout: rightSquare(size, inset: 10))), "keyframe \(index)") == true
+    }
+  }
+
+  func test_update_withAnimation_cutoutMissingAtTheOldSize_maskAnimatesToTheNewPath() throws {
+    // given: a layer 100 points wide with a cutout
+    let layer = makeLayer(width: 100)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+
+    // when: the frame animates to 200 points wide, and the layer is updated with the frame's timing and paths that have a
+    // cutout only past 150 points wide
+    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100), timing: .linear(duration: 2))
+    layer.update(
+      color: .black,
+      opacity: 0.5,
+      radius: 4,
+      offset: .zero,
+      paths: { DropShadowPaths(shadowPath: roundedRect(size: $0), cutoutPath: $0.width > 150 ? roundedRect(size: $0, inset: 10) : nil) },
+      animationTiming: .linear(duration: 2)
+    )
+
+    // then: the paths at the old size have no cutout to tell the mask's resize by, so the mask's path animates from the
+    // old path to the new one as a change of its shape
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: 100))) == true
+    expect(try PathPoints(pathValue(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 200))
+  }
+
   func test_update_withAnimation_pathsOfOtherElements_changeAtOnce() throws {
     // given: a layer whose paths are rects at 100 points wide and ellipses at other widths
     let layer = DropShadowLayer()
@@ -886,10 +1056,10 @@ final class DropShadowLayerTests: XCTestCase {
   // MARK: - Helpers
 
   /// A layer of the given width and 100 points high at the origin, updated by `updateRounded` without animation.
-  private func makeLayer(width: CGFloat) -> DropShadowLayer {
+  private func makeLayer(width: CGFloat, cornerRadius: CGFloat = 10) -> DropShadowLayer {
     let layer = DropShadowLayer()
     layer.frame = CGRect(x: 0, y: 0, width: width, height: 100)
-    updateRounded(layer, animationTiming: nil)
+    updateRounded(layer, cornerRadius: cornerRadius, animationTiming: nil)
     return layer
   }
 
@@ -901,6 +1071,22 @@ final class DropShadowLayerTests: XCTestCase {
       radius: 4,
       offset: .zero,
       paths: { DropShadowPaths(shadowPath: roundedRect(size: $0, cornerRadius: cornerRadius), cutoutPath: roundedRect(size: $0, cornerRadius: cornerRadius, inset: 10)) },
+      animationTiming: animationTiming
+    )
+  }
+
+  /// Updates the layer with a rounded rect shadow as wide as its size plus an extension, cut out by the rounded rect
+  /// inset by 10 points.
+  private func updateExtended(_ layer: DropShadowLayer, by extension: CGFloat, animationTiming: AnimationTiming?) {
+    layer.update(
+      color: .black,
+      opacity: 0.5,
+      radius: 4,
+      offset: .zero,
+      paths: { size in
+        let extendedSize = CGSize(width: size.width + `extension`, height: size.height)
+        return DropShadowPaths(shadowPath: roundedRect(size: extendedSize), cutoutPath: roundedRect(size: extendedSize, inset: 10))
+      },
       animationTiming: animationTiming
     )
   }
@@ -919,6 +1105,12 @@ final class DropShadowLayerTests: XCTestCase {
   /// A rounded rect of the given width and 100 points high at the origin, inset by the given amount.
   private func roundedRect(width: CGFloat, cornerRadius: CGFloat = 10, inset: CGFloat = 0) -> CGPath {
     roundedRect(size: CGSize(width: width, height: 100), cornerRadius: cornerRadius, inset: inset)
+  }
+
+  /// A square as high as a size at the size's right edge, inset by the given amount, so its left edge moves with the
+  /// size's height too.
+  private func rightSquare(_ size: CGSize, inset: CGFloat = 0) -> CGPath {
+    CGPath(rect: CGRect(x: size.width - size.height, y: 0, width: size.height, height: size.height).insetBy(dx: inset, dy: inset), transform: nil)
   }
 
   /// The mask path `updateRounded` gives a layer of the given width.

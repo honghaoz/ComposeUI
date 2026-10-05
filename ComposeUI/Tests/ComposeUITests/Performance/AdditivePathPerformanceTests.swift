@@ -164,6 +164,26 @@ class AdditivePathPerformanceTests: XCTestCase {
     report(name: "dropShadow.resizeInFlight", result: result)
   }
 
+  func test_dropShadow_resizeOfBothDimensionsInFlight() {
+    // given: a drop shadow layer with a cutout whose paths animate to 200 by 150 points over a second from 1000
+    let layer = makeDropShadowLayer(width: 100)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 150))
+      updateShadow(layer, animationTiming: .linear(duration: 1))
+    }
+
+    // when: resizing both dimensions without animation half way through on every call, as a live resize during the
+    // animation does, so each call retargets the paths with the paths for the size between too
+    let result = AnimationClock.sharingTime(at: 1000.5) {
+      measure { i in
+        let length: CGFloat = i.isMultiple(of: 2) ? 300 : 310
+        layer.retargetFrame(to: CGRect(x: 0, y: 0, width: length, height: length))
+        self.updateShadow(layer, animationTiming: nil)
+      }
+    }
+    report(name: "dropShadow.resizeOfBothDimensionsInFlight", result: result)
+  }
+
   // MARK: - Helpers
 
   /// A drop shadow layer of the given width and 100 points high, updated by `updateShadow` without animation.
