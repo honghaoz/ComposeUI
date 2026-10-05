@@ -54,7 +54,7 @@ public extension CALayer {
   ///   - timing: The animation timing.
   @_spi(Private)
   func animatePath(keyPath: String, to path: CGPath, timing: AnimationTiming) {
-    animatePath(keyPath: keyPath, to: path, pathAtOldSize: { _ in nil }, timing: timing)
+    animatePath(keyPath: keyPath, timing: timing, resizingFrom: { _ in nil }, to: { _ in path })
   }
 
   /// Set a path of the layer without animation.
@@ -107,7 +107,7 @@ public extension CALayer {
   ///   - path: The path to set.
   @_spi(Private)
   func retargetPath(keyPath: String, to path: CGPath) {
-    retargetPath(keyPath: keyPath, to: path, pathAtOldSize: { _ in nil })
+    retargetPath(keyPath: keyPath, resizingFrom: { _ in nil }, to: { _ in path })
   }
 
   // MARK: - Paths Following the Layer's Size
@@ -126,35 +126,28 @@ public extension CALayer {
   ///   - keyPath: The key path of the path.
   ///   - timing: The animation timing.
   ///   - path: The path for a size. It's called with the layer's size, and after a resize with the size the current path
-  ///     was made for too.
+  ///     was made for, and the new width with the old height, too.
   @_spi(Private)
   func animatePath(keyPath: String, timing: AnimationTiming, to path: (CGSize) -> CGPath) {
     let pathSizes = PathSizes.of(self)
-    let size = bounds.size
-    let newPath = path(size)
-    animatePath(
-      keyPath: keyPath,
-      to: newPath,
-      pathAtOldSize: { pathSizes.pathAtOldSize(forKeyPath: keyPath, current: $0, newSize: size, path: path) },
-      timing: timing
-    )
-    pathSizes.remember(newPath, size: size, forKeyPath: keyPath)
+    let newPath = animatePath(keyPath: keyPath, timing: timing, resizingFrom: { pathSizes.size(forKeyPath: keyPath, of: $0) }, to: path)
+    pathSizes.remember(newPath, size: bounds.size, forKeyPath: keyPath)
   }
 
   /// Set a path of the layer that follows the layer's size and retarget its changes in flight to it, so the path glides
   /// with the layer's frame, see `retargetFrame(to:)`.
   ///
-  /// The change of the path's shape and the change of the layer's size are judged apart, coordinate by coordinate
-  /// against the motion of the same part of the changes in flight. A changed coordinate in motion glides from where it
-  /// shows, and one at rest takes its new value at once.
+  /// The change of the path's shape, of the layer's width and of its height are judged apart, each against the motion of
+  /// the same part of the changes in flight.
   ///
-  /// - The shape glides when a coordinate it changes is in motion: the changes that move such a coordinate fold their
-  ///   shape motion into an ease-out change, and the other changes keep theirs with their timing.
-  /// - The size is judged axis by axis, as in `retargetFrame(to:)`: it glides along an axis when a coordinate it changes
-  ///   along that axis is in motion, while the changes' size motion along the other axis keeps its timing.
-  /// - A part that doesn't glide keeps its motion on the new path, as in `setPath(keyPath:to:)`.
+  /// - The width and the height are judged as the frame's size is, axis by axis, in `retargetFrame(to:)`: one that
+  ///   changed and is in motion glides from where it shows, one that changed at rest takes its new value at once, and
+  ///   the motion of one that didn't change keeps its timing.
+  /// - The shape glides at the coordinates it changes that are in motion: the changes that move such a coordinate fold
+  ///   their shape's motion into an ease-out change, and the other changes keep theirs with their timing.
   /// - A glide lands when the changes it folds would have. A running spring keeps going with the glides stacked on it,
-  ///   and a spring that never settles folds whole, as it can't overlap other changes.
+  ///   and a spring that never settles folds whole, as it can't overlap other changes, unless only the shape glides while
+  ///   the spring moves the size, which keeps going with the frame's size as the shape's change shows at once.
   ///
   /// The layer remembers the size it makes the path for, see `animatePath(keyPath:timing:to:)`. Without changes in
   /// flight, the path shows at once.
@@ -165,84 +158,93 @@ public extension CALayer {
   /// - Parameters:
   ///   - keyPath: The key path of the path.
   ///   - path: The path for a size. It's called with the layer's size, and with changes in flight after a resize, with
-  ///     the size the current path was made for too.
+  ///     the size the current path was made for, and the new width with the old height, too.
   @_spi(Private)
   func retargetPath(keyPath: String, to path: (CGSize) -> CGPath) {
     let pathSizes = PathSizes.of(self)
-    let size = bounds.size
-    let newPath = path(size)
-    retargetPath(
-      keyPath: keyPath,
-      to: newPath,
-      pathAtOldSize: { pathSizes.pathAtOldSize(forKeyPath: keyPath, current: $0, newSize: size, path: path) }
-    )
-    pathSizes.remember(newPath, size: size, forKeyPath: keyPath)
+    let newPath = retargetPath(keyPath: keyPath, resizingFrom: { pathSizes.size(forKeyPath: keyPath, of: $0) }, to: path)
+    pathSizes.remember(newPath, size: bounds.size, forKeyPath: keyPath)
   }
 }
 
 extension CALayer {
 
-  /// Animate a path of the layer additively, with the new path at the size the current path was made for, which tells the
-  /// change of the path's shape, up to it, apart from the change of the size, from it, see
+  /// Animate a path of the layer that follows its size additively, with the size the current path was made for, which
+  /// tells the change of the path's shape apart from the changes of the width and the height, see
   /// `animatePath(keyPath:timing:to:)`.
   ///
   /// - Parameters:
   ///   - keyPath: The key path of the path.
-  ///   - path: The path to animate to.
-  ///   - pathAtOldSize: The new path at the size the current path, which it's given, was made for, or `nil` when the size
-  ///     didn't change or isn't known, which makes the change all the shape's. It's called only when the path changes.
   ///   - timing: The animation timing.
-  func animatePath(keyPath: String, to path: CGPath, pathAtOldSize: (_ currentPath: CGPath) -> CGPath?, timing: AnimationTiming) {
+  ///   - oldSize: The size the current path, which it's given, was made for, or `nil` when it isn't known, which makes
+  ///     the change all the shape's.
+  ///   - path: The path for a size. It's called with the layer's size, and after a resize with the sizes between, see
+  ///     `PathChanges.Resize`.
+  /// - Returns: The path for the layer's size.
+  @discardableResult
+  func animatePath(keyPath: String, timing: AnimationTiming, resizingFrom oldSize: (_ currentPath: CGPath) -> CGSize?, to path: (CGSize) -> CGPath) -> CGPath {
+    let size = bounds.size
+    let newPath = path(size)
     switch modelPath(forKeyPath: keyPath) {
     case .path(let currentPath):
-      guard currentPath != path else {
-        return
+      let oldSize = oldSize(currentPath).flatMap { $0 == size ? nil : $0 }
+      // a resize that a change of the shape cancels out leaves the path as it is, but it's still a change
+      guard currentPath != newPath || oldSize != nil else {
+        return newPath
       }
       let now = currentTime
       var changes = pathChanges(forKeyPath: keyPath, at: now)
       let currentPoints = PathPoints(currentPath)
-      let points = PathPoints(path)
-      let pointsAtOldSize = pointsOfPathAtOldSize(pathAtOldSize(currentPath), current: currentPath, currentPoints: currentPoints)
-      changes.record(from: currentPoints, to: points, pointsAtOldSize: pointsAtOldSize, timing: timing, at: now)
-      showPath(path, points: points, forKeyPath: keyPath, changes: changes, at: now)
+      let points = PathPoints(newPath)
+      let resize = oldSize.map { resizeOfPath(path, from: $0, to: size, current: currentPath, currentPoints: currentPoints, newPoints: points) }
+      changes.record(from: currentPoints, to: points, resize: resize, timing: timing, at: now)
+      showPath(newPath, points: points, forKeyPath: keyPath, changes: changes, at: now)
     case .noValue:
-      showPathAtOnce(path, forKeyPath: keyPath)
+      showPathAtOnce(newPath, forKeyPath: keyPath)
     case .notAPath:
-      return
+      break
     }
+    return newPath
   }
 
-  /// Set a path of the layer and retarget its changes in flight to it, with the new path at the size the current path
-  /// was made for, see `retargetPath(keyPath:to:)` and `animatePath(keyPath:to:pathAtOldSize:timing:)`.
+  /// Set a path of the layer that follows its size and retarget its changes in flight to it, with the size the current
+  /// path was made for, see `retargetPath(keyPath:to:)` and `animatePath(keyPath:timing:resizingFrom:to:)`.
   ///
   /// - Parameters:
   ///   - keyPath: The key path of the path.
-  ///   - path: The path to set.
-  ///   - pathAtOldSize: The new path at the size the current path, which it's given, was made for, or `nil` when the size
-  ///     didn't change or isn't known, which makes the change all the shape's. It's called only when the path changes
-  ///     with changes in flight.
-  func retargetPath(keyPath: String, to path: CGPath, pathAtOldSize: (_ currentPath: CGPath) -> CGPath?) {
+  ///   - oldSize: The size the current path, which it's given, was made for, or `nil` when it isn't known, which makes
+  ///     the change all the shape's.
+  ///   - path: The path for a size. It's called with the layer's size, and with changes in flight after a resize, with
+  ///     the sizes between, see `PathChanges.Resize`.
+  /// - Returns: The path for the layer's size.
+  @discardableResult
+  func retargetPath(keyPath: String, resizingFrom oldSize: (_ currentPath: CGPath) -> CGSize?, to path: (CGSize) -> CGPath) -> CGPath {
+    let size = bounds.size
+    let newPath = path(size)
     switch modelPath(forKeyPath: keyPath) {
     case .path(let currentPath):
-      guard currentPath != path else {
-        return
+      let oldSize = oldSize(currentPath).flatMap { $0 == size ? nil : $0 }
+      // a resize that a change of the shape cancels out leaves the path as it is, but the resize glides with the frame
+      guard currentPath != newPath || oldSize != nil else {
+        return newPath
       }
       let now = currentTime
       var changes = pathChanges(forKeyPath: keyPath, at: now)
       guard !changes.isEmpty else {
-        showPathAtOnce(path, forKeyPath: keyPath)
-        return
+        showPathAtOnce(newPath, forKeyPath: keyPath)
+        return newPath
       }
       let currentPoints = PathPoints(currentPath)
-      let points = PathPoints(path)
-      let pointsAtOldSize = pointsOfPathAtOldSize(pathAtOldSize(currentPath), current: currentPath, currentPoints: currentPoints)
-      changes.retarget(from: currentPoints, to: points, pointsAtOldSize: pointsAtOldSize, at: now)
-      showPath(path, points: points, forKeyPath: keyPath, changes: changes, at: now)
+      let points = PathPoints(newPath)
+      let resize = oldSize.map { resizeOfPath(path, from: $0, to: size, current: currentPath, currentPoints: currentPoints, newPoints: points) }
+      changes.retarget(from: currentPoints, to: points, resize: resize, at: now)
+      showPath(newPath, points: points, forKeyPath: keyPath, changes: changes, at: now)
     case .noValue:
-      showPathAtOnce(path, forKeyPath: keyPath)
+      showPathAtOnce(newPath, forKeyPath: keyPath)
     case .notAPath:
-      return
+      break
     }
+    return newPath
   }
 }
 
@@ -308,19 +310,31 @@ private extension CALayer {
     setKeyPathValue(keyPath, path)
   }
 
-  /// The points of the new path at the old size, see `animatePath(keyPath:to:pathAtOldSize:timing:)`.
+  /// The points of a path that follows the layer's size at the sizes between the current path's and the new path's, see
+  /// `PathChanges.Resize`.
   ///
   /// - Parameters:
-  ///   - path: The new path at the old size.
+  ///   - path: The path for a size.
+  ///   - oldSize: The size the current path was made for.
+  ///   - newSize: The size the new path is made for.
   ///   - current: The current path.
   ///   - currentPoints: The points of the current path.
-  /// - Returns: The points, the current path's when the path is the current one, as it is when only the size changed, so
-  ///   they aren't read again.
-  func pointsOfPathAtOldSize(_ path: CGPath?, current: CGPath, currentPoints: PathPoints) -> PathPoints? {
-    guard let path else {
-      return nil
+  ///   - newPoints: The points of the new path.
+  /// - Returns: The points, which reuse the points at hand where a size between gives a path that is at hand, so they
+  ///   aren't read again: the current path's when only the size changed, as is usual, and the new path's or the points
+  ///   at the old size when only one dimension changed.
+  func resizeOfPath(_ path: (CGSize) -> CGPath, from oldSize: CGSize, to newSize: CGSize, current: CGPath, currentPoints: PathPoints, newPoints: PathPoints) -> PathChanges.Resize {
+    let pathAtOldSize = path(oldSize)
+    let atOldSize = pathAtOldSize == current ? currentPoints : PathPoints(pathAtOldSize)
+    let atNewWidth: PathPoints
+    if newSize.height == oldSize.height {
+      atNewWidth = newPoints
+    } else if newSize.width == oldSize.width {
+      atNewWidth = atOldSize
+    } else {
+      atNewWidth = PathPoints(path(CGSize(width: newSize.width, height: oldSize.height)))
     }
-    return path == current ? currentPoints : PathPoints(path)
+    return PathChanges.Resize(atOldSize: atOldSize, atNewWidth: atNewWidth)
   }
 
   /// Sets the model path, and removes the animation of the changes in flight, so the path shows at once.
@@ -423,20 +437,17 @@ private final class PathSizes {
     return pathSizes
   }
 
-  /// The new path at the size the current path was made for.
+  /// The size the current path at a key path was made for.
   ///
   /// - Parameters:
   ///   - keyPath: The key path of the path.
   ///   - currentPath: The current path.
-  ///   - newSize: The size the new path is made for.
-  ///   - path: The path for a size.
-  /// - Returns: The path, or `nil` when the size didn't change, or the current path wasn't made for a size here, as when
-  ///   it was set some other way.
-  func pathAtOldSize(forKeyPath keyPath: String, current currentPath: CGPath, newSize: CGSize, path: (CGSize) -> CGPath) -> CGPath? {
-    guard let entry = entries.first(where: { $0.keyPath == keyPath }), entry.path == currentPath, entry.size != newSize else {
+  /// - Returns: The size, or `nil` when the current path wasn't made for a size here, as when it was set some other way.
+  func size(forKeyPath keyPath: String, of currentPath: CGPath) -> CGSize? {
+    guard let entry = entries.first(where: { $0.keyPath == keyPath }), entry.path == currentPath else {
       return nil
     }
-    return path(entry.size)
+    return entry.size
   }
 
   /// Remembers the size a path was made for.

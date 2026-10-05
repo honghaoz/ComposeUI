@@ -71,7 +71,7 @@ open class DropShadowLayer: CALayer {
   private lazy var maskLayer = CAShapeLayer()
 
   /// The size the paths were made for, which tells the change of their shape apart from the change of the layer's size,
-  /// see `animatePath(keyPath:to:pathAtOldSize:timing:)`.
+  /// see `animatePath(keyPath:timing:resizingFrom:to:)`.
   private var pathsSize: CGSize?
 
   /// The cutout path the mask's path was made from, see `maskLayerPath(cutoutPath:)`.
@@ -131,10 +131,9 @@ open class DropShadowLayer: CALayer {
     let size = bounds.size
     let oldSize = pathsSize
     pathsSize = size
-    // the paths at the size they were made for tell the change of their shape apart from the change of the size, which
-    // follows the frame's motion. they're made once, when a path needs them
-    lazy var pathsAtOldSize = oldSize.flatMap { $0 == size ? nil : paths($0) }
-    let newPaths = paths(size)
+    // the shadow path and the mask's path come from the same paths, so the paths for each size they ask for are made once
+    var pathsForSizes = PathsForSizes<DropShadowPaths>()
+    let newPaths = pathsForSizes.paths(for: size, make: paths)
 
     if let animationTiming {
       // only the properties whose model value differs from the target are animated: an unchanged additive one would
@@ -165,7 +164,7 @@ open class DropShadowLayer: CALayer {
       if shadowOffset != offset {
         animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
       }
-      animatePath(keyPath: "shadowPath", to: newPaths.shadowPath, pathAtOldSize: { _ in pathsAtOldSize?.shadowPath }, timing: animationTiming)
+      animatePath(keyPath: "shadowPath", timing: animationTiming, resizingFrom: { _ in oldSize }, to: { pathsForSizes.paths(for: $0, make: paths).shadowPath })
     } else {
       // no animation timing: continue the in-flight motion
       retarget(keyPath: "shadowColor", to: color)
@@ -173,11 +172,16 @@ open class DropShadowLayer: CALayer {
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
 
-      retargetPath(keyPath: "shadowPath", to: newPaths.shadowPath, pathAtOldSize: { _ in pathsAtOldSize?.shadowPath })
+      retargetPath(keyPath: "shadowPath", resizingFrom: { _ in oldSize }, to: { pathsForSizes.paths(for: $0, make: paths).shadowPath })
     }
 
     if let cutoutPath = newPaths.cutoutPath {
-      updateMaskLayer(cutoutPath: cutoutPath, cutoutPathAtOldSize: { pathsAtOldSize?.cutoutPath }, animationTiming: animationTiming)
+      updateMaskLayer(
+        cutoutPath: cutoutPath,
+        oldSize: oldSize,
+        cutoutPathForSize: { pathsForSizes.paths(for: $0, make: paths).cutoutPath },
+        animationTiming: animationTiming
+      )
     } else {
       // no cutout: clear any mask a previous update installed, so the rendered state always matches the inputs.
       clearMaskLayer()
@@ -219,7 +223,7 @@ open class DropShadowLayer: CALayer {
     clearMaskLayer()
   }
 
-  private func updateMaskLayer(cutoutPath: CGPath, cutoutPathAtOldSize: () -> CGPath?, animationTiming: AnimationTiming?) {
+  private func updateMaskLayer(cutoutPath: CGPath, oldSize: CGSize?, cutoutPathForSize: (CGSize) -> CGPath?, animationTiming: AnimationTiming?) {
     // initialize mask layer if not initialized
     if mask !== maskLayer {
       mask = maskLayer
@@ -234,21 +238,27 @@ open class DropShadowLayer: CALayer {
       }
     }
 
+    let size = bounds.size
     let maskPath = maskLayerPath(cutoutPath: cutoutPath)
-    // the mask's path at the old size is the current one when the cutout's shape didn't change, as is usual, which saves
-    // making it
-    func maskPathAtOldSize(_ currentMaskPath: CGPath) -> CGPath? {
-      guard let cutoutPathAtOldSize = cutoutPathAtOldSize() else {
-        return nil
+    func maskPath(for pathSize: CGSize) -> CGPath {
+      // the mask's path for the layer's size is made already. paths without a cutout at a size between have no mask's
+      // path to tell a resize by, so the new one stands in, which makes the change the shape's
+      guard pathSize != size, let cutoutPath = cutoutPathForSize(pathSize) else {
+        return maskPath
       }
-      return cutoutPathAtOldSize == maskCutoutPath ? currentMaskPath : maskLayerPath(cutoutPath: cutoutPathAtOldSize)
+      // the mask's path is the current one when the cutout is the current mask's, as it is at the old size when only the
+      // size changed, which saves making it
+      if cutoutPath == maskCutoutPath, let currentMaskPath = maskLayer.path {
+        return currentMaskPath
+      }
+      return maskLayerPath(cutoutPath: cutoutPath)
     }
 
     if let animationTiming {
-      maskLayer.animatePath(keyPath: "path", to: maskPath, pathAtOldSize: maskPathAtOldSize, timing: animationTiming)
+      maskLayer.animatePath(keyPath: "path", timing: animationTiming, resizingFrom: { _ in oldSize }, to: maskPath(for:))
     } else {
       // no animation timing: continue the in-flight motion
-      maskLayer.retargetPath(keyPath: "path", to: maskPath, pathAtOldSize: maskPathAtOldSize)
+      maskLayer.retargetPath(keyPath: "path", resizingFrom: { _ in oldSize }, to: maskPath(for:))
     }
     maskCutoutPath = cutoutPath
   }
