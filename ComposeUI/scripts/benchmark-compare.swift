@@ -34,8 +34,8 @@
 // Usage: benchmark-compare <results directory> <time threshold %> <instructions threshold %>
 //
 // The results directory holds `base-<round>.txt` and `head-<round>.txt`, the `[BENCHMARK]` lines of each run. Prints a
-// markdown table, and exits with 1 when a benchmark regressed, or when no benchmark has allocations or instructions on
-// both sides to compare.
+// markdown table, and exits with 1 when a benchmark regressed, when a benchmark didn't report exactly once in every
+// round, or when no benchmark has allocations or instructions on both sides to compare.
 
 import Foundation
 

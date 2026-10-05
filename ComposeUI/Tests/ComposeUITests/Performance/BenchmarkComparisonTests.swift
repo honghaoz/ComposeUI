@@ -93,21 +93,46 @@ class BenchmarkComparisonTests: XCTestCase {
 
   func test_results_readTheBenchmarksInTheOrderTheyFirstReported() throws {
     // when: reading the lines of two rounds, with other output between the results
-    let results = BenchmarkComparison.Results(lines: [
-      "[BENCHMARK] b | median: 1.00 µs | instructions: 10 | allocations: 1.00",
-      "Test Suite 'Selected tests' passed",
-      "[BENCHMARK] a | median: 2.00 µs | instructions: 20 | allocations: 2.00",
-      "[BENCHMARK] b | median: 3.00 µs | instructions: 30 | allocations: 3.00",
-      "[BENCHMARK] a | median: 4.00 µs | instructions: 40 | allocations: 2.00",
+    let results = BenchmarkComparison.Results(rounds: [
+      [
+        "[BENCHMARK] b | median: 1.00 µs | instructions: 10 | allocations: 1.00",
+        "Test Suite 'Selected tests' passed",
+        "[BENCHMARK] a | median: 2.00 µs | instructions: 20 | allocations: 2.00",
+      ],
+      [
+        "[BENCHMARK] b | median: 3.00 µs | instructions: 30 | allocations: 3.00",
+        "[BENCHMARK] a | median: 4.00 µs | instructions: 40 | allocations: 2.00",
+      ],
     ])
 
     // then: the benchmarks keep the order they first reported in, with the costs of both rounds
     expect(results.names) == ["b", "a"]
+    expect(results.irregularNames.isEmpty) == true
     let a = try results.samples["a"].unwrap()
     expect(a.count) == 2
     expect(a.medianTime) == 3
     expect(a.medianInstructions) == 30
     expect(a.allocationRange) == (2 ... 2)
+  }
+
+  func test_results_benchmarkNotReportedOncePerRound_isIrregular() {
+    // when: reading two rounds, in which a benchmark reports in both, one reports in the first only, and one reports twice
+    // in the first and not in the second
+    let results = BenchmarkComparison.Results(rounds: [
+      [
+        "[BENCHMARK] steady | allocations: 1.00",
+        "[BENCHMARK] skipped | allocations: 1.00",
+        "[BENCHMARK] twice | allocations: 1.00",
+        "[BENCHMARK] twice | allocations: 1.00",
+      ],
+      [
+        "[BENCHMARK] steady | allocations: 1.00",
+      ],
+    ])
+
+    // then: only the benchmark that reported once in every round is regular, even though the one that reported twice has
+    // as many results as there are rounds
+    expect(results.irregularNames) == ["skipped", "twice"]
   }
 
   func test_results_readOnlyTheResultFilesOfTheSide() throws {
@@ -157,7 +182,7 @@ class BenchmarkComparisonTests: XCTestCase {
     let lines = ["[BENCHMARK] steady | median: 10.00 µs | instructions: 1000 | allocations: 50.00"]
 
     // when: comparing them
-    let report = compare(base: lines, head: lines)
+    let report = compare(base: [lines], head: [lines])
 
     // then: nothing is found, and the comparison passes
     expect(report.rows.map(\.findings)) == [[]]
@@ -166,26 +191,34 @@ class BenchmarkComparisonTests: XCTestCase {
   }
 
   func test_compare_allocations_changeOnlyOutsideTheBasesRange() {
-    // given: benchmarks whose allocations rise, jitter within the base's range, partly overlap it, and fall
+    // given: two rounds of benchmarks whose allocations rise, jitter within the base's range, partly overlap it, and fall
     let base = [
-      "[BENCHMARK] more | allocations: 100.00",
-      "[BENCHMARK] jitter | allocations: 242050.00",
-      "[BENCHMARK] overlap | allocations: 100.00",
-      "[BENCHMARK] fewer | allocations: 100.00",
-      "[BENCHMARK] more | allocations: 100.00",
-      "[BENCHMARK] jitter | allocations: 242110.00",
-      "[BENCHMARK] overlap | allocations: 102.00",
-      "[BENCHMARK] fewer | allocations: 100.00",
+      [
+        "[BENCHMARK] more | allocations: 100.00",
+        "[BENCHMARK] jitter | allocations: 242050.00",
+        "[BENCHMARK] overlap | allocations: 100.00",
+        "[BENCHMARK] fewer | allocations: 100.00",
+      ],
+      [
+        "[BENCHMARK] more | allocations: 100.00",
+        "[BENCHMARK] jitter | allocations: 242110.00",
+        "[BENCHMARK] overlap | allocations: 102.00",
+        "[BENCHMARK] fewer | allocations: 100.00",
+      ],
     ]
     let head = [
-      "[BENCHMARK] more | allocations: 101.00",
-      "[BENCHMARK] jitter | allocations: 242090.00",
-      "[BENCHMARK] overlap | allocations: 101.00",
-      "[BENCHMARK] fewer | allocations: 90.00",
-      "[BENCHMARK] more | allocations: 101.00",
-      "[BENCHMARK] jitter | allocations: 242090.00",
-      "[BENCHMARK] overlap | allocations: 103.00",
-      "[BENCHMARK] fewer | allocations: 90.00",
+      [
+        "[BENCHMARK] more | allocations: 101.00",
+        "[BENCHMARK] jitter | allocations: 242090.00",
+        "[BENCHMARK] overlap | allocations: 101.00",
+        "[BENCHMARK] fewer | allocations: 90.00",
+      ],
+      [
+        "[BENCHMARK] more | allocations: 101.00",
+        "[BENCHMARK] jitter | allocations: 242090.00",
+        "[BENCHMARK] overlap | allocations: 103.00",
+        "[BENCHMARK] fewer | allocations: 90.00",
+      ],
     ]
 
     // when: comparing them
@@ -216,7 +249,7 @@ class BenchmarkComparisonTests: XCTestCase {
     ]
 
     // when: comparing them with a threshold of 1%
-    let report = compare(base: base, head: head)
+    let report = compare(base: [base], head: [head])
 
     // then: only a change past the threshold counts, and more instructions are a regression
     expect(report.rows.map(\.findings)) == [[], [.moreInstructions], [], [.fewerInstructions], []]
@@ -238,7 +271,7 @@ class BenchmarkComparisonTests: XCTestCase {
     ]
 
     // when: comparing them with a threshold of 20%
-    let report = compare(base: base, head: head)
+    let report = compare(base: [base], head: [head])
 
     // then: only a change past the threshold counts, and a slower time warns without failing, as time depends on the
     // machine's load
@@ -259,7 +292,7 @@ class BenchmarkComparisonTests: XCTestCase {
     ]
 
     // when: comparing them
-    let report = compare(base: base, head: head)
+    let report = compare(base: [base], head: [head])
 
     // then: the head's benchmarks come first, in its order, then the removed ones, and neither a new nor a removed
     // benchmark fails the comparison
@@ -278,7 +311,7 @@ class BenchmarkComparisonTests: XCTestCase {
     let head = ["[BENCHMARK] fresh | median: 1.00 µs | instructions: 10 | allocations: 1.00"]
 
     // when: comparing them
-    let report = compare(base: base, head: head)
+    let report = compare(base: [base], head: [head])
 
     // then: nothing is compared, so the comparison is inconclusive and fails
     expect(report.passes) == false
@@ -293,7 +326,7 @@ class BenchmarkComparisonTests: XCTestCase {
     """
 
     // when: comparing the head with a base without results
-    let reportWithoutBase = compare(base: [], head: head)
+    let reportWithoutBase = compare(base: [], head: [head])
 
     // then: the comparison is inconclusive too
     expect(reportWithoutBase.rows.map(\.markdown)) == ["| fresh | | | | new |"]
@@ -306,7 +339,7 @@ class BenchmarkComparisonTests: XCTestCase {
     let head = ["[BENCHMARK] scroll | median: 13.00 µs | instructions: n/a | allocations: n/a"]
 
     // when: comparing them
-    let report = compare(base: base, head: head)
+    let report = compare(base: [base], head: [head])
 
     // then: the time warns, but a time can't regress, so the comparison is inconclusive and fails
     expect(report.passes) == false
@@ -336,7 +369,7 @@ class BenchmarkComparisonTests: XCTestCase {
     ]
 
     // when: comparing them
-    let report = compare(base: base, head: head)
+    let report = compare(base: [base], head: [head])
 
     // then: the benchmarks without a cost on both sides show as not compared, and the comparison passes on the other
     expect(report.rows.map(\.markdown)) == [
@@ -349,12 +382,75 @@ class BenchmarkComparisonTests: XCTestCase {
 
   func test_compare_noResults_fails() {
     // when: comparing sides without results
-    let report = compare(base: ["Build complete!"], head: [])
+    let report = compare(base: [["Build complete!"]], head: [])
 
     // then: the comparison fails, as it checked nothing
     expect(report.rows.isEmpty) == true
     expect(report.passes) == false
     expect(report.markdown) == "🛑 No benchmark results found."
+  }
+
+  func test_compare_benchmarkNotReportedOncePerRound_failsTheComparison() {
+    // given: two rounds of a benchmark that both sides report in every round, one that the base skips in a round, one
+    // that the head skips in a round, and a new one that the head reports in one round only
+    let base = [
+      [
+        "[BENCHMARK] steady | allocations: 5.00",
+        "[BENCHMARK] base.skips | allocations: 5.00",
+        "[BENCHMARK] head.skips | allocations: 5.00",
+      ],
+      [
+        "[BENCHMARK] steady | allocations: 5.00",
+        "[BENCHMARK] head.skips | allocations: 5.00",
+      ],
+    ]
+    let head = [
+      [
+        "[BENCHMARK] steady | allocations: 5.00",
+        "[BENCHMARK] base.skips | allocations: 5.00",
+        "[BENCHMARK] head.skips | allocations: 5.00",
+        "[BENCHMARK] fresh | allocations: 5.00",
+      ],
+      [
+        "[BENCHMARK] steady | allocations: 5.00",
+        "[BENCHMARK] base.skips | allocations: 5.00",
+      ],
+    ]
+
+    // when: comparing them
+    let report = compare(base: base, head: head)
+
+    // then: the benchmarks that a side didn't report once in every round aren't compared, and the comparison fails
+    expect(report.passes) == false
+    expect(report.markdown) == """
+    | Benchmark | Time (µs) | Instructions | Allocations | Result |
+    |---|---|---|---|---|
+    | steady | n/a | n/a | 5 → 5 | ok |
+    | base.skips | | | | not reported once per round |
+    | head.skips | | | | not reported once per round |
+    | fresh | | | | not reported once per round |
+
+    4 benchmarks: 0 regressions, 0 time warnings.
+    🛑 3 benchmarks didn't report exactly once in every round, so they weren't compared.
+    Instructions weren't counted, as this machine doesn't expose the CPU's counters.
+    """
+
+    // when: comparing a head whose second round reported nothing
+    let steady = "[BENCHMARK] steady | allocations: 5.00"
+    let reportWithEmptyRound = compare(base: [[steady], [steady]], head: [[steady], []])
+
+    // then: the benchmark isn't compared, so the comparison fails, and it's inconclusive too
+    expect(reportWithEmptyRound.passes) == false
+    expect(reportWithEmptyRound.markdown) == """
+    | Benchmark | Time (µs) | Instructions | Allocations | Result |
+    |---|---|---|---|---|
+    | steady | | | | not reported once per round |
+
+    1 benchmark: 0 regressions, 0 time warnings.
+    🛑 1 benchmark didn't report exactly once in every round, so it wasn't compared.
+    Instructions weren't counted, as this machine doesn't expose the CPU's counters.
+    🛑 Inconclusive: no benchmark has allocations or instructions on both sides to compare.
+    """
   }
 
   // MARK: - Markdown
@@ -378,7 +474,7 @@ class BenchmarkComparisonTests: XCTestCase {
     ]
 
     // when: comparing them
-    let report = compare(base: base, head: head)
+    let report = compare(base: [base], head: [head])
 
     // then: the table shows each cost's change and the findings, and the summary counts them
     expect(report.markdown) == """
@@ -396,14 +492,15 @@ class BenchmarkComparisonTests: XCTestCase {
   }
 
   func test_markdown_jitteringAllocations_andUncountedInstructions() {
-    // given: a benchmark whose allocations differ between rounds, on a machine that doesn't count instructions
+    // given: two rounds of a benchmark whose allocations differ between rounds, on a machine that doesn't count
+    // instructions
     let base = [
-      "[BENCHMARK] scroll | median: 700.00 µs | instructions: n/a | allocations: 242050.00",
-      "[BENCHMARK] scroll | median: 710.00 µs | instructions: n/a | allocations: 242110.00",
+      ["[BENCHMARK] scroll | median: 700.00 µs | instructions: n/a | allocations: 242050.00"],
+      ["[BENCHMARK] scroll | median: 710.00 µs | instructions: n/a | allocations: 242110.00"],
     ]
     let head = [
-      "[BENCHMARK] scroll | median: 690.00 µs | instructions: n/a | allocations: 242090.50",
-      "[BENCHMARK] scroll | median: 700.00 µs | instructions: n/a | allocations: 242090.50",
+      ["[BENCHMARK] scroll | median: 690.00 µs | instructions: n/a | allocations: 242090.50"],
+      ["[BENCHMARK] scroll | median: 700.00 µs | instructions: n/a | allocations: 242090.50"],
     ]
 
     // when: comparing them
@@ -422,11 +519,11 @@ class BenchmarkComparisonTests: XCTestCase {
 
   // MARK: - Helpers
 
-  /// Compares the lines of a base and a head with the thresholds `benchmark-compare.sh` uses.
-  private func compare(base: [String], head: [String]) -> BenchmarkComparison.Report {
+  /// Compares the rounds of a base and a head with the thresholds `benchmark-compare.sh` uses.
+  private func compare(base: [[String]], head: [[String]]) -> BenchmarkComparison.Report {
     BenchmarkComparison.compare(
-      base: BenchmarkComparison.Results(lines: base),
-      head: BenchmarkComparison.Results(lines: head),
+      base: BenchmarkComparison.Results(rounds: base),
+      head: BenchmarkComparison.Results(rounds: head),
       thresholds: BenchmarkComparison.Thresholds(time: 20, instructions: 1)
     )
   }

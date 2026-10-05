@@ -129,7 +129,7 @@ enum BenchmarkComparison {
   /// A cost counts only when every round reported it, since a decision from some rounds wouldn't mean what it says.
   struct Samples {
 
-    /// The number of rounds the benchmark reported in.
+    /// The number of results, one per round for a benchmark that reported once in every round.
     private(set) var count = 0
 
     private(set) var times: [Double] = []
@@ -168,18 +168,31 @@ enum BenchmarkComparison {
     private(set) var names: [String] = []
     private(set) var samples: [String: Samples] = [:]
 
-    /// Reads the results of one side from the lines its runs printed, skipping the lines that aren't results.
+    /// The benchmarks that didn't report exactly once in every round, such as one skipped in a round, or two benchmarks
+    /// that report under one name, whose samples don't stand for the rounds.
+    private(set) var irregularNames: Set<String> = []
+
+    /// Reads the results of one side from the lines each of its rounds printed, skipping the lines that aren't results.
     ///
-    /// - Parameter lines: The lines of all rounds of the side.
-    init(lines: [String]) {
-      for line in lines {
-        guard let parsed = BenchmarkComparison.parse(line) else {
-          continue
+    /// - Parameter rounds: The lines of each round of the side.
+    init(rounds: [[String]]) {
+      for lines in rounds {
+        var reportedNames: Set<String> = []
+        for line in lines {
+          guard let parsed = BenchmarkComparison.parse(line) else {
+            continue
+          }
+          if samples[parsed.name] == nil {
+            names.append(parsed.name)
+          }
+          if !reportedNames.insert(parsed.name).inserted {
+            irregularNames.insert(parsed.name)
+          }
+          samples[parsed.name, default: Samples()].append(parsed.sample)
         }
-        if samples[parsed.name] == nil {
-          names.append(parsed.name)
-        }
-        samples[parsed.name, default: Samples()].append(parsed.sample)
+      }
+      for (name, benchmarkSamples) in samples where benchmarkSamples.count != rounds.count {
+        irregularNames.insert(name)
       }
     }
 
@@ -192,7 +205,7 @@ enum BenchmarkComparison {
       let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
         .filter { $0.lastPathComponent.hasPrefix("\(side)-") && $0.pathExtension == "txt" }
         .sorted { $0.lastPathComponent < $1.lastPathComponent }
-      try self.init(lines: files.flatMap { try String(contentsOf: $0, encoding: .utf8).components(separatedBy: "\n") })
+      try self.init(rounds: files.map { try String(contentsOf: $0, encoding: .utf8).components(separatedBy: "\n") })
     }
   }
 
@@ -257,17 +270,24 @@ enum BenchmarkComparison {
     let name: String
     let base: Samples?
     let head: Samples?
+
+    /// Whether a side didn't report the benchmark exactly once in every round, which leaves it out of the comparison.
+    let isIrregular: Bool
+
     let findings: [Finding]
 
     /// Whether the base and the head both have a cost that can regress: the allocations or the instructions.
     var canRegress: Bool {
-      guard let base, let head else {
+      guard !isIrregular, let base, let head else {
         return false
       }
       return (base.allocationRange != nil && head.allocationRange != nil) || (base.medianInstructions != nil && head.medianInstructions != nil)
     }
 
     var markdown: String {
+      guard !isIrregular else {
+        return "| \(name) | | | | not reported once per round |"
+      }
       guard let head else {
         return "| \(name) | | | | removed |"
       }
@@ -320,9 +340,14 @@ enum BenchmarkComparison {
       rows.contains(where: \.canRegress)
     }
 
-    /// Whether the comparison passes: a benchmark can regress, and none did.
+    /// The number of benchmarks that a side didn't report exactly once in every round.
+    var irregularCount: Int {
+      rows.filter(\.isIrregular).count
+    }
+
+    /// Whether the comparison passes: a benchmark can regress, none did, and every benchmark reported once per round.
     var passes: Bool {
-      checksRegressions && regressionCount == 0
+      checksRegressions && regressionCount == 0 && irregularCount == 0
     }
 
     /// The table and a summary, in markdown.
@@ -338,6 +363,9 @@ enum BenchmarkComparison {
       lines += rows.map(\.markdown)
       lines.append("")
       lines.append("\(Self.counted(rows.count, "benchmark")): \(Self.counted(regressionCount, "regression")), \(Self.counted(warningCount, "time warning")).")
+      if irregularCount > 0 {
+        lines.append("🛑 \(Self.counted(irregularCount, "benchmark")) didn't report exactly once in every round, so \(irregularCount == 1 ? "it wasn't" : "they weren't") compared.")
+      }
       if !countsInstructions {
         lines.append("Instructions weren't counted, as this machine doesn't expose the CPU's counters.")
       }
@@ -364,7 +392,14 @@ enum BenchmarkComparison {
     let rows = names.map { name in
       let baseSamples = base.samples[name]
       let headSamples = head.samples[name]
-      return Row(name: name, base: baseSamples, head: headSamples, findings: findings(base: baseSamples, head: headSamples, thresholds: thresholds))
+      let isIrregular = base.irregularNames.contains(name) || head.irregularNames.contains(name)
+      return Row(
+        name: name,
+        base: baseSamples,
+        head: headSamples,
+        isIrregular: isIrregular,
+        findings: isIrregular ? [] : findings(base: baseSamples, head: headSamples, thresholds: thresholds)
+      )
     }
     return Report(rows: rows)
   }
