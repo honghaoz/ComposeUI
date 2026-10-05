@@ -306,16 +306,52 @@ public extension CALayer {
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The animations in the layer's animation key order, or `nil` when no animation changes the key path.
   internal func animationSequence(forKeyPath keyPath: String) -> KeyPathAnimationSequence? {
-    // `animationKeys()` bridges Core Animation's array of keys to a Swift array of strings, which costs more than
-    // looking up the animations, so the array is read as it is. `perform(_:)` autoreleases the layer, so a local pool
-    // releases it right away instead of keeping a layer its owners let go alive until the run loop's pool drains.
-    let keys = autoreleasepool {
-      perform(#selector(CALayer.animationKeys))?.takeUnretainedValue() as? NSArray
-    }
-    guard let keys else {
+    guard let keys = unbridgedAnimationKeys else {
       return nil
     }
     return KeyPathAnimationSequence(layer: self, keyPath: keyPath, keys: keys)
+  }
+
+  /// The layer's animation keys, or `nil` when it has no animations.
+  ///
+  /// `animationKeys()` bridges Core Animation's array of keys to a Swift array of strings, which costs more than
+  /// looking up the animations, so the method is called through `AnimationKeysMethod`, which takes the array as it is.
+  internal var unbridgedAnimationKeys: AnimationKeys? {
+    unsafeBitCast(self, to: AnimationKeysMethod.self).animationKeys().map { AnimationKeys($0) }
+  }
+}
+
+/// `CALayer`'s `animationKeys()` as Objective-C declares it, returning Core Animation's array of keys as it is instead
+/// of bridging it to a Swift array of strings, see `CALayer.unbridgedAnimationKeys`.
+///
+/// A layer is called through it by reinterpreting its reference, as the layer doesn't declare the conformance. The call
+/// sends the same message Swift sends for `animationKeys()`, so unlike `perform(_:)`, it adds no dispatch and doesn't
+/// autorelease the layer, which would take a pool on every call, even for a layer without animations.
+@objc private protocol AnimationKeysMethod {
+
+  func animationKeys() -> NSArray?
+}
+
+/// A layer's animation keys, read from Core Animation's array of keys as they're accessed, see
+/// `CALayer.unbridgedAnimationKeys`.
+struct AnimationKeys: RandomAccessCollection {
+
+  private let keys: NSArray
+
+  let endIndex: Int
+
+  var startIndex: Int {
+    0
+  }
+
+  fileprivate init(_ keys: NSArray) {
+    self.keys = keys
+    endIndex = keys.count
+  }
+
+  subscript(index: Int) -> String {
+    // Core Animation's keys are strings
+    unsafeDowncast(keys.object(at: index) as AnyObject, to: NSString.self) as String
   }
 }
 
@@ -357,19 +393,17 @@ struct KeyPathAnimationSequence: Sequence, IteratorProtocol {
 
   private let layer: CALayer
   private let keyPath: String
-  private let keys: NSArray
-  private let keyCount: Int
+  private let keys: AnimationKeys
   private var index = 0
 
   /// The first animation, found when the sequence is created, which `next()` returns first.
   private var first: (key: String, animation: KeyPathAnimation)?
 
   /// Creates the sequence, or returns `nil` when no animation changes the key path.
-  fileprivate init?(layer: CALayer, keyPath: String, keys: NSArray) {
+  fileprivate init?(layer: CALayer, keyPath: String, keys: AnimationKeys) {
     self.layer = layer
     self.keyPath = keyPath
     self.keys = keys
-    keyCount = keys.count
     guard let first = lookUpNext() else {
       return nil
     }
@@ -386,9 +420,8 @@ struct KeyPathAnimationSequence: Sequence, IteratorProtocol {
 
   /// Looks up the next animation that changes the key path, after the keys looked up so far.
   private mutating func lookUpNext() -> (key: String, animation: KeyPathAnimation)? {
-    while index < keyCount {
-      // Core Animation's keys are strings
-      let key = unsafeDowncast(keys.object(at: index) as AnyObject, to: NSString.self) as String
+    while index < keys.endIndex {
+      let key = keys[index]
       index += 1
       let animation = layer.animation(forKey: key)
       if let propertyAnimation = animation as? CAPropertyAnimation, let animatedKeyPath = propertyAnimation.keyPath {
