@@ -90,10 +90,11 @@ public extension CALayer {
   /// new path and lands when the changes would have, as `retarget(keyPath:to:)` does for a value.
   ///
   /// Each coordinate of the path's points is judged on its own: one that the changes in flight move glides from where it
-  /// shows, and one at rest takes its new value at once. When a changed coordinate is in motion, the changes fold into an
-  /// ease-out change, while a running spring keeps going with the glide stacked on it, and a spring that never settles
-  /// folds too, as it can't overlap other changes. Otherwise, the changes keep going on the new path, as in
-  /// `setPath(keyPath:to:)`. Without changes in flight, the path shows at once.
+  /// shows, and one at rest takes its new value at once. When a changed coordinate is in motion, the changes that move one
+  /// fold into an ease-out change, while the other changes keep going with their timing, a running spring keeps going
+  /// with the glide stacked on it, and a spring that never settles folds too, as it can't overlap other changes.
+  /// Otherwise, the changes keep going on the new path, as in `setPath(keyPath:to:)`. Without changes in flight, the path
+  /// shows at once.
   ///
   /// A path that follows the layer's size, such as a shadow's, glides with the layer's frame through the
   /// `retargetPath(keyPath:to:)` that takes the path for a size.
@@ -147,8 +148,8 @@ public extension CALayer {
   /// against the motion of the same part of the changes in flight. A changed coordinate in motion glides from where it
   /// shows, and one at rest takes its new value at once.
   ///
-  /// - The shape glides when a coordinate it changes is in motion, folding the changes' shape motion into an ease-out
-  ///   change, as `retarget(keyPath:to:)` does for a value.
+  /// - The shape glides when a coordinate it changes is in motion: the changes that move such a coordinate fold their
+  ///   shape motion into an ease-out change, and the other changes keep theirs with their timing.
   /// - The size is judged axis by axis, as in `retargetFrame(to:)`: it glides along an axis when a coordinate it changes
   ///   along that axis is in motion, while the changes' size motion along the other axis keeps its timing.
   /// - A part that doesn't glide keeps its motion on the new path, as in `setPath(keyPath:to:)`.

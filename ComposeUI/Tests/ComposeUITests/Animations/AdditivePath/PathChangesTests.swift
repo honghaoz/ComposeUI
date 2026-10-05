@@ -317,6 +317,47 @@ class PathChangesTests: XCTestCase {
     expect(widthGlide.curve.duration) == 3
   }
 
+  func test_retarget_shapeChangeOfOneEdge_keepsTheOtherEdgesChange() throws {
+    // given: a rect whose left edge moves from 0 to 20 over 2 seconds, and whose right edge moves from 100 to 80 over 8
+    // seconds, both from 100, in changes of their own
+    var changes = PathChanges()
+    changes.record(from: rect(left: 0, right: 100), to: rect(left: 20, right: 100), timing: .linear(duration: 2), at: 100)
+    changes.record(from: rect(left: 20, right: 100), to: rect(left: 20, right: 80), timing: .linear(duration: 8), at: 100)
+    let rightEdgeChange = changes.changes[1]
+
+    // when: retargeting the left edge to 30 a second in
+    changes.retarget(from: rect(left: 20, right: 80), to: rect(left: 30, right: 80), at: 101)
+
+    // then: the right edge's change, which doesn't move a changed point, keeps going as it is
+    expect(changes.changes.count) == 2
+    let keptChange = try changes.changes.first.unwrap()
+    expect(keptChange.offset) == rightEdgeChange.offset
+    expect(keptChange.animation) === rightEdgeChange.animation
+
+    // then: the left edge glides from the 10 shown to 30 over the second its change had left, instead of the right edge's
+    // 7 seconds
+    let glide = try changes.changes.last.unwrap()
+    expect(glide.offset) == PathPoints(rect(left: 10, right: 80)).subtracting(PathPoints(rect(left: 30, right: 80)))
+    expect(glide.curve.duration) == 1
+  }
+
+  func test_retarget_shapeChangeOfOneEdge_foldsTheWholeChangeThatMovesIt() throws {
+    // given: a rect whose left edge moves from 0 to 20 and whose right edge moves from 100 to 80 over 4 seconds from 100,
+    // in one change
+    var changes = PathChanges()
+    changes.record(from: rect(left: 0, right: 100), to: rect(left: 20, right: 80), timing: .linear(duration: 4), at: 100)
+
+    // when: retargeting the left edge to 30 a second in
+    changes.retarget(from: rect(left: 20, right: 80), to: rect(left: 30, right: 80), at: 101)
+
+    // then: the change moves the changed left edge, so it folds whole, its right edge too, as the points of a change move
+    // together: both edges glide from where they show, 5 and 95, over the 3 seconds it had left
+    expect(changes.changes.count) == 1
+    let glide = try changes.changes.first.unwrap()
+    expect(glide.offset) == PathPoints(rect(left: 5, right: 95)).subtracting(PathPoints(rect(left: 30, right: 80)))
+    expect(glide.curve.duration) == 3
+  }
+
   func test_retarget_axesOfDifferentRemainingTimes_glideApart() throws {
     // given: a rect widening from 100 to 200 points over 2 seconds, and growing from 50 to 100 points high over 4
     // seconds, both from 100
@@ -917,6 +958,11 @@ class PathChangesTests: XCTestCase {
   /// A rect of the given size at the origin.
   private func rect(width: CGFloat, height: CGFloat) -> CGPath {
     CGPath(rect: CGRect(x: 0, y: 0, width: width, height: height), transform: nil)
+  }
+
+  /// A rect between the given left and right edges, 50 points high at the top.
+  private func rect(left: CGFloat, right: CGFloat) -> CGPath {
+    CGPath(rect: CGRect(x: left, y: 0, width: right - left, height: 50), transform: nil)
   }
 
   /// A rounded rect of the given width and 50 points high at the origin.
