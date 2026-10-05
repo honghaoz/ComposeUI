@@ -44,6 +44,10 @@ struct PathChanges {
     /// The old path minus the new path, point by point.
     let offset: PathPoints
 
+    /// The part of the offset from the layer's size changing, or `nil` when it's all from the path's shape changing, see
+    /// `record(from:to:pointsAtOldSize:timing:at:)`. The rest of the offset is the shape's part.
+    let sizeOffset: PathPoints?
+
     /// The animation of the change's timing, which shows the change when it is the only one in flight. Its begin time
     /// isn't kept, see `beginTime`.
     let animation: CABasicAnimation
@@ -99,6 +103,41 @@ struct PathChanges {
 
       return CGFloat(1 - curve.progress(forElapsedTime: (now - beginTime + time) * speed))
     }
+
+    /// A copy of the change with some parts of its offset, which keeps the change's timing.
+    ///
+    /// - Parameters:
+    ///   - parts: The parts to keep.
+    ///   - sizeOffset: The change's `sizeOffset`, which a change has when it has parts to split.
+    /// - Returns: The copy.
+    fileprivate func keeping(_ parts: ChangeParts, sizeOffset: PathPoints) -> Change {
+      let keepsShape = parts.contains(.shape)
+      let keepsSizeX = parts.contains(.sizeX)
+      let keepsSizeY = parts.contains(.sizeY)
+      let keepsSize = keepsSizeX || keepsSizeY
+      var keptOffset: [CGPoint] = []
+      keptOffset.reserveCapacity(offset.points.count)
+      var keptSizeOffset: [CGPoint] = []
+      keptSizeOffset.reserveCapacity(keepsSize ? offset.points.count : 0)
+      for index in offset.points.indices {
+        let point = offset.points[index]
+        let size = sizeOffset.points[index]
+        let keptSize = CGPoint(x: keepsSizeX ? size.x : 0, y: keepsSizeY ? size.y : 0)
+        let keptShape = keepsShape ? CGPoint(x: point.x - size.x, y: point.y - size.y) : .zero
+        keptOffset.append(CGPoint(x: keptShape.x + keptSize.x, y: keptShape.y + keptSize.y))
+        if keepsSize {
+          keptSizeOffset.append(keptSize)
+        }
+      }
+      return Change(
+        offset: PathPoints(kinds: offset.kinds, points: keptOffset),
+        sizeOffset: keepsSize ? PathPoints(kinds: offset.kinds, points: keptSizeOffset) : nil,
+        animation: animation,
+        curve: curve,
+        speed: speed,
+        beginTime: beginTime
+      )
+    }
   }
 
   /// The changes in flight, in the order they were recorded.
@@ -140,9 +179,12 @@ struct PathChanges {
   /// - Parameters:
   ///   - oldPoints: The points of the path before the change.
   ///   - newPoints: The points of the path after the change.
+  ///   - pointsAtOldSize: The points of the new path at the size the old path was made for, when the path follows the
+  ///     layer's size and the size changed: the change up to them is the shape's part, and the rest the size's, see
+  ///     `Change.sizeOffset`. `nil`, or points without the new path's segments, make the change all the shape's.
   ///   - timing: The timing of the change.
   ///   - now: The layer's current time.
-  mutating func record(from oldPoints: PathPoints, to newPoints: PathPoints, timing: AnimationTiming, at now: TimeInterval) {
+  mutating func record(from oldPoints: PathPoints, to newPoints: PathPoints, pointsAtOldSize: PathPoints? = nil, timing: AnimationTiming, at now: TimeInterval) {
     guard oldPoints.hasSameSegments(as: newPoints), oldPoints.isFinite, newPoints.isFinite else {
       changes.removeAll()
       return
@@ -160,12 +202,34 @@ struct PathChanges {
       return
     }
 
+    let sizeOffset: PathPoints?
+    if pointsAtOldSize == oldPoints {
+      // the shape didn't change, as is usual, so the change is all the size's
+      sizeOffset = offset
+    } else if let pointsAtOldSize, pointsAtOldSize.hasSameSegments(as: newPoints), pointsAtOldSize.isFinite {
+      let resize = pointsAtOldSize.subtracting(newPoints)
+      sizeOffset = resize.isZero ? nil : resize
+    } else {
+      sizeOffset = nil
+    }
+    append(offset: offset, sizeOffset: sizeOffset, timing: timing, at: now)
+  }
+
+  /// Adds a change of an offset.
+  ///
+  /// - Parameters:
+  ///   - offset: The change's offset.
+  ///   - sizeOffset: The size's part of the offset, see `Change.sizeOffset`.
+  ///   - timing: The timing of the change.
+  ///   - now: The layer's current time.
+  private mutating func append(offset: PathPoints, sizeOffset: PathPoints?, timing: AnimationTiming, at now: TimeInterval) {
     // the change begins when `CALayer.animate` begins an animation of its timing, so it keeps in step with the
     // animations of the same timing
     let animation = CABasicAnimation.makeAnimation(timing)
     changes.append(
       Change(
         offset: offset,
+        sizeOffset: sizeOffset,
         animation: animation,
         curve: AnimationCurve(animation),
         speed: TimeInterval(animation.speed),
@@ -175,75 +239,283 @@ struct PathChanges {
   }
 
   /// Retargets the changes in flight to a new path, so the path shown glides from where it is to the new path and lands
-  /// when the changes would have, see `CALayer.retargetPath(keyPath:to:)`.
+  /// when the changes would have, see `CALayer.retargetPath(keyPath:to:pathAtOldSize:)`.
   ///
-  /// Each coordinate of the points is judged on its own, as an axis of a frame is in `CALayer.retargetFrame(to:)`: one
-  /// that a change in flight moves glides from where it shows, and one at rest takes its new value at once. When a
-  /// changed coordinate is in motion, the changes fold into one ease-out change, except a running spring, which keeps
-  /// going with the glide stacked on it. A change that never finishes folds too, as it can't overlap others, and the
-  /// glide then takes `Animations.defaultAnimationDuration`. Otherwise, the changes stay as they are, as they still
-  /// head to the new path.
+  /// The path's change has the shape's part, up to the points at the old size, and the size's part, from them, and each
+  /// is judged coordinate by coordinate against the motion of the same part of the changes in flight. A changed
+  /// coordinate in motion glides from where it shows, and one at rest takes its new value at once.
+  ///
+  /// - The shape's part glides when a coordinate it changes is in motion, folding the shape's parts of the changes.
+  /// - The size's part is judged axis by axis, as a frame's size is in `CALayer.retargetFrame(to:)`: the size glides
+  ///   along an axis when a coordinate it changes along that axis is in motion, folding the motion of the changes'
+  ///   size parts along it. Along an axis that doesn't glide, they keep going with their timing.
+  /// - A part that doesn't glide keeps its motion as it is, as the changes still head to the new path.
+  /// - Each glide is an ease-out change that lands when the changes it folds would have, and the glides that land
+  ///   together share a change. A running spring that settles keeps going with the glides stacked on it. A change that
+  ///   never finishes folds whole, as it can't overlap others, and the glides of its parts take
+  ///   `Animations.defaultAnimationDuration`.
   ///
   /// - Parameters:
   ///   - oldPoints: The points of the model path before the change.
   ///   - newPoints: The points of the new path.
+  ///   - pointsAtOldSize: The points of the new path at the size the old path was made for, see
+  ///     `record(from:to:pointsAtOldSize:timing:at:)`. `nil` makes the change all the shape's.
   ///   - now: The layer's current time.
-  mutating func retarget(from oldPoints: PathPoints, to newPoints: PathPoints, at now: TimeInterval) {
+  mutating func retarget(from oldPoints: PathPoints, to newPoints: PathPoints, pointsAtOldSize: PathPoints? = nil, at now: TimeInterval) {
     guard hasSameSegments(as: oldPoints), oldPoints.hasSameSegments(as: newPoints), oldPoints.isFinite, newPoints.isFinite else {
       changes.removeAll()
       return
     }
 
-    // the part of each change's offset that it has left, or `nil` for a running spring, which isn't folded
-    var neverFinishes = false
-    let remainingFactors = changes.map { change -> CGFloat? in
-      let changeNeverFinishes = CAAnimation.neverFinishes(duration: change.curve.duration)
-      neverFinishes = neverFinishes || changeNeverFinishes
-      if change.animation is CASpringAnimation, !changeNeverFinishes, change.speed > 0, change.beginTime <= now {
-        return nil
-      }
-      return change.remainingFactor(at: 0, now: now)
-    }
+    let old = oldPoints.points
+    let new = newPoints.points
+    let atOldSize = pointsAtOldSize.flatMap { $0.hasSameSegments(as: newPoints) && $0.isFinite ? $0.points : nil } ?? new
+    let motions = changes.map { ChangeMotion($0, at: now) }
 
-    // the glide starts from the new points, and a coordinate in motion starts where the folded changes show it instead
+    // a part glides when a coordinate it changes is in motion from the same part of the changes. a changed coordinate at
+    // rest has no motion to continue
     let tolerance = ComposeUI.Constants.geometryTolerance
-    var glidePoints = newPoints.points
-    var needsGlide = false
-    for index in glidePoints.indices {
-      var isMoving = (x: false, y: false)
-      var folded = CGPoint.zero
-      for (change, remainingFactor) in zip(changes, remainingFactors) {
-        let offset = change.offset.points[index]
-        isMoving.x = isMoving.x || abs(offset.x) > tolerance
-        isMoving.y = isMoving.y || abs(offset.y) > tolerance
-        if let remainingFactor {
-          folded.x += offset.x * remainingFactor
-          folded.y += offset.y * remainingFactor
-        }
+    var foldedParts: ChangeParts = []
+    for index in old.indices {
+      let motion = pointMotion(at: index, motions: motions, folding: false)
+      let shapeChange = CGPoint(x: old[index].x - atOldSize[index].x, y: old[index].y - atOldSize[index].y)
+      let sizeChange = CGPoint(x: atOldSize[index].x - new[index].x, y: atOldSize[index].y - new[index].y)
+      if motion.shapeMoves.x && abs(shapeChange.x) > tolerance || motion.shapeMoves.y && abs(shapeChange.y) > tolerance {
+        foldedParts.insert(.shape)
       }
-
-      let oldPoint = oldPoints.points[index]
-      if isMoving.x {
-        needsGlide = needsGlide || abs(oldPoint.x - glidePoints[index].x) > tolerance
-        glidePoints[index].x = oldPoint.x + folded.x
+      if motion.sizeMoves.x, abs(sizeChange.x) > tolerance {
+        foldedParts.insert(.sizeX)
       }
-      if isMoving.y {
-        needsGlide = needsGlide || abs(oldPoint.y - glidePoints[index].y) > tolerance
-        glidePoints[index].y = oldPoint.y + folded.y
+      if motion.sizeMoves.y, abs(sizeChange.y) > tolerance {
+        foldedParts.insert(.sizeY)
       }
     }
-    guard needsGlide else {
+    guard !foldedParts.isEmpty else {
       return
     }
 
-    let remainingTime = remainingTime(at: now)
-    changes = zip(changes, remainingFactors).compactMap { $1 == nil ? $0 : nil }
-    record(
-      from: PathPoints(kinds: newPoints.kinds, points: glidePoints),
-      to: newPoints,
-      timing: .easeOut(duration: neverFinishes ? Animations.defaultAnimationDuration : remainingTime),
-      at: now
-    )
+    // a change that never finishes can't keep going next to a glide, see `keyframes(adding:points:at:)`, so it folds whole
+    for motion in motions where motion.neverFinishes {
+      foldedParts.formUnion(motion.movedParts)
+    }
+
+    // a folded coordinate in motion glides from where it shows, and a changed coordinate at rest takes its new value at
+    // once
+    let foldsShape = foldedParts.contains(.shape)
+    let foldsSizeX = foldedParts.contains(.sizeX)
+    let foldsSizeY = foldedParts.contains(.sizeY)
+    var shapeGlide = [CGPoint](repeating: .zero, count: foldsShape ? old.count : 0)
+    var sizeGlide = [CGPoint](repeating: .zero, count: foldsSizeX || foldsSizeY ? old.count : 0)
+    for index in old.indices {
+      let motion = pointMotion(at: index, motions: motions, folding: true)
+      if foldsShape {
+        shapeGlide[index] = CGPoint(
+          x: motion.shapeMoves.x ? old[index].x - atOldSize[index].x + motion.foldedShape.x : 0,
+          y: motion.shapeMoves.y ? old[index].y - atOldSize[index].y + motion.foldedShape.y : 0
+        )
+      }
+      if foldsSizeX, motion.sizeMoves.x {
+        sizeGlide[index].x = atOldSize[index].x - new[index].x + motion.foldedSize.x
+      }
+      if foldsSizeY, motion.sizeMoves.y {
+        sizeGlide[index].y = atOldSize[index].y - new[index].y + motion.foldedSize.y
+      }
+    }
+
+    // the folded parts go into the glides, and the rest of a change keeps going in a copy of it, with its timing
+    changes = zip(changes, motions).compactMap { change, motion in
+      guard motion.remainingFactor != nil, !motion.movedParts.isDisjoint(with: foldedParts) else {
+        return change
+      }
+      let keptParts = motion.movedParts.subtracting(foldedParts)
+      // a change without a size's part is all the shape's, so it folds whole
+      guard !keptParts.isEmpty, let sizeOffset = change.sizeOffset else {
+        return nil
+      }
+      return change.keeping(keptParts, sizeOffset: sizeOffset)
+    }
+
+    // each part glides over the time the changes that move it have left, so it lands when they would have
+    func glideDuration(of part: ChangeParts) -> TimeInterval {
+      var duration: TimeInterval = 0
+      for motion in motions where motion.movedParts.contains(part) {
+        guard !motion.neverFinishes else {
+          // a change that never finishes has no landing to glide to
+          return Animations.defaultAnimationDuration
+        }
+        duration = max(duration, motion.remainingTime)
+      }
+      return duration
+    }
+    var recordedParts: ChangeParts = []
+    for part in ChangeParts.ordered where foldedParts.contains(part) && !recordedParts.contains(part) {
+      let duration = glideDuration(of: part)
+      let parts = ChangeParts.ordered.reduce(into: ChangeParts()) { parts, other in
+        if foldedParts.contains(other), glideDuration(of: other) == duration {
+          parts.insert(other)
+        }
+      }
+      recordedParts.formUnion(parts)
+      appendGlide(of: parts, shapeGlide: shapeGlide, sizeGlide: sizeGlide, kinds: newPoints.kinds, duration: duration, at: now)
+    }
+  }
+
+  /// Adds an ease-out change that glides parts of the path from where they show, see
+  /// `retarget(from:to:pointsAtOldSize:at:)`.
+  ///
+  /// - Parameters:
+  ///   - parts: The parts the change glides.
+  ///   - shapeGlide: The glide of the shape's part, point by point, or no points when the shape doesn't glide.
+  ///   - sizeGlide: The glide of the size's part, point by point, or no points when the size doesn't glide.
+  ///   - kinds: The kinds of the path's segments.
+  ///   - duration: The duration of the glide.
+  ///   - now: The layer's current time.
+  private mutating func appendGlide(of parts: ChangeParts, shapeGlide: [CGPoint], sizeGlide: [CGPoint], kinds: [CGPathElementType], duration: TimeInterval, at now: TimeInterval) {
+    // a glide without a duration shows at once
+    guard duration > 0 else {
+      return
+    }
+    let glidesShape = parts.contains(.shape)
+    let glidesSizeX = parts.contains(.sizeX)
+    let glidesSizeY = parts.contains(.sizeY)
+    // a glide of the size alone is its own size's part, and a glide of both keeps the size's part apart
+    let keepsSizeApart = glidesShape && (glidesSizeX || glidesSizeY)
+    let count = max(shapeGlide.count, sizeGlide.count)
+    var offset: [CGPoint] = []
+    offset.reserveCapacity(count)
+    var sizeOffset: [CGPoint] = []
+    sizeOffset.reserveCapacity(keepsSizeApart ? count : 0)
+    // the glide's points come from sums that cancel out where the path shows the new one, which leaves rounding errors
+    // instead of zeros, so a glide within the tolerance is none
+    let tolerance = ComposeUI.Constants.geometryTolerance
+    var hasOffset = false
+    var hasSizeOffset = false
+    for index in 0 ..< count {
+      let shape = glidesShape ? shapeGlide[index] : .zero
+      let size = CGPoint(x: glidesSizeX ? sizeGlide[index].x : 0, y: glidesSizeY ? sizeGlide[index].y : 0)
+      let point = CGPoint(x: shape.x + size.x, y: shape.y + size.y)
+      offset.append(point)
+      hasOffset = hasOffset || abs(point.x) > tolerance || abs(point.y) > tolerance
+      if keepsSizeApart {
+        sizeOffset.append(size)
+        hasSizeOffset = hasSizeOffset || abs(size.x) > tolerance || abs(size.y) > tolerance
+      }
+    }
+    guard hasOffset else {
+      return
+    }
+    let offsetPoints = PathPoints(kinds: kinds, points: offset)
+    let sizeOffsetPoints: PathPoints?
+    if keepsSizeApart {
+      sizeOffsetPoints = hasSizeOffset ? PathPoints(kinds: kinds, points: sizeOffset) : nil
+    } else {
+      sizeOffsetPoints = glidesShape ? nil : offsetPoints
+    }
+    append(offset: offsetPoints, sizeOffset: sizeOffsetPoints, timing: .easeOut(duration: duration), at: now)
+  }
+
+  /// The motion of the changes in flight at a point.
+  ///
+  /// - Parameters:
+  ///   - index: The index of the point.
+  ///   - motions: The motions of the changes, see `ChangeMotion`.
+  ///   - folding: Whether to sum up the parts the folding changes have left.
+  /// - Returns: The coordinates the changes' parts move, and when folding, the parts of those the folding changes have
+  ///   left.
+  private func pointMotion(at index: Int, motions: [ChangeMotion], folding: Bool) -> PointMotion {
+    let tolerance = ComposeUI.Constants.geometryTolerance
+    var motion = PointMotion()
+    for (change, changeMotion) in zip(changes, motions) {
+      let offset = change.offset.points[index]
+      let size = change.sizeOffset?.points[index] ?? .zero
+      let shape = CGPoint(x: offset.x - size.x, y: offset.y - size.y)
+      motion.shapeMoves.x = motion.shapeMoves.x || abs(shape.x) > tolerance
+      motion.shapeMoves.y = motion.shapeMoves.y || abs(shape.y) > tolerance
+      motion.sizeMoves.x = motion.sizeMoves.x || abs(size.x) > tolerance
+      motion.sizeMoves.y = motion.sizeMoves.y || abs(size.y) > tolerance
+      if folding, let remainingFactor = changeMotion.remainingFactor {
+        motion.foldedShape.x += shape.x * remainingFactor
+        motion.foldedShape.y += shape.y * remainingFactor
+        motion.foldedSize.x += size.x * remainingFactor
+        motion.foldedSize.y += size.y * remainingFactor
+      }
+    }
+    return motion
+  }
+
+  /// Parts of a path's change, which a retarget judges apart, see `retarget(from:to:pointsAtOldSize:at:)`.
+  fileprivate struct ChangeParts: OptionSet {
+
+    let rawValue: Int
+
+    /// The shape's part.
+    static let shape = ChangeParts(rawValue: 1 << 0)
+
+    /// The size's part along x.
+    static let sizeX = ChangeParts(rawValue: 1 << 1)
+
+    /// The size's part along y.
+    static let sizeY = ChangeParts(rawValue: 1 << 2)
+
+    /// The parts one by one, in the order their glides are recorded.
+    static let ordered: [ChangeParts] = [.shape, .sizeX, .sizeY]
+  }
+
+  /// What a retarget needs of a change in flight.
+  private struct ChangeMotion {
+
+    /// The part of the change's offset it has left, or `nil` for a running spring that settles, which keeps going so its
+    /// momentum carries on.
+    let remainingFactor: CGFloat?
+
+    /// The time the change has left.
+    let remainingTime: TimeInterval
+
+    /// Whether the change never finishes, see `CAAnimation.neverFinishes(duration:)`.
+    let neverFinishes: Bool
+
+    /// The parts of its offset the change moves points by.
+    let movedParts: ChangeParts
+
+    init(_ change: Change, at now: TimeInterval) {
+      neverFinishes = CAAnimation.neverFinishes(duration: change.curve.duration)
+      let isRunningSpring = change.animation is CASpringAnimation && !neverFinishes && change.speed > 0 && change.beginTime <= now
+      remainingFactor = isRunningSpring ? nil : change.remainingFactor(at: 0, now: now)
+      remainingTime = change.remainingTime(at: now) ?? 0
+
+      let tolerance = ComposeUI.Constants.geometryTolerance
+      var movedParts: ChangeParts = []
+      for index in change.offset.points.indices {
+        let offset = change.offset.points[index]
+        let size = change.sizeOffset?.points[index] ?? .zero
+        if abs(offset.x - size.x) > tolerance || abs(offset.y - size.y) > tolerance {
+          movedParts.insert(.shape)
+        }
+        if abs(size.x) > tolerance {
+          movedParts.insert(.sizeX)
+        }
+        if abs(size.y) > tolerance {
+          movedParts.insert(.sizeY)
+        }
+      }
+      self.movedParts = movedParts
+    }
+  }
+
+  /// The motion of the changes in flight at a point, see `pointMotion(at:motions:folding:)`.
+  private struct PointMotion {
+
+    /// The coordinates the shape's parts of the changes move.
+    var shapeMoves = (x: false, y: false)
+
+    /// The coordinates the size's parts of the changes move.
+    var sizeMoves = (x: false, y: false)
+
+    /// The part of the shape's parts that the folding changes have left.
+    var foldedShape = CGPoint.zero
+
+    /// The part of the size's parts that the folding changes have left.
+    var foldedSize = CGPoint.zero
   }
 
   /// The keyframes of a path with the changes in flight.

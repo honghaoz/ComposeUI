@@ -861,6 +861,127 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(layer.value(forKey: "custom") as? NSNumber) == 1
   }
 
+  // MARK: - Paths Following the Layer's Size
+
+  func test_animatePath_pathForASize_animatesToThePathForTheLayersSize() throws {
+    // given: a shape layer 100 points wide whose path is made for its size
+    let layer = makeLayerFollowingItsSize(width: 100)
+    expect(layer.path) == roundedRect(width: 100, cornerRadius: 5)
+
+    // when: the layer resizes to 200 points wide, and its path animates for its size over 4 seconds from 1000
+    layer.disableActions {
+      layer.frame = CGRect(x: 0, y: 0, width: 200, height: 50)
+    }
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", timing: .linear(duration: 4)) { self.roundedRect(size: $0, cornerRadius: 5) }
+    }
+
+    // then: the path animates from the one made for 100 points wide to the one made for 200 points wide
+    expect(layer.path) == roundedRect(width: 200, cornerRadius: 5)
+    let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try isPoints(PathPoints(pathValue(animation.fromValue)), closeTo: PathPoints(roundedRect(width: 100, cornerRadius: 5)))) == true
+    expect(try pathValue(animation.toValue)) == roundedRect(width: 200, cornerRadius: 5)
+    expect(animation.beginTime) == 1000
+    expect(animation.duration) == 4
+  }
+
+  func test_retargetPath_pathForASize_shapeChangeDuringResize_keepsTheResize() throws {
+    // given: a shape layer whose path, made for its size, widens with it from 100 to 200 points over 4 seconds from 1000
+    let layer = makeLayerFollowingItsSize(width: 100)
+    resize(layer, toWidth: 200, timing: .linear(duration: 4), at: 1000)
+
+    // when: the corner radius changes to 10 without animation a second in, at the same size
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetPath(keyPath: "path") { self.roundedRect(size: $0, cornerRadius: 10) }
+    }
+
+    // then: the layer remembers the size its path was made for, which tells the change of the shape apart from the
+    // resize, so the new corner radius shows at once and the path keeps the resize's motion
+    expect(layer.path) == roundedRect(width: 200, cornerRadius: 10)
+    let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try isPoints(PathPoints(pathValue(animation.fromValue)), closeTo: PathPoints(roundedRect(width: 100, cornerRadius: 10)))) == true
+    expect(animation.beginTime) == 1000
+    expect(animation.duration) == 4
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .linear)
+  }
+
+  func test_retargetPath_pathForASize_resizeDuringShapeChange_takesTheNewSizeAtOnce() throws {
+    // given: a shape layer 100 points wide whose path, made for its size, changes its corner radius from 5 to 10 over 4
+    // seconds from 1000
+    let layer = makeLayerFollowingItsSize(width: 100)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", timing: .linear(duration: 4)) { self.roundedRect(size: $0, cornerRadius: 10) }
+    }
+
+    // when: the layer resizes to 200 points wide without animation a second in
+    layer.disableActions {
+      layer.frame = CGRect(x: 0, y: 0, width: 200, height: 50)
+    }
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetPath(keyPath: "path") { self.roundedRect(size: $0, cornerRadius: 10) }
+    }
+
+    // then: no resize is in flight, so the new width shows at once, and the change of the corner radius keeps going on it
+    expect(layer.path) == roundedRect(width: 200, cornerRadius: 10)
+    let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(try isPoints(PathPoints(pathValue(animation.fromValue)), closeTo: PathPoints(roundedRect(width: 200, cornerRadius: 5)))) == true
+    expect(animation.beginTime) == 1000
+    expect(animation.duration) == 4
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .linear)
+  }
+
+  func test_retargetPath_pathForASize_afterThePathWasSetOtherwise_countsAsAChangeOfTheShape() throws {
+    // given: a shape layer whose path, made for its size, widens with it from 100 to 200 points over 4 seconds from
+    // 1000, and is then set some other way, to a corner radius of 7
+    let layer = makeLayerFollowingItsSize(width: 100)
+    resize(layer, toWidth: 200, timing: .linear(duration: 4), at: 1000)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.setPath(keyPath: "path", to: roundedRect(width: 200, cornerRadius: 7))
+    }
+
+    // when: the layer resizes to 150 points wide without animation a second in
+    layer.disableActions {
+      layer.frame = CGRect(x: 0, y: 0, width: 150, height: 50)
+    }
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetPath(keyPath: "path") { self.roundedRect(size: $0, cornerRadius: 5) }
+    }
+
+    // then: the layer didn't make its current path, so it has no size to tell the resize by, and the change counts as a
+    // change of the shape. no change of the shape is in flight, so the new path shows at once and the resize keeps going,
+    // instead of gliding as the resize of a path made for the size would
+    expect(layer.path) == roundedRect(width: 150, cornerRadius: 5)
+    let animation = try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expect(animation.beginTime) == 1000
+    expect(animation.timingFunction) == CAMediaTimingFunction(name: .linear)
+  }
+
+  func test_pathsForASize_atTwoKeyPaths_rememberTheirOwnSizes() throws {
+    // given: a shape layer 100 points wide whose path and shadow path are made for its size, and widen with it to 200
+    // points over 4 seconds from 1000
+    let layer = makeLayerFollowingItsSize(width: 100)
+    layer.retargetPath(keyPath: "shadowPath") { self.roundedRect(size: $0, cornerRadius: 5) }
+    resize(layer, toWidth: 200, timing: .linear(duration: 4), at: 1000)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "shadowPath", timing: .linear(duration: 4)) { self.roundedRect(size: $0, cornerRadius: 5) }
+    }
+
+    // when: the path's corner radius changes to 10 and the shadow path's to 15, without animation a second in
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetPath(keyPath: "path") { self.roundedRect(size: $0, cornerRadius: 10) }
+      layer.retargetPath(keyPath: "shadowPath") { self.roundedRect(size: $0, cornerRadius: 15) }
+    }
+
+    // then: each path keeps the resize's motion, with its new corner radius at once
+    for (keyPath, cornerRadius) in [("path", CGFloat(10)), ("shadowPath", 15)] {
+      let animation = try (layer.animation(forKey: keyPath) as? CABasicAnimation).unwrap()
+      let shownPoints = try PathPoints(pathValue(animation.fromValue))
+      expect(isPoints(shownPoints, closeTo: PathPoints(roundedRect(width: 100, cornerRadius: cornerRadius))), keyPath) == true
+      expect(animation.beginTime, keyPath) == 1000
+      expect(animation.timingFunction, keyPath) == CAMediaTimingFunction(name: .linear)
+    }
+  }
+
   // MARK: - Key Path Access
 
   func test_setPath_readsAndSetsPathsDirectly() throws {
@@ -918,9 +1039,34 @@ class CALayer_AdditivePathTests: XCTestCase {
     CGPath(rect: CGRect(x: 0, y: 0, width: width, height: 50).insetBy(dx: inset, dy: inset), transform: nil)
   }
 
-  /// A rounded rect of the given width and 50 points high at the origin, with a corner radius of 10.
-  private func roundedRect(width: CGFloat) -> CGPath {
-    CGPath(roundedRect: CGRect(x: 0, y: 0, width: width, height: 50), cornerWidth: 10, cornerHeight: 10, transform: nil)
+  /// A rounded rect of the given width and 50 points high at the origin.
+  private func roundedRect(width: CGFloat, cornerRadius: CGFloat = 10) -> CGPath {
+    roundedRect(size: CGSize(width: width, height: 50), cornerRadius: cornerRadius)
+  }
+
+  /// A rounded rect of the given size at the origin.
+  private func roundedRect(size: CGSize, cornerRadius: CGFloat) -> CGPath {
+    CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+  }
+
+  /// A shape layer of the given width and 50 points high at the origin, whose path, a rounded rect with a corner radius of
+  /// 5, is made for its size.
+  private func makeLayerFollowingItsSize(width: CGFloat) -> CAShapeLayer {
+    let layer = CAShapeLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: width, height: 50)
+    layer.retargetPath(keyPath: "path") { self.roundedRect(size: $0, cornerRadius: 5) }
+    return layer
+  }
+
+  /// Resizes the layer to the width at once and animates its path for the new size with the timing at a time, as a render
+  /// pass does after an animated frame change.
+  private func resize(_ layer: CAShapeLayer, toWidth width: CGFloat, timing: AnimationTiming, at time: TimeInterval) {
+    layer.disableActions {
+      layer.frame = CGRect(x: 0, y: 0, width: width, height: 50)
+    }
+    AnimationClock.sharingTime(at: time) {
+      layer.animatePath(keyPath: "path", timing: timing) { self.roundedRect(size: $0, cornerRadius: 5) }
+    }
   }
 
   /// Whether points have the segments of others, with each point within rounding error of the other's.

@@ -174,6 +174,293 @@ class PathChangesTests: XCTestCase {
     expect(changes.isEmpty) == true
   }
 
+  func test_record_pointsAtOldSize_keepsTheSizesPartOfTheChange() throws {
+    // given: no changes in flight
+    var changes = PathChanges()
+
+    // when: recording a change from a rounded rect 100 points wide with a corner radius of 5 to one 200 points wide with
+    // a corner radius of 10, with the new path at the old size
+    changes.record(from: roundedRect(width: 100, radius: 5), to: roundedRect(width: 200, radius: 10), atOldSize: roundedRect(width: 100, radius: 10), timing: .linear(duration: 1), at: 100)
+
+    // then: the change keeps the size's part of its offset, from the new path at the old size to the new path
+    let change = try changes.changes.first.unwrap()
+    expect(change.offset) == PathPoints(roundedRect(width: 100, radius: 5)).subtracting(PathPoints(roundedRect(width: 200, radius: 10)))
+    expect(change.sizeOffset) == PathPoints(roundedRect(width: 100, radius: 10)).subtracting(PathPoints(roundedRect(width: 200, radius: 10)))
+  }
+
+  func test_record_withoutAResizeOfTheNewPath_isAllTheShapes() {
+    // given: no changes in flight
+    var changes = PathChanges()
+
+    // when: recording changes with the new path at the old size being the new path, of other segments, of points that
+    // aren't finite, and none
+    changes.record(from: roundedRect(radius: 5), to: roundedRect(radius: 10), atOldSize: roundedRect(radius: 10), timing: .linear(duration: 1), at: 100)
+    changes.record(from: roundedRect(radius: 10), to: roundedRect(radius: 15), atOldSize: rect(inset: 0), timing: .linear(duration: 1), at: 100)
+    changes.record(from: roundedRect(radius: 15), to: roundedRect(radius: 20), timing: .linear(duration: 1), at: 100)
+    var rectChanges = PathChanges()
+    rectChanges.record(from: rect(width: 100, height: 50), to: rect(width: 200, height: 50), atOldSize: CGPath(rect: .null, transform: nil), timing: .linear(duration: 1), at: 100)
+
+    // then: the changes have no size's part, so they're all the shape's
+    expect(changes.changes.count) == 3
+    expect(changes.changes.allSatisfy { $0.sizeOffset == nil }) == true
+    expect(rectChanges.changes.count) == 1
+    expect(rectChanges.changes.first?.sizeOffset) == nil
+  }
+
+  // MARK: - Retarget
+
+  func test_retarget_shapeChangeWithoutShapeMotion_keepsTheChanges() throws {
+    // given: a rounded rect widening from 100 to 200 points over 4 seconds from 100
+    var changes = PathChanges()
+    changes.record(from: roundedRect(width: 100), to: roundedRect(width: 200), atOldSize: roundedRect(width: 100), timing: .linear(duration: 4), at: 100)
+    let resize = try changes.changes.first.unwrap()
+
+    // when: retargeting to a corner radius of 10 at the resize's width a second in
+    changes.retarget(from: roundedRect(width: 200), to: roundedRect(width: 200, radius: 10), at: 101)
+
+    // then: no change of the shape is in flight, so the corner radius shows at once, and the resize keeps going as it is
+    expect(changes.changes.count) == 1
+    expect(changes.changes.first?.offset) == resize.offset
+    expect(changes.changes.first?.animation) === resize.animation
+  }
+
+  func test_retarget_resizeWithoutResizeMotion_keepsTheChanges() throws {
+    // given: a rounded rect, 100 points wide, whose corner radius goes from 5 to 15 over 4 seconds from 100
+    var changes = PathChanges()
+    changes.record(from: roundedRect(radius: 5), to: roundedRect(radius: 15), timing: .linear(duration: 4), at: 100)
+    let shapeChange = try changes.changes.first.unwrap()
+
+    // when: retargeting to 200 points wide a second in, with the new path at the old size
+    changes.retarget(from: roundedRect(radius: 15), to: roundedRect(width: 200, radius: 15), atOldSize: roundedRect(radius: 15), at: 101)
+
+    // then: no resize is in flight, so the width shows at once, and the change of the corner radius keeps going as it is
+    expect(changes.changes.count) == 1
+    expect(changes.changes.first?.offset) == shapeChange.offset
+    expect(changes.changes.first?.animation) === shapeChange.animation
+  }
+
+  func test_retarget_widthChangeDuringResizeOfBothAxes_keepsTheHeightInACopy() throws {
+    // given: a rect growing from 100 by 50 to 200 by 100 points over 4 seconds from 100
+    var changes = PathChanges()
+    changes.record(from: rect(width: 100, height: 50), to: rect(width: 200, height: 100), atOldSize: rect(width: 100, height: 50), timing: .linear(duration: 4), at: 100)
+    let resize = try changes.changes.first.unwrap()
+
+    // when: retargeting to 150 points wide at the resize's height a second in
+    changes.retarget(from: rect(width: 200, height: 100), to: rect(width: 150, height: 100), atOldSize: rect(width: 200, height: 100), at: 101)
+
+    // then: the height, which didn't change, keeps the resize's motion in a copy of it, with its timing
+    expect(changes.changes.count) == 2
+    let heightResize = changes.changes[0]
+    expect(heightResize.offset) == PathPoints(rect(width: 200, height: 50)).subtracting(PathPoints(rect(width: 200, height: 100)))
+    expect(heightResize.sizeOffset) == heightResize.offset
+    expect(heightResize.animation) === resize.animation
+    expect(heightResize.beginTime) == 100
+
+    // then: the width glides from the 125 points shown over the 3 seconds the resize had left
+    let widthGlide = changes.changes[1]
+    expect(widthGlide.offset) == PathPoints(rect(width: 125, height: 100)).subtracting(PathPoints(rect(width: 150, height: 100)))
+    expect(widthGlide.sizeOffset) == widthGlide.offset
+    expect(widthGlide.curve.duration) == 3
+    expect(widthGlide.animation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(widthGlide.beginTime) == 101
+  }
+
+  func test_retarget_resizeAndShapeChange_shapeChange_keepsTheResizeInACopy() throws {
+    // given: a rounded rect widening from 100 to 200 points while its corner radius goes from 5 to 15, over 4 seconds
+    // from 100, in one change
+    var changes = PathChanges()
+    changes.record(from: roundedRect(width: 100, radius: 5), to: roundedRect(width: 200, radius: 15), atOldSize: roundedRect(width: 100, radius: 15), timing: .linear(duration: 4), at: 100)
+    let change = try changes.changes.first.unwrap()
+
+    // when: retargeting to a corner radius of 25 at the change's width a second in
+    changes.retarget(from: roundedRect(width: 200, radius: 15), to: roundedRect(width: 200, radius: 25), at: 101)
+
+    // then: the resize keeps going in a copy of the change, with its timing
+    expect(changes.changes.count) == 2
+    let resize = changes.changes[0]
+    let sizeOffset = try change.sizeOffset.unwrap()
+    expect(isPoints(resize.offset, closeTo: sizeOffset)) == true
+    expect(try isPoints(resize.sizeOffset.unwrap(), closeTo: sizeOffset)) == true
+    expect(resize.animation) === change.animation
+
+    // then: the corner radius glides from the 7.5 shown to 25 over the 3 seconds the change had left, as a change of
+    // the shape
+    let shapeGlide = changes.changes[1]
+    let expectedOffset = PathPoints(roundedRect(width: 200, radius: 7.5)).subtracting(PathPoints(roundedRect(width: 200, radius: 25)))
+    expect(isPoints(shapeGlide.offset, closeTo: expectedOffset)) == true
+    expect(shapeGlide.sizeOffset) == nil
+    expect(shapeGlide.curve.duration) == 3
+  }
+
+  func test_retarget_resizeAndShapeChange_resize_keepsTheShapeChangeInACopy() throws {
+    // given: a rounded rect widening from 100 to 200 points while its corner radius goes from 5 to 15, over 4 seconds
+    // from 100, in one change
+    var changes = PathChanges()
+    changes.record(from: roundedRect(width: 100, radius: 5), to: roundedRect(width: 200, radius: 15), atOldSize: roundedRect(width: 100, radius: 15), timing: .linear(duration: 4), at: 100)
+    let change = try changes.changes.first.unwrap()
+
+    // when: retargeting to 150 points wide at the change's corner radius a second in, with the new path at the old size
+    changes.retarget(from: roundedRect(width: 200, radius: 15), to: roundedRect(width: 150, radius: 15), atOldSize: roundedRect(width: 200, radius: 15), at: 101)
+
+    // then: the change of the corner radius keeps going in a copy of the change, with its timing
+    expect(changes.changes.count) == 2
+    let shapeChange = changes.changes[0]
+    expect(shapeChange.offset) == change.offset.subtracting(try change.sizeOffset.unwrap())
+    expect(shapeChange.sizeOffset) == nil
+    expect(shapeChange.animation) === change.animation
+
+    // then: the width glides from the 125 points shown over the 3 seconds the change had left, as a change of the size
+    let widthGlide = changes.changes[1]
+    let expectedOffset = PathPoints(roundedRect(width: 125, radius: 15)).subtracting(PathPoints(roundedRect(width: 150, radius: 15)))
+    expect(isPoints(widthGlide.offset, closeTo: expectedOffset)) == true
+    expect(widthGlide.sizeOffset) == widthGlide.offset
+    expect(widthGlide.curve.duration) == 3
+  }
+
+  func test_retarget_axesOfDifferentRemainingTimes_glideApart() throws {
+    // given: a rect widening from 100 to 200 points over 2 seconds, and growing from 50 to 100 points high over 4
+    // seconds, both from 100
+    var changes = PathChanges()
+    changes.record(from: rect(width: 100, height: 50), to: rect(width: 200, height: 50), atOldSize: rect(width: 100, height: 50), timing: .linear(duration: 2), at: 100)
+    changes.record(from: rect(width: 200, height: 50), to: rect(width: 200, height: 100), atOldSize: rect(width: 200, height: 50), timing: .linear(duration: 4), at: 100)
+
+    // when: retargeting to 120 by 75 points a second in
+    changes.retarget(from: rect(width: 200, height: 100), to: rect(width: 120, height: 75), atOldSize: rect(width: 200, height: 100), at: 101)
+
+    // then: each axis glides from where it shows over the time its change had left: the width from 150 points over a
+    // second, and the height from 62.5 points over 3 seconds
+    expect(changes.changes.count) == 2
+    let widthGlide = changes.changes[0]
+    expect(widthGlide.offset) == PathPoints(rect(width: 150, height: 75)).subtracting(PathPoints(rect(width: 120, height: 75)))
+    expect(widthGlide.curve.duration) == 1
+    let heightGlide = changes.changes[1]
+    expect(heightGlide.offset) == PathPoints(rect(width: 120, height: 62.5)).subtracting(PathPoints(rect(width: 120, height: 75)))
+    expect(heightGlide.curve.duration) == 3
+  }
+
+  func test_retarget_axesLandingTogether_glideInOneChange() throws {
+    // given: a rect growing from 100 by 50 to 200 by 100 points over 4 seconds from 100
+    var changes = PathChanges()
+    changes.record(from: rect(width: 100, height: 50), to: rect(width: 200, height: 100), atOldSize: rect(width: 100, height: 50), timing: .linear(duration: 4), at: 100)
+
+    // when: retargeting to 150 by 80 points a second in
+    changes.retarget(from: rect(width: 200, height: 100), to: rect(width: 150, height: 80), atOldSize: rect(width: 200, height: 100), at: 101)
+
+    // then: both axes glide from the 125 by 62.5 points shown over the 3 seconds left, in one change of the size
+    expect(changes.changes.count) == 1
+    let glide = try changes.changes.first.unwrap()
+    expect(glide.offset) == PathPoints(rect(width: 125, height: 62.5)).subtracting(PathPoints(rect(width: 150, height: 80)))
+    expect(glide.sizeOffset) == glide.offset
+    expect(glide.curve.duration) == 3
+  }
+
+  func test_retarget_changeThatNeverFinishes_foldsWhole() throws {
+    // given: a rect springing from 100 by 50 to 200 by 100 points without damping from 100, so it bounces forever
+    var changes = PathChanges()
+    changes.record(from: rect(width: 100, height: 50), to: rect(width: 200, height: 100), atOldSize: rect(width: 100, height: 50), timing: .spring(dampingRatio: 0, response: 0.5), at: 100)
+    let spring = try changes.changes.first.unwrap()
+    let remainingFactor = spring.remainingFactor(at: 0, now: 100.3)
+    expect(remainingFactor) != 0
+
+    // when: retargeting to 150 points wide at the spring's height 0.3 seconds in
+    changes.retarget(from: rect(width: 200, height: 100), to: rect(width: 150, height: 100), atOldSize: rect(width: 200, height: 100), at: 100.3)
+
+    // then: the spring can't keep going next to a glide, so it folds whole, its height too, into a glide from where the
+    // rect shows over the default duration
+    expect(changes.changes.count) == 1
+    let glide = try changes.changes.first.unwrap()
+    let shownWidth = 200 - 100 * remainingFactor
+    let shownHeight = 100 - 50 * remainingFactor
+    let expectedOffset = PathPoints(rect(width: shownWidth, height: shownHeight)).subtracting(PathPoints(rect(width: 150, height: 100)))
+    expect(isPoints(glide.offset, closeTo: expectedOffset)) == true
+    expect(glide.curve.duration) == Animations.defaultAnimationDuration
+  }
+
+  func test_retarget_landedChange_showsTheNewPathAtOnce() {
+    // given: a rect widening from 100 to 200 points over a second from 100, which has landed by 102
+    var changes = PathChanges()
+    changes.record(from: rect(width: 100, height: 50), to: rect(width: 200, height: 50), atOldSize: rect(width: 100, height: 50), timing: .linear(duration: 1), at: 100)
+
+    // when: retargeting to 150 points wide at 102
+    changes.retarget(from: rect(width: 200, height: 50), to: rect(width: 150, height: 50), atOldSize: rect(width: 200, height: 50), at: 102)
+
+    // then: the change has no motion left to glide from, so the new path shows at once
+    expect(changes.isEmpty) == true
+  }
+
+  func test_retarget_toThePathShown_needsNoGlide() {
+    // given: a rect widening from 100 to 200 points over 4 seconds from 100
+    var changes = PathChanges()
+    changes.record(from: rect(width: 100, height: 50), to: rect(width: 200, height: 50), atOldSize: rect(width: 100, height: 50), timing: .linear(duration: 4), at: 100)
+
+    // when: retargeting to the 125 points shown a second in
+    changes.retarget(from: rect(width: 200, height: 50), to: rect(width: 125, height: 50), atOldSize: rect(width: 200, height: 50), at: 101)
+
+    // then: the path already shows the new path, so the change folds without a glide
+    expect(changes.isEmpty) == true
+  }
+
+  func test_retarget_pointsAtOldSizeThatDontLineUp_makeTheChangeAllTheShapes() throws {
+    // given: a rect widening from 100 to 200 points over 4 seconds from 100
+    var changes = PathChanges()
+    changes.record(from: rect(width: 100, height: 50), to: rect(width: 200, height: 50), atOldSize: rect(width: 100, height: 50), timing: .linear(duration: 4), at: 100)
+    let resize = try changes.changes.first.unwrap()
+
+    // when: retargeting to 150 points wide a second in, with the new path at the old size of other segments, and of
+    // points that aren't finite
+    var otherSegments = changes
+    otherSegments.retarget(from: rect(width: 200, height: 50), to: rect(width: 150, height: 50), atOldSize: roundedRect(), at: 101)
+    var notFinite = changes
+    notFinite.retarget(from: rect(width: 200, height: 50), to: rect(width: 150, height: 50), atOldSize: CGPath(rect: .null, transform: nil), at: 101)
+
+    // then: the points don't tell the size's part, so the change is all the shape's, and no change of the shape is in
+    // flight, so the new width shows at once and the resize keeps going as it is
+    for retargeted in [otherSegments, notFinite] {
+      expect(retargeted.changes.count) == 1
+      expect(retargeted.changes.first?.offset) == resize.offset
+      expect(retargeted.changes.first?.animation) === resize.animation
+    }
+  }
+
+  func test_retarget_shapeAndResizeLandingTogether_glideInOneChange() throws {
+    // given: a rounded rect widening from 100 to 200 points while its corner radius goes from 5 to 15, over 4 seconds
+    // from 100, in one change
+    var changes = PathChanges()
+    changes.record(from: roundedRect(width: 100, radius: 5), to: roundedRect(width: 200, radius: 15), atOldSize: roundedRect(width: 100, radius: 15), timing: .linear(duration: 4), at: 100)
+
+    // when: retargeting to 150 points wide with a corner radius of 25 a second in, with the new path at the old size
+    changes.retarget(from: roundedRect(width: 200, radius: 15), to: roundedRect(width: 150, radius: 25), atOldSize: roundedRect(width: 200, radius: 25), at: 101)
+
+    // then: both parts glide from where they show, 125 points wide with a corner radius of 7.5, over the 3 seconds the
+    // change had left, in one change that keeps the size's part apart
+    expect(changes.changes.count) == 1
+    let glide = try changes.changes.first.unwrap()
+    let expectedOffset = PathPoints(roundedRect(width: 125, radius: 7.5)).subtracting(PathPoints(roundedRect(width: 150, radius: 25)))
+    expect(isPoints(glide.offset, closeTo: expectedOffset)) == true
+    let expectedSizeOffset = PathPoints(roundedRect(width: 125, radius: 25)).subtracting(PathPoints(roundedRect(width: 150, radius: 25)))
+    expect(try isPoints(glide.sizeOffset.unwrap(), closeTo: expectedSizeOffset)) == true
+    expect(glide.curve.duration) == 3
+  }
+
+  func test_retarget_shapeGlideWithoutASizeGlide_isAChangeOfTheShape() throws {
+    // given: a rounded rect widening from 100 to 200 points while its corner radius goes from 5 to 15, over 4 seconds
+    // from 100, in one change
+    var changes = PathChanges()
+    changes.record(from: roundedRect(width: 100, radius: 5), to: roundedRect(width: 200, radius: 15), atOldSize: roundedRect(width: 100, radius: 15), timing: .linear(duration: 4), at: 100)
+
+    // when: retargeting a second in to a corner radius of 25 at the 125 points shown, with the new path at the old size
+    changes.retarget(from: roundedRect(width: 200, radius: 15), to: roundedRect(width: 125, radius: 25), atOldSize: roundedRect(width: 200, radius: 25), at: 101)
+
+    // then: both parts fold into one glide, as they land together, and the width shows where it is, so the glide is a
+    // change of the shape alone, from the 7.5 corner radius shown
+    expect(changes.changes.count) == 1
+    let glide = try changes.changes.first.unwrap()
+    let expectedOffset = PathPoints(roundedRect(width: 125, radius: 7.5)).subtracting(PathPoints(roundedRect(width: 125, radius: 25)))
+    expect(isPoints(glide.offset, closeTo: expectedOffset)) == true
+    expect(glide.sizeOffset) == nil
+    expect(glide.curve.duration) == 3
+  }
+
   // MARK: - Remove Landed Changes
 
   func test_removeLandedChanges() {
@@ -336,7 +623,7 @@ class PathChangesTests: XCTestCase {
     let animation = CABasicAnimation.makeAnimation(.spring(dampingRatio: 0.5, response: 0.5))
     animation.duration = .infinity
     let offset = PathPoints(rect(inset: 0)).subtracting(PathPoints(rect(inset: 5)))
-    let change = PathChanges.Change(offset: offset, animation: animation, curve: AnimationCurve(animation), speed: 1, beginTime: 0)
+    let change = PathChanges.Change(offset: offset, sizeOffset: nil, animation: animation, curve: AnimationCurve(animation), speed: 1, beginTime: 0)
 
     // then: the spring never lands, so it has no jump, instead of the undefined progress at its infinite end
     expect(change.landingFactor) == 0
@@ -627,16 +914,33 @@ class PathChangesTests: XCTestCase {
     CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 50).insetBy(dx: inset, dy: inset), transform: nil)
   }
 
-  /// A rounded rect of 100 by 50 points at the origin.
-  private func roundedRect(radius: CGFloat = 5) -> CGPath {
-    CGPath(roundedRect: CGRect(x: 0, y: 0, width: 100, height: 50), cornerWidth: radius, cornerHeight: radius, transform: nil)
+  /// A rect of the given size at the origin.
+  private func rect(width: CGFloat, height: CGFloat) -> CGPath {
+    CGPath(rect: CGRect(x: 0, y: 0, width: width, height: height), transform: nil)
+  }
+
+  /// A rounded rect of the given width and 50 points high at the origin.
+  private func roundedRect(width: CGFloat = 100, radius: CGFloat = 5) -> CGPath {
+    CGPath(roundedRect: CGRect(x: 0, y: 0, width: width, height: 50), cornerWidth: radius, cornerHeight: radius, transform: nil)
+  }
+
+  /// Whether points have the segments of others, with each point within rounding error of the other's.
+  private func isPoints(_ points: PathPoints, closeTo other: PathPoints) -> Bool {
+    points.hasSameSegments(as: other) && zip(points.points, other.points).allSatisfy {
+      abs($0.x - $1.x) <= 1e-9 && abs($0.y - $1.y) <= 1e-9
+    }
   }
 }
 
 private extension PathChanges {
 
-  /// Records a change between two paths, see `record(from:to:timing:at:)`.
-  mutating func record(from oldPath: CGPath, to newPath: CGPath, timing: AnimationTiming, at now: TimeInterval) {
-    record(from: PathPoints(oldPath), to: PathPoints(newPath), timing: timing, at: now)
+  /// Records a change between two paths, see `record(from:to:pointsAtOldSize:timing:at:)`.
+  mutating func record(from oldPath: CGPath, to newPath: CGPath, atOldSize pathAtOldSize: CGPath? = nil, timing: AnimationTiming, at now: TimeInterval) {
+    record(from: PathPoints(oldPath), to: PathPoints(newPath), pointsAtOldSize: pathAtOldSize.map { PathPoints($0) }, timing: timing, at: now)
+  }
+
+  /// Retargets the changes to a path, see `retarget(from:to:pointsAtOldSize:at:)`.
+  mutating func retarget(from oldPath: CGPath, to newPath: CGPath, atOldSize pathAtOldSize: CGPath? = nil, at now: TimeInterval) {
+    retarget(from: PathPoints(oldPath), to: PathPoints(newPath), pointsAtOldSize: pathAtOldSize.map { PathPoints($0) }, at: now)
   }
 }

@@ -383,21 +383,20 @@ final class DropShadowLayerTests: XCTestCase {
     expect(layer.animation(forKey: "opacity")?.duration) == 10
     expect(layer.animation(forKey: "position")?.duration) == 10
 
-    // then: the shadow path glides from the path shown, the red one at the old size as no time has passed, to the new
-    // path over the remaining time
-    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    // then: the shadow path's change of shape glides from the shape shown to the new one over the time the shape's motion
+    // had left, while its change of size, which the update leaves alone, keeps going as it is. the path shown is the red
+    // one at the old size, as no time has passed, and the path lands on the new one
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
     expect(shadowPathAnimation.duration) == 10
-    expect(shadowPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
-    expect(try PathPoints(pathValue(shadowPathAnimation.fromValue))) == PathPoints(CGPath(rect: CGRect(x: 5, y: 5, width: 90, height: 90), transform: nil))
-    expect(try pathValue(shadowPathAnimation.toValue)) == referenceShadowPath
+    expect(try PathPoints(pathValue(shadowPathAnimation.values?.first))) == PathPoints(CGPath(rect: CGRect(x: 5, y: 5, width: 90, height: 90), transform: nil))
+    expect(try pathValue(shadowPathAnimation.values?.last)) == referenceShadowPath
 
     // then: so does the mask path, with the mask on the new bounds
     expect(mask.animationKeys()) == ["path"]
-    let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
     expect(maskPathAnimation.duration) == 10
-    expect(maskPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
-    expect(try PathPoints(pathValue(maskPathAnimation.fromValue))) == PathPoints(maskPath(cutout: CGPath(rect: CGRect(x: 10, y: 10, width: 80, height: 80), transform: nil)))
-    expect(try pathValue(maskPathAnimation.toValue)) == referenceMaskPath
+    expect(try PathPoints(pathValue(maskPathAnimation.values?.first))) == PathPoints(maskPath(cutout: CGPath(rect: CGRect(x: 10, y: 10, width: 80, height: 80), transform: nil)))
+    expect(try pathValue(maskPathAnimation.values?.last)) == referenceMaskPath
 
     // when: updating with animation timing and the same values
     update(layer, green, animationTiming: .linear(duration: 2))
@@ -679,24 +678,176 @@ final class DropShadowLayerTests: XCTestCase {
     let layer = makeLayer(width: 100)
     let mask = try (layer.mask as? CAShapeLayer).unwrap()
     resize(layer, toWidth: 200, timing: .linear(duration: 2))
-    let resize = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    let widthResize = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
 
     // when: a non-animated update retargets the frame to 150 points high at the resize's width, as the render pass does
     layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 150))
     updateRounded(layer, animationTiming: nil)
 
     // then: the frame keeps its resize, with the height at once, and so does the shadow path, on the new height
-    expect(layer.animation(forKey: "bounds.size")) === resize
+    expect(layer.animation(forKey: "bounds.size")) === widthResize
     let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
-    expectSameTiming(shadowPathAnimation, as: resize)
+    expectSameTiming(shadowPathAnimation, as: widthResize)
     expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(size: CGSize(width: 100, height: 150)))) == true
     expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(size: CGSize(width: 200, height: 150))
 
     // then: so does the mask path
     let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
-    expectSameTiming(maskPathAnimation, as: resize)
+    expectSameTiming(maskPathAnimation, as: widthResize)
     let shownCutout = roundedRect(size: CGSize(width: 100, height: 150), inset: 10)
     expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(cutout: shownCutout))) == true
+  }
+
+  func test_update_withoutAnimation_shapeChangeWhileResizing_pathsKeepTheResize() throws {
+    // given: a layer with a cutout whose frame and paths animate linearly from 100 to 300 points wide over 2 seconds from
+    // 1000
+    let layer = makeLayer(width: 100)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      resize(layer, toWidth: 300, timing: .linear(duration: 2))
+    }
+    let widthResize = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+
+    // when: the corner radius changes to 20 without animation half a second in, which leaves the frame alone
+    AnimationClock.sharingTime(at: 1000.5) {
+      updateRounded(layer, cornerRadius: 20, animationTiming: nil)
+    }
+
+    // then: the new corner radius shows at once, and the paths keep the resize's motion, so they stay on the frame
+    expect(layer.animation(forKey: "bounds.size")) === widthResize
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expectSameTiming(shadowPathAnimation, as: widthResize)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(width: 100, cornerRadius: 20))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(width: 300, cornerRadius: 20)
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(maskPathAnimation, as: widthResize)
+    expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: 100, cornerRadius: 20))) == true
+    expect(try PathPoints(pathValue(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 300, cornerRadius: 20))
+  }
+
+  func test_update_withoutAnimation_resizeWhileTheCornerRadiusAnimates_pathsKeepTheirShape() throws {
+    // given: a layer with a cutout, 100 points wide, whose corner radius animates linearly from 10 to 30 over 2 seconds
+    // from 1000
+    let layer = makeLayer(width: 100)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      updateRounded(layer, cornerRadius: 30, animationTiming: .linear(duration: 2))
+    }
+    let cornerRadiusChange = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+
+    // when: the frame resizes to 200 points wide without animation a second in, as the render pass does, which the frame
+    // takes at once as it isn't animating
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100))
+      updateRounded(layer, cornerRadius: 30, animationTiming: nil)
+    }
+
+    // then: the paths take the new width at once too, and their change of corner radius keeps going on it
+    expect(layer.animation(forKey: "bounds.size")) == nil
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expectSameTiming(shadowPathAnimation, as: cornerRadiusChange)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(width: 200, cornerRadius: 10))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(width: 200, cornerRadius: 30)
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(maskPathAnimation, as: cornerRadiusChange)
+    expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: 200, cornerRadius: 10))) == true
+    expect(try PathPoints(pathValue(maskPathAnimation.toValue))) == PathPoints(maskPath(width: 200, cornerRadius: 30))
+  }
+
+  func test_update_withoutAnimation_heightChangeAfterResizeAndShapeChange_pathsKeepTheirShape() throws {
+    // given: a layer with a cutout whose frame grows from 100 to 300 points wide while its corner radius goes from 10 to
+    // 30, over 2 seconds from 1000, in one animated update
+    let layer = makeLayer(width: 100)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 300, height: 100), timing: .linear(duration: 2))
+      updateRounded(layer, cornerRadius: 30, animationTiming: .linear(duration: 2))
+    }
+    let widthResize = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+
+    // when: the frame changes to 150 points high without animation a second in, as the render pass does, which the frame
+    // takes at once as it isn't animating the height
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 300, height: 150))
+      updateRounded(layer, cornerRadius: 30, animationTiming: nil)
+    }
+
+    // then: the paths take the new height at once too, and their change of width and corner radius keeps going on it
+    expect(layer.animation(forKey: "bounds.size")) === widthResize
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expectSameTiming(shadowPathAnimation, as: widthResize)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(size: CGSize(width: 100, height: 150), cornerRadius: 10))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(size: CGSize(width: 300, height: 150), cornerRadius: 30)
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    let shownCutout = roundedRect(size: CGSize(width: 100, height: 150), cornerRadius: 10, inset: 10)
+    expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(cutout: shownCutout))) == true
+  }
+
+  func test_update_withoutAnimation_widthChangeWhileTheHeightResizesApart_pathsStayOnTheFrame() throws {
+    // given: a layer with a cutout growing from 100 to 300 points wide over 2 seconds, and from 100 to 200 points high
+    // over 4 seconds, both from 1000, as two render passes do
+    let layer = makeLayer(width: 100)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      resize(layer, toWidth: 300, timing: .linear(duration: 2))
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 300, height: 200), timing: .linear(duration: 4))
+      updateRounded(layer, animationTiming: .linear(duration: 4))
+    }
+    let heightResize = try layer.animation(forKey: "bounds.size-1").unwrap()
+
+    // when: the frame changes to 200 points wide without animation half a second in, as the render pass does
+    AnimationClock.sharingTime(at: 1000.5) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 200))
+      updateRounded(layer, animationTiming: nil)
+    }
+
+    // then: the width glides while the height keeps its motion, in the frame and in the paths alike, so each keyframe of
+    // the paths has the size the frame shows at its time
+    expect(layer.animation(forKey: "bounds.size-1")) === heightResize
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
+    expect(shadowPathAnimation.duration) == 3.5
+    let shadowPaths = try pathValues(of: shadowPathAnimation)
+    let maskPaths = try pathValues(of: maskPathAnimation)
+    expect(shadowPaths.count) == maskPaths.count
+    for index in shadowPaths.indices {
+      let keyTime = shadowPathAnimation.keyTimes.map { CGFloat(truncating: $0[index]) } ?? CGFloat(index) / CGFloat(shadowPaths.count - 1)
+      let time = 1000.5 + 3.5 * keyTime
+      let width = try layer.predictedValue(forKeyPath: "bounds.size", at: time) { try ($0 as? CGSize).unwrap().width }
+      let height = try layer.predictedValue(forKeyPath: "bounds.size", at: time) { try ($0 as? CGSize).unwrap().height }
+      let size = CGSize(width: width, height: height)
+      expect(isPath(shadowPaths[index], closeTo: roundedRect(size: size)), "keyframe \(index)") == true
+      expect(isPath(maskPaths[index], closeTo: maskPath(cutout: roundedRect(size: size, inset: 10))), "keyframe \(index)") == true
+    }
+  }
+
+  func test_update_withoutAnimation_resizeDuringSpringThatNeverSettles_pathsGlideWithTheFrame() throws {
+    // given: a layer with a cutout whose frame and paths spring from 100 to 300 points wide without damping from 1000, so
+    // they bounce forever
+    let layer = makeLayer(width: 100)
+    let mask = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      resize(layer, toWidth: 300, timing: .spring(dampingRatio: 0, response: 1.6))
+    }
+
+    // when: the frame changes to 50 points wide without animation 0.3 seconds in, as the render pass does
+    AnimationClock.sharingTime(at: 1000.3) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 50, height: 100))
+      updateRounded(layer, animationTiming: nil)
+    }
+
+    // then: the spring folds in the frame as it does in the paths, which glide with the frame from the width shown to the
+    // new one, instead of stopping while the frame bounces on
+    let sizeGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(sizeGlide is CASpringAnimation) == false
+    let shownWidth = try 50 + (sizeGlide.fromValue as? CGSize).unwrap().width
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expectSameTiming(shadowPathAnimation, as: sizeGlide)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(width: shownWidth))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(width: 50)
+    let maskPathAnimation = try (mask.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(maskPathAnimation, as: sizeGlide)
+    expect(try isPath(pathValue(maskPathAnimation.fromValue), closeTo: maskPath(width: shownWidth))) == true
   }
 
   func test_update_withAnimation_pathsOfOtherElements_changeAtOnce() throws {
