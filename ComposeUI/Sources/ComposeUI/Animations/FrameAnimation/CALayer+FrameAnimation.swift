@@ -219,9 +219,11 @@ public extension CALayer {
       }
     }
 
-    // a folded axis glides from where it shows, and a changed axis at rest takes its new value at once
-    let originGlide = originAxes.projecting(originChange + origin.folded)
-    let sizeGlide = sizeAxes.projecting(sizeChange + size.folded)
+    // a folded axis glides from where it shows, and a changed axis at rest takes its new value at once. a glide is a sum
+    // that cancels out when the frame shown is the new frame, which leaves a rounding error instead of zero, so a glide
+    // within the tolerance is none, as a later retarget would take it
+    let originGlide = originAxes.projectingBeyondTolerance(originChange + origin.folded)
+    let sizeGlide = sizeAxes.projectingBeyondTolerance(sizeChange + size.folded)
 
     // the `bounds.size` write syncs an AppKit backing view from both, see `animateFrame(to:timing:)`
     skippingViewSync {
@@ -234,7 +236,7 @@ public extension CALayer {
     let beginTime = CAAnimation.beginTime(at: now)
     let widthDuration = size.glideDuration(along: .x)
     let heightDuration = size.glideDuration(along: .y)
-    let sizeShareGlide = anchor * sizeGlide
+    let sizeShareGlide = FrameAxes(of: anchor * sizeGlide).projecting(anchor * sizeGlide)
     let positionGlides = SIMD4(originGlide.x, originGlide.y, sizeShareGlide.x, sizeShareGlide.y)
     let positionDurations = SIMD4(origin.glideDuration(along: .x), origin.glideDuration(along: .y), widthDuration, heightDuration)
     for index in 0 ..< 4 where positionGlides[index] != 0 {
@@ -335,6 +337,14 @@ private struct FrameAxes: OptionSet {
   /// - Returns: The value along the axes.
   func projecting(_ value: SIMD2<Double>) -> SIMD2<Double> {
     SIMD2(contains(.x) ? value.x : 0, contains(.y) ? value.y : 0)
+  }
+
+  /// The value along the axes where it isn't zero, beyond `Constants.geometryTolerance`, with zero elsewhere.
+  ///
+  /// - Parameter value: The value.
+  /// - Returns: The value along the axes beyond the tolerance.
+  func projectingBeyondTolerance(_ value: SIMD2<Double>) -> SIMD2<Double> {
+    intersection(FrameAxes(of: value)).projecting(value)
   }
 }
 

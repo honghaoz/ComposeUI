@@ -573,6 +573,30 @@ class CALayer_FrameAnimationTests: XCTestCase {
     expect(try predictedFrame(of: layer, at: 1004).minX).to(beApproximatelyEqual(to: 20, within: 1e-9))
   }
 
+  func test_retargetFrame_toTheFrameShown_addsNoGlide() throws {
+    for step in 1 ... 9 {
+      // given: a layer moving and growing between frames of uneven values over 0.35 seconds with an ease-in-ease-out curve
+      // from 1000
+      let time = 1000 + 0.35 * TimeInterval(step) / 10
+      let layer = CALayer()
+      layer.frame = CGRect(x: 13.3, y: 7.7, width: 31.7, height: 61.9)
+      AnimationClock.sharingTime(at: 1000) {
+        layer.animateFrame(to: CGRect(x: 41.1, y: 19.3, width: 297.3, height: 143.1), timing: .easeInEaseOut(duration: 0.35))
+      }
+      let shownFrame = try predictedFrame(of: layer, at: time)
+
+      // when: retargeting the frame to the frame shown
+      AnimationClock.sharingTime(at: time) {
+        layer.retargetFrame(to: shownFrame)
+      }
+
+      // then: the glides are sums that cancel out to rounding errors, so none is added, as a later retarget would see no
+      // motion in them, and the frame shows the new frame at once
+      expect(layer.animationKeys(), "step \(step)") == nil
+      expectFrame(layer.frame, shownFrame)
+    }
+  }
+
   func test_retargetFrame_springInFlight_keepsTheSpringAndGlidesTheJump() throws {
     // given: a layer springing from 30 to 300 points wide from 1000
     let layer = CALayer()
