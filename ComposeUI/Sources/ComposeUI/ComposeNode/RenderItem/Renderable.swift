@@ -156,8 +156,8 @@ public enum Renderable {
         layer.animateFrame(to: frame, timing: animationTiming)
         return
       }
-    } else if layer.animationKeys() != nil {
-      layer.retargetFrame(to: frame)
+    } else if let animationKeys = layer.animationKeys() {
+      layer.retargetFrame(to: frame, animationKeys: animationKeys)
       return
     }
     setFrame(frame)

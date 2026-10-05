@@ -384,6 +384,7 @@ class CALayer_FrameAnimationTests: XCTestCase {
       layer.animateFrame(to: CGRect(x: 20, y: 120, width: 30, height: 60), timing: .linear(duration: 4))
     }
     let move = try layer.animation(forKey: "position").unwrap()
+    let moveSizeAnimation = try layer.animation(forKey: "bounds.size").unwrap()
     AnimationClock.sharingTime(at: 1000.5) {
       layer.animateFrame(to: CGRect(x: 20, y: 120, width: 300, height: 60), timing: .linear(duration: 2))
     }
@@ -394,17 +395,182 @@ class CALayer_FrameAnimationTests: XCTestCase {
       layer.retargetFrame(to: CGRect(x: 20, y: 120, width: 30, height: 60))
     }
 
-    // then: the move keeps going as it is, and the resize folds into glides from the frame shown, which land when the
-    // resize would have, 1.5 seconds later, instead of with the longer move
+    // then: the move keeps going as it is, with its size animation, which doesn't move the size, and the resize folds
+    // into glides from the frame shown, which land when the resize would have, 1.5 seconds later, instead of with the
+    // longer move
     try expectFrame(predictedFrame(of: layer, at: 1001), shownFrame)
-    expect(Set(layer.animationKeys() ?? [])) == ["position", "position-1", "bounds.size"]
+    expect(Set(layer.animationKeys() ?? [])) == ["position", "position-1", "bounds.size", "bounds.size-1"]
     expect(layer.animation(forKey: "position")) === move
-    let sizeGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(layer.animation(forKey: "bounds.size")) === moveSizeAnimation
+    let sizeGlide = try (layer.animation(forKey: "bounds.size-1") as? CABasicAnimation).unwrap()
     expect(sizeGlide.fromValue as? CGSize) == CGSize(width: 67.5, height: 0)
     expect(sizeGlide.duration) == 1.5
     let sizeShareGlide = try (layer.animation(forKey: "position-1") as? CABasicAnimation).unwrap()
     expect(sizeShareGlide.fromValue as? CGPoint) == CGPoint(x: 33.75, y: 0)
     expectSameTiming(sizeShareGlide, as: sizeGlide)
+  }
+
+  func test_retargetFrame_widthChangeWhileTheHeightAnimatesApart_keepsTheHeightAnimation() throws {
+    // given: a layer growing from 30 to 300 points wide over 4 seconds, and from 60 to 200 points high over 8 seconds,
+    // both from 1000
+    let layer = CALayer()
+    layer.frame = CGRect(x: 20, y: 20, width: 30, height: 60)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 20, y: 20, width: 300, height: 60), timing: .linear(duration: 4))
+      layer.animateFrame(to: CGRect(x: 20, y: 20, width: 300, height: 200), timing: .linear(duration: 8))
+    }
+    let heightResize = try layer.animation(forKey: "bounds.size-1").unwrap()
+    let heightShare = try layer.animation(forKey: "position-1").unwrap()
+    let shownFrame = try predictedFrame(of: layer, at: 1001)
+
+    // when: retargeting the frame back to 30 points wide a second in
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 20, y: 20, width: 30, height: 200))
+    }
+
+    // then: the frame shown doesn't jump, and the height, which didn't change, keeps its animations as they are
+    try expectFrame(predictedFrame(of: layer, at: 1001), shownFrame)
+    expect(Set(layer.animationKeys() ?? [])) == ["position", "position-1", "bounds.size", "bounds.size-1"]
+    expect(layer.animation(forKey: "bounds.size-1")) === heightResize
+    expect(layer.animation(forKey: "position-1")) === heightShare
+
+    // then: the width glides from the 97.5 points shown over the 3 seconds its resize had left, instead of the 7 seconds
+    // of the height's
+    let sizeGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(sizeGlide.fromValue as? CGSize) == CGSize(width: 67.5, height: 0)
+    expect(sizeGlide.duration) == 3
+    let sizeShareGlide = try (layer.animation(forKey: "position") as? CABasicAnimation).unwrap()
+    expect(sizeShareGlide.fromValue as? CGPoint) == CGPoint(x: 33.75, y: 0)
+    expectSameTiming(sizeShareGlide, as: sizeGlide)
+
+    // then: the width lands at 1004, and the height keeps its linear motion, with the origin where it is
+    expect(try predictedFrame(of: layer, at: 1004).width).to(beApproximatelyEqual(to: 30, within: 1e-9))
+    for time in [1002.0, 1004.0, 1006.0] {
+      let frame = try predictedFrame(of: layer, at: time)
+      expect(frame.height, "\(time)").to(beApproximatelyEqual(to: 60 + 140 * (time - 1000) / 8, within: 1e-9))
+      expect(frame.minX, "\(time)").to(beApproximatelyEqual(to: 20, within: 1e-9))
+      expect(frame.minY, "\(time)").to(beApproximatelyEqual(to: 20, within: 1e-9))
+    }
+  }
+
+  func test_retargetFrame_widthChangeDuringResizeOfBothAxes_keepsTheHeightInCopies() throws {
+    // given: a layer growing from 30 to 300 points wide and from 60 to 200 points high over 4 seconds from 1000
+    let layer = CALayer()
+    layer.frame = CGRect(x: 20, y: 20, width: 30, height: 60)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 20, y: 20, width: 300, height: 200), timing: .linear(duration: 4))
+    }
+    let positionAnimation = try (layer.animation(forKey: "position") as? CABasicAnimation).unwrap()
+    let resize = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    let shownFrame = try predictedFrame(of: layer, at: 1001)
+
+    // when: retargeting the frame back to 30 points wide a second in
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 20, y: 20, width: 30, height: 200))
+    }
+
+    // then: the frame shown doesn't jump
+    try expectFrame(predictedFrame(of: layer, at: 1001), shownFrame)
+    expect(Set(layer.animationKeys() ?? [])) == ["position", "position-1", "bounds.size", "bounds.size-1"]
+
+    // then: the height, which didn't change, keeps the resize's motion in copies of its animations, with their timing
+    let heightResize = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(heightResize.fromValue as? CGSize) == CGSize(width: 0, height: -140)
+    expectSameTiming(heightResize, as: resize)
+    let heightShare = try (layer.animation(forKey: "position") as? any FrameAnimation).unwrap()
+    expect(heightShare.fromValue as? CGPoint) == CGPoint(x: 0, y: -70)
+    expect(heightShare.part) == .sizeShare
+    expectSameTiming(heightShare, as: positionAnimation)
+
+    // then: the width glides from the 97.5 points shown over the 3 seconds the resize had left
+    let sizeGlide = try (layer.animation(forKey: "bounds.size-1") as? CABasicAnimation).unwrap()
+    expect(sizeGlide.fromValue as? CGSize) == CGSize(width: 67.5, height: 0)
+    expect(sizeGlide.duration) == 3
+    let sizeShareGlide = try (layer.animation(forKey: "position-1") as? CABasicAnimation).unwrap()
+    expect(sizeShareGlide.fromValue as? CGPoint) == CGPoint(x: 33.75, y: 0)
+
+    // then: the height keeps the resize's linear motion, with the origin where it is
+    for time in [1002.0, 1003.0] {
+      let frame = try predictedFrame(of: layer, at: time)
+      expect(frame.height, "\(time)").to(beApproximatelyEqual(to: 60 + 140 * (time - 1000) / 4, within: 1e-9))
+      expect(frame.minX, "\(time)").to(beApproximatelyEqual(to: 20, within: 1e-9))
+      expect(frame.minY, "\(time)").to(beApproximatelyEqual(to: 20, within: 1e-9))
+    }
+  }
+
+  func test_retargetFrame_axesOfDifferentRemainingTimes_glideApart() throws {
+    // given: a layer growing from 30 to 300 points wide over 4 seconds, and from 60 to 200 points high over 8 seconds,
+    // both from 1000
+    let layer = CALayer()
+    layer.frame = CGRect(x: 20, y: 20, width: 30, height: 60)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 20, y: 20, width: 300, height: 60), timing: .linear(duration: 4))
+      layer.animateFrame(to: CGRect(x: 20, y: 20, width: 300, height: 200), timing: .linear(duration: 8))
+    }
+    let shownFrame = try predictedFrame(of: layer, at: 1001)
+
+    // when: retargeting the frame back to 30 points wide and 60 points high a second in
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 20, y: 20, width: 30, height: 60))
+    }
+
+    // then: the frame shown doesn't jump, and each axis glides over the time its resize had left, with the position's
+    // share of it: the width from the 97.5 points shown over 3 seconds, and the height from the 77.5 points shown over 7
+    try expectFrame(predictedFrame(of: layer, at: 1001), shownFrame)
+    expect(Set(layer.animationKeys() ?? [])) == ["position", "position-1", "bounds.size", "bounds.size-1"]
+    let widthGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(widthGlide.fromValue as? CGSize) == CGSize(width: 67.5, height: 0)
+    expect(widthGlide.duration) == 3
+    let heightGlide = try (layer.animation(forKey: "bounds.size-1") as? CABasicAnimation).unwrap()
+    expect(heightGlide.fromValue as? CGSize) == CGSize(width: 0, height: 17.5)
+    expect(heightGlide.duration) == 7
+    let widthShareGlide = try (layer.animation(forKey: "position") as? CABasicAnimation).unwrap()
+    expect(widthShareGlide.fromValue as? CGPoint) == CGPoint(x: 33.75, y: 0)
+    expectSameTiming(widthShareGlide, as: widthGlide)
+    let heightShareGlide = try (layer.animation(forKey: "position-1") as? CABasicAnimation).unwrap()
+    expect(heightShareGlide.fromValue as? CGPoint) == CGPoint(x: 0, y: 8.75)
+    expectSameTiming(heightShareGlide, as: heightGlide)
+
+    // then: each axis lands when its resize would have, with the origin where it is
+    let frameAtWidthLanding = try predictedFrame(of: layer, at: 1004)
+    expect(frameAtWidthLanding.width).to(beApproximatelyEqual(to: 30, within: 1e-9))
+    expect(frameAtWidthLanding.height) > 60
+    expect(frameAtWidthLanding.minX).to(beApproximatelyEqual(to: 20, within: 1e-9))
+    expect(frameAtWidthLanding.minY).to(beApproximatelyEqual(to: 20, within: 1e-9))
+    try expectFrame(predictedFrame(of: layer, at: 1008), CGRect(x: 20, y: 20, width: 30, height: 60))
+  }
+
+  func test_retargetFrame_moveAlongOneAxis_keepsTheMoveAlongTheOther() throws {
+    // given: a layer moving right by 100 points over 4 seconds, and down by 100 points over 8 seconds, both from 1000
+    let layer = CALayer()
+    layer.frame = CGRect(x: 20, y: 20, width: 30, height: 60)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animateFrame(to: CGRect(x: 120, y: 20, width: 30, height: 60), timing: .linear(duration: 4))
+      layer.animateFrame(to: CGRect(x: 120, y: 120, width: 30, height: 60), timing: .linear(duration: 8))
+    }
+    let downMove = try layer.animation(forKey: "position-1").unwrap()
+    let shownFrame = try predictedFrame(of: layer, at: 1001)
+
+    // when: retargeting the frame back to x 20 a second in
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 20, y: 120, width: 30, height: 60))
+    }
+
+    // then: the frame shown doesn't jump, the move down keeps going as it is, and the x glides from the 45 shown over the
+    // 3 seconds its move had left
+    try expectFrame(predictedFrame(of: layer, at: 1001), shownFrame)
+    expect(layer.animation(forKey: "position-1")) === downMove
+    let originGlide = try (layer.animation(forKey: "position") as? any FrameAnimation).unwrap()
+    expect(originGlide.part) == .origin
+    expect(originGlide.fromValue as? CGPoint) == CGPoint(x: 25, y: 0)
+    expect(originGlide.duration) == 3
+
+    // then: the y keeps its linear motion
+    for time in [1002.0, 1004.0, 1006.0] {
+      let frame = try predictedFrame(of: layer, at: time)
+      expect(frame.minY, "\(time)").to(beApproximatelyEqual(to: 20 + 100 * (time - 1000) / 8, within: 1e-9))
+    }
+    expect(try predictedFrame(of: layer, at: 1004).minX).to(beApproximatelyEqual(to: 20, within: 1e-9))
   }
 
   func test_retargetFrame_springInFlight_keepsTheSpringAndGlidesTheJump() throws {
@@ -439,22 +605,32 @@ class CALayer_FrameAnimationTests: XCTestCase {
     expect(sizeShareGlide.fromValue as? CGPoint) == CGPoint(x: 50, y: 0)
   }
 
-  func test_retargetFrame_springThatNeverSettles_glidesOverTheDefaultDuration() throws {
-    // given: a layer springing from 30 to 300 points wide without damping from 1000, so it bounces forever
+  func test_retargetFrame_springThatNeverSettles_foldsWholeAndGlidesOverTheDefaultDuration() throws {
+    // given: a layer springing from 30 to 300 points wide and from 60 to 100 points high without damping from 1000, so
+    // it bounces forever
     let layer = CALayer()
     layer.frame = CGRect(x: 20, y: 20, width: 30, height: 60)
     AnimationClock.sharingTime(at: 1000) {
-      layer.animateFrame(to: CGRect(x: 20, y: 20, width: 300, height: 60), timing: .spring(dampingRatio: 0, response: 0.5))
+      layer.animateFrame(to: CGRect(x: 20, y: 20, width: 300, height: 100), timing: .spring(dampingRatio: 0, response: 0.5))
     }
+    let shownFrame = try predictedFrame(of: layer, at: 1000.3)
 
     // when: retargeting the frame to 200 points wide 0.3 seconds in
     AnimationClock.sharingTime(at: 1000.3) {
-      layer.retargetFrame(to: CGRect(x: 20, y: 20, width: 200, height: 60))
+      layer.retargetFrame(to: CGRect(x: 20, y: 20, width: 200, height: 100))
     }
 
-    // then: the spring has no landing to glide to, so the glide takes the default duration instead of forever
-    let sizeGlide = try (layer.animation(forKey: "bounds.size-1") as? CABasicAnimation).unwrap()
+    // then: the spring folds whole, its height too, as a path that follows the frame can't keep it next to a glide, and
+    // the frame shown doesn't jump
+    expect(Set(layer.animationKeys() ?? [])) == ["position", "bounds.size"]
+    expect(layer.animation(forKey: "bounds.size") is CASpringAnimation) == false
+    try expectFrame(predictedFrame(of: layer, at: 1000.3), shownFrame, within: 1e-6)
+
+    // then: the spring has no landing to glide to, so the frame glides over the default duration instead of forever, and
+    // lands on the new frame
+    let sizeGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
     expect(sizeGlide.duration) == Animations.defaultAnimationDuration
+    try expectFrame(predictedFrame(of: layer, at: 1000.3 + Animations.defaultAnimationDuration), CGRect(x: 20, y: 20, width: 200, height: 100))
   }
 
   func test_retargetFrame_repeatedly_keepsOneGlidePerPart() throws {
@@ -517,6 +693,7 @@ class CALayer_FrameAnimationTests: XCTestCase {
     AnimationClock.sharingTime(at: 1000) {
       layer.animateFrame(to: CGRect(x: 20, y: 120, width: 30, height: 60), timing: .linear(duration: 4))
     }
+    let moveSizeAnimation = try layer.animation(forKey: "bounds.size").unwrap()
     AnimationClock.sharingTime(at: 1000.5) {
       layer.animateFrame(to: CGRect(x: 20, y: 120, width: 300, height: 60), timing: .linear(duration: 2))
     }
@@ -528,9 +705,10 @@ class CALayer_FrameAnimationTests: XCTestCase {
     }
 
     // then: the frame shown doesn't jump, and each part glides apart, landing when its animations would have: the origin
-    // over the 3 seconds the move had left, and the size, with its share of the position, over the resize's 1.5 seconds
+    // over the 3 seconds the move had left, and the size, with its share of the position, over the resize's 1.5 seconds.
+    // the move's size animation, which doesn't move the size, is left alone
     try expectFrame(predictedFrame(of: layer, at: 1001), shownFrame)
-    expect(Set(layer.animationKeys() ?? [])) == ["position", "position-1", "bounds.size"]
+    expect(Set(layer.animationKeys() ?? [])) == ["position", "position-1", "bounds.size", "bounds.size-1"]
     let originGlide = try (layer.animation(forKey: "position") as? any FrameAnimation).unwrap()
     expect(originGlide.part) == .origin
     expect(originGlide.fromValue as? CGPoint) == CGPoint(x: 0, y: -15)
@@ -538,7 +716,8 @@ class CALayer_FrameAnimationTests: XCTestCase {
     let sizeShareGlide = try (layer.animation(forKey: "position-1") as? any FrameAnimation).unwrap()
     expect(sizeShareGlide.part) == .sizeShare
     expect(sizeShareGlide.duration) == 1.5
-    let sizeGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    expect(layer.animation(forKey: "bounds.size")) === moveSizeAnimation
+    let sizeGlide = try (layer.animation(forKey: "bounds.size-1") as? CABasicAnimation).unwrap()
     expect(sizeGlide.duration) == 1.5
   }
 
