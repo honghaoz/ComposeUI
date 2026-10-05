@@ -4,7 +4,8 @@
 #
 # Builds the base in a temporary worktree and the working tree, both in release, runs the benchmarks of both in turns
 # for a few rounds, and compares each benchmark's time, instructions and allocations. Both sides run the working tree's
-# benchmark files, so a change to a benchmark doesn't show as a change in the code it measures.
+# benchmark files, so a change to a benchmark doesn't show as a change in the code it measures, and the comparison stops
+# when those files don't build against the base.
 
 set -euo pipefail
 
@@ -23,7 +24,9 @@ print_help() {
   echo "  --help, -h         Show this help message."
   echo ""
   echo "Exits with 1 when a benchmark makes more allocations than the base made in any round, or retires more than 1%"
-  echo "more instructions. A time more than 20% slower is a warning, since time depends on the machine's load."
+  echo "more instructions, and as inconclusive when no benchmark has allocations or instructions on both sides. A time"
+  echo "more than 20% slower is a warning, since time depends on the machine's load. Both sides run the working tree's"
+  echo "benchmark files, so the comparison stops when they don't build against the base."
 }
 
 BASE="origin/master"
@@ -58,10 +61,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# check before anything builds, since a round count `seq` doesn't take fails only after the builds, and `seq 0` counts
+# down from 1 on macOS
+if ! [[ "$ROUNDS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "🛑 --rounds must be a positive integer: $ROUNDS" >&2
+  exit 1
+fi
+
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PACKAGE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 REPO_ROOT=$(git -C "$PACKAGE_DIR" rev-parse --show-toplevel)
-PACKAGE_PATH_IN_REPO=${PACKAGE_DIR#"$REPO_ROOT"/}
+# ask git for the package's path in the repository instead of removing the repository's path from the package's, since
+# git resolves symlinks and `pwd` doesn't, so the two differ for a checkout reached through a symlink, such as /tmp
+PACKAGE_PATH_IN_REPO=$(git -C "$PACKAGE_DIR" rev-parse --show-prefix)
+PACKAGE_PATH_IN_REPO=${PACKAGE_PATH_IN_REPO%/}
 BENCHMARKS_PATH_IN_PACKAGE="Tests/ComposeUITests/Performance"
 
 if ! BASE_COMMIT=$(git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE^{commit}"); then
@@ -79,6 +92,14 @@ cleanup() {
   rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT
+
+# compile the comparison first, so that a broken comparison fails before the builds. its logic is in the test target,
+# where the tests cover it
+COMPARE="$WORK_DIR/benchmark-compare"
+if ! swiftc -parse-as-library -o "$COMPARE" "$PACKAGE_DIR/$BENCHMARKS_PATH_IN_PACKAGE/BenchmarkComparison.swift" "$SCRIPT_DIR/benchmark-compare.swift"; then
+  echo "🛑 The comparison doesn't compile." >&2
+  exit 1
+fi
 
 # the tests use debug-only hooks, so the release build defines DEBUG
 BUILD_FLAGS=(-c release -Xswiftc -enable-testing -Xswiftc -DDEBUG)
@@ -110,12 +131,11 @@ build() { # <name> <package dir>
 echo "Building the head..."
 build head "$PACKAGE_DIR"
 echo "Building the base..."
-if ! build base "$BASE_PACKAGE_DIR" 2> /dev/null; then
-  # the working tree's benchmarks can use code the base doesn't have, so fall back to the base's own benchmarks
-  echo "⚠️  The working tree's benchmarks don't build against the base, comparing with the base's own benchmarks."
-  git -C "$BASE_DIR" checkout --quiet -- "$PACKAGE_PATH_IN_REPO/$BENCHMARKS_PATH_IN_PACKAGE"
-  git -C "$BASE_DIR" clean --quiet -fd -- "$PACKAGE_PATH_IN_REPO/$BENCHMARKS_PATH_IN_PACKAGE"
-  build base "$BASE_PACKAGE_DIR"
+if ! build base "$BASE_PACKAGE_DIR"; then
+  # the base's own benchmark files can measure different work under the same names, or not report every cost, so the
+  # comparison stops instead of falling back to them
+  echo "🛑 The base doesn't build with the working tree's benchmark files, see the errors above. Compare against a revision they build against." >&2
+  exit 1
 fi
 
 # Runs the benchmarks of a side once, and keeps their result lines.
@@ -142,4 +162,4 @@ for round in $(seq "$ROUNDS"); do
 done
 
 echo ""
-swift "$SCRIPT_DIR/benchmark-compare.swift" "$RESULTS_DIR" "$TIME_THRESHOLD" "$INSTRUCTIONS_THRESHOLD"
+"$COMPARE" "$RESULTS_DIR" "$TIME_THRESHOLD" "$INSTRUCTIONS_THRESHOLD"
