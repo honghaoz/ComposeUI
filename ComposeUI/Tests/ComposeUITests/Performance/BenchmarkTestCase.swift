@@ -41,6 +41,12 @@ import ChouTiTest
 /// make -C ComposeUI benchmark FILTER=RenderPerformanceTests
 /// ```
 ///
+/// To compare them against a base revision, built and run in turns on this machine:
+///
+/// ```bash
+/// make -C ComposeUI benchmark-compare BASE=origin/master FILTER=RenderPerformanceTests
+/// ```
+///
 /// A benchmark reports three costs per iteration, which depend on different things:
 /// - Time depends on the machine and its load. Compare times only between builds measured on the same machine at the
 ///   same time, interleaved.
