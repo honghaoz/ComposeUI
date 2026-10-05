@@ -177,7 +177,7 @@ extension Playground {
         return
       }
       liveResizeTicksLeft -= 1
-      cardWidth += liveResizeStep
+      cardWidth = min(max(cardWidth + liveResizeStep, Constants.shrunkWidth), Constants.grownWidth)
       stageView.refresh(animated: false)
     }
 
