@@ -760,6 +760,18 @@ class CALayer_AnimationsTests: XCTestCase {
     }
   }
 
+  func test_unbridgedAnimationKeys() throws {
+    // given: a layer without animations, and a layer with animations under two keys
+    let layer = CALayer()
+    let animatedLayer = CALayer()
+    animatedLayer.add(CABasicAnimation(keyPath: "opacity"), forKey: "fade")
+    animatedLayer.add(CABasicAnimation(keyPath: "position"), forKey: "move")
+
+    // then: the keys are the layer's animation keys in their order, and there are none without animations
+    expect(layer.unbridgedAnimationKeys).to(beNil())
+    expect(try Array(animatedLayer.unbridgedAnimationKeys.unwrap())) == ["fade", "move"]
+  }
+
   func test_removeAnimations_forKeyPath() {
     // given: a layer with basic, keyframe, and different key path animations
     let layer = CALayer()

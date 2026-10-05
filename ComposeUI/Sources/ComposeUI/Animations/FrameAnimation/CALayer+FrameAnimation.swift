@@ -105,7 +105,7 @@ public extension CALayer {
   /// - Parameter frame: The frame to set.
   @_spi(Private)
   func retargetFrame(to frame: CGRect) {
-    retargetFrame(to: frame, animationKeys: animationKeys())
+    retargetFrame(to: frame, animationKeys: unbridgedAnimationKeys)
   }
 
   /// Sets the layer's frame and retargets its in-flight frame animations to it, see `retargetFrame(to:)`.
@@ -113,7 +113,7 @@ public extension CALayer {
   /// - Parameters:
   ///   - frame: The frame to set.
   ///   - keys: The layer's animation keys, from a caller that reads them anyway, as each read copies them.
-  internal func retargetFrame(to frame: CGRect, animationKeys keys: [String]?) {
+  internal func retargetFrame(to frame: CGRect, animationKeys keys: AnimationKeys?) {
     if let keys, retargetFrameAnimations(to: frame, animationKeys: keys) {
       return
     }
@@ -131,7 +131,7 @@ public extension CALayer {
   ///   - frame: The frame to set.
   ///   - keys: The layer's animation keys.
   /// - Returns: `false`, leaving the layer alone, when no changed axis is in motion, so the frame can be set directly.
-  private func retargetFrameAnimations(to frame: CGRect, animationKeys keys: [String]) -> Bool {
+  private func retargetFrameAnimations(to frame: CGRect, animationKeys keys: AnimationKeys) -> Bool {
     let anchorPoint = self.anchorPoint
     let anchor = SIMD2<Double>(anchorPoint.x, anchorPoint.y)
     let oldPosition = position

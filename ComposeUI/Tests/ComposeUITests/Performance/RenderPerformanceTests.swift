@@ -444,6 +444,10 @@ class RenderPerformanceTests: XCTestCase {
     runFrameUpdateBenchmark(name: "updateFrame.layer.changedInFlight", renderable: .layer(CALayer()), state: .changedInFlight)
   }
 
+  func test_updateFrame_nonAnimated_layer_changedWithOtherAnimation() {
+    runFrameUpdateBenchmark(name: "updateFrame.layer.changedWithOtherAnimation", renderable: .layer(CALayer()), state: .changedWithOtherAnimation)
+  }
+
   func test_updateFrame_nonAnimated_view_unchanged() {
     runFrameUpdateBenchmark(name: "updateFrame.view.unchanged", renderable: .view(Self.makeLayerBackedView()), state: .unchanged)
   }
@@ -454,6 +458,10 @@ class RenderPerformanceTests: XCTestCase {
 
   func test_updateFrame_nonAnimated_view_changedInFlight() {
     runFrameUpdateBenchmark(name: "updateFrame.view.changedInFlight", renderable: .view(Self.makeLayerBackedView()), state: .changedInFlight)
+  }
+
+  func test_updateFrame_nonAnimated_view_changedWithOtherAnimation() {
+    runFrameUpdateBenchmark(name: "updateFrame.view.changedWithOtherAnimation", renderable: .view(Self.makeLayerBackedView()), state: .changedWithOtherAnimation)
   }
 
   func test_updateFrame_animated_layer() {
@@ -607,18 +615,31 @@ class RenderPerformanceTests: XCTestCase {
 
     /// The frame changes on every update while frame animations are in flight.
     case changedInFlight
+
+    /// The frame changes on every update while an animation of another property is in flight, as a fade does.
+    case changedWithOtherAnimation
   }
 
   private func runFrameUpdateBenchmark(name: String, renderable: Renderable, state: FrameUpdateState) {
     // given: a renderable at the first frame, and for the in-flight state, animating to the second frame over a second
-    // from 1000
+    // from 1000, or for the other animation's state, fading
     let firstFrame = CGRect(x: 10, y: 20, width: 100, height: 50)
     let secondFrame = CGRect(x: 30, y: 40, width: 160, height: 80)
     renderable.updateFrame(firstFrame, animationTiming: nil)
-    if state == .changedInFlight {
+    switch state {
+    case .unchanged,
+         .changed:
+      break
+    case .changedInFlight:
       AnimationClock.sharingTime(at: 1000) {
         renderable.updateFrame(secondFrame, animationTiming: .linear(duration: 1))
       }
+    case .changedWithOtherAnimation:
+      let fade = CABasicAnimation(keyPath: "opacity")
+      fade.fromValue = 1
+      fade.toValue = 0.5
+      fade.duration = 1
+      renderable.layer.add(fade, forKey: "opacity")
     }
 
     // when: measuring batches of non-animated frame updates, alternating between the frames unless unchanged. the clock
