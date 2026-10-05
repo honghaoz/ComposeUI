@@ -62,7 +62,12 @@ enum WorkCounter {
   /// - Parameters:
   ///   - work: The kind of work.
   ///   - amount: The amount of work. Default is 1.
+  @inline(never)
   static func count(_ work: Work, _ amount: Int = 1) {
+    // never inlined: an inlined body makes each hot function that counts work bigger, which changes how the optimizer
+    // compiles it, so benchmark builds, which define DEBUG, would measure different code than release builds, which
+    // have no counter. A call adds only the call
+
     // check the depth first, since it's a plain load, and the main thread check is a message send
     guard depth > 0, Thread.isMainThread else {
       return
