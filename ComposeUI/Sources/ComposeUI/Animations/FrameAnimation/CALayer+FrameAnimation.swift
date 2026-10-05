@@ -55,15 +55,6 @@ public extension CALayer {
       // the origin's part
       let sizeShare = SIMD2(anchorPoint.x, anchorPoint.y) * sizeOffset
       let originPart = positionOffset - sizeShare
-      let positionPart: FrameAnimationPart
-      switch (FrameAxes(of: originPart).isEmpty, FrameAxes(of: sizeShare).isEmpty) {
-      case (_, true):
-        positionPart = .origin
-      case (true, false):
-        positionPart = .sizeShare
-      case (false, false):
-        positionPart = .originAndSizeShare(originPart: originPart)
-      }
 
       let beginTime = CAAnimation.beginTime(at: currentTime, delay: timing.delay)
       addFrameAnimation(
@@ -72,7 +63,7 @@ public extension CALayer {
         to: CGPoint.zero,
         timing: timing,
         beginTime: beginTime,
-        part: positionPart
+        part: FrameAnimationPart(originPart: originPart, sizeShare: sizeShare)
       )
       addFrameAnimation(
         keyPath: "bounds.size",
@@ -98,19 +89,32 @@ public extension CALayer {
   /// Sets the layer's frame and retargets its in-flight frame animations to it, so the frame glides from where it shows
   /// to the new frame and lands when the animations would have, as `retarget(keyPath:to:)` does for a key path.
   ///
-  /// - The origin and the size are judged apart, axis by axis: an axis that a frame animation in flight moves glides
-  ///   from where it shows, and one at rest takes its new value at once, as the height does during a move. A part
-  ///   without a changed axis in motion keeps its animations, as they still head to its new value.
+  /// - The origin and the size are judged axis by axis: a changed axis that a frame animation in flight moves glides
+  ///   from where it shows, a changed axis at rest takes its new value at once, as the height does during a move, and
+  ///   an axis that didn't change keeps its animations, as they still head to its value. An animation that also moves
+  ///   an axis that keeps going is split, so that axis keeps the animation's timing.
+  /// - Each axis glides over the time its animations have left, so it lands when they would have.
   /// - Only the animations of `animateFrame(to:timing:)` and of earlier frame retargets are retargeted, so other
   ///   animations of `position` and `bounds.size`, such as a slide transition's, keep going.
-  /// - A running spring keeps going, with the glide stacked on it, as in `retarget(keyPath:to:)`.
+  /// - A running spring keeps going, with the glide stacked on it, as in `retarget(keyPath:to:)`. A spring that never
+  ///   settles folds whole instead, as a path that follows the layer's size, such as a shadow's, can't keep it next to a
+  ///   glide, see the `retargetPath(keyPath:to:)` that takes the path for a size.
   ///
   /// - Precondition: The layer's transform must be identity.
   ///
   /// - Parameter frame: The frame to set.
   @_spi(Private)
   func retargetFrame(to frame: CGRect) {
-    if let keys = animationKeys(), retargetFrameAnimations(to: frame, animationKeys: keys) {
+    retargetFrame(to: frame, animationKeys: animationKeys())
+  }
+
+  /// Sets the layer's frame and retargets its in-flight frame animations to it, see `retargetFrame(to:)`.
+  ///
+  /// - Parameters:
+  ///   - frame: The frame to set.
+  ///   - keys: The layer's animation keys, from a caller that reads them anyway, as each read copies them.
+  internal func retargetFrame(to frame: CGRect, animationKeys keys: [String]?) {
+    if let keys, retargetFrameAnimations(to: frame, animationKeys: keys) {
       return
     }
     let newPosition = position(from: frame)
@@ -137,8 +141,8 @@ public extension CALayer {
     let sizeChange = SIMD2<Double>(oldSize.width - newSize.width, oldSize.height - newSize.height)
     let originChange = SIMD2<Double>(oldPosition.x - newPosition.x, oldPosition.y - newPosition.y) - anchor * sizeChange
 
-    // the origin and the size are retargeted apart, so a part whose animations still head to its new value keeps them
-    // with their curves
+    // the origin and the size are retargeted apart, axis by axis, so an axis whose animations still head to its new
+    // value keeps them with their curves
     var origin = FramePartMotion()
     var size = FramePartMotion()
     var now: TimeInterval?
@@ -169,10 +173,10 @@ public extension CALayer {
       }
     }
 
-    // a part glides when an axis that changed is in motion. a changed axis at rest has no motion to continue
-    let foldsOrigin = !FrameAxes(of: originChange).isDisjoint(with: origin.movingAxes)
-    let foldsSize = !FrameAxes(of: sizeChange).isDisjoint(with: size.movingAxes)
-    guard let now, foldsOrigin || foldsSize else {
+    // an axis glides when it changed and is in motion. a changed axis at rest has no motion to continue
+    let originAxes = origin.foldedAxes(for: originChange)
+    let sizeAxes = size.foldedAxes(for: sizeChange)
+    guard let now, !originAxes.isEmpty || !sizeAxes.isEmpty else {
       return false
     }
 
@@ -184,71 +188,91 @@ public extension CALayer {
         continue
       }
 
+      // the motion along the folded axes goes into the glides, and the rest keeps going in a copy of the animation, with
+      // its timing
       switch animation.offset {
       case .position(let originPart, let sizeShare):
-        let hasOrigin = !FrameAxes(of: originPart).isEmpty
-        let hasSizeShare = !FrameAxes(of: sizeShare).isEmpty
-        guard foldsOrigin && hasOrigin || foldsSize && hasSizeShare else {
+        guard !FrameAxes(of: originPart).isDisjoint(with: originAxes) || !FrameAxes(of: sizeShare).isDisjoint(with: sizeAxes) else {
           continue
         }
-        // the part that keeps going takes the animation's place, with its timing
-        if !foldsOrigin, hasOrigin {
-          replaceFrameAnimation(animation, forKey: key, offset: originPart, part: .origin)
-        } else if !foldsSize, hasSizeShare {
-          replaceFrameAnimation(animation, forKey: key, offset: sizeShare, part: .sizeShare)
+        let keptOriginPart = originPart - originAxes.projecting(originPart)
+        let keptSizeShare = sizeShare - sizeAxes.projecting(sizeShare)
+        if FrameAxes(of: keptOriginPart).isEmpty, FrameAxes(of: keptSizeShare).isEmpty {
+          removeAnimation(forKey: key)
         } else {
-          removeAnimation(forKey: key)
+          let keptOffset = keptOriginPart + keptSizeShare
+          let part = FrameAnimationPart(originPart: keptOriginPart, sizeShare: keptSizeShare)
+          replaceFrameAnimation(animation, forKey: key, from: CGPoint(x: keptOffset.x, y: keptOffset.y), part: part)
         }
-      case .size:
-        if foldsSize {
+      case .size(let offset):
+        guard !FrameAxes(of: offset).isDisjoint(with: sizeAxes) else {
+          continue
+        }
+        let keptOffset = offset - sizeAxes.projecting(offset)
+        if FrameAxes(of: keptOffset).isEmpty {
           removeAnimation(forKey: key)
+        } else {
+          replaceFrameAnimation(animation, forKey: key, from: CGSize(width: keptOffset.x, height: keptOffset.y), part: .size)
         }
       case nil:
         continue
       }
     }
 
-    // a moving axis glides from where it shows, and an axis at rest takes its new value at once
-    let originGlide = foldsOrigin ? origin.movingAxes.projecting(originChange + origin.folded) : .zero
-    let sizeGlide = foldsSize ? size.movingAxes.projecting(sizeChange + size.folded) : .zero
-    let sizeShareGlide = anchor * sizeGlide
+    // a folded axis glides from where it shows, and a changed axis at rest takes its new value at once
+    let originGlide = originAxes.projecting(originChange + origin.folded)
+    let sizeGlide = sizeAxes.projecting(sizeChange + size.folded)
 
     // the `bounds.size` write syncs an AppKit backing view from both, see `animateFrame(to:timing:)`
     skippingViewSync {
       setKeyPathValue("position", newPosition)
     }
     setKeyPathValue("bounds.size", newSize)
+
+    // each axis glides over the time its animations have left, and the position's share of the size with the size's
+    // axis. the glides that land together share an animation
     let beginTime = CAAnimation.beginTime(at: now)
-    let originTiming = AnimationTiming.easeOut(duration: origin.glideDuration)
-    let sizeTiming = AnimationTiming.easeOut(duration: size.glideDuration)
-    if originGlide != .zero, sizeShareGlide != .zero, origin.glideDuration == size.glideDuration {
-      // the glides of the position share their timing, so one animation glides both
-      let positionGlide = originGlide + sizeShareGlide
-      addFrameAnimation(keyPath: "position", from: CGPoint(x: positionGlide.x, y: positionGlide.y), to: CGPoint.zero, timing: originTiming, beginTime: beginTime, part: .originAndSizeShare(originPart: originGlide))
-    } else {
-      if originGlide != .zero {
-        addFrameAnimation(keyPath: "position", from: CGPoint(x: originGlide.x, y: originGlide.y), to: CGPoint.zero, timing: originTiming, beginTime: beginTime, part: .origin)
+    let widthDuration = size.glideDuration(along: .x)
+    let heightDuration = size.glideDuration(along: .y)
+    let sizeShareGlide = anchor * sizeGlide
+    let positionGlides = SIMD4(originGlide.x, originGlide.y, sizeShareGlide.x, sizeShareGlide.y)
+    let positionDurations = SIMD4(origin.glideDuration(along: .x), origin.glideDuration(along: .y), widthDuration, heightDuration)
+    for index in 0 ..< 4 where positionGlides[index] != 0 {
+      let duration = positionDurations[index]
+      guard !(0 ..< index).contains(where: { positionGlides[$0] != 0 && positionDurations[$0] == duration }) else {
+        // an earlier glide that lands at the same time has this one in its animation
+        continue
       }
-      if sizeShareGlide != .zero {
-        addFrameAnimation(keyPath: "position", from: CGPoint(x: sizeShareGlide.x, y: sizeShareGlide.y), to: CGPoint.zero, timing: sizeTiming, beginTime: beginTime, part: .sizeShare)
+      var glide = SIMD4<Double>.zero
+      for other in index ..< 4 where positionDurations[other] == duration {
+        glide[other] = positionGlides[other]
       }
+      let originPart = SIMD2(glide[0], glide[1])
+      let sizeSharePart = SIMD2(glide[2], glide[3])
+      let offset = originPart + sizeSharePart
+      let part = FrameAnimationPart(originPart: originPart, sizeShare: sizeSharePart)
+      addFrameAnimation(keyPath: "position", from: CGPoint(x: offset.x, y: offset.y), to: CGPoint.zero, timing: .easeOut(duration: duration), beginTime: beginTime, part: part)
     }
-    if sizeGlide != .zero {
-      addFrameAnimation(keyPath: "bounds.size", from: CGSize(width: sizeGlide.x, height: sizeGlide.y), to: CGSize.zero, timing: sizeTiming, beginTime: beginTime, part: .size)
+    if sizeGlide.x != 0, sizeGlide.y != 0, widthDuration != heightDuration {
+      addFrameAnimation(keyPath: "bounds.size", from: CGSize(width: sizeGlide.x, height: 0), to: CGSize.zero, timing: .easeOut(duration: widthDuration), beginTime: beginTime, part: .size)
+      addFrameAnimation(keyPath: "bounds.size", from: CGSize(width: 0, height: sizeGlide.y), to: CGSize.zero, timing: .easeOut(duration: heightDuration), beginTime: beginTime, part: .size)
+    } else if sizeGlide != .zero {
+      let duration = sizeGlide.x != 0 ? widthDuration : heightDuration
+      addFrameAnimation(keyPath: "bounds.size", from: CGSize(width: sizeGlide.x, height: sizeGlide.y), to: CGSize.zero, timing: .easeOut(duration: duration), beginTime: beginTime, part: .size)
     }
     return true
   }
 
-  /// Replaces a frame animation of `position` with a copy of it from another offset, which keeps the animation's timing.
+  /// Replaces a frame animation with a copy of it from another offset, which keeps the animation's timing.
   ///
   /// - Parameters:
   ///   - animation: The animation.
   ///   - key: The animation's key.
-  ///   - offset: The offset the copy starts from.
+  ///   - offset: The offset the copy starts from, a point for `position` or a size for `bounds.size`.
   ///   - part: The part of the frame the copy animates.
-  private func replaceFrameAnimation(_ animation: any FrameAnimation, forKey key: String, offset: SIMD2<Double>, part: FrameAnimationPart) {
+  private func replaceFrameAnimation(_ animation: any FrameAnimation, forKey key: String, from offset: Any, part: FrameAnimationPart) {
     let replacement = animation.copy() as! any FrameAnimation // swiftlint:disable:this force_cast
-    replacement.fromValue = CGPoint(x: offset.x, y: offset.y)
+    replacement.fromValue = offset
     replacement.part = part
     add(replacement, forKey: key)
   }
@@ -314,6 +338,25 @@ private struct FrameAxes: OptionSet {
   }
 }
 
+private extension FrameAnimationPart {
+
+  /// The part of a `position` animation whose offset is the origin's part plus the size's share.
+  ///
+  /// - Parameters:
+  ///   - originPart: The origin's part of the offset.
+  ///   - sizeShare: The size's share of the offset.
+  init(originPart: SIMD2<Double>, sizeShare: SIMD2<Double>) {
+    switch (FrameAxes(of: originPart).isEmpty, FrameAxes(of: sizeShare).isEmpty) {
+    case (_, true):
+      self = .origin
+    case (true, false):
+      self = .sizeShare
+    case (false, false):
+      self = .originAndSizeShare(originPart: originPart)
+    }
+  }
+}
+
 /// The offset of a frame animation, which goes to zero.
 private enum FrameAnimationOffset {
 
@@ -350,21 +393,37 @@ private extension FrameAnimation {
 private struct FramePartMotion {
 
   /// The axes the animations move the part along.
-  private(set) var movingAxes: FrameAxes = []
+  private var movingAxes: FrameAxes = []
 
-  /// The part of the folded animations' offsets they have left, which the glide continues from.
+  /// The axes an animation that never finishes moves the part along, see `CAAnimation.neverFinishes(duration:)`.
+  private var neverFinishingAxes: FrameAxes = []
+
+  /// The part of the folded animations' offsets they have left, which the glides continue from.
   private(set) var folded = SIMD2<Double>.zero
 
-  /// The time the longest animation has left.
-  private var remainingTime: TimeInterval = 0
+  /// The time the longest animation along each axis has left.
+  private var remainingTime = SIMD2<Double>.zero
 
-  /// Whether an animation never finishes, see `CAAnimation.neverFinishes(duration:)`.
-  private var neverFinishes = false
+  /// The axes to fold for a change of the part: the changed axes in motion, and with them the axes of the animations
+  /// that never finish, which fold whole, see `CALayer.retargetFrame(to:)`.
+  ///
+  /// - Parameter change: The change of the part.
+  /// - Returns: The axes, empty when no changed axis is in motion.
+  func foldedAxes(for change: SIMD2<Double>) -> FrameAxes {
+    let axes = FrameAxes(of: change).intersection(movingAxes)
+    return axes.isEmpty ? [] : axes.union(neverFinishingAxes)
+  }
 
-  /// The duration of the part's glide, which lands when the animations would have. An animation that never finishes has
-  /// no landing to glide to, so the glide takes the default duration.
-  var glideDuration: TimeInterval {
-    neverFinishes ? Animations.defaultAnimationDuration : remainingTime
+  /// The duration of the glide along an axis, which lands when the animations along it would have. An animation that
+  /// never finishes has no landing to glide to, so the glide takes the default duration.
+  ///
+  /// - Parameter axis: The axis, `.x` or `.y`.
+  /// - Returns: The duration.
+  func glideDuration(along axis: FrameAxes) -> TimeInterval {
+    guard !neverFinishingAxes.contains(axis) else {
+      return Animations.defaultAnimationDuration
+    }
+    return axis == .x ? remainingTime.x : remainingTime.y
   }
 
   /// Adds an in-flight animation's offset of the part.
@@ -380,8 +439,10 @@ private struct FramePartMotion {
       return
     }
     movingAxes.formUnion(axes)
-    self.remainingTime = max(self.remainingTime, remainingTime)
-    neverFinishes = neverFinishes || CAAnimation.neverFinishes(duration: duration)
+    if CAAnimation.neverFinishes(duration: duration) {
+      neverFinishingAxes.formUnion(axes)
+    }
+    self.remainingTime = pointwiseMax(self.remainingTime, axes.projecting(SIMD2(repeating: remainingTime)))
     if let remainingFactor {
       folded += offset * remainingFactor
     }
@@ -391,12 +452,12 @@ private struct FramePartMotion {
 private extension CABasicAnimation {
 
   /// Whether a frame retarget can fold the animation at the time: its timing can be evaluated, and it isn't a running
-  /// spring, which keeps going so its momentum carries on.
+  /// spring that settles, which keeps going so its momentum carries on.
   ///
   /// - Parameter time: The time, in the layer's time space.
   /// - Returns: `true` if the animation can be folded.
   func isFoldable(at time: TimeInterval) -> Bool {
-    let isRunningSpring = self is CASpringAnimation && speed > 0 && beginTime <= time
+    let isRunningSpring = self is CASpringAnimation && speed > 0 && beginTime <= time && !CAAnimation.neverFinishes(duration: duration)
     return !isRunningSpring && hasEvaluableTiming
   }
 }
