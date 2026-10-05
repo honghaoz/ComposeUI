@@ -117,7 +117,70 @@ class AdditivePathPerformanceTests: XCTestCase {
     }
   }
 
+  // MARK: - Shadow Layers
+
+  func test_dropShadow_animatedResize() {
+    // given: drop shadow layers with a cutout at rest, one per call, resized without their paths updated
+    let layers = (0 ..< Constants.warmup + Constants.iterations).map { _ in makeDropShadowLayer(width: 100) }
+    for layer in layers {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100))
+    }
+
+    // when: updating each layer's shadow with animation once, as the render pass does after an animated resize
+    let result = measure { i in
+      self.updateShadow(layers[i], animationTiming: .easeInEaseOut(duration: 0.5))
+    }
+    report(name: "dropShadow.animatedResize", result: result)
+  }
+
+  func test_dropShadow_resizeAtRest() {
+    // given: a drop shadow layer with a cutout at rest
+    let layer = makeDropShadowLayer(width: 100)
+
+    // when: resizing it without animation on every call, as a live resize does
+    let result = measure { i in
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: i.isMultiple(of: 2) ? 300 : 310, height: 100))
+      self.updateShadow(layer, animationTiming: nil)
+    }
+    report(name: "dropShadow.resizeAtRest", result: result)
+  }
+
+  func test_dropShadow_resizeInFlight() {
+    // given: a drop shadow layer with a cutout whose paths animate to 200 points wide over a second from 1000
+    let layer = makeDropShadowLayer(width: 100)
+    AnimationClock.sharingTime(at: 1000) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100))
+      updateShadow(layer, animationTiming: .linear(duration: 1))
+    }
+
+    // when: resizing it without animation half way through on every call, as a live resize during the animation does,
+    // so each call retargets the paths
+    let result = AnimationClock.sharingTime(at: 1000.5) {
+      measure { i in
+        layer.retargetFrame(to: CGRect(x: 0, y: 0, width: i.isMultiple(of: 2) ? 300 : 310, height: 100))
+        self.updateShadow(layer, animationTiming: nil)
+      }
+    }
+    report(name: "dropShadow.resizeInFlight", result: result)
+  }
+
   // MARK: - Helpers
+
+  /// A drop shadow layer of the given width and 100 points high, updated by `updateShadow` without animation.
+  private func makeDropShadowLayer(width: CGFloat) -> DropShadowLayer {
+    let layer = DropShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: width, height: 100)
+    updateShadow(layer, animationTiming: nil)
+    return layer
+  }
+
+  /// Updates a drop shadow layer with a rounded rect shadow of its size, cut out by the same rounded rect.
+  private func updateShadow(_ layer: DropShadowLayer, animationTiming: AnimationTiming?) {
+    layer.update(color: .black, opacity: 0.5, radius: 4, offset: .zero, paths: { size in
+      let path = CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 12, cornerHeight: 12, transform: nil)
+      return DropShadowPaths(shadowPath: path, cutoutPath: path)
+    }, animationTiming: animationTiming)
+  }
 
   private func makeLayers(count: Int, path: CGPath) -> [CAShapeLayer] {
     (0 ..< count).map { _ in

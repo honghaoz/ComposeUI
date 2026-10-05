@@ -70,6 +70,13 @@ open class DropShadowLayer: CALayer {
   /// The mask layer to clip the drop shadow out of the main shape.
   private lazy var maskLayer = CAShapeLayer()
 
+  /// The size the paths were made for, which tells the change of their shape apart from the change of the layer's size,
+  /// see `animatePath(keyPath:to:pathAtOldSize:timing:)`.
+  private var pathsSize: CGSize?
+
+  /// The cutout path the mask's path was made from, see `maskLayerPath(cutoutPath:)`.
+  private var maskCutoutPath: CGPath?
+
   override public init() {
     super.init()
 
@@ -121,7 +128,13 @@ open class DropShadowLayer: CALayer {
   {
     let color = color.cgColor
     let opacity = Float(opacity)
-    let paths = paths(bounds.size)
+    let size = bounds.size
+    let oldSize = pathsSize
+    pathsSize = size
+    // the paths at the size they were made for tell the change of their shape apart from the change of the size, which
+    // follows the frame's motion. they're made once, when a path needs them
+    lazy var pathsAtOldSize = oldSize.flatMap { $0 == size ? nil : paths($0) }
+    let newPaths = paths(size)
 
     if let animationTiming {
       // only the properties whose model value differs from the target are animated: an unchanged additive one would
@@ -152,7 +165,7 @@ open class DropShadowLayer: CALayer {
       if shadowOffset != offset {
         animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
       }
-      animatePath(keyPath: "shadowPath", to: paths.shadowPath, timing: animationTiming)
+      animatePath(keyPath: "shadowPath", to: newPaths.shadowPath, pathAtOldSize: { _ in pathsAtOldSize?.shadowPath }, timing: animationTiming)
     } else {
       // no animation timing: continue the in-flight motion
       retarget(keyPath: "shadowColor", to: color)
@@ -160,11 +173,11 @@ open class DropShadowLayer: CALayer {
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
 
-      retargetPath(keyPath: "shadowPath", to: paths.shadowPath)
+      retargetPath(keyPath: "shadowPath", to: newPaths.shadowPath, pathAtOldSize: { _ in pathsAtOldSize?.shadowPath })
     }
 
-    if let cutoutPath = paths.cutoutPath {
-      updateMaskLayer(cutoutPath: cutoutPath, animationTiming: animationTiming)
+    if let cutoutPath = newPaths.cutoutPath {
+      updateMaskLayer(cutoutPath: cutoutPath, cutoutPathAtOldSize: { pathsAtOldSize?.cutoutPath }, animationTiming: animationTiming)
     } else {
       // no cutout: clear any mask a previous update installed, so the rendered state always matches the inputs.
       clearMaskLayer()
@@ -206,7 +219,7 @@ open class DropShadowLayer: CALayer {
     clearMaskLayer()
   }
 
-  private func updateMaskLayer(cutoutPath: CGPath, animationTiming: AnimationTiming?) {
+  private func updateMaskLayer(cutoutPath: CGPath, cutoutPathAtOldSize: () -> CGPath?, animationTiming: AnimationTiming?) {
     // initialize mask layer if not initialized
     if mask !== maskLayer {
       mask = maskLayer
@@ -222,13 +235,22 @@ open class DropShadowLayer: CALayer {
     }
 
     let maskPath = maskLayerPath(cutoutPath: cutoutPath)
+    // the mask's path at the old size is the current one when the cutout's shape didn't change, as is usual, which saves
+    // making it
+    func maskPathAtOldSize(_ currentMaskPath: CGPath) -> CGPath? {
+      guard let cutoutPathAtOldSize = cutoutPathAtOldSize() else {
+        return nil
+      }
+      return cutoutPathAtOldSize == maskCutoutPath ? currentMaskPath : maskLayerPath(cutoutPath: cutoutPathAtOldSize)
+    }
 
     if let animationTiming {
-      maskLayer.animatePath(keyPath: "path", to: maskPath, timing: animationTiming)
+      maskLayer.animatePath(keyPath: "path", to: maskPath, pathAtOldSize: maskPathAtOldSize, timing: animationTiming)
     } else {
       // no animation timing: continue the in-flight motion
-      maskLayer.retargetPath(keyPath: "path", to: maskPath)
+      maskLayer.retargetPath(keyPath: "path", to: maskPath, pathAtOldSize: maskPathAtOldSize)
     }
+    maskCutoutPath = cutoutPath
   }
 
   private func maskLayerPath(cutoutPath: CGPath) -> CGPath {
@@ -251,6 +273,7 @@ open class DropShadowLayer: CALayer {
       self.mask = nil
       self.maskLayer.path = nil
     }
+    maskCutoutPath = nil
   }
 
   // MARK: - Constants

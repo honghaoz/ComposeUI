@@ -483,22 +483,21 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(layer.animation(forKey: "opacity")?.duration) == 10
     expect(layer.animation(forKey: "position")?.duration) == 10
 
-    // then: the shadow path glides from the hole shown, the red one at the old size as no time has passed, to the new
-    // hole over the remaining time
-    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    // then: the shadow path's change of shape glides from the hole shown to the new one over the time the shape's motion
+    // had left, while its change of size, which the update leaves alone, keeps going as it is. the hole shown is the red
+    // one at the old size, as no time has passed, and the path lands on the new hole
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CAKeyframeAnimation).unwrap()
     let shownHolePath = CGPath(rect: CGRect(x: 0, y: 0, width: 100, height: 100), transform: nil)
     expect(shadowPathAnimation.duration) == 10
-    expect(shadowPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
-    expect(try PathPoints(pathValue(shadowPathAnimation.fromValue))) == PathPoints(shownHolePath)
-    expect(try pathValue(shadowPathAnimation.toValue)) == referenceShadowPath
+    expect(try PathPoints(pathValue(shadowPathAnimation.values?.first))) == PathPoints(shownHolePath)
+    expect(try pathValue(shadowPathAnimation.values?.last)) == referenceShadowPath
 
     // then: so does the mask's path, the hole, with the mask on the new bounds
     expect(maskLayer.animationKeys()) == ["path"]
-    let maskPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    let maskPathAnimation = try (maskLayer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap()
     expect(maskPathAnimation.duration) == 10
-    expect(maskPathAnimation.timingFunction) == CAMediaTimingFunction(name: .easeOut)
-    expect(try PathPoints(pathValue(maskPathAnimation.fromValue))) == PathPoints(shownHolePath)
-    expect(try pathValue(maskPathAnimation.toValue)) == referenceMaskPath
+    expect(try PathPoints(pathValue(maskPathAnimation.values?.first))) == PathPoints(shownHolePath)
+    expect(try pathValue(maskPathAnimation.values?.last)) == referenceMaskPath
 
     // when: updating with animation timing and the same values
     update(layer, green, animationTiming: .linear(duration: 2))
@@ -737,6 +736,88 @@ final class InnerShadowLayerTests: XCTestCase {
     expect(try pathValue(clipPathAnimation.toValue)) == paths250.clip
   }
 
+  func test_update_withoutAnimation_withoutClipPath_whileFrameAnimates_clipsByTheHoleFollowingTheFrame() throws {
+    // given: an inner shadow layer clipped by its own hole, whose frame and paths animate linearly from 100 to 200 points
+    // wide over 2 seconds
+    let layer = InnerShadowLayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    func update(animationTiming: AnimationTiming?) {
+      layer.update(color: .black, opacity: 0.5, radius: 10, offset: .zero, path: { roundedRect(size: $0) }, animationTiming: animationTiming)
+    }
+    update(animationTiming: nil)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+    layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100), timing: .linear(duration: 2))
+    update(animationTiming: .linear(duration: 2))
+
+    // when: a non-animated update retargets the frame to 250 points wide while the resize is in flight, as the render
+    // pass does
+    layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 250, height: 100))
+    update(animationTiming: nil)
+
+    // then: the mask's path, the hole, glides with the frame from the 100 points shown, as no time has passed
+    let sizeGlide = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+    let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(clipPathAnimation, as: sizeGlide)
+    expect(try isPath(pathValue(clipPathAnimation.fromValue), closeTo: roundedRect(size: CGSize(width: 100, height: 100)))) == true
+    expect(try pathValue(clipPathAnimation.toValue)) == roundedRect(size: CGSize(width: 250, height: 100))
+  }
+
+  func test_update_withoutAnimation_shapeChangeWhileResizing_pathsKeepTheResize() throws {
+    // given: an inner shadow layer whose frame and paths animate linearly from 100 to 300 points wide over 2 seconds from
+    // 1000
+    let layer = makeLayer(width: 100)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      resize(layer, toWidth: 300, timing: .linear(duration: 2))
+    }
+    let widthResize = try (layer.animation(forKey: "bounds.size") as? CABasicAnimation).unwrap()
+
+    // when: the corner radius changes to 20 without animation half a second in, which leaves the frame alone
+    AnimationClock.sharingTime(at: 1000.5) {
+      updateRounded(layer, cornerRadius: 20, animationTiming: nil)
+    }
+
+    // then: the new corner radius shows at once, and the paths keep the resize's motion, so they stay on the frame
+    expect(layer.animation(forKey: "bounds.size")) === widthResize
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expectSameTiming(shadowPathAnimation, as: widthResize)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(size: CGSize(width: 100, height: 100), cornerRadius: 20, inset: 5))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(size: CGSize(width: 300, height: 100), cornerRadius: 20, inset: 5)
+    let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(clipPathAnimation, as: widthResize)
+    expect(try isPath(pathValue(clipPathAnimation.fromValue), closeTo: roundedRect(size: CGSize(width: 100, height: 100), cornerRadius: 20))) == true
+    expect(try pathValue(clipPathAnimation.toValue)) == roundedRect(size: CGSize(width: 300, height: 100), cornerRadius: 20)
+  }
+
+  func test_update_withoutAnimation_resizeWhileTheCornerRadiusAnimates_pathsKeepTheirShape() throws {
+    // given: an inner shadow layer, 100 points wide, whose corner radius animates linearly from 10 to 30 over 2 seconds
+    // from 1000
+    let layer = makeLayer(width: 100)
+    let maskLayer = try (layer.mask as? CAShapeLayer).unwrap()
+    AnimationClock.sharingTime(at: 1000) {
+      updateRounded(layer, cornerRadius: 30, animationTiming: .linear(duration: 2))
+    }
+    let cornerRadiusChange = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+
+    // when: the frame resizes to 200 points wide without animation a second in, as the render pass does, which the frame
+    // takes at once as it isn't animating
+    AnimationClock.sharingTime(at: 1001) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 200, height: 100))
+      updateRounded(layer, cornerRadius: 30, animationTiming: nil)
+    }
+
+    // then: the paths take the new width at once too, and their change of corner radius keeps going on it
+    expect(layer.animation(forKey: "bounds.size")) == nil
+    let shadowPathAnimation = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expectSameTiming(shadowPathAnimation, as: cornerRadiusChange)
+    expect(try isPath(pathValue(shadowPathAnimation.fromValue), closeTo: roundedRect(size: CGSize(width: 200, height: 100), cornerRadius: 10, inset: 5))) == true
+    expect(try pathValue(shadowPathAnimation.toValue)) == roundedRect(size: CGSize(width: 200, height: 100), cornerRadius: 30, inset: 5)
+    let clipPathAnimation = try (maskLayer.animation(forKey: "path") as? CABasicAnimation).unwrap()
+    expectSameTiming(clipPathAnimation, as: cornerRadiusChange)
+    expect(try isPath(pathValue(clipPathAnimation.fromValue), closeTo: roundedRect(size: CGSize(width: 200, height: 100), cornerRadius: 10))) == true
+    expect(try pathValue(clipPathAnimation.toValue)) == roundedRect(size: CGSize(width: 200, height: 100), cornerRadius: 30)
+  }
+
   // MARK: - Helpers
 
   /// An inner shadow layer of the given width and 100 points high, updated by `updateRounded` without animation.
@@ -748,13 +829,13 @@ final class InnerShadowLayerTests: XCTestCase {
   }
 
   /// Updates the layer with a hole of the rounded rect of its size inset by 5 points, clipped by the rounded rect.
-  private func updateRounded(_ layer: InnerShadowLayer, animationTiming: AnimationTiming?) {
+  private func updateRounded(_ layer: InnerShadowLayer, cornerRadius: CGFloat = 10, animationTiming: AnimationTiming?) {
     layer.update(
       color: .black,
       opacity: 0.5,
       radius: 10,
       offset: CGSize(width: 2, height: 3),
-      paths: { InnerShadowPaths(shadowPath: roundedRect(size: $0, inset: 5), clipPath: roundedRect(size: $0)) },
+      paths: { InnerShadowPaths(shadowPath: roundedRect(size: $0, cornerRadius: cornerRadius, inset: 5), clipPath: roundedRect(size: $0, cornerRadius: cornerRadius)) },
       animationTiming: animationTiming
     )
   }
@@ -771,9 +852,9 @@ final class InnerShadowLayerTests: XCTestCase {
     return try (layer.shadowPath.unwrap(), (layer.mask as? CAShapeLayer).unwrap().path.unwrap())
   }
 
-  /// A rounded rect of the given size at the origin, with a corner radius of 10, inset by the given amount.
-  private func roundedRect(size: CGSize, inset: CGFloat = 0) -> CGPath {
-    CGPath(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: inset, dy: inset), cornerWidth: 10, cornerHeight: 10, transform: nil)
+  /// A rounded rect of the given size at the origin, inset by the given amount.
+  private func roundedRect(size: CGSize, cornerRadius: CGFloat = 10, inset: CGFloat = 0) -> CGPath {
+    CGPath(roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: inset, dy: inset), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
   }
 
   /// Expects an animation to have the timing of another.

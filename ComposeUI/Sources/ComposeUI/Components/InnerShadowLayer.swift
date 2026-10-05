@@ -79,6 +79,10 @@ open class InnerShadowLayer: CALayer {
 
   private lazy var maskLayer = CAShapeLayer()
 
+  /// The size the paths were made for, which tells the change of their shape apart from the change of the layer's size,
+  /// see `animatePath(keyPath:to:pathAtOldSize:timing:)`.
+  private var pathsSize: CGSize?
+
   override public init() {
     super.init()
 
@@ -160,9 +164,15 @@ open class InnerShadowLayer: CALayer {
       }
     }
 
-    let paths = paths(bounds.size)
-    let holePath = paths.shadowPath
-    let clipPath = paths.clipPath ?? holePath
+    let size = bounds.size
+    let oldSize = pathsSize
+    pathsSize = size
+    // the paths at the size they were made for tell the change of their shape apart from the change of the size, which
+    // follows the frame's motion. they're made once, when a path needs them
+    lazy var pathsAtOldSize = oldSize.flatMap { $0 == size ? nil : paths($0) }
+    let newPaths = paths(size)
+    let holePath = newPaths.shadowPath
+    let clipPath = newPaths.clipPath ?? holePath
 
     self.disableActions {
       if !self.invertsShadow {
@@ -175,7 +185,7 @@ open class InnerShadowLayer: CALayer {
       // add a zero-delta animation that lives for the timing's duration and piles up on repeated passes, and an
       // unchanged non-additive one would replace an in-flight animation to the same target and restart its easing.
 
-      maskLayer.animatePath(keyPath: "path", to: clipPath, timing: animationTiming)
+      maskLayer.animatePath(keyPath: "path", to: clipPath, pathAtOldSize: { _ in pathsAtOldSize.map { $0.clipPath ?? $0.shadowPath } }, timing: animationTiming)
 
       if shadowColor != color {
         animate(
@@ -202,17 +212,17 @@ open class InnerShadowLayer: CALayer {
       if shadowOffset != offset {
         animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
       }
-      animatePath(keyPath: "shadowPath", to: holePath, timing: animationTiming)
+      animatePath(keyPath: "shadowPath", to: holePath, pathAtOldSize: { _ in pathsAtOldSize?.shadowPath }, timing: animationTiming)
     } else {
       // no animation timing: continue the in-flight motion
-      maskLayer.retargetPath(keyPath: "path", to: clipPath)
+      maskLayer.retargetPath(keyPath: "path", to: clipPath, pathAtOldSize: { _ in pathsAtOldSize.map { $0.clipPath ?? $0.shadowPath } })
 
       retarget(keyPath: "shadowColor", to: color)
       retarget(keyPath: "shadowOpacity", to: opacity)
       retarget(keyPath: "shadowRadius", to: radius)
       retarget(keyPath: "shadowOffset", to: offset)
 
-      retargetPath(keyPath: "shadowPath", to: holePath)
+      retargetPath(keyPath: "shadowPath", to: holePath, pathAtOldSize: { _ in pathsAtOldSize?.shadowPath })
     }
   }
 
