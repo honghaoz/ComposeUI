@@ -315,21 +315,25 @@ public extension CALayer {
   /// The layer's animation keys, or `nil` when it has no animations.
   ///
   /// `animationKeys()` bridges Core Animation's array of keys to a Swift array of strings, which costs more than
-  /// looking up the animations, so the method is called through `AnimationKeysMethod`, which takes the array as it is.
+  /// looking up the animations, so the keys are read through `AnimationKeysMessage`, which declares the array as it is.
   internal var unbridgedAnimationKeys: AnimationKeys? {
-    unsafeBitCast(self, to: AnimationKeysMethod.self).animationKeys().map { AnimationKeys($0) }
+    let layer: AnyObject = self
+    let keys = layer.animationKeyArray?() ?? nil
+    return keys.map { AnimationKeys($0) }
   }
 }
 
-/// `CALayer`'s `animationKeys()` as Objective-C declares it, returning Core Animation's array of keys as it is instead
-/// of bridging it to a Swift array of strings, see `CALayer.unbridgedAnimationKeys`.
+/// The Objective-C message of `CALayer`'s `animationKeys()`, declared with Core Animation's array of keys as it is
+/// instead of bridged to a Swift array of strings, see `CALayer.unbridgedAnimationKeys`.
 ///
-/// A layer is called through it by reinterpreting its reference, as the layer doesn't declare the conformance. The call
-/// sends the same message Swift sends for `animationKeys()`, so unlike `perform(_:)`, it adds no dispatch and doesn't
-/// autorelease the layer, which would take a pool on every call, even for a layer without animations.
-@objc private protocol AnimationKeysMethod {
+/// Nothing conforms to it. A layer receives the message through `AnyObject`'s lookup of Objective-C methods, by a Swift
+/// name no other method has, which checks that the layer responds first. Reinterpreting the layer as the protocol with
+/// `unsafeBitCast` would skip the check, but Apple documents `unsafeBitCast` with class types as undefined behavior,
+/// and `perform(_:)` costs more, as it adds a dispatch and needs an `autoreleasepool` on every call.
+@objc private protocol AnimationKeysMessage {
 
-  func animationKeys() -> NSArray?
+  @objc(animationKeys)
+  func animationKeyArray() -> NSArray?
 }
 
 /// A layer's animation keys, read from Core Animation's array of keys as they're accessed, see
