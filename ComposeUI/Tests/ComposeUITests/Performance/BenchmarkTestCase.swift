@@ -216,9 +216,13 @@ enum AllocationCounter {
   private static let counter = UnsafeMutablePointer<Int>.allocate(capacity: 1)
   private static let countedThread = UnsafeMutablePointer<pthread_t?>.allocate(capacity: 1)
 
-  /// Returns the number of allocations the body makes on the calling thread, `nil` if the allocations can't be counted.
+  /// Runs the body once, and returns the number of allocations it makes on the calling thread, `nil` if the allocations
+  /// can't be counted.
   static func count(_ body: () -> Void) -> Int? {
     guard let logger, logger.pointee == nil else {
+      // the caller relies on the body running, as a benchmark's warm-up moves its state forward, so the body runs
+      // without counting when libmalloc doesn't export the hook or another tool already uses it
+      body()
       return nil
     }
 
