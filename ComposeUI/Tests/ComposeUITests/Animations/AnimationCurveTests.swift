@@ -131,9 +131,9 @@ class AnimationCurveTests: XCTestCase {
   func test_progress_cubicBezier_solverSteps() {
     let cases: [(name: CAMediaTimingFunctionName, totalSteps: Int, maxSteps: Int)] = [
       (.easeIn, 4889, 10),
-      (.easeOut, 7349, 44),
+      (.easeOut, 4889, 10),
       (.easeInEaseOut, 3894, 4),
-      (.default, 6591, 43),
+      (.default, 5083, 6),
     ]
     for testCase in cases {
       // given: the curve of a named timing function
@@ -150,9 +150,8 @@ class AnimationCurveTests: XCTestCase {
         }
       }
 
-      // then: the solver takes the pinned steps, so a change to its convergence shows here. ease out and the default
-      // function take about 40 steps at some fractions: once Newton's method reaches the root to within rounding, its
-      // next step can't move t, the bracket check rejects it, and the solver bisects from there
+      // then: the solver takes the pinned steps, so a change to its convergence shows here. ease out mirrors ease in,
+      // so the two take the same steps
       expect(counts.bezierSolverSteps, testCase.name.rawValue) == testCase.totalSteps
       expect(maxSteps, testCase.name.rawValue) == testCase.maxSteps
     }

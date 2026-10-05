@@ -60,7 +60,12 @@ class AdditivePathPerformanceTests: BenchmarkTestCase {
   }
 
   func test_animatePath_changeInFlight() {
-    for (name, timing) in [("easeInEaseOut.0.5s", AnimationTiming.easeInEaseOut(duration: 0.5)), ("spring", AnimationTiming.spring())] {
+    let timings: [(name: String, timing: AnimationTiming)] = [
+      ("easeInEaseOut.0.5s", .easeInEaseOut(duration: 0.5)),
+      ("easeOut.0.5s", .easeOut(duration: 0.5)),
+      ("spring", .spring()),
+    ]
+    for (name, timing) in timings {
       // given: layers with a change in flight, one per call
       let layers = makeLayers(count: Constants.warmup + Constants.iterations, path: roundedRect(width: 100))
       for layer in layers {

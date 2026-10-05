@@ -197,6 +197,12 @@ struct AnimationCurve {
       }
 
       let newtonStep = error / ((3 * ax * t + 2 * bx) * t + cx)
+      if abs(newtonStep) < Constants.solverTolerance {
+        // a Newton step under the tolerance has settled `t`. it can be too small to move `t` at all, which the bracket
+        // check below would reject and then bisect away from the root, so take the step and stop here
+        t -= newtonStep
+        break
+      }
       let newtonT = t - newtonStep
       if newtonT > lowerBound, newtonT < upperBound, abs(newtonStep) * 2 <= abs(step) {
         step = newtonStep
