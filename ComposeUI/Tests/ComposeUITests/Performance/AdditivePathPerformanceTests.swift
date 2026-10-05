@@ -122,7 +122,7 @@ class AdditivePathPerformanceTests: BenchmarkTestCase {
     }
 
     // when: updating each layer's shadow with animation once, as the render pass does after an animated resize
-    let result = measure { i in
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
       self.updateShadow(layers[i], animationTiming: .easeInEaseOut(duration: 0.5))
     }
     report(name: "dropShadow.animatedResize", result: result)
@@ -133,7 +133,7 @@ class AdditivePathPerformanceTests: BenchmarkTestCase {
     let layer = makeDropShadowLayer(width: 100)
 
     // when: resizing it without animation on every call, as a live resize does
-    let result = measure { i in
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
       layer.retargetFrame(to: CGRect(x: 0, y: 0, width: i.isMultiple(of: 2) ? 300 : 310, height: 100))
       self.updateShadow(layer, animationTiming: nil)
     }
@@ -151,7 +151,7 @@ class AdditivePathPerformanceTests: BenchmarkTestCase {
     // when: resizing it without animation half way through on every call, as a live resize during the animation does,
     // so each call retargets the paths
     let result = AnimationClock.sharingTime(at: 1000.5) {
-      measure { i in
+      measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
         layer.retargetFrame(to: CGRect(x: 0, y: 0, width: i.isMultiple(of: 2) ? 300 : 310, height: 100))
         self.updateShadow(layer, animationTiming: nil)
       }
@@ -170,7 +170,7 @@ class AdditivePathPerformanceTests: BenchmarkTestCase {
     // when: resizing both dimensions without animation half way through on every call, as a live resize during the
     // animation does, so each call retargets the paths with the paths for the size between too
     let result = AnimationClock.sharingTime(at: 1000.5) {
-      measure { i in
+      measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
         let length: CGFloat = i.isMultiple(of: 2) ? 300 : 310
         layer.retargetFrame(to: CGRect(x: 0, y: 0, width: length, height: length))
         self.updateShadow(layer, animationTiming: nil)

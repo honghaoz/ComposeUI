@@ -277,6 +277,9 @@ public extension CALayer {
     replacement.fromValue = offset
     replacement.part = part
     add(replacement, forKey: key)
+    #if DEBUG
+    WorkCounter.count(.animation)
+    #endif
   }
 
   /// Adds an additive frame animation from an offset to zero, without setting the model value.
@@ -308,6 +311,9 @@ public extension CALayer {
     animation.isAdditive = true
     animation.beginTime = beginTime
     add(animation, forKey: uniqueAnimationKey(key: keyPath))
+    #if DEBUG
+    WorkCounter.count(.animation)
+    #endif
   }
 }
 

@@ -107,6 +107,24 @@ class ComposeView_AnimationWorkTests: XCTestCase {
     expect(counts.animations) == 2 * Constants.rowCount
   }
 
+  func test_refresh_changedHeightWhileAnimating_glidesThePositionAndTheSize() {
+    // given: rows animating to twice their height
+    var height = Constants.rowHeight
+    let view = makeRowsView(isAlternate: { false }, height: { height })
+    view.refresh(animated: false)
+    height = Constants.rowHeight * 2
+    view.refresh(animated: true)
+
+    // when: refreshing without animation, with the rows three times as tall, before any time passes
+    height = Constants.rowHeight * 3
+    let counts = WorkCounter.counting {
+      view.refresh(animated: false)
+    }
+
+    // then: each row glides its position and its size to the new frame, instead of jumping
+    expect(counts.animations) == 2 * Constants.rowCount
+  }
+
   // MARK: - Helpers
 
   private enum Constants {
@@ -119,7 +137,7 @@ class ComposeView_AnimationWorkTests: XCTestCase {
     static let animationDuration: TimeInterval = 60
   }
 
-  /// A view of rows that each animate 5 layer properties, all visible.
+  /// A view of rows that each animate 5 layer properties, all visible up to three times their height.
   ///
   /// - Parameters:
   ///   - isAlternate: Whether the rows use the second set of values.
@@ -138,7 +156,7 @@ class ComposeView_AnimationWorkTests: XCTestCase {
         }
       }
     }
-    view.frame = CGRect(x: 0, y: 0, width: Constants.rowWidth, height: CGFloat(Constants.rowCount) * Constants.rowHeight * 2)
+    view.frame = CGRect(x: 0, y: 0, width: Constants.rowWidth, height: CGFloat(Constants.rowCount) * Constants.rowHeight * 3)
     return view
   }
 }
