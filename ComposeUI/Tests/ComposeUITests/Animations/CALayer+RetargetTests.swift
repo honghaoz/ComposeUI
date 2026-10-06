@@ -467,53 +467,52 @@ class CALayer_RetargetTests: XCTestCase {
   }
 
   func test_retarget_hosted_continuesFromShownValue() throws {
-    // given: a hosted layer whose background color is animating from red to blue over a second, showing what its
-    // animation gives. a second leaves the retarget below room to interrupt it however long a busy main thread stalls
-    // first. the colors are sRGB ones, which Core Animation's interpolation in extended sRGB keeps in the sRGB gamut, so
-    // the predictions interpolate their components the same way
+    // given: a hosted layer on a paused timeline, whose background color animates from red to blue over a second, with
+    // the timeline a fifth of the way in. the timeline moves only when the test moves it, so the layer shows the colors
+    // for the times the test sets, however late a busy main thread gets to read them. the colors are sRGB ones, which
+    // Core Animation's interpolation in extended sRGB keeps in the sRGB gamut
     let testWindow = TestWindow()
+    let timeline = CALayer()
+    timeline.speed = 0
+    timeline.timeOffset = 10
+    testWindow.layer.addSublayer(timeline)
     let layer = CALayer()
     layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
     let red = CGColor(srgbRed: 1, green: 0, blue: 0, alpha: 1)
     let blue = CGColor(srgbRed: 0, green: 0, blue: 1, alpha: 1)
     layer.backgroundColor = red
-    testWindow.layer.addSublayer(layer)
+    timeline.addSublayer(layer)
     CATransaction.flush()
-    expect(layer.presentation()).toEventuallyNot(beNil())
+
+    // Core Animation solves a timing function's curve to within 1e-5 of the change, see `AnimationCurve`
+    func expectShown(_ expected: [CGFloat], line: UInt = #line) throws {
+      try expectExtendedSRGBComponents(of: layer.presentation().unwrap().backgroundColor.unwrap(), toBe: expected, within: 1e-4, line: line)
+    }
 
     layer.animate(keyPath: "backgroundColor", timing: .linear(duration: 1), from: { _ in red }, to: { _ in blue })
-    let interruptedBeginTime = try layer.animation(forKey: "backgroundColor").unwrap().beginTime
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
-    let (blueBeforeRetarget, timesBeforeRetarget) = try layer.readPresentation { try blueScalar($0.backgroundColor.unwrap()) }
-    try layer.expectShown(blueBeforeRetarget, forKeyPath: "backgroundColor", between: timesBeforeRetarget, scalar: blueScalar, within: 0.01)
-    expect(blueBeforeRetarget) > 0.1
+    timeline.timeOffset = 10.2
+    CATransaction.flush()
+    try expectShown([0.8, 0, 0.2, 1])
 
-    // when: retargeting the background color back to red. the retarget begins its animation at the clock's time for this
-    // turn, which the test reads first, see `AnimationClock`
-    let retargetTime = layer.currentTime
-    let blueAtRetarget = try layer.predictedValue(forKeyPath: "backgroundColor", at: retargetTime, scalar: blueScalar)
+    // when: retargeting the background color back to red
     layer.retarget(keyPath: "backgroundColor", to: red)
 
-    // then: the retargeting animation starts from the color shown at the retarget's time and lands when the interrupted
+    // then: the retargeting animation starts from the color shown at the timeline's time, and lands when the interrupted
     // one would have
     let animation = try (layer.animation(forKey: "backgroundColor") as? CABasicAnimation).unwrap()
-    expect(try blueScalar(animation.fromValue.unwrap())).to(beApproximatelyEqual(to: blueAtRetarget, within: 1e-4))
-    expect(animation.duration).to(beApproximatelyEqual(to: interruptedBeginTime + 1 - retargetTime, within: 1e-6))
+    expect(animation.beginTime) == 10.2
+    try expectExtendedSRGBComponents(of: colorValue(animation.fromValue), toBe: [0.8, 0, 0.2, 1])
+    expect(animation.duration).to(beApproximatelyEqual(to: 0.8, within: 1e-9))
     expect(layer.backgroundColor) == red
 
-    // then: whenever the run loop lets the test look, the shown color is where the retargeting animation puts it, on its
-    // way to red instead of snapping or heading on to blue, until it lands on red. the run loop's timing isn't reliable,
-    // so the test checks each look against the animation's own values for the times just before and after it, instead
-    // of expecting a color at a fixed delay
-    var landed = false
-    for _ in 0 ..< 200 where !landed {
-      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
-      let (shown, times) = try layer.readPresentation { try blueScalar($0.backgroundColor.unwrap()) }
-      try layer.expectShown(shown, forKeyPath: "backgroundColor", between: times, scalar: blueScalar, within: 0.01)
-      expect(shown) <= blueAtRetarget + 0.01
-      landed = shown < 0.001
+    // then: as the timeline moves, the layer shows the colors the retargeting animation gives, on its way to red instead
+    // of snapping or heading on to blue, until it lands on red
+    for time in [10.4, 10.6, 10.8, 11, 11.2] {
+      timeline.timeOffset = time
+      CATransaction.flush()
+      let progress = CGFloat(animation.progress(forElapsedTime: min(time - animation.beginTime, animation.duration)))
+      try expectShown(interpolatedExtendedSRGBComponents(from: colorValue(animation.fromValue), to: red, progress: progress))
     }
-    expect(landed) == true
   }
 
   func test_retarget_hosted_stackedAnimations_continueFromComposedValue() throws {
