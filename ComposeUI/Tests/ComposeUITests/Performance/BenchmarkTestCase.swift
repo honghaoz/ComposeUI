@@ -35,7 +35,9 @@ import ChouTiTest
 
 /// A test case of benchmarks: measures blocks and reports their costs in one line format.
 ///
-/// Each benchmark reports its costs with `report(name:result:extra:)`, and fails when it runs without reporting.
+/// Each benchmark reports its costs with `report(name:result:extra:)`, and fails when it runs without reporting. A
+/// profiling test, named `test_profile_...`, runs for a profiler instead, so it reports nothing, and the comparison
+/// leaves it out.
 ///
 /// Benchmarks are skipped by default. To run them in release configuration on macOS:
 ///
@@ -74,11 +76,11 @@ class BenchmarkTestCase: XCTestCase {
   /// Fails the running benchmark when it ran without reporting its costs.
   ///
   /// A benchmark that runs without reporting looks to a comparison like a benchmark that both sides stopped reporting,
-  /// so it fails instead.
+  /// so it fails instead. A profiling test, named `test_profile_...`, reports nothing on purpose, so it doesn't fail.
   ///
   /// - Parameter wasSkipped: Whether the benchmark was skipped, which reports nothing on purpose.
   func failIfUnreported(wasSkipped: Bool) {
-    if !wasSkipped, !hasReported {
+    if !wasSkipped, !hasReported, !name.contains(" test_profile_") {
       fail("the benchmark didn't report its costs")
     }
   }

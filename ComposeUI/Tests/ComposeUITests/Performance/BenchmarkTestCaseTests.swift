@@ -117,6 +117,14 @@ class BenchmarkTestCaseTests: XCTestCase {
     }
   }
 
+  func test_failIfUnreported_profilingTest_passes() {
+    // given: a benchmark harness running a profiling test, which runs for a profiler and reports nothing
+    let harness = RenderPerformanceTests(selector: #selector(RenderPerformanceTests.test_profile_scroll_nested))
+
+    // then: a run passes without a report
+    harness.failIfUnreported(wasSkipped: false)
+  }
+
   func test_failIfUnreported_skippedOrReported_passes() {
     // given: a benchmark harness that hasn't reported its costs
     let harness = BenchmarkTestCase()
