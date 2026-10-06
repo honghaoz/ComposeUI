@@ -165,6 +165,7 @@ Hard-won rules from past corrections, grouped by theme.
 ## Scripts
 
 - When rewriting or porting a script, audit the new version against the original behavior by behavior (selection logic, guard conditions, exit codes, environment propagation, output ordering), and disclose every intentional deviation. Do not assume a rewrite is equivalent because the happy path passes.
+- Write output that a script reads back from `swift test` in ASCII, to the standard error where XCTest writes its own lines. `swift test` passes a test's output on in 4096-byte chunks and drops any chunk that isn't valid UTF-8 by itself, so a multi-byte character split between two chunks silently loses both. It also passes the standard output and the standard error on in separate threads, so a chunk of one can land inside a line of the other.
 
 ## Docs
 
