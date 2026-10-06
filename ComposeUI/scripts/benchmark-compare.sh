@@ -19,7 +19,7 @@ print_help() {
   echo ""
   echo "${BOLD}OPTIONS:${RESET}"
   echo "  --base <revision>  The revision to compare against. Default is origin/master."
-  echo "  --filter <regex>   The benchmarks to run, as a swift test filter. Default is PerformanceTests, all of them."
+  echo "  --filter <regex>   The benchmarks to run, as a swift test filter. Default is the benchmark suites, all of them."
   echo "  --rounds <count>   The number of rounds to run each side. Default is 5."
   echo "  --help, -h         Show this help message."
   echo ""
@@ -31,7 +31,7 @@ print_help() {
 }
 
 BASE="origin/master"
-FILTER="PerformanceTests"
+FILTER=""
 ROUNDS=5
 TIME_THRESHOLD=20
 INSTRUCTIONS_THRESHOLD=1
@@ -77,6 +77,10 @@ REPO_ROOT=$(git -C "$PACKAGE_DIR" rev-parse --show-toplevel)
 PACKAGE_PATH_IN_REPO=$(git -C "$PACKAGE_DIR" rev-parse --show-prefix)
 PACKAGE_PATH_IN_REPO=${PACKAGE_PATH_IN_REPO%/}
 BENCHMARKS_PATH_IN_PACKAGE="Tests/ComposeUITests/Performance"
+
+if [ -z "$FILTER" ]; then
+  FILTER=$("$SCRIPT_DIR/benchmark-filter.sh")
+fi
 
 if ! BASE_COMMIT=$(git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE^{commit}"); then
   echo "🛑 Unknown base revision: $BASE" >&2

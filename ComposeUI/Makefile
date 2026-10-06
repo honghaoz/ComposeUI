@@ -52,14 +52,14 @@ test-ci: # Run tests with CI-optimized caching path. Usage: make test-ci OS=iOS 
 	@$(REPO_ROOT)/scripts/swift-package/test-package-xcodebuild.sh --package "$(MAKEFILE_DIR)" --os "$(OS)" --derived-data-path "$(CURDIR)/.derived-data" $(if $(PHASE),--phase $(PHASE),)
 
 # The tests use debug-only hooks, so the release build defines DEBUG. Deterministic hashing keeps the instruction counts
-# from varying between runs.
+# from varying between runs. Without a FILTER, both run the benchmark suites, see scripts/benchmark-filter.sh.
 .PHONY: benchmark
 benchmark: # Run the benchmarks in release configuration on macOS. Usage: make benchmark [FILTER=RenderPerformanceTests].
-	@BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --package-path "$(MAKEFILE_DIR)" -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter "$(or $(FILTER),PerformanceTests)"
+	@BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --package-path "$(MAKEFILE_DIR)" -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter "$(or $(FILTER),$(shell "$(MAKEFILE_DIR)/scripts/benchmark-filter.sh"))"
 
 .PHONY: benchmark-compare
 benchmark-compare: # Compare the benchmarks against a base revision on this machine. Usage: make benchmark-compare [BASE=origin/master] [FILTER=AdditivePathPerformanceTests] [ROUNDS=5].
-	@"$(MAKEFILE_DIR)/scripts/benchmark-compare.sh" --base "$(or $(BASE),origin/master)" --filter "$(or $(FILTER),PerformanceTests)" --rounds "$(or $(ROUNDS),5)"
+	@"$(MAKEFILE_DIR)/scripts/benchmark-compare.sh" --base "$(or $(BASE),origin/master)" $(if $(FILTER),--filter "$(FILTER)",) --rounds "$(or $(ROUNDS),5)"
 
 .PHONY: test-codecov
 test-codecov: # Run tests with code coverage.
