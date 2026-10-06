@@ -201,6 +201,12 @@ struct AnimationCurve {
       if newtonT > lowerBound, newtonT < upperBound, abs(newtonStep) * 2 <= abs(step) {
         step = newtonStep
         t = newtonT
+      } else if abs(newtonStep) < Constants.solverTolerance {
+        // a Newton step under the tolerance has settled `t`, but it can be too small to move `t` at all, which fails the
+        // bracket check, so take it and stop instead of bisecting away from the root. it's checked only here, once the
+        // bracket check fails, so that the steps the bracket check accepts don't pay for it
+        t = newtonT
+        break
       } else {
         step = (upperBound - lowerBound) / 2
         t = lowerBound + step
