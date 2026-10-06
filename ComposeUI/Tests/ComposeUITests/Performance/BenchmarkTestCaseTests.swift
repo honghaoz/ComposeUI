@@ -74,6 +74,36 @@ class BenchmarkTestCaseTests: XCTestCase {
     expect(result.allocationsPerIteration) == nil
   }
 
+  // MARK: - Report
+
+  func test_reportLine_parsesBackIntoTheSameCosts() throws {
+    // given: the costs of three measured iterations
+    let result = BenchmarkResult(durations: [10, 20, 30], instructions: [100, 200, 300], allocationsPerIteration: 2.5)
+
+    // when: making the line that report prints, with extra information
+    let line = BenchmarkTestCase.reportLine(name: "scroll", result: result, extra: "rows: 10")
+
+    // then: the line has the median and the p90 time, the median instructions and the allocations, and the comparison
+    // reads the same costs back from it
+    expect(line) == "[BENCHMARK] scroll | iterations: 3 | median: 20.00 µs | p90: 30.00 µs | instructions: 200 | allocations: 2.50 | rows: 10"
+    let parsed = try BenchmarkComparison.parse(line).unwrap()
+    expect(parsed.name) == "scroll"
+    expect(parsed.sample) == BenchmarkComparison.Sample(time: 20, instructions: 200, allocations: 2.5)
+  }
+
+  func test_reportLine_uncountedCosts_parseBackAsMissing() throws {
+    // given: the costs of an iteration on a machine that counts neither instructions nor allocations
+    let result = BenchmarkResult(durations: [12.5], instructions: nil, allocationsPerIteration: nil)
+
+    // when: making the line that report prints
+    let line = BenchmarkTestCase.reportLine(name: "scroll", result: result)
+
+    // then: the uncounted costs read n/a, and the comparison reads them back as missing
+    expect(line) == "[BENCHMARK] scroll | iterations: 1 | median: 12.50 µs | p90: 12.50 µs | instructions: n/a | allocations: n/a"
+    let parsed = try BenchmarkComparison.parse(line).unwrap()
+    expect(parsed.sample) == BenchmarkComparison.Sample(time: 12.5, instructions: nil, allocations: nil)
+  }
+
   // MARK: - AllocationCounter
 
   func test_allocationCounter_countsEachAllocation() {

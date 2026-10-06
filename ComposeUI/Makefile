@@ -55,7 +55,9 @@ test-ci: # Run tests with CI-optimized caching path. Usage: make test-ci OS=iOS 
 # from varying between runs. Without a FILTER, both run the benchmark suites, see scripts/benchmark-filter.sh.
 .PHONY: benchmark
 benchmark: # Run the benchmarks in release configuration on macOS. Usage: make benchmark [FILTER=RenderPerformanceTests].
-	@BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --package-path "$(MAKEFILE_DIR)" -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter "$(or $(FILTER),$(shell "$(MAKEFILE_DIR)/scripts/benchmark-filter.sh"))"
+	@filter="$(FILTER)"; \
+	if [ -z "$$filter" ]; then filter=$$("$(MAKEFILE_DIR)/scripts/benchmark-filter.sh") || exit 1; fi; \
+	BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --package-path "$(MAKEFILE_DIR)" -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter "$$filter"
 
 .PHONY: benchmark-compare
 benchmark-compare: # Compare the benchmarks against a base revision on this machine. Usage: make benchmark-compare [BASE=origin/master] [FILTER=AdditivePathPerformanceTests] [ROUNDS=5].

@@ -132,6 +132,17 @@ class BenchmarkTestCase: XCTestCase {
   ///   - result: The costs to report.
   ///   - extra: Extra information to append, as `key: value` pairs separated by ` | `.
   func report(name: String, result: BenchmarkResult, extra: String? = nil) {
+    print(Self.reportLine(name: name, result: result, extra: extra))
+  }
+
+  /// Returns the line that `report(name:result:extra:)` prints, which `BenchmarkComparison.parse(_:)` reads.
+  ///
+  /// - Parameters:
+  ///   - name: The name of the benchmark.
+  ///   - result: The costs to report.
+  ///   - extra: Extra information to append, as `key: value` pairs separated by ` | `.
+  /// - Returns: The line.
+  static func reportLine(name: String, result: BenchmarkResult, extra: String? = nil) -> String {
     var line = "[BENCHMARK] \(name) | iterations: \(result.durations.count)"
     line += " | median: \(String(format: "%.2f", result.medianDuration)) µs | p90: \(String(format: "%.2f", result.p90Duration)) µs"
     line += " | instructions: \(result.medianInstructions.map { "\($0)" } ?? "n/a")"
@@ -139,7 +150,7 @@ class BenchmarkTestCase: XCTestCase {
     if let extra {
       line += " | \(extra)"
     }
-    print(line)
+    return line
   }
 }
 
