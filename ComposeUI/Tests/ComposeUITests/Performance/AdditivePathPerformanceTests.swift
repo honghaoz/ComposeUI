@@ -39,17 +39,12 @@ import ChouTiTest
 /// These tests are skipped by default. To run them:
 ///
 /// ```bash
-/// cd ComposeUI && BENCHMARK=1 swift test -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter AdditivePathPerformanceTests
+/// make -C ComposeUI benchmark FILTER=AdditivePathPerformanceTests
 /// ```
 ///
-/// Run in release configuration for meaningful numbers. Each benchmark measures one call in a state the calls themselves
-/// create: no commit happens, so the changes in flight keep their full duration from call to call.
-class AdditivePathPerformanceTests: XCTestCase {
-
-  override func setUpWithError() throws {
-    try super.setUpWithError()
-    try XCTSkipUnless(ProcessInfo.processInfo.environment["BENCHMARK"] == "1", "benchmarks are skipped by default, run with BENCHMARK=1")
-  }
+/// Each benchmark measures one call in a state the calls themselves create: no commit happens, so the changes in flight
+/// keep their full duration from call to call.
+class AdditivePathPerformanceTests: BenchmarkTestCase {
 
   // MARK: - Animate Path
 
@@ -58,7 +53,7 @@ class AdditivePathPerformanceTests: XCTestCase {
     let layers = makeLayers(count: Constants.warmup + Constants.iterations, path: roundedRect(width: 100))
 
     // when: animating each layer's path once
-    let result = measure { i in
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
       layers[i].animatePath(keyPath: "path", to: self.roundedRect(width: 200), timing: .easeInEaseOut(duration: 0.5))
     }
     report(name: "animatePath.atRest", result: result)
@@ -73,7 +68,7 @@ class AdditivePathPerformanceTests: XCTestCase {
       }
 
       // when: animating each layer's path again, which makes keyframes of the two changes
-      let result = measure { i in
+      let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
         layers[i].animatePath(keyPath: "path", to: self.roundedRect(width: 150), timing: timing)
       }
       report(name: "animatePath.changeInFlight.\(name)", result: result)
@@ -87,7 +82,7 @@ class AdditivePathPerformanceTests: XCTestCase {
     let layer = makeLayers(count: 1, path: roundedRect(width: 100))[0]
 
     // when: setting another path on every call, as a live resize does
-    let result = measure { i in
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
       layer.setPath(keyPath: "path", to: self.roundedRect(width: i.isMultiple(of: 2) ? 120 : 100))
     }
     report(name: "setPath.atRest", result: result)
@@ -110,7 +105,7 @@ class AdditivePathPerformanceTests: XCTestCase {
       }
 
       // when: setting another path on every call, as a live resize during the changes does
-      let result = measure { i in
+      let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
         layer.setPath(keyPath: "path", to: testCase.path(i.isMultiple(of: 2) ? 300 : 310))
       }
       report(name: "setPath.changesInFlight.\(testCase.name)", result: result)
@@ -127,7 +122,7 @@ class AdditivePathPerformanceTests: XCTestCase {
     }
 
     // when: updating each layer's shadow with animation once, as the render pass does after an animated resize
-    let result = measure { i in
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
       self.updateShadow(layers[i], animationTiming: .easeInEaseOut(duration: 0.5))
     }
     report(name: "dropShadow.animatedResize", result: result)
@@ -138,7 +133,7 @@ class AdditivePathPerformanceTests: XCTestCase {
     let layer = makeDropShadowLayer(width: 100)
 
     // when: resizing it without animation on every call, as a live resize does
-    let result = measure { i in
+    let result = measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
       layer.retargetFrame(to: CGRect(x: 0, y: 0, width: i.isMultiple(of: 2) ? 300 : 310, height: 100))
       self.updateShadow(layer, animationTiming: nil)
     }
@@ -156,7 +151,7 @@ class AdditivePathPerformanceTests: XCTestCase {
     // when: resizing it without animation half way through on every call, as a live resize during the animation does,
     // so each call retargets the paths
     let result = AnimationClock.sharingTime(at: 1000.5) {
-      measure { i in
+      measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
         layer.retargetFrame(to: CGRect(x: 0, y: 0, width: i.isMultiple(of: 2) ? 300 : 310, height: 100))
         self.updateShadow(layer, animationTiming: nil)
       }
@@ -175,7 +170,7 @@ class AdditivePathPerformanceTests: XCTestCase {
     // when: resizing both dimensions without animation half way through on every call, as a live resize during the
     // animation does, so each call retargets the paths with the paths for the size between too
     let result = AnimationClock.sharingTime(at: 1000.5) {
-      measure { i in
+      measure(warmup: Constants.warmup, iterations: Constants.iterations) { i in
         let length: CGFloat = i.isMultiple(of: 2) ? 300 : 310
         layer.retargetFrame(to: CGRect(x: 0, y: 0, width: length, height: length))
         self.updateShadow(layer, animationTiming: nil)
@@ -235,33 +230,6 @@ class AdditivePathPerformanceTests: XCTestCase {
     }
     path.closeSubpath()
     return path
-  }
-
-  private struct BenchmarkResult {
-    let durations: [Double] // microseconds, sorted ascending
-
-    var median: Double { durations[durations.count / 2] }
-    var p90: Double { durations[Int(Double(durations.count) * 0.9)] }
-  }
-
-  private func measure(_ block: (Int) -> Void) -> BenchmarkResult {
-    for i in 0 ..< Constants.warmup {
-      block(i)
-    }
-
-    var durations: [Double] = []
-    durations.reserveCapacity(Constants.iterations)
-    for i in 0 ..< Constants.iterations {
-      let start = DispatchTime.now()
-      block(Constants.warmup + i)
-      let end = DispatchTime.now()
-      durations.append(Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1000)
-    }
-    return BenchmarkResult(durations: durations.sorted())
-  }
-
-  private func report(name: String, result: BenchmarkResult) {
-    print("[BENCHMARK] \(name) | iterations: \(result.durations.count) | median: \(String(format: "%.2f", result.median)) µs | p90: \(String(format: "%.2f", result.p90)) µs")
   }
 
   // MARK: - Constants

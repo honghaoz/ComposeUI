@@ -108,6 +108,7 @@ vendor
 scripts/*
 !scripts/bootstrap.sh
 !scripts/download-scripts.sh
+!scripts/benchmark/
 
 # ===== Binaries =====
 bin/jq

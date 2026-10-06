@@ -128,6 +128,51 @@ class AnimationCurveTests: XCTestCase {
     }
   }
 
+  func test_progress_cubicBezier_solverSteps() {
+    let cases: [(name: CAMediaTimingFunctionName, totalSteps: Int, maxSteps: Int)] = [
+      (.easeIn, 4889, 10),
+      (.easeOut, 7349, 44),
+      (.easeInEaseOut, 3894, 4),
+      (.default, 6591, 43),
+    ]
+    for testCase in cases {
+      // given: the curve of a named timing function
+      let curve = AnimationCurve(timingFunction: CAMediaTimingFunction(name: testCase.name))
+
+      // when: solving the curve at 999 fractions spread over (0, 1)
+      var maxSteps = 0
+      let counts = WorkCounter.counting {
+        for index in 1 ..< 1000 {
+          let steps = WorkCounter.counting {
+            _ = curve.progress(atFraction: Double(index) / 1000)
+          }.bezierSolverSteps
+          maxSteps = max(maxSteps, steps)
+        }
+      }
+
+      // then: the solver takes the pinned steps, so a change to its convergence shows here. ease out and the default
+      // function take about 40 steps at some fractions: once Newton's method reaches the root to within rounding, its
+      // next step can't move t, the bracket check rejects it, and the solver bisects from there
+      expect(counts.bezierSolverSteps, testCase.name.rawValue) == testCase.totalSteps
+      expect(maxSteps, testCase.name.rawValue) == testCase.maxSteps
+    }
+  }
+
+  func test_progress_cubicBezier_ends_takeNoSolverSteps() {
+    // given: the curve of an ease in ease out timing function
+    let curve = AnimationCurve(timingFunction: CAMediaTimingFunction(name: .easeInEaseOut))
+
+    // when: evaluating it at and beyond its ends
+    let counts = WorkCounter.counting {
+      for fraction in [-0.5, 0, 1, 1.5] {
+        _ = curve.progress(atFraction: fraction)
+      }
+    }
+
+    // then: the ends are exact without solving
+    expect(counts.bezierSolverSteps) == 0
+  }
+
   func test_progress_zeroDuration() {
     // given: the curve of an animation without a duration
     let animation = CABasicAnimation(keyPath: "opacity")

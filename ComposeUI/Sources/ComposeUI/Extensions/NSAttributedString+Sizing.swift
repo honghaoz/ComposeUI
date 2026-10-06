@@ -86,6 +86,10 @@ extension NSAttributedString {
       return .zero
     }
 
+    #if DEBUG
+    WorkCounter.count(.textMeasurement)
+    #endif
+
     if numberOfLines == 1 {
       return singleLineTextBoundingRectSize()
     }
