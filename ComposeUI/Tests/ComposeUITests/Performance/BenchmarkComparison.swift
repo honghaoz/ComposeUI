@@ -87,18 +87,36 @@ enum BenchmarkComparison {
     return (name, sample)
   }
 
+  /// Parses a `Test Case '-[<module>.<class> <method>]' skipped (<duration> seconds).` line, which XCTest prints for a
+  /// skipped test.
+  ///
+  /// - Parameter line: The line.
+  /// - Returns: The test's name, as `<class>.<method>`, `nil` for a line that isn't a skipped test.
+  static func parseSkippedTest(_ line: String) -> String? {
+    let prefix = "Test Case '-["
+    guard line.hasPrefix(prefix), let end = line.range(of: "]' skipped") else {
+      return nil
+    }
+
+    let parts = line[line.index(line.startIndex, offsetBy: prefix.count) ..< end.lowerBound].split(separator: " ")
+    guard parts.count == 2, let className = parts[0].split(separator: ".").last else {
+      return nil
+    }
+    return "\(className).\(parts[1])"
+  }
+
   /// Reads a number, `nil` for `n/a` or a missing value.
   private static func number(_ value: String?) -> Double? {
     value.flatMap { Double($0) }
   }
 
-  /// Reads a time such as `12.34 µs` or `1.234 ms`, in microseconds, `nil` for anything else.
+  /// Reads a time such as `12.34 us` or `1.234 ms`, in microseconds, `nil` for anything else.
   private static func microseconds(_ value: String?) -> Double? {
     guard let parts = value?.split(separator: " "), parts.count == 2, let amount = Double(parts[0]) else {
       return nil
     }
     switch parts[1] {
-    case "µs":
+    case "us":
       return amount
     case "ms":
       return amount * 1000
@@ -172,13 +190,22 @@ enum BenchmarkComparison {
     /// that report under one name, whose samples don't stand for the rounds.
     private(set) var irregularNames: Set<String> = []
 
-    /// Reads the results of one side from the lines each of its rounds printed, skipping the lines that aren't results.
+    /// The tests that a round skipped, as `<class>.<method>`. A skipped test reports nothing, so the benchmarks it
+    /// reports would look like benchmarks that both sides stopped reporting.
+    private(set) var skippedTests: Set<String> = []
+
+    /// Reads the results and the skipped tests of one side from the lines each of its rounds printed, skipping the other
+    /// lines.
     ///
     /// - Parameter rounds: The lines of each round of the side.
     init(rounds: [[String]]) {
       for lines in rounds {
         var reportedNames: Set<String> = []
         for line in lines {
+          if let test = BenchmarkComparison.parseSkippedTest(line) {
+            skippedTests.insert(test)
+            continue
+          }
           guard let parsed = BenchmarkComparison.parse(line) else {
             continue
           }
@@ -196,11 +223,11 @@ enum BenchmarkComparison {
       }
     }
 
-    /// Reads the results of one side from the result files of its rounds, `<side>-<round>.txt` in the directory.
+    /// Reads the results of one side from the test logs of its rounds, `<side>-<round>.txt` in the directory.
     ///
     /// - Parameters:
     ///   - side: The side, `base` or `head`.
-    ///   - directory: The directory of the result files.
+    ///   - directory: The directory of the test logs.
     init(side: String, in directory: URL) throws {
       let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
         .filter { $0.lastPathComponent.hasPrefix("\(side)-") && $0.pathExtension == "txt" }
@@ -330,6 +357,9 @@ enum BenchmarkComparison {
 
     let rows: [Row]
 
+    /// The tests that a side skipped, as `<class>.<method> (<sides>)`, sorted by name.
+    let skippedTests: [String]
+
     var regressionCount: Int {
       rows.reduce(0) { count, row in count + row.findings.filter(\.isRegression).count }
     }
@@ -354,16 +384,16 @@ enum BenchmarkComparison {
       rows.filter { !$0.isComplete }.count
     }
 
-    /// Whether the comparison passes: a benchmark can regress, none did, and both sides reported every benchmark once
-    /// per round.
+    /// Whether the comparison passes: a benchmark can regress, none did, both sides reported every benchmark once per
+    /// round, and neither skipped a test.
     var passes: Bool {
-      checksRegressions && regressionCount == 0 && incompleteCount == 0
+      checksRegressions && regressionCount == 0 && incompleteCount == 0 && skippedTests.isEmpty
     }
 
     /// The table and a summary, in markdown.
     var markdown: String {
       guard !rows.isEmpty else {
-        return "🛑 No benchmark results found."
+        return (["🛑 No benchmark results found."] + skippedTestsLines).joined(separator: "\n")
       }
 
       var lines = [
@@ -376,6 +406,7 @@ enum BenchmarkComparison {
       if incompleteCount > 0 {
         lines.append("🛑 \(Self.counted(incompleteCount, "benchmark")) didn't report exactly once in every round of each side, so \(incompleteCount == 1 ? "it wasn't" : "they weren't") compared.")
       }
+      lines += skippedTestsLines
       if !countsInstructions {
         lines.append("Instructions weren't counted, as this machine doesn't expose the CPU's counters.")
       }
@@ -383,6 +414,15 @@ enum BenchmarkComparison {
         lines.append("🛑 Inconclusive: no benchmark has allocations or instructions on both sides to compare.")
       }
       return lines.joined(separator: "\n")
+    }
+
+    /// The line that lists the skipped tests, none without skipped tests.
+    private var skippedTestsLines: [String] {
+      guard !skippedTests.isEmpty else {
+        return []
+      }
+      let summary = skippedTests.count == 1 ? "1 test was skipped, so its benchmarks weren't compared" : "\(skippedTests.count) tests were skipped, so their benchmarks weren't compared"
+      return ["🛑 \(summary): \(skippedTests.joined(separator: ", "))."]
     }
 
     private static func counted(_ count: Int, _ noun: String) -> String {
@@ -396,7 +436,8 @@ enum BenchmarkComparison {
   ///   - base: The base's results.
   ///   - head: The head's results.
   ///   - thresholds: The changes past which a cost is reported.
-  /// - Returns: The comparison of each benchmark, in the head's order, followed by the benchmarks only the base has.
+  /// - Returns: The comparison of each benchmark, in the head's order, followed by the benchmarks only the base has, and
+  ///   the tests that either side skipped.
   static func compare(base: Results, head: Results, thresholds: Thresholds) -> Report {
     let names = head.names + base.names.filter { head.samples[$0] == nil }
     let rows = names.map { name in
@@ -411,7 +452,19 @@ enum BenchmarkComparison {
         findings: isIrregular ? [] : findings(base: baseSamples, head: headSamples, thresholds: thresholds)
       )
     }
-    return Report(rows: rows)
+    let skippedTests = base.skippedTests.union(head.skippedTests).sorted().map { test in
+      let sides: String
+      switch (base.skippedTests.contains(test), head.skippedTests.contains(test)) {
+      case (true, true):
+        sides = "base and head"
+      case (true, false):
+        sides = "base"
+      case (false, _):
+        sides = "head"
+      }
+      return "\(test) (\(sides))"
+    }
+    return Report(rows: rows, skippedTests: skippedTests)
   }
 
   private static func findings(base: Samples?, head: Samples?, thresholds: Thresholds) -> [Finding] {

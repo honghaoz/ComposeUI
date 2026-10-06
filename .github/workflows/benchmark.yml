@@ -1,0 +1,67 @@
+# This workflow compares the benchmarks of a change against its base, both built and run on one runner.
+#
+# It fails on what the comparison fails on: more allocations than the base made in any round, a benchmark that a side
+# doesn't report once in every round, and a skipped test. Instructions aren't available on GitHub's virtual machines,
+# and times only warn, since they depend on the runner's load.
+#
+# It isn't a required check: the path filter keeps it from reporting on pull requests outside its paths, which a
+# required check would block.
+
+name: benchmark
+on:
+  pull_request:
+    paths:
+      - "ComposeUI/Sources/**"
+      - "ComposeUI/Tests/ComposeUITests/Performance/**"
+      - "ComposeUI/Package.swift"
+      - "ComposeUI/Package.resolved"
+      - "ComposeUI/Makefile"
+      - "scripts/benchmark/**"
+      - ".github/workflows/benchmark.yml"
+  workflow_dispatch: # manual trigger
+    inputs:
+      base:
+        description: "The revision to compare against. The revision under test itself makes a base against base run, which measures the noise."
+        required: true
+        default: "origin/master"
+
+concurrency:
+  # newer commits cancel older in-flight runs on the same pull request.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+# the job builds and runs the pull request's code, which only needs to read the repository
+permissions:
+  contents: read
+
+env:
+  TERM: xterm-256color
+  DEVELOPER_DIR: /Applications/Xcode_${{ vars.XCODE_VERSION }}.app/Contents/Developer
+  # the slowdown past which a time warns. the times of the same code differed by up to 31% between the sides on the
+  # runner, which the 20% used locally reported as slowdowns
+  TIME_THRESHOLD: 50
+
+jobs:
+  benchmark:
+    name: Benchmark (macOS)
+    # two release builds and 5 rounds of each side take about 26 minutes on the runner's 3 virtual cores
+    timeout-minutes: 60
+    runs-on: ${{ vars.MACOS }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the comparison checks out the base from the history
+          # the comparison's git commands are local, so the token isn't kept for the pull request's code to use
+          persist-credentials: false
+      - name: Cache CI artifacts
+        uses: ./.github/actions/cache
+        with:
+          kind: benchmark
+          xcode-version: ${{ vars.XCODE_VERSION }}
+      - name: Bootstrap
+        uses: ./.github/actions/bootstrap
+      - name: Compare against the base
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || inputs.base }}
+        run: make benchmark-compare -C ComposeUI BASE="$BASE" TIME_THRESHOLD="$TIME_THRESHOLD" SUMMARY="$GITHUB_STEP_SUMMARY"

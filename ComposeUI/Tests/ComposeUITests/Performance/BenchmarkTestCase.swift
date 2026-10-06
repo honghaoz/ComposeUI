@@ -35,6 +35,10 @@ import ChouTiTest
 
 /// A test case of benchmarks: measures blocks and reports their costs in one line format.
 ///
+/// Each benchmark reports its costs with `report(name:result:extra:)`, and fails when it runs without reporting. A
+/// profiling test, named `test_profile_...`, runs for a profiler instead, so it reports nothing, and the comparison
+/// leaves it out.
+///
 /// Benchmarks are skipped by default. To run them in release configuration on macOS:
 ///
 /// ```bash
@@ -57,9 +61,28 @@ import ChouTiTest
 ///   with the OS for the allocations inside the system frameworks.
 class BenchmarkTestCase: XCTestCase {
 
+  /// Whether the running benchmark reported its costs.
+  private var hasReported = false
+
   override func setUpWithError() throws {
     try super.setUpWithError()
     try XCTSkipUnless(ProcessInfo.processInfo.environment["BENCHMARK"] == "1", "benchmarks are skipped by default, run with BENCHMARK=1")
+
+    addTeardownBlock {
+      self.failIfUnreported(wasSkipped: self.testRun?.hasBeenSkipped == true)
+    }
+  }
+
+  /// Fails the running benchmark when it ran without reporting its costs.
+  ///
+  /// A benchmark that runs without reporting looks to a comparison like a benchmark that both sides stopped reporting,
+  /// so it fails instead. A profiling test, named `test_profile_...`, reports nothing on purpose, so it doesn't fail.
+  ///
+  /// - Parameter wasSkipped: Whether the benchmark was skipped, which reports nothing on purpose.
+  func failIfUnreported(wasSkipped: Bool) {
+    if !wasSkipped, !hasReported, !name.contains(" test_profile_") {
+      fail("the benchmark didn't report its costs")
+    }
   }
 
   /// Measures a block.
@@ -119,20 +142,33 @@ class BenchmarkTestCase: XCTestCase {
     )
   }
 
-  /// Prints the costs of a benchmark in one line, in this format:
+  /// Writes the costs of a benchmark in one line to the standard error, in this format:
   ///
   /// ```
-  /// [BENCHMARK] <name> | iterations: <count> | median: <time> µs | p90: <time> µs | instructions: <median> | allocations: <per iteration>
+  /// [BENCHMARK] <name> | iterations: <count> | median: <time> us | p90: <time> us | instructions: <median> | allocations: <per iteration>
   /// ```
   ///
-  /// A cost that can't be measured reads `n/a`.
+  /// A cost that can't be measured reads `n/a`. A line that isn't ASCII fails the benchmark instead of being written.
   ///
   /// - Parameters:
-  ///   - name: The name of the benchmark.
+  ///   - name: The name of the benchmark, in ASCII.
   ///   - result: The costs to report.
-  ///   - extra: Extra information to append, as `key: value` pairs separated by ` | `.
+  ///   - extra: Extra information to append, as `key: value` pairs separated by ` | `, in ASCII.
   func report(name: String, result: BenchmarkResult, extra: String? = nil) {
-    print(Self.reportLine(name: name, result: result, extra: extra))
+    hasReported = true
+    let line = Self.reportLine(name: name, result: result, extra: extra)
+
+    // `swift test` passes a test's output on in chunks of 4096 bytes, and drops a chunk that isn't valid UTF-8 by itself,
+    // so a multi-byte character split between two chunks would drop both chunks, with the reports in them
+    guard line.allSatisfy(\.isASCII) else {
+      fail("the benchmark's report isn't ASCII")
+      return
+    }
+
+    // `swift test` passes a test's standard output and standard error on in separate threads, so a chunk of XCTest's
+    // lines on the standard error could land inside a line on the standard output, while the lines on the standard error
+    // stay in order
+    fputs(line + "\n", stderr)
   }
 
   /// Returns the line that `report(name:result:extra:)` prints, which `BenchmarkComparison.parse(_:)` reads.
@@ -144,7 +180,7 @@ class BenchmarkTestCase: XCTestCase {
   /// - Returns: The line.
   static func reportLine(name: String, result: BenchmarkResult, extra: String? = nil) -> String {
     var line = "[BENCHMARK] \(name) | iterations: \(result.durations.count)"
-    line += " | median: \(String(format: "%.2f", result.medianDuration)) µs | p90: \(String(format: "%.2f", result.p90Duration)) µs"
+    line += " | median: \(String(format: "%.2f", result.medianDuration)) us | p90: \(String(format: "%.2f", result.p90Duration)) us"
     line += " | instructions: \(result.medianInstructions.map { "\($0)" } ?? "n/a")"
     line += " | allocations: \(result.allocationsPerIteration.map { String(format: "%.2f", $0) } ?? "n/a")"
     if let extra {

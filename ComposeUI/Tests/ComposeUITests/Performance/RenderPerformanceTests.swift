@@ -180,44 +180,6 @@ class RenderPerformanceTests: BenchmarkTestCase {
     }
   }
 
-  /// Deterministic mechanism metric for the text-view reuse change: how many `BaseTextView` instances are allocated
-  /// while scrolling, with vs without pooling.
-  ///
-  /// The same scroll reveals the same rows in both modes, so the total number of entering inserts is identical; pooling
-  /// only changes whether an entering row is served from the pool (a hit) or freshly made (a miss). Instrumenting a
-  /// single pooled run therefore yields both figures: total inserts = creations without pooling, misses = creations with
-  /// pooling, hits = allocations the pool avoided.
-  func test_scroll_textRows_2000_allocationCounts() {
-    // given: a compose view with 2000 text rows and a counting pool, rendered for the initial fill
-    let pool = CountingRenderablePool()
-    let view = ComposeView {
-      VStack {
-        for i in 0 ..< 2000 {
-          Self.makeTextRow(i)
-        }
-      }
-    }
-    view.renderablePool = pool
-    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
-    view.layoutIfNeeded() // initial fill (all misses: pool starts empty)
-
-    // when: scrolling through the rows
-    var offset: CGFloat = 0
-    for _ in 0 ..< Constants.scrollSteps {
-      offset += Constants.scrollStep
-      view.contentOffset = CGPoint(x: 0, y: offset)
-      view.layoutIfNeeded()
-    }
-
-    // then: report the text view allocation counts with and without pooling
-    let creationsNoPool = pool.hitCount + pool.missCount
-    let creationsPooled = pool.missCount
-    // hits / (hits + misses): the share of entering rows served from the pool, which equals the reduction in
-    // text-view allocations that pooling buys.
-    let reuseRate = creationsNoPool > 0 ? Double(pool.hitCount) / Double(creationsNoPool) * 100 : 0
-    print("[BENCHMARK] scroll.text.2000.alloc | textViewCreations.noPool: \(creationsNoPool) | textViewCreations.pooled: \(creationsPooled) | reuses(allocationsAvoided): \(pool.hitCount) | reuseRate(=allocationReduction): \(format(reuseRate))%")
-  }
-
   // MARK: - Renderable Items (node-level, isolates the tree walk + id mapping)
 
   func test_renderableItems_flatRows_10000() {
@@ -470,7 +432,6 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let rowHeight: CGFloat = 50
     static let smallRowHeight: CGFloat = 8
     static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
-    static let scrollSteps = 140 // mirrors the timed scroll benchmark's warmup (20) + iterations (120)
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
   }
 
@@ -684,33 +645,5 @@ class RenderPerformanceTests: BenchmarkTestCase {
 
   private func format(_ value: Double) -> String {
     String(format: "%.3f", value)
-  }
-}
-
-// MARK: - Instrumentation
-
-/// A `RenderablePoolType` that delegates to a real pool while counting reuse hits and misses, used to derive a
-/// deterministic allocation count for the text-view reuse benchmark.
-private final class CountingRenderablePool: RenderablePoolType {
-
-  private(set) var hitCount = 0
-  private(set) var missCount = 0
-  private(set) var enqueueCount = 0
-
-  private let backing = RenderablePool()
-
-  func enqueue(_ renderable: Renderable, key: ReuseKey) {
-    enqueueCount += 1
-    backing.enqueue(renderable, key: key)
-  }
-
-  func dequeue(_ key: ReuseKey) -> Renderable? {
-    if let renderable = backing.dequeue(key) {
-      hitCount += 1
-      return renderable
-    } else {
-      missCount += 1
-      return nil
-    }
   }
 }

@@ -60,8 +60,8 @@ benchmark: # Run the benchmarks in release configuration on macOS. Usage: make b
 	BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --package-path "$(MAKEFILE_DIR)" -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter "$$filter"
 
 .PHONY: benchmark-compare
-benchmark-compare: # Compare the benchmarks against a base revision on this machine. Usage: make benchmark-compare [BASE=origin/master] [FILTER=AdditivePathPerformanceTests] [ROUNDS=5].
-	@"$(REPO_ROOT)/scripts/benchmark/benchmark-compare.sh" --base "$(or $(BASE),origin/master)" $(if $(FILTER),--filter "$(FILTER)",) --rounds "$(or $(ROUNDS),5)"
+benchmark-compare: # Compare the benchmarks against a base revision on this machine. Usage: make benchmark-compare [BASE=origin/master] [FILTER=AdditivePathPerformanceTests] [ROUNDS=5] [TIME_THRESHOLD=20] [SUMMARY=report.md].
+	@"$(REPO_ROOT)/scripts/benchmark/benchmark-compare.sh" --base "$(or $(BASE),origin/master)" $(if $(FILTER),--filter "$(FILTER)",) --rounds "$(or $(ROUNDS),5)" --time-threshold "$(or $(TIME_THRESHOLD),20)" $(if $(SUMMARY),--summary "$(SUMMARY)",)
 
 .PHONY: test-codecov
 test-codecov: # Run tests with code coverage.
