@@ -44,7 +44,7 @@ class ComposeView_RenderWorkTests: XCTestCase {
 
   func test_scrollStep_rendersOnce_andChangesOnlyTheRowsMovingInAndOut() {
     // given: rows rendered at the top
-    let view = makeRowsView {
+    let view = makeRowsView { _ in
       ColorNode(.red)
         .frame(width: .flexible, height: Constants.rowHeight)
     }
@@ -68,7 +68,7 @@ class ComposeView_RenderWorkTests: XCTestCase {
     for rowCount in [Constants.rowCount, 10000] {
       // given: rows that count the requests for their renderable items, rendered at the top
       let state = RenderableItemsProbeNode.State()
-      let view = makeRowsView(rowCount: rowCount) {
+      let view = makeRowsView(rowCount: rowCount) { _ in
         RenderableItemsProbeNode(state: state, size: CGSize(width: 100, height: Constants.rowHeight))
       }
       view.refresh(animated: false)
@@ -86,16 +86,23 @@ class ComposeView_RenderWorkTests: XCTestCase {
   func test_scroll_textRows_makeTextViewsOnlyForTheRowsShownFirst() {
     // given: text rows rendered at the top, with a pool that counts the text views it serves and the ones it can't
     let pool = CountingRenderablePool()
-    let view = makeRowsView(pool: pool) {
-      TextNode("Row")
+    let view = makeRowsView(pool: pool) { index in
+      TextNode("Row \(index)")
         .frame(width: .flexible, height: Constants.rowHeight)
     }
     view.refresh(animated: false)
 
-    // when: scrolling by one row at a time, 10 times
     for step in 1 ... 10 {
+      // when: scrolling by one row
       view.contentOffset = CGPoint(x: 0, y: CGFloat(step) * Constants.rowHeight)
       view.layoutIfNeeded()
+
+      // then: the text views show the texts of the 2 rows in view, from top to bottom
+      let shownTexts = view.contentContainerView.subviews
+        .compactMap { $0 as? BaseTextView }
+        .sorted { $0.frame.minY < $1.frame.minY }
+        .map(\.attributedString.string)
+      expect(shownTexts) == ["Row \(step)", "Row \(step + 1)"]
     }
 
     // then: text views are made only for the 2 rows shown first, and each of the 10 rows moving in reuses the text view
@@ -106,7 +113,7 @@ class ComposeView_RenderWorkTests: XCTestCase {
 
   func test_refresh_unchangedContent_updatesTheRenderablesInPlace() {
     // given: rows rendered at the top
-    let view = makeRowsView {
+    let view = makeRowsView { _ in
       ColorNode(.red)
         .frame(width: .flexible, height: Constants.rowHeight)
     }
@@ -137,11 +144,11 @@ class ComposeView_RenderWorkTests: XCTestCase {
   }
 
   /// A view of rows in a vertical stack, with its own renderable pool.
-  private func makeRowsView(rowCount: Int = Constants.rowCount, pool: RenderablePoolType = RenderablePool(), row: @escaping () -> some ComposeNode) -> ComposeView {
+  private func makeRowsView(rowCount: Int = Constants.rowCount, pool: RenderablePoolType = RenderablePool(), row: @escaping (Int) -> some ComposeNode) -> ComposeView {
     let view = ComposeView {
       VStack {
-        for _ in 0 ..< rowCount {
-          row()
+        for index in 0 ..< rowCount {
+          row(index)
         }
       }
     }
