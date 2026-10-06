@@ -280,8 +280,8 @@ class BenchmarkComparisonTests: XCTestCase {
     expect(report.passes) == true
   }
 
-  func test_compare_newAndRemovedBenchmarks() {
-    // given: a benchmark on both sides, one only the head has, and one only the base has
+  func test_compare_benchmarkReportedByOneSide_failsTheComparison() {
+    // given: a benchmark that both sides reported, one that only the head reported, and one that only the base reported
     let base = [
       "[BENCHMARK] gone | median: 1.00 µs | allocations: 1.00",
       "[BENCHMARK] kept | median: 1.00 µs | allocations: 1.00",
@@ -294,18 +294,18 @@ class BenchmarkComparisonTests: XCTestCase {
     // when: comparing them
     let report = compare(base: [base], head: [head])
 
-    // then: the head's benchmarks come first, in its order, then the removed ones, and neither a new nor a removed
-    // benchmark fails the comparison
+    // then: the head's benchmarks come first, in its order, then the base's, and since both sides run the same benchmark
+    // files, a benchmark that one side didn't report fails the comparison
     expect(report.rows.map(\.name)) == ["kept", "fresh", "gone"]
     expect(report.rows.map(\.markdown)) == [
       "| kept | 1.00 → 1.00 (+0.0%) | n/a | 1 → 1 | ok |",
-      "| fresh | | | | new |",
-      "| gone | | | | removed |",
+      "| fresh | | | | not reported by the base |",
+      "| gone | | | | not reported by the head |",
     ]
-    expect(report.passes) == true
+    expect(report.passes) == false
   }
 
-  func test_compare_onlyNewAndRemovedBenchmarks_isInconclusive() {
+  func test_compare_noBenchmarkOnBothSides_isInconclusive() {
     // given: a base and a head that share no benchmark
     let base = ["[BENCHMARK] gone | median: 1.00 µs | instructions: 10 | allocations: 1.00"]
     let head = ["[BENCHMARK] fresh | median: 1.00 µs | instructions: 10 | allocations: 1.00"]
@@ -313,23 +313,24 @@ class BenchmarkComparisonTests: XCTestCase {
     // when: comparing them
     let report = compare(base: [base], head: [head])
 
-    // then: nothing is compared, so the comparison is inconclusive and fails
+    // then: nothing is compared, so the comparison fails, and it's inconclusive
     expect(report.passes) == false
     expect(report.markdown) == """
     | Benchmark | Time (µs) | Instructions | Allocations | Result |
     |---|---|---|---|---|
-    | fresh | | | | new |
-    | gone | | | | removed |
+    | fresh | | | | not reported by the base |
+    | gone | | | | not reported by the head |
 
     2 benchmarks: 0 regressions, 0 time warnings.
+    🛑 2 benchmarks didn't report exactly once in every round of each side, so they weren't compared.
     🛑 Inconclusive: no benchmark has allocations or instructions on both sides to compare.
     """
 
     // when: comparing the head with a base without results
     let reportWithoutBase = compare(base: [], head: [head])
 
-    // then: the comparison is inconclusive too
-    expect(reportWithoutBase.rows.map(\.markdown)) == ["| fresh | | | | new |"]
+    // then: the comparison fails too
+    expect(reportWithoutBase.rows.map(\.markdown)) == ["| fresh | | | | not reported by the base |"]
     expect(reportWithoutBase.passes) == false
   }
 
@@ -431,7 +432,7 @@ class BenchmarkComparisonTests: XCTestCase {
     | fresh | | | | not reported once per round |
 
     4 benchmarks: 0 regressions, 0 time warnings.
-    🛑 3 benchmarks didn't report exactly once in every round, so they weren't compared.
+    🛑 3 benchmarks didn't report exactly once in every round of each side, so they weren't compared.
     Instructions weren't counted, as this machine doesn't expose the CPU's counters.
     """
 
@@ -447,7 +448,7 @@ class BenchmarkComparisonTests: XCTestCase {
     | steady | | | | not reported once per round |
 
     1 benchmark: 0 regressions, 0 time warnings.
-    🛑 1 benchmark didn't report exactly once in every round, so it wasn't compared.
+    🛑 1 benchmark didn't report exactly once in every round of each side, so it wasn't compared.
     Instructions weren't counted, as this machine doesn't expose the CPU's counters.
     🛑 Inconclusive: no benchmark has allocations or instructions on both sides to compare.
     """
@@ -456,21 +457,18 @@ class BenchmarkComparisonTests: XCTestCase {
   // MARK: - Markdown
 
   func test_markdown_tableAndSummary() {
-    // given: benchmarks that keep their costs, cost more of each, cost less of each, take no measurable time, and that are
-    // new and removed
+    // given: benchmarks that keep their costs, cost more of each, cost less of each, and take no measurable time
     let base = [
       "[BENCHMARK] steady | median: 10.00 µs | instructions: 1000 | allocations: 50.00",
       "[BENCHMARK] heavier | median: 10.00 µs | instructions: 1000 | allocations: 50.00",
       "[BENCHMARK] lighter | median: 10.00 µs | instructions: 1000 | allocations: 50.00",
       "[BENCHMARK] instant | median: 0.00 µs | instructions: 1000 | allocations: 0.00",
-      "[BENCHMARK] gone | median: 1.00 µs | instructions: 10 | allocations: 1.00",
     ]
     let head = [
       "[BENCHMARK] steady | median: 10.00 µs | instructions: 1000 | allocations: 50.00",
       "[BENCHMARK] heavier | median: 13.00 µs | instructions: 1100 | allocations: 50.50",
       "[BENCHMARK] lighter | median: 7.00 µs | instructions: 900 | allocations: 49.00",
       "[BENCHMARK] instant | median: 0.00 µs | instructions: 1000 | allocations: 0.00",
-      "[BENCHMARK] fresh | median: 1.00 µs | instructions: 10 | allocations: 1.00",
     ]
 
     // when: comparing them
@@ -484,10 +482,8 @@ class BenchmarkComparisonTests: XCTestCase {
     | heavier | 10.00 → 13.00 (+30.0%) | 1000 → 1100 (+10.0%) | 50 → 50.50 | warning: time, regression: instructions, regression: allocations |
     | lighter | 10.00 → 7.00 (-30.0%) | 1000 → 900 (-10.0%) | 50 → 49 | faster, fewer instructions, fewer allocations |
     | instant | 0.00 → 0.00 | 1000 → 1000 (+0.0%) | 0 → 0 | ok |
-    | fresh | | | | new |
-    | gone | | | | removed |
 
-    6 benchmarks: 2 regressions, 1 time warning.
+    4 benchmarks: 2 regressions, 1 time warning.
     """
   }
 

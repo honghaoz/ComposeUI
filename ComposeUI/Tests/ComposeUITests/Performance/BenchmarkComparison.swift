@@ -264,17 +264,25 @@ enum BenchmarkComparison {
     }
   }
 
-  /// The comparison of one benchmark, which only the base or only the head has when it's removed or new.
+  /// The comparison of one benchmark, which only one side has when the other didn't report it.
   struct Row {
 
     let name: String
     let base: Samples?
     let head: Samples?
 
-    /// Whether a side didn't report the benchmark exactly once in every round, which leaves it out of the comparison.
+    /// Whether a side reported the benchmark, but not exactly once in every round.
     let isIrregular: Bool
 
     let findings: [Finding]
+
+    /// Whether both sides reported the benchmark exactly once in every round, without which it isn't compared.
+    ///
+    /// Both sides run the same benchmark files, so a benchmark that only one side reported is one that the other side
+    /// skipped, not one that's new or removed.
+    var isComplete: Bool {
+      !isIrregular && base != nil && head != nil
+    }
 
     /// Whether the base and the head both have a cost that can regress: the allocations or the instructions.
     var canRegress: Bool {
@@ -289,10 +297,10 @@ enum BenchmarkComparison {
         return "| \(name) | | | | not reported once per round |"
       }
       guard let head else {
-        return "| \(name) | | | | removed |"
+        return "| \(name) | | | | not reported by the head |"
       }
       guard let base else {
-        return "| \(name) | | | | new |"
+        return "| \(name) | | | | not reported by the base |"
       }
 
       let time = BenchmarkComparison.formatChange(from: base.medianTime, to: head.medianTime, format: "%.2f")
@@ -340,14 +348,16 @@ enum BenchmarkComparison {
       rows.contains(where: \.canRegress)
     }
 
-    /// The number of benchmarks that a side didn't report exactly once in every round.
-    var irregularCount: Int {
-      rows.filter(\.isIrregular).count
+    /// The number of benchmarks that a side didn't report exactly once in every round, including the ones it didn't
+    /// report at all.
+    var incompleteCount: Int {
+      rows.filter { !$0.isComplete }.count
     }
 
-    /// Whether the comparison passes: a benchmark can regress, none did, and every benchmark reported once per round.
+    /// Whether the comparison passes: a benchmark can regress, none did, and both sides reported every benchmark once
+    /// per round.
     var passes: Bool {
-      checksRegressions && regressionCount == 0 && irregularCount == 0
+      checksRegressions && regressionCount == 0 && incompleteCount == 0
     }
 
     /// The table and a summary, in markdown.
@@ -363,8 +373,8 @@ enum BenchmarkComparison {
       lines += rows.map(\.markdown)
       lines.append("")
       lines.append("\(Self.counted(rows.count, "benchmark")): \(Self.counted(regressionCount, "regression")), \(Self.counted(warningCount, "time warning")).")
-      if irregularCount > 0 {
-        lines.append("🛑 \(Self.counted(irregularCount, "benchmark")) didn't report exactly once in every round, so \(irregularCount == 1 ? "it wasn't" : "they weren't") compared.")
+      if incompleteCount > 0 {
+        lines.append("🛑 \(Self.counted(incompleteCount, "benchmark")) didn't report exactly once in every round of each side, so \(incompleteCount == 1 ? "it wasn't" : "they weren't") compared.")
       }
       if !countsInstructions {
         lines.append("Instructions weren't counted, as this machine doesn't expose the CPU's counters.")

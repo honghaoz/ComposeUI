@@ -24,10 +24,10 @@ print_help() {
   echo "  --help, -h         Show this help message."
   echo ""
   echo "Exits with 1 when a benchmark makes more allocations than the base made in any round, or retires more than 1%"
-  echo "more instructions, when a benchmark doesn't report exactly once in every round, and as inconclusive when no"
-  echo "benchmark has allocations or instructions on both sides. A time more than 20% slower is a warning, since time"
-  echo "depends on the machine's load. Both sides run the working tree's benchmark files, so the comparison stops when"
-  echo "they don't build against the base."
+  echo "more instructions, when a side doesn't report a benchmark exactly once in every round, and as inconclusive"
+  echo "when no benchmark has allocations or instructions on both sides. A time more than 20% slower is a warning, since"
+  echo "time depends on the machine's load. Both sides run the working tree's benchmark files, so the comparison stops"
+  echo "when they don't build against the base."
 }
 
 BASE="origin/master"
