@@ -30,24 +30,30 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
+# the job builds and runs the pull request's code, which only needs to read the repository
+permissions:
+  contents: read
+
 env:
   TERM: xterm-256color
   DEVELOPER_DIR: /Applications/Xcode_${{ vars.XCODE_VERSION }}.app/Contents/Developer
-  # the slowdown past which a time warns
-  TIME_THRESHOLD: 20
+  # the slowdown past which a time warns. the times of the same code differed by up to 31% between the sides on the
+  # runner, which the 20% used locally reported as slowdowns
+  TIME_THRESHOLD: 50
 
 jobs:
   benchmark:
     name: Benchmark (macOS)
-    # two release builds and 5 rounds of each side take about 12 minutes on an Apple M4 Max, and several times that on
-    # the runner's 3 virtual cores
-    timeout-minutes: 90
+    # two release builds and 5 rounds of each side take about 26 minutes on the runner's 3 virtual cores
+    timeout-minutes: 60
     runs-on: ${{ vars.MACOS }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0 # the comparison checks out the base from the history
+          # the comparison's git commands are local, so the token isn't kept for the pull request's code to use
+          persist-credentials: false
       - name: Cache CI artifacts
         uses: ./.github/actions/cache
         with:
