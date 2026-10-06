@@ -161,8 +161,7 @@ echo "Building the base..."
 build base "$BASE_PACKAGE_DIR" || fail "The base doesn't build with the working tree's benchmark files, see the errors in the log. Compare against a revision they build against."
 
 # Runs the benchmarks of a side once, and keeps the round's test log, from which the comparison reads the results and the
-# skipped tests. The results print at the end of the log, after the lines of all tests, so a benchmark that runs without
-# reporting fails its test instead of being found from the log.
+# skipped tests. A benchmark that runs without reporting fails its test, which fails the round.
 run() { # <side> <package dir> <round>
   local log="$RESULTS_DIR/$1-$3.txt"
   if ! BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --skip-build -c release --package-path "$2" --filter "$FILTER" --skip "/test_profile_" > "$log" 2>&1; then

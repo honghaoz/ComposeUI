@@ -142,21 +142,33 @@ class BenchmarkTestCase: XCTestCase {
     )
   }
 
-  /// Prints the costs of a benchmark in one line, in this format:
+  /// Writes the costs of a benchmark in one line to the standard error, in this format:
   ///
   /// ```
-  /// [BENCHMARK] <name> | iterations: <count> | median: <time> µs | p90: <time> µs | instructions: <median> | allocations: <per iteration>
+  /// [BENCHMARK] <name> | iterations: <count> | median: <time> us | p90: <time> us | instructions: <median> | allocations: <per iteration>
   /// ```
   ///
-  /// A cost that can't be measured reads `n/a`.
+  /// A cost that can't be measured reads `n/a`. A line that isn't ASCII fails the benchmark instead of being written.
   ///
   /// - Parameters:
-  ///   - name: The name of the benchmark.
+  ///   - name: The name of the benchmark, in ASCII.
   ///   - result: The costs to report.
-  ///   - extra: Extra information to append, as `key: value` pairs separated by ` | `.
+  ///   - extra: Extra information to append, as `key: value` pairs separated by ` | `, in ASCII.
   func report(name: String, result: BenchmarkResult, extra: String? = nil) {
     hasReported = true
-    print(Self.reportLine(name: name, result: result, extra: extra))
+    let line = Self.reportLine(name: name, result: result, extra: extra)
+
+    // `swift test` passes a test's output on in chunks of 4096 bytes, and drops a chunk that isn't valid UTF-8 by itself,
+    // so a multi-byte character split between two chunks would drop both chunks, with the reports in them
+    guard line.allSatisfy(\.isASCII) else {
+      fail("the benchmark's report isn't ASCII")
+      return
+    }
+
+    // `swift test` passes a test's standard output and standard error on in separate threads, so a chunk of XCTest's
+    // lines on the standard error could land inside a line on the standard output, while the lines on the standard error
+    // stay in order
+    fputs(line + "\n", stderr)
   }
 
   /// Returns the line that `report(name:result:extra:)` prints, which `BenchmarkComparison.parse(_:)` reads.
@@ -168,7 +180,7 @@ class BenchmarkTestCase: XCTestCase {
   /// - Returns: The line.
   static func reportLine(name: String, result: BenchmarkResult, extra: String? = nil) -> String {
     var line = "[BENCHMARK] \(name) | iterations: \(result.durations.count)"
-    line += " | median: \(String(format: "%.2f", result.medianDuration)) µs | p90: \(String(format: "%.2f", result.p90Duration)) µs"
+    line += " | median: \(String(format: "%.2f", result.medianDuration)) us | p90: \(String(format: "%.2f", result.p90Duration)) us"
     line += " | instructions: \(result.medianInstructions.map { "\($0)" } ?? "n/a")"
     line += " | allocations: \(result.allocationsPerIteration.map { String(format: "%.2f", $0) } ?? "n/a")"
     if let extra {

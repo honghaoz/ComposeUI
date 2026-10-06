@@ -85,7 +85,7 @@ class BenchmarkTestCaseTests: XCTestCase {
 
     // then: the line has the median and the p90 time, the median instructions and the allocations, and the comparison
     // reads the same costs back from it
-    expect(line) == "[BENCHMARK] scroll | iterations: 3 | median: 20.00 µs | p90: 30.00 µs | instructions: 200 | allocations: 2.50 | rows: 10"
+    expect(line) == "[BENCHMARK] scroll | iterations: 3 | median: 20.00 us | p90: 30.00 us | instructions: 200 | allocations: 2.50 | rows: 10"
     let parsed = try BenchmarkComparison.parse(line).unwrap()
     expect(parsed.name) == "scroll"
     expect(parsed.sample) == BenchmarkComparison.Sample(time: 20, instructions: 200, allocations: 2.5)
@@ -99,9 +99,42 @@ class BenchmarkTestCaseTests: XCTestCase {
     let line = BenchmarkTestCase.reportLine(name: "scroll", result: result)
 
     // then: the uncounted costs read n/a, and the comparison reads them back as missing
-    expect(line) == "[BENCHMARK] scroll | iterations: 1 | median: 12.50 µs | p90: 12.50 µs | instructions: n/a | allocations: n/a"
+    expect(line) == "[BENCHMARK] scroll | iterations: 1 | median: 12.50 us | p90: 12.50 us | instructions: n/a | allocations: n/a"
     let parsed = try BenchmarkComparison.parse(line).unwrap()
     expect(parsed.sample) == BenchmarkComparison.Sample(time: 12.5, instructions: nil, allocations: nil)
+  }
+
+  func test_report_writesTheLineToTheStandardError() {
+    // given: a benchmark harness, and the costs of an iteration
+    let harness = BenchmarkTestCase()
+    let result = BenchmarkResult(durations: [12.5], instructions: nil, allocationsPerIteration: nil)
+
+    // when: reporting the costs, with extra information
+    let output = standardError {
+      harness.report(name: "scroll", result: result, extra: "rows: 10")
+    }
+
+    // then: the report goes to the standard error, where XCTest writes its own lines, as one line
+    expect(output) == "[BENCHMARK] scroll | iterations: 1 | median: 12.50 us | p90: 12.50 us | instructions: n/a | allocations: n/a | rows: 10\n"
+  }
+
+  func test_report_notASCII_failsWithoutWriting() {
+    // given: a benchmark harness
+    let harness = BenchmarkTestCase()
+    let options = XCTExpectedFailure.Options()
+    options.issueMatcher = { $0.compactDescription == "failed - the benchmark's report isn't ASCII" }
+
+    // when: reporting the costs of a benchmark whose name isn't ASCII
+    var output: String?
+    XCTExpectFailure("the benchmark's report isn't ASCII", options: options) {
+      output = standardError {
+        harness.report(name: "scroll.10×10", result: BenchmarkResult(durations: [1], instructions: nil, allocationsPerIteration: nil))
+      }
+    }
+
+    // then: the benchmark fails, and writes no report, only XCTest's note of the expected failure
+    expect(output?.contains("[BENCHMARK]")) == false
+    expect(output?.contains("the benchmark's report isn't ASCII")) == true
   }
 
   func test_failIfUnreported_withoutReport_fails() {
@@ -206,6 +239,19 @@ class BenchmarkTestCaseTests: XCTestCase {
   }
 
   // MARK: - Helpers
+
+  /// Returns what a block writes to the standard error, which goes to a pipe while the block runs, `nil` if it isn't
+  /// UTF-8.
+  private func standardError(of block: () -> Void) -> String? {
+    let pipe = Pipe()
+    let savedStandardError = dup(STDERR_FILENO)
+    dup2(pipe.fileHandleForWriting.fileDescriptor, STDERR_FILENO)
+    block()
+    dup2(savedStandardError, STDERR_FILENO)
+    close(savedStandardError)
+    try? pipe.fileHandleForWriting.close()
+    return String(bytes: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+  }
 
   /// Sets a logger that does nothing as libmalloc's allocation hook, as another tool would, and returns a closure that
   /// restores the previous logger.

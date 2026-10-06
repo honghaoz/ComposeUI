@@ -110,13 +110,13 @@ enum BenchmarkComparison {
     value.flatMap { Double($0) }
   }
 
-  /// Reads a time such as `12.34 µs` or `1.234 ms`, in microseconds, `nil` for anything else.
+  /// Reads a time such as `12.34 us` or `1.234 ms`, in microseconds, `nil` for anything else.
   private static func microseconds(_ value: String?) -> Double? {
     guard let parts = value?.split(separator: " "), parts.count == 2, let amount = Double(parts[0]) else {
       return nil
     }
     switch parts[1] {
-    case "µs":
+    case "us":
       return amount
     case "ms":
       return amount * 1000

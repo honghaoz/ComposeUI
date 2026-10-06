@@ -36,7 +36,7 @@ class BenchmarkComparisonTests: XCTestCase {
 
   func test_parse_readsTheCosts() throws {
     // when: parsing a result line with extra information
-    let parsed = try BenchmarkComparison.parse("[BENCHMARK] scroll | iterations: 120 | median: 42.42 µs | p90: 48.04 µs | instructions: 587210 | allocations: 110.10 | renderedItems: 18").unwrap()
+    let parsed = try BenchmarkComparison.parse("[BENCHMARK] scroll | iterations: 120 | median: 42.42 us | p90: 48.04 us | instructions: 587210 | allocations: 110.10 | renderedItems: 18").unwrap()
 
     // then: it reads the name, the median time, the instructions and the allocations
     expect(parsed.name) == "scroll"
@@ -70,7 +70,7 @@ class BenchmarkComparisonTests: XCTestCase {
     expect(BenchmarkComparison.parse("Test Case '-[ComposeUITests.RenderPerformanceTests test_scroll]' passed")) == nil
     expect(BenchmarkComparison.parse("")) == nil
     expect(BenchmarkComparison.parse("[BENCHMARK] ")) == nil
-    expect(BenchmarkComparison.parse("[BENCHMARK]  | median: 1.00 µs")) == nil
+    expect(BenchmarkComparison.parse("[BENCHMARK]  | median: 1.00 us")) == nil
   }
 
   func test_parseSkippedTest_readsTheTestName() {
@@ -83,7 +83,7 @@ class BenchmarkComparisonTests: XCTestCase {
     // then: tests that started or passed, results, and lines without a class and a method aren't skipped tests
     expect(BenchmarkComparison.parseSkippedTest("Test Case '-[ComposeUITests.RenderPerformanceTests test_scroll]' started.")) == nil
     expect(BenchmarkComparison.parseSkippedTest("Test Case '-[ComposeUITests.RenderPerformanceTests test_scroll]' passed (0.010 seconds).")) == nil
-    expect(BenchmarkComparison.parseSkippedTest("[BENCHMARK] scroll | median: 1.00 µs")) == nil
+    expect(BenchmarkComparison.parseSkippedTest("[BENCHMARK] scroll | median: 1.00 us")) == nil
     expect(BenchmarkComparison.parseSkippedTest("Test Case '-[test_scroll]' skipped (0.000 seconds).")) == nil
     expect(BenchmarkComparison.parseSkippedTest("")) == nil
   }
@@ -110,13 +110,13 @@ class BenchmarkComparisonTests: XCTestCase {
     // when: reading the lines of two rounds, with other output between the results
     let results = BenchmarkComparison.Results(rounds: [
       [
-        "[BENCHMARK] b | median: 1.00 µs | instructions: 10 | allocations: 1.00",
+        "[BENCHMARK] b | median: 1.00 us | instructions: 10 | allocations: 1.00",
         "Test Suite 'Selected tests' passed",
-        "[BENCHMARK] a | median: 2.00 µs | instructions: 20 | allocations: 2.00",
+        "[BENCHMARK] a | median: 2.00 us | instructions: 20 | allocations: 2.00",
       ],
       [
-        "[BENCHMARK] b | median: 3.00 µs | instructions: 30 | allocations: 3.00",
-        "[BENCHMARK] a | median: 4.00 µs | instructions: 40 | allocations: 2.00",
+        "[BENCHMARK] b | median: 3.00 us | instructions: 30 | allocations: 3.00",
+        "[BENCHMARK] a | median: 4.00 us | instructions: 40 | allocations: 2.00",
       ],
     ])
 
@@ -178,10 +178,10 @@ class BenchmarkComparisonTests: XCTestCase {
       try? FileManager.default.removeItem(at: directory)
     }
     let files = [
-      "base-1.txt": "[BENCHMARK] scroll | median: 1.00 µs\n",
-      "base-2.txt": "[BENCHMARK] scroll | median: 3.00 µs\n",
-      "head-1.txt": "[BENCHMARK] scroll | median: 10.00 µs\n",
-      "base-1.log": "[BENCHMARK] scroll | median: 100.00 µs\n",
+      "base-1.txt": "[BENCHMARK] scroll | median: 1.00 us\n",
+      "base-2.txt": "[BENCHMARK] scroll | median: 3.00 us\n",
+      "head-1.txt": "[BENCHMARK] scroll | median: 10.00 us\n",
+      "base-1.log": "[BENCHMARK] scroll | median: 100.00 us\n",
     ]
     for (name, contents) in files {
       try contents.write(to: directory.appendingPathComponent(name), atomically: true, encoding: .utf8)
@@ -214,7 +214,7 @@ class BenchmarkComparisonTests: XCTestCase {
 
   func test_compare_sameCosts_passes() {
     // given: the same results on both sides
-    let lines = ["[BENCHMARK] steady | median: 10.00 µs | instructions: 1000 | allocations: 50.00"]
+    let lines = ["[BENCHMARK] steady | median: 10.00 us | instructions: 1000 | allocations: 50.00"]
 
     // when: comparing them
     let report = compare(base: [lines], head: [lines])
@@ -295,14 +295,14 @@ class BenchmarkComparisonTests: XCTestCase {
   func test_compare_time_atAndPastTheThreshold_onlyWarns() {
     // given: benchmarks whose times change by exactly 20%, and by 25%, both ways, with the same allocations
     let base = [
-      "[BENCHMARK] slower.at | median: 100.00 µs | allocations: 10.00",
-      "[BENCHMARK] slower.past | median: 100.00 µs | allocations: 10.00",
-      "[BENCHMARK] faster.past | median: 100.00 µs | allocations: 10.00",
+      "[BENCHMARK] slower.at | median: 100.00 us | allocations: 10.00",
+      "[BENCHMARK] slower.past | median: 100.00 us | allocations: 10.00",
+      "[BENCHMARK] faster.past | median: 100.00 us | allocations: 10.00",
     ]
     let head = [
-      "[BENCHMARK] slower.at | median: 120.00 µs | allocations: 10.00",
-      "[BENCHMARK] slower.past | median: 125.00 µs | allocations: 10.00",
-      "[BENCHMARK] faster.past | median: 75.00 µs | allocations: 10.00",
+      "[BENCHMARK] slower.at | median: 120.00 us | allocations: 10.00",
+      "[BENCHMARK] slower.past | median: 125.00 us | allocations: 10.00",
+      "[BENCHMARK] faster.past | median: 75.00 us | allocations: 10.00",
     ]
 
     // when: comparing them with a threshold of 20%
@@ -318,12 +318,12 @@ class BenchmarkComparisonTests: XCTestCase {
   func test_compare_benchmarkReportedByOneSide_failsTheComparison() {
     // given: a benchmark that both sides reported, one that only the head reported, and one that only the base reported
     let base = [
-      "[BENCHMARK] gone | median: 1.00 µs | allocations: 1.00",
-      "[BENCHMARK] kept | median: 1.00 µs | allocations: 1.00",
+      "[BENCHMARK] gone | median: 1.00 us | allocations: 1.00",
+      "[BENCHMARK] kept | median: 1.00 us | allocations: 1.00",
     ]
     let head = [
-      "[BENCHMARK] kept | median: 1.00 µs | allocations: 1.00",
-      "[BENCHMARK] fresh | median: 1.00 µs | allocations: 1.00",
+      "[BENCHMARK] kept | median: 1.00 us | allocations: 1.00",
+      "[BENCHMARK] fresh | median: 1.00 us | allocations: 1.00",
     ]
 
     // when: comparing them
@@ -342,8 +342,8 @@ class BenchmarkComparisonTests: XCTestCase {
 
   func test_compare_noBenchmarkOnBothSides_isInconclusive() {
     // given: a base and a head that share no benchmark
-    let base = ["[BENCHMARK] gone | median: 1.00 µs | instructions: 10 | allocations: 1.00"]
-    let head = ["[BENCHMARK] fresh | median: 1.00 µs | instructions: 10 | allocations: 1.00"]
+    let base = ["[BENCHMARK] gone | median: 1.00 us | instructions: 10 | allocations: 1.00"]
+    let head = ["[BENCHMARK] fresh | median: 1.00 us | instructions: 10 | allocations: 1.00"]
 
     // when: comparing them
     let report = compare(base: [base], head: [head])
@@ -371,8 +371,8 @@ class BenchmarkComparisonTests: XCTestCase {
 
   func test_compare_onlyTimes_isInconclusive() {
     // given: a benchmark whose rounds counted neither allocations nor instructions, and that got slower
-    let base = ["[BENCHMARK] scroll | median: 10.00 µs | instructions: n/a | allocations: n/a"]
-    let head = ["[BENCHMARK] scroll | median: 13.00 µs | instructions: n/a | allocations: n/a"]
+    let base = ["[BENCHMARK] scroll | median: 10.00 us | instructions: n/a | allocations: n/a"]
+    let head = ["[BENCHMARK] scroll | median: 13.00 us | instructions: n/a | allocations: n/a"]
 
     // when: comparing them
     let report = compare(base: [base], head: [head])
@@ -538,16 +538,16 @@ class BenchmarkComparisonTests: XCTestCase {
   func test_markdown_tableAndSummary() {
     // given: benchmarks that keep their costs, cost more of each, cost less of each, and take no measurable time
     let base = [
-      "[BENCHMARK] steady | median: 10.00 µs | instructions: 1000 | allocations: 50.00",
-      "[BENCHMARK] heavier | median: 10.00 µs | instructions: 1000 | allocations: 50.00",
-      "[BENCHMARK] lighter | median: 10.00 µs | instructions: 1000 | allocations: 50.00",
-      "[BENCHMARK] instant | median: 0.00 µs | instructions: 1000 | allocations: 0.00",
+      "[BENCHMARK] steady | median: 10.00 us | instructions: 1000 | allocations: 50.00",
+      "[BENCHMARK] heavier | median: 10.00 us | instructions: 1000 | allocations: 50.00",
+      "[BENCHMARK] lighter | median: 10.00 us | instructions: 1000 | allocations: 50.00",
+      "[BENCHMARK] instant | median: 0.00 us | instructions: 1000 | allocations: 0.00",
     ]
     let head = [
-      "[BENCHMARK] steady | median: 10.00 µs | instructions: 1000 | allocations: 50.00",
-      "[BENCHMARK] heavier | median: 13.00 µs | instructions: 1100 | allocations: 50.50",
-      "[BENCHMARK] lighter | median: 7.00 µs | instructions: 900 | allocations: 49.00",
-      "[BENCHMARK] instant | median: 0.00 µs | instructions: 1000 | allocations: 0.00",
+      "[BENCHMARK] steady | median: 10.00 us | instructions: 1000 | allocations: 50.00",
+      "[BENCHMARK] heavier | median: 13.00 us | instructions: 1100 | allocations: 50.50",
+      "[BENCHMARK] lighter | median: 7.00 us | instructions: 900 | allocations: 49.00",
+      "[BENCHMARK] instant | median: 0.00 us | instructions: 1000 | allocations: 0.00",
     ]
 
     // when: comparing them
@@ -570,12 +570,12 @@ class BenchmarkComparisonTests: XCTestCase {
     // given: two rounds of a benchmark whose allocations differ between rounds, on a machine that doesn't count
     // instructions
     let base = [
-      ["[BENCHMARK] scroll | median: 700.00 µs | instructions: n/a | allocations: 242050.00"],
-      ["[BENCHMARK] scroll | median: 710.00 µs | instructions: n/a | allocations: 242110.00"],
+      ["[BENCHMARK] scroll | median: 700.00 us | instructions: n/a | allocations: 242050.00"],
+      ["[BENCHMARK] scroll | median: 710.00 us | instructions: n/a | allocations: 242110.00"],
     ]
     let head = [
-      ["[BENCHMARK] scroll | median: 690.00 µs | instructions: n/a | allocations: 242090.50"],
-      ["[BENCHMARK] scroll | median: 700.00 µs | instructions: n/a | allocations: 242090.50"],
+      ["[BENCHMARK] scroll | median: 690.00 us | instructions: n/a | allocations: 242090.50"],
+      ["[BENCHMARK] scroll | median: 700.00 us | instructions: n/a | allocations: 242090.50"],
     ]
 
     // when: comparing them
