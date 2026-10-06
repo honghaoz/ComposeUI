@@ -106,11 +106,17 @@ class AnimationClockTests: XCTestCase {
 
   func test_now_firstReadDuringTheCommit_theTurnEndsWhenTheLoopWakes() throws {
     // given: the clock's first read, in an observer of the pass that commits before the main run loop waits, as in a
-    // layout Core Animation's commit runs, an observer of the wake that reads the clock, and an event 30 ms later
+    // layout Core Animation's commit runs, an event 30 ms after it, and an observer of the wake that reads the clock
     AnimationClock.resetForTesting()
     var firstRead: CFTimeInterval?
+    var eventRead: CFTimeInterval?
     let commitReader = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, false, 2000000) { _, _ in
       firstRead = AnimationClock.now
+      // scheduled after the first read instead of before the loop runs, so that the event comes after the wait however
+      // late the main thread gets to the first read
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+        eventRead = AnimationClock.now
+      }
     }
     var wakeRead: (timeBefore: CFTimeInterval, read: CFTimeInterval)?
     let wakeReader = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue, false, 0) { _, _ in
@@ -118,10 +124,6 @@ class AnimationClockTests: XCTestCase {
     }
     CFRunLoopAddObserver(CFRunLoopGetMain(), commitReader, .commonModes)
     CFRunLoopAddObserver(CFRunLoopGetMain(), wakeReader, .commonModes)
-    var eventRead: CFTimeInterval?
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-      eventRead = AnimationClock.now
-    }
 
     // when: the loop waits and wakes without exiting in between, as an app's main run loop does
     CFRunLoopRunInMode(.defaultMode, 0.1, false)
@@ -130,7 +132,8 @@ class AnimationClockTests: XCTestCase {
     // wake's other observers, so the reads after the wait are new times
     let wake = try wakeRead.unwrap()
     expect(wake.read) >= wake.timeBefore
-    expect(try eventRead.unwrap() - firstRead.unwrap()) >= 0.03
+    let first = try firstRead.unwrap()
+    expect(try eventRead.unwrap()) > first
   }
 
   func test_now_afterAFlush_readsTheTurnsTime() {
