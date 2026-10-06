@@ -29,7 +29,7 @@
 //
 
 // The entry point of the comparison in `benchmark-compare.sh`, which compiles it with the comparison's logic,
-// `Tests/ComposeUITests/Performance/BenchmarkComparison.swift`, where the tests cover it.
+// `ComposeUI/Tests/ComposeUITests/Performance/BenchmarkComparison.swift`, where the tests cover it.
 //
 // Usage: benchmark-compare <results directory> <time threshold %> <instructions threshold %>
 //

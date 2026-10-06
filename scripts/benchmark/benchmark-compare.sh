@@ -70,12 +70,9 @@ if ! [[ "$ROUNDS" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-PACKAGE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
-REPO_ROOT=$(git -C "$PACKAGE_DIR" rev-parse --show-toplevel)
-# ask git for the package's path in the repository instead of removing the repository's path from the package's, since
-# git resolves symlinks and `pwd` doesn't, so the two differ for a checkout reached through a symlink, such as /tmp
-PACKAGE_PATH_IN_REPO=$(git -C "$PACKAGE_DIR" rev-parse --show-prefix)
-PACKAGE_PATH_IN_REPO=${PACKAGE_PATH_IN_REPO%/}
+REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)
+PACKAGE_PATH_IN_REPO="ComposeUI"
+PACKAGE_DIR="$REPO_ROOT/$PACKAGE_PATH_IN_REPO"
 BENCHMARKS_PATH_IN_PACKAGE="Tests/ComposeUITests/Performance"
 
 if [ -z "$FILTER" ]; then

@@ -30,10 +30,10 @@
 
 import Foundation
 
-/// Compares the benchmark results of a base build and a head build, for `scripts/benchmark-compare.sh`.
+/// Compares the benchmark results of a base build and a head build, for `scripts/benchmark/benchmark-compare.sh`.
 ///
 /// The test target compiles this file to test it, and the script compiles it with its entry point,
-/// `scripts/benchmark-compare.swift`, so it uses Foundation only.
+/// `scripts/benchmark/benchmark-compare.swift`, so it uses Foundation only.
 enum BenchmarkComparison {
 
   /// The changes, in percent, past which a comparison reports a cost.
