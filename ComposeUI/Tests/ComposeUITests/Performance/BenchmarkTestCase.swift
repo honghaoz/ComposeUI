@@ -35,6 +35,8 @@ import ChouTiTest
 
 /// A test case of benchmarks: measures blocks and reports their costs in one line format.
 ///
+/// Each benchmark reports its costs with `report(name:result:extra:)`, and fails when it runs without reporting.
+///
 /// Benchmarks are skipped by default. To run them in release configuration on macOS:
 ///
 /// ```bash
@@ -57,9 +59,28 @@ import ChouTiTest
 ///   with the OS for the allocations inside the system frameworks.
 class BenchmarkTestCase: XCTestCase {
 
+  /// Whether the running benchmark reported its costs.
+  private var hasReported = false
+
   override func setUpWithError() throws {
     try super.setUpWithError()
     try XCTSkipUnless(ProcessInfo.processInfo.environment["BENCHMARK"] == "1", "benchmarks are skipped by default, run with BENCHMARK=1")
+
+    addTeardownBlock {
+      self.failIfUnreported(wasSkipped: self.testRun?.hasBeenSkipped == true)
+    }
+  }
+
+  /// Fails the running benchmark when it ran without reporting its costs.
+  ///
+  /// A benchmark that runs without reporting looks to a comparison like a benchmark that both sides stopped reporting,
+  /// so it fails instead.
+  ///
+  /// - Parameter wasSkipped: Whether the benchmark was skipped, which reports nothing on purpose.
+  func failIfUnreported(wasSkipped: Bool) {
+    if !wasSkipped, !hasReported {
+      fail("the benchmark didn't report its costs")
+    }
   }
 
   /// Measures a block.
@@ -132,6 +153,7 @@ class BenchmarkTestCase: XCTestCase {
   ///   - result: The costs to report.
   ///   - extra: Extra information to append, as `key: value` pairs separated by ` | `.
   func report(name: String, result: BenchmarkResult, extra: String? = nil) {
+    hasReported = true
     print(Self.reportLine(name: name, result: result, extra: extra))
   }
 

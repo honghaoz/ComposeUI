@@ -104,6 +104,33 @@ class BenchmarkTestCaseTests: XCTestCase {
     expect(parsed.sample) == BenchmarkComparison.Sample(time: 12.5, instructions: nil, allocations: nil)
   }
 
+  func test_failIfUnreported_withoutReport_fails() {
+    // given: a benchmark harness that hasn't reported its costs
+    let harness = BenchmarkTestCase()
+    let options = XCTExpectedFailure.Options()
+    options.issueMatcher = { $0.compactDescription == "failed - the benchmark didn't report its costs" }
+
+    // then: a run that wasn't skipped fails, since a comparison couldn't tell it from a benchmark that both sides
+    // stopped reporting
+    XCTExpectFailure("the benchmark didn't report its costs", options: options) {
+      harness.failIfUnreported(wasSkipped: false)
+    }
+  }
+
+  func test_failIfUnreported_skippedOrReported_passes() {
+    // given: a benchmark harness that hasn't reported its costs
+    let harness = BenchmarkTestCase()
+
+    // then: a skipped run passes without a report, since the comparison reports a skipped test itself
+    harness.failIfUnreported(wasSkipped: true)
+
+    // when: the benchmark reports its costs
+    harness.report(name: "reported", result: BenchmarkResult(durations: [1], instructions: nil, allocationsPerIteration: nil))
+
+    // then: a run passes
+    harness.failIfUnreported(wasSkipped: false)
+  }
+
   // MARK: - AllocationCounter
 
   func test_allocationCounter_countsEachAllocation() {

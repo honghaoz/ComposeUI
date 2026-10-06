@@ -73,6 +73,21 @@ class BenchmarkComparisonTests: XCTestCase {
     expect(BenchmarkComparison.parse("[BENCHMARK]  | median: 1.00 µs")) == nil
   }
 
+  func test_parseSkippedTest_readsTheTestName() {
+    // then: a skipped test reads as its class and method, with or without a module
+    expect(BenchmarkComparison.parseSkippedTest("Test Case '-[ComposeUITests.RenderPerformanceTests test_profile_scroll_nested]' skipped (0.001 seconds).")) == "RenderPerformanceTests.test_profile_scroll_nested"
+    expect(BenchmarkComparison.parseSkippedTest("Test Case '-[RenderPerformanceTests test_scroll]' skipped (0.000 seconds).")) == "RenderPerformanceTests.test_scroll"
+  }
+
+  func test_parseSkippedTest_otherLines_areNotSkippedTests() {
+    // then: tests that started or passed, results, and lines without a class and a method aren't skipped tests
+    expect(BenchmarkComparison.parseSkippedTest("Test Case '-[ComposeUITests.RenderPerformanceTests test_scroll]' started.")) == nil
+    expect(BenchmarkComparison.parseSkippedTest("Test Case '-[ComposeUITests.RenderPerformanceTests test_scroll]' passed (0.010 seconds).")) == nil
+    expect(BenchmarkComparison.parseSkippedTest("[BENCHMARK] scroll | median: 1.00 µs")) == nil
+    expect(BenchmarkComparison.parseSkippedTest("Test Case '-[test_scroll]' skipped (0.000 seconds).")) == nil
+    expect(BenchmarkComparison.parseSkippedTest("")) == nil
+  }
+
   // MARK: - Statistics
 
   func test_median() {
@@ -135,8 +150,28 @@ class BenchmarkComparisonTests: XCTestCase {
     expect(results.irregularNames) == ["skipped", "twice"]
   }
 
-  func test_results_readOnlyTheResultFilesOfTheSide() throws {
-    // given: a directory with the result files of two base rounds and a head round, and a log of the base
+  func test_results_readTheSkippedTests() {
+    // when: reading two rounds that skipped tests, one of them in both rounds
+    let results = BenchmarkComparison.Results(rounds: [
+      [
+        "Test Case '-[ComposeUITests.RenderPerformanceTests test_profile]' skipped (0.001 seconds).",
+        "[BENCHMARK] steady | allocations: 1.00",
+      ],
+      [
+        "Test Case '-[ComposeUITests.RenderPerformanceTests test_profile]' skipped (0.001 seconds).",
+        "Test Case '-[ComposeUITests.AdditivePathPerformanceTests test_setPath]' skipped (0.001 seconds).",
+        "[BENCHMARK] steady | allocations: 1.00",
+      ],
+    ])
+
+    // then: each skipped test reads once, and the benchmarks still read as results
+    expect(results.skippedTests) == ["AdditivePathPerformanceTests.test_setPath", "RenderPerformanceTests.test_profile"]
+    expect(results.names) == ["steady"]
+    expect(results.irregularNames.isEmpty) == true
+  }
+
+  func test_results_readOnlyTheRoundLogsOfTheSide() throws {
+    // given: a directory with the logs of two base rounds and a head round, and another file of the base
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("BenchmarkComparisonTests-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer {
@@ -156,7 +191,7 @@ class BenchmarkComparisonTests: XCTestCase {
     let base = try BenchmarkComparison.Results(side: "base", in: directory)
     let head = try BenchmarkComparison.Results(side: "head", in: directory)
 
-    // then: each side reads only its own result files
+    // then: each side reads only the logs of its own rounds
     expect(base.samples["scroll"]?.count) == 2
     expect(base.samples["scroll"]?.medianTime) == 2
     expect(head.samples["scroll"]?.count) == 1
@@ -389,6 +424,50 @@ class BenchmarkComparisonTests: XCTestCase {
     expect(report.rows.isEmpty) == true
     expect(report.passes) == false
     expect(report.markdown) == "🛑 No benchmark results found."
+
+    // when: comparing sides that skipped their only test
+    let skipped = "Test Case '-[ComposeUITests.RenderPerformanceTests test_scroll]' skipped (0.001 seconds)."
+    let reportWithSkippedTest = compare(base: [[skipped]], head: [[skipped]])
+
+    // then: the comparison fails, and lists the skipped test that explains the missing results
+    expect(reportWithSkippedTest.passes) == false
+    expect(reportWithSkippedTest.markdown) == """
+    🛑 No benchmark results found.
+    🛑 1 test was skipped, so its benchmarks weren't compared: RenderPerformanceTests.test_scroll (base and head).
+    """
+  }
+
+  func test_compare_skippedTests_failTheComparison() {
+    // given: rounds of a benchmark that both sides report, in which both sides skip one test, the base skips another, and
+    // the head skips a third
+    let base = [
+      "[BENCHMARK] steady | allocations: 5.00",
+      "Test Case '-[ComposeUITests.RenderPerformanceTests test_both]' skipped (0.001 seconds).",
+      "Test Case '-[ComposeUITests.RenderPerformanceTests test_base]' skipped (0.001 seconds).",
+    ]
+    let head = [
+      "[BENCHMARK] steady | allocations: 5.00",
+      "Test Case '-[ComposeUITests.RenderPerformanceTests test_both]' skipped (0.001 seconds).",
+      "Test Case '-[ComposeUITests.AdditivePathPerformanceTests test_head]' skipped (0.001 seconds).",
+    ]
+
+    // when: comparing them
+    let report = compare(base: [base], head: [head])
+
+    // then: the benchmark compares, but the comparison fails, since a skipped test reports nothing, so the benchmarks it
+    // reports would look like benchmarks that both sides stopped reporting. the summary lists the tests by name, with the
+    // sides that skipped them
+    expect(report.rows.map(\.findings)) == [[]]
+    expect(report.passes) == false
+    expect(report.markdown) == """
+    | Benchmark | Time (µs) | Instructions | Allocations | Result |
+    |---|---|---|---|---|
+    | steady | n/a | n/a | 5 → 5 | ok |
+
+    1 benchmark: 0 regressions, 0 time warnings.
+    🛑 3 tests were skipped, so their benchmarks weren't compared: AdditivePathPerformanceTests.test_head (head), RenderPerformanceTests.test_base (base), RenderPerformanceTests.test_both (base and head).
+    Instructions weren't counted, as this machine doesn't expose the CPU's counters.
+    """
   }
 
   func test_compare_benchmarkNotReportedOncePerRound_failsTheComparison() {

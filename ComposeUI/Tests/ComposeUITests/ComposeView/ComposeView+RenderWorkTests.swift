@@ -83,6 +83,27 @@ class ComposeView_RenderWorkTests: XCTestCase {
     }
   }
 
+  func test_scroll_textRows_makeTextViewsOnlyForTheRowsShownFirst() {
+    // given: text rows rendered at the top, with a pool that counts the text views it serves and the ones it can't
+    let pool = CountingRenderablePool()
+    let view = makeRowsView(pool: pool) {
+      TextNode("Row")
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+    view.refresh(animated: false)
+
+    // when: scrolling by one row at a time, 10 times
+    for step in 1 ... 10 {
+      view.contentOffset = CGPoint(x: 0, y: CGFloat(step) * Constants.rowHeight)
+      view.layoutIfNeeded()
+    }
+
+    // then: text views are made only for the 2 rows shown first, and each of the 10 rows moving in reuses the text view
+    // of the row moving out
+    expect(pool.missCount) == 2
+    expect(pool.hitCount) == 10
+  }
+
   func test_refresh_unchangedContent_updatesTheRenderablesInPlace() {
     // given: rows rendered at the top
     let view = makeRowsView {
@@ -116,7 +137,7 @@ class ComposeView_RenderWorkTests: XCTestCase {
   }
 
   /// A view of rows in a vertical stack, with its own renderable pool.
-  private func makeRowsView(rowCount: Int = Constants.rowCount, row: @escaping () -> some ComposeNode) -> ComposeView {
+  private func makeRowsView(rowCount: Int = Constants.rowCount, pool: RenderablePoolType = RenderablePool(), row: @escaping () -> some ComposeNode) -> ComposeView {
     let view = ComposeView {
       VStack {
         for _ in 0 ..< rowCount {
@@ -124,8 +145,31 @@ class ComposeView_RenderWorkTests: XCTestCase {
         }
       }
     }
-    view.renderablePool = RenderablePool() // isolate from the shared pool, so earlier tests don't affect the reuse
+    view.renderablePool = pool // isolate from the shared pool, so earlier tests don't affect the reuse
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
     return view
+  }
+}
+
+/// A renderable pool that counts the renderables it serves, and the requests it can't serve.
+private final class CountingRenderablePool: RenderablePoolType {
+
+  private(set) var hitCount = 0
+  private(set) var missCount = 0
+
+  private let backing = RenderablePool()
+
+  func enqueue(_ renderable: Renderable, key: ReuseKey) {
+    backing.enqueue(renderable, key: key)
+  }
+
+  func dequeue(_ key: ReuseKey) -> Renderable? {
+    if let renderable = backing.dequeue(key) {
+      hitCount += 1
+      return renderable
+    } else {
+      missCount += 1
+      return nil
+    }
   }
 }
