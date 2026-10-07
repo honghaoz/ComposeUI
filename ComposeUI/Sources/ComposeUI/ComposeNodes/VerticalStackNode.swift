@@ -39,9 +39,20 @@ public typealias VerticalStack = VerticalStackNode
 /// The node's height is the sum of its children's heights plus the spacing between them.
 public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
+  /// The latest layout's pass, container size and sizing, which a layout in the same pass at the same container size
+  /// returns instead of laying out the children again.
+  ///
+  /// Declared first: it ends 7 bytes short of an 8-byte boundary, and the one-byte `alignment` declared after it goes
+  /// into those bytes instead of taking an 8-byte slot of its own, which keeps the stack's heap box 16 bytes smaller.
+  private var lastLayout: (passId: UInt64, containerSize: CGSize, sizing: ComposeNodeSizing)?
+
   private let alignment: Layout.HorizontalAlignment
   private let spacing: CGFloat
-  var childNodes: [any ComposeNode]
+  var childNodes: [any ComposeNode] {
+    didSet {
+      lastLayout = nil
+    }
+  }
 
   public init(alignment: Layout.HorizontalAlignment = .center,
               spacing: CGFloat = 0,
@@ -66,6 +77,13 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
   private var layoutCache = StackLayoutCache()
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    // a stack lays out each flexible child twice, for its sizing and at its proposed size, so without returning a layout
+    // made at the same size earlier in the pass, each enclosing stack with a flexible child would double the layouts of
+    // the nodes in it
+    if let lastLayout, lastLayout.passId == context.passId, lastLayout.containerSize == containerSize {
+      return lastLayout.sizing
+    }
+
     guard !childNodes.isEmpty else {
       size = .zero
       layoutCache = StackLayoutCache()
@@ -158,7 +176,9 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
     layoutCache.update(childOrigins: childOrigins, childItemsBoundingRects: childItemsBoundingRects, mainAxis: .vertical)
 
-    return ComposeNodeSizing(width: widthSizing, height: heightSizing)
+    let sizing = ComposeNodeSizing(width: widthSizing, height: heightSizing)
+    lastLayout = (context.passId, containerSize, sizing)
+    return sizing
   }
 
   public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {

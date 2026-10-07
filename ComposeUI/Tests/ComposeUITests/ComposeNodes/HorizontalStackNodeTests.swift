@@ -281,6 +281,71 @@ class HorizontalStackNodeTests: XCTestCase {
     }
   }
 
+  func test_layout_sameContainerSizeInAPass_returnsTheEarlierLayout() {
+    // given: a stack of a flexible node that counts its layouts and a fixed node, laid out in a pass
+    let state = TestNode.State()
+    var node = HStack {
+      TestNode(state: state)
+      LayerNode().frame(width: 20, height: 10)
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let sizing = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
+    let layoutCount = state.layoutCount
+
+    // when: laying out the stack again at the same container size in the same pass
+    let sizingAgain = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
+
+    // then: the stack returns the earlier layout, without laying out its children again
+    expect(state.layoutCount) == layoutCount
+    expect(sizingAgain) == sizing
+    expect(node.size) == CGSize(width: 100, height: 50)
+  }
+
+  func test_layout_otherContainerSizeOrPass_laysOutAgain() {
+    // given: a stack of a flexible node that counts its layouts and a fixed node, laid out in a pass
+    let state = TestNode.State()
+    var node = HStack {
+      TestNode(state: state)
+      LayerNode().frame(width: 20, height: 10)
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
+    var layoutCount = state.layoutCount
+
+    // when: laying out the stack at another container size in the same pass
+    _ = node.layout(containerSize: CGSize(width: 60, height: 50), context: context)
+
+    // then: the stack lays out its flexible child again, for its sizing and at its proposed width
+    expect(state.layoutCount) == layoutCount + 2
+    expect(node.size) == CGSize(width: 60, height: 50)
+    layoutCount = state.layoutCount
+
+    // when: laying out the stack at the same container size in a new pass
+    _ = node.layout(containerSize: CGSize(width: 60, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the stack lays out its flexible child again, since the content can change between passes
+    expect(state.layoutCount) == layoutCount + 2
+    expect(node.size) == CGSize(width: 60, height: 50)
+  }
+
+  func test_layout_afterTheChildrenChange_laysOutTheNewChildren() {
+    // given: a stack of a flexible node, laid out in a pass
+    var node = HStack {
+      LayerNode()
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
+    expect(node.size) == CGSize(width: 100, height: 50)
+
+    // when: replacing the child with a fixed node, and laying out the stack at the same container size in the same pass
+    node = node.mapChildren { _ in LayerNode().frame(width: 40, height: 30) }
+    let sizing = node.layout(containerSize: CGSize(width: 100, height: 50), context: context)
+
+    // then: the stack lays out the new child, instead of returning the layout of the old one
+    expect(sizing) == ComposeNodeSizing(width: .fixed(40), height: .fixed(30))
+    expect(node.size) == CGSize(width: 40, height: 30)
+  }
+
   func test_renderableItems_filtersOffscreenChildren() {
     // given: a laid out hstack with three fixed size children
     var node = HStack {

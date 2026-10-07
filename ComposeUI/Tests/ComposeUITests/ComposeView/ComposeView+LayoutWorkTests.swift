@@ -64,9 +64,9 @@ class ComposeView_LayoutWorkTests: XCTestCase {
     }
   }
 
-  func test_refresh_nestedStacksWithASpacer_layOutTheLeafTwicePerEnclosingStack() {
+  func test_refresh_nestedStacksWithASpacer_layOutTheLeafOncePerEnclosingStack() {
     for container in [Container.verticalStackWithSpacer, .horizontalStackWithSpacer] {
-      for depth in 1 ... 4 {
+      for depth in 1 ... 8 {
         // given: a leaf node in nested stacks that each also hold a spacer
         let state = TestNode.State()
         let view = ComposeView {
@@ -77,9 +77,10 @@ class ComposeView_LayoutWorkTests: XCTestCase {
         // when: refreshing
         view.refresh(animated: false)
 
-        // then: a stack lays out a flexible child twice, for the child's sizing and at the proposed size, and a stack
-        // that holds a spacer is flexible, so each enclosing stack doubles the leaf's layouts
-        expect(state.layoutCount, "\(container) at depth \(depth)") == 1 << (depth - 1)
+        // then: a stack that holds a spacer is flexible, so its enclosing stack lays it out twice, for its sizing and at
+        // its proposed size, but a stack laid out again at a size it already had in the pass returns that layout, so
+        // each enclosing stack adds one layout of the leaf instead of doubling them
+        expect(state.layoutCount, "\(container) at depth \(depth)") == depth
       }
     }
   }
