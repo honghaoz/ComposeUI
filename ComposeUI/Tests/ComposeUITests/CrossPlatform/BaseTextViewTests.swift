@@ -209,6 +209,44 @@ class BaseTextViewTests: XCTestCase {
       expect(textView.intrinsicSizeInvalidationCount, textKit) == 1
     }
   }
+
+  func test_textAndLayoutSettings_setInOneTurn_layOutTheTextViewOnce() {
+    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, with the layout it scheduled run
+      textView.attributedString = Self.makeText("Hello")
+      runScheduledBlocks()
+      textView.layoutCount = 0
+
+      // when: setting another text, number of lines and line break mode in one turn, as a refresh does, and running the
+      // blocks they scheduled
+      textView.attributedString = Self.makeText("Hello, world!")
+      textView.numberOfLines = 2
+      textView.lineBreakMode = .byClipping
+      runScheduledBlocks()
+
+      // then: the text view is laid out once, after all of the changes
+      expect(textView.layoutCount, textKit) == 1
+    }
+  }
+
+  func test_changeDuringTheScheduledLayout_schedulesAnotherLayout() {
+    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view whose first scheduled layout sets the number of lines, as a subclass can
+      textView.onLayout = { [weak textView] in
+        textView?.onLayout = nil
+        textView?.numberOfLines = 3
+      }
+
+      // when: setting a text, and running the blocks it scheduled, then the blocks its layout scheduled
+      textView.attributedString = Self.makeText("Hello")
+      runScheduledBlocks()
+      runScheduledBlocks()
+
+      // then: the change made during the layout gets a layout of its own
+      expect(textView.layoutCount, textKit) == 2
+      expect(textView.textContainer?.maximumNumberOfLines, textKit) == 3
+    }
+  }
   #endif
 
   // MARK: - resetForReuse
@@ -632,10 +670,20 @@ class BaseTextViewTests: XCTestCase {
 }
 
 #if canImport(AppKit)
-/// A text view that counts the invalidations of its intrinsic size.
+/// A text view that counts its layout passes and the invalidations of its intrinsic size.
 private final class CountingTextView: BaseTextView {
 
+  var layoutCount = 0
   var intrinsicSizeInvalidationCount = 0
+
+  /// Called at the end of each layout pass.
+  var onLayout: (() -> Void)?
+
+  override func layout() {
+    super.layout()
+    layoutCount += 1
+    onLayout?()
+  }
 
   override func invalidateIntrinsicContentSize() {
     super.invalidateIntrinsicContentSize()

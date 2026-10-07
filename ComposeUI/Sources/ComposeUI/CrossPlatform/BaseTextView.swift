@@ -61,6 +61,9 @@ open class BaseTextView: TextView {
   /// Whether the text view uses TextKit 2.
   private let usesTextKit2: Bool
 
+  /// Whether a layout is scheduled for the next turn of the run loop.
+  private var isLayoutScheduled = false
+
   /// The text storage that shows the text.
   var shownTextStorage: NSTextStorage? {
     if usesTextKit2, #available(macOS 12.0, *) {
@@ -203,9 +206,18 @@ open class BaseTextView: TextView {
   }
 
   private func scheduleLayout() {
+    // a refresh sets the text, the number of lines and the line break mode in one turn, and each schedules a layout,
+    // but one layout after all of them does the same work, so a layout that is already scheduled isn't scheduled again
+    guard !isLayoutScheduled else {
+      return
+    }
+    isLayoutScheduled = true
+
     // schedule a layout on the next runloop to avoid an issue where the underlying `_NSTextViewportElementView`
     // doesn't update immediately when setting text with different lengths
     onNextRunLoop { [weak self] in
+      // cleared before the layout, so that a change made during the layout schedules another one
+      self?.isLayoutScheduled = false
       self?.setNeedsLayout()
       self?.layoutIfNeeded()
     }
