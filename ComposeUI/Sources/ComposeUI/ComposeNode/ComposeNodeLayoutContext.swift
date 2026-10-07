@@ -39,15 +39,22 @@ public struct ComposeNodeLayoutContext {
   /// The content evaluation shared by the layout and rendering that use this context.
   let contentEvaluation: ContentEvaluation
 
+  /// The layout pass this context is for, which no other context has. Content doesn't change during a pass, so a node
+  /// laid out again at the same container size in the same pass can return its earlier layout.
+  let passId: UInt64
+
   /// Creates a `ComposeNodeLayoutContext` with the given scale factor.
   ///
-  /// Nodes with lazily evaluated content, such as `SwiftUIViewNode`, evaluate it once per context. Reuse one context
-  /// across layout calls to keep the evaluated content, or create a new context to evaluate it again.
+  /// A context is one layout pass of unchanged content: nodes with lazily evaluated content, such as `SwiftUIViewNode`,
+  /// evaluate it once per context, and a stack laid out again at the same container size with the same context returns
+  /// its earlier layout. Reuse one context across the layout calls of a pass, and create a new context to lay out
+  /// content again after it changes.
   ///
   /// - Parameter scaleFactor: The scale factor.
   public init(scaleFactor: CGFloat) {
     self.scaleFactor = scaleFactor
     self.contentEvaluation = ContentEvaluation()
+    self.passId = Self.makePassId()
   }
 
   /// Creates a layout context with the given content evaluation.
@@ -58,5 +65,18 @@ public struct ComposeNodeLayoutContext {
   init(scaleFactor: CGFloat, contentEvaluation: ContentEvaluation) {
     self.scaleFactor = scaleFactor
     self.contentEvaluation = contentEvaluation
+    self.passId = Self.makePassId()
+  }
+}
+
+private extension ComposeNodeLayoutContext {
+
+  /// The pass id of the latest context made. Layout runs on the main thread only.
+  static var latestPassId: UInt64 = 0
+
+  /// Returns a pass id that no earlier context has.
+  static func makePassId() -> UInt64 {
+    latestPassId += 1
+    return latestPassId
   }
 }
