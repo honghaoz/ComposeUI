@@ -34,11 +34,18 @@ import Foundation
 @resultBuilder
 public enum ComposeContentBuilder {
 
-  public indirect enum Item<Expression> {
+  public enum Item<Expression> {
+
     case array([Item])
-    case optional(Item?)
+
+    // indirect on this case instead of the enum: it's the only case that holds an item inline, and an indirect enum
+    // puts every item, one for each expression in a block, in its own heap allocation
+    indirect case optional(Item?)
+
     case expressionSingle(Expression)
+
     case expressionArray([Expression])
+
     case void
   }
 
