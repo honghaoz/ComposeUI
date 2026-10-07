@@ -624,7 +624,9 @@ class BaseTextViewTests: XCTestCase {
   /// Runs the main run loop until the blocks scheduled on it so far have run, such as a text view's scheduled layout.
   private func runScheduledBlocks() {
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
   }
 }

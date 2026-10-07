@@ -96,7 +96,7 @@ open class BaseTextView: TextView {
       let storage = shownTextStorage
 
       // replacing the text storage's content edits it even with an equal text, which costs allocations and moves the
-      // selection to the end, so an equal text is left in place. It's compared with the text storage instead of the old
+      // selection to the end, so an equal text is left in place. it's compared with the text storage instead of the old
       // value, since the text storage can hold the user's edits, which a new value replaces as before
       if storage?.isEqual(to: attributedString) != true {
         storage?.setAttributedString(attributedString)
@@ -223,8 +223,8 @@ open class BaseTextView: TextView {
     // for attributed text with `.byTruncatingTail` break mode, the text can overflow the bounds of the text view
     clipsToBounds = true
 
-    // TextKit 1 draws the text in the text view itself, without the TextKit 2 subviews below, so their lookups would fail
-    // their assertions
+    // TextKit 1 draws the text in the text view itself, without the TextKit 2 subviews below, so their lookups would
+    // fail their assertions
     guard usesTextKit2 else {
       return
     }

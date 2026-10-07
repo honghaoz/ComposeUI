@@ -519,7 +519,9 @@ class ComposeViewNodeTests: XCTestCase {
 
     // when: the run loop performs the deferred refresh
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: the nested view shows the new configuration and is still the only nested view

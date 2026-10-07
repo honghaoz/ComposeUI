@@ -277,7 +277,9 @@ class ComposeView_PreparedContentTests: XCTestCase {
 
       // when: the run loop reaches the callback scheduled by the cancelled request
       var isDrained = false
-      RunLoop.main.perform { isDrained = true }
+      RunLoop.main.perform {
+        isDrained = true
+      }
       expect(isDrained).toEventually(beTrue())
 
       // then: the cancelled request does not render again
