@@ -38,7 +38,7 @@ import UIKit
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class BaseTextViewTests: XCTestCase {
 
@@ -101,89 +101,145 @@ class BaseTextViewTests: XCTestCase {
   // MARK: - Text
 
   func test_attributedString_equalText_leavesTheTextStorageUnedited() throws {
-    // given: a text view showing a text, and an observer of its text storage's edits
-    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
-    textView.attributedString = Self.makeText("Hello, world!")
-    let textStorage = try Self.textStorage(of: textView).unwrap()
-    var editCount = 0
-    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
-      editCount += 1
+    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, and an observer of its text storage's edits
+      textView.attributedString = Self.makeText("Hello, world!")
+      let textStorage = try Self.textStorage(of: textView).unwrap()
+      var editCount = 0
+      let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+        editCount += 1
+      }
+      defer {
+        NotificationCenter.default.removeObserver(observer)
+      }
+
+      // when: setting an equal text, made anew
+      textView.attributedString = Self.makeText("Hello, world!")
+
+      // then: the text storage isn't edited
+      expect(editCount, textKit) == 0
+
+      // when: setting another text
+      textView.attributedString = Self.makeText("Goodbye")
+
+      // then: the text storage is edited to show it
+      expect(editCount, textKit) == 1
+      expect(textStorage.string, textKit) == "Goodbye"
     }
-    defer {
-      NotificationCenter.default.removeObserver(observer)
-    }
-
-    // when: setting an equal text, made anew
-    textView.attributedString = Self.makeText("Hello, world!")
-
-    // then: the text storage isn't edited
-    expect(editCount) == 0
-
-    // when: setting another text
-    textView.attributedString = Self.makeText("Goodbye")
-
-    // then: the text storage is edited to show it
-    expect(editCount) == 1
-    expect(textStorage.string) == "Goodbye"
   }
 
   func test_attributedString_equalText_keepsTheSelection() {
-    // given: a text view showing a text, with part of it selected
-    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
-    textView.attributedString = Self.makeText("Hello, world!")
-    #if canImport(AppKit)
-    textView.setSelectedRange(NSRange(location: 0, length: 5))
-    #endif
-    #if canImport(UIKit)
-    textView.selectedRange = NSRange(location: 0, length: 5)
-    #endif
+    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, with part of it selected
+      textView.attributedString = Self.makeText("Hello, world!")
+      #if canImport(AppKit)
+      textView.setSelectedRange(NSRange(location: 0, length: 5))
+      #endif
+      #if canImport(UIKit)
+      textView.selectedRange = NSRange(location: 0, length: 5)
+      #endif
 
-    // when: setting an equal text, made anew, as a refresh of unchanged content does
-    textView.attributedString = Self.makeText("Hello, world!")
+      // when: setting an equal text, made anew, as a refresh of unchanged content does
+      textView.attributedString = Self.makeText("Hello, world!")
 
-    // then: the selection stays
-    expect(textView.selectedRange) == NSRange(location: 0, length: 5)
+      // then: the selection stays
+      expect(textView.selectedRange, textKit) == NSRange(location: 0, length: 5)
+    }
   }
 
   func test_attributedString_sameTextAfterAnEdit_replacesTheEdit() throws {
-    // given: a text view showing a text, which the user then edited
-    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
-    textView.attributedString = Self.makeText("Hello")
-    let textStorage = try Self.textStorage(of: textView).unwrap()
-    textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
-    expect(textStorage.string) == "Hello, world!"
+    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, which the user then edited
+      textView.attributedString = Self.makeText("Hello")
+      let textStorage = try Self.textStorage(of: textView).unwrap()
+      textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+      expect(textStorage.string, textKit) == "Hello, world!"
 
-    // when: setting the same text as before the edit
-    textView.attributedString = Self.makeText("Hello")
+      // when: setting the same text as before the edit
+      textView.attributedString = Self.makeText("Hello")
 
-    // then: the text replaces the edit, since an equal text is compared with the text storage, not the old text
-    expect(textStorage.string) == "Hello"
+      // then: the text replaces the edit, since an equal text is compared with the text storage, not the old text
+      expect(textStorage.string, textKit) == "Hello"
+    }
+  }
+
+  func test_numberOfLinesAndLineBreakMode_textContainerChangedDirectly_sameValuesResynchronizeIt() throws {
+    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing 2 lines truncated at the tail, whose text container was then changed directly
+      textView.numberOfLines = 2
+      textView.lineBreakMode = .byTruncatingTail
+      let textContainer = try (textView.textContainer as NSTextContainer?).unwrap()
+      textContainer.maximumNumberOfLines = 5
+      textContainer.lineBreakMode = .byClipping
+
+      // when: setting the same values again
+      textView.numberOfLines = 2
+      textView.lineBreakMode = .byTruncatingTail
+
+      // then: the text container is back to them
+      expect(textContainer.maximumNumberOfLines, textKit) == 2
+      expect(textContainer.lineBreakMode, textKit) == .byTruncatingTail
+    }
   }
 
   #if canImport(AppKit)
+  func test_attributedString_userEditedText_invalidatesTheIntrinsicSizeWithoutEditingTheTextStorage() throws {
+    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, and an observer of its text storage's edits
+      textView.attributedString = Self.makeText("Hello")
+      let textStorage = try Self.textStorage(of: textView).unwrap()
+      var editCount = 0
+      let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+        editCount += 1
+      }
+      defer {
+        NotificationCenter.default.removeObserver(observer)
+      }
+      textView.intrinsicSizeInvalidationCount = 0
+
+      // when: setting the same text again
+      textView.attributedString = Self.makeText("Hello")
+
+      // then: the intrinsic size stays valid
+      expect(textView.intrinsicSizeInvalidationCount, textKit) == 0
+
+      // when: the user edits the text, and the edited text is then set
+      textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+      editCount = 0
+      textView.intrinsicSizeInvalidationCount = 0
+      textView.attributedString = Self.makeText("Hello, world!")
+
+      // then: the intrinsic size, which depends on the text, is invalidated, but the text storage, which already shows
+      // the text, isn't edited
+      expect(textView.intrinsicSizeInvalidationCount, textKit) == 1
+      expect(editCount, textKit) == 0
+    }
+  }
+
   func test_numberOfLinesAndLineBreakMode_sameValues_scheduleNoLayout() {
-    // given: a text view that counts its layout passes, showing 2 lines truncated at the tail, with the layout that the
-    // changes scheduled run
-    let textView = LayoutCountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
-    textView.numberOfLines = 2
-    textView.lineBreakMode = .byTruncatingTail
-    RunLoop.main.run(until: Date())
-    textView.layoutCount = 0
+    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view that counts its layout passes, showing 2 lines truncated at the tail, with the layout that
+      // the changes scheduled run
+      textView.numberOfLines = 2
+      textView.lineBreakMode = .byTruncatingTail
+      runScheduledBlocks()
+      textView.layoutCount = 0
 
-    // when: setting the same values again, and running the run loop
-    textView.numberOfLines = 2
-    textView.lineBreakMode = .byTruncatingTail
-    RunLoop.main.run(until: Date())
+      // when: setting the same values again, and running the blocks scheduled on the run loop
+      textView.numberOfLines = 2
+      textView.lineBreakMode = .byTruncatingTail
+      runScheduledBlocks()
 
-    // then: no layout runs
-    expect(textView.layoutCount) == 0
+      // then: no layout runs
+      expect(textView.layoutCount, textKit) == 0
 
-    // when: changing the number of lines, and running the run loop
-    textView.numberOfLines = 3
-    RunLoop.main.run(until: Date())
+      // when: changing the number of lines, and running the blocks scheduled on the run loop
+      textView.numberOfLines = 3
+      runScheduledBlocks()
 
-    // then: the scheduled layout runs
-    expect(textView.layoutCount) == 1
+      // then: the scheduled layout runs
+      expect(textView.layoutCount, textKit) == 1
+    }
   }
   #endif
 
@@ -567,25 +623,59 @@ class BaseTextViewTests: XCTestCase {
   /// Returns the text storage that shows the text view's text.
   private static func textStorage(of textView: BaseTextView) -> NSTextStorage? {
     #if canImport(AppKit)
-    if #available(macOS 12.0, *), let textStorage = textView.textContentStorage?.textStorage {
-      return textStorage
-    }
-    return textView.textStorage
+    return textView.shownTextStorage
     #else
     return textView.textStorage
     #endif
   }
+
+  /// Returns a text view of each TextKit the platform's text views use, TextKit 2 and TextKit 1 on macOS, with the
+  /// TextKit's name.
+  private static func makeTextViews<T: BaseTextView>(_ make: () -> T) -> [(String, T)] {
+    #if canImport(AppKit)
+    BaseTextView.usesTextKit1ForTesting = true
+    let textKit1TextView = make()
+    BaseTextView.usesTextKit1ForTesting = false
+    let textKit2TextView = make()
+    // if the flag stopped taking effect, the TextKit 1 runs would silently test TextKit 2 again
+    expect(textKit2TextView.textLayoutManager) != nil
+    expect(textKit1TextView.textLayoutManager) == nil
+    return [("TextKit 2", textKit2TextView), ("TextKit 1", textKit1TextView)]
+    #else
+    return [("TextKit", make())]
+    #endif
+  }
+
+  /// Runs the main run loop until the blocks scheduled on it so far have run, which it runs in the order they were
+  /// scheduled.
+  private func runScheduledBlocks() {
+    var didRunMarker = false
+    RunLoop.main.perform(inModes: [.common]) {
+      didRunMarker = true
+    }
+    let deadline = Date(timeIntervalSinceNow: 5)
+    while !didRunMarker, Date() < deadline {
+      RunLoop.main.run(mode: .default, before: deadline)
+    }
+    expect(didRunMarker) == true
+  }
 }
 
 #if canImport(AppKit)
-/// A text view that counts its layout passes.
-private final class LayoutCountingTextView: BaseTextView {
+/// A text view that counts its layout passes and the invalidations of its intrinsic size.
+private final class CountingTextView: BaseTextView {
 
   var layoutCount = 0
+  var intrinsicSizeInvalidationCount = 0
 
   override func layout() {
     super.layout()
     layoutCount += 1
+  }
+
+  override func invalidateIntrinsicContentSize() {
+    super.invalidateIntrinsicContentSize()
+    intrinsicSizeInvalidationCount += 1
   }
 }
 #endif

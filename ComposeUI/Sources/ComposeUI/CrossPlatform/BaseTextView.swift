@@ -52,6 +52,24 @@ open class BaseTextView: TextView {
     }
   }()
 
+  #if DEBUG
+  /// Whether the text views made from now on use TextKit 1, so that tests cover the TextKit 1 paths, which macOS 13 and
+  /// later don't take.
+  static var usesTextKit1ForTesting = false
+  #endif
+
+  /// Whether the text view uses TextKit 2.
+  private let usesTextKit2: Bool
+
+  /// The text storage that shows the text.
+  var shownTextStorage: NSTextStorage? {
+    if usesTextKit2, #available(macOS 12.0, *) {
+      return textContentStorage?.textStorage
+    } else {
+      return textStorage
+    }
+  }
+
   override open var isFlipped: Bool { true }
 
   // ⚠️ DON'T OVERRIDE `wantsUpdateLayer` ⚠️
@@ -72,19 +90,17 @@ open class BaseTextView: TextView {
   /// The attributed string content of the text view.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
-      let storage: NSTextStorage?
-      if BaseTextView.shouldUseTextKit2, #available(macOS 12.0, *) {
-        // TextKit 2
-        storage = textContentStorage?.textStorage
-      } else {
-        // TextKit 1
-        storage = textStorage
-      }
+      let storage = shownTextStorage
 
       // a refresh sets the same text again, and replacing the text storage's content costs allocations and a layout, so
-      // an equal text is skipped. It's compared with the text storage instead of the old value, since an editable text
-      // view can hold the user's edits, which a new value replaces as before
+      // an equal text isn't set again. It's compared with the text storage instead of the old value, since an editable
+      // text view can hold the user's edits, which a new value replaces as before
       guard storage?.isEqual(to: attributedString) != true else {
+        // the text storage can already show a new value, after the user edited the text, and the intrinsic size depends
+        // on the value, so it's invalidated, but the text storage is left as it is, with the user's selection
+        if !oldValue.isEqual(to: attributedString) {
+          invalidateIntrinsicContentSize()
+        }
         return
       }
 
@@ -98,16 +114,15 @@ open class BaseTextView: TextView {
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
     didSet {
-      // a refresh sets the same value again, which needs no layout
-      guard numberOfLines != oldValue else {
+      let maximumNumberOfLines = numberOfLines > 0 ? numberOfLines : 0
+
+      // a refresh sets the same value again, which needs no layout, unless the public text container was changed
+      // directly, which the value set again resynchronizes
+      guard numberOfLines != oldValue || textContainer?.maximumNumberOfLines != maximumNumberOfLines else {
         return
       }
 
-      if numberOfLines == 1 {
-        textContainer?.maximumNumberOfLines = 1
-      } else {
-        textContainer?.maximumNumberOfLines = numberOfLines > 0 ? numberOfLines : 0
-      }
+      textContainer?.maximumNumberOfLines = maximumNumberOfLines
 
       invalidateIntrinsicContentSize()
       scheduleLayout()
@@ -117,8 +132,9 @@ open class BaseTextView: TextView {
   /// The line break mode to use for the text view. Default is `byWordWrapping`.
   open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
-      // a refresh sets the same value again, which needs no layout
-      guard lineBreakMode != oldValue else {
+      // a refresh sets the same value again, which needs no layout, unless the public text container was changed
+      // directly, which the value set again resynchronizes
+      guard lineBreakMode != oldValue || textContainer?.lineBreakMode != lineBreakMode else {
         return
       }
 
@@ -130,7 +146,14 @@ open class BaseTextView: TextView {
   }
 
   override public init(frame: CGRect) {
-    if BaseTextView.shouldUseTextKit2, #available(macOS 12.0, *) {
+    #if DEBUG
+    let usesTextKit2 = BaseTextView.shouldUseTextKit2 && !BaseTextView.usesTextKit1ForTesting
+    #else
+    let usesTextKit2 = BaseTextView.shouldUseTextKit2
+    #endif
+    self.usesTextKit2 = usesTextKit2
+
+    if usesTextKit2, #available(macOS 12.0, *) {
       let textContainer = NSTextContainer(size: frame.size)
 
       let textLayoutManager = NSTextLayoutManager()
@@ -211,6 +234,13 @@ open class BaseTextView: TextView {
     // clips the text within the bounds of the text view
     // for attributed text with `.byTruncatingTail` break mode, the text can overflow the bounds of the text view
     clipsToBounds = true
+
+    // TextKit 1 draws the text in the text view itself, without the TextKit 2 subviews below, so their lookups would fail
+    // their assertions
+    guard usesTextKit2 else {
+      return
+    }
+
     if #available(macOS 26.0, *) {
       // macOS 26 (Tahoe) 26.4.1 (25E253)
       // (lldb) po subviews
@@ -295,8 +325,14 @@ open class BaseTextView: UITextView {
   /// The attributed string content of the text view.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
-      // unlike NSTextView's text storage, UITextView leaves an equal text in place, so the same text set again by a
-      // refresh needs no check here
+      // a refresh sets the same text again, and on tvOS, unlike on iOS and visionOS, UITextView replaces its text
+      // storage's content even with an equal text, so an equal text isn't set again. It's compared with the text storage
+      // instead of the old value, since an editable text view can hold the user's edits, which a new value replaces as
+      // before
+      guard !textStorage.isEqual(to: attributedString) else {
+        return
+      }
+
       attributedText = attributedString
     }
   }
