@@ -85,6 +85,26 @@ class ComposeView_LayoutWorkTests: XCTestCase {
     }
   }
 
+  func test_refresh_alternatingStacksWithASpacer_doubleTheLeafLayoutsFromTheThirdLevel() {
+    for depth in 1 ... 8 {
+      // given: a leaf node in nested stacks that alternate between vertical and horizontal, each also holding a spacer
+      let state = TestNode.State()
+      let view = ComposeView {
+        Self.nest(TestNode(state: state).frame(width: 10, height: 10), in: .alternatingStacksWithSpacer, depth: depth)
+      }
+      view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: refreshing
+      view.refresh(animated: false)
+
+      // then: from the third level on, each stack is flexible in its enclosing stack's direction, so the enclosing stack
+      // lays it out twice, for its sizing and at its proposed size. The levels change the width and the height in turns,
+      // so no stack is laid out again at a size it already had in the pass, and each of these levels doubles the leaf's
+      // layouts
+      expect(state.layoutCount, "at depth \(depth)") == 1 << max(depth - 2, 0)
+    }
+  }
+
   // MARK: - Text Measurements
 
   func test_refresh_measuresEachTextOnce() {
@@ -146,6 +166,7 @@ class ComposeView_LayoutWorkTests: XCTestCase {
     case horizontalStack
     case verticalStackWithSpacer
     case horizontalStackWithSpacer
+    case alternatingStacksWithSpacer
     case layeredStack
     case padding
     case flexibleFrame
@@ -173,6 +194,18 @@ class ComposeView_LayoutWorkTests: XCTestCase {
       return HStack {
         child
         Spacer()
+      }
+    case .alternatingStacksWithSpacer:
+      if depth.isMultiple(of: 2) {
+        return HStack {
+          child
+          Spacer()
+        }
+      } else {
+        return VStack {
+          child
+          Spacer()
+        }
       }
     case .layeredStack:
       return ZStack { child }

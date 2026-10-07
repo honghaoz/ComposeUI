@@ -29,6 +29,7 @@
 //
 
 import CoreGraphics
+import Foundation
 
 /// The context for layout.
 public struct ComposeNodeLayoutContext {
@@ -48,7 +49,7 @@ public struct ComposeNodeLayoutContext {
   /// A context is one layout pass of unchanged content: nodes with lazily evaluated content, such as `SwiftUIViewNode`,
   /// evaluate it once per context, and a stack laid out again at the same container size with the same context returns
   /// its earlier layout. Reuse one context across the layout calls of a pass, and create a new context to lay out
-  /// content again after it changes.
+  /// content again after it changes. Create and use a context on the main thread, where layout runs.
   ///
   /// - Parameter scaleFactor: The scale factor.
   public init(scaleFactor: CGFloat) {
@@ -71,11 +72,14 @@ public struct ComposeNodeLayoutContext {
 
 private extension ComposeNodeLayoutContext {
 
-  /// The pass id of the latest context made. Layout runs on the main thread only.
+  /// The pass id of the latest context made.
   static var latestPassId: UInt64 = 0
 
   /// Returns a pass id that no earlier context has.
   static func makePassId() -> UInt64 {
+    // the pass ids aren't synchronized, since layout runs on the main thread, where a context's content evaluation
+    // also has to be used
+    ComposeUI.assert(Thread.isMainThread, "ComposeNodeLayoutContext must be created on the main thread")
     latestPassId += 1
     return latestPassId
   }
