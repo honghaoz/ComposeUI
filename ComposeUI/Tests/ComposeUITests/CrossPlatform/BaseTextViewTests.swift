@@ -163,31 +163,32 @@ class BaseTextViewTests: XCTestCase {
     }
   }
 
-  func test_numberOfLinesAndLineBreakMode_textContainerChangedDirectly_sameValuesResynchronizeIt() throws {
+  #if canImport(AppKit)
+  func test_attributedString_equalText_stillLaysOutTheTextContainer() {
     for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view showing 2 lines truncated at the tail, whose text container was then changed directly
-      textView.numberOfLines = 2
-      textView.lineBreakMode = .byTruncatingTail
-      let textContainer = try (textView.textContainer as NSTextContainer?).unwrap()
-      textContainer.maximumNumberOfLines = 5
-      textContainer.lineBreakMode = .byClipping
+      // given: a text view showing a text, with the layout it scheduled run, whose horizontal inset then changed
+      textView.attributedString = Self.makeText("Hello, world!")
+      runScheduledBlocks()
+      textView.textContainerInset = CGSize(width: 30, height: 0)
 
-      // when: setting the same values again
-      textView.numberOfLines = 2
-      textView.lineBreakMode = .byTruncatingTail
+      // when: setting an equal text, and running the blocks it scheduled
+      textView.attributedString = Self.makeText("Hello, world!")
+      runScheduledBlocks()
 
-      // then: the text container is back to them
-      expect(textContainer.maximumNumberOfLines, textKit) == 2
-      expect(textContainer.lineBreakMode, textKit) == .byTruncatingTail
+      // then: the text view is laid out again, as for a different text, so its text container fits the new inset
+      expect(textView.textContainer?.size.width, textKit) == 140
     }
   }
 
-  #if canImport(AppKit)
-  func test_attributedString_userEditedText_invalidatesTheIntrinsicSizeWithoutEditingTheTextStorage() throws {
+  func test_attributedString_userEditedTextSetBack_leavesTheTextStorageAndInvalidatesTheIntrinsicSize() throws {
     for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view showing a text, and an observer of its text storage's edits
-      textView.attributedString = Self.makeText("Hello")
+      // given: a text view showing a model's mutable text, which the user then edited, with part of it selected, and an
+      // observer of the text storage's edits
+      let modelText = NSMutableAttributedString(attributedString: Self.makeText("Hello"))
+      textView.attributedString = modelText
       let textStorage = try Self.textStorage(of: textView).unwrap()
+      textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+      textView.setSelectedRange(NSRange(location: 0, length: 5))
       var editCount = 0
       let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
         editCount += 1
@@ -197,48 +198,15 @@ class BaseTextViewTests: XCTestCase {
       }
       textView.intrinsicSizeInvalidationCount = 0
 
-      // when: setting the same text again
-      textView.attributedString = Self.makeText("Hello")
+      // when: the model takes the edit into its mutable text, and sets the same object again
+      modelText.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+      textView.attributedString = modelText
 
-      // then: the intrinsic size stays valid
-      expect(textView.intrinsicSizeInvalidationCount, textKit) == 0
-
-      // when: the user edits the text, and the edited text is then set
-      textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
-      editCount = 0
-      textView.intrinsicSizeInvalidationCount = 0
-      textView.attributedString = Self.makeText("Hello, world!")
-
-      // then: the intrinsic size, which depends on the text, is invalidated, but the text storage, which already shows
-      // the text, isn't edited
-      expect(textView.intrinsicSizeInvalidationCount, textKit) == 1
+      // then: the text storage, which already shows the text, isn't edited and keeps the selection, and the intrinsic
+      // size, which is computed from the text, is invalidated
       expect(editCount, textKit) == 0
-    }
-  }
-
-  func test_numberOfLinesAndLineBreakMode_sameValues_scheduleNoLayout() {
-    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view that counts its layout passes, showing 2 lines truncated at the tail, with the layout that
-      // the changes scheduled run
-      textView.numberOfLines = 2
-      textView.lineBreakMode = .byTruncatingTail
-      runScheduledBlocks()
-      textView.layoutCount = 0
-
-      // when: setting the same values again, and running the blocks scheduled on the run loop
-      textView.numberOfLines = 2
-      textView.lineBreakMode = .byTruncatingTail
-      runScheduledBlocks()
-
-      // then: no layout runs
-      expect(textView.layoutCount, textKit) == 0
-
-      // when: changing the number of lines, and running the blocks scheduled on the run loop
-      textView.numberOfLines = 3
-      runScheduledBlocks()
-
-      // then: the scheduled layout runs
-      expect(textView.layoutCount, textKit) == 1
+      expect(textView.selectedRange, textKit) == NSRange(location: 0, length: 5)
+      expect(textView.intrinsicSizeInvalidationCount, textKit) == 1
     }
   }
   #endif
@@ -615,9 +583,12 @@ class BaseTextViewTests: XCTestCase {
 
   // MARK: - Helpers
 
-  /// Returns a text in the system font, as a label's text has one.
+  /// Returns a text with a font and a color, as a label's text has.
+  ///
+  /// The text has a color since tvOS's text view adds the label color to a text without one, and then replaces it when
+  /// it's set again, which `BaseTextView` leaves to it.
   private static func makeText(_ string: String) -> NSAttributedString {
-    NSAttributedString(string: string, attributes: [.font: Font.systemFont(ofSize: 13)])
+    NSAttributedString(string: string, attributes: [.font: Font.systemFont(ofSize: 13), .foregroundColor: Color.red])
   }
 
   /// Returns the text storage that shows the text view's text.
@@ -636,6 +607,10 @@ class BaseTextViewTests: XCTestCase {
     BaseTextView.usesTextKit1ForTesting = true
     let textKit1TextView = make()
     BaseTextView.usesTextKit1ForTesting = false
+    // text views use TextKit 2 from macOS 13
+    guard #available(macOS 13.0, *) else {
+      return [("TextKit 1", textKit1TextView)]
+    }
     let textKit2TextView = make()
     // if the flag stopped taking effect, the TextKit 1 runs would silently test TextKit 2 again
     expect(textKit2TextView.textLayoutManager) != nil
@@ -646,32 +621,19 @@ class BaseTextViewTests: XCTestCase {
     #endif
   }
 
-  /// Runs the main run loop until the blocks scheduled on it so far have run, which it runs in the order they were
-  /// scheduled.
+  /// Runs the main run loop until the blocks scheduled on it so far have run, such as a text view's scheduled layout.
   private func runScheduledBlocks() {
-    var didRunMarker = false
-    RunLoop.main.perform(inModes: [.common]) {
-      didRunMarker = true
-    }
-    let deadline = Date(timeIntervalSinceNow: 5)
-    while !didRunMarker, Date() < deadline {
-      RunLoop.main.run(mode: .default, before: deadline)
-    }
-    expect(didRunMarker) == true
+    var isDrained = false
+    RunLoop.main.perform { isDrained = true }
+    expect(isDrained).toEventually(beTrue())
   }
 }
 
 #if canImport(AppKit)
-/// A text view that counts its layout passes and the invalidations of its intrinsic size.
+/// A text view that counts the invalidations of its intrinsic size.
 private final class CountingTextView: BaseTextView {
 
-  var layoutCount = 0
   var intrinsicSizeInvalidationCount = 0
-
-  override func layout() {
-    super.layout()
-    layoutCount += 1
-  }
 
   override func invalidateIntrinsicContentSize() {
     super.invalidateIntrinsicContentSize()

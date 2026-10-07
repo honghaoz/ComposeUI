@@ -88,24 +88,22 @@ open class BaseTextView: TextView {
   // }
 
   /// The attributed string content of the text view.
+  ///
+  /// Setting a text equal to the shown one can leave the shown text in place, so to change an attribute object, such as
+  /// an attachment's image, set a text with a new object instead of changing the object.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
       let storage = shownTextStorage
 
-      // a refresh sets the same text again, and replacing the text storage's content costs allocations and a layout, so
-      // an equal text isn't set again. It's compared with the text storage instead of the old value, since an editable
-      // text view can hold the user's edits, which a new value replaces as before
-      guard storage?.isEqual(to: attributedString) != true else {
-        // the text storage can already show a new value, after the user edited the text, and the intrinsic size depends
-        // on the value, so it's invalidated, but the text storage is left as it is, with the user's selection
-        if !oldValue.isEqual(to: attributedString) {
-          invalidateIntrinsicContentSize()
-        }
-        return
+      // replacing the text storage's content edits it even with an equal text, which costs allocations and moves the
+      // selection to the end, so an equal text is left in place. It's compared with the text storage instead of the old
+      // value, since the text storage can hold the user's edits, which a new value replaces as before
+      if storage?.isEqual(to: attributedString) != true {
+        storage?.setAttributedString(attributedString)
       }
 
-      storage?.setAttributedString(attributedString)
-
+      // an equal text still invalidates the intrinsic size, which is computed from this property, and schedules a
+      // layout, which also applies the changes made since the last one, such as a new inset
       invalidateIntrinsicContentSize()
       scheduleLayout()
     }
@@ -114,15 +112,11 @@ open class BaseTextView: TextView {
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
     didSet {
-      let maximumNumberOfLines = numberOfLines > 0 ? numberOfLines : 0
-
-      // a refresh sets the same value again, which needs no layout, unless the public text container was changed
-      // directly, which the value set again resynchronizes
-      guard numberOfLines != oldValue || textContainer?.maximumNumberOfLines != maximumNumberOfLines else {
-        return
+      if numberOfLines == 1 {
+        textContainer?.maximumNumberOfLines = 1
+      } else {
+        textContainer?.maximumNumberOfLines = numberOfLines > 0 ? numberOfLines : 0
       }
-
-      textContainer?.maximumNumberOfLines = maximumNumberOfLines
 
       invalidateIntrinsicContentSize()
       scheduleLayout()
@@ -132,12 +126,6 @@ open class BaseTextView: TextView {
   /// The line break mode to use for the text view. Default is `byWordWrapping`.
   open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
-      // a refresh sets the same value again, which needs no layout, unless the public text container was changed
-      // directly, which the value set again resynchronizes
-      guard lineBreakMode != oldValue || textContainer?.lineBreakMode != lineBreakMode else {
-        return
-      }
-
       textContainer?.lineBreakMode = lineBreakMode
 
       invalidateIntrinsicContentSize()
@@ -323,16 +311,14 @@ import UIKit
 open class BaseTextView: UITextView {
 
   /// The attributed string content of the text view.
+  ///
+  /// Setting a text equal to the shown one can leave the shown text in place, so to change an attribute object, such as
+  /// an attachment's image, set a text with a new object instead of changing the object.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
-      // a refresh sets the same text again, and on tvOS, unlike on iOS and visionOS, UITextView replaces its text
-      // storage's content even with an equal text, so an equal text isn't set again. It's compared with the text storage
-      // instead of the old value, since an editable text view can hold the user's edits, which a new value replaces as
-      // before
-      guard !textStorage.isEqual(to: attributedString) else {
-        return
-      }
-
+      // UITextView leaves an equal text in place itself, so there's no check here. tvOS adds the label color to a text
+      // without a color, so it replaces such a text when it's set again, which isn't worked around, since that would
+      // copy tvOS's rule
       attributedText = attributedString
     }
   }
