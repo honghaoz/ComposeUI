@@ -60,6 +60,7 @@
 - On macOS, a mouse wheel now scrolls the innermost scroll view under the pointer that can scroll in its direction, as a trackpad gesture does, instead of the scroll view that the latest trackpad gesture went to.
 - Nested stacks of the same direction with flexible children no longer double the layouts of the nodes in them at each level: a leaf in 8 nested `VStack`s that each hold a spacer now lays out 8 times instead of 128.
 - `VStack`, `HStack` and `ZStack` lay out faster.
+- On macOS, refreshing and scrolling text is faster: `BaseTextView` lays out once after its text, number of lines and line break mode are set, instead of once for each.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
