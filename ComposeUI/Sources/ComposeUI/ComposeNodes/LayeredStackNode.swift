@@ -91,22 +91,17 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     size = CGSize(width: maxWidth, height: maxHeight)
 
     // cache the children layout information for renderableItems(in:)
-    var childOrigins = ContiguousArray<CGPoint>()
-    childOrigins.reserveCapacity(childCount)
-    var childItemsBoundingRects = ContiguousArray<CGRect>()
-    childItemsBoundingRects.reserveCapacity(childCount)
+    layoutCache.reset(reservingCapacity: childCount)
 
     for node in childNodes {
       let childOrigin = Layout.position(rect: node.size, in: size, alignment: alignment).origin
-      childOrigins.append(childOrigin)
-
       let itemsBoundingRect = node.renderableItemsBoundingRect
-      childItemsBoundingRects.append(itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
+      layoutCache.appendChild(origin: childOrigin, itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
     }
 
     // no main axis: children in a layered stack overlap each other, so `renderableItems(in:)` checks each child's
     // bounding rect directly instead of binary searching a visible range.
-    layoutCache.update(childOrigins: childOrigins, childItemsBoundingRects: childItemsBoundingRects, mainAxis: nil)
+    layoutCache.finish(mainAxis: nil)
 
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
@@ -126,12 +121,13 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     for i in 0 ..< childCount {
       // children in a layered stack can overlap each other, so there's no visible range to binary search.
       // instead, skip children whose items bounding rect doesn't intersect the visible bounds.
-      guard visibleBounds.intersects(layoutCache.childItemsBoundingRects[i]) else {
+      let child = layoutCache.children[i]
+      guard visibleBounds.intersects(child.itemsBoundingRect) else {
         continue
       }
 
       let node = childNodes[i]
-      let childOrigin = layoutCache.childOrigins[i]
+      let childOrigin = child.origin
       let boundsInChild = visibleBounds.translate(-childOrigin)
 
       let childItems = node.renderableItems(in: boundsInChild)

@@ -39,84 +39,100 @@ extension Layout {
   ///   - items: The items to distribute the space to.
   /// - Returns: The allocated sizes to the items.
   static func stackLayout(space: CGFloat, items: [ComposeNodeSizing.Sizing]) -> ContiguousArray<CGFloat> {
+    ContiguousArray(unsafeUninitializedCapacity: items.count) { allocations, initializedCount in
+      items.withUnsafeBufferPointer { items in
+        stackLayout(space: space, items: items, into: allocations)
+      }
+      initializedCount = items.count
+    }
+  }
+
+  /// Distribute `space` to children items based on their sizings, into a buffer.
+  ///
+  /// - Parameters:
+  ///   - space: The total space to distribute.
+  ///   - items: The items to distribute the space to.
+  ///   - allocations: The uninitialized buffer to initialize with the allocated sizes to the items, one per item.
+  static func stackLayout(space: CGFloat, items: UnsafeBufferPointer<ComposeNodeSizing.Sizing>, into allocations: UnsafeMutableBufferPointer<CGFloat>) {
+    // the allocated sizes to the children.
+    allocations.initialize(repeating: 0)
+
     let count = items.count
     guard count > 0 else {
-      return []
+      return
     }
-
-    // the allocated sizes to the children.
-    var allocations = ContiguousArray<CGFloat>(repeating: 0, count: count)
 
     // the total allocated space.
     var allocatedSpace: CGFloat = 0
 
-    // the indices of the expandable items.
-    var expandableItemIndices = ContiguousArray<Int>()
-    expandableItemIndices.reserveCapacity(count)
-    var expandableItemCount = 0
+    // the indices of the expandable items, in temporary memory, since a layout needs them only during this call
+    withUnsafeTemporaryAllocation(of: Int.self, capacity: count) { expandableItemIndices in
+      var expandableItemCount = 0
 
-    // first pass: allocate fixed sizes and minimum sizes for range items
-    for i in 0 ..< count {
-      let item = items[i]
-      switch item.normalized() {
-      case .fixed(let size):
-        allocations[i] = size // always allocate the fixed size
-        allocatedSpace += size
-      case .range(let min, _):
-        allocations[i] = min // always allocate the minimum size
-        allocatedSpace += min
-        expandableItemIndices.append(i)
-        expandableItemCount += 1
-      case .flexible:
-        expandableItemIndices.append(i)
-        expandableItemCount += 1
-      }
-    }
-
-    var remainingSpace = space - allocatedSpace
-
-    // second pass: allocate remaining space to expandable items up to their maximum
-    // use 0.01 to avoid floating point precision issues
-    while remainingSpace > 0.01, expandableItemCount > 0 {
-      let spacePerItem = remainingSpace / CGFloat(expandableItemCount)
-
-      var i = 0
-      while i < expandableItemCount {
-        let index = expandableItemIndices[i]
-
-        switch items[index] {
-        case .range(_, let max):
-          let currentAllocation = allocations[index]
-          let additionalSpace = Swift.min(max - currentAllocation, spacePerItem)
-
-          if additionalSpace <= 0 {
-            // this should be impossible
-            _ = expandableItemIndices.swapRemove(at: i)
-            expandableItemCount -= 1
-            continue
-          }
-
-          allocations[index] += additionalSpace
-          remainingSpace -= additionalSpace
-
-          if allocations[index] >= max {
-            _ = expandableItemIndices.swapRemove(at: i) // the item is fulfilled
-            expandableItemCount -= 1
-            continue
-          }
-
+      // first pass: allocate fixed sizes and minimum sizes for range items
+      for i in 0 ..< count {
+        let item = items[i]
+        switch item.normalized() {
+        case .fixed(let size):
+          allocations[i] = size // always allocate the fixed size
+          allocatedSpace += size
+        case .range(let min, _):
+          allocations[i] = min // always allocate the minimum size
+          allocatedSpace += min
+          expandableItemIndices.initializeElement(at: expandableItemCount, to: i)
+          expandableItemCount += 1
         case .flexible:
-          allocations[index] += spacePerItem
-          remainingSpace -= spacePerItem
-
-        case .fixed:
-          break // impossible
+          expandableItemIndices.initializeElement(at: expandableItemCount, to: i)
+          expandableItemCount += 1
         }
+      }
 
-        i += 1
+      var remainingSpace = space - allocatedSpace
+
+      // second pass: allocate remaining space to expandable items up to their maximum
+      // use 0.01 to avoid floating point precision issues
+      while remainingSpace > 0.01, expandableItemCount > 0 {
+        let spacePerItem = remainingSpace / CGFloat(expandableItemCount)
+
+        var i = 0
+        while i < expandableItemCount {
+          let index = expandableItemIndices[i]
+
+          switch items[index] {
+          case .range(_, let max):
+            let currentAllocation = allocations[index]
+            let additionalSpace = Swift.min(max - currentAllocation, spacePerItem)
+
+            if additionalSpace <= 0 {
+              // this should be impossible
+              // removes the item, moving the last one into its place, as `swapRemove(at:)` does
+              expandableItemIndices[i] = expandableItemIndices[expandableItemCount - 1]
+              expandableItemCount -= 1
+              continue
+            }
+
+            allocations[index] += additionalSpace
+            remainingSpace -= additionalSpace
+
+            if allocations[index] >= max {
+              // the item is fulfilled
+              // removes the item, moving the last one into its place, as `swapRemove(at:)` does
+              expandableItemIndices[i] = expandableItemIndices[expandableItemCount - 1]
+              expandableItemCount -= 1
+              continue
+            }
+
+          case .flexible:
+            allocations[index] += spacePerItem
+            remainingSpace -= spacePerItem
+
+          case .fixed:
+            break // impossible
+          }
+
+          i += 1
+        }
       }
     }
-
-    return allocations
   }
 }

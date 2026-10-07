@@ -39,44 +39,69 @@ extension ContiguousArray where Element == CGFloat {
   /// - Parameter scaleFactor: The screen scale factor.
   /// - Returns: A corrected sizes which match the pixel boundary.
   func rounded(scaleFactor: CGFloat) -> Self {
-    guard !isEmpty else {
-      return self
+    var sizes = self
+    sizes.withUnsafeMutableBufferPointer { buffer in
+      buffer.round(scaleFactor: scaleFactor)
     }
+    return sizes
+  }
+}
 
-    if count == 1 {
-      return self
+extension UnsafeMutableBufferPointer where Element == CGFloat {
+
+  /// Rounds the sizes in the buffer to the nearest pixel, in place, as `ContiguousArray<CGFloat>.rounded(scaleFactor:)`
+  /// does.
+  ///
+  /// - Parameter scaleFactor: The screen scale factor.
+  func round(scaleFactor: CGFloat) {
+    guard count > 1 else {
+      return
     }
 
     let pixelSize: CGFloat = 1 / scaleFactor
-    var roundedSizes: ContiguousArray<CGFloat> = []
-    roundedSizes.reserveCapacity(count)
+
+    // the last size absorbs the error the rounding accumulates, unless that makes it negative, in which case the sizes
+    // stay as they are. that's known only after the last size, so a first pass finds it without writing, which would
+    // lose the sizes to keep
     var totalError: CGFloat = 0.0
-
+    var lastRoundedSize: CGFloat = 0
     for original in self {
-      // if accumulative error exceeds pixel size, should apply a correction to the next item
-      let correction: CGFloat
-      if abs(totalError) >= pixelSize {
-        correction = totalError > 0 ? -pixelSize : pixelSize
-        totalError += correction
-      } else {
-        correction = 0
-      }
-
+      let correction = Self.correction(applyingTo: &totalError, pixelSize: pixelSize)
       let rounded = original.round(nearest: pixelSize)
       totalError += (rounded - original)
+      lastRoundedSize = rounded + correction
+    }
 
-      roundedSizes.append(rounded + correction)
+    if abs(totalError) > 0, lastRoundedSize - totalError < 0 {
+      // the last element can't hold the error correction, so to avoid negative sizes, the sizes stay as they are
+      return
+    }
+
+    // second pass: the same rounding, written in place
+    totalError = 0.0
+    for index in indices {
+      let original = self[index]
+      let correction = Self.correction(applyingTo: &totalError, pixelSize: pixelSize)
+      let rounded = original.round(nearest: pixelSize)
+      totalError += (rounded - original)
+      self[index] = rounded + correction
     }
 
     if abs(totalError) > 0 {
-      roundedSizes[roundedSizes.count - 1] -= totalError
-      if roundedSizes[roundedSizes.count - 1] < 0 {
-        // the last element can't hold the error correction
-        // to avoid return negative sizes, return self
-        return self
-      }
+      self[count - 1] -= totalError
+    }
+  }
+
+  /// Returns the correction to apply to the next size, a pixel against the accumulated error once it reaches a pixel,
+  /// and applies it to the accumulated error.
+  private static func correction(applyingTo totalError: inout CGFloat, pixelSize: CGFloat) -> CGFloat {
+    // if accumulative error exceeds pixel size, should apply a correction to the next item
+    guard abs(totalError) >= pixelSize else {
+      return 0
     }
 
-    return roundedSizes
+    let correction: CGFloat = totalError > 0 ? -pixelSize : pixelSize
+    totalError += correction
+    return correction
   }
 }

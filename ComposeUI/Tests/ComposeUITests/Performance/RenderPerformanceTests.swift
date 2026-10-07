@@ -383,6 +383,26 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.nested.200", result: result)
   }
 
+  // MARK: - Layout (node-level, a built tree laid out again, without content building or rendering)
+
+  func test_layout_nestedRows_200() {
+    // given: 200 nested rows, laid out once
+    var content = VStack {
+      for i in 0 ..< 200 {
+        Self.makeNestedRow(i)
+      }
+    }
+    _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // when: measuring layouts of the same rows, each in a new pass
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    }
+
+    // then: report the timings
+    report(name: "layout.nested.200", result: result)
+  }
+
   // MARK: - Frame Update (renderable-level, a reused renderable's frame update)
 
   func test_updateFrame_nonAnimated_layer_unchanged() {
