@@ -308,6 +308,62 @@ class LabelNodeTests: XCTestCase {
 
   // MARK: - Multi-line
 
+  func test_multiLine_lineBreakMode() {
+    // given: a multi-line label with a custom line break mode
+    var textView: BaseTextView?
+    let view = ComposeView {
+      LabelNode("Hello World")
+        .numberOfLines(0)
+        .lineBreakMode(.byClipping)
+        .onInsert { renderable, _ in
+          textView = renderable.view as? BaseTextView
+        }
+    }
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the view is refreshed
+    view.refresh()
+
+    // then: the custom line break mode is applied to the text view
+    expect(textView?.numberOfLines) == 0
+    expect(textView?.lineBreakMode) == .byClipping
+  }
+
+  func test_multiLine_userInteraction() {
+    // given: a compose view with a multi-line label
+    var textView: BaseTextView?
+    let view = ComposeView {
+      LabelNode("Hello World")
+        .numberOfLines(0)
+        .onInsert { renderable, _ in
+          textView = renderable.view as? BaseTextView
+        }
+    }
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the view is refreshed
+    view.refresh()
+
+    // then: by default, the label is not selectable
+    expect(textView?.isSelectable) == false
+
+    // when: set to selectable
+    view.setContent {
+      LabelNode("Hello World")
+        .numberOfLines(0)
+        .selectable()
+        .onInsert { renderable, _ in
+          textView = renderable.view as? BaseTextView
+        }
+    }
+    view.refresh()
+
+    // then: the label is now selectable
+    expect(textView?.isSelectable) == true
+  }
+
   func test_multiLine_flexible() throws {
     // given: a multi-line label with flexible size
     var textView: BaseTextView?
@@ -816,6 +872,20 @@ class LabelNodeTests: XCTestCase {
   }
 
   // MARK: -
+
+  func test_renderableItems_haveTheLabelId() {
+    for (label, expectedId) in [(LabelNode("Hello World"), ComposeNodeId.standard(.label)), (LabelNode("Hello World").id("custom"), .custom("custom", isFixed: false))] {
+      // given: a label, laid out
+      var node = label
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+      // when: getting the label's renderable items
+      let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+      // then: the text's item has the label's id
+      expect(items.map(\.id)) == [expectedId]
+    }
+  }
 
   func test_renderableItems_sharedBase_selectableChange_notStale() {
     // LabelNode delegates to an inner TextNode that it recreates when a setter runs (copy.node = nil), so two copies of

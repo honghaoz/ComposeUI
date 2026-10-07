@@ -212,8 +212,6 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
   /// Initialize a text node with single line text.
   ///
-  /// By default, the text is truncated with tail ellipsis. Use `lineBreakMode(_:)` to change the truncation behavior.
-  ///
   /// By default, the node uses the text's intrinsic size. Use `fixedSize(width:height:)` to change the sizing behavior.
   ///
   /// - Parameters:
@@ -223,17 +221,23 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///   - backgroundColor: The themed background color to use for the text. Default value is `nil`.
   ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
   ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
+  ///   - lineBreakMode: The node's line break mode, which truncates the text. The default value is `.byTruncatingTail`, which truncates the text with tail ellipsis.
+  ///   - isSelectable: Whether the text is selectable. The default value is `true`.
   static func singleLineText(_ string: String,
                              font: Font = Font.systemFont(ofSize: 17),
                              foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
                              backgroundColor: ThemedColor? = nil,
                              shadow: Themed<NSShadow>? = nil,
-                             textAlignment: NSTextAlignment = .natural) -> Self
+                             textAlignment: NSTextAlignment = .natural,
+                             lineBreakMode: NSLineBreakMode = .byTruncatingTail,
+                             isSelectable: Bool = true) -> Self
   {
     var node = TextNode(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
 
     node.numberOfLines = 1
-    node.lineBreakMode = .byTruncatingTail
+    node.lineBreakMode = lineBreakMode
+
+    node.isSelectable = isSelectable
 
     node.isFixedWidth = true
     node.isFixedHeight = true
@@ -242,8 +246,6 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   }
 
   /// Initialize a text node with multi-line text.
-  ///
-  /// By default, the text last line is truncated with tail ellipsis. Use `lineBreakMode(_:)` to change the truncation behavior.
   ///
   /// By default, the node has flexible size. Use `fixedSize(width:height:)` to change the sizing behavior.
   ///
@@ -255,18 +257,24 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
   ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
   ///   - numberOfLines: The number of lines to display. The default value is `0`.
+  ///   - lineBreakMode: The node's line break mode, which truncates the last line. The default value is `.byTruncatingTail`, which truncates the last line with tail ellipsis.
+  ///   - isSelectable: Whether the text is selectable. The default value is `true`.
   static func multiLineText(_ string: String,
                             font: Font = Font.systemFont(ofSize: 17),
                             foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
                             backgroundColor: ThemedColor? = nil,
                             shadow: Themed<NSShadow>? = nil,
                             textAlignment: NSTextAlignment = .natural,
-                            numberOfLines: Int = 0) -> Self
+                            numberOfLines: Int = 0,
+                            lineBreakMode: NSLineBreakMode = .byTruncatingTail,
+                            isSelectable: Bool = true) -> Self
   {
     var node = TextNode(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
 
     node.numberOfLines = numberOfLines
-    node.lineBreakMode = .byTruncatingTail
+    node.lineBreakMode = lineBreakMode
+
+    node.isSelectable = isSelectable
 
     return node
   }
