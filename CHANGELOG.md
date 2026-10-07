@@ -22,6 +22,7 @@
 - On macOS, `ComposeView` no longer supports automatic content insets, magnification, borders, rulers, the find bar or auto-hiding scroll bars, so its content insets stay the same under the title bar and toolbar. `automaticallyAdjustsContentInsets`, `allowsMagnification`, `rulersVisible`, `isFindBarVisible` and `autohidesScrollers` stay `false`, `magnification`, `minMagnification` and `maxMagnification` stay 1, so `setMagnification(_:centeredAt:)` and `magnify(toFit:)` don't magnify either, even through the animator, and `borderType` stays `.noBorder`. Changing them asserts and keeps the current value, and they're final on `ComposeView`.
 - `ComposeView` now lays out, centers and scrolls its content between its content insets (`adjustedContentInset`) instead of ignoring them: `WillLayoutContext.containerSize` is the visible size minus the insets, content that fits between them centers there without scrolling, and `sizeThatFits(_:)` includes them.
 - A `VStack` or `HStack` laid out again at the same container size with the same `ComposeNodeLayoutContext` now returns its earlier layout instead of laying out its children again. Create a new context to lay out content again after it changes, as `ComposeView` does for each render pass.
+- Creating a `ComposeNodeLayoutContext` off the main thread now asserts in debug builds. Create and use a context on the main thread, where layout runs.
 
 ### Changes
 
@@ -56,7 +57,7 @@
 - On macOS, scrolling left or right, for example with a mouse's tilt wheel, no longer shifts content that fits the view's width by a pixel. The same goes for scrolling up or down when the content fits the height.
 - On macOS, a trackpad or Magic Mouse scroll now stays with the scroll view it started on until its glide ends, as on iOS and in AppKit's own scroll views: a nested scroll view that the scrolling brings under the pointer no longer takes it over, and a gesture that starts during the glide continues it.
 - On macOS, a mouse wheel now scrolls the innermost scroll view under the pointer that can scroll in its direction, as a trackpad gesture does, instead of the scroll view that the latest trackpad gesture went to.
-- Nested stacks with flexible children no longer double the layouts of the nodes in them at each level: a leaf in 8 nested stacks that each hold a spacer now lays out 8 times instead of 128.
+- Nested stacks of the same direction with flexible children no longer double the layouts of the nodes in them at each level: a leaf in 8 nested `VStack`s that each hold a spacer now lays out 8 times instead of 128.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
