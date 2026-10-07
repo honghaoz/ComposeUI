@@ -35,6 +35,9 @@ import CoreGraphics
 /// Stack nodes build this cache in `layout(containerSize:context:)` and use it in `renderableItems(in:)`
 /// to skip querying child nodes that can't provide visible renderable items, so that getting renderable
 /// items is O(visible children) instead of O(all children).
+///
+/// A layout rebuilds it with `reset(reservingCapacity:)`, then `appendChild(origin:itemsBoundingRect:)` for each child,
+/// then `finish(mainAxis:)`.
 struct StackLayoutCache {
 
   /// The main axis of the stack that the cache builds the search structures for.
@@ -43,88 +46,113 @@ struct StackLayoutCache {
     case vertical
   }
 
+  /// A child's layout information.
+  struct Child {
+
+    /// The child's origin, in the stack node's coordinate space.
+    let origin: CGPoint
+
+    /// The child's renderable items bounding rect, in the stack node's coordinate space.
+    ///
+    /// The rect is `.null` if the child can't provide any renderable items.
+    let itemsBoundingRect: CGRect
+
+    /// The running maximum, from the first child, of the children's items bounding rect max position on the main axis.
+    ///
+    /// The values are non-decreasing, which makes them binary searchable.
+    fileprivate(set) var runningMaxPosition: CGFloat
+
+    /// The running minimum, from the last child, of the children's items bounding rect min position on the main axis.
+    ///
+    /// The values are non-decreasing, which makes them binary searchable.
+    fileprivate(set) var runningMinPosition: CGFloat
+
+    fileprivate init(origin: CGPoint, itemsBoundingRect: CGRect) {
+      self.origin = origin
+      self.itemsBoundingRect = itemsBoundingRect
+      runningMaxPosition = 0
+      runningMinPosition = 0
+    }
+  }
+
+  /// Each child's layout information, in one array, so that a layout allocates once for all of it.
+  private(set) var children: ContiguousArray<Child> = []
+
   /// The number of cached children.
-  private(set) var childCount: Int = 0
-
-  /// Each child's origin, in the stack node's coordinate space.
-  private(set) var childOrigins: ContiguousArray<CGPoint> = []
-
-  /// Each child's renderable items bounding rect, in the stack node's coordinate space.
-  ///
-  /// The rect is `.null` if the child can't provide any renderable items.
-  private(set) var childItemsBoundingRects: ContiguousArray<CGRect> = []
+  var childCount: Int {
+    children.count
+  }
 
   /// The union of all children's renderable items bounding rects, in the stack node's coordinate space.
   ///
   /// The rect is `.null` if no child can provide any renderable items.
   private(set) var itemsBoundingRect: CGRect = .null
 
-  /// Running maximum (from the first child) of the children's items bounding rect max position on the main axis.
-  ///
-  /// The values are non-decreasing, which makes them binary searchable.
-  private var runningMaxPositions: ContiguousArray<CGFloat> = []
+  /// Whether the cache was finished with a main axis, which builds the search structures that
+  /// `visibleChildRange(minPosition:maxPosition:)` uses.
+  private var hasSearchStructures = false
 
-  /// Running minimum (from the last child) of the children's items bounding rect min position on the main axis.
+  /// Starts rebuilding the cache, removing the children of the previous layout.
   ///
-  /// The values are non-decreasing, which makes them binary searchable.
-  private var runningMinPositions: ContiguousArray<CGFloat> = []
+  /// - Parameter capacity: The number of children the layout appends.
+  mutating func reset(reservingCapacity capacity: Int) {
+    children.removeAll(keepingCapacity: true)
+    children.reserveCapacity(capacity)
+    itemsBoundingRect = .null
+    hasSearchStructures = false
+  }
 
-  /// Rebuild the cache with the children's layout information.
+  /// Appends a child's layout information.
   ///
   /// - Parameters:
-  ///   - childOrigins: Each child's origin, in the stack node's coordinate space.
-  ///   - childItemsBoundingRects: Each child's renderable items bounding rect, translated to the stack node's coordinate space.
-  ///   - mainAxis: The main axis of the stack. Pass `nil` for stacks whose children are not ordered along an axis (e.g. a layered stack),
-  ///     which skips building the binary-search structures that only `visibleChildRange(minPosition:maxPosition:)` uses.
-  mutating func update(childOrigins: ContiguousArray<CGPoint>,
-                       childItemsBoundingRects: ContiguousArray<CGRect>,
-                       mainAxis: MainAxis?)
-  {
-    ComposeUI.assert(childOrigins.count == childItemsBoundingRects.count, "mismatched child origins and bounding rects count")
+  ///   - origin: The child's origin, in the stack node's coordinate space.
+  ///   - itemsBoundingRect: The child's renderable items bounding rect, translated to the stack node's coordinate
+  ///     space.
+  mutating func appendChild(origin: CGPoint, itemsBoundingRect: CGRect) {
+    children.append(Child(origin: origin, itemsBoundingRect: itemsBoundingRect))
+  }
 
-    childCount = childOrigins.count
-    self.childOrigins = childOrigins
-    self.childItemsBoundingRects = childItemsBoundingRects
-
+  /// Finishes rebuilding the cache, after the children are appended.
+  ///
+  /// - Parameter mainAxis: The main axis of the stack. Pass `nil` for stacks whose children are not ordered along an
+  ///   axis (e.g. a layered stack), which skips building the binary-search structures that only
+  ///   `visibleChildRange(minPosition:maxPosition:)` uses.
+  mutating func finish(mainAxis: MainAxis?) {
     var itemsBoundingRect: CGRect = .null
 
-    runningMaxPositions.removeAll(keepingCapacity: true)
-    runningMinPositions.removeAll(keepingCapacity: true)
-
     guard let mainAxis else {
-      // no main axis: the caller doesn't use `visibleChildRange(minPosition:maxPosition:)`, so only collect the union of the bounding rects.
-      for rect in childItemsBoundingRects where !rect.isNull {
-        itemsBoundingRect = itemsBoundingRect.union(rect)
+      // no main axis: the caller doesn't use `visibleChildRange(minPosition:maxPosition:)`, so only collect the union
+      // of the bounding rects.
+      for child in children where !child.itemsBoundingRect.isNull {
+        itemsBoundingRect = itemsBoundingRect.union(child.itemsBoundingRect)
       }
       self.itemsBoundingRect = itemsBoundingRect
       return
     }
 
-    runningMaxPositions.reserveCapacity(childCount)
-    runningMinPositions.reserveCapacity(childCount)
-
     // build the running max positions (from the first child) and collect the union of the bounding rects
     var runningMax: CGFloat = -.greatestFiniteMagnitude
-    for rect in childItemsBoundingRects {
+    for index in children.indices {
+      let rect = children[index].itemsBoundingRect
       if !rect.isNull {
         itemsBoundingRect = itemsBoundingRect.union(rect)
         runningMax = Swift.max(runningMax, mainAxis == .vertical ? rect.maxY : rect.maxX)
       }
-      runningMaxPositions.append(runningMax)
+      children[index].runningMaxPosition = runningMax
     }
 
     // build the running min positions (from the last child)
     var runningMin: CGFloat = .greatestFiniteMagnitude
-    runningMinPositions.append(contentsOf: repeatElement(0, count: childCount))
-    for i in stride(from: childCount - 1, through: 0, by: -1) {
-      let rect = childItemsBoundingRects[i]
+    for index in children.indices.reversed() {
+      let rect = children[index].itemsBoundingRect
       if !rect.isNull {
         runningMin = Swift.min(runningMin, mainAxis == .vertical ? rect.minY : rect.minX)
       }
-      runningMinPositions[i] = runningMin
+      children[index].runningMinPosition = runningMin
     }
 
     self.itemsBoundingRect = itemsBoundingRect
+    hasSearchStructures = true
   }
 
   /// Get the range of children that can provide visible renderable items for the given visible range on the main axis.
@@ -133,14 +161,15 @@ struct StackLayoutCache {
   /// Children within the returned range may still provide no visible renderable items, the caller should
   /// still query each child with `renderableItems(in:)`.
   ///
-  /// The cache must be built with a main axis (`update(childOrigins:childItemsBoundingRects:mainAxis:)` with a non-nil `mainAxis`).
+  /// The cache must be finished with a main axis (`finish(mainAxis:)` with a non-nil `mainAxis`), unless it's empty.
   ///
   /// - Parameters:
   ///   - minPosition: The min position of the visible bounds on the main axis.
   ///   - maxPosition: The max position of the visible bounds on the main axis.
   /// - Returns: The range of children that can provide visible renderable items.
   func visibleChildRange(minPosition: CGFloat, maxPosition: CGFloat) -> Range<Int> {
-    guard runningMaxPositions.count == childCount, runningMinPositions.count == childCount else {
+    // an empty cache, such as an empty stack's, has no children to search
+    guard hasSearchStructures || children.isEmpty else {
       // the cache was built without a main axis, so there are no search structures. treat all children as potentially
       // visible, which is safe because the caller still queries each child.
       ComposeUI.assertFailure("visibleChildRange(minPosition:maxPosition:) requires the cache built with a main axis")
@@ -149,29 +178,28 @@ struct StackLayoutCache {
 
     // the first child whose items can extend beyond the visible min position.
     // children before this index have all of their items at or before the visible min position (no intersection).
-    let start = Self.firstIndex(in: runningMaxPositions) { $0 > minPosition }
+    let start = firstChildIndex { $0.runningMaxPosition > minPosition }
 
-    // the first child from which all of the remaining children's items are at or beyond the visible max position (no intersection).
-    let end = Self.firstIndex(in: runningMinPositions) { $0 >= maxPosition }
+    // the first child from which all of the remaining children's items are at or beyond the visible max position (no
+    // intersection).
+    let end = firstChildIndex { $0.runningMinPosition >= maxPosition }
 
     return start ..< Swift.max(start, end)
   }
 
-  /// Binary search for the first index whose value satisfies the predicate.
+  /// Binary search for the first child that satisfies the predicate.
   ///
-  /// The values must be partitioned by the predicate: all values that don't satisfy the predicate
-  /// must come before all values that do.
+  /// The children must be partitioned by the predicate: all children that don't satisfy the predicate
+  /// must come before all children that do.
   ///
-  /// - Parameters:
-  ///   - values: The values to search.
-  ///   - predicate: The predicate to satisfy.
-  /// - Returns: The first index whose value satisfies the predicate, or `values.count` if no value satisfies it.
-  private static func firstIndex(in values: ContiguousArray<CGFloat>, where predicate: (CGFloat) -> Bool) -> Int {
+  /// - Parameter predicate: The predicate to satisfy.
+  /// - Returns: The index of the first child that satisfies the predicate, or `childCount` if no child satisfies it.
+  private func firstChildIndex(where predicate: (Child) -> Bool) -> Int {
     var low = 0
-    var high = values.count
+    var high = children.count
     while low < high {
       let mid = (low + high) / 2
-      if predicate(values[mid]) {
+      if predicate(children[mid]) {
         high = mid
       } else {
         low = mid + 1

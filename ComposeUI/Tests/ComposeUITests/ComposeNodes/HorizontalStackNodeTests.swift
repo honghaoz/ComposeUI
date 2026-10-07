@@ -82,6 +82,29 @@ class HorizontalStackNodeTests: XCTestCase {
     expect(items[1].frame) == CGRect(x: 50, y: 0, width: 50, height: 50)
   }
 
+  func test_flexibleWidth_unevenSplit_roundsTheWidthsToPixels() {
+    // given: a stack with four flexible children, which split 10 points into 2.5 points each
+    var node = HStack {
+      LayerNode()
+      LayerNode()
+      LayerNode()
+      LayerNode()
+    }
+
+    // when: laying out the stack at a scale factor of 1, and getting renderable items
+    _ = node.layout(containerSize: CGSize(width: 10, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 50))
+
+    // then: the widths are whole pixels, with the rounding error carried to the next children, so they still fill the
+    // width
+    expect(items.map(\.frame)) == [
+      CGRect(x: 0, y: 0, width: 3, height: 50),
+      CGRect(x: 3, y: 0, width: 3, height: 50),
+      CGRect(x: 6, y: 0, width: 2, height: 50),
+      CGRect(x: 8, y: 0, width: 2, height: 50),
+    ]
+  }
+
   func test_flexibleWidth_flexibleHeight_spacing() {
     // given: an hstack with two flexible layer nodes and spacing
     var node = HStack(spacing: 10) {

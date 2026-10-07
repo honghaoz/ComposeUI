@@ -97,43 +97,47 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
     var widthSizing: ComposeNodeSizing.Sizing = .fixed(0)
     var heightSizing: ComposeNodeSizing.Sizing = .fixed(totalSpacing)
 
-    var childHeightSizings: [ComposeNodeSizing.Sizing] = []
-    childHeightSizings.reserveCapacity(childCount)
+    // the children's sizings and proposed heights are needed only during this layout, so they're in temporary memory
+    withUnsafeTemporaryAllocation(of: ComposeNodeSizing.Sizing.self, capacity: childCount) { childHeightSizings in
+      // first pass: collect children's sizings
+      for nodeIndex in 0 ..< childCount {
 
-    // first pass: collect children's sizings
-    for nodeIndex in 0 ..< childCount {
+        // special treatment for spacer node with nil width to make it fixed with 0 width,
+        // so that the spacer nodes don't expand the vertical stack node's width.
+        if let spacer = childNodes[nodeIndex] as? SpacerNode, spacer.width == nil {
+          childNodes[nodeIndex] = spacer.width(0)
+        }
 
-      // special treatment for spacer node with nil width to make it fixed with 0 width,
-      // so that the spacer nodes don't expand the vertical stack node's width.
-      if let spacer = childNodes[nodeIndex] as? SpacerNode, spacer.width == nil {
-        childNodes[nodeIndex] = spacer.width(0)
+        let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize, context: context)
+
+        heightSizing = heightSizing.combine(with: childSizing.height, axis: .main)
+        childHeightSizings.initializeElement(at: nodeIndex, to: childSizing.height)
+
+        widthSizing = widthSizing.combine(with: childSizing.width, axis: .cross)
       }
 
-      let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize, context: context)
+      withUnsafeTemporaryAllocation(of: CGFloat.self, capacity: childCount) { proposedHeights in
+        let remainingHeight = containerSize.height - totalSpacing
+        Layout.stackLayout(space: remainingHeight, items: UnsafeBufferPointer(childHeightSizings), into: proposedHeights)
+        proposedHeights.round(scaleFactor: context.scaleFactor)
 
-      heightSizing = heightSizing.combine(with: childSizing.height, axis: .main)
-      childHeightSizings.append(childSizing.height)
-
-      widthSizing = widthSizing.combine(with: childSizing.width, axis: .cross)
-    }
-
-    let remainingHeight = containerSize.height - totalSpacing
-    let proposedHeights = Layout.stackLayout(space: remainingHeight, items: childHeightSizings)
-      .rounded(scaleFactor: context.scaleFactor)
-
-    // second pass: layout children with proposed heights
-    for nodeIndex in 0 ..< childCount {
-      switch childHeightSizings[nodeIndex] {
-      case .flexible,
-           .range:
-        _ = childNodes[nodeIndex].layout(
-          containerSize: CGSize(width: containerSize.width, height: proposedHeights[nodeIndex]),
-          context: context
-        )
-      case .fixed:
-        // skips fixed height nodes as they don't need to be laid out again
-        continue
+        // second pass: layout children with proposed heights
+        for nodeIndex in 0 ..< childCount {
+          switch childHeightSizings[nodeIndex] {
+          case .flexible,
+               .range:
+            _ = childNodes[nodeIndex].layout(
+              containerSize: CGSize(width: containerSize.width, height: proposedHeights[nodeIndex]),
+              context: context
+            )
+          case .fixed:
+            // skips fixed height nodes as they don't need to be laid out again
+            continue
+          }
+        }
       }
+
+      childHeightSizings.deinitialize()
     }
 
     var maxWidth: CGFloat = 0
@@ -146,10 +150,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
     size = CGSize(width: maxWidth, height: totalChildNodesHeight + totalSpacing)
 
     // cache the children layout information for renderableItems(in:)
-    var childOrigins = ContiguousArray<CGPoint>()
-    childOrigins.reserveCapacity(childCount)
-    var childItemsBoundingRects = ContiguousArray<CGRect>()
-    childItemsBoundingRects.reserveCapacity(childCount)
+    layoutCache.reset(reservingCapacity: childCount)
 
     var y: CGFloat = 0
     for node in childNodes {
@@ -166,15 +167,13 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
       }
 
       let childOrigin = CGPoint(x: x, y: y)
-      childOrigins.append(childOrigin)
-
       let itemsBoundingRect = node.renderableItemsBoundingRect
-      childItemsBoundingRects.append(itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
+      layoutCache.appendChild(origin: childOrigin, itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
 
       y += nodeSize.height + spacing
     }
 
-    layoutCache.update(childOrigins: childOrigins, childItemsBoundingRects: childItemsBoundingRects, mainAxis: .vertical)
+    layoutCache.finish(mainAxis: .vertical)
 
     let sizing = ComposeNodeSizing(width: widthSizing, height: heightSizing)
     lastLayout = (context.passId, containerSize, sizing)
@@ -196,7 +195,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
     for i in visibleChildRange {
       let node = childNodes[i]
-      let childOrigin = layoutCache.childOrigins[i]
+      let childOrigin = layoutCache.children[i].origin
       let boundsInChild = visibleBounds.translate(-childOrigin)
 
       let childItems = node.renderableItems(in: boundsInChild)

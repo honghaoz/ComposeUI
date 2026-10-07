@@ -66,6 +66,15 @@ class ContiguousArray_CGFloat_PixelRoundingTests: XCTestCase {
     expect(array.rounded(scaleFactor: 2)) == [51.5, 51.5, 51.5, 52, 51.5, 52.00000000020002]
   }
 
+  func test_arrayRoundingUpByAPixel_correctsTheNextValueDown() {
+    // given: values that each round up by a quarter of a pixel
+    let array: ContiguousArray<CGFloat> = [0.75, 0.75, 0.75, 0.75, 0.75, 0.75]
+
+    // then: once the rounding adds up to a pixel, the next value is a pixel smaller, and the last value takes the rest
+    // of the error, so the values add up to the same total
+    expect(array.rounded(scaleFactor: 1)) == [1, 1, 1, 1, 0, 0.5]
+  }
+
   func test_arrayWithTooSmallPixelWidths() {
     // given: an array with values smaller than a pixel
     let array: ContiguousArray<CGFloat> = [0.3, 0.3, 0.3]

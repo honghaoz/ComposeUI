@@ -81,6 +81,29 @@ class VerticalStackNodeTests: XCTestCase {
     expect(items[1].frame) == CGRect(x: 0, y: 50, width: 50, height: 50)
   }
 
+  func test_flexibleHeight_unevenSplit_roundsTheHeightsToPixels() {
+    // given: a stack with four flexible children, which split 10 points into 2.5 points each
+    var node = VStack {
+      LayerNode()
+      LayerNode()
+      LayerNode()
+      LayerNode()
+    }
+
+    // when: laying out the stack at a scale factor of 1, and getting renderable items
+    _ = node.layout(containerSize: CGSize(width: 50, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 50, height: 10))
+
+    // then: the heights are whole pixels, with the rounding error carried to the next children, so they still fill the
+    // height
+    expect(items.map(\.frame)) == [
+      CGRect(x: 0, y: 0, width: 50, height: 3),
+      CGRect(x: 0, y: 3, width: 50, height: 3),
+      CGRect(x: 0, y: 6, width: 50, height: 2),
+      CGRect(x: 0, y: 8, width: 50, height: 2),
+    ]
+  }
+
   func test_flexibleWidth_flexibleHeight_spacing() {
     // given: a stack with spacing and two flexible children
     var node = VStack(spacing: 10) {
