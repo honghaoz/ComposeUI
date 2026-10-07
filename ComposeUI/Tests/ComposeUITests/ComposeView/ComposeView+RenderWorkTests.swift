@@ -32,8 +32,8 @@ import ChouTiTest
 
 @testable import ComposeUI
 
-/// Pins the render work of representative updates: the render passes, the nodes asked for renderable items, and the
-/// renderables inserted, reused and removed.
+/// Pins the render work of representative updates: the render passes, the nodes asked for renderable items, the
+/// renderables inserted, reused and removed, and the text storages edited.
 ///
 /// The counts don't depend on the machine's speed or load, so they hold on any machine. A changed count is a changed
 /// cost: update the expected count when the change is intended.
@@ -134,6 +134,45 @@ class ComposeView_RenderWorkTests: XCTestCase {
     expect(counts.animations) == 0
   }
 
+  func test_refresh_editsOnlyTheTextThatChanged() throws {
+    // given: label rows rendered at the top, with the first row's text in a variable, and an observer of the edits to
+    // the text storages of the 2 rows that show
+    var firstRowText = "Row 0"
+    let view = makeRowsView { index in
+      LabelNode(index == 0 ? firstRowText : "Row \(index)")
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+    view.refresh(animated: false)
+    let textStorages = try view.contentContainerView.subviews
+      .compactMap { $0 as? BaseTextView }
+      .sorted { $0.frame.minY < $1.frame.minY }
+      .map { try textStorage(of: $0).unwrap() }
+    expect(textStorages.count) == 2
+    var editsPerRow = [0, 0]
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: nil, queue: nil) { notification in
+      if let row = textStorages.firstIndex(where: { $0 === notification.object as AnyObject? }) {
+        editsPerRow[row] += 1
+      }
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: refreshing with the same content
+    view.refresh(animated: false)
+
+    // then: the text views of the 2 rows that show keep their text, so their text storages aren't edited
+    expect(editsPerRow) == [0, 0]
+
+    // when: changing the first row's text, and refreshing
+    firstRowText = "Changed"
+    view.refresh(animated: false)
+
+    // then: only the first row's text storage is edited, to show the new text
+    expect(editsPerRow) == [1, 0]
+    expect(textStorages.map(\.string)) == ["Changed", "Row 1"]
+  }
+
   // MARK: - Helpers
 
   private enum Constants {
@@ -155,6 +194,15 @@ class ComposeView_RenderWorkTests: XCTestCase {
     view.renderablePool = pool // isolate from the shared pool, so earlier tests don't affect the reuse
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
     return view
+  }
+
+  /// Returns the text storage that shows the text view's text.
+  private func textStorage(of textView: BaseTextView) -> NSTextStorage? {
+    #if canImport(AppKit)
+    return textView.shownTextStorage
+    #else
+    return textView.textStorage
+    #endif
   }
 }
 

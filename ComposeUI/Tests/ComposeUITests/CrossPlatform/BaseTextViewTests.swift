@@ -38,7 +38,7 @@ import UIKit
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class BaseTextViewTests: XCTestCase {
 
@@ -95,6 +95,119 @@ class BaseTextViewTests: XCTestCase {
     // then: it resigns first responder and leaves the window
     expect(textView.isFirstResponder) == false
     expect(textView.window) == nil
+  }
+  #endif
+
+  // MARK: - Text
+
+  func test_attributedString_equalText_leavesTheTextStorageUnedited() throws {
+    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, and an observer of its text storage's edits
+      textView.attributedString = Self.makeText("Hello, world!")
+      let textStorage = try Self.textStorage(of: textView).unwrap()
+      var editCount = 0
+      let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+        editCount += 1
+      }
+      defer {
+        NotificationCenter.default.removeObserver(observer)
+      }
+
+      // when: setting an equal text, made anew
+      textView.attributedString = Self.makeText("Hello, world!")
+
+      // then: the text storage isn't edited
+      expect(editCount, textKit) == 0
+
+      // when: setting another text
+      textView.attributedString = Self.makeText("Goodbye")
+
+      // then: the text storage is edited to show it
+      expect(editCount, textKit) == 1
+      expect(textStorage.string, textKit) == "Goodbye"
+    }
+  }
+
+  func test_attributedString_equalText_keepsTheSelection() {
+    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, with part of it selected
+      textView.attributedString = Self.makeText("Hello, world!")
+      #if canImport(AppKit)
+      textView.setSelectedRange(NSRange(location: 0, length: 5))
+      #endif
+      #if canImport(UIKit)
+      textView.selectedRange = NSRange(location: 0, length: 5)
+      #endif
+
+      // when: setting an equal text, made anew, as a refresh of unchanged content does
+      textView.attributedString = Self.makeText("Hello, world!")
+
+      // then: the selection stays
+      expect(textView.selectedRange, textKit) == NSRange(location: 0, length: 5)
+    }
+  }
+
+  func test_attributedString_sameTextAfterAnEdit_replacesTheEdit() throws {
+    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, which the user then edited
+      textView.attributedString = Self.makeText("Hello")
+      let textStorage = try Self.textStorage(of: textView).unwrap()
+      textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+      expect(textStorage.string, textKit) == "Hello, world!"
+
+      // when: setting the same text as before the edit
+      textView.attributedString = Self.makeText("Hello")
+
+      // then: the text replaces the edit, since an equal text is compared with the text storage, not the old text
+      expect(textStorage.string, textKit) == "Hello"
+    }
+  }
+
+  #if canImport(AppKit)
+  func test_attributedString_equalText_stillLaysOutTheTextContainer() {
+    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a text, with the layout it scheduled run, whose horizontal inset then changed
+      textView.attributedString = Self.makeText("Hello, world!")
+      runScheduledBlocks()
+      textView.textContainerInset = CGSize(width: 30, height: 0)
+
+      // when: setting an equal text, and running the blocks it scheduled
+      textView.attributedString = Self.makeText("Hello, world!")
+      runScheduledBlocks()
+
+      // then: the text view is laid out again, as for a different text, so its text container fits the new inset
+      expect(textView.textContainer?.size.width, textKit) == 140
+    }
+  }
+
+  func test_attributedString_userEditedTextSetBack_leavesTheTextStorageAndInvalidatesTheIntrinsicSize() throws {
+    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
+      // given: a text view showing a model's mutable text, which the user then edited, with part of it selected, and an
+      // observer of the text storage's edits
+      let modelText = NSMutableAttributedString(attributedString: Self.makeText("Hello"))
+      textView.attributedString = modelText
+      let textStorage = try Self.textStorage(of: textView).unwrap()
+      textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+      textView.setSelectedRange(NSRange(location: 0, length: 5))
+      var editCount = 0
+      let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+        editCount += 1
+      }
+      defer {
+        NotificationCenter.default.removeObserver(observer)
+      }
+      textView.intrinsicSizeInvalidationCount = 0
+
+      // when: the model takes the edit into its mutable text, and sets the same object again
+      modelText.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+      textView.attributedString = modelText
+
+      // then: the text storage, which already shows the text, isn't edited and keeps the selection, and the intrinsic
+      // size, which is computed from the text, is invalidated
+      expect(editCount, textKit) == 0
+      expect(textView.selectedRange, textKit) == NSRange(location: 0, length: 5)
+      expect(textView.intrinsicSizeInvalidationCount, textKit) == 1
+    }
   }
   #endif
 
@@ -467,4 +580,66 @@ class BaseTextViewTests: XCTestCase {
     // then: the typing attributes are cleared
     expect(textView.typingAttributes.isEmpty) == true
   }
+
+  // MARK: - Helpers
+
+  /// Returns a text with a font and a color, as a label's text has.
+  ///
+  /// The text has a color since tvOS's text view adds the label color to a text without one, and then replaces it when
+  /// it's set again, which `BaseTextView` leaves to it.
+  private static func makeText(_ string: String) -> NSAttributedString {
+    NSAttributedString(string: string, attributes: [.font: Font.systemFont(ofSize: 13), .foregroundColor: Color.red])
+  }
+
+  /// Returns the text storage that shows the text view's text.
+  private static func textStorage(of textView: BaseTextView) -> NSTextStorage? {
+    #if canImport(AppKit)
+    return textView.shownTextStorage
+    #else
+    return textView.textStorage
+    #endif
+  }
+
+  /// Returns a text view of each TextKit the platform's text views use, TextKit 2 and TextKit 1 on macOS, with the
+  /// TextKit's name.
+  private static func makeTextViews<T: BaseTextView>(_ make: () -> T) -> [(String, T)] {
+    #if canImport(AppKit)
+    BaseTextView.usesTextKit1ForTesting = true
+    let textKit1TextView = make()
+    BaseTextView.usesTextKit1ForTesting = false
+    // text views use TextKit 2 from macOS 13
+    guard #available(macOS 13.0, *) else {
+      return [("TextKit 1", textKit1TextView)]
+    }
+    let textKit2TextView = make()
+    // if the flag stopped taking effect, the TextKit 1 runs would silently test TextKit 2 again
+    expect(textKit2TextView.textLayoutManager) != nil
+    expect(textKit1TextView.textLayoutManager) == nil
+    return [("TextKit 2", textKit2TextView), ("TextKit 1", textKit1TextView)]
+    #else
+    return [("TextKit", make())]
+    #endif
+  }
+
+  /// Runs the main run loop until the blocks scheduled on it so far have run, such as a text view's scheduled layout.
+  private func runScheduledBlocks() {
+    var isDrained = false
+    RunLoop.main.perform {
+      isDrained = true
+    }
+    expect(isDrained).toEventually(beTrue())
+  }
 }
+
+#if canImport(AppKit)
+/// A text view that counts the invalidations of its intrinsic size.
+private final class CountingTextView: BaseTextView {
+
+  var intrinsicSizeInvalidationCount = 0
+
+  override func invalidateIntrinsicContentSize() {
+    super.invalidateIntrinsicContentSize()
+    intrinsicSizeInvalidationCount += 1
+  }
+}
+#endif

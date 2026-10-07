@@ -477,6 +477,86 @@ class TextNodeTests: XCTestCase {
     expect(textView.attributedString.string) == text
   }
 
+  #if canImport(AppKit)
+  func test_refresh_insetChangedOnly_relaysOutTheTextContainer() throws {
+    for usesTextKit1 in [false, true] {
+      // given: text that wraps across several lines, rendered 200 points wide in a new text view of the TextKit under
+      // test, with the layout it scheduled run
+      var inset: CGFloat = 0
+      var renderedView: BaseTextView?
+      let contentView = ComposeView {
+        TextNode("A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container.", font: Font.systemFont(ofSize: 14))
+          .textContainerInset(horizontal: inset, vertical: 0)
+          .frame(width: .flexible, height: 300)
+          .onUpdate { item, _ in
+            renderedView = item.view as? BaseTextView
+          }
+      }
+      contentView.renderablePool = RenderablePool()
+      contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 300)
+      BaseTextView.usesTextKit1ForTesting = usesTextKit1
+      contentView.refresh(animated: false)
+      BaseTextView.usesTextKit1ForTesting = false
+      let textView = try unwrap(renderedView)
+      let textKit = textKitName(of: textView)
+      runScheduledBlocks()
+      let lineCountAt200 = lineCount(of: textView)
+
+      // when: changing only the horizontal inset, refreshing, and running the blocks the refresh scheduled
+      inset = 30
+      contentView.refresh(animated: false)
+      runScheduledBlocks()
+
+      // then: the text container is 140 points wide, and the text wraps in it as after an explicit layout
+      expect(textView.textContainer?.size.width, textKit) == 140
+      let lineCountAfterRefresh = lineCount(of: textView)
+      textView.needsLayout = true
+      textView.layoutSubtreeIfNeeded()
+      expect(lineCountAfterRefresh, textKit) == lineCount(of: textView)
+      expect(lineCountAfterRefresh, textKit) > lineCountAt200
+    }
+  }
+
+  func test_refresh_widthChangedOnly_relaysOutTheTextContainer() throws {
+    for usesTextKit1 in [false, true] {
+      // given: text that wraps across several lines, rendered 200 points wide in a new text view of the TextKit under
+      // test, with the layout it scheduled run
+      var width: CGFloat = 200
+      var renderedView: BaseTextView?
+      let contentView = ComposeView {
+        TextNode("A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container.", font: Font.systemFont(ofSize: 14))
+          .frame(width: width, height: 300)
+          .onUpdate { item, _ in
+            renderedView = item.view as? BaseTextView
+          }
+      }
+      contentView.renderablePool = RenderablePool()
+      contentView.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+      BaseTextView.usesTextKit1ForTesting = usesTextKit1
+      contentView.refresh(animated: false)
+      BaseTextView.usesTextKit1ForTesting = false
+      let textView = try unwrap(renderedView)
+      let textKit = textKitName(of: textView)
+      runScheduledBlocks()
+      let lineCountAt200 = lineCount(of: textView)
+
+      // when: changing only the text's width, refreshing, and running the blocks the refresh scheduled
+      width = 140
+      contentView.refresh(animated: false)
+      runScheduledBlocks()
+
+      // then: the text container is 140 points wide, and the text wraps in it as after an explicit layout
+      expect(textView.textContainer?.size.width, textKit) == 140
+      let lineCountAfterRefresh = lineCount(of: textView)
+      textView.needsLayout = true
+      textView.layoutSubtreeIfNeeded()
+      expect(lineCountAfterRefresh, textKit) == lineCount(of: textView)
+      expect(lineCountAfterRefresh, textKit) > lineCountAt200
+    }
+  }
+
+  #endif
+
   func test_adjustIntrinsicTextSize() throws {
     // given: a fixed size text node with an intrinsic text size adjustment
     var textView: BaseTextView?
@@ -549,4 +629,41 @@ class TextNodeTests: XCTestCase {
     expect(defaultView?.isSelectable) == true // TextNode is selectable by default
     expect(nonSelectableView?.isSelectable) == false // would be true (stale) if the setter did not reset the shared cache
   }
+
+  // MARK: - Helpers
+
+  /// Runs the main run loop until the blocks scheduled on it so far have run, such as a text view's scheduled layout.
+  private func runScheduledBlocks() {
+    var isDrained = false
+    RunLoop.main.perform {
+      isDrained = true
+    }
+    expect(isDrained).toEventually(beTrue())
+  }
+
+  #if canImport(AppKit)
+  /// Returns the name of the TextKit the text view uses.
+  private func textKitName(of textView: BaseTextView) -> String {
+    if #available(macOS 12.0, *), textView.textLayoutManager != nil {
+      return "TextKit 2"
+    }
+    return "TextKit 1"
+  }
+
+  /// Returns the number of lines the text view lays out its text in.
+  private func lineCount(of textView: BaseTextView) -> Int {
+    var count = 0
+    if #available(macOS 12.0, *), let textLayoutManager = textView.textLayoutManager {
+      textLayoutManager.enumerateTextLayoutFragments(from: textLayoutManager.documentRange.location, options: [.ensuresLayout]) { fragment in
+        count += fragment.textLineFragments.count
+        return true
+      }
+    } else if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
+      layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, _, _, _, _ in
+        count += 1
+      }
+    }
+    return count
+  }
+  #endif
 }

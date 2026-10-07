@@ -114,7 +114,9 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
 
       // when: the run loop performs the deferred refresh
       var isDrained = false
-      RunLoop.main.perform { isDrained = true }
+      RunLoop.main.perform {
+        isDrained = true
+      }
       expect(isDrained).toEventually(beTrue())
 
       // then: the deferred refresh applies the new configuration to the same renderable
@@ -354,7 +356,9 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
 
     // when: the run loop turns
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: no pass follows either, the bounds have not changed
@@ -400,7 +404,9 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
 
     // when: the run loop performs the deferred refresh
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: the other view shows the new content
@@ -601,7 +607,9 @@ class ComposeView_ReentrantRefreshTests: XCTestCase {
 
     // when: the run loop turns
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: the refresh was performed, nothing is left to run

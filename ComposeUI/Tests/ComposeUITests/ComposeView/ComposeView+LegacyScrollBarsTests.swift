@@ -1144,7 +1144,9 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     view.refresh(animated: false)
     for _ in 0 ..< 2 {
       var isDrained = false
-      RunLoop.main.perform { isDrained = true }
+      RunLoop.main.perform {
+        isDrained = true
+      }
       expect(isDrained).toEventually(beTrue())
     }
 
@@ -1183,7 +1185,9 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     view.refresh(animated: false)
     for _ in 0 ..< 2 {
       var isDrained = false
-      RunLoop.main.perform { isDrained = true }
+      RunLoop.main.perform {
+        isDrained = true
+      }
       expect(isDrained).toEventually(beTrue())
     }
 
@@ -1221,7 +1225,9 @@ class ComposeView_LegacyScrollBarsTests: XCTestCase {
     view.setNeedsRefresh(animated: false)
     window.layoutIfNeeded()
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: the view renders again for its new size, where the content fits, so both scroll bars hide and the content

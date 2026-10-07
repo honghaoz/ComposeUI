@@ -52,6 +52,24 @@ open class BaseTextView: TextView {
     }
   }()
 
+  #if DEBUG
+  /// Whether the text views made from now on use TextKit 1, so that tests cover the TextKit 1 paths, which macOS 13 and
+  /// later don't take.
+  static var usesTextKit1ForTesting = false
+  #endif
+
+  /// Whether the text view uses TextKit 2.
+  private let usesTextKit2: Bool
+
+  /// The text storage that shows the text.
+  var shownTextStorage: NSTextStorage? {
+    if usesTextKit2, #available(macOS 12.0, *) {
+      return textContentStorage?.textStorage
+    } else {
+      return textStorage
+    }
+  }
+
   override open var isFlipped: Bool { true }
 
   // ⚠️ DON'T OVERRIDE `wantsUpdateLayer` ⚠️
@@ -70,16 +88,22 @@ open class BaseTextView: TextView {
   // }
 
   /// The attributed string content of the text view.
+  ///
+  /// Setting a text equal to the shown one can leave the shown text in place, so to change an attribute object, such as
+  /// an attachment's image, set a text with a new object instead of changing the object.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
-      if BaseTextView.shouldUseTextKit2, #available(macOS 12.0, *) {
-        // TextKit 2
-        textContentStorage?.textStorage?.setAttributedString(attributedString)
-      } else {
-        // TextKit 1
-        textStorage?.setAttributedString(attributedString)
+      let storage = shownTextStorage
+
+      // replacing the text storage's content edits it even with an equal text, which costs allocations and moves the
+      // selection to the end, so an equal text is left in place. it's compared with the text storage instead of the old
+      // value, since the text storage can hold the user's edits, which a new value replaces as before
+      if storage?.isEqual(to: attributedString) != true {
+        storage?.setAttributedString(attributedString)
       }
 
+      // an equal text still invalidates the intrinsic size, which is computed from this property, and schedules a
+      // layout, which also applies the changes made since the last one, such as a new inset
       invalidateIntrinsicContentSize()
       scheduleLayout()
     }
@@ -110,7 +134,14 @@ open class BaseTextView: TextView {
   }
 
   override public init(frame: CGRect) {
-    if BaseTextView.shouldUseTextKit2, #available(macOS 12.0, *) {
+    #if DEBUG
+    let usesTextKit2 = BaseTextView.shouldUseTextKit2 && !BaseTextView.usesTextKit1ForTesting
+    #else
+    let usesTextKit2 = BaseTextView.shouldUseTextKit2
+    #endif
+    self.usesTextKit2 = usesTextKit2
+
+    if usesTextKit2, #available(macOS 12.0, *) {
       let textContainer = NSTextContainer(size: frame.size)
 
       let textLayoutManager = NSTextLayoutManager()
@@ -191,6 +222,13 @@ open class BaseTextView: TextView {
     // clips the text within the bounds of the text view
     // for attributed text with `.byTruncatingTail` break mode, the text can overflow the bounds of the text view
     clipsToBounds = true
+
+    // TextKit 1 draws the text in the text view itself, without the TextKit 2 subviews below, so their lookups would
+    // fail their assertions
+    guard usesTextKit2 else {
+      return
+    }
+
     if #available(macOS 26.0, *) {
       // macOS 26 (Tahoe) 26.4.1 (25E253)
       // (lldb) po subviews
@@ -273,8 +311,14 @@ import UIKit
 open class BaseTextView: UITextView {
 
   /// The attributed string content of the text view.
+  ///
+  /// Setting a text equal to the shown one can leave the shown text in place, so to change an attribute object, such as
+  /// an attachment's image, set a text with a new object instead of changing the object.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
+      // UITextView leaves an equal text in place itself, so there's no check here. tvOS adds the label color to a text
+      // without a color, so it replaces such a text when it's set again, which isn't worked around, since that would
+      // copy tvOS's rule
       attributedText = attributedString
     }
   }

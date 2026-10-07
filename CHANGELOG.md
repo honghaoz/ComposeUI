@@ -23,6 +23,7 @@
 - `ComposeView` now lays out, centers and scrolls its content between its content insets (`adjustedContentInset`) instead of ignoring them: `WillLayoutContext.containerSize` is the visible size minus the insets, content that fits between them centers there without scrolling, and `sizeThatFits(_:)` includes them.
 - A `VStack` or `HStack` laid out again at the same container size with the same `ComposeNodeLayoutContext` now returns its earlier layout instead of laying out its children again. Create a new context to lay out content again after it changes, as `ComposeView` does for each render pass.
 - Creating a `ComposeNodeLayoutContext` off the main thread now asserts in debug builds. Create and use a context on the main thread, where layout runs.
+- On macOS, `BaseTextView` now leaves its text in place when it's set to an equal text, as `UITextView` does on iOS and visionOS, so refreshing unchanged text no longer clears its selection, and is faster. To change an attribute object, such as an attachment's image, set a text with a new object instead of changing the object.
 
 ### Changes
 

@@ -79,7 +79,9 @@ class ComposeView_RenderOverrideTests: XCTestCase {
 
     // when: the run loop performs the deferred pass
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: the held pass renders the content it was prepared with, without making it again
@@ -271,7 +273,9 @@ class ComposeView_RenderOverrideTests: XCTestCase {
 
     // when: the run loop performs the follow-up layout
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: the pass found the bounds changed when it ended, so the new size renders
@@ -353,7 +357,9 @@ class ComposeView_RenderOverrideTests: XCTestCase {
 
     // when: the run loop performs the follow-up layout
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: the new size renders beside the scroll bar
@@ -388,7 +394,9 @@ class ComposeView_RenderOverrideTests: XCTestCase {
 
     // when: the run loop performs the follow-up layout
     var isDrained = false
-    RunLoop.main.perform { isDrained = true }
+    RunLoop.main.perform {
+      isDrained = true
+    }
     expect(isDrained).toEventually(beTrue())
 
     // then: the new size renders beside the scroll bar, with the document still at the origin
