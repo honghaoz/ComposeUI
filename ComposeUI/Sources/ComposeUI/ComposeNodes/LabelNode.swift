@@ -112,32 +112,36 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     if node == nil {
+      var textNode: TextNode
       if numberOfLines == 1 {
-        node = TextNode.singleLineText(
-          text,
-          font: font,
-          foregroundColor: textColor,
-          backgroundColor: textBackgroundColor,
-          shadow: textShadow,
-          textAlignment: textAlignment
-        )
-      } else {
-        node = TextNode.multiLineText(
+        textNode = TextNode.singleLineText(
           text,
           font: font,
           foregroundColor: textColor,
           backgroundColor: textBackgroundColor,
           shadow: textShadow,
           textAlignment: textAlignment,
-          numberOfLines: numberOfLines
+          lineBreakMode: lineBreakMode,
+          isSelectable: isSelectable
+        )
+      } else {
+        textNode = TextNode.multiLineText(
+          text,
+          font: font,
+          foregroundColor: textColor,
+          backgroundColor: textBackgroundColor,
+          shadow: textShadow,
+          textAlignment: textAlignment,
+          numberOfLines: numberOfLines,
+          lineBreakMode: lineBreakMode,
+          isSelectable: isSelectable
         )
       }
+      textNode.isFixedWidth = isFixedWidth
+      textNode.isFixedHeight = isFixedHeight
+      textNode.id = id
 
-      node = node?.lineBreakMode(lineBreakMode)
-        .selectable(isSelectable)
-        .fixedSize(width: isFixedWidth, height: isFixedHeight)
-
-      node?.id = id
+      node = textNode
     }
 
     return node!.layout(containerSize: containerSize, context: context) // swiftlint:disable:this force_unwrapping
