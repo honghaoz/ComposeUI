@@ -32,8 +32,8 @@ import ChouTiTest
 
 @testable import ComposeUI
 
-/// Pins the render work of representative updates: the render passes, the nodes asked for renderable items, and the
-/// renderables inserted, reused and removed.
+/// Pins the render work of representative updates: the render passes, the nodes asked for renderable items, the
+/// renderables inserted, reused and removed, and the text storages edited.
 ///
 /// The counts don't depend on the machine's speed or load, so they hold on any machine. A changed count is a changed
 /// cost: update the expected count when the change is intended.
@@ -132,6 +132,42 @@ class ComposeView_RenderWorkTests: XCTestCase {
     expect(events.inserts) == 0
     expect(events.removals) == 0
     expect(counts.animations) == 0
+  }
+
+  func test_refresh_editsOnlyTheTextThatChanged() {
+    // given: label rows rendered at the top, with the first row's text in a variable, and an observer of the edits to
+    // text storages
+    var firstRowText = "Row 0"
+    let view = makeRowsView { index in
+      LabelNode(index == 0 ? firstRowText : "Row \(index)")
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+    view.refresh(animated: false)
+    var textStorageEdits = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: nil, queue: nil) { _ in
+      textStorageEdits += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: refreshing with the same content
+    view.refresh(animated: false)
+
+    // then: the text views of the 2 rows that show keep their text, so no text storage is edited
+    expect(textStorageEdits) == 0
+
+    // when: changing the first row's text, and refreshing
+    firstRowText = "Changed"
+    view.refresh(animated: false)
+
+    // then: only the first row's text storage is edited, to show the new text
+    expect(textStorageEdits) == 1
+    let shownTexts = view.contentContainerView.subviews
+      .compactMap { $0 as? BaseTextView }
+      .sorted { $0.frame.minY < $1.frame.minY }
+      .map(\.attributedString.string)
+    expect(shownTexts) == ["Changed", "Row 1"]
   }
 
   // MARK: - Helpers

@@ -72,13 +72,23 @@ open class BaseTextView: TextView {
   /// The attributed string content of the text view.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
+      let storage: NSTextStorage?
       if BaseTextView.shouldUseTextKit2, #available(macOS 12.0, *) {
         // TextKit 2
-        textContentStorage?.textStorage?.setAttributedString(attributedString)
+        storage = textContentStorage?.textStorage
       } else {
         // TextKit 1
-        textStorage?.setAttributedString(attributedString)
+        storage = textStorage
       }
+
+      // a refresh sets the same text again, and replacing the text storage's content costs allocations and a layout, so
+      // an equal text is skipped. It's compared with the text storage instead of the old value, since an editable text
+      // view can hold the user's edits, which a new value replaces as before
+      guard storage?.isEqual(to: attributedString) != true else {
+        return
+      }
+
+      storage?.setAttributedString(attributedString)
 
       invalidateIntrinsicContentSize()
       scheduleLayout()
@@ -88,6 +98,11 @@ open class BaseTextView: TextView {
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
     didSet {
+      // a refresh sets the same value again, which needs no layout
+      guard numberOfLines != oldValue else {
+        return
+      }
+
       if numberOfLines == 1 {
         textContainer?.maximumNumberOfLines = 1
       } else {
@@ -102,6 +117,11 @@ open class BaseTextView: TextView {
   /// The line break mode to use for the text view. Default is `byWordWrapping`.
   open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
+      // a refresh sets the same value again, which needs no layout
+      guard lineBreakMode != oldValue else {
+        return
+      }
+
       textContainer?.lineBreakMode = lineBreakMode
 
       invalidateIntrinsicContentSize()
@@ -275,6 +295,8 @@ open class BaseTextView: UITextView {
   /// The attributed string content of the text view.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
+      // unlike NSTextView's text storage, UITextView leaves an equal text in place, so the same text set again by a
+      // refresh needs no check here
       attributedText = attributedString
     }
   }

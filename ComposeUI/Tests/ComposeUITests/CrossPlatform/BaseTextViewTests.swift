@@ -98,6 +98,95 @@ class BaseTextViewTests: XCTestCase {
   }
   #endif
 
+  // MARK: - Text
+
+  func test_attributedString_equalText_leavesTheTextStorageUnedited() throws {
+    // given: a text view showing a text, and an observer of its text storage's edits
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello, world!")
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: setting an equal text, made anew
+    textView.attributedString = Self.makeText("Hello, world!")
+
+    // then: the text storage isn't edited
+    expect(editCount) == 0
+
+    // when: setting another text
+    textView.attributedString = Self.makeText("Goodbye")
+
+    // then: the text storage is edited to show it
+    expect(editCount) == 1
+    expect(textStorage.string) == "Goodbye"
+  }
+
+  func test_attributedString_equalText_keepsTheSelection() {
+    // given: a text view showing a text, with part of it selected
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello, world!")
+    #if canImport(AppKit)
+    textView.setSelectedRange(NSRange(location: 0, length: 5))
+    #endif
+    #if canImport(UIKit)
+    textView.selectedRange = NSRange(location: 0, length: 5)
+    #endif
+
+    // when: setting an equal text, made anew, as a refresh of unchanged content does
+    textView.attributedString = Self.makeText("Hello, world!")
+
+    // then: the selection stays
+    expect(textView.selectedRange) == NSRange(location: 0, length: 5)
+  }
+
+  func test_attributedString_sameTextAfterAnEdit_replacesTheEdit() throws {
+    // given: a text view showing a text, which the user then edited
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello")
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+    expect(textStorage.string) == "Hello, world!"
+
+    // when: setting the same text as before the edit
+    textView.attributedString = Self.makeText("Hello")
+
+    // then: the text replaces the edit, since an equal text is compared with the text storage, not the old text
+    expect(textStorage.string) == "Hello"
+  }
+
+  #if canImport(AppKit)
+  func test_numberOfLinesAndLineBreakMode_sameValues_scheduleNoLayout() {
+    // given: a text view that counts its layout passes, showing 2 lines truncated at the tail, with the layout that the
+    // changes scheduled run
+    let textView = LayoutCountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.numberOfLines = 2
+    textView.lineBreakMode = .byTruncatingTail
+    RunLoop.main.run(until: Date())
+    textView.layoutCount = 0
+
+    // when: setting the same values again, and running the run loop
+    textView.numberOfLines = 2
+    textView.lineBreakMode = .byTruncatingTail
+    RunLoop.main.run(until: Date())
+
+    // then: no layout runs
+    expect(textView.layoutCount) == 0
+
+    // when: changing the number of lines, and running the run loop
+    textView.numberOfLines = 3
+    RunLoop.main.run(until: Date())
+
+    // then: the scheduled layout runs
+    expect(textView.layoutCount) == 1
+  }
+  #endif
+
   // MARK: - resetForReuse
 
   func test_resetForReuse_clearsSelection() {
@@ -467,4 +556,36 @@ class BaseTextViewTests: XCTestCase {
     // then: the typing attributes are cleared
     expect(textView.typingAttributes.isEmpty) == true
   }
+
+  // MARK: - Helpers
+
+  /// Returns a text in the system font, as a label's text has one.
+  private static func makeText(_ string: String) -> NSAttributedString {
+    NSAttributedString(string: string, attributes: [.font: Font.systemFont(ofSize: 13)])
+  }
+
+  /// Returns the text storage that shows the text view's text.
+  private static func textStorage(of textView: BaseTextView) -> NSTextStorage? {
+    #if canImport(AppKit)
+    if #available(macOS 12.0, *), let textStorage = textView.textContentStorage?.textStorage {
+      return textStorage
+    }
+    return textView.textStorage
+    #else
+    return textView.textStorage
+    #endif
+  }
 }
+
+#if canImport(AppKit)
+/// A text view that counts its layout passes.
+private final class LayoutCountingTextView: BaseTextView {
+
+  var layoutCount = 0
+
+  override func layout() {
+    super.layout()
+    layoutCount += 1
+  }
+}
+#endif
