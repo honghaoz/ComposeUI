@@ -148,6 +148,7 @@ Hard-won rules from past corrections, grouped by theme.
 - Do not run a standalone `swift package resolve` before xcodebuild tests. xcodebuild resolves pinned packages into DerivedData/SourcePackages itself, so the standalone resolve only duplicates work.
 - On few-core CI runners, do not overlap simulator boot with compilation. Both are CPU-heavy, and contention makes the total slower than running them serially (build first, then boot).
 - To get CI telemetry without log access, emit `::notice::` workflow commands. They become check-run annotations readable via the public Checks API (capped at 10 annotations per step, so emit before noisy output).
+- To compare a pull request against its base on CI, use the first parent of the merge commit that the run checks out (`github.sha`), not `github.event.pull_request.base.sha`. The run checks out GitHub's merge of the head into the base branch's current commit, while the event's base sha stays at the commit the branch started from when the base branch moves, so a comparison against it counts the base branch's later changes as the pull request's.
 
 ## Core Animation
 
