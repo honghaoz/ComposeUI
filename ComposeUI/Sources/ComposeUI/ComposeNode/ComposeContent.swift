@@ -37,7 +37,9 @@ public protocol ComposeContent {
   /// The content's nodes, in order. Read them with `nodes`.
   ///
   /// This is framework plumbing: the framework's types implement it, and a `@ComposeContentBuilder` block places a
-  /// node as itself without calling it, so don't implement it in your types.
+  /// node as itself without calling it, so don't implement it in your types. To make content of your own, write a
+  /// node, or a property or function marked `@ComposeContentBuilder`, instead of a type that conforms to
+  /// `ComposeContent`.
   func _nodes() -> [any ComposeNode]
 }
 
