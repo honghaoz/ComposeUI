@@ -911,7 +911,51 @@ class LabelNodeTests: XCTestCase {
     expect(selectableView?.isSelectable) == true
   }
 
+  func test_refresh_labelsThatDifferInOneSetting_renderTheirOwnSetting() throws {
+    let font = try unwrap(Font(name: "HelveticaNeue", size: 20))
+    let shadow = NSShadow()
+    shadow.shadowOffset = CGSize(width: 0, height: 1)
+
+    // single-line and multi-line labels make their text nodes through different factories
+    for numberOfLines in [1, 2] {
+      // given: a label with the default settings, rendered, so the simple text cache holds its text
+      let base = try unwrap(renderedText(of: LabelNode("Hello").numberOfLines(numberOfLines)))
+      expect(base.backgroundColor()) == nil
+      expect(base.shadow()) == nil
+      expect(base.paragraphStyle()?.alignment) == .center
+
+      // when: rendering labels that each differ from it in one setting
+      let otherText = renderedText(of: LabelNode("Other").numberOfLines(numberOfLines))
+      let otherFont = renderedText(of: LabelNode("Hello").numberOfLines(numberOfLines).font(font))
+      let otherColor = renderedText(of: LabelNode("Hello").numberOfLines(numberOfLines).textColor(ThemedColor(.blue)))
+      let otherBackground = renderedText(of: LabelNode("Hello").numberOfLines(numberOfLines).textBackgroundColor(ThemedColor(.green)))
+      let otherShadow = renderedText(of: LabelNode("Hello").numberOfLines(numberOfLines).textShadow(Themed<NSShadow>(shadow)))
+      let otherAlignment = renderedText(of: LabelNode("Hello").numberOfLines(numberOfLines).textAlignment(.right))
+
+      // then: each label renders its own setting, instead of the cached text of the default settings
+      expect(otherText?.string) == "Other"
+      expect(otherFont?.font()) == font
+      expect(otherColor?.foregroundColor()) == .blue
+      expect(otherBackground?.backgroundColor()) == .green
+      expect(otherShadow?.shadow()) != nil
+      expect(otherAlignment?.paragraphStyle()?.alignment) == .right
+    }
+  }
+
   // MARK: - Helpers
+
+  /// Returns the text that the label renders, in a view of its own.
+  private func renderedText(of label: LabelNode) -> NSAttributedString? {
+    var textView: BaseTextView?
+    let view = ComposeView {
+      label.onUpdate { item, _ in
+        textView = item.view as? BaseTextView
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    view.refresh(animated: false)
+    return textView?.attributedString
+  }
 
   private func firstRenderableItem(of node: LabelNode) -> RenderableItem? {
     var node = node
