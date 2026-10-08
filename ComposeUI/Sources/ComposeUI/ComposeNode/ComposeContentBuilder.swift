@@ -97,9 +97,14 @@ public enum ComposeContentBuilder {
   public static func buildFinalResult(_ item: Item<ComposeContent>) -> ComposeContent {
     switch item {
     case .array(let items):
-      return items.flatMap {
-        buildFinalResult($0).asNodes()
+      // a refresh builds every block again, so the nested items are flattened into one array, instead of an array for
+      // each item, joined into the block's
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(items.count)
+      for item in items {
+        appendNodes(of: item, to: &nodes)
       }
+      return nodes
     case .optional(let item?):
       return buildFinalResult(item)
     case .optional(nil):
@@ -112,6 +117,27 @@ public enum ComposeContentBuilder {
       }
     case .void:
       return []
+    }
+  }
+
+  /// Appends the nodes of an item to the array, in order.
+  private static func appendNodes(of item: Item<ComposeContent>, to nodes: inout [any ComposeNode]) {
+    switch item {
+    case .array(let items):
+      for item in items {
+        appendNodes(of: item, to: &nodes)
+      }
+    case .optional(let item?):
+      appendNodes(of: item, to: &nodes)
+    case .optional(nil),
+         .void:
+      break
+    case .expressionSingle(let input):
+      nodes.append(contentsOf: input.asNodes())
+    case .expressionArray(let inputArray):
+      for input in inputArray {
+        nodes.append(contentsOf: input.asNodes())
+      }
     }
   }
 }

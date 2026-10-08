@@ -201,6 +201,27 @@ class ComposeContentBuilderTests: XCTestCase {
     expect([nodes[0], nodes[2], nodes[3], nodes[4]].map(\.id.id)) == ["a", "b", "c", "d"]
   }
 
+  func test_buildFinalResult_itemOtherThanABlock_buildsItsContent() {
+    // given: a node, and an array of two nodes
+    let node = ColorNode(.red).id("a")
+    let array: [ComposeNode] = [ColorNode(.red).id("b"), ColorNode(.red).id("c")]
+
+    // when: building items other than a block directly, which a builder block never does
+    let single = ComposeContentBuilder.buildFinalResult(.expressionSingle(node))
+    let someOptional = ComposeContentBuilder.buildFinalResult(.optional(.expressionSingle(node)))
+    let noneOptional = ComposeContentBuilder.buildFinalResult(.optional(nil))
+    let expressionArray = ComposeContentBuilder.buildFinalResult(.expressionArray([node, array]))
+    let void = ComposeContentBuilder.buildFinalResult(.void)
+
+    // then: a single expression gives the expression itself, an optional gives its item's content, or none, an array
+    // expression gives its contents' nodes, and void gives none
+    expect((single as? ColorNode)?.id.id) == "a"
+    expect((someOptional as? ColorNode)?.id.id) == "a"
+    expect(noneOptional.asNodes().isEmpty) == true
+    expect(expressionArray.asNodes().map(\.id.id)) == ["a", "b", "c"]
+    expect(void.asNodes().isEmpty) == true
+  }
+
   // MARK: - Helpers
 
   /// Returns the nodes that the builder makes of the content.
