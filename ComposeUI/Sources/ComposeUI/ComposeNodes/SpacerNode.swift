@@ -35,8 +35,8 @@ public typealias Spacer = SpacerNode
 /// A node that occupies the some space.
 public struct SpacerNode: ComposeNode {
 
-  private(set) var width: CGFloat?
-  private(set) var height: CGFloat?
+  fileprivate(set) var width: CGFloat?
+  fileprivate(set) var height: CGFloat?
 
   /// Make a spacer with the given size.
   /// - Parameters:
@@ -126,5 +126,32 @@ public struct SpacerNode: ComposeNode {
     copy.height = height
 
     return copy
+  }
+}
+
+extension ComposeNode {
+
+  /// Gives the node a width of 0 if it's a spacer without a width.
+  ///
+  /// Called on an `any ComposeNode`, it changes the spacer in its existential box, where storing a new spacer would
+  /// allocate a new box.
+  mutating func zeroWidthIfSpacerWithoutWidth() {
+    guard var spacer = self as? SpacerNode, spacer.width == nil else {
+      return
+    }
+    spacer.width = 0
+    self = spacer as! Self // swiftlint:disable:this force_cast
+  }
+
+  /// Gives the node a height of 0 if it's a spacer without a height.
+  ///
+  /// Called on an `any ComposeNode`, it changes the spacer in its existential box, where storing a new spacer would
+  /// allocate a new box.
+  mutating func zeroHeightIfSpacerWithoutHeight() {
+    guard var spacer = self as? SpacerNode, spacer.height == nil else {
+      return
+    }
+    spacer.height = 0
+    self = spacer as! Self // swiftlint:disable:this force_cast
   }
 }

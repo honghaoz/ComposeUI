@@ -246,6 +246,27 @@ class HorizontalStackNodeTests: XCTestCase {
     expect(items[1].frame) == CGRect(x: 80, y: 5, width: 20, height: 20)
   }
 
+  func test_layout_spacers_takeNoHeightUnlessTheyHaveOne() {
+    // given: an hstack with a fixed size child, a spacer without a size, a spacer with a width, and a spacer with a height
+    var node = HStack {
+      LayerNode().frame(width: 20, height: 30)
+      Spacer()
+      Spacer(width: 10)
+      Spacer(height: 40)
+    }
+
+    // when: laying out in a 100x50 container
+    let sizing = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the spacers without a height are 0 points tall, as spacers still, and the spacer with a height keeps it,
+    // which makes the stack as tall as it
+    expect(sizing.height) == .fixed(40)
+    expect(node.size) == CGSize(width: 100, height: 40)
+    let spacers = node.childNodes.compactMap { $0 as? SpacerNode }
+    expect(spacers.map(\.height)) == [0, 0, 40]
+    expect(spacers.map(\.size)) == [CGSize(width: 35, height: 0), CGSize(width: 10, height: 0), CGSize(width: 35, height: 40)]
+  }
+
   func test_fixedWidth_fixedHeight_alignment() {
     // given: an hstack with top alignment
     do {

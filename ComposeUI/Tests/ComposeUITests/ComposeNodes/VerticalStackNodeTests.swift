@@ -245,6 +245,27 @@ class VerticalStackNodeTests: XCTestCase {
     expect(items[1].frame) == CGRect(x: 5, y: 80, width: 20, height: 20)
   }
 
+  func test_layout_spacers_takeNoWidthUnlessTheyHaveOne() {
+    // given: a vstack with a fixed size child, a spacer without a size, a spacer with a height, and a spacer with a width
+    var node = VStack {
+      LayerNode().frame(width: 30, height: 20)
+      Spacer()
+      Spacer(height: 10)
+      Spacer(width: 40)
+    }
+
+    // when: laying out in a 50x100 container
+    let sizing = node.layout(containerSize: CGSize(width: 50, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the spacers without a width are 0 points wide, as spacers still, and the spacer with a width keeps it,
+    // which makes the stack as wide as it
+    expect(sizing.width) == .fixed(40)
+    expect(node.size) == CGSize(width: 40, height: 100)
+    let spacers = node.childNodes.compactMap { $0 as? SpacerNode }
+    expect(spacers.map(\.width)) == [0, 0, 40]
+    expect(spacers.map(\.size)) == [CGSize(width: 0, height: 35), CGSize(width: 0, height: 10), CGSize(width: 40, height: 35)]
+  }
+
   func test_fixedWidth_fixedHeight_alignment() {
     // left alignment
     do {

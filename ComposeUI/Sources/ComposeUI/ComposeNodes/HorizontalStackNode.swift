@@ -104,8 +104,10 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
         // special treatment for spacer node with nil height to make it fixed with 0 height,
         // so that the spacer nodes don't expand the horizontal stack node's height.
-        if let spacer = childNodes[nodeIndex] as? SpacerNode, spacer.height == nil {
-          childNodes[nodeIndex] = spacer.height(0)
+        // the spacer is found by its type, which costs less than casting each child, and changed in place, since storing
+        // a new node in the children allocates a box for it
+        if type(of: childNodes[nodeIndex]) == SpacerNode.self {
+          childNodes[nodeIndex].zeroHeightIfSpacerWithoutHeight()
         }
 
         let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize, context: context)
