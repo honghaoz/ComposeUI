@@ -25,6 +25,7 @@
 - Creating a `ComposeNodeLayoutContext` off the main thread now asserts in debug builds. Create and use a context on the main thread, where layout runs.
 - On macOS, `BaseTextView` now leaves its text in place when it's set to an equal text, as `UITextView` does on iOS and visionOS, so refreshing unchanged text no longer clears its selection, and is faster. To change an attribute object, such as an attachment's image, set a text with a new object instead of changing the object.
 - `ComposeContent`'s `asNodes()` is renamed to `_nodes()`, which is framework plumbing: read a content's nodes with the new `nodes` property instead. A type that implemented `asNodes()` to be content becomes a node, or a property or function marked `@ComposeContentBuilder`. A `@ComposeContentBuilder` block places a node as itself, without calling `_nodes()`.
+- `ComposeContentBuilder.Item` is now opaque: its cases are internal, since only the builder's methods make items and pass them to each other.
 
 ### Changes
 

@@ -34,28 +34,39 @@ import Foundation
 @resultBuilder
 public enum ComposeContentBuilder {
 
-  public enum Item<Expression> {
+  /// A part of a block, which the builder's methods make and pass to each other.
+  public struct Item<Expression> {
 
-    case array([Item])
+    /// What the item holds.
+    enum Storage {
 
-    // indirect on this case instead of the enum: it's the only case that holds an item inline, and an indirect enum
-    // puts every item, one for each expression in a block, in its own heap allocation
-    indirect case optional(Item?)
+      case array([Item])
 
-    case expressionSingle(Expression)
+      // indirect on this case instead of the enum: it's the only case that holds an item inline, and an indirect enum
+      // puts every item, one for each expression in a block, in its own heap allocation
+      indirect case optional(Item?)
 
-    case expressionArray([Expression])
+      case expressionSingle(Expression)
 
-    case node(any ComposeNode)
+      case expressionArray([Expression])
 
-    case nodes([any ComposeNode])
+      case node(any ComposeNode)
 
-    case void
+      case nodes([any ComposeNode])
+
+      case void
+    }
+
+    let storage: Storage
+
+    init(_ storage: Storage) {
+      self.storage = storage
+    }
   }
 
   /// For a block of no statements, or more than ten.
   public static func buildBlock(_ items: Item<ComposeContent>...) -> Item<ComposeContent> {
-    .array(items)
+    Item(.array(items))
   }
 
   // A refresh builds every block again, so a block of up to ten statements has an overload of its own, which builds its
@@ -74,7 +85,7 @@ public enum ComposeContentBuilder {
     nodes.reserveCapacity(2)
     appendNodes(of: item0, to: &nodes)
     appendNodes(of: item1, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For a block of three statements.
@@ -87,7 +98,7 @@ public enum ComposeContentBuilder {
     appendNodes(of: item0, to: &nodes)
     appendNodes(of: item1, to: &nodes)
     appendNodes(of: item2, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For a block of four statements.
@@ -102,7 +113,7 @@ public enum ComposeContentBuilder {
     appendNodes(of: item1, to: &nodes)
     appendNodes(of: item2, to: &nodes)
     appendNodes(of: item3, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For a block of five statements.
@@ -119,7 +130,7 @@ public enum ComposeContentBuilder {
     appendNodes(of: item2, to: &nodes)
     appendNodes(of: item3, to: &nodes)
     appendNodes(of: item4, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For a block of six statements.
@@ -138,7 +149,7 @@ public enum ComposeContentBuilder {
     appendNodes(of: item3, to: &nodes)
     appendNodes(of: item4, to: &nodes)
     appendNodes(of: item5, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For a block of seven statements.
@@ -159,7 +170,7 @@ public enum ComposeContentBuilder {
     appendNodes(of: item4, to: &nodes)
     appendNodes(of: item5, to: &nodes)
     appendNodes(of: item6, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For a block of eight statements.
@@ -182,7 +193,7 @@ public enum ComposeContentBuilder {
     appendNodes(of: item5, to: &nodes)
     appendNodes(of: item6, to: &nodes)
     appendNodes(of: item7, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For a block of nine statements.
@@ -207,7 +218,7 @@ public enum ComposeContentBuilder {
     appendNodes(of: item6, to: &nodes)
     appendNodes(of: item7, to: &nodes)
     appendNodes(of: item8, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For a block of ten statements.
@@ -234,7 +245,7 @@ public enum ComposeContentBuilder {
     appendNodes(of: item7, to: &nodes)
     appendNodes(of: item8, to: &nodes)
     appendNodes(of: item9, to: &nodes)
-    return .nodes(nodes)
+    return Item(.nodes(nodes))
   }
 
   /// For `if`/`else`/`switch` statements.
@@ -249,12 +260,12 @@ public enum ComposeContentBuilder {
 
   /// For `if` only (without `else`) statements.
   public static func buildOptional(_ item: Item<ComposeContent>?) -> Item<ComposeContent> {
-    .optional(item)
+    Item(.optional(item))
   }
 
   /// For `for` loop.
   public static func buildArray(_ items: [Item<ComposeContent>]) -> Item<ComposeContent> {
-    .array(items)
+    Item(.array(items))
   }
 
   /// For `#available` statements.
@@ -264,27 +275,27 @@ public enum ComposeContentBuilder {
 
   /// For a single expression.
   public static func buildExpression(_ expression: ComposeContent) -> Item<ComposeContent> {
-    .expressionSingle(expression)
+    Item(.expressionSingle(expression))
   }
 
   /// For a node, which the block places as itself.
   public static func buildExpression(_ node: any ComposeNode) -> Item<ComposeContent> {
     // a node is boxed once, as a node, instead of as content and then again in the array its `_nodes()` returns
-    .node(node)
+    Item(.node(node))
   }
 
   /// For an array of expressions.
   public static func buildExpression(_ expression: [ComposeContent]) -> Item<ComposeContent> {
-    .expressionArray(expression)
+    Item(.expressionArray(expression))
   }
 
   /// For a void expression.
   public static func buildExpression(_ expression: Void) -> Item<ComposeContent> {
-    .void
+    Item(.void)
   }
 
   public static func buildFinalResult(_ item: Item<ComposeContent>) -> ComposeContent {
-    switch item {
+    switch item.storage {
     case .array(let items):
       // a refresh builds every block again, so the nested items are flattened into one array, instead of an array for
       // each item, joined into the block's
@@ -314,7 +325,7 @@ public enum ComposeContentBuilder {
 
   /// Appends the nodes of an item to the array, in order.
   private static func appendNodes(of item: Item<ComposeContent>, to nodes: inout [any ComposeNode]) {
-    switch item {
+    switch item.storage {
     case .array(let items):
       for item in items {
         appendNodes(of: item, to: &nodes)
