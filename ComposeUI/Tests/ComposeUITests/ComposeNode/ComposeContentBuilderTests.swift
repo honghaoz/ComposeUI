@@ -48,6 +48,105 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(ids) == ["a", "b", "c"]
   }
 
+  func test_blockOfEachSize_keepsTheNodesInOrder() {
+    // when: building blocks of one to ten statements, which have an overload each, and of eleven, which doesn't
+    let blocks = [
+      Self.nodeIds {
+        Self.node(0)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        Self.node(6)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        Self.node(6)
+        Self.node(7)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        Self.node(6)
+        Self.node(7)
+        Self.node(8)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        Self.node(6)
+        Self.node(7)
+        Self.node(8)
+        Self.node(9)
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        Self.node(6)
+        Self.node(7)
+        Self.node(8)
+        Self.node(9)
+        Self.node(10)
+      },
+    ]
+
+    // then: each block keeps its nodes in order
+    expect(blocks) == (1 ... 11).map { count in
+      (0 ..< count).map { "\($0)" }
+    }
+  }
+
   func test_emptyBlock_buildsNoNodes() {
     // when: building an empty block
     let ids = Self.nodeIds {}
@@ -190,15 +289,19 @@ class ComposeContentBuilderTests: XCTestCase {
     // given: a node type that implements `_nodes()` to stand for two other nodes, which a node type shouldn't
     let state = ExpandingNode.State()
 
-    // when: building a block with the node between two nodes
+    // when: building a block with the node between two nodes, and a block of only the node
     let ids = Self.nodeIds {
       ColorNode(.red).id("a")
       ExpandingNode(state: state)
       ColorNode(.red).id("c")
     }
+    let onlyIds = Self.nodeIds {
+      ExpandingNode(state: state)
+    }
 
     // then: the node is placed as itself, and its `_nodes()` isn't called
     expect(ids) == ["a", "expanding", "c"]
+    expect(onlyIds) == ["expanding"]
     expect(state.nodesCallCount) == 0
   }
 
@@ -228,15 +331,17 @@ class ComposeContentBuilderTests: XCTestCase {
     let noneOptional = ComposeContentBuilder.buildFinalResult(.optional(nil))
     let expressionArray = ComposeContentBuilder.buildFinalResult(.expressionArray([node, array]))
     let nodeItem = ComposeContentBuilder.buildFinalResult(.node(node))
+    let nodesItem = ComposeContentBuilder.buildFinalResult(.nodes(array))
     let void = ComposeContentBuilder.buildFinalResult(.void)
 
-    // then: a single expression or a node gives itself, an optional gives its item's content, or none, an array
-    // expression gives its contents' nodes, and void gives none
+    // then: a single expression gives itself, an optional gives its item's content, or none, an array expression
+    // gives its contents' nodes, a node gives an array of itself, nodes give themselves, and void gives none
     expect((single as? ColorNode)?.id.id) == "a"
     expect((someOptional as? ColorNode)?.id.id) == "a"
     expect(noneOptional.nodes.isEmpty) == true
     expect(expressionArray.nodes.map(\.id.id)) == ["a", "b", "c"]
-    expect((nodeItem as? ColorNode)?.id.id) == "a"
+    expect((nodeItem as? [any ComposeNode])?.map(\.id.id)) == ["a"]
+    expect(nodesItem.nodes.map(\.id.id)) == ["b", "c"]
     expect(void.nodes.isEmpty) == true
   }
 
@@ -250,6 +355,11 @@ class ComposeContentBuilderTests: XCTestCase {
   /// Returns the ids of the nodes that the builder makes of the content.
   private static func nodeIds(@ComposeContentBuilder _ content: () -> ComposeContent) -> [String] {
     nodes(content).map(\.id.id)
+  }
+
+  /// Returns a color node with the index as its id.
+  private static func node(_ index: Int) -> some ComposeNode {
+    ColorNode(.red).id("\(index)")
   }
 
   /// Returns a content of two color nodes.

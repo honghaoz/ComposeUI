@@ -48,12 +48,193 @@ public enum ComposeContentBuilder {
 
     case node(any ComposeNode)
 
+    case nodes([any ComposeNode])
+
     case void
   }
 
-  /// For a list of statements.
+  /// For a block of no statements, or more than ten.
   public static func buildBlock(_ items: Item<ComposeContent>...) -> Item<ComposeContent> {
     .array(items)
+  }
+
+  // A refresh builds every block again, so a block of up to ten statements has an overload of its own, which builds its
+  // nodes without the array of items that the variadic overload takes.
+
+  /// For a block of one statement.
+  public static func buildBlock(_ item: Item<ComposeContent>) -> Item<ComposeContent> {
+    item
+  }
+
+  /// For a block of two statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(2)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    return .nodes(nodes)
+  }
+
+  /// For a block of three statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>,
+                                _ item2: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(3)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    appendNodes(of: item2, to: &nodes)
+    return .nodes(nodes)
+  }
+
+  /// For a block of four statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>,
+                                _ item2: Item<ComposeContent>,
+                                _ item3: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(4)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    appendNodes(of: item2, to: &nodes)
+    appendNodes(of: item3, to: &nodes)
+    return .nodes(nodes)
+  }
+
+  /// For a block of five statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>,
+                                _ item2: Item<ComposeContent>,
+                                _ item3: Item<ComposeContent>,
+                                _ item4: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(5)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    appendNodes(of: item2, to: &nodes)
+    appendNodes(of: item3, to: &nodes)
+    appendNodes(of: item4, to: &nodes)
+    return .nodes(nodes)
+  }
+
+  /// For a block of six statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>,
+                                _ item2: Item<ComposeContent>,
+                                _ item3: Item<ComposeContent>,
+                                _ item4: Item<ComposeContent>,
+                                _ item5: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(6)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    appendNodes(of: item2, to: &nodes)
+    appendNodes(of: item3, to: &nodes)
+    appendNodes(of: item4, to: &nodes)
+    appendNodes(of: item5, to: &nodes)
+    return .nodes(nodes)
+  }
+
+  /// For a block of seven statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>,
+                                _ item2: Item<ComposeContent>,
+                                _ item3: Item<ComposeContent>,
+                                _ item4: Item<ComposeContent>,
+                                _ item5: Item<ComposeContent>,
+                                _ item6: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(7)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    appendNodes(of: item2, to: &nodes)
+    appendNodes(of: item3, to: &nodes)
+    appendNodes(of: item4, to: &nodes)
+    appendNodes(of: item5, to: &nodes)
+    appendNodes(of: item6, to: &nodes)
+    return .nodes(nodes)
+  }
+
+  /// For a block of eight statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>,
+                                _ item2: Item<ComposeContent>,
+                                _ item3: Item<ComposeContent>,
+                                _ item4: Item<ComposeContent>,
+                                _ item5: Item<ComposeContent>,
+                                _ item6: Item<ComposeContent>,
+                                _ item7: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(8)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    appendNodes(of: item2, to: &nodes)
+    appendNodes(of: item3, to: &nodes)
+    appendNodes(of: item4, to: &nodes)
+    appendNodes(of: item5, to: &nodes)
+    appendNodes(of: item6, to: &nodes)
+    appendNodes(of: item7, to: &nodes)
+    return .nodes(nodes)
+  }
+
+  /// For a block of nine statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>,
+                                _ item2: Item<ComposeContent>,
+                                _ item3: Item<ComposeContent>,
+                                _ item4: Item<ComposeContent>,
+                                _ item5: Item<ComposeContent>,
+                                _ item6: Item<ComposeContent>,
+                                _ item7: Item<ComposeContent>,
+                                _ item8: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(9)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    appendNodes(of: item2, to: &nodes)
+    appendNodes(of: item3, to: &nodes)
+    appendNodes(of: item4, to: &nodes)
+    appendNodes(of: item5, to: &nodes)
+    appendNodes(of: item6, to: &nodes)
+    appendNodes(of: item7, to: &nodes)
+    appendNodes(of: item8, to: &nodes)
+    return .nodes(nodes)
+  }
+
+  /// For a block of ten statements.
+  public static func buildBlock(_ item0: Item<ComposeContent>,
+                                _ item1: Item<ComposeContent>,
+                                _ item2: Item<ComposeContent>,
+                                _ item3: Item<ComposeContent>,
+                                _ item4: Item<ComposeContent>,
+                                _ item5: Item<ComposeContent>,
+                                _ item6: Item<ComposeContent>,
+                                _ item7: Item<ComposeContent>,
+                                _ item8: Item<ComposeContent>,
+                                _ item9: Item<ComposeContent>) -> Item<ComposeContent>
+  {
+    var nodes: [any ComposeNode] = []
+    nodes.reserveCapacity(10)
+    appendNodes(of: item0, to: &nodes)
+    appendNodes(of: item1, to: &nodes)
+    appendNodes(of: item2, to: &nodes)
+    appendNodes(of: item3, to: &nodes)
+    appendNodes(of: item4, to: &nodes)
+    appendNodes(of: item5, to: &nodes)
+    appendNodes(of: item6, to: &nodes)
+    appendNodes(of: item7, to: &nodes)
+    appendNodes(of: item8, to: &nodes)
+    appendNodes(of: item9, to: &nodes)
+    return .nodes(nodes)
   }
 
   /// For `if`/`else`/`switch` statements.
@@ -122,7 +303,10 @@ public enum ComposeContentBuilder {
     case .expressionArray(let inputArray):
       return inputArray.flatMap(\.nodes)
     case .node(let node):
-      return node
+      // an array of the node, instead of the node, so a container reads the node without its `_nodes()` boxing it again
+      return [node]
+    case .nodes(let nodes):
+      return nodes
     case .void:
       return []
     }
@@ -148,6 +332,8 @@ public enum ComposeContentBuilder {
       }
     case .node(let node):
       nodes.append(node)
+    case .nodes(let blockNodes):
+      nodes.append(contentsOf: blockNodes)
     }
   }
 }
