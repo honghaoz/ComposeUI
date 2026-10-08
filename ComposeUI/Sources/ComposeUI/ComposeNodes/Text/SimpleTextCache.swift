@@ -122,13 +122,8 @@ enum SimpleTextCache {
   /// The strings of the generation before, which a lookup moves back to `current`.
   private static var previous: [Key: NSAttributedString] = [:]
 
-  /// Whether the cache has started listening to the system's low memory signals.
-  private static var isObservingMemoryWarnings = false
-
-  #if canImport(AppKit)
-  /// The source of the system's memory pressure events, which macOS sends instead of a memory warning notification.
-  private(set) static var memoryPressureSource: DispatchSourceMemoryPressure?
-  #endif
+  /// Whether the cache empties itself when the system is low on memory.
+  private static var isHandlingMemoryWarnings = false
 
   /// Returns the attributed string for the settings, made once and then reused.
   ///
@@ -145,8 +140,9 @@ enum SimpleTextCache {
       return makeString(for: key)
     }
 
-    if !isObservingMemoryWarnings {
-      observeMemoryWarnings()
+    if !isHandlingMemoryWarnings {
+      isHandlingMemoryWarnings = true
+      MemoryWarning.addHandler(removeAll)
     }
 
     let storedKey: Key
@@ -193,23 +189,5 @@ enum SimpleTextCache {
     current = [:]
     currentByteCount = 0
     previous = [:]
-  }
-
-  /// Starts emptying the cache when the system is low on memory.
-  private static func observeMemoryWarnings() {
-    isObservingMemoryWarnings = true
-
-    #if canImport(AppKit)
-    let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
-    source.setEventHandler(handler: removeAll)
-    source.activate()
-    memoryPressureSource = source
-    #endif
-
-    #if canImport(UIKit)
-    NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
-      removeAll()
-    }
-    #endif
   }
 }

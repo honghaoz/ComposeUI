@@ -266,31 +266,17 @@ class SimpleTextCacheTests: XCTestCase {
     expect(again) === string
   }
 
-  #if canImport(UIKit)
   func test_memoryWarning_removesAllStrings() {
     // given: the string of some settings
     let string = SimpleTextCache.attributedString(for: Self.key())
 
-    // when: the system sends a memory warning, and looking up the string again
-    NotificationCenter.default.post(name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
+    // when: the system is low on memory, and looking up the string again
+    MemoryWarning.handleMemoryWarning()
     let again = SimpleTextCache.attributedString(for: Self.key())
 
     // then: the string is made again
     expect(again) !== string
   }
-  #endif
-
-  #if canImport(AppKit)
-  func test_attributedString_listensToMemoryPressure() throws {
-    // when: looking up a string
-    _ = SimpleTextCache.attributedString(for: Self.key())
-
-    // then: the cache listens to the system's memory pressure events, whose handler is `removeAll()`. a test can't
-    // send a real event, which takes `sudo memory_pressure -S -l warning`
-    let source = try unwrap(SimpleTextCache.memoryPressureSource)
-    expect(source.isCancelled) == false
-  }
-  #endif
 
   func test_removeAll_makesTheStringsAgain() {
     // given: the string of some settings

@@ -1304,6 +1304,23 @@ class NSAttributedString_SizingTests: XCTestCase {
     expect(narrow.height) > wide.height // narrower wraps to more lines -> taller
   }
 
+  func test_cache_distinctNumbersOfLines_notConfused() throws {
+    // given: a cleared cache and a multi line attributed string
+    NSAttributedString.clearTextSizeCache()
+
+    // the same text at the same width is as tall as the lines it may take, so the cache (keyed by number of lines) must
+    // keep them distinct.
+    let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+
+    // when: measuring the size for unlimited lines and for 2 lines
+    let unlimited = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 100)
+    let twoLines = attributedString.boundingRectSize(numberOfLines: 2, layoutWidth: 100)
+
+    // then: the sizes are distinct
+    expect(twoLines) != unlimited
+    expect(unlimited.height) > twoLines.height // more lines -> taller
+  }
+
   func test_cache_clear_recomputesSameValue() throws {
     // given: an attributed string with a cached size
     let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
@@ -1352,6 +1369,136 @@ class NSAttributedString_SizingTests: XCTestCase {
     // then: all sizes are equal
     expect(narrow) == wide
     expect(narrow) == charWrap
+  }
+
+  func test_cache_sameText_measuresOnce() throws {
+    // given: a cleared cache and an attributed string
+    NSAttributedString.clearTextSizeCache()
+    let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+
+    // when: measuring the size twice
+    let counts = WorkCounter.counting {
+      _ = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 100)
+      _ = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 100)
+    }
+
+    // then: the text is measured once, and the second size comes from the cache
+    expect(counts.textMeasurements) == 1
+  }
+
+  func test_cache_equalTextOfAnotherObject_isServedFromTheCache() throws {
+    // given: a cleared cache and the size of an attributed string
+    NSAttributedString.clearTextSizeCache()
+    let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+    let size = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 100)
+
+    // when: measuring an equal text of another object
+    let equalText = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)
+    var equalTextSize = CGSize.zero
+    let counts = WorkCounter.counting {
+      equalTextSize = equalText.boundingRectSize(numberOfLines: 0, layoutWidth: 100)
+    }
+
+    // then: the size comes from the cache
+    expect(equalText) !== attributedString
+    expect(counts.textMeasurements) == 0
+    expect(equalTextSize) == size
+  }
+
+  func test_cache_mutableText_keepsTheSizeOfTheTextAsMeasured() {
+    // given: a cleared cache, and the size of a mutable text, which then changes
+    NSAttributedString.clearTextSizeCache()
+    let attributes: [NSAttributedString.Key: Any] = [.font: Font.systemFont(ofSize: 16)]
+    let mutableString = NSMutableAttributedString(string: "Hi", attributes: attributes)
+    let size = mutableString.boundingRectSize(numberOfLines: 1, layoutWidth: 1000)
+    mutableString.append(NSAttributedString(string: " there", attributes: attributes))
+
+    // when: measuring a text equal to the mutable text as it was measured
+    var equalTextSize = CGSize.zero
+    let counts = WorkCounter.counting {
+      equalTextSize = NSAttributedString(string: "Hi", attributes: attributes).boundingRectSize(numberOfLines: 1, layoutWidth: 1000)
+    }
+
+    // then: the size comes from the cache, which kept a copy of the text as it was measured
+    expect(counts.textMeasurements) == 0
+    expect(equalTextSize) == size
+  }
+
+  func test_cache_pastTheGenerationLimit_keepsTheGenerationBefore() {
+    // given: a cleared cache, and the sizes of a full generation of texts and of one more text, which starts the next
+    // generation
+    NSAttributedString.clearTextSizeCache()
+    let texts = (0 ... TextSizeCache.generationLimit).map { NSAttributedString(string: "\($0)") }
+    for text in texts {
+      _ = text.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+
+    // when: measuring the first text, which the full generation holds
+    let firstCounts = WorkCounter.counting {
+      _ = texts[0].boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+
+    // then: its size comes from the cache
+    expect(firstCounts.textMeasurements) == 0
+
+    // when: filling the next generation and starting a third one, which drops the full generation, then measuring the
+    // first and the second texts again
+    for index in 0 ..< TextSizeCache.generationLimit - 1 {
+      _ = NSAttributedString(string: "next\(index)").boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+    let firstAgainCounts = WorkCounter.counting {
+      _ = texts[0].boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+    let secondCounts = WorkCounter.counting {
+      _ = texts[1].boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+
+    // then: the first text's size, which the lookup moved to the next generation, is kept, and the second text, which
+    // the dropped generation held, is measured again
+    expect(firstAgainCounts.textMeasurements) == 0
+    expect(secondCounts.textMeasurements) == 1
+  }
+
+  func test_cache_movedBackSize_keepsItsStoredText() {
+    // given: a cleared cache, the size of a text, which a full generation of other texts moves to the generation
+    // before, and a mutable text equal to it
+    NSAttributedString.clearTextSizeCache()
+    let text = NSAttributedString(string: "Text")
+    _ = text.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    for index in 0 ..< TextSizeCache.generationLimit {
+      _ = NSAttributedString(string: "\(index)").boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+    let mutableText = NSMutableAttributedString(string: "Text")
+
+    // when: measuring the mutable text, which moves the size back, then changing the mutable text and measuring the
+    // text again
+    let movedBackCounts = WorkCounter.counting {
+      _ = mutableText.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+    mutableText.append(NSAttributedString(string: " changed"))
+    let againCounts = WorkCounter.counting {
+      _ = text.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+
+    // then: both sizes come from the cache, since the moved size keeps its stored text instead of the mutable text
+    expect(movedBackCounts.textMeasurements) == 0
+    expect(againCounts.textMeasurements) == 0
+  }
+
+  func test_cache_memoryWarning_measuresAgain() {
+    // given: a cleared cache and the size of a text
+    NSAttributedString.clearTextSizeCache()
+    let text = NSAttributedString(string: "Text")
+    _ = text.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+
+    // when: the system is low on memory, and measuring the text again
+    MemoryWarning.handleMemoryWarning()
+    let counts = WorkCounter.counting {
+      _ = text.boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+
+    // then: the text is measured again
+    expect(counts.textMeasurements) == 1
   }
 
   // MARK: - Helpers
