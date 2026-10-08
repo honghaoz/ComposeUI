@@ -34,18 +34,25 @@ import Foundation
 
 public protocol ComposeContent {
 
-  /// Convert the compose content to a list of nodes.
-  /// - Returns: The list of nodes.
-  func asNodes() -> [any ComposeNode]
+  /// The content's nodes, in order. Read them with `nodes`.
+  ///
+  /// This is framework plumbing: the framework's types implement it, and a `@ComposeContentBuilder` block places a
+  /// node as itself without calling it, so don't implement it in your types.
+  func _nodes() -> [any ComposeNode]
 }
 
 public extension ComposeContent {
+
+  /// The content's nodes, in order.
+  var nodes: [any ComposeNode] {
+    _nodes()
+  }
 
   /// Convert the compose content to a vertical stack node.
   /// - Parameter alignment: The alignment of the vertical stack node.
   /// - Returns: The vertical stack node.
   func asVStack(alignment: Layout.HorizontalAlignment = .center) -> any ComposeNode {
-    let nodes = asNodes()
+    let nodes = self.nodes
     switch nodes.count {
     case 0:
       return EmptyNode()
@@ -60,7 +67,7 @@ public extension ComposeContent {
   /// - Parameter alignment: The alignment of the layered stack node.
   /// - Returns: The layered stack node.
   func asZStack(alignment: Layout.Alignment = .center) -> any ComposeNode {
-    let nodes = asNodes()
+    let nodes = self.nodes
     switch nodes.count {
     case 0:
       return EmptyNode()
@@ -76,7 +83,7 @@ public extension ComposeContent {
 
 extension [ComposeNode]: ComposeContent {
 
-  public func asNodes() -> [any ComposeNode] {
+  public func _nodes() -> [any ComposeNode] {
     self
   }
 }

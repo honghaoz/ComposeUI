@@ -60,7 +60,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
   {
     self.alignment = alignment
     self.spacing = spacing
-    self.childNodes = content().asNodes()
+    self.childNodes = content().nodes
   }
 
   // MARK: - ComposeNode

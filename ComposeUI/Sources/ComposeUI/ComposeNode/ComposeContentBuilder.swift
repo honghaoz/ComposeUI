@@ -46,6 +46,8 @@ public enum ComposeContentBuilder {
 
     case expressionArray([Expression])
 
+    case node(any ComposeNode)
+
     case void
   }
 
@@ -84,6 +86,12 @@ public enum ComposeContentBuilder {
     .expressionSingle(expression)
   }
 
+  /// For a node, which the block places as itself.
+  public static func buildExpression(_ node: any ComposeNode) -> Item<ComposeContent> {
+    // a node is boxed once, as a node, instead of as content and then again in the array its `_nodes()` returns
+    .node(node)
+  }
+
   /// For an array of expressions.
   public static func buildExpression(_ expression: [ComposeContent]) -> Item<ComposeContent> {
     .expressionArray(expression)
@@ -112,9 +120,9 @@ public enum ComposeContentBuilder {
     case .expressionSingle(let input):
       return input
     case .expressionArray(let inputArray):
-      return inputArray.flatMap {
-        $0.asNodes()
-      }
+      return inputArray.flatMap(\.nodes)
+    case .node(let node):
+      return node
     case .void:
       return []
     }
@@ -133,11 +141,13 @@ public enum ComposeContentBuilder {
          .void:
       break
     case .expressionSingle(let input):
-      nodes.append(contentsOf: input.asNodes())
+      nodes.append(contentsOf: input.nodes)
     case .expressionArray(let inputArray):
       for input in inputArray {
-        nodes.append(contentsOf: input.asNodes())
+        nodes.append(contentsOf: input.nodes)
       }
+    case .node(let node):
+      nodes.append(node)
     }
   }
 }

@@ -201,7 +201,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
 extension CALayer: ComposeContent {
 
-  public func asNodes() -> [ComposeNode] {
+  public func _nodes() -> [ComposeNode] {
     [LayerNode(self)]
   }
 }

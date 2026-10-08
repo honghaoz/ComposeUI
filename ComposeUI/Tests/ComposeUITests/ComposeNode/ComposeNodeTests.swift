@@ -38,8 +38,8 @@ class ComposeNodeTests: XCTestCase {
     // given: a mock compose node
     let node = MockComposeNode()
 
-    // when: converting the node to nodes
-    let nodes = node.asNodes()
+    // when: reading the node's nodes as a content
+    let nodes = node.nodes
 
     // then: the node itself is returned as a single node
     expect(nodes.count) == 1
