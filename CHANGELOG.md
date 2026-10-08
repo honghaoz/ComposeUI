@@ -61,6 +61,7 @@
 - Nested stacks of the same direction with flexible children no longer double the layouts of the nodes in them at each level: a leaf in 8 nested `VStack`s that each hold a spacer now lays out 8 times instead of 128.
 - `VStack`, `HStack` and `ZStack` lay out faster.
 - On macOS, refreshing and scrolling text is faster: `BaseTextView` lays out once after its text, number of lines and line break mode are set, instead of once for each.
+- Building content with `@ComposeContentBuilder` is faster.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
