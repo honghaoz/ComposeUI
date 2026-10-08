@@ -99,7 +99,8 @@ public extension ComposeNode {
 
 public extension ComposeNode {
 
-  func asNodes() -> [any ComposeNode] {
+  /// Returns the node itself.
+  func _nodes() -> [any ComposeNode] {
     [self]
   }
 }

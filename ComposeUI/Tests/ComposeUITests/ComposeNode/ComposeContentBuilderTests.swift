@@ -186,12 +186,28 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(ids) == ["first", "inner0", "inner1"]
   }
 
+  func test_node_isPlacedAsItselfWithoutCallingItsNodesPlumbing() {
+    // given: a node type that implements `_nodes()` to stand for two other nodes, which a node type shouldn't
+    let state = ExpandingNode.State()
+
+    // when: building a block with the node between two nodes
+    let ids = Self.nodeIds {
+      ColorNode(.red).id("a")
+      ExpandingNode(state: state)
+      ColorNode(.red).id("c")
+    }
+
+    // then: the node is placed as itself, and its `_nodes()` isn't called
+    expect(ids) == ["a", "expanding", "c"]
+    expect(state.nodesCallCount) == 0
+  }
+
   func test_contentThatIsNotANode_expandsIntoItsNodesInPlace() {
-    // when: building a block with a layer and a content that stands for two nodes, between two nodes
+    // when: building a block with a layer and a content of two nodes that another block built, between two nodes
     let nodes = Self.nodes {
       ColorNode(.red).id("a")
       CALayer()
-      TwoColorNodes()
+      Self.twoNodes()
       ColorNode(.red).id("d")
     }
 
@@ -211,34 +227,70 @@ class ComposeContentBuilderTests: XCTestCase {
     let someOptional = ComposeContentBuilder.buildFinalResult(.optional(.expressionSingle(node)))
     let noneOptional = ComposeContentBuilder.buildFinalResult(.optional(nil))
     let expressionArray = ComposeContentBuilder.buildFinalResult(.expressionArray([node, array]))
+    let nodeItem = ComposeContentBuilder.buildFinalResult(.node(node))
     let void = ComposeContentBuilder.buildFinalResult(.void)
 
-    // then: a single expression gives the expression itself, an optional gives its item's content, or none, an array
+    // then: a single expression or a node gives itself, an optional gives its item's content, or none, an array
     // expression gives its contents' nodes, and void gives none
     expect((single as? ColorNode)?.id.id) == "a"
     expect((someOptional as? ColorNode)?.id.id) == "a"
-    expect(noneOptional.asNodes().isEmpty) == true
-    expect(expressionArray.asNodes().map(\.id.id)) == ["a", "b", "c"]
-    expect(void.asNodes().isEmpty) == true
+    expect(noneOptional.nodes.isEmpty) == true
+    expect(expressionArray.nodes.map(\.id.id)) == ["a", "b", "c"]
+    expect((nodeItem as? ColorNode)?.id.id) == "a"
+    expect(void.nodes.isEmpty) == true
   }
 
   // MARK: - Helpers
 
   /// Returns the nodes that the builder makes of the content.
   private static func nodes(@ComposeContentBuilder _ content: () -> ComposeContent) -> [any ComposeNode] {
-    content().asNodes()
+    content().nodes
   }
 
   /// Returns the ids of the nodes that the builder makes of the content.
   private static func nodeIds(@ComposeContentBuilder _ content: () -> ComposeContent) -> [String] {
     nodes(content).map(\.id.id)
   }
+
+  /// Returns a content of two color nodes.
+  @ComposeContentBuilder
+  private static func twoNodes() -> ComposeContent {
+    ColorNode(.red).id("b")
+    ColorNode(.red).id("c")
+  }
 }
 
-/// A content that isn't a node, and stands for two color nodes.
-private struct TwoColorNodes: ComposeContent {
+/// A node that implements `_nodes()` to stand for two color nodes, and tracks the calls to it.
+private struct ExpandingNode: ComposeNode {
 
-  func asNodes() -> [any ComposeNode] {
-    [ColorNode(.red).id("b"), ColorNode(.red).id("c")]
+  final class State {
+
+    /// The number of times `_nodes()` is called.
+    var nodesCallCount = 0
+  }
+
+  private let state: State
+
+  init(state: State) {
+    self.state = state
+  }
+
+  // MARK: - ComposeNode
+
+  var id: ComposeNodeId = .custom("expanding")
+
+  let size: CGSize = .zero
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+  }
+
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    []
+  }
+
+  func _nodes() -> [any ComposeNode] {
+    state.nodesCallCount += 1
+    return [ColorNode(.red).id("b1"), ColorNode(.red).id("b2")]
   }
 }

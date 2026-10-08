@@ -44,7 +44,7 @@ class ComposeViewTests: XCTestCase {
   func test_defaultContent() {
     // given: a compose view made without content
     let contentView = ComposeView()
-    let nodes = contentView.content.asNodes()
+    let nodes = contentView.content.nodes
 
     // then: the default content is a single empty node
     expect(nodes.count) == 1

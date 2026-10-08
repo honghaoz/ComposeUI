@@ -247,7 +247,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 extension View: ComposeContent {
 
   /// Wraps the view into a `ViewNode`.
-  public func asNodes() -> [ComposeNode] {
+  public func _nodes() -> [ComposeNode] {
     [ViewNode(self)]
   }
 }

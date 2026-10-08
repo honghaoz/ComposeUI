@@ -43,7 +43,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
   public init(alignment: Layout.Alignment = .center, @ComposeContentBuilder content: () -> ComposeContent) {
     self.alignment = alignment
-    self.childNodes = content().asNodes()
+    self.childNodes = content().nodes
   }
 
   // MARK: - ComposeNode
