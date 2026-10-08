@@ -326,13 +326,14 @@ class ComposeContentBuilderTests: XCTestCase {
     let array: [ComposeNode] = [ColorNode(.red).id("b"), ColorNode(.red).id("c")]
 
     // when: building items other than a block directly, which a builder block never does
-    let single = ComposeContentBuilder.buildFinalResult(.expressionSingle(node))
-    let someOptional = ComposeContentBuilder.buildFinalResult(.optional(.expressionSingle(node)))
-    let noneOptional = ComposeContentBuilder.buildFinalResult(.optional(nil))
-    let expressionArray = ComposeContentBuilder.buildFinalResult(.expressionArray([node, array]))
-    let nodeItem = ComposeContentBuilder.buildFinalResult(.node(node))
-    let nodesItem = ComposeContentBuilder.buildFinalResult(.nodes(array))
-    let void = ComposeContentBuilder.buildFinalResult(.void)
+    typealias Item = ComposeContentBuilder.Item<ComposeContent>
+    let single = ComposeContentBuilder.buildFinalResult(Item(.expressionSingle(node)))
+    let someOptional = ComposeContentBuilder.buildFinalResult(Item(.optional(Item(.expressionSingle(node)))))
+    let noneOptional = ComposeContentBuilder.buildFinalResult(Item(.optional(nil)))
+    let expressionArray = ComposeContentBuilder.buildFinalResult(Item(.expressionArray([node, array])))
+    let nodeItem = ComposeContentBuilder.buildFinalResult(Item(.node(node)))
+    let nodesItem = ComposeContentBuilder.buildFinalResult(Item(.nodes(array)))
+    let void = ComposeContentBuilder.buildFinalResult(Item(.void))
 
     // then: a single expression gives itself, an optional gives its item's content, or none, an array expression
     // gives its contents' nodes, a node gives an array of itself, nodes give themselves, and void gives none
