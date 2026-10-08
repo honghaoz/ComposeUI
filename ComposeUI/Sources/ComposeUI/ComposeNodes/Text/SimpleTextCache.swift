@@ -87,6 +87,24 @@ enum SimpleTextCache {
       hasher.combine(textShadow)
       hasher.combine(textAlignment)
     }
+
+    /// Returns the key with copies of its shadows, which no caller can change.
+    func copyingShadows() -> Key {
+      guard let textShadow else {
+        return self
+      }
+      return Key(
+        text: text,
+        font: font,
+        textColor: textColor,
+        textBackgroundColor: textBackgroundColor,
+        textShadow: Themed(
+          light: textShadow.light.copy() as! NSShadow, // swiftlint:disable:this force_cast
+          dark: textShadow.dark.copy() as! NSShadow // swiftlint:disable:this force_cast
+        ),
+        textAlignment: textAlignment
+      )
+    }
   }
 
   /// The most strings that one generation holds.
@@ -121,20 +139,29 @@ enum SimpleTextCache {
       return string
     }
 
+    let byteCount = key.text.utf8.count
+    if byteCount > generationByteLimit {
+      // a text over the byte limit isn't kept, so the limit bounds each generation however long one text is
+      return makeString(for: key)
+    }
+
     if !isObservingMemoryWarnings {
       observeMemoryWarnings()
     }
 
-    let string = previous.removeValue(forKey: key) ?? TextNode.attributedString(
-      key.text,
-      font: key.font,
-      foregroundColor: key.textColor,
-      backgroundColor: key.textBackgroundColor,
-      shadow: key.textShadow,
-      textAlignment: key.textAlignment,
-      lineBreakMode: .byWordWrapping
-    )
-    let byteCount = key.text.utf8.count
+    let storedKey: Key
+    let string: NSAttributedString
+    if let index = previous.index(forKey: key) {
+      let entry = previous.remove(at: index)
+      storedKey = entry.key
+      string = entry.value
+    } else {
+      // the stored key holds copies of the shadows, since `NSShadow` is mutable, and a caller's change to a shadow
+      // would otherwise change the key in place, which a dictionary doesn't allow, and the string made of it
+      storedKey = key.copyingShadows()
+      string = makeString(for: storedKey)
+    }
+
     if current.count >= generationLimit || currentByteCount + byteCount > generationByteLimit {
       // two generations keep the strings used since the generation before, where one dictionary emptied when full
       // would drop the strings that a refresh is about to make again. the byte limit bounds long texts' memory, which
@@ -143,9 +170,22 @@ enum SimpleTextCache {
       current.removeAll(keepingCapacity: true)
       currentByteCount = 0
     }
-    current[key] = string
+    current[storedKey] = string
     currentByteCount += byteCount
     return string
+  }
+
+  /// Returns a new attributed string made of the settings.
+  private static func makeString(for key: Key) -> NSAttributedString {
+    TextNode.attributedString(
+      key.text,
+      font: key.font,
+      foregroundColor: key.textColor,
+      backgroundColor: key.textBackgroundColor,
+      shadow: key.textShadow,
+      textAlignment: key.textAlignment,
+      lineBreakMode: .byWordWrapping
+    )
   }
 
   /// Removes all strings.

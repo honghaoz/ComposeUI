@@ -196,6 +196,76 @@ class SimpleTextCacheTests: XCTestCase {
     expect(first) === strings[0]
   }
 
+  func test_attributedString_textOfTheByteLimit_isKept() {
+    // given: a text of exactly the byte limit
+    let key = Self.key(text: String(repeating: "a", count: SimpleTextCache.generationByteLimit))
+
+    // when: looking up its string twice
+    let string = SimpleTextCache.attributedString(for: key)
+    let again = SimpleTextCache.attributedString(for: key)
+
+    // then: it's the same string, since the text fits in a generation by itself
+    expect(again) === string
+  }
+
+  func test_attributedString_textOverTheByteLimit_isNotKept() {
+    // given: the strings of two texts that fill a generation's bytes, and a text over the byte limit
+    let half = String(repeating: "a", count: SimpleTextCache.generationByteLimit / 2 - 1)
+    let first = SimpleTextCache.attributedString(for: Self.key(text: "\(half)0"))
+    _ = SimpleTextCache.attributedString(for: Self.key(text: "\(half)1"))
+    let long = Self.key(text: String(repeating: "b", count: SimpleTextCache.generationByteLimit + 1))
+
+    // when: looking up the long text's string twice, then making the string of a short text, which starts the next
+    // generation, and looking up the first string again
+    let longString = SimpleTextCache.attributedString(for: long)
+    let longAgain = SimpleTextCache.attributedString(for: long)
+    _ = SimpleTextCache.attributedString(for: Self.key(text: "short"))
+    let firstAgain = SimpleTextCache.attributedString(for: Self.key(text: "\(half)0"))
+
+    // then: the long text's string is made each time, without being kept or starting a generation, so the full
+    // generation, with the first string, became the generation before
+    expect(longAgain) !== longString
+    expect(firstAgain) === first
+  }
+
+  func test_attributedString_shadowChangedLater_keepsTheStringOfTheEarlierValues() {
+    // given: the string of settings with a shadow, which the caller then changes
+    let shadow = Self.makeShadow(height: 1)
+    let string = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(shadow)))
+    shadow.shadowOffset = CGSize(width: 0, height: 2)
+
+    // when: looking up the strings of the changed shadow, and of a new shadow with the earlier values
+    let changed = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(shadow)))
+    let again = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(Self.makeShadow(height: 1))))
+
+    // then: the changed shadow makes a string of its own values, and the earlier values still find the first string,
+    // whose shadow kept them
+    expect(changed) !== string
+    expect(Self.shadowOffset(of: changed)) == CGSize(width: 0, height: 2)
+    expect(again) === string
+    expect(Self.shadowOffset(of: string)) == CGSize(width: 0, height: 1)
+  }
+
+  func test_attributedString_shadowChangedAfterMovingBack_keepsTheString() {
+    // given: the string of settings with a shadow, which a full generation of other strings moves to the generation
+    // before
+    let string = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(Self.makeShadow(height: 1))))
+    for index in 0 ..< SimpleTextCache.generationLimit {
+      _ = SimpleTextCache.attributedString(for: Self.key(text: "\(index)"))
+    }
+
+    // when: looking up the string with a new shadow of the same values, which moves it back, then changing that shadow
+    // and looking up the string with another new shadow of the same values
+    let shadow = Self.makeShadow(height: 1)
+    let movedBack = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(shadow)))
+    shadow.shadowOffset = CGSize(width: 0, height: 2)
+    let again = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(Self.makeShadow(height: 1))))
+
+    // then: both lookups find the string, since moving it back kept the key's own copy of the shadow
+    expect(movedBack) === string
+    expect(again) === string
+  }
+
   #if canImport(UIKit)
   func test_memoryWarning_removesAllStrings() {
     // given: the string of some settings
@@ -258,6 +328,18 @@ class SimpleTextCacheTests: XCTestCase {
       textShadow: textShadow,
       textAlignment: textAlignment
     )
+  }
+
+  /// Returns a new shadow of the vertical offset.
+  private static func makeShadow(height: CGFloat) -> NSShadow {
+    let shadow = NSShadow()
+    shadow.shadowOffset = CGSize(width: 0, height: height)
+    return shadow
+  }
+
+  /// Returns the offset of the string's light shadow.
+  private static func shadowOffset(of string: NSAttributedString) -> CGSize? {
+    (string.attribute(.themedShadow, at: 0, effectiveRange: nil) as? Themed<NSShadow>)?.light.shadowOffset
   }
 
   /// Returns the string that a text node makes of the settings.
