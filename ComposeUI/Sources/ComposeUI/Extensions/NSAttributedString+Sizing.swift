@@ -44,6 +44,7 @@ extension NSAttributedString {
   /// Calculate the bounding size of the attributed string.
   ///
   /// The text size is cached based on the attributed string and the layout parameters. Use `computeBoundingRectSize` to bypass the cache.
+  /// The cache is used on the main thread only, where text is measured for layout, so call this method there.
   ///
   /// Related: https://github.com/honghaoz/ChouTiUI/blob/c2cc7b8452d269d6ee55993a977ed4b5fabf15d4/ChouTiUI/Sources/ChouTiUI/Universal/Text/TextSizeProvider.swift#L258
   ///
@@ -65,12 +66,18 @@ extension NSAttributedString {
     let keyLineBreakMode: NSLineBreakMode = numberOfLines == 1 ? .byWordWrapping : lineBreakMode
 
     let key = TextSizeCache.Key(attributedString: self, numberOfLines: numberOfLines, layoutWidth: keyLayoutWidth, lineBreakMode: keyLineBreakMode)
-    if let cached = TextSizeCache.shared.object(forKey: key) {
-      return cached.size
+    if let size = TextSizeCache.size(for: key) {
+      return size
     }
 
     let size = computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: layoutWidth, lineBreakMode: lineBreakMode)
-    TextSizeCache.shared.setObject(TextSizeCache.Value(size), forKey: key)
+
+    // a caller can pass an `NSMutableAttributedString` and change it later, which would change a stored key's hash and
+    // equality in place, which a dictionary doesn't allow, so the stored key holds an immutable copy, which `copy()`
+    // makes only of a mutable text
+    let storedText = (copy() as? NSAttributedString) ?? self
+    TextSizeCache.insert(size, for: TextSizeCache.Key(attributedString: storedText, numberOfLines: numberOfLines, layoutWidth: keyLayoutWidth, lineBreakMode: keyLineBreakMode))
+
     return size
   }
 
@@ -304,78 +311,98 @@ extension NSAttributedString {
 
   /// Removes all cached text sizes.
   static func clearTextSizeCache() {
-    TextSizeCache.shared.removeAllObjects()
+    TextSizeCache.removeAll()
   }
 }
 
-/// A process-wide cache for `NSAttributedString.boundingRectSize`.
-private enum TextSizeCache {
+/// The sizes that `NSAttributedString.boundingRectSize` measures, keyed by the text and the layout settings that a size
+/// depends on.
+///
+/// The cache keeps two generations of sizes, each of up to `generationLimit` sizes, and empties itself when the system
+/// is low on memory.
+///
+/// Text is measured for layout on the main thread, so the cache is only used there, which lets a lookup skip the lock
+/// and the key object of an `NSCache`.
+enum TextSizeCache {
 
-  /// The shared cache. `NSCache` is thread-safe and evicts entries under memory pressure.
-  static let shared: NSCache<Key, Value> = {
-    let cache = NSCache<Key, Value>()
-    cache.countLimit = Constants.countLimit
-    return cache
-  }()
-
-  /// A cache key capturing every input that affects the text size.
-  final class Key: NSObject {
+  /// The text and the layout settings that a text's size depends on.
+  struct Key: Hashable {
 
     let attributedString: NSAttributedString
     let numberOfLines: Int
     let layoutWidth: CGFloat
     let lineBreakMode: NSLineBreakMode
 
-    private let hashCode: Int
+    static func == (lhs: Key, rhs: Key) -> Bool {
+      // the settings are compared before the text, since they're cheaper, and the text's object before its contents,
+      // since a node measures the same text object on each layout
+      lhs.numberOfLines == rhs.numberOfLines
+        && lhs.layoutWidth == rhs.layoutWidth
+        && lhs.lineBreakMode == rhs.lineBreakMode
+        && (lhs.attributedString === rhs.attributedString || lhs.attributedString.isEqual(rhs.attributedString))
+    }
 
-    init(attributedString: NSAttributedString, numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode) {
-      // callers may pass an `NSMutableAttributedString`, and a cache key's hash and equality must stay stable while it
-      // lives in the cache, otherwise a later mutation of the same instance would leave the key in the wrong hash bucket
-      // (a stale/leaked entry, and a wrong hit under a hash collision).
-      let snapshot = (attributedString.copy() as? NSAttributedString) ?? attributedString
-      self.attributedString = snapshot
-      self.numberOfLines = numberOfLines
-      self.layoutWidth = layoutWidth
-      self.lineBreakMode = lineBreakMode
-
-      var hasher = Hasher()
-      hasher.combine(snapshot)
+    func hash(into hasher: inout Hasher) {
+      hasher.combine(attributedString)
       hasher.combine(numberOfLines)
       hasher.combine(layoutWidth)
       hasher.combine(lineBreakMode.rawValue)
-      hashCode = hasher.finalize()
-    }
-
-    override var hash: Int {
-      hashCode
-    }
-
-    override func isEqual(_ object: Any?) -> Bool {
-      guard let other = object as? Key else {
-        return false
-      }
-      // compare the cheap scalars before the (more expensive) attributed string contents.
-      return numberOfLines == other.numberOfLines
-        && layoutWidth == other.layoutWidth
-        && lineBreakMode == other.lineBreakMode
-        && attributedString.isEqual(other.attributedString)
     }
   }
 
-  /// A boxed `CGSize` so it can be stored in `NSCache` (which requires class values).
-  final class Value {
+  /// The most sizes that one generation holds.
+  static let generationLimit = 4096
 
-    let size: CGSize
+  /// The sizes looked up since the generations last rotated.
+  private static var current: [Key: CGSize] = [:]
 
-    init(_ size: CGSize) {
-      self.size = size
+  /// The sizes of the generation before, which a lookup moves back to `current`.
+  private static var previous: [Key: CGSize] = [:]
+
+  /// Whether the cache empties itself when the system is low on memory.
+  private static var isHandlingMemoryWarnings = false
+
+  /// Returns the size stored for the key, if any.
+  ///
+  /// - Parameter key: The text and the layout settings.
+  /// - Returns: The stored size, or `nil` if there's none.
+  static func size(for key: Key) -> CGSize? {
+    if let size = current[key] {
+      return size
     }
+    guard let index = previous.index(forKey: key) else {
+      return nil
+    }
+    // the entry moves with its stored key, which holds an immutable text, instead of the lookup's key
+    let entry = previous.remove(at: index)
+    insert(entry.value, for: entry.key)
+    return entry.value
   }
 
-  private enum Constants {
+  /// Stores the size for the key.
+  ///
+  /// - Parameters:
+  ///   - size: The size to store.
+  ///   - key: The text, which must be immutable, and the layout settings.
+  static func insert(_ size: CGSize, for key: Key) {
+    if !isHandlingMemoryWarnings {
+      isHandlingMemoryWarnings = true
+      MemoryWarning.addHandler(removeAll)
+    }
 
-    /// Upper bound on cached entries; `NSCache` evicts beyond this (and under memory pressure).
-    static let countLimit = 4096
+    if current.count >= generationLimit {
+      // two generations keep the sizes used since the generation before, where one dictionary emptied when full would
+      // drop the sizes that the next layout measures again
+      previous = current
+      current.removeAll(keepingCapacity: true)
+    }
+    current[key] = size
+  }
+
+  /// Removes all sizes.
+  static func removeAll() {
+    current = [:]
+    previous = [:]
   }
 }
 
