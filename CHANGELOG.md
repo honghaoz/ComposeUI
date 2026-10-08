@@ -64,6 +64,7 @@
 - `VStack`, `HStack` and `ZStack` lay out faster.
 - On macOS, refreshing and scrolling text is faster: `BaseTextView` lays out once after its text, number of lines and line break mode are set, instead of once for each.
 - Building content with `@ComposeContentBuilder` is faster.
+- Refreshing labels is faster: a label reuses the attributed string made for the same text and text settings in an earlier refresh.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

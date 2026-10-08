@@ -189,6 +189,28 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
               textAlignment: NSTextAlignment = .natural,
               lineBreakMode: NSLineBreakMode = .byWordWrapping)
   {
+    self.init(
+      TextNode.attributedString(
+        string,
+        font: font,
+        foregroundColor: foregroundColor,
+        backgroundColor: backgroundColor,
+        shadow: shadow,
+        textAlignment: textAlignment,
+        lineBreakMode: lineBreakMode
+      )
+    )
+  }
+
+  /// Returns the attributed string for simple text, which `init(_:font:foregroundColor:backgroundColor:shadow:textAlignment:lineBreakMode:)` displays.
+  static func attributedString(_ string: String,
+                               font: Font,
+                               foregroundColor: ThemedColor,
+                               backgroundColor: ThemedColor?,
+                               shadow: Themed<NSShadow>?,
+                               textAlignment: NSTextAlignment,
+                               lineBreakMode: NSLineBreakMode) -> NSAttributedString
+  {
     var attributes: [NSAttributedString.Key: Any] = [
       .font: font,
       .themedForegroundColor: foregroundColor,
@@ -207,7 +229,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       attributes[.themedShadow] = shadow
     }
 
-    self.init(NSAttributedString(string: string, attributes: attributes))
+    return NSAttributedString(string: string, attributes: attributes)
   }
 
   /// Initialize a text node with single line text.
@@ -232,7 +254,15 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
                              lineBreakMode: NSLineBreakMode = .byTruncatingTail,
                              isSelectable: Bool = true) -> Self
   {
-    var node = TextNode(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
+    let key = SimpleTextCache.Key(
+      text: string,
+      font: font,
+      textColor: foregroundColor,
+      textBackgroundColor: backgroundColor,
+      textShadow: shadow,
+      textAlignment: textAlignment
+    )
+    var node = TextNode(SimpleTextCache.attributedString(for: key))
 
     node.numberOfLines = 1
     node.lineBreakMode = lineBreakMode
@@ -269,7 +299,15 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
                             lineBreakMode: NSLineBreakMode = .byTruncatingTail,
                             isSelectable: Bool = true) -> Self
   {
-    var node = TextNode(string, font: font, foregroundColor: foregroundColor, backgroundColor: backgroundColor, shadow: shadow, textAlignment: textAlignment, lineBreakMode: .byWordWrapping)
+    let key = SimpleTextCache.Key(
+      text: string,
+      font: font,
+      textColor: foregroundColor,
+      textBackgroundColor: backgroundColor,
+      textShadow: shadow,
+      textAlignment: textAlignment
+    )
+    var node = TextNode(SimpleTextCache.attributedString(for: key))
 
     node.numberOfLines = numberOfLines
     node.lineBreakMode = lineBreakMode
