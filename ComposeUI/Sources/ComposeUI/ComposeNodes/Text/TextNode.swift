@@ -411,8 +411,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
                                      isEditable: Bool,
                                      isSelectable: Bool)
   {
-    let mutableAttributedString = NSMutableAttributedString(attributedString: attributedString)
-    textView.attributedString = mutableAttributedString.apply(theme: theme)
+    textView.attributedString = themedText(of: attributedString, theme: theme, in: textView)
 
     textView.numberOfLines = numberOfLines
     textView.lineBreakMode = lineBreakMode
@@ -444,6 +443,20 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     #if canImport(UIKit)
     textView.isUserInteractionEnabled = isInteractive
     #endif
+  }
+
+  /// Returns the text with the theme applied, the text view's last themed text when it's of the same text and theme.
+  private static func themedText(of attributedString: NSAttributedString, theme: Theme, in textView: BaseTextView) -> NSAttributedString {
+    // a refresh makes the nodes again, but a label's text is the same object while its settings are the same, so the
+    // themed text that the text view shows is reused instead of applying the theme to a new copy of the text
+    if let last = textView.lastThemedText, last.text === attributedString, last.theme == theme {
+      return last.themedText
+    }
+
+    let themedText = NSMutableAttributedString(attributedString: attributedString).apply(theme: theme)
+    // a mutable text can change and stay the same object, so it isn't kept, and its theme is applied on each update
+    textView.lastThemedText = attributedString is NSMutableAttributedString ? nil : (attributedString, theme, themedText)
+    return themedText
   }
 
   // MARK: - Public

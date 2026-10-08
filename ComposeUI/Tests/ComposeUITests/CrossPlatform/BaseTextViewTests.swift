@@ -352,6 +352,24 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.attributedString.string) == ""
   }
 
+  func test_resetForReuse_releasesTheLastThemedText() {
+    // given: a text view that keeps the last text a theme was applied to
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    weak var weakText: NSAttributedString?
+    autoreleasepool {
+      let text = NSAttributedString(string: "Hello, world!")
+      weakText = text
+      textView.lastThemedText = (text, .light, NSAttributedString(string: "Hello, world!"))
+    }
+    expect(weakText) != nil
+
+    // when: reset for reuse
+    textView.resetForReuse()
+
+    // then: the text is released
+    expect(weakText) == nil
+  }
+
   func test_resetForReuse_clearsNumberOfLines() {
     // given: a text view with a number of lines set
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
