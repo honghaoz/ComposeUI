@@ -39,6 +39,9 @@ import UIKit
 /// The attributed strings of simple text that `TextNode.singleLineText` and `TextNode.multiLineText` make, kept across
 /// refreshes and keyed by the settings that make them.
 ///
+/// The cache keeps two generations of strings, each of up to `generationLimit` strings and `generationByteLimit` bytes of
+/// text, and empties itself when the system is low on memory.
+///
 /// Nodes are made and laid out on the main thread, so the cache is only used there.
 enum SimpleTextCache {
 
@@ -62,16 +65,52 @@ enum SimpleTextCache {
         && lhs.textShadow == rhs.textShadow
         && lhs.textAlignment == rhs.textAlignment
     }
+
+    func hash(into hasher: inout Hasher) {
+      // the text's UTF-8 code units, as `==` compares them, where `String`'s hash is the same for canonically
+      // equivalent text that `==` keeps apart, so many such texts would all land in one bucket
+      let isHashed: Bool? = text.utf8.withContiguousStorageIfAvailable { codeUnits in
+        hasher.combine(bytes: UnsafeRawBufferPointer(codeUnits))
+        return true
+      }
+      if isHashed == nil {
+        // a string bridged from `NSString` doesn't store contiguous UTF-8, and its code units hash the same one by one
+        for codeUnit in text.utf8 {
+          hasher.combine(codeUnit)
+        }
+      }
+      // 0xFF never occurs in UTF-8, so it ends the text unambiguously
+      hasher.combine(UInt8(0xFF))
+      hasher.combine(font)
+      hasher.combine(textColor)
+      hasher.combine(textBackgroundColor)
+      hasher.combine(textShadow)
+      hasher.combine(textAlignment)
+    }
   }
 
   /// The most strings that one generation holds.
   static let generationLimit = 4096
 
+  /// The most text, in UTF-8 bytes, that one generation holds.
+  static let generationByteLimit = 256 * 1024
+
   /// The strings looked up since the generations last rotated.
   private static var current: [Key: NSAttributedString] = [:]
 
+  /// The UTF-8 bytes of the text in `current`.
+  private static var currentByteCount = 0
+
   /// The strings of the generation before, which a lookup moves back to `current`.
   private static var previous: [Key: NSAttributedString] = [:]
+
+  /// Whether the cache has started listening to the system's low memory signals.
+  private static var isObservingMemoryWarnings = false
+
+  #if canImport(AppKit)
+  /// The source of the system's memory pressure events, which macOS sends instead of a memory warning notification.
+  private(set) static var memoryPressureSource: DispatchSourceMemoryPressure?
+  #endif
 
   /// Returns the attributed string for the settings, made once and then reused.
   ///
@@ -80,6 +119,10 @@ enum SimpleTextCache {
   static func attributedString(for key: Key) -> NSAttributedString {
     if let string = current[key] {
       return string
+    }
+
+    if !isObservingMemoryWarnings {
+      observeMemoryWarnings()
     }
 
     let string = previous.removeValue(forKey: key) ?? TextNode.attributedString(
@@ -91,19 +134,42 @@ enum SimpleTextCache {
       textAlignment: key.textAlignment,
       lineBreakMode: .byWordWrapping
     )
-    if current.count >= generationLimit {
+    let byteCount = key.text.utf8.count
+    if current.count >= generationLimit || currentByteCount + byteCount > generationByteLimit {
       // two generations keep the strings used since the generation before, where one dictionary emptied when full
-      // would drop the strings that a refresh is about to make again
+      // would drop the strings that a refresh is about to make again. the byte limit bounds long texts' memory, which
+      // the count limit alone doesn't
       previous = current
       current.removeAll(keepingCapacity: true)
+      currentByteCount = 0
     }
     current[key] = string
+    currentByteCount += byteCount
     return string
   }
 
   /// Removes all strings.
   static func removeAll() {
     current = [:]
+    currentByteCount = 0
     previous = [:]
+  }
+
+  /// Starts emptying the cache when the system is low on memory.
+  private static func observeMemoryWarnings() {
+    isObservingMemoryWarnings = true
+
+    #if canImport(AppKit)
+    let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+    source.setEventHandler(handler: removeAll)
+    source.activate()
+    memoryPressureSource = source
+    #endif
+
+    #if canImport(UIKit)
+    NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
+      removeAll()
+    }
+    #endif
   }
 }
