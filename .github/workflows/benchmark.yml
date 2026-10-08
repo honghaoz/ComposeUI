@@ -63,5 +63,9 @@ jobs:
         uses: ./.github/actions/bootstrap
       - name: Compare against the base
         env:
-          BASE: ${{ github.event.pull_request.base.sha || inputs.base }}
+          # a pull request checks out GitHub's merge of its head into the base branch's current commit, so the merge's
+          # first parent is the base that the head side builds on. the event's base sha stays at the commit the branch
+          # started from when the base branch moves, so it would count the base branch's later changes as the pull
+          # request's.
+          BASE: ${{ github.event_name == 'pull_request' && format('{0}^1', github.sha) || inputs.base }}
         run: make benchmark-compare -C ComposeUI BASE="$BASE" TIME_THRESHOLD="$TIME_THRESHOLD" SUMMARY="$GITHUB_STEP_SUMMARY"
