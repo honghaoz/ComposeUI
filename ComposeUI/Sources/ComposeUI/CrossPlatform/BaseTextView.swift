@@ -112,6 +112,9 @@ open class BaseTextView: TextView {
     }
   }
 
+  /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
+  var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?
+
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
     didSet {
@@ -289,6 +292,7 @@ open class BaseTextView: TextView {
     delegate = nil
 
     attributedString = NSAttributedString()
+    lastThemedText = nil
 
     if numberOfLines != 0 {
       numberOfLines = 0
@@ -334,6 +338,9 @@ open class BaseTextView: UITextView {
       attributedText = attributedString
     }
   }
+
+  /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
+  var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?
 
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
@@ -400,6 +407,7 @@ open class BaseTextView: UITextView {
     delegate = nil
 
     attributedString = NSAttributedString()
+    lastThemedText = nil
     if numberOfLines != 0 {
       numberOfLines = 0
     }

@@ -65,6 +65,7 @@
 - On macOS, refreshing and scrolling text is faster: `BaseTextView` lays out once after its text, number of lines and line break mode are set, instead of once for each.
 - Building content with `@ComposeContentBuilder` is faster.
 - Refreshing labels is faster: a label reuses the attributed string made for the same text and text settings in an earlier refresh.
+- Refreshing a text node whose attributed string is the same object as in the last refresh, as a label's is, is faster: its text view reuses the text with the theme applied instead of applying the theme to a new copy.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

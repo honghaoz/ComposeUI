@@ -312,6 +312,92 @@ class TextNodeTests: XCTestCase {
     expect(textView.attributedString.length) == 0
   }
 
+  func test_refresh_sameText_reusesTheThemedTextUntilTheThemeChanges() throws {
+    // given: a rendered text node whose text is one object with a themed color, in the light theme
+    let text = NSAttributedString(string: "Text", attributes: [.themedForegroundColor: ThemedColor(light: .red, dark: .blue)])
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.overrideTheme = .light
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let lightText = textView.attributedString
+
+    // when: refreshing with the same text and theme
+    contentView.refresh(animated: false)
+
+    // then: the text view shows the same themed text, in the light color
+    expect(renderedView) === textView
+    expect(textView.attributedString) === lightText
+    expect(shownForegroundColor(of: textView)) == .red
+
+    // when: the theme changes and the content refreshes
+    contentView.overrideTheme = .dark
+    contentView.refresh(animated: false)
+
+    // then: the text view shows a new themed text, in the dark color
+    expect(textView.attributedString) !== lightText
+    expect(shownForegroundColor(of: textView)) == .blue
+  }
+
+  func test_refresh_mutableTextChangedInPlace_showsTheChangedText() throws {
+    // given: a rendered text node whose text is one mutable object with a themed color, in the light theme
+    let text = NSMutableAttributedString(string: "Text", attributes: [.themedForegroundColor: ThemedColor(light: .red, dark: .blue)])
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.overrideTheme = .light
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+
+    // when: the text changes in place and the content refreshes
+    text.replaceCharacters(in: NSRange(location: 0, length: text.length), with: "Changed")
+    contentView.refresh(animated: false)
+
+    // then: the text view shows the changed text, in the light color
+    expect(shownString(of: textView)) == "Changed"
+    expect(shownForegroundColor(of: textView)) == .red
+  }
+
+  func test_refresh_sameTextAfterAnEdit_replacesTheEdit() throws {
+    // given: a rendered editable text node whose text is one object, and the user's edit of the text view
+    let text = NSAttributedString(string: "Configured text")
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .editable(true)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    #if canImport(AppKit)
+    textView.string = "User edited text"
+    #endif
+    #if canImport(UIKit)
+    textView.text = "User edited text"
+    #endif
+    expect(shownString(of: textView)) == "User edited text"
+
+    // when: the content refreshes with the same text
+    contentView.refresh(animated: false)
+
+    // then: the configured text replaces the edit
+    expect(shownString(of: textView)) == "Configured text"
+  }
+
   func test_boundsChange_preservesEditingAndTextOptionsUntilRefresh() throws {
     // given: editable text with a selection and edits not yet reflected in its configuration
     var renderedView: BaseTextView?
@@ -479,13 +565,16 @@ class TextNodeTests: XCTestCase {
 
   #if canImport(AppKit)
   func test_refresh_insetChangedOnly_relaysOutTheTextContainer() throws {
-    for usesTextKit1 in [false, true] {
+    for (usesTextKit1, keepsTheTextObject) in [(false, false), (false, true), (true, false), (true, true)] {
       // given: text that wraps across several lines, rendered 200 points wide in a new text view of the TextKit under
-      // test, with the layout it scheduled run
+      // test, with the layout it scheduled run, made of the same text object on each refresh, as a label's text is, or
+      // of a new one
+      let string = "A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container."
+      let keptNode = TextNode(string, font: Font.systemFont(ofSize: 14))
       var inset: CGFloat = 0
       var renderedView: BaseTextView?
       let contentView = ComposeView {
-        TextNode("A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container.", font: Font.systemFont(ofSize: 14))
+        (keepsTheTextObject ? keptNode : TextNode(string, font: Font.systemFont(ofSize: 14)))
           .textContainerInset(horizontal: inset, vertical: 0)
           .frame(width: .flexible, height: 300)
           .onUpdate { item, _ in
@@ -498,7 +587,7 @@ class TextNodeTests: XCTestCase {
       contentView.refresh(animated: false)
       BaseTextView.usesTextKit1ForTesting = false
       let textView = try unwrap(renderedView)
-      let textKit = textKitName(of: textView)
+      let scenario = "\(textKitName(of: textView)), \(keepsTheTextObject ? "same" : "new") text object"
       runScheduledBlocks()
       let lineCountAt200 = lineCount(of: textView)
 
@@ -508,23 +597,26 @@ class TextNodeTests: XCTestCase {
       runScheduledBlocks()
 
       // then: the text container is 140 points wide, and the text wraps in it as after an explicit layout
-      expect(textView.textContainer?.size.width, textKit) == 140
+      expect(textView.textContainer?.size.width, scenario) == 140
       let lineCountAfterRefresh = lineCount(of: textView)
       textView.needsLayout = true
       textView.layoutSubtreeIfNeeded()
-      expect(lineCountAfterRefresh, textKit) == lineCount(of: textView)
-      expect(lineCountAfterRefresh, textKit) > lineCountAt200
+      expect(lineCountAfterRefresh, scenario) == lineCount(of: textView)
+      expect(lineCountAfterRefresh, scenario) > lineCountAt200
     }
   }
 
   func test_refresh_widthChangedOnly_relaysOutTheTextContainer() throws {
-    for usesTextKit1 in [false, true] {
+    for (usesTextKit1, keepsTheTextObject) in [(false, false), (false, true), (true, false), (true, true)] {
       // given: text that wraps across several lines, rendered 200 points wide in a new text view of the TextKit under
-      // test, with the layout it scheduled run
+      // test, with the layout it scheduled run, made of the same text object on each refresh, as a label's text is, or
+      // of a new one
+      let string = "A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container."
+      let keptNode = TextNode(string, font: Font.systemFont(ofSize: 14))
       var width: CGFloat = 200
       var renderedView: BaseTextView?
       let contentView = ComposeView {
-        TextNode("A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container.", font: Font.systemFont(ofSize: 14))
+        (keepsTheTextObject ? keptNode : TextNode(string, font: Font.systemFont(ofSize: 14)))
           .frame(width: width, height: 300)
           .onUpdate { item, _ in
             renderedView = item.view as? BaseTextView
@@ -536,7 +628,7 @@ class TextNodeTests: XCTestCase {
       contentView.refresh(animated: false)
       BaseTextView.usesTextKit1ForTesting = false
       let textView = try unwrap(renderedView)
-      let textKit = textKitName(of: textView)
+      let scenario = "\(textKitName(of: textView)), \(keepsTheTextObject ? "same" : "new") text object"
       runScheduledBlocks()
       let lineCountAt200 = lineCount(of: textView)
 
@@ -546,12 +638,12 @@ class TextNodeTests: XCTestCase {
       runScheduledBlocks()
 
       // then: the text container is 140 points wide, and the text wraps in it as after an explicit layout
-      expect(textView.textContainer?.size.width, textKit) == 140
+      expect(textView.textContainer?.size.width, scenario) == 140
       let lineCountAfterRefresh = lineCount(of: textView)
       textView.needsLayout = true
       textView.layoutSubtreeIfNeeded()
-      expect(lineCountAfterRefresh, textKit) == lineCount(of: textView)
-      expect(lineCountAfterRefresh, textKit) > lineCountAt200
+      expect(lineCountAfterRefresh, scenario) == lineCount(of: textView)
+      expect(lineCountAfterRefresh, scenario) > lineCountAt200
     }
   }
 
@@ -639,6 +731,26 @@ class TextNodeTests: XCTestCase {
       isDrained = true
     }
     expect(isDrained).toEventually(beTrue())
+  }
+
+  /// Returns the string that the text view shows.
+  private func shownString(of textView: BaseTextView) -> String? {
+    #if canImport(AppKit)
+    return textView.shownTextStorage?.string
+    #endif
+    #if canImport(UIKit)
+    return textView.attributedText.string
+    #endif
+  }
+
+  /// Returns the foreground color of the first character that the text view shows.
+  private func shownForegroundColor(of textView: BaseTextView) -> Color? {
+    #if canImport(AppKit)
+    return textView.shownTextStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color
+    #endif
+    #if canImport(UIKit)
+    return textView.attributedText.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color
+    #endif
   }
 
   #if canImport(AppKit)
