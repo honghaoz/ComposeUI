@@ -105,37 +105,19 @@ struct StackLayoutCache {
 
   /// A child's layout information, in the inline storage or the array.
   private subscript(index: Int) -> Child {
-    get {
-      guard usesHeapChildren else {
-        switch index {
-        case 0:
-          return inlineChildren.0
-        case 1:
-          return inlineChildren.1
-        case 2:
-          return inlineChildren.2
-        default:
-          return inlineChildren.3
-        }
+    guard usesHeapChildren else {
+      switch index {
+      case 0:
+        return inlineChildren.0
+      case 1:
+        return inlineChildren.1
+      case 2:
+        return inlineChildren.2
+      default:
+        return inlineChildren.3
       }
-      return heapChildren[index]
     }
-    set {
-      guard usesHeapChildren else {
-        switch index {
-        case 0:
-          inlineChildren.0 = newValue
-        case 1:
-          inlineChildren.1 = newValue
-        case 2:
-          inlineChildren.2 = newValue
-        default:
-          inlineChildren.3 = newValue
-        }
-        return
-      }
-      heapChildren[index] = newValue
-    }
+    return heapChildren[index]
   }
 
   /// Calls the closure with the children's layout information as one buffer, in the inline storage or the array, so
@@ -145,10 +127,13 @@ struct StackLayoutCache {
       return heapChildren.withUnsafeMutableBufferPointer { body($0) }
     }
     let childCount = childCount
-    return withUnsafeMutablePointer(to: &inlineChildren) { tuple in
-      tuple.withMemoryRebound(to: Child.self, capacity: Self.inlineCapacity) { children in
-        body(UnsafeMutableBufferPointer(start: children, count: childCount))
-      }
+    return withMutableInlineChildren { body(UnsafeMutableBufferPointer(start: $0, count: childCount)) }
+  }
+
+  /// Calls the closure with a pointer to the first child's layout information in the inline storage.
+  private mutating func withMutableInlineChildren<Result>(_ body: (UnsafeMutablePointer<Child>) -> Result) -> Result {
+    withUnsafeMutablePointer(to: &inlineChildren) { tuple in
+      tuple.withMemoryRebound(to: Child.self, capacity: Self.inlineCapacity, body)
     }
   }
 
@@ -186,7 +171,8 @@ struct StackLayoutCache {
     if usesHeapChildren {
       heapChildren.append(child)
     } else if childCount < Self.inlineCapacity {
-      self[childCount] = child
+      let index = childCount
+      withMutableInlineChildren { $0[index] = child }
     } else {
       // more children than the reset reserved: they move to the array, which has room for any number
       heapChildren = [inlineChildren.0, inlineChildren.1, inlineChildren.2, inlineChildren.3, child]
