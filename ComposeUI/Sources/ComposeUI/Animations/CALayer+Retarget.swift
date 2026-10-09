@@ -179,11 +179,12 @@ public extension CALayer {
                             to newValue: Any,
                             at now: TimeInterval) -> (keys: [String], offset: AdditiveValue)?
   {
-    // the model value is read through KVC, so it's read only once the new value can fold
+    // a key path the framework doesn't animate is read through KVC, so the model value is read only once the new value
+    // can fold
     guard !Constants.clampedKeyPaths.contains(keyPath),
           let newValue = AdditiveValue(newValue),
-          let modelValue = value(forKeyPath: LayerKeyPath.objectiveC(keyPath)),
-          let oldValue = AdditiveValue(modelValue),
+          let currentValue = modelValue(forKeyPath: keyPath),
+          let oldValue = AdditiveValue(currentValue),
           oldValue.isSameKind(as: newValue)
     else {
       return nil
