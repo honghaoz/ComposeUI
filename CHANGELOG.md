@@ -67,6 +67,7 @@
 - Refreshing labels is faster: a label reuses the attributed string made for the same text and text settings in an earlier refresh.
 - Refreshing a text node whose attributed string is the same object as in the last refresh, as a label's is, is faster: its text view reuses the text with the theme applied instead of applying the theme to a new copy.
 - Laying out text is faster: a text's measured size is looked up without allocating.
+- `ComposeView.theme` stays the same during a render pass, as the theme that the pass read first, so the renderables' updates read the view's appearance once per pass, which makes refreshing themed content faster on macOS.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

@@ -1064,6 +1064,28 @@ open class ComposeView: BaseScrollView {
   /// Whether a render pass is in progress.
   private var isRendering = false
 
+  /// The theme that the render pass read first, which `theme` returns until the pass ends.
+  private var renderPassTheme: Theme?
+
+  /// The theme of the view.
+  ///
+  /// It stays the same during a render pass, as the theme that the pass read first.
+  override public var theme: Theme {
+    // the renderables' updates read the theme from the pass instead of the appearance, which allocates to read on
+    // macOS. it's read on the first read instead of when the pass begins, so that a pass without a themed renderable
+    // reads nothing, and it's kept on the main thread, where the pass runs
+    guard Thread.isMainThread, isRendering else {
+      return super.theme
+    }
+
+    if let renderPassTheme {
+      return renderPassTheme
+    }
+    let theme = super.theme
+    renderPassTheme = theme
+    return theme
+  }
+
   /// The view whose render pass is in progress. Main thread only.
   ///
   /// Render passes only nest downwards (see `canStartRenderPass`), so this is the innermost rendering view, and
@@ -1099,6 +1121,7 @@ open class ComposeView: BaseScrollView {
 
     self.contentUpdateContext = nil
     renderingAnimationDecision = nil
+    renderPassTheme = nil
 
     ComposeView.renderingView = outerRenderingView
     isRendering = false

@@ -771,4 +771,108 @@ class ComposeViewTests: XCTestCase {
     expect(contentLayer?.frame.height) == boundsSize.height - insets.top - 30 - insets.bottom
   }
   #endif
+
+  // MARK: - Theme
+
+  func test_theme_duringARenderPass_staysTheThemeThePassReadFirst() throws {
+    // given: a compose view in the light theme, whose first node reads the theme and then changes it to dark when it
+    // updates, and whose second node has a themed color
+    var themesReadByTheUpdates: [Theme] = []
+    var themedLayer: CALayer?
+    let view = ComposeView {
+      VStack {
+        ColorNode(.clear)
+          .frame(width: 10, height: 10)
+          .onUpdate { _, context in
+            themesReadByTheUpdates.append(context.contentView.theme)
+            context.contentView.overrideTheme = .dark
+          }
+        ColorNode(ThemedColor(light: .red, dark: .blue))
+          .frame(width: 10, height: 10)
+          .onUpdate { renderable, context in
+            themedLayer = renderable.layer
+            themesReadByTheUpdates.append(context.contentView.theme)
+          }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.overrideTheme = .light
+
+    // when: refreshing
+    view.refresh(animated: false)
+
+    // then: the updates read the light theme that the pass read first, and the themed color is light, while the view is
+    // dark after the pass
+    expect(themesReadByTheUpdates) == [.light, .light]
+    expect(try unwrap(themedLayer).backgroundColor) == Color.red.cgColor
+    expect(view.theme) == .dark
+
+    // when: refreshing again
+    themesReadByTheUpdates = []
+    view.refresh(animated: false)
+
+    // then: the updates read the dark theme, and the themed color is dark
+    expect(themesReadByTheUpdates) == [.dark, .dark]
+    expect(try unwrap(themedLayer).backgroundColor) == Color.blue.cgColor
+  }
+
+  func test_themePublisher_themeChangedDuringARenderPass_publishesTheChange() {
+    // given: a compose view in a window, in the light theme, whose node can change the view's theme to dark when it
+    // updates, and the themes its theme publisher publishes
+    var changesTheTheme = false
+    let view = ComposeView {
+      ColorNode(.clear)
+        .frame(width: 10, height: 10)
+        .onUpdate { _, context in
+          if changesTheTheme {
+            context.contentView.overrideTheme = .dark
+          }
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.overrideTheme = .light
+    let window = TestWindow()
+    window.contentView().addSubview(view)
+    var publishedThemes: [Theme] = []
+    let cancellable = view.themePublisher.sink { publishedThemes.append($0) }
+    expect(publishedThemes.last == .light).toEventually(beTrue())
+
+    // when: refreshing, with the node changing the theme during the pass
+    publishedThemes = []
+    changesTheTheme = true
+    view.refresh(animated: false)
+
+    // then: the change made during the pass is published, since the view's own bookkeeping reads its appearance
+    expect(publishedThemes).toEventually(beEqual(to: [.dark]))
+    cancellable.cancel()
+  }
+
+  func test_theme_outsideARenderPass_followsTheAppearance() {
+    // given: a compose view in the light theme, whose theme is read
+    contentView.overrideTheme = .light
+    expect(contentView.theme) == .light
+
+    // when: the theme changes outside a render pass
+    contentView.overrideTheme = .dark
+
+    // then: the theme is the new one
+    expect(contentView.theme) == .dark
+  }
+
+  func test_theme_offTheMainThread_isTheViewsTheme() {
+    // given: a compose view in the dark theme
+    contentView.overrideTheme = .dark
+
+    // when: reading its theme off the main thread
+    var theme: Theme?
+    let expectation = XCTestExpectation(description: "theme")
+    DispatchQueue.global().async { [contentView] in
+      theme = contentView?.theme
+      expectation.fulfill()
+    }
+    wait(for: [expectation], timeout: 1)
+
+    // then: it's the view's theme
+    expect(theme) == .dark
+  }
 }
