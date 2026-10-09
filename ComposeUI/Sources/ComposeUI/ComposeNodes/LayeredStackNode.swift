@@ -121,7 +121,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     for i in 0 ..< childCount {
       // children in a layered stack can overlap each other, so there's no visible range to binary search.
       // instead, skip children whose items bounding rect doesn't intersect the visible bounds.
-      let child = layoutCache.children[i]
+      let child = layoutCache.child(at: i)
       guard visibleBounds.intersects(child.itemsBoundingRect) else {
         continue
       }
