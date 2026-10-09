@@ -88,9 +88,7 @@ public extension CALayer {
     // uses the basic easing curve for simplicity, no interrupted velocity to carry
     let timing = AnimationTiming.easeOut(duration: neverFinishes ? Animations.defaultAnimationDuration : remainingTime)
 
-    if let currentValue = self.value(forKeyPath: keyPath),
-       let fold = additiveFold(of: inFlightAnimations, keyPath: keyPath, from: currentValue, to: value, at: now)
-    {
+    if let fold = additiveFold(of: inFlightAnimations, keyPath: keyPath, to: value, at: now) {
       for key in fold.keys {
         removeAnimation(forKey: key)
       }
@@ -178,13 +176,14 @@ public extension CALayer {
   ///   animation whose value can be computed.
   private func additiveFold(of animations: [InFlightAnimation],
                             keyPath: String,
-                            from oldValue: Any,
                             to newValue: Any,
                             at now: TimeInterval) -> (keys: [String], offset: AdditiveValue)?
   {
+    // the model value is read through KVC, so it's read only once the new value can fold
     guard !Constants.clampedKeyPaths.contains(keyPath),
-          let oldValue = AdditiveValue(oldValue),
           let newValue = AdditiveValue(newValue),
+          let modelValue = value(forKeyPath: LayerKeyPath.objectiveC(keyPath)),
+          let oldValue = AdditiveValue(modelValue),
           oldValue.isSameKind(as: newValue)
     else {
       return nil

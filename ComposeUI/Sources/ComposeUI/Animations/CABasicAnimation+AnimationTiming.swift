@@ -55,8 +55,8 @@ public extension CABasicAnimation {
   ///
   /// - Parameters:
   ///   - timing: The timing of the animation.
-  ///   - basicAnimation: Makes the animation for a timing function.
-  ///   - springAnimation: Makes the animation for a spring.
+  ///   - basicAnimation: Makes a new animation for a timing function.
+  ///   - springAnimation: Makes a new animation for a spring.
   /// - Returns: The animation.
   internal static func makeAnimation(_ timing: AnimationTiming, basicAnimation: () -> CABasicAnimation, springAnimation: () -> CASpringAnimation) -> CABasicAnimation {
     let animation: CABasicAnimation
@@ -86,7 +86,12 @@ public extension CABasicAnimation {
       animation.duration = Constants.snapDuration
     }
 
-    animation.speed = isSnap ? 1 : Float(timing.speed)
+    // setting a property stores it in the animation even when it has the default value, which allocates, so the
+    // default speed of 1 isn't set
+    let speed: Float = isSnap ? 1 : Float(timing.speed)
+    if speed != 1 {
+      animation.speed = speed
+    }
     // backwards fill holds the from value while a scheduled animation waits out its delay, and avoids the final frame
     // appearing before the animation starts
     animation.fillMode = .both

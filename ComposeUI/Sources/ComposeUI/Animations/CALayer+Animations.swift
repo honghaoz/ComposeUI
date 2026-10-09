@@ -202,8 +202,9 @@ public extension CALayer {
       return
     }
 
+    let objectiveCKeyPath = LayerKeyPath.objectiveC(keyPath)
     let animation = CABasicAnimation.makeAnimation(timing)
-    animation.keyPath = keyPath
+    animation.keyPath = objectiveCKeyPath
     animation.fromValue = from(layer)
     let toValue = to(layer)
     animation.toValue = toValue
@@ -216,10 +217,10 @@ public extension CALayer {
     if timing.delay > 0, isFromValueUnresolved, !animation.isAdditive {
       // a scheduled to-only animation can't backwards-fill an unresolved from value (the fill would show the target),
       // so resolve it at dispatch the way Core Animation would at activation
-      animation.fromValue = shownValue(forKeyPath: keyPath) ?? value(forKeyPath: keyPath)
+      animation.fromValue = shownValue(forKeyPath: keyPath) ?? value(forKeyPath: objectiveCKeyPath)
     }
 
-    let rawKey = key ?? keyPath
+    let rawKey = key ?? objectiveCKeyPath
     let animationKey = animation.isAdditive ? uniqueAnimationKey(key: rawKey) : rawKey
     add(animation, forKey: animationKey)
     #if DEBUG

@@ -292,6 +292,7 @@ public extension CALayer {
   ///   - beginTime: The animation's begin time.
   ///   - part: The part of the frame the animation animates.
   private func addFrameAnimation(keyPath: String, from offset: Any, to zero: Any, timing: AnimationTiming, beginTime: TimeInterval, part: FrameAnimationPart) {
+    let objectiveCKeyPath = LayerKeyPath.objectiveC(keyPath)
     let animation = CABasicAnimation.makeAnimation(
       timing,
       basicAnimation: {
@@ -305,12 +306,12 @@ public extension CALayer {
         return animation
       }
     )
-    animation.keyPath = keyPath
+    animation.keyPath = objectiveCKeyPath
     animation.fromValue = offset
     animation.toValue = zero
     animation.isAdditive = true
     animation.beginTime = beginTime
-    add(animation, forKey: uniqueAnimationKey(key: keyPath))
+    add(animation, forKey: uniqueAnimationKey(key: objectiveCKeyPath))
     #if DEBUG
     WorkCounter.count(.animation)
     #endif
