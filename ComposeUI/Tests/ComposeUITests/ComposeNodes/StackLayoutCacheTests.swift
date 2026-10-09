@@ -49,8 +49,8 @@ class StackLayoutCacheTests: XCTestCase {
 
     // then: the children and the items bounding rect are collected
     expect(cache.childCount) == 3
-    expect(cache.children[1].origin) == CGPoint(x: 0, y: 10)
-    expect(cache.children[1].itemsBoundingRect.isNull) == true
+    expect(cache.child(at: 1).origin) == CGPoint(x: 0, y: 10)
+    expect(cache.child(at: 1).itemsBoundingRect.isNull) == true
     expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 30)
   }
 
@@ -125,7 +125,7 @@ class StackLayoutCacheTests: XCTestCase {
 
     // then: only the new child and its bounding rect remain, and the previous search structures are gone
     expect(cache.childCount) == 1
-    expect(cache.children[0].origin) == CGPoint(x: 5, y: 5)
+    expect(cache.child(at: 0).origin) == CGPoint(x: 5, y: 5)
     expect(cache.itemsBoundingRect) == CGRect(x: 5, y: 5, width: 1, height: 1)
     expect(cache.visibleChildRange(minPosition: 0, maxPosition: 10)) == 0 ..< 1
     expect(assertionCount) == 1
@@ -152,5 +152,81 @@ class StackLayoutCacheTests: XCTestCase {
     // without the search structures, all children are treated as potentially visible
     expect(cache.visibleChildRange(minPosition: 0, maxPosition: 5)) == 0 ..< 2
     expect(assertionCount) == 1
+  }
+
+  func test_visibleChildRange_moreChildrenThanTheInlineCapacity_returnsTheChildrenInTheRange() {
+    // given: a cache of 6 children 10 points tall, stacked vertically, more than it keeps inline
+    var cache = StackLayoutCache()
+    expect(StackLayoutCache.inlineCapacity) == 4
+    cache.reset(reservingCapacity: 6)
+    for index in 0 ..< 6 {
+      appendVerticalChild(to: &cache, y: CGFloat(index) * 10)
+    }
+    cache.finish(mainAxis: .vertical)
+
+    // then: each child is kept, and a visible range returns the children whose items can intersect it
+    expect(cache.childCount) == 6
+    expect((0 ..< 6).map { cache.child(at: $0).origin.y }) == [0, 10, 20, 30, 40, 50]
+    expect(cache.visibleChildRange(minPosition: 15, maxPosition: 35)) == 1 ..< 4
+    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 60)
+  }
+
+  func test_appendChild_moreChildrenThanReserved_keepsEachChild() {
+    // given: a cache reset for 2 children
+    var cache = StackLayoutCache()
+    cache.reset(reservingCapacity: 2)
+
+    // when: appending 6 children, more than it keeps inline, and finishing it with a vertical main axis
+    for index in 0 ..< 6 {
+      appendVerticalChild(to: &cache, y: CGFloat(index) * 10)
+    }
+    cache.finish(mainAxis: .vertical)
+
+    // then: each child is kept in order, and a visible range returns the children whose items can intersect it
+    expect(cache.childCount) == 6
+    expect((0 ..< 6).map { cache.child(at: $0).origin.y }) == [0, 10, 20, 30, 40, 50]
+    expect(cache.visibleChildRange(minPosition: 15, maxPosition: 35)) == 1 ..< 4
+  }
+
+  func test_reset_betweenMoreAndFewerChildrenThanTheInlineCapacity_keepsOnlyTheNewChildren() {
+    // given: a cache of 6 children, more than it keeps inline
+    var cache = StackLayoutCache()
+    cache.reset(reservingCapacity: 6)
+    for index in 0 ..< 6 {
+      appendVerticalChild(to: &cache, y: CGFloat(index) * 10)
+    }
+    cache.finish(mainAxis: .vertical)
+
+    // when: rebuilding it with 4 children, as many as it keeps inline
+    cache.reset(reservingCapacity: 4)
+    for index in 0 ..< 4 {
+      appendVerticalChild(to: &cache, y: 100 + CGFloat(index) * 10)
+    }
+    cache.finish(mainAxis: .vertical)
+
+    // then: only the 4 new children remain
+    expect(cache.childCount) == 4
+    expect((0 ..< 4).map { cache.child(at: $0).origin.y }) == [100, 110, 120, 130]
+    expect(cache.visibleChildRange(minPosition: 105, maxPosition: 125)) == 0 ..< 3
+    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 100, width: 10, height: 40)
+
+    // when: rebuilding it with 6 children again
+    cache.reset(reservingCapacity: 6)
+    for index in 0 ..< 6 {
+      appendVerticalChild(to: &cache, y: 200 + CGFloat(index) * 10)
+    }
+    cache.finish(mainAxis: .vertical)
+
+    // then: only the 6 new children remain
+    expect(cache.childCount) == 6
+    expect((0 ..< 6).map { cache.child(at: $0).origin.y }) == [200, 210, 220, 230, 240, 250]
+    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 200, width: 10, height: 60)
+  }
+
+  // MARK: - Helpers
+
+  /// Appends a child 10 points tall at the vertical position.
+  private func appendVerticalChild(to cache: inout StackLayoutCache, y: CGFloat) {
+    cache.appendChild(origin: CGPoint(x: 0, y: y), itemsBoundingRect: CGRect(x: 0, y: y, width: 10, height: 10))
   }
 }

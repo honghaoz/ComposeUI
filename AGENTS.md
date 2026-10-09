@@ -159,6 +159,7 @@ Hard-won rules from past corrections, grouped by theme.
 ## Testing
 
 - A test must not assume two reads happen at the same moment. The main thread can stall between any two statements for tens of milliseconds on a loaded machine, and no tolerance bounds that. Compare values computed for one time, or bracket a presentation read between two clock reads and accept any value between the predictions for them.
+- Check coverage with zero line counts or `llvm-cov report`, not only with the `-show-regions` markers: a region marker appears only where part of a line ran, so a line that never ran shows none.
 
 ## Cross-platform
 

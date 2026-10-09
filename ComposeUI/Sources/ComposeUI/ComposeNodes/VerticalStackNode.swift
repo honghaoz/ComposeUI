@@ -197,7 +197,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
     for i in visibleChildRange {
       let node = childNodes[i]
-      let childOrigin = layoutCache.children[i].origin
+      let childOrigin = layoutCache.child(at: i).origin
       let boundsInChild = visibleBounds.translate(-childOrigin)
 
       let childItems = node.renderableItems(in: boundsInChild)
