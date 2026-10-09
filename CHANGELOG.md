@@ -26,6 +26,7 @@
 - On macOS, `BaseTextView` now leaves its text in place when it's set to an equal text, as `UITextView` does on iOS and visionOS, so refreshing unchanged text no longer clears its selection, and is faster. To change an attribute object, such as an attachment's image, set a text with a new object instead of changing the object.
 - `ComposeContent`'s `asNodes()` is renamed to `_nodes()`, which is framework plumbing: read a content's nodes with the new `nodes` property instead. A type that implemented `asNodes()` to be content becomes a node, or a property or function marked `@ComposeContentBuilder`. A `@ComposeContentBuilder` block places a node as itself, without calling `_nodes()`.
 - `ComposeContentBuilder.Item` is now opaque: its cases are internal, since only the builder's methods make items and pass them to each other.
+- `ComposeView.theme` stays the same during a render pass, as the theme that the pass read first. Setting `overrideTheme` during the view's render pass, such as from a renderable's update, asserts and keeps the current theme, and it's final on `ComposeView`. Change the theme outside a render pass.
 
 ### Changes
 
@@ -67,6 +68,7 @@
 - Refreshing labels is faster: a label reuses the attributed string made for the same text and text settings in an earlier refresh.
 - Refreshing a text node whose attributed string is the same object as in the last refresh, as a label's is, is faster: its text view reuses the text with the theme applied instead of applying the theme to a new copy.
 - Laying out text is faster: a text's measured size is looked up without allocating.
+- Refreshing themed content is faster on macOS: the renderables' updates read the view's appearance once per render pass.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

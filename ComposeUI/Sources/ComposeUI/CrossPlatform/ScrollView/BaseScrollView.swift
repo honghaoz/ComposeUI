@@ -68,6 +68,7 @@ open class BaseScrollView: ScrollView {
   override open func viewDidMoveToSuperview() {
     super.viewDidMoveToSuperview()
 
+    let theme = appearanceTheme
     if theme != previousTheme {
       scheduleThemeUpdate(theme)
     }
@@ -78,6 +79,7 @@ open class BaseScrollView: ScrollView {
   override open func didMoveToSuperview() {
     super.didMoveToSuperview()
 
+    let theme = appearanceTheme
     if theme != previousTheme {
       scheduleThemeUpdate(theme)
     }
@@ -112,7 +114,12 @@ open class BaseScrollView: ScrollView {
   /// The publisher emits the current theme when subscribed.
   public private(set) lazy var themePublisher: AnyPublisher<Theme, Never> = themeSubject.eraseToAnyPublisher()
 
-  private lazy var themeSubject = CurrentValueSubject<Theme, Never>(theme)
+  private lazy var themeSubject = CurrentValueSubject<Theme, Never>(appearanceTheme)
+
+  /// The theme of the view.
+  public var theme: Theme {
+    appearanceTheme
+  }
 
   private var pendingThemeToUpdate: Theme?
   private func scheduleThemeUpdate(_ newTheme: Theme) {
@@ -144,8 +151,10 @@ open class BaseScrollView: ScrollView {
   }
 
   #if canImport(AppKit)
-  /// The theme of the view.
-  public var theme: Theme {
+  /// The theme of the view's appearance, read from the appearance on each call.
+  ///
+  /// The view's own theme bookkeeping reads it instead of `theme`, which a subclass can answer from what it kept.
+  var appearanceTheme: Theme {
     // Logic copied and adapted from ChouTiUI:
     // https://github.com/honghaoz/ChouTiUI/blob/e67ac0e292ebfe71340a2ba4ae740b2c0edf1efb/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/NSView%2BTheming.swift
 
@@ -183,7 +192,7 @@ open class BaseScrollView: ScrollView {
       guard let self else {
         return
       }
-      self.scheduleThemeUpdate(self.theme)
+      self.scheduleThemeUpdate(self.appearanceTheme)
     }
   }
 
@@ -194,8 +203,10 @@ open class BaseScrollView: ScrollView {
   #endif
 
   #if canImport(UIKit)
-  /// The theme of the view.
-  public var theme: Theme {
+  /// The theme of the view's appearance, read from the trait collection on each call.
+  ///
+  /// The view's own theme bookkeeping reads it instead of `theme`, which a subclass can answer from what it kept.
+  var appearanceTheme: Theme {
     // Logic copied and adapted from ChouTiUI:
     // https://github.com/honghaoz/ChouTiUI/blob/e67ac0e292ebfe71340a2ba4ae740b2c0edf1efb/ChouTiUI/Sources/ChouTiUI/Universal/Theming/Theming/UIView%2BTheming.swift
 
@@ -263,7 +274,7 @@ open class BaseScrollView: ScrollView {
   override open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
 
-    scheduleThemeUpdate(theme)
+    scheduleThemeUpdate(appearanceTheme)
   }
   #endif
 }

@@ -1064,6 +1064,48 @@ open class ComposeView: BaseScrollView {
   /// Whether a render pass is in progress.
   private var isRendering = false
 
+  /// The theme that the render pass read first, which `theme` returns until the pass ends.
+  private var renderPassTheme: Theme?
+
+  /// The theme of the view.
+  ///
+  /// It stays the same during a render pass, as the theme that the pass read first, so change the theme outside a
+  /// render pass: a change made during one renders in the next pass, and a change undone in the same pass can leave
+  /// the pass's content in the changed theme.
+  override public var theme: Theme {
+    // the renderables' updates read the theme from the pass instead of the appearance, which allocates to read on
+    // macOS. it's read on the first read instead of when the pass begins, so that a pass without a themed renderable
+    // reads nothing, and it's kept on the main thread, where the pass runs
+    guard Thread.isMainThread, isRendering else {
+      return super.theme
+    }
+
+    if let renderPassTheme {
+      return renderPassTheme
+    }
+    let theme = super.theme
+    renderPassTheme = theme
+    return theme
+  }
+
+  /// The override theme of the view.
+  ///
+  /// Setting it during the view's render pass, such as from a renderable's update, asserts and keeps the current
+  /// value, since the theme stays the same during a render pass.
+  override public final var overrideTheme: Theme? {
+    get {
+      super.overrideTheme
+    }
+    set {
+      // a set from another thread waits for the main thread, so it applies after the pass
+      if Thread.isMainThread, isRendering {
+        ComposeUI.assertFailure("ComposeView doesn't support changing the theme during its render pass")
+        return
+      }
+      super.overrideTheme = newValue
+    }
+  }
+
   /// The view whose render pass is in progress. Main thread only.
   ///
   /// Render passes only nest downwards (see `canStartRenderPass`), so this is the innermost rendering view, and
@@ -1099,6 +1141,7 @@ open class ComposeView: BaseScrollView {
 
     self.contentUpdateContext = nil
     renderingAnimationDecision = nil
+    renderPassTheme = nil
 
     ComposeView.renderingView = outerRenderingView
     isRendering = false
