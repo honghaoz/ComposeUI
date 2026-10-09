@@ -104,8 +104,10 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
         // special treatment for spacer node with nil width to make it fixed with 0 width,
         // so that the spacer nodes don't expand the vertical stack node's width.
-        if let spacer = childNodes[nodeIndex] as? SpacerNode, spacer.width == nil {
-          childNodes[nodeIndex] = spacer.width(0)
+        // the spacer is found by its type, which costs less than casting each child, and changed in place, since storing
+        // a new node in the children allocates a box for it
+        if type(of: childNodes[nodeIndex]) == SpacerNode.self {
+          childNodes[nodeIndex].zeroWidthIfSpacerWithoutWidth()
         }
 
         let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize, context: context)
