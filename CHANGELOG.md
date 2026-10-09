@@ -69,7 +69,7 @@
 - Refreshing a text node whose attributed string is the same object as in the last refresh, as a label's is, is faster: its text view reuses the text with the theme applied instead of applying the theme to a new copy.
 - Laying out text is faster: a text's measured size is looked up without allocating.
 - Refreshing themed content is faster on macOS: the renderables' updates read the view's appearance once per render pass.
-- Starting and retargeting layer animations is faster: the framework passes the key paths it animates to Core Animation without copying them, and doesn't store an animation's default speed.
+- Starting and retargeting layer animations is faster: the framework passes the key paths it animates to Core Animation without copying them, doesn't store an animation's default speed, and a retarget reads the layer's animations once and keeps them without allocating.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

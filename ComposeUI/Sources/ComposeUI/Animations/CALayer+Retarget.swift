@@ -118,11 +118,14 @@ public extension CALayer {
       for inFlightAnimation in inFlightAnimations {
         removeAnimation(forKey: inFlightAnimation.key)
       }
+      // the values are passed as `Any` instead of an optional, so `animate` passes them on without boxing them, see
+      // `CALayer.anyValue(_:)`. a missing start value is passed as `NSNull`, which a `nil` optional bridges to, and Core
+      // Animation leaves unresolved
       animate(
         keyPath: keyPath,
         timing: timing,
-        from: { _ in startValue },
-        to: { _ -> Any? in value }
+        from: { _ in startValue ?? NSNull() },
+        to: { _ in value }
       )
     }
   }
@@ -136,13 +139,13 @@ public extension CALayer {
   ///
   /// Returns `nil` when no animation changes the key path, without reading the current time, since reading it converts
   /// the time through the layer tree, and a layer usually has nothing animating.
-  private func inFlightAnimations(forKeyPath keyPath: String) -> (animations: [InFlightAnimation], indirectAnimations: [KeyPathAnimation], endedKeptKeys: [String], now: TimeInterval)? {
+  private func inFlightAnimations(forKeyPath keyPath: String) -> (animations: InlineFirstArray<InFlightAnimation>, indirectAnimations: [KeyPathAnimation], endedKeptKeys: [String], now: TimeInterval)? {
     guard let animations = animationSequence(forKeyPath: keyPath) else {
       return nil
     }
 
     let now = currentTime
-    var inFlightAnimations: [InFlightAnimation] = []
+    var inFlightAnimations = InlineFirstArray<InFlightAnimation>()
     var indirectAnimations: [KeyPathAnimation] = []
     var endedKeptKeys: [String] = []
     for (key, keyPathAnimation) in animations {
@@ -174,7 +177,7 @@ public extension CALayer {
   /// - Returns: The fold, or `nil` when the animations can't be folded: the render server clamps the key path after each
   ///   animation, the values aren't numbers, sizes or points of one kind, or an animation isn't an additive basic
   ///   animation whose value can be computed.
-  private func additiveFold(of animations: [InFlightAnimation],
+  private func additiveFold(of animations: InlineFirstArray<InFlightAnimation>,
                             keyPath: String,
                             to newValue: Any,
                             at now: TimeInterval) -> (keys: [String], offset: AdditiveValue)?

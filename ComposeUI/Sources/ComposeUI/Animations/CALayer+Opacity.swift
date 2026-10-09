@@ -52,8 +52,34 @@ public extension CALayer {
                       freshStartValue: Float? = nil,
                       completion: (() -> Void)? = nil)
   {
-    let interrupted = interruptedOpacityState()
-    removeAnimations(forKeyPath: "opacity")
+    animateOpacity(
+      to: targetValue,
+      timing: timing,
+      freshStartValue: freshStartValue,
+      completion: completion,
+      replacing: keyedPropertyAnimations(forKeyPath: "opacity")
+    )
+  }
+
+  /// Animates the opacity, see `animateOpacity(to:timing:freshStartValue:completion:)`, replacing the layer's opacity
+  /// animations, which the caller has read.
+  ///
+  /// - Parameters:
+  ///   - targetValue: The opacity to animate to, also set as the model value.
+  ///   - timing: The animation timing.
+  ///   - freshStartValue: The opacity to start from when nothing is in flight. `nil` starts from the model value.
+  ///   - completion: Called when the animation finishes or is removed early.
+  ///   - opacityAnimations: The layer's opacity animations and their keys, see `keyedPropertyAnimations(forKeyPath:)`.
+  private func animateOpacity(to targetValue: Float,
+                              timing: AnimationTiming,
+                              freshStartValue: Float?,
+                              completion: (() -> Void)?,
+                              replacing opacityAnimations: InlineFirstArray<(key: String, animation: CAPropertyAnimation)>)
+  {
+    let interrupted = interruptedOpacityState(of: opacityAnimations)
+    for (key, _) in opacityAnimations {
+      removeAnimation(forKey: key)
+    }
 
     guard timing.timing.duration > 0 || timing.delay > 0 else {
       setKeyPathValue("opacity", targetValue)
@@ -100,7 +126,7 @@ public extension CALayer {
     }
 
     // without opacity animations, the current time isn't read, since reading it converts the time through the layer tree
-    let opacityAnimations = propertyAnimations(forKeyPath: "opacity")
+    let opacityAnimations = keyedPropertyAnimations(forKeyPath: "opacity")
     guard !opacityAnimations.isEmpty else {
       setKeyPathValue("opacity", value)
       return
@@ -109,7 +135,7 @@ public extension CALayer {
     let now = currentTime
     var remainingTime: TimeInterval?
     var neverFinishes = false
-    for animation in opacityAnimations {
+    for (_, animation) in opacityAnimations {
       guard let animationRemainingTime = animation.remainingTime(at: now) else {
         continue
       }
@@ -123,7 +149,13 @@ public extension CALayer {
     }
 
     // an animation that never finishes has no end to land with, so the glide takes the default duration
-    animateOpacity(to: value, timing: .easeOut(duration: neverFinishes ? Animations.defaultAnimationDuration : remainingTime))
+    animateOpacity(
+      to: value,
+      timing: .easeOut(duration: neverFinishes ? Animations.defaultAnimationDuration : remainingTime),
+      freshStartValue: nil,
+      completion: nil,
+      replacing: opacityAnimations
+    )
   }
 }
 
@@ -131,14 +163,22 @@ extension CALayer {
 
   /// The opacity the in-flight opacity animations show and its rate of change per second.
   ///
-  /// The animations are evaluated from their begin times at the current time of the animation clock, see
-  /// `AnimationClock`. An animation `animateOpacity` added at the current time hasn't moved yet, so the layer still
-  /// shows the motion it replaced, and this returns that motion's opacity and rate.
+  /// The animations are evaluated from their begin times at the current time of the animation clock, see `AnimationClock`.
+  /// An animation `animateOpacity` added at the current time hasn't moved yet, so the layer still shows the motion it
+  /// replaced, and this returns that motion's opacity and rate.
   ///
   /// - Returns: The opacity, clamped to [0, 1] after each animation like the render server does, and its rate, zero
   ///   when it pushes past a bound. `nil` when no opacity animation is in flight.
   func interruptedOpacityState() -> (value: Float, velocity: Double)? {
-    let opacityAnimations = propertyAnimations(forKeyPath: "opacity")
+    interruptedOpacityState(of: keyedPropertyAnimations(forKeyPath: "opacity"))
+  }
+
+  /// The opacity the given opacity animations show and its rate of change per second, see `interruptedOpacityState()`.
+  ///
+  /// - Parameter opacityAnimations: The layer's opacity animations and their keys, see
+  ///   `keyedPropertyAnimations(forKeyPath:)`.
+  /// - Returns: The opacity and its rate, see `interruptedOpacityState()`. `nil` without opacity animations.
+  private func interruptedOpacityState(of opacityAnimations: InlineFirstArray<(key: String, animation: CAPropertyAnimation)>) -> (value: Float, velocity: Double)? {
     guard !opacityAnimations.isEmpty else {
       return nil
     }
@@ -147,16 +187,16 @@ extension CALayer {
 
     // an animation added at the current time begins now, so the layer still shows the motion it replaced
     if opacityAnimations.count == 1,
-       opacityAnimations[0].beginTime == CAAnimation.beginTime(at: now),
-       let replacedOpacity = opacityAnimations[0].value(forKey: RetargetConstants.replacedOpacityKey) as? Float,
-       let replacedVelocity = opacityAnimations[0].value(forKey: RetargetConstants.replacedVelocityKey) as? Double
+       opacityAnimations[0].animation.beginTime == CAAnimation.beginTime(at: now),
+       let replacedOpacity = opacityAnimations[0].animation.value(forKey: RetargetConstants.replacedOpacityKey) as? Float,
+       let replacedVelocity = opacityAnimations[0].animation.value(forKey: RetargetConstants.replacedVelocityKey) as? Double
     {
       return (replacedOpacity, replacedVelocity)
     }
 
     func composedValue(at time: TimeInterval) -> Double {
       var value = Double(opacity)
-      for animation in opacityAnimations {
+      for (_, animation) in opacityAnimations {
         guard let animationValue = (animation as? CABasicAnimation)?.scalarValue(at: time) else {
           ComposeUI.assertFailure("unsupported in-flight opacity animation: \(animation)")
           continue
@@ -176,7 +216,7 @@ extension CALayer {
     // animation holds its from value until it begins, and measuring across the begin would mix the hold into its rate.
     // an unset begin time, zero, isn't a begin in the interval, as the animation hasn't begun
     var samplingStart = now - RetargetConstants.velocitySamplingInterval
-    for animation in opacityAnimations where animation.beginTime != 0 && animation.beginTime < now {
+    for (_, animation) in opacityAnimations where animation.beginTime != 0 && animation.beginTime < now {
       samplingStart = max(samplingStart, animation.beginTime)
     }
 

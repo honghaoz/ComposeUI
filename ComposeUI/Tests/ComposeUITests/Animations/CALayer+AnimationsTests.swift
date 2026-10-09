@@ -803,6 +803,66 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(layer.animation(forKey: "group-fade")) != nil
   }
 
+  func test_keyedPropertyAnimations() {
+    // given: a layer with two opacity animations, an animation of another key path, and a group of an opacity animation
+    let layer = CALayer()
+    layer.add(CABasicAnimation(keyPath: "opacity"), forKey: "fade")
+    layer.add(CABasicAnimation(keyPath: "transform.rotation"), forKey: "spin")
+    layer.add(CAKeyframeAnimation(keyPath: "opacity"), forKey: "keyframe-fade")
+    layer.add(group(of: [CABasicAnimation(keyPath: "opacity")]), forKey: "group-fade")
+
+    // when: reading the opacity's property animations with their keys
+    let animations = layer.keyedPropertyAnimations(forKeyPath: "opacity")
+
+    // then: they're the opacity's property animations and their keys, in the layer's key order, without the group
+    expect(animations.map(\.key)) == ["fade", "keyframe-fade"]
+    expect(animations.map { $0.animation is CAKeyframeAnimation }) == [false, true]
+  }
+
+  func test_keyedPropertyAnimations_withoutAnimations() {
+    // given: a layer without animations
+    let layer = CALayer()
+
+    // when: reading the opacity's property animations with their keys
+    let animations = layer.keyedPropertyAnimations(forKeyPath: "opacity")
+
+    // then: there are none
+    expect(animations.isEmpty) == true
+  }
+
+  func test_anyValue_any() {
+    // given: an object in an `Any`
+    weak var weakObject: NSObject?
+    do {
+      let object = NSObject()
+      weakObject = object
+      let value: Any = object
+
+      // when: passing the value on as an `Any`
+      let anyValue = CALayer.anyValue(value)
+
+      // then: it's the object
+      expect(anyValue as? NSObject) === object
+    }
+
+    // then: the object is released with its owners, so passing it on doesn't leak it
+    expect(weakObject) == nil
+  }
+
+  func test_anyValue_otherType() {
+    // given: values of other types
+    let size = CGSize(width: 1, height: 2)
+    let optionalRadius: CGFloat? = 3
+
+    // when: passing them on as `Any`
+    let sizeValue = CALayer.anyValue(size)
+    let radiusValue = CALayer.anyValue(optionalRadius)
+
+    // then: each is its value
+    expect(sizeValue as? CGSize) == size
+    expect(radiusValue as? CGFloat) == 3
+  }
+
   // MARK: - Helpers
 
   private func group(of animations: [CAAnimation]?) -> CAAnimationGroup {
