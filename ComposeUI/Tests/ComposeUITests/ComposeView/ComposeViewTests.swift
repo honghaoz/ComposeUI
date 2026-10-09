@@ -775,8 +775,8 @@ class ComposeViewTests: XCTestCase {
   // MARK: - Theme
 
   func test_theme_duringARenderPass_staysTheThemeThePassReadFirst() throws {
-    // given: a compose view in the light theme, whose first node reads the theme and then changes it to dark when it
-    // updates, and whose second node has a themed color
+    // given: a compose view in the light theme, whose first node reads the theme and then changes the view's appearance
+    // to dark when it updates, and whose second node has a themed color
     var themesReadByTheUpdates: [Theme] = []
     var themedLayer: CALayer?
     let view = ComposeView {
@@ -785,7 +785,7 @@ class ComposeViewTests: XCTestCase {
           .frame(width: 10, height: 10)
           .onUpdate { _, context in
             themesReadByTheUpdates.append(context.contentView.theme)
-            context.contentView.overrideTheme = .dark
+            Self.setAppearance(of: context.contentView, to: .dark)
           }
         ColorNode(ThemedColor(light: .red, dark: .blue))
           .frame(width: 10, height: 10)
@@ -817,15 +817,15 @@ class ComposeViewTests: XCTestCase {
   }
 
   func test_themePublisher_themeChangedDuringARenderPass_publishesTheChange() {
-    // given: a compose view in a window, in the light theme, whose node can change the view's theme to dark when it
-    // updates, and the themes its theme publisher publishes
+    // given: a compose view in a window, in the light theme, whose node can change the view's appearance to dark when
+    // it updates, and the themes its theme publisher publishes
     var changesTheTheme = false
     let view = ComposeView {
       ColorNode(.clear)
         .frame(width: 10, height: 10)
         .onUpdate { _, context in
           if changesTheTheme {
-            context.contentView.overrideTheme = .dark
+            Self.setAppearance(of: context.contentView, to: .dark)
           }
         }
     }
@@ -845,6 +845,38 @@ class ComposeViewTests: XCTestCase {
     // then: the change made during the pass is published, since the view's own bookkeeping reads its appearance
     expect(publishedThemes).toEventually(beEqual(to: [.dark]))
     cancellable.cancel()
+  }
+
+  func test_overrideTheme_duringARenderPass_assertsAndKeepsTheCurrentValue() {
+    // given: a compose view in the light theme, whose node sets the override theme to dark when it updates, and the
+    // assertions it makes
+    var overrideThemeAfterTheSet: Theme?
+    let view = ComposeView {
+      ColorNode(.clear)
+        .frame(width: 10, height: 10)
+        .onUpdate { _, context in
+          context.contentView.overrideTheme = .dark
+          overrideThemeAfterTheSet = context.contentView.overrideTheme
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.overrideTheme = .light
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: refreshing
+    view.refresh(animated: false)
+
+    // then: setting the override theme during the pass asserts and keeps the light theme
+    expect(assertionMessages) == ["ComposeView doesn't support changing the theme during its render pass"]
+    expect(overrideThemeAfterTheSet) == .light
+    expect(view.overrideTheme) == .light
+    expect(view.theme) == .light
   }
 
   func test_theme_outsideARenderPass_followsTheAppearance() {
@@ -874,5 +906,34 @@ class ComposeViewTests: XCTestCase {
 
     // then: it's the view's theme
     expect(theme) == .dark
+  }
+
+  func test_overrideTheme_offTheMainThread_setsTheTheme() {
+    // given: a compose view in the light theme
+    contentView.overrideTheme = .light
+
+    // when: setting its override theme to dark off the main thread
+    let expectation = XCTestExpectation(description: "override theme")
+    DispatchQueue.global().async { [contentView] in
+      contentView?.overrideTheme = .dark
+      expectation.fulfill()
+    }
+    wait(for: [expectation], timeout: 1)
+
+    // then: the view is dark
+    expect(contentView.overrideTheme) == .dark
+    expect(contentView.theme) == .dark
+  }
+
+  // MARK: - Helpers
+
+  /// Changes the view's appearance to the theme without `overrideTheme`, as a change of an ancestor's appearance would.
+  private static func setAppearance(of view: ComposeView, to theme: Theme) {
+    #if canImport(AppKit)
+    view.appearance = NSAppearance(named: theme.isLight ? .aqua : .darkAqua)
+    #endif
+    #if canImport(UIKit)
+    view.overrideUserInterfaceStyle = theme.isLight ? .light : .dark
+    #endif
   }
 }
