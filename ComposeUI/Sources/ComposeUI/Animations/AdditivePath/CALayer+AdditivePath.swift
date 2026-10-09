@@ -252,7 +252,7 @@ private extension CALayer {
 
   /// The path's changes in flight, kept on the animation that shows them.
   func pathChanges(forKeyPath keyPath: String, at now: TimeInterval) -> PathChanges {
-    guard let box = animation(forKey: keyPath)?.value(forKey: PathChangesBox.key) as? PathChangesBox else {
+    guard let box = animation(forKey: LayerKeyPath.objectiveC(keyPath))?.value(forKey: PathChangesBox.key) as? PathChangesBox else {
       return PathChanges()
     }
     var changes = box.changes
@@ -280,13 +280,14 @@ private extension CALayer {
       return
     }
 
+    let objectiveCKeyPath = LayerKeyPath.objectiveC(keyPath)
     let animation: CAPropertyAnimation
     if changes.changes.count == 1 {
       // one change is an animation between two paths, which Core Animation evaluates on every frame. it is a copy of the
       // change's own animation, since the changes stored on it hold that animation, which would then hold itself
       let change = changes.changes[0]
       let basicAnimation = change.animation.copy() as! CABasicAnimation // swiftlint:disable:this force_cast
-      basicAnimation.keyPath = keyPath
+      basicAnimation.keyPath = objectiveCKeyPath
       basicAnimation.fromValue = points.adding(change.offset).path
       basicAnimation.toValue = path
       basicAnimation.beginTime = change.beginTime
@@ -295,7 +296,7 @@ private extension CALayer {
       // the keyframes come with key times only when a change begins or lands between evenly spread keyframes, as Core
       // Animation spreads keyframes without key times evenly
       let keyframes = changes.keyframes(adding: path, points: points, at: now)
-      let keyframeAnimation = CAKeyframeAnimation(keyPath: keyPath)
+      let keyframeAnimation = CAKeyframeAnimation(keyPath: objectiveCKeyPath)
       keyframeAnimation.values = keyframes.paths
       keyframeAnimation.keyTimes = keyframes.keyTimes
       keyframeAnimation.calculationMode = .linear
@@ -306,7 +307,7 @@ private extension CALayer {
     }
 
     animation.setValue(PathChangesBox(changes), forKey: PathChangesBox.key)
-    add(animation, forKey: keyPath)
+    add(animation, forKey: objectiveCKeyPath)
     #if DEBUG
     WorkCounter.count(.animation)
     #endif
@@ -342,8 +343,9 @@ private extension CALayer {
 
   /// Sets the model path, and removes the animation of the changes in flight, so the path shows at once.
   func showPathAtOnce(_ path: CGPath, forKeyPath keyPath: String) {
-    if animation(forKey: keyPath)?.value(forKey: PathChangesBox.key) is PathChangesBox {
-      removeAnimation(forKey: keyPath)
+    let objectiveCKeyPath = LayerKeyPath.objectiveC(keyPath)
+    if animation(forKey: objectiveCKeyPath)?.value(forKey: PathChangesBox.key) is PathChangesBox {
+      removeAnimation(forKey: objectiveCKeyPath)
     }
     setKeyPathValue(keyPath, path)
   }
