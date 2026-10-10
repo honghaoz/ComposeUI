@@ -52,7 +52,18 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   // MARK: - Text layout
 
   private var numberOfLines: Int
-  private var lineBreakMode: NSLineBreakMode
+
+  /// The line break mode, see `lineBreakModeRawValue`.
+  private var lineBreakMode: NSLineBreakMode {
+    get {
+      // an imported enum makes a value of any raw value, so this never fails
+      NSLineBreakMode(rawValue: numericCast(lineBreakModeRawValue))! // swiftlint:disable:this force_unwrapping
+    }
+    set {
+      ComposeUI.assert(newValue.rawValue <= UInt8.max, "a line break mode's raw value must fit in a byte")
+      lineBreakModeRawValue = UInt8(truncatingIfNeeded: newValue.rawValue)
+    }
+  }
 
   private var textContainerInset: CGSize
   private var adjustIntrinsicTextSize: ((_ original: CGSize) -> CGSize)?
@@ -63,11 +74,16 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
 
-  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
+  /// The raw value of the line break mode, stored in a byte next to the Booleans instead of as an `NSLineBreakMode`,
+  /// which takes 8 bytes, so that the node takes 120 bytes: at 128, the compiler checks an optional text node out of
+  /// line, which made each layout of a `LabelNode` about 100 instructions slower.
+  private var lineBreakModeRawValue: UInt8
+
+  /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
   ///
-  /// This is a `var` (not a shared `let`) because `TextNode` has fluent config setters: each setter assigns a fresh
-  /// cache to its returned copy so a configuration change is never served a stale cached item.
-  private var itemCache = RenderableItemCache()
+  /// Each fluent config setter clears it on its returned copy, so that the copy takes its own slot when it's laid out,
+  /// and a configuration change is never served a stale cached item.
+  private var itemSlot: RenderableItemCache.Slot?
 
   /// Initialize a text node with attributed text.
   ///
@@ -128,7 +144,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     self.attributedString = attributedString
 
     numberOfLines = 0
-    lineBreakMode = .byWordWrapping
+    lineBreakModeRawValue = UInt8(NSLineBreakMode.byWordWrapping.rawValue)
 
     textContainerInset = .zero
     adjustIntrinsicTextSize = nil
@@ -324,6 +340,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    context.updateRenderableItemSlot(&itemSlot)
+
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
       size = intrinsicTextSize(for: containerSize)
@@ -358,8 +376,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       return []
     }
 
-    // bind config locally so the cached `update` closure captures values, not `self` (which holds `itemCache`), which
-    // would form the retain cycle: itemCache -> cachedItem -> update -> self copy -> itemCache.
+    // bind config locally so the cached `update` closure captures values, not `self` (which holds `itemSlot`), which
+    // would form the retain cycle: item cache -> cached item -> update -> self copy -> itemSlot -> item cache.
     let attributedString = attributedString
     let numberOfLines = numberOfLines
     let lineBreakMode = lineBreakMode
@@ -367,7 +385,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     let isEditable = isEditable
     let isSelectable = isSelectable
 
-    let item = itemCache.item(id: id, frame: frame) {
+    let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
       ViewItem<BaseTextView>(
         id: id,
         frame: frame,
@@ -473,7 +491,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.numberOfLines = value
-    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
+    copy.itemSlot = nil // config changed: the copy takes its own slot, so it rebuilds
     return copy
   }
 
@@ -488,7 +506,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.lineBreakMode = value
-    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
+    copy.itemSlot = nil // config changed: the copy takes its own slot, so it rebuilds
     return copy
   }
 
@@ -503,7 +521,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.isEditable = value
-    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
+    copy.itemSlot = nil // config changed: the copy takes its own slot, so it rebuilds
     return copy
   }
 
@@ -518,7 +536,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.isSelectable = value
-    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
+    copy.itemSlot = nil // config changed: the copy takes its own slot, so it rebuilds
     return copy
   }
 
@@ -536,7 +554,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     var copy = self
     copy.textContainerInset = CGSize(width: horizontal, height: vertical)
-    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
+    copy.itemSlot = nil // config changed: the copy takes its own slot, so it rebuilds
     return copy
   }
 
@@ -551,7 +569,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   public func intrinsicTextSizeAdjustment(_ adjustment: ((_ original: CGSize) -> CGSize)?) -> Self {
     var copy = self
     copy.adjustIntrinsicTextSize = adjustment
-    copy.itemCache = RenderableItemCache() // config changed: drop the cached item so the copy rebuilds
+    copy.itemSlot = nil // config changed: the copy takes its own slot, so it rebuilds
     return copy
   }
 }

@@ -48,8 +48,8 @@ public struct DropShadowNode: ComposeNode {
   private let offset: Themed<CGSize>
   private let paths: (CGSize) -> DropShadowPaths
 
-  /// Caches the built renderable item so scroll render passes reuse it instead of rebuilding it.
-  private let itemCache = RenderableItemCache()
+  /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
+  private var itemSlot: RenderableItemCache.Slot?
 
   /// Initialize a themed drop shadow node.
   ///
@@ -114,6 +114,7 @@ public struct DropShadowNode: ComposeNode {
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    context.updateRenderableItemSlot(&itemSlot)
     size = containerSize
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
@@ -125,15 +126,15 @@ public struct DropShadowNode: ComposeNode {
     }
 
     // bind the configuration values locally so the cached `update` closure captures them instead of `self`.
-    // capturing `self` (a struct, captured by value) would copy in `itemCache`, forming the retain cycle:
-    // itemCache -> cachedItem -> update -> self copy -> itemCache.
+    // capturing `self` (a struct, captured by value) would copy in `itemSlot`, forming the retain cycle:
+    // item cache -> cached item -> update -> self copy -> itemSlot -> item cache.
     let color = color
     let opacity = opacity
     let radius = radius
     let offset = offset
     let paths = paths
 
-    let item = itemCache.item(id: id, frame: frame) {
+    let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
       LayerItem<DropShadowLayer>(
         id: id,
         frame: frame,
