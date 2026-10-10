@@ -206,7 +206,7 @@ private struct ModifierNode: ComposeNode {
     switch transition {
     case .some:
       return false
-    case .none:
+    case Optional.none:
       switch animationTiming {
       case .some:
         return false
