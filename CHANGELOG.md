@@ -72,6 +72,7 @@
 - Starting and retargeting layer animations is faster: the framework passes the key paths it animates to Core Animation without copying them, doesn't store an animation's default speed, and a retarget reads the layer's animations once and keeps them without allocating.
 - Refreshing and scrolling are faster: frames, padding, offsets, overlays, underlays, gesture recognizers and modifiers change their child's render items in place instead of copying them, and stacks collect their children's items in one array of the exact size, or reuse the array of their only child with items.
 - Fixed a `VStack` or `HStack` that could never finish its layout in release builds when a child has an infinite fixed size, such as from `.frame(width: .infinity, height: 50)`. The stack now divides its space as if the child were flexible. An infinite fixed size still asserts in debug builds, so use `.flexible` to fill the space instead.
+- Erasing a view or layer item to a `RenderableItem` is faster: the erased item runs the item's blocks through it, instead of copying each block into a new closure.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

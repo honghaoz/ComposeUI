@@ -238,7 +238,306 @@ class RenderItemTests: XCTestCase {
     expect(layer.name) == "own,added"
   }
 
+  // MARK: - Running Blocks
+
+  func test_renderPass_runsTheItemsBlocks() {
+    // given: an item made with every block
+    let item = makeTokenItem { Renderable.layer(CALayer()) }
+
+    withContexts { contexts in
+      // when: the render pass makes a renderable with the item and runs its blocks
+      let renderable = item.makeRenderable(contexts.make)
+      runBlocksAsTheRenderPass(of: item, with: renderable, contexts)
+
+      // then: the blocks ran in turn on the renderable the item made
+      expect(tokens(of: renderable)) == Self.blockNames
+    }
+  }
+
+  func test_readingTheBlocks_runsTheItemsBlocks() {
+    // given: an item made with every block
+    let item = makeTokenItem { Renderable.layer(CALayer()) }
+
+    withContexts { contexts in
+      // when: making a renderable and running the blocks read from the item
+      let renderable = item.make(contexts.make)
+      runBlocksByReadingThem(of: item, with: renderable, contexts)
+
+      // then: the blocks ran in turn on the renderable the item made
+      expect(tokens(of: renderable)) == Self.blockNames
+    }
+  }
+
+  func test_transitionAndAnimation_keepTheItemsOwn() {
+    // given: an item with a transition and an animation
+    let item = makeItem()
+      .transition(.opacity())
+      .animation(.easeInEaseOut(duration: 1))
+
+    // when: setting another transition and animation
+    let updatedItem = item
+      .transition(RenderableTransition(insert: nil, remove: nil))
+      .animation(.linear(duration: 2))
+
+    // then: the item keeps its own, which a node closer to the leaf set
+    expect(updatedItem.transition?.insert).toNot(beNil())
+    expect(updatedItem.animationTiming) == .easeInEaseOut(duration: 1)
+  }
+
+  func test_eraseToRenderableItem_renderPass_runsTheItemsBlocks() {
+    for (kind, item) in erasedTokenItems {
+      withContexts { contexts in
+        // when: the render pass makes a renderable with an erased item, whose view or layer item has every block, and
+        // runs its blocks
+        let renderable = item.makeRenderable(contexts.make)
+        runBlocksAsTheRenderPass(of: item, with: renderable, contexts)
+
+        // then: the item made a renderable of its kind, and its blocks ran in turn on it
+        expect(renderable.view != nil, kind) == (kind == "view")
+        expect(tokens(of: renderable), kind) == Self.blockNames
+      }
+    }
+  }
+
+  func test_eraseToRenderableItem_readingTheBlocks_runsTheItemsBlocks() {
+    for (kind, item) in erasedTokenItems {
+      withContexts { contexts in
+        // when: making a renderable and running the blocks read from an erased item, whose view or layer item has
+        // every block
+        let renderable = item.make(contexts.make)
+        runBlocksByReadingThem(of: item, with: renderable, contexts)
+
+        // then: the item made a renderable of its kind, and its blocks ran in turn on it
+        expect(renderable.view != nil, kind) == (kind == "view")
+        expect(tokens(of: renderable), kind) == Self.blockNames
+      }
+    }
+  }
+
+  func test_eraseToRenderableItem_itemWithoutBlocks_hasOnlyTheBlocksAddedAfterErasing() {
+    // given: an erased layer item with only its make and update blocks
+    let item = LayerItem<CALayer>(
+      id: .custom("layer"),
+      frame: .zero,
+      make: { _ in CALayer() },
+      update: { layer, _ in Self.appendToken("update", to: layer) }
+    )
+    .eraseToRenderableItem()
+
+    // then: the erased item has no other blocks
+    expect(item.willInsert).to(beNil())
+    expect(item.didInsert).to(beNil())
+    expect(item.willUpdate).to(beNil())
+    expect(item.willRemove).to(beNil())
+    expect(item.didRemove).to(beNil())
+    expect(item.resetForReuse).to(beNil())
+
+    withContexts { contexts in
+      // when: a block of each kind is added to the erased item, and the blocks read from it run
+      let itemWithBlocks = addingTokenBlocks(to: item)
+      let renderable = itemWithBlocks.make(contexts.make)
+      runBlocksByReadingThem(of: itemWithBlocks, with: renderable, contexts)
+
+      // then: the erased item has the added blocks, which ran with the item's update
+      expect(tokens(of: renderable)) == [
+        "added willInsert", "added didInsert", "added willUpdate", "update", "added update", "added willRemove", "added didRemove", "added resetForReuse",
+      ]
+    }
+  }
+
+  func test_eraseToRenderableItem_addedBlocks_runAfterTheItemsBlocks() {
+    // given: an erased item whose layer item has every block, with a block of each kind added after erasing
+    let item = addingTokenBlocks(to: makeTokenItem { CALayer() }.eraseToRenderableItem())
+    let expectedTokens = [
+      "willInsert", "added willInsert",
+      "didInsert", "added didInsert",
+      "willUpdate", "added willUpdate",
+      "update", "added update",
+      "willRemove", "added willRemove",
+      "didRemove", "added didRemove",
+      "resetForReuse", "added resetForReuse",
+    ]
+
+    withContexts { contexts in
+      // when: the render pass makes a renderable with the item and runs its blocks
+      let renderable = item.makeRenderable(contexts.make)
+      runBlocksAsTheRenderPass(of: item, with: renderable, contexts)
+
+      // then: each block of the layer item ran before the block of its kind added after erasing
+      expect(tokens(of: renderable)) == expectedTokens
+    }
+
+    withContexts { contexts in
+      // when: running the blocks read from the item
+      let renderable = item.make(contexts.make)
+      runBlocksByReadingThem(of: item, with: renderable, contexts)
+
+      // then: the blocks ran in the same order
+      expect(tokens(of: renderable)) == expectedTokens
+    }
+  }
+
+  func test_eraseToRenderableItem_keepsTheItemsValues() {
+    // given: a view item with a reuse id, a transition, an animation and a z-index
+    let item = makeTokenItem { BaseView() }
+
+    // when: erasing the item
+    let erasedItem = item.eraseToRenderableItem()
+
+    // then: the erased item has the item's values, and the type of the item's view for reuse
+    expect(erasedItem.id) == item.id
+    expect(erasedItem.frame) == item.frame
+    expect(erasedItem.reuseId) == ReuseId(namespace: .user, id: "reuse")
+    expect(erasedItem.renderableType) == ObjectIdentifier(BaseView.self)
+    expect(erasedItem.transition).toNot(beNil())
+    expect(erasedItem.animationTiming) == .easeInEaseOut(duration: 1)
+    expect(erasedItem.zIndex) == 2
+  }
+
+  func test_eraseToRenderableItem_builders_keepTheItemsBlocks() {
+    // given: an erased view item without a transition, an animation, a z-index and a reuse id
+    let item = ViewItem<BaseView>(
+      id: .custom("view"),
+      frame: .zero,
+      make: { _ in Self.makeView() },
+      update: { view, _ in Self.appendToken("update", to: view) }
+    )
+    .eraseToRenderableItem()
+
+    // when: the builders set the values
+    let builtItem = item
+      .transition(.opacity())
+      .animation(.easeInEaseOut(duration: 1))
+      .zIndex(3)
+      .reuseId("reuse")
+
+    // then: the item has the values, and still makes the view item's views and runs its update
+    expect(builtItem.transition).toNot(beNil())
+    expect(builtItem.animationTiming) == .easeInEaseOut(duration: 1)
+    expect(builtItem.zIndex) == 3
+    expect(builtItem.reuseId) == ReuseId(namespace: .user, id: "reuse")
+    withContexts { contexts in
+      let renderable = builtItem.makeRenderable(contexts.make)
+      builtItem.performUpdate(renderable, contexts.update)
+
+      expect(renderable.view is BaseView) == true
+      expect(tokens(of: renderable)) == ["update"]
+    }
+  }
+
+  func test_eraseToRenderableItem_layerItem_takesTheLayerOfAView() {
+    // given: an erased layer item
+    let item = makeTokenItem { CALayer() }.eraseToRenderableItem()
+
+    // when: running its update with a view
+    let view = Self.makeView()
+    withContexts { contexts in
+      item.performUpdate(.view(view), contexts.update)
+    }
+
+    // then: the layer item's update ran on the view's layer, as `Renderable.layer` gives a layer for a view
+    expect(view.layer().name) == "update"
+  }
+
   // MARK: - Helpers
+
+  /// The names of an item's blocks other than `make`, in the order `runBlocksAsTheRenderPass(of:with:_:)` runs them.
+  private static let blockNames = ["willInsert", "didInsert", "willUpdate", "update", "willRemove", "didRemove", "resetForReuse"]
+
+  /// An erased view item and an erased layer item, by kind, whose items have every block, see `makeTokenItem(make:)`.
+  private var erasedTokenItems: [(kind: String, item: RenderableItem)] {
+    [
+      ("view", makeTokenItem { Self.makeView() }.eraseToRenderableItem()),
+      ("layer", makeTokenItem { CALayer() }.eraseToRenderableItem()),
+    ]
+  }
+
+  /// An item with every block, each appending its name to the renderable's layer name, see `appendToken(_:to:)`, and
+  /// with a reuse id, a transition, an animation and a z-index.
+  private func makeTokenItem<T>(make: @escaping () -> T) -> RenderItem<T> {
+    RenderItem<T>(
+      id: .custom("item"),
+      frame: CGRect(x: 1, y: 2, width: 3, height: 4),
+      make: { _ in make() },
+      willInsert: { renderable, _ in Self.appendToken("willInsert", to: renderable) },
+      didInsert: { renderable, _ in Self.appendToken("didInsert", to: renderable) },
+      willUpdate: { renderable, _ in Self.appendToken("willUpdate", to: renderable) },
+      update: { renderable, _ in Self.appendToken("update", to: renderable) },
+      willRemove: { renderable, _ in Self.appendToken("willRemove", to: renderable) },
+      didRemove: { renderable, _ in Self.appendToken("didRemove", to: renderable) },
+      reuseId: "reuse",
+      resetForReuse: { renderable in Self.appendToken("resetForReuse", to: renderable) },
+      transition: .opacity(),
+      animationTiming: .easeInEaseOut(duration: 1),
+      zIndex: 2
+    )
+  }
+
+  /// The item with a block of each kind added, each appending its name, prefixed with "added", to the renderable's
+  /// layer name.
+  private func addingTokenBlocks(to item: RenderableItem) -> RenderableItem {
+    item
+      .addWillInsert { renderable, _ in Self.appendToken("added willInsert", to: renderable) }
+      .addDidInsert { renderable, _ in Self.appendToken("added didInsert", to: renderable) }
+      .addWillUpdate { renderable, _ in Self.appendToken("added willUpdate", to: renderable) }
+      .addUpdate { renderable, _ in Self.appendToken("added update", to: renderable) }
+      .addWillRemove { renderable, _ in Self.appendToken("added willRemove", to: renderable) }
+      .addDidRemove { renderable, _ in Self.appendToken("added didRemove", to: renderable) }
+      .addResetForReuse { renderable in Self.appendToken("added resetForReuse", to: renderable) }
+  }
+
+  /// A view whose layer has no name, so the layer's name has only the tokens that blocks append, see
+  /// `appendToken(_:to:)`, since `BaseView` names its layer after its type.
+  private static func makeView() -> BaseView {
+    let view = BaseView()
+    view.layer().name = nil
+    return view
+  }
+
+  /// Appends a token to the name of the layer of a renderable, a view or a layer, so the blocks that ran show on the
+  /// renderable they ran on.
+  private static func appendToken(_ token: String, to renderable: Any) {
+    let layer: CALayer
+    switch renderable {
+    case let renderable as Renderable:
+      layer = renderable.layer
+    case let view as View:
+      layer = view.layer()
+    case let renderableLayer as CALayer:
+      layer = renderableLayer
+    default:
+      fail("unexpected renderable \(renderable)")
+      return
+    }
+    layer.name = layer.name.map { "\($0),\(token)" } ?? token
+  }
+
+  /// The tokens that the blocks appended to the renderable's layer name, see `appendToken(_:to:)`.
+  private func tokens(of renderable: Renderable) -> [String] {
+    renderable.layer.name?.components(separatedBy: ",") ?? []
+  }
+
+  /// Runs the item's blocks other than `make` through the methods the render pass calls.
+  private func runBlocksAsTheRenderPass(of item: RenderableItem, with renderable: Renderable, _ contexts: Contexts) {
+    item.performWillInsert(renderable, contexts.insert)
+    item.performDidInsert(renderable, contexts.insert)
+    item.performWillUpdate(renderable, contexts.update)
+    item.performUpdate(renderable, contexts.update)
+    item.performWillRemove(renderable, contexts.remove)
+    item.performDidRemove(renderable, contexts.remove)
+    item.performResetForReuse(renderable)
+  }
+
+  /// Runs the item's blocks other than `make`, read from the item.
+  private func runBlocksByReadingThem(of item: RenderableItem, with renderable: Renderable, _ contexts: Contexts) {
+    item.willInsert?(renderable, contexts.insert)
+    item.didInsert?(renderable, contexts.insert)
+    item.willUpdate?(renderable, contexts.update)
+    item.update(renderable, contexts.update)
+    item.willRemove?(renderable, contexts.remove)
+    item.didRemove?(renderable, contexts.remove)
+    item.resetForReuse?(renderable)
+  }
 
   /// An item whose own update block appends "own" to the layer's name.
   private func makeItem() -> RenderableItem {
@@ -280,19 +579,36 @@ class RenderItemTests: XCTestCase {
   }
 
   private func withUpdateContext(_ body: (RenderableUpdateContext) -> Void) {
-    // the context holds the content view weakly, so the view is kept alive through the update
+    withContexts { body($0.update) }
+  }
+
+  /// The contexts of the render pass's calls to an item's blocks.
+  private struct Contexts {
+    let make: RenderableMakeContext
+    let insert: RenderableInsertContext
+    let update: RenderableUpdateContext
+    let remove: RenderableRemoveContext
+  }
+
+  private func withContexts(_ body: (Contexts) -> Void) {
+    // the contexts hold the content view weakly, so the view is kept alive through the body
     let contentView = ComposeView()
     withExtendedLifetime(contentView) {
-      body(RenderableUpdateContext(
-        updateType: .refresh,
-        oldFrame: .zero,
-        newFrame: .zero,
-        previousRenderBounds: .zero,
-        renderBounds: .zero,
-        animationTiming: nil,
-        contentView: contentView,
-        contentEvaluation: nil,
-        animationDecision: ComposeView.AnimationDecision.disabled
+      body(Contexts(
+        make: RenderableMakeContext(initialFrame: nil, contentView: contentView),
+        insert: RenderableInsertContext(oldFrame: .zero, newFrame: .zero, contentView: contentView),
+        update: RenderableUpdateContext(
+          updateType: .refresh,
+          oldFrame: .zero,
+          newFrame: .zero,
+          previousRenderBounds: .zero,
+          renderBounds: .zero,
+          animationTiming: nil,
+          contentView: contentView,
+          contentEvaluation: nil,
+          animationDecision: ComposeView.AnimationDecision.disabled
+        ),
+        remove: RenderableRemoveContext(oldFrame: .zero, contentView: contentView)
       ))
     }
   }

@@ -85,7 +85,15 @@ public struct RenderItem<T> {
   private let storage: Storage
 
   /// The block to create a renderable.
-  public var make: (RenderableMakeContext) -> T { storage.make }
+  public var make: (RenderableMakeContext) -> T {
+    let storage = storage
+    switch storage.source {
+    case .make(let make):
+      return make
+    case .typedItem:
+      return { storage.makeRenderable($0) }
+    }
+  }
 
   /// The block to be called when the renderable is just made and is about to be inserted into the renderable hierarchy.
   ///
@@ -97,7 +105,13 @@ public struct RenderItem<T> {
   /// transform, see `Renderable`. Set a transform in `update` instead.
   ///
   /// This is guaranteed to be the first call for the renderable's lifecycle in the renderable hierarchy.
-  public var willInsert: ((T, RenderableInsertContext) -> Void)? { storage.willInsert }
+  public var willInsert: ((T, RenderableInsertContext) -> Void)? {
+    let storage = storage
+    guard storage.typedItem(with: .willInsert) != nil else {
+      return storage.willInsert
+    }
+    return { storage.performWillInsert($0, $1) }
+  }
 
   /// The block to be called when the renderable is just inserted into the renderable hierarchy.
   ///
@@ -107,7 +121,13 @@ public struct RenderItem<T> {
   /// same as the new frame, because during the transition animation, the renderable maybe updated for additional changes.
   ///
   /// This is not guaranteed to be called before the `update` block is called.
-  public var didInsert: ((T, RenderableInsertContext) -> Void)? { storage.didInsert }
+  public var didInsert: ((T, RenderableInsertContext) -> Void)? {
+    let storage = storage
+    guard storage.typedItem(with: .didInsert) != nil else {
+      return storage.didInsert
+    }
+    return { storage.performDidInsert($0, $1) }
+  }
 
   /// The block to be called when the renderable is about to be updated.
   ///
@@ -117,7 +137,13 @@ public struct RenderItem<T> {
   ///
   /// The block must not change the renderable's transform, the frame is applied right after it and requires an identity
   /// transform, see `Renderable`. Set a transform in `update` instead.
-  public var willUpdate: ((T, RenderableUpdateContext) -> Void)? { storage.willUpdate }
+  public var willUpdate: ((T, RenderableUpdateContext) -> Void)? {
+    let storage = storage
+    guard storage.typedItem(with: .willUpdate) != nil else {
+      return storage.willUpdate
+    }
+    return { storage.performWillUpdate($0, $1) }
+  }
 
   /// The block to be called when the renderable's frame is just updated and is ready to be updated for additional changes.
   ///
@@ -144,7 +170,13 @@ public struct RenderItem<T> {
   ///
   /// At this point, the renderable is still in the renderable hierarchy, but it is about to be removed, before the transition
   /// animation if has one.
-  public var willRemove: ((T, RenderableRemoveContext) -> Void)? { storage.willRemove }
+  public var willRemove: ((T, RenderableRemoveContext) -> Void)? {
+    let storage = storage
+    guard storage.typedItem(with: .willRemove) != nil else {
+      return storage.willRemove
+    }
+    return { storage.performWillRemove($0, $1) }
+  }
 
   /// The block to be called when the renderable is just removed from the renderable hierarchy.
   ///
@@ -152,7 +184,13 @@ public struct RenderItem<T> {
   ///
   /// Note that it is possible that a removing renderable, during its removal transition animation, is re-inserted into the
   /// renderable hierarchy. In this case, the `didRemove` block won't be called.
-  public var didRemove: ((T, RenderableRemoveContext) -> Void)? { storage.didRemove }
+  public var didRemove: ((T, RenderableRemoveContext) -> Void)? {
+    let storage = storage
+    guard storage.typedItem(with: .didRemove) != nil else {
+      return storage.didRemove
+    }
+    return { storage.performDidRemove($0, $1) }
+  }
 
   /// An optional reuse identifier that opts the renderable into the recycle pool.
   ///
@@ -169,7 +207,13 @@ public struct RenderItem<T> {
 
   /// The block to be called when the renderable is about to be added to the reuse pool, to reset any modified state so
   /// the reused renderable is clean (freshly-made-equivalent) for its next use.
-  public var resetForReuse: ((T) -> Void)? { storage.resetForReuse }
+  public var resetForReuse: ((T) -> Void)? {
+    let storage = storage
+    guard storage.typedItem(with: .resetForReuse) != nil else {
+      return storage.resetForReuse
+    }
+    return { storage.performResetForReuse($0) }
+  }
 
   /// The transition of the renderable. The transition is used to animate the renderable's insertion and removal.
   public var transition: RenderableTransition? { storage.transition }
@@ -183,12 +227,50 @@ public struct RenderItem<T> {
   /// small items-order fraction, so that items stack in the items order within the same z-index band.
   public var zIndex: CGFloat? { storage.zIndex }
 
+  /// Makes a renderable with the `make` block.
+  ///
+  /// The render pass calls this and the `perform` methods instead of reading the blocks, since reading a block of an
+  /// erased item builds a new block, see `eraseToRenderableItem()`.
+  func makeRenderable(_ context: RenderableMakeContext) -> T {
+    storage.makeRenderable(context)
+  }
+
+  /// Runs the `willInsert` block, if any.
+  func performWillInsert(_ renderable: T, _ context: RenderableInsertContext) {
+    storage.performWillInsert(renderable, context)
+  }
+
+  /// Runs the `didInsert` block, if any.
+  func performDidInsert(_ renderable: T, _ context: RenderableInsertContext) {
+    storage.performDidInsert(renderable, context)
+  }
+
+  /// Runs the `willUpdate` block, if any.
+  func performWillUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
+    storage.performWillUpdate(renderable, context)
+  }
+
   /// Runs `update`, then the additional update blocks in the order they were added.
   ///
   /// The render pass calls this instead of reading `update`, which builds a new block for an item with additional
   /// update blocks.
   func performUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
     storage.performUpdate(renderable, context)
+  }
+
+  /// Runs the `willRemove` block, if any.
+  func performWillRemove(_ renderable: T, _ context: RenderableRemoveContext) {
+    storage.performWillRemove(renderable, context)
+  }
+
+  /// Runs the `didRemove` block, if any.
+  func performDidRemove(_ renderable: T, _ context: RenderableRemoveContext) {
+    storage.performDidRemove(renderable, context)
+  }
+
+  /// Runs the `resetForReuse` block, if any.
+  func performResetForReuse(_ renderable: T) {
+    storage.performResetForReuse(renderable)
   }
 
   /// An update block added to a render item, optionally keyed by the renderable property it sets.
@@ -329,13 +411,29 @@ public struct RenderItem<T> {
     }
   }
 
+  /// Where an item's renderable and its lifecycle blocks come from.
+  fileprivate enum Source {
+
+    /// The item's own `make` block, with the item's own lifecycle blocks.
+    case make((RenderableMakeContext) -> T)
+
+    /// The storage of the view or layer item that the item was erased from, which makes the renderable and runs its
+    /// lifecycle blocks, of the kinds in `blocks`, see `eraseToRenderableItem()`. Only a `RenderableItem` has one.
+    case typedItem(any TypedItemStorage, blocks: TypedItemBlocks)
+  }
+
   /// The boxed behavior backing a `RenderItem`. See `storage`.
   ///
   /// Holds everything except `id` and `frame`. Because all fields are immutable, the box can be shared freely across
   /// the copies a render pass makes (containers copy child items to re-position them), so each copy is one retain.
-  private final class Storage {
+  fileprivate final class Storage {
 
-    let make: (RenderableMakeContext) -> T
+    /// Where the renderable and the lifecycle blocks come from.
+    ///
+    /// For an erased item, the typed item's lifecycle block of each kind runs before the item's own, which are then the
+    /// blocks added after erasing, see `Source.typedItem`.
+    let source: Source
+
     let willInsert: ((T, RenderableInsertContext) -> Void)?
     let didInsert: ((T, RenderableInsertContext) -> Void)?
     let willUpdate: ((T, RenderableUpdateContext) -> Void)?
@@ -353,7 +451,7 @@ public struct RenderItem<T> {
     let animationTiming: AnimationTiming?
     let zIndex: CGFloat?
 
-    init(make: @escaping (RenderableMakeContext) -> T,
+    init(source: Source,
          willInsert: ((T, RenderableInsertContext) -> Void)?,
          didInsert: ((T, RenderableInsertContext) -> Void)?,
          willUpdate: ((T, RenderableUpdateContext) -> Void)?,
@@ -368,7 +466,7 @@ public struct RenderItem<T> {
          animationTiming: AnimationTiming?,
          zIndex: CGFloat?)
     {
-      self.make = make
+      self.source = source
       self.willInsert = willInsert
       self.didInsert = didInsert
       self.willUpdate = willUpdate
@@ -384,9 +482,69 @@ public struct RenderItem<T> {
       self.zIndex = zIndex
     }
 
+    /// The storage of the typed item that the item was erased from, if it has a lifecycle block of the kind.
+    func typedItem(with block: TypedItemBlocks) -> (any TypedItemStorage)? {
+      switch source {
+      case .make:
+        return nil
+      case .typedItem(let typedItem, let blocks):
+        return blocks.contains(block) ? typedItem : nil
+      }
+    }
+
+    func makeRenderable(_ context: RenderableMakeContext) -> T {
+      switch source {
+      case .make(let make):
+        return make(context)
+      case .typedItem(let typedItem, _):
+        return Self.fromRenderable(typedItem.makeErased(context))
+      }
+    }
+
+    func performWillInsert(_ renderable: T, _ context: RenderableInsertContext) {
+      typedItem(with: .willInsert)?.performWillInsert(erased: Self.toRenderable(renderable), context)
+      willInsert?(renderable, context)
+    }
+
+    func performDidInsert(_ renderable: T, _ context: RenderableInsertContext) {
+      typedItem(with: .didInsert)?.performDidInsert(erased: Self.toRenderable(renderable), context)
+      didInsert?(renderable, context)
+    }
+
+    func performWillUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
+      typedItem(with: .willUpdate)?.performWillUpdate(erased: Self.toRenderable(renderable), context)
+      willUpdate?(renderable, context)
+    }
+
     func performUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
       update(renderable, context)
       additionalUpdates.forEach { $0.perform(renderable, context) }
+    }
+
+    func performWillRemove(_ renderable: T, _ context: RenderableRemoveContext) {
+      typedItem(with: .willRemove)?.performWillRemove(erased: Self.toRenderable(renderable), context)
+      willRemove?(renderable, context)
+    }
+
+    func performDidRemove(_ renderable: T, _ context: RenderableRemoveContext) {
+      typedItem(with: .didRemove)?.performDidRemove(erased: Self.toRenderable(renderable), context)
+      didRemove?(renderable, context)
+    }
+
+    func performResetForReuse(_ renderable: T) {
+      typedItem(with: .resetForReuse)?.performResetForReuse(erased: Self.toRenderable(renderable))
+      resetForReuse?(renderable)
+    }
+
+    // Only a `RenderableItem` has a typed item, see `Source.typedItem`, so where the methods above convert between `T`
+    // and `Renderable`, they're the same type and the casts do nothing.
+
+    private static func toRenderable(_ renderable: T) -> Renderable {
+      renderable as! Renderable // swiftlint:disable:this force_cast
+    }
+
+    private static func fromRenderable(_ renderable: Renderable) -> T {
+      renderable as! T // swiftlint:disable:this force_cast
     }
   }
 
@@ -408,7 +566,7 @@ public struct RenderItem<T> {
     self.id = id
     self.frame = frame
     self.storage = Storage(
-      make: make,
+      source: .make(make),
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
@@ -447,7 +605,7 @@ public struct RenderItem<T> {
     self.id = id
     self.frame = frame
     self.storage = Storage(
-      make: make,
+      source: .make(make),
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
@@ -469,27 +627,11 @@ public struct RenderItem<T> {
   /// - Parameter additionalWillInsert: The additional will insert block.
   /// - Returns: The renderable item with the additional will insert block.
   public func addWillInsert(_ additionalWillInsert: @escaping (T, RenderableInsertContext) -> Void) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: { renderable, context in
-        willInsert?(renderable, context)
-        additionalWillInsert(renderable, context)
-      },
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    let willInsert = storage.willInsert
+    return with(willInsert: { renderable, context in
+      willInsert?(renderable, context)
+      additionalWillInsert(renderable, context)
+    })
   }
 
   /// Add an additional did insert block to the renderable item.
@@ -497,27 +639,11 @@ public struct RenderItem<T> {
   /// - Parameter additionalDidInsert: The additional did insert block.
   /// - Returns: The renderable item with the additional did insert block.
   public func addDidInsert(_ additionalDidInsert: @escaping (T, RenderableInsertContext) -> Void) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: { renderable, context in
-        didInsert?(renderable, context)
-        additionalDidInsert(renderable, context)
-      },
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    let didInsert = storage.didInsert
+    return with(didInsert: { renderable, context in
+      didInsert?(renderable, context)
+      additionalDidInsert(renderable, context)
+    })
   }
 
   /// Add an additional will update block to the renderable item.
@@ -525,27 +651,11 @@ public struct RenderItem<T> {
   /// - Parameter additionalWillUpdate: The additional will update block.
   /// - Returns: The renderable item with the additional will update block.
   public func addWillUpdate(_ additionalWillUpdate: @escaping (T, RenderableUpdateContext) -> Void) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: { renderable, context in
-        willUpdate?(renderable, context)
-        additionalWillUpdate(renderable, context)
-      },
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    let willUpdate = storage.willUpdate
+    return with(willUpdate: { renderable, context in
+      willUpdate?(renderable, context)
+      additionalWillUpdate(renderable, context)
+    })
   }
 
   /// Add an additional update block to the renderable item.
@@ -566,53 +676,16 @@ public struct RenderItem<T> {
     with(additionalUpdates: storage.additionalUpdates.adding(contentsOf: newUpdates))
   }
 
-  private func with(additionalUpdates: AdditionalUpdates) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
-  }
-
   /// Add an additional will remove block to the renderable item.
   ///
   /// - Parameter additionalWillRemove: The additional will remove block.
   /// - Returns: The renderable item with the additional will remove block.
   public func addWillRemove(_ additionalWillRemove: @escaping (T, RenderableRemoveContext) -> Void) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: { renderable, context in
-        willRemove?(renderable, context)
-        additionalWillRemove(renderable, context)
-      },
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    let willRemove = storage.willRemove
+    return with(willRemove: { renderable, context in
+      willRemove?(renderable, context)
+      additionalWillRemove(renderable, context)
+    })
   }
 
   /// Add an additional did remove block to the renderable item.
@@ -620,27 +693,11 @@ public struct RenderItem<T> {
   /// - Parameter additionalDidRemove: The additional did remove block.
   /// - Returns: The renderable item with the additional did remove block.
   public func addDidRemove(_ additionalDidRemove: @escaping (T, RenderableRemoveContext) -> Void) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: { renderable, context in
-        didRemove?(renderable, context)
-        additionalDidRemove(renderable, context)
-      },
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    let didRemove = storage.didRemove
+    return with(didRemove: { renderable, context in
+      didRemove?(renderable, context)
+      additionalDidRemove(renderable, context)
+    })
   }
 
   /// Set a new reuse identifier for the renderable item if it is not set.
@@ -653,27 +710,10 @@ public struct RenderItem<T> {
     if self.reuseId?.namespace == .user {
       // an inner reuseId(_:) (closer to the leaf) already set a user identifier, so it wins.
       return self
+    } else {
+      // fills an empty identifier or overrides a framework-internal one, so a user-provided id always takes precedence.
+      return with(reuseId: ReuseId(namespace: .user, id: reuseId))
     }
-
-    // fills an empty identifier or overrides a framework-internal one, so a user-provided id always takes precedence.
-    return Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: ReuseId(namespace: .user, id: reuseId),
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
   }
 
   /// Set a new reuse identifier for the renderable item if it is not set.
@@ -687,24 +727,7 @@ public struct RenderItem<T> {
       return self
     }
 
-    return Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    return with(reuseId: reuseId)
   }
 
   /// Add an additional reset-for-reuse block to the renderable item.
@@ -712,27 +735,11 @@ public struct RenderItem<T> {
   /// - Parameter additionalResetForReuse: The additional reset-for-reuse block.
   /// - Returns: The renderable item with the additional reset-for-reuse block.
   public func addResetForReuse(_ additionalResetForReuse: @escaping (T) -> Void) -> Self {
-    Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: { renderable in
-        resetForReuse?(renderable)
-        additionalResetForReuse(renderable)
-      },
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    let resetForReuse = storage.resetForReuse
+    return with(resetForReuse: { renderable in
+      resetForReuse?(renderable)
+      additionalResetForReuse(renderable)
+    })
   }
 
   /// Set a new transition for the renderable item if it is not set.
@@ -746,24 +753,7 @@ public struct RenderItem<T> {
       return self
     }
 
-    return Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    return with(transition: transition)
   }
 
   /// Set a new animation for the renderable item if it is not set.
@@ -777,24 +767,7 @@ public struct RenderItem<T> {
       return self
     }
 
-    return Self(
-      id: id,
-      frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    return with(animationTiming: animationTiming)
   }
 
   /// Set a new z-index for the renderable item.
@@ -805,23 +778,78 @@ public struct RenderItem<T> {
   /// - Parameter zIndex: The new z-index.
   /// - Returns: The renderable item with the new z-index.
   public func zIndex(_ zIndex: CGFloat) -> Self {
-    Self(
+    with(zIndex: zIndex)
+  }
+
+  /// Makes an item with a storage.
+  private init(id: ComposeNodeId, frame: CGRect, storage: Storage) {
+    self.id = id
+    self.frame = frame
+    self.storage = storage
+  }
+
+  /// Returns the item with the given blocks and values in place of its own, keeping its other blocks and values, and
+  /// its source.
+  ///
+  /// A `nil` keeps the item's own, since no builder removes a block or a value.
+  private func with(willInsert newWillInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+                    didInsert newDidInsert: ((T, RenderableInsertContext) -> Void)? = nil,
+                    willUpdate newWillUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
+                    additionalUpdates: AdditionalUpdates? = nil,
+                    willRemove newWillRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
+                    didRemove newDidRemove: ((T, RenderableRemoveContext) -> Void)? = nil,
+                    reuseId: ReuseId? = nil,
+                    resetForReuse newResetForReuse: ((T) -> Void)? = nil,
+                    transition: RenderableTransition? = nil,
+                    animationTiming: AnimationTiming? = nil,
+                    zIndex: CGFloat? = nil) -> Self
+  {
+    // the blocks are picked with `if let` instead of `??`, since passing a block through the generic `??` converts it to
+    // the generic representation and back, which allocates a reabstraction thunk each way
+    var willInsert = storage.willInsert
+    if let newWillInsert {
+      willInsert = newWillInsert
+    }
+    var didInsert = storage.didInsert
+    if let newDidInsert {
+      didInsert = newDidInsert
+    }
+    var willUpdate = storage.willUpdate
+    if let newWillUpdate {
+      willUpdate = newWillUpdate
+    }
+    var willRemove = storage.willRemove
+    if let newWillRemove {
+      willRemove = newWillRemove
+    }
+    var didRemove = storage.didRemove
+    if let newDidRemove {
+      didRemove = newDidRemove
+    }
+    var resetForReuse = storage.resetForReuse
+    if let newResetForReuse {
+      resetForReuse = newResetForReuse
+    }
+
+    return Self(
       id: id,
       frame: frame,
-      make: make,
-      willInsert: willInsert,
-      didInsert: didInsert,
-      willUpdate: willUpdate,
-      update: storage.update,
-      additionalUpdates: storage.additionalUpdates,
-      willRemove: willRemove,
-      didRemove: didRemove,
-      reuseId: reuseId,
-      renderableType: renderableType,
-      resetForReuse: resetForReuse,
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
+      storage: Storage(
+        source: storage.source,
+        willInsert: willInsert,
+        didInsert: didInsert,
+        willUpdate: willUpdate,
+        update: storage.update,
+        additionalUpdates: additionalUpdates ?? storage.additionalUpdates,
+        willRemove: willRemove,
+        didRemove: didRemove,
+        reuseId: reuseId ?? storage.reuseId,
+        renderableType: storage.renderableType,
+        resetForReuse: resetForReuse,
+        transition: transition ?? storage.transition,
+        animationTiming: animationTiming ?? storage.animationTiming,
+        zIndex: zIndex ?? storage.zIndex
+      )
     )
   }
 }
@@ -844,37 +872,7 @@ public extension ViewItem {
   ///
   /// - Returns: The erased renderable item.
   func eraseToRenderableItem() -> RenderableItem {
-    RenderableItem(
-      id: id,
-      frame: frame,
-      make: { .view(make($0)) },
-      willInsert: willInsert.map { willInsert in
-        { willInsert($0.view as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      didInsert: didInsert.map { didInsert in
-        { didInsert($0.view as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      willUpdate: willUpdate.map { willUpdate in
-        { willUpdate($0.view as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      update: {
-        performUpdate($0.view as! T, $1) // swiftlint:disable:this force_cast
-      },
-      willRemove: willRemove.map { willRemove in
-        { willRemove($0.view as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      didRemove: didRemove.map { didRemove in
-        { didRemove($0.view as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      reuseId: reuseId,
-      renderableType: ObjectIdentifier(T.self),
-      resetForReuse: resetForReuse.map { resetForReuse in
-        { resetForReuse($0.view as! T) } // swiftlint:disable:this force_cast
-      },
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
-    )
+    RenderableItem(erasing: self)
   }
 }
 
@@ -884,36 +882,158 @@ public extension LayerItem {
   ///
   /// - Returns: The erased renderable item.
   func eraseToRenderableItem() -> RenderableItem {
-    RenderableItem(
-      id: id,
-      frame: frame,
-      make: { .layer(make($0)) },
-      willInsert: willInsert.map { willInsert in
-        { willInsert($0.layer as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      didInsert: didInsert.map { didInsert in
-        { didInsert($0.layer as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      willUpdate: willUpdate.map { willUpdate in
-        { willUpdate($0.layer as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      update: {
-        performUpdate($0.layer as! T, $1) // swiftlint:disable:this force_cast
-      },
-      willRemove: willRemove.map { willRemove in
-        { willRemove($0.layer as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      didRemove: didRemove.map { didRemove in
-        { didRemove($0.layer as! T, $1) } // swiftlint:disable:this force_cast
-      },
-      reuseId: reuseId,
-      renderableType: ObjectIdentifier(T.self),
-      resetForReuse: resetForReuse.map { resetForReuse in
-        { resetForReuse($0.layer as! T) } // swiftlint:disable:this force_cast
-      },
-      transition: transition,
-      animationTiming: animationTiming,
-      zIndex: zIndex
+    RenderableItem(erasing: self)
+  }
+}
+
+private extension RenderItem where T == Renderable {
+
+  /// Makes an item that makes the view or layer item's renderables and runs its blocks.
+  ///
+  /// The erased item keeps the item's storage and calls it for the item's blocks, see `Source.typedItem`, instead of
+  /// wrapping each block in a closure that casts the renderable to the item's type, which allocates a closure for each
+  /// block. Only the update is wrapped, since the render pass runs it on every update of the renderable, and a call
+  /// through the item's storage runs unspecialized, with a slower cast.
+  ///
+  /// - Parameter item: The view or layer item to erase.
+  init<Item: NSObject>(erasing item: RenderItem<Item>) {
+    let typedStorage = item.storage
+    self.init(
+      id: item.id,
+      frame: item.frame,
+      storage: Storage(
+        source: .typedItem(typedStorage, blocks: typedStorage.blocks),
+        willInsert: nil,
+        didInsert: nil,
+        willUpdate: nil,
+        update: { renderable, context in
+          typedStorage.performUpdate(RenderItem<Item>.Storage.itemRenderable(renderable), context)
+        },
+        additionalUpdates: .none,
+        willRemove: nil,
+        didRemove: nil,
+        reuseId: item.reuseId,
+        renderableType: ObjectIdentifier(Item.self),
+        resetForReuse: nil,
+        transition: item.transition,
+        animationTiming: item.animationTiming,
+        zIndex: item.zIndex
+      )
     )
+  }
+}
+
+// MARK: - TypedItemStorage
+
+/// The storage of a view or layer item, which a `RenderableItem` erased from the item makes its renderables and runs
+/// its lifecycle blocks through, see `RenderItem.Source.typedItem`.
+private protocol TypedItemStorage: AnyObject {
+
+  /// Makes a renderable with the item's `make` block.
+  func makeErased(_ context: RenderableMakeContext) -> Renderable
+
+  /// Runs the item's `willInsert` block, if any.
+  func performWillInsert(erased renderable: Renderable, _ context: RenderableInsertContext)
+
+  /// Runs the item's `didInsert` block, if any.
+  func performDidInsert(erased renderable: Renderable, _ context: RenderableInsertContext)
+
+  /// Runs the item's `willUpdate` block, if any.
+  func performWillUpdate(erased renderable: Renderable, _ context: RenderableUpdateContext)
+
+  /// Runs the item's `willRemove` block, if any.
+  func performWillRemove(erased renderable: Renderable, _ context: RenderableRemoveContext)
+
+  /// Runs the item's `didRemove` block, if any.
+  func performDidRemove(erased renderable: Renderable, _ context: RenderableRemoveContext)
+
+  /// Runs the item's `resetForReuse` block, if any.
+  func performResetForReuse(erased renderable: Renderable)
+}
+
+/// The kinds of lifecycle blocks a view or layer item has, which the item erased from it keeps, so that it calls the
+/// item's storage only for a block the item has, see `RenderItem.Source.typedItem`.
+private struct TypedItemBlocks: OptionSet {
+
+  let rawValue: UInt8
+
+  static let willInsert = TypedItemBlocks(rawValue: 1 << 0)
+  static let didInsert = TypedItemBlocks(rawValue: 1 << 1)
+  static let willUpdate = TypedItemBlocks(rawValue: 1 << 2)
+  static let willRemove = TypedItemBlocks(rawValue: 1 << 3)
+  static let didRemove = TypedItemBlocks(rawValue: 1 << 4)
+  static let resetForReuse = TypedItemBlocks(rawValue: 1 << 5)
+}
+
+// a view or layer item's source is its own `make` block, never a typed item, so it runs its own blocks
+extension RenderItem.Storage: TypedItemStorage where T: NSObject {
+
+  /// The kinds of lifecycle blocks the item has.
+  var blocks: TypedItemBlocks {
+    var blocks: TypedItemBlocks = []
+    if willInsert != nil {
+      blocks.insert(.willInsert)
+    }
+    if didInsert != nil {
+      blocks.insert(.didInsert)
+    }
+    if willUpdate != nil {
+      blocks.insert(.willUpdate)
+    }
+    if willRemove != nil {
+      blocks.insert(.willRemove)
+    }
+    if didRemove != nil {
+      blocks.insert(.didRemove)
+    }
+    if resetForReuse != nil {
+      blocks.insert(.resetForReuse)
+    }
+    return blocks
+  }
+
+  func makeErased(_ context: RenderableMakeContext) -> Renderable {
+    let renderable = makeRenderable(context)
+    if let view = renderable as? View {
+      return .view(view)
+    } else {
+      // only a view item and a layer item can be erased, so a renderable that isn't a view is a layer
+      return .layer(renderable as! CALayer) // swiftlint:disable:this force_cast
+    }
+  }
+
+  func performWillInsert(erased renderable: Renderable, _ context: RenderableInsertContext) {
+    willInsert?(Self.itemRenderable(renderable), context)
+  }
+
+  func performDidInsert(erased renderable: Renderable, _ context: RenderableInsertContext) {
+    didInsert?(Self.itemRenderable(renderable), context)
+  }
+
+  func performWillUpdate(erased renderable: Renderable, _ context: RenderableUpdateContext) {
+    willUpdate?(Self.itemRenderable(renderable), context)
+  }
+
+  func performWillRemove(erased renderable: Renderable, _ context: RenderableRemoveContext) {
+    willRemove?(Self.itemRenderable(renderable), context)
+  }
+
+  func performDidRemove(erased renderable: Renderable, _ context: RenderableRemoveContext) {
+    didRemove?(Self.itemRenderable(renderable), context)
+  }
+
+  func performResetForReuse(erased renderable: Renderable) {
+    resetForReuse?(Self.itemRenderable(renderable))
+  }
+
+  /// The renderable as the item's type.
+  static func itemRenderable(_ renderable: Renderable) -> T {
+    switch renderable {
+    case .view(let view):
+      // a layer item takes a view's layer, as `Renderable.layer` gives a layer for a view too
+      return (view as? T) ?? (view.layer() as! T) // swiftlint:disable:this force_cast
+    case .layer(let layer):
+      return layer as! T // swiftlint:disable:this force_cast
+    }
   }
 }
