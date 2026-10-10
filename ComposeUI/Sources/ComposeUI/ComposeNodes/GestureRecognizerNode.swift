@@ -69,10 +69,12 @@ private struct GestureRecognizerNode: ComposeNode {
   }
 
   func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    let childItems = node.renderableItems(in: visibleBounds)
+    // the gesture overlay's item is added to the child's items, which reuses the array the child made instead of
+    // allocating a copy of it and an array for the overlay's item
+    var items = node.renderableItems(in: visibleBounds)
 
-    guard !childItems.isEmpty else {
-      return []
+    guard !items.isEmpty else {
+      return items
     }
 
     let gestureOverlayViewItem = ViewItem<GestureView>(
@@ -92,7 +94,8 @@ private struct GestureRecognizerNode: ComposeNode {
       }
     )
 
-    return childItems + [gestureOverlayViewItem.eraseToRenderableItem()]
+    items.append(gestureOverlayViewItem.eraseToRenderableItem())
+    return items
   }
 }
 

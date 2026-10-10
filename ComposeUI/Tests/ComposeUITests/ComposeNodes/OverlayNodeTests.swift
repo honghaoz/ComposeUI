@@ -61,6 +61,35 @@ class OverlayNodeTests: XCTestCase {
     expect(items[3].id.id) == "UL|UL|OV|O|C"
   }
 
+  func test_renderableItems_alignedOverlay() {
+    // given: a laid out node with a smaller overlay aligned to the bottom right
+    var node = ColorNode(.red).overlay(alignment: .bottomRight) {
+      ColorNode(.blue).frame(width: 20, height: 30)
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // when: getting renderable items
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    // then: the child's item fills the node, and the overlay's item comes after it, at the bottom right corner
+    expect(items.map(\.frame)) == [CGRect(x: 0, y: 0, width: 100, height: 100), CGRect(x: 80, y: 70, width: 20, height: 30)]
+  }
+
+  func test_renderableItems_childWithoutItems() {
+    // given: a laid out spacer, which has no items, with an overlay aligned to the bottom right
+    var node = Spacer().overlay(alignment: .bottomRight) {
+      LayerNode().frame(width: 20, height: 30)
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // when: getting renderable items
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 50))
+
+    // then: the overlay's item is the only item, at the bottom right corner and with the overlay's id
+    expect(items.map(\.frame)) == [CGRect(x: 80, y: 20, width: 20, height: 30)]
+    expect(items.map(\.id.id)) == ["OV|O|F|L"]
+  }
+
   func test_renderableItemsBoundingRect() {
     // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)

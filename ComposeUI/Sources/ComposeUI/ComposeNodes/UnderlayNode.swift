@@ -74,29 +74,33 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     // for the child node
     let childItems = node.renderableItems(in: visibleBounds)
 
-    var mappedChildItems: [RenderableItem] = []
-    mappedChildItems.reserveCapacity(childItems.count)
-
-    for var item in childItems {
-      item.id = id.join(with: item.id)
-      mappedChildItems.append(item)
-    }
-
     // for the underlay node
     let underlayFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
     let boundsInUnderlay = visibleBounds.translate(-underlayFrame.origin)
     let underlayItems = underlayNode.renderableItems(in: boundsInUnderlay)
 
-    var mappedUnderlayItems: [RenderableItem] = []
-    mappedUnderlayItems.reserveCapacity(underlayItems.count)
-
-    for var item in underlayItems {
-      item.id = id.join(with: item.id, suffix: "U")
-      item.frame = item.frame.translate(underlayFrame.origin)
-      mappedUnderlayItems.append(item)
+    // the items reuse the underlay's array, with the child's items added after it, or the child's array when the
+    // underlay has no items. `consume` moves the array into the items, so it has no other reference and is changed in
+    // place instead of being copied
+    if underlayItems.isEmpty {
+      var items = consume childItems
+      for index in items.indices {
+        items[index].id = id.join(with: items[index].id)
+      }
+      return items
+    } else {
+      var items = consume underlayItems
+      items.reserveCapacity(items.count + childItems.count)
+      for index in items.indices {
+        items[index].id = id.join(with: items[index].id, suffix: "U")
+        items[index].frame = items[index].frame.translate(underlayFrame.origin)
+      }
+      for var item in childItems {
+        item.id = id.join(with: item.id)
+        items.append(item)
+      }
+      return items
     }
-
-    return mappedUnderlayItems + mappedChildItems
   }
 }
 

@@ -217,6 +217,23 @@ class HorizontalStackNodeTests: XCTestCase {
     expect(items[1].frame) == CGRect(x: 50, y: 5, width: 20, height: 20)
   }
 
+  func test_renderableItems_oneChildWithItems() {
+    // given: a laid out hstack whose only child with items is between two spacers
+    var node = HStack {
+      Spacer()
+      LayerNode().frame(width: 20, height: 20)
+      Spacer()
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // when: requesting renderable items
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 50))
+
+    // then: the child's item is placed and named as any child's, at the child's origin and with the child's index
+    expect(items.map(\.frame)) == [CGRect(x: 40, y: 0, width: 20, height: 20)]
+    expect(items.map(\.id.id)) == ["HS|1|F|L"]
+  }
+
   func test_fixedWidth_fixedHeight_spacer() {
     // given: an hstack with fixed size children separated by a spacer
     var node = HStack {

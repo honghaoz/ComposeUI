@@ -166,6 +166,22 @@ class LayeredStackNodeTests: XCTestCase {
     expect(items[1].frame) == CGRect(x: 15, y: 5, width: 20, height: 20)
   }
 
+  func test_renderableItems_oneChildWithItems() {
+    // given: a laid out zstack whose only child with items is after a spacer
+    var node = ZStack {
+      Spacer()
+      LayerNode().frame(width: 20, height: 20)
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // when: requesting renderable items
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 50))
+
+    // then: the child's item is placed and named as any child's, at the child's origin and with the child's index
+    expect(items.map(\.frame)) == [CGRect(x: 40, y: 15, width: 20, height: 20)]
+    expect(items.map(\.id.id)) == ["ZS|1|F|L"]
+  }
+
   func test_fixedWidth_fixedHeight_spacer() {
     // given: a zstack with fixed size children and a spacer
     var node = ZStack {

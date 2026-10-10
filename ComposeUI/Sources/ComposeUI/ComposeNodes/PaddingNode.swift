@@ -90,18 +90,13 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
     let childOrigin = CGPoint(x: insets.left, y: insets.top)
     let boundsInChild = visibleBounds.translate(-childOrigin)
 
-    let childItems = node.renderableItems(in: boundsInChild)
-
-    var mappedChildItems: [RenderableItem] = []
-    mappedChildItems.reserveCapacity(childItems.count)
-
-    for var item in childItems {
-      item.id = id.join(with: item.id)
-      item.frame = item.frame.translate(childOrigin)
-      mappedChildItems.append(item)
+    // the child's items are changed in place, which reuses the array the child made instead of allocating a copy
+    var items = node.renderableItems(in: boundsInChild)
+    for index in items.indices {
+      items[index].id = id.join(with: items[index].id)
+      items[index].frame = items[index].frame.translate(childOrigin)
     }
-
-    return mappedChildItems
+    return items
   }
 }
 

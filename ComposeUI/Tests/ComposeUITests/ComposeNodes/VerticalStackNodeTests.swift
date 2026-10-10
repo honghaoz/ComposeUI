@@ -216,6 +216,23 @@ class VerticalStackNodeTests: XCTestCase {
     expect(items[1].frame) == CGRect(x: 5, y: 50, width: 20, height: 20)
   }
 
+  func test_renderableItems_oneChildWithItems() {
+    // given: a laid out vstack whose only child with items is between two spacers
+    var node = VStack {
+      Spacer()
+      LayerNode().frame(width: 20, height: 20)
+      Spacer()
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // when: requesting renderable items
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 50))
+
+    // then: the child's item is placed and named as any child's, at the child's origin and with the child's index
+    expect(items.map(\.frame)) == [CGRect(x: 0, y: 15, width: 20, height: 20)]
+    expect(items.map(\.id.id)) == ["VS|1|F|L"]
+  }
+
   func test_fixedWidth_fixedHeight_spacer() {
     // given: a stack with two fixed size children separated by a spacer
     var node = VStack {

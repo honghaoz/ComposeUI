@@ -28,6 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
+import QuartzCore
+
 import ChouTiTest
 
 @testable import ComposeUI
@@ -72,6 +74,61 @@ class ComposeNodeTests: XCTestCase {
 
     // then: the fixed id survives joining with a parent id
     expect(ComposeNodeId.custom("parent").join(with: node.id).id) == "test"
+  }
+
+  func test_renderableItems_childKeepsItsItems_staysUnchanged() {
+    // given: a node that keeps its items and returns them on each call, inside nodes that change their child's items
+    let itemsKeepingNode = ItemsKeepingNode()
+    var node = itemsKeepingNode
+      .padding(5)
+      .offset(x: 3, y: 4)
+      .opacity(0.5)
+      .frame(width: 40, height: 40)
+      .overlay { LayerNode() }
+      .underlay { LayerNode() }
+      .onTap { _ in }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: making the items twice
+    let items = node.renderableItems(in: visibleBounds)
+    let itemsAgain = node.renderableItems(in: visibleBounds)
+
+    // then: the kept item is moved once in each call, by the padding, the offset and the frame's centering, and the
+    // node's kept items stay as they were
+    expect(items.map(\.frame)) == itemsAgain.map(\.frame)
+    expect(items.map(\.id)) == itemsAgain.map(\.id)
+    expect(items[1].frame) == CGRect(x: 18, y: 19, width: 10, height: 10)
+    expect(itemsKeepingNode.storage.items.map(\.frame)) == [CGRect(x: 0, y: 0, width: 10, height: 10)]
+    expect(itemsKeepingNode.storage.items.map(\.id)) == [.custom("kept", isFixed: false)]
+  }
+}
+
+/// A node that keeps its items and returns the same array on each call.
+private struct ItemsKeepingNode: ComposeNode {
+
+  final class Storage {
+
+    var items: [RenderableItem] = []
+  }
+
+  let storage = Storage()
+
+  var id: ComposeNodeId = .custom("kept", isFixed: false)
+
+  private(set) var size: CGSize = .zero
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    size = CGSize(width: 10, height: 10)
+    if storage.items.isEmpty {
+      let item = LayerItem<CALayer>(id: id, frame: CGRect(origin: .zero, size: size), make: { _ in CALayer() }, update: { _, _ in })
+      storage.items = [item.eraseToRenderableItem()]
+    }
+    return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+  }
+
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    storage.items
   }
 }
 
