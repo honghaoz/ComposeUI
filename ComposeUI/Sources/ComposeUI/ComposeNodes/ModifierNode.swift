@@ -217,12 +217,198 @@ private struct ModifierNode: ComposeNode {
   }
 }
 
+// MARK: - RenderablePropertyUpdate
+
+extension RenderablePropertyUpdate {
+
+  /// Sets the renderable's property to the update's value.
+  ///
+  /// - Parameters:
+  ///   - renderable: The renderable to update.
+  ///   - context: The update context.
+  func perform(_ renderable: Renderable, _ context: RenderableUpdateContext) {
+    // most properties skip a bounds change, which every visible renderable gets on each scroll step, so it's checked
+    // before calling `setProperty(of:_:)`, whose entry saves the registers that all its cases use
+    switch context.updateType {
+    case .insert,
+         .refresh:
+      break
+    case .boundsChange:
+      switch self {
+      case .shadow:
+        // the shadow path depends on the layer's size, should update if the size is changed
+        guard context.oldFrame.size != context.newFrame.size else {
+          return
+        }
+      case .backgroundColor,
+           .opacity,
+           .border,
+           .cornerRadius,
+           .masksToBounds,
+           .interactive,
+           .rasterize:
+        return
+      }
+    }
+    setProperty(of: renderable, context)
+  }
+
+  // never inlined, so that a bounds change returns from `perform(_:_:)` without this function's register saves
+  @inline(never)
+  private func setProperty(of renderable: Renderable, _ context: RenderableUpdateContext) {
+    switch self {
+    case .backgroundColor(let color):
+      let layer = renderable.layer
+      let color = color.resolve(for: context.contentView.theme).cgColor
+      if let animationTiming = context.animationTiming {
+        if layer.backgroundColor != color {
+          layer.animate(
+            keyPath: "backgroundColor",
+            timing: animationTiming,
+            from: { $0.shownColor(forKeyPath: "backgroundColor") ?? $0.backgroundColor ?? Color.clear.cgColor },
+            to: { _ in color }
+          )
+        }
+      } else {
+        layer.retarget(keyPath: "backgroundColor", to: color)
+      }
+    case .opacity(let opacity):
+      let layer = renderable.layer
+      let opacity = Float(opacity.resolve(for: context.contentView.theme))
+      if let animationTiming = context.animationTiming {
+        if layer.opacity != opacity {
+          layer.animateOpacity(to: opacity, timing: animationTiming)
+        }
+      } else {
+        // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
+        layer.retargetOpacity(to: opacity)
+      }
+    case .border(let color, let width):
+      let layer = renderable.layer
+      let color = color.resolve(for: context.contentView.theme).cgColor
+      let width: CGFloat = width.resolve(for: context.contentView.theme)
+      if let animationTiming = context.animationTiming {
+        if layer.borderColor != color {
+          layer.animate(
+            keyPath: "borderColor",
+            timing: animationTiming,
+            from: { $0.shownColor(forKeyPath: "borderColor") ?? $0.borderColor ?? Color.clear.cgColor },
+            to: { _ in color }
+          )
+        }
+        if layer.borderWidth != width {
+          layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
+        }
+      } else {
+        layer.retarget(keyPath: "borderColor", to: color)
+        layer.retarget(keyPath: "borderWidth", to: width)
+      }
+    case .cornerRadius(let radius, let cornerCurve):
+      let layer = renderable.layer
+      layer.cornerCurve = cornerCurve
+
+      if let animationTiming = context.animationTiming {
+        if layer.cornerRadius != radius {
+          layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
+        }
+      } else {
+        layer.retarget(keyPath: "cornerRadius", to: radius)
+      }
+    case .masksToBounds(let masksToBounds):
+      let layer = renderable.layer
+      layer.masksToBounds = masksToBounds
+    case .shadow(let color, let opacity, let radius, let offset, let path):
+      let theme = context.contentView.theme
+
+      let layer = renderable.layer
+      let color = color.resolve(for: theme).cgColor
+      let opacity = Float(opacity.resolve(for: theme))
+      let radius: CGFloat = radius.resolve(for: theme)
+      let offset: CGSize = offset.resolve(for: theme)
+
+      layer.masksToBounds = false
+
+      if let animationTiming = context.animationTiming {
+        if layer.shadowColor != color {
+          layer.animate(
+            keyPath: "shadowColor",
+            timing: animationTiming,
+            from: { $0.shownColor(forKeyPath: "shadowColor") ?? $0.shadowColor ?? Color.clear.cgColor },
+            to: { _ in color }
+          )
+        }
+        if layer.shadowOpacity != opacity {
+          // non-additive, since stacked opacity animations don't add up
+          layer.animate(
+            keyPath: "shadowOpacity",
+            timing: animationTiming,
+            from: { $0.shownOpacity(forKeyPath: "shadowOpacity") },
+            to: { _ in opacity }
+          )
+        }
+        if layer.shadowRadius != radius {
+          layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
+        }
+        if layer.shadowOffset != offset {
+          layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
+        }
+        let path = path?(renderable)
+        if layer.shadowPath != path {
+          layer.animate(
+            keyPath: "shadowPath",
+            timing: animationTiming,
+            from: { $0.shownPath(forKeyPath: "shadowPath") ?? $0.shadowPath },
+            to: { _ in path }
+          )
+        }
+      } else {
+        // before the path provider, which may read them
+        layer.retarget(keyPath: "shadowColor", to: color)
+        layer.retarget(keyPath: "shadowOpacity", to: opacity)
+        layer.retarget(keyPath: "shadowRadius", to: radius)
+        layer.retarget(keyPath: "shadowOffset", to: offset)
+
+        if let path = path?(renderable) {
+          layer.retarget(keyPath: "shadowPath", to: path)
+        } else {
+          // without a path, the shadow follows the layer's content, so there is no path to continue toward
+          layer.removeAnimations(forKeyPath: "shadowPath")
+          layer.disableActions(for: "shadowPath") {
+            layer.shadowPath = nil
+          }
+        }
+      }
+    case .interactive(let isEnabled):
+      guard let view = renderable.view else {
+        return
+      }
+
+      #if canImport(AppKit)
+      view.ignoreHitTest = !isEnabled
+      #endif
+
+      #if canImport(UIKit)
+      view.isUserInteractionEnabled = isEnabled
+      #endif
+    case .rasterize(let scale):
+      let layer = renderable.layer
+      if let scale = scale {
+        layer.shouldRasterize = true
+        layer.rasterizationScale = scale
+      } else {
+        layer.shouldRasterize = false
+        layer.rasterizationScale = 1
+      }
+    }
+  }
+}
+
 // MARK: - RenderableUpdateKey
 
 extension RenderableUpdateKey {
 
-  /// Resets the property that the key's update block sets to the value of a freshly made renderable, before the
-  /// renderable is added to the reuse pool.
+  /// Resets the property that the key's update sets to the value of a freshly made renderable, before the renderable is
+  /// added to the reuse pool.
   ///
   /// A built-in modifier's reset follows from its update's key instead of being a block of the modifier, so that
   /// stacked modifiers don't combine their reset blocks into new closures, see `RenderItem.performResetForReuse(_:)`.
@@ -441,30 +627,7 @@ public extension ComposeNode {
   func backgroundColor(_ color: ThemedColor) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: RenderableItem.AdditionalUpdate(key: .backgroundColor, block: { item, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          break
-        case .boundsChange:
-          return
-        }
-
-        let layer = item.layer
-        let color = color.resolve(for: context.contentView.theme).cgColor
-        if let animationTiming = context.animationTiming {
-          if layer.backgroundColor != color {
-            layer.animate(
-              keyPath: "backgroundColor",
-              timing: animationTiming,
-              from: { $0.shownColor(forKeyPath: "backgroundColor") ?? $0.backgroundColor ?? Color.clear.cgColor },
-              to: { _ in color }
-            )
-          }
-        } else {
-          layer.retarget(keyPath: "backgroundColor", to: color)
-        }
-      })
+      update: RenderableItem.AdditionalUpdate(.backgroundColor(color))
     )
   }
 
@@ -491,25 +654,7 @@ public extension ComposeNode {
   func opacity(_ opacity: Themed<CGFloat>) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: RenderableItem.AdditionalUpdate(key: .opacity, block: { item, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          break
-        case .boundsChange:
-          return
-        }
-        let layer = item.layer
-        let opacity = Float(opacity.resolve(for: context.contentView.theme))
-        if let animationTiming = context.animationTiming {
-          if layer.opacity != opacity {
-            layer.animateOpacity(to: opacity, timing: animationTiming)
-          }
-        } else {
-          // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
-          layer.retargetOpacity(to: opacity)
-        }
-      })
+      update: RenderableItem.AdditionalUpdate(.opacity(opacity))
     )
   }
 
@@ -538,35 +683,7 @@ public extension ComposeNode {
   func border(color: ThemedColor, width: Themed<CGFloat>) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: RenderableItem.AdditionalUpdate(key: .border, block: { item, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          break
-        case .boundsChange:
-          return
-        }
-
-        let layer = item.layer
-        let color = color.resolve(for: context.contentView.theme).cgColor
-        let width: CGFloat = width.resolve(for: context.contentView.theme)
-        if let animationTiming = context.animationTiming {
-          if layer.borderColor != color {
-            layer.animate(
-              keyPath: "borderColor",
-              timing: animationTiming,
-              from: { $0.shownColor(forKeyPath: "borderColor") ?? $0.borderColor ?? Color.clear.cgColor },
-              to: { _ in color }
-            )
-          }
-          if layer.borderWidth != width {
-            layer.animate(keyPath: "borderWidth", to: width, timing: animationTiming)
-          }
-        } else {
-          layer.retarget(keyPath: "borderColor", to: color)
-          layer.retarget(keyPath: "borderWidth", to: width)
-        }
-      })
+      update: RenderableItem.AdditionalUpdate(.border(color: color, width: width))
     )
   }
 
@@ -582,26 +699,7 @@ public extension ComposeNode {
   func cornerRadius(_ radius: CGFloat, cornerCurve: CALayerCornerCurve = .continuous) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: RenderableItem.AdditionalUpdate(key: .cornerRadius, block: { item, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          break
-        case .boundsChange:
-          return
-        }
-
-        let layer = item.layer
-        layer.cornerCurve = cornerCurve
-
-        if let animationTiming = context.animationTiming {
-          if layer.cornerRadius != radius {
-            layer.animate(keyPath: "cornerRadius", to: radius, timing: animationTiming)
-          }
-        } else {
-          layer.retarget(keyPath: "cornerRadius", to: radius)
-        }
-      })
+      update: RenderableItem.AdditionalUpdate(.cornerRadius(radius, cornerCurve: cornerCurve))
     )
   }
 
@@ -615,18 +713,7 @@ public extension ComposeNode {
   func masksToBounds(_ masksToBounds: Bool = true) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: RenderableItem.AdditionalUpdate(key: .masksToBounds, block: { item, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          break
-        case .boundsChange:
-          return
-        }
-
-        let layer = item.layer
-        layer.masksToBounds = masksToBounds
-      })
+      update: RenderableItem.AdditionalUpdate(.masksToBounds(masksToBounds))
     )
   }
 
@@ -669,79 +756,7 @@ public extension ComposeNode {
   func shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: RenderableItem.AdditionalUpdate(key: .shadow, block: { item, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          break
-        case .boundsChange:
-          // the shadow path depends on the layer's size, should update if the size is changed
-          guard context.oldFrame.size != context.newFrame.size else {
-            return
-          }
-        }
-
-        let theme = context.contentView.theme
-
-        let layer = item.layer
-        let color = color.resolve(for: theme).cgColor
-        let opacity = Float(opacity.resolve(for: theme))
-        let radius: CGFloat = radius.resolve(for: theme)
-        let offset: CGSize = offset.resolve(for: theme)
-
-        layer.masksToBounds = false
-
-        if let animationTiming = context.animationTiming {
-          if layer.shadowColor != color {
-            layer.animate(
-              keyPath: "shadowColor",
-              timing: animationTiming,
-              from: { $0.shownColor(forKeyPath: "shadowColor") ?? $0.shadowColor ?? Color.clear.cgColor },
-              to: { _ in color }
-            )
-          }
-          if layer.shadowOpacity != opacity {
-            // non-additive, since stacked opacity animations don't add up
-            layer.animate(
-              keyPath: "shadowOpacity",
-              timing: animationTiming,
-              from: { $0.shownOpacity(forKeyPath: "shadowOpacity") },
-              to: { _ in opacity }
-            )
-          }
-          if layer.shadowRadius != radius {
-            layer.animate(keyPath: "shadowRadius", to: radius, timing: animationTiming)
-          }
-          if layer.shadowOffset != offset {
-            layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
-          }
-          let path = path?(item)
-          if layer.shadowPath != path {
-            layer.animate(
-              keyPath: "shadowPath",
-              timing: animationTiming,
-              from: { $0.shownPath(forKeyPath: "shadowPath") ?? $0.shadowPath },
-              to: { _ in path }
-            )
-          }
-        } else {
-          // before the path provider, which may read them
-          layer.retarget(keyPath: "shadowColor", to: color)
-          layer.retarget(keyPath: "shadowOpacity", to: opacity)
-          layer.retarget(keyPath: "shadowRadius", to: radius)
-          layer.retarget(keyPath: "shadowOffset", to: offset)
-
-          if let path = path?(item) {
-            layer.retarget(keyPath: "shadowPath", to: path)
-          } else {
-            // without a path, the shadow follows the layer's content, so there is no path to continue toward
-            layer.removeAnimations(forKeyPath: "shadowPath")
-            layer.disableActions(for: "shadowPath") {
-              layer.shadowPath = nil
-            }
-          }
-        }
-      })
+      update: RenderableItem.AdditionalUpdate(.shadow(color: color, opacity: opacity, radius: radius, offset: offset, path: path))
     )
   }
 
@@ -772,27 +787,7 @@ public extension ComposeNode {
   func interactive(_ isEnabled: Bool = true) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: RenderableItem.AdditionalUpdate(key: .interactive, block: { item, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          break
-        case .boundsChange:
-          return
-        }
-
-        guard let view = item.view else {
-          return
-        }
-
-        #if canImport(AppKit)
-        view.ignoreHitTest = !isEnabled
-        #endif
-
-        #if canImport(UIKit)
-        view.isUserInteractionEnabled = isEnabled
-        #endif
-      })
+      update: RenderableItem.AdditionalUpdate(.interactive(isEnabled))
     )
   }
 
@@ -806,24 +801,7 @@ public extension ComposeNode {
   func rasterize(_ scale: CGFloat?) -> some ComposeNode {
     ModifierNode(
       node: self,
-      update: RenderableItem.AdditionalUpdate(key: .rasterize, block: { item, context in
-        switch context.updateType {
-        case .insert,
-             .refresh:
-          break
-        case .boundsChange:
-          return
-        }
-
-        let layer = item.layer
-        if let scale = scale {
-          layer.shouldRasterize = true
-          layer.rasterizationScale = scale
-        } else {
-          layer.shouldRasterize = false
-          layer.rasterizationScale = 1
-        }
-      })
+      update: RenderableItem.AdditionalUpdate(.rasterize(scale: scale))
     )
   }
 }

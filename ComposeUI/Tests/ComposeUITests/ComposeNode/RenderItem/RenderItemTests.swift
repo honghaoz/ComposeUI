@@ -170,6 +170,33 @@ class RenderItemTests: XCTestCase {
     expect(appliedTokens(of: item)) == ["own", "a", "b", "opacity 2"]
   }
 
+  func test_addUpdates_propertyUpdate_isKeyedByItsProperty() {
+    // given: an item with a keyed block of the opacity, an unkeyed block, and an update of the opacity property, as the
+    // `opacity(_:)` modifier adds it
+    let item = makeItem().addUpdates(updateList(
+      keyedUpdate(.opacity, appendingToken("opacity")),
+      keyedUpdate(nil, appendingToken("a")),
+      RenderableItem.AdditionalUpdate(.opacity(Themed<CGFloat>(0.4)))
+    ))
+    let layer = CALayer()
+
+    // when: the render pass updates a layer with the item
+    withUpdateContext { item.performUpdate(.layer(layer), $0) }
+
+    // then: the property update replaced the keyed block, and set the opacity
+    expect(tokens(of: .layer(layer))) == ["own", "a"]
+    expect(layer.opacity) == 0.4
+
+    // when: the render pass updates a fresh layer with the item and a later keyed block of the opacity
+    let itemWithLaterBlock = item.addUpdates(updateList(keyedUpdate(.opacity, appendingToken("opacity 2"))))
+    let freshLayer = CALayer()
+    withUpdateContext { itemWithLaterBlock.performUpdate(.layer(freshLayer), $0) }
+
+    // then: the later block replaced the property update, which left the opacity unchanged
+    expect(tokens(of: .layer(freshLayer))) == ["own", "a", "opacity 2"]
+    expect(freshLayer.opacity) == 1
+  }
+
   func test_additionalUpdates_nodeFitsA64ByteAllocation() {
     // then: a list node, a 16-byte object header followed by a block and the rest of the list, fits a 64-byte
     // allocation, which a block's key stored before the block would outgrow through padding
