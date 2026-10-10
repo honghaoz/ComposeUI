@@ -198,7 +198,7 @@ public extension CALayer {
     let layer = self as! Self // swiftlint:disable:this force_cast
 
     guard timing.timing.duration > 0 || timing.delay > 0 else {
-      setKeyPathValue(keyPath, model?(layer) ?? to(layer))
+      setKeyPathValue(keyPath, CALayer.anyValue(model?(layer) ?? to(layer)))
       return
     }
 
@@ -227,7 +227,7 @@ public extension CALayer {
     WorkCounter.count(.animation)
     #endif
 
-    setKeyPathValue(keyPath, model?(layer) ?? toValue)
+    setKeyPathValue(keyPath, CALayer.anyValue(model?(layer) ?? toValue))
   }
 
   /// Get a unique animation key.
@@ -275,10 +275,24 @@ public extension CALayer {
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The property animations animating `keyPath`, in the layer's animation key order.
   internal func propertyAnimations(forKeyPath keyPath: String) -> [CAPropertyAnimation] {
+    keyedPropertyAnimations(forKeyPath: keyPath).map(\.animation)
+  }
+
+  /// The layer's property animations animating the given key path, with their keys.
+  ///
+  /// - Parameter keyPath: The animated key path.
+  /// - Returns: The property animations animating `keyPath` and their keys, in the layer's animation key order.
+  internal func keyedPropertyAnimations(forKeyPath keyPath: String) -> InlineFirstArray<(key: String, animation: CAPropertyAnimation)> {
+    var keyedAnimations = InlineFirstArray<(key: String, animation: CAPropertyAnimation)>()
     guard let animations = animationSequence(forKeyPath: keyPath) else {
-      return []
+      return keyedAnimations
     }
-    return animations.compactMap(\.animation.directAnimation)
+    for (key, animation) in animations {
+      if let directAnimation = animation.directAnimation {
+        keyedAnimations.append((key, directAnimation))
+      }
+    }
+    return keyedAnimations
   }
 
   /// Removes the layer's property animations animating the given key path, leaving other animations alone.
@@ -324,6 +338,22 @@ public extension CALayer {
     let layer: AnyObject = self
     let keys = layer.animationKeyArray?() ?? nil
     return keys.map { AnimationKeys($0) }
+  }
+
+  /// The value as an `Any`.
+  ///
+  /// Converting a generic value to `Any` wraps it in an `Any`, and an `Any` doesn't fit inline in another one, so
+  /// converting a value whose type is `Any` allocates a box for it. An `Any` is passed on as it is instead, which is an
+  /// identity cast, since `T` is `Any`.
+  ///
+  /// - Parameter value: The value.
+  /// - Returns: The value as an `Any`.
+  @inline(__always)
+  internal static func anyValue<T>(_ value: T) -> Any {
+    if T.self == Any.self {
+      return unsafeBitCast(value, to: Any.self)
+    }
+    return value
   }
 }
 
