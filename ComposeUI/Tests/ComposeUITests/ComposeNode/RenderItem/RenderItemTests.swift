@@ -439,6 +439,145 @@ class RenderItemTests: XCTestCase {
     expect(view.layer().name) == "update"
   }
 
+  // MARK: - Adding a Modifier
+
+  func test_addingModifier_runsTheModifiersBlocksAfterTheItemsBlocks() {
+    // given: an erased item whose layer item has every block, with a block of each kind and a keyed update added after
+    // erasing
+    let item = addingTokenBlocks(to: makeTokenItem { CALayer() }.eraseToRenderableItem())
+      .addUpdates(updateList(keyedUpdate(.opacity, appendingToken("opacity 1"))))
+
+    // when: adding a modifier with a block of each kind and an update of the same key
+    let modifiedItem = item.addingModifier(
+      willInsert: { renderable, _ in Self.appendToken("modifier willInsert", to: renderable) },
+      didInsert: { renderable, _ in Self.appendToken("modifier didInsert", to: renderable) },
+      willUpdate: { renderable, _ in Self.appendToken("modifier willUpdate", to: renderable) },
+      updates: updateList(
+        keyedUpdate(nil, appendingToken("modifier update")),
+        keyedUpdate(.opacity, appendingToken("opacity 2"))
+      ),
+      willRemove: { renderable, _ in Self.appendToken("modifier willRemove", to: renderable) },
+      didRemove: { renderable, _ in Self.appendToken("modifier didRemove", to: renderable) },
+      reuseId: nil,
+      resetForReuse: { renderable in Self.appendToken("modifier resetForReuse", to: renderable) },
+      transition: nil,
+      animationTiming: nil,
+      zIndex: nil
+    )
+
+    withContexts { contexts in
+      let renderable = modifiedItem.makeRenderable(contexts.make)
+      runBlocksAsTheRenderPass(of: modifiedItem, with: renderable, contexts)
+
+      // then: each block of the modifier ran after the item's blocks of its kind, and its keyed update replaced the
+      // item's update of the same key
+      expect(tokens(of: renderable)) == [
+        "willInsert", "added willInsert", "modifier willInsert",
+        "didInsert", "added didInsert", "modifier didInsert",
+        "willUpdate", "added willUpdate", "modifier willUpdate",
+        "update", "added update", "modifier update", "opacity 2",
+        "willRemove", "added willRemove", "modifier willRemove",
+        "didRemove", "added didRemove", "modifier didRemove",
+        "resetForReuse", "added resetForReuse", "modifier resetForReuse",
+      ]
+    }
+  }
+
+  func test_addingModifier_setsTheValuesAsTheBuilders() {
+    let cases: [(name: String, item: RenderableItem, expectedReuseId: ReuseId, expectsItsTransition: Bool, expectedAnimation: AnimationTiming)] = [
+      (
+        "an item with every value, which keeps its own but the z-index",
+        makeItem().reuseId("item").transition(.opacity()).animation(.easeInEaseOut(duration: 1)).zIndex(1),
+        ReuseId(namespace: .user, id: "item"),
+        true,
+        .easeInEaseOut(duration: 1)
+      ),
+      (
+        "an item with the framework's reuse id, which the modifier's replaces",
+        makeItem().reuseId(ReuseId(namespace: .framework, id: "framework")),
+        ReuseId(namespace: .user, id: "modifier"),
+        false,
+        .linear(duration: 2)
+      ),
+      (
+        "an item without values, which takes the modifier's",
+        makeItem(),
+        ReuseId(namespace: .user, id: "modifier"),
+        false,
+        .linear(duration: 2)
+      ),
+    ]
+
+    for testCase in cases {
+      // when: adding a modifier with values, and setting the same values with the builders
+      let modifiedItem = testCase.item.addingModifier(
+        willInsert: nil,
+        didInsert: nil,
+        willUpdate: nil,
+        updates: .none,
+        willRemove: nil,
+        didRemove: nil,
+        reuseId: "modifier",
+        resetForReuse: nil,
+        transition: RenderableTransition(insert: nil, remove: nil),
+        animationTiming: .linear(duration: 2),
+        zIndex: 3
+      )
+      let builtItem = testCase.item
+        .reuseId("modifier")
+        .transition(RenderableTransition(insert: nil, remove: nil))
+        .animation(.linear(duration: 2))
+        .zIndex(3)
+
+      // then: the modifier set the values the builders set, and only an inner value that isn't the framework's is kept
+      expect(modifiedItem.reuseId, testCase.name) == testCase.expectedReuseId
+      expect(modifiedItem.transition?.insert != nil, testCase.name) == testCase.expectsItsTransition
+      expect(modifiedItem.animationTiming, testCase.name) == testCase.expectedAnimation
+      expect(modifiedItem.zIndex, testCase.name) == 3
+      expect(builtItem.reuseId, testCase.name) == testCase.expectedReuseId
+      expect(builtItem.transition?.insert != nil, testCase.name) == testCase.expectsItsTransition
+      expect(builtItem.animationTiming, testCase.name) == testCase.expectedAnimation
+      expect(builtItem.zIndex, testCase.name) == 3
+    }
+  }
+
+  func test_addingModifier_withoutBlocksAndValues_keepsTheItemsOwn() {
+    // given: an item with an added block and every value
+    let item = makeItem()
+      .addResetForReuse { renderable in Self.appendToken("added resetForReuse", to: renderable) }
+      .reuseId("item")
+      .transition(.opacity())
+      .animation(.easeInEaseOut(duration: 1))
+      .zIndex(1)
+
+    // when: adding a modifier without blocks and values
+    let modifiedItem = item.addingModifier(
+      willInsert: nil,
+      didInsert: nil,
+      willUpdate: nil,
+      updates: .none,
+      willRemove: nil,
+      didRemove: nil,
+      reuseId: nil,
+      resetForReuse: nil,
+      transition: nil,
+      animationTiming: nil,
+      zIndex: nil
+    )
+
+    // then: the item keeps its blocks and values
+    expect(modifiedItem.reuseId) == ReuseId(namespace: .user, id: "item")
+    expect(modifiedItem.transition?.insert).toNot(beNil())
+    expect(modifiedItem.animationTiming) == .easeInEaseOut(duration: 1)
+    expect(modifiedItem.zIndex) == 1
+    withContexts { contexts in
+      let renderable = modifiedItem.makeRenderable(contexts.make)
+      runBlocksAsTheRenderPass(of: modifiedItem, with: renderable, contexts)
+
+      expect(tokens(of: renderable)) == ["own", "added resetForReuse"]
+    }
+  }
+
   // MARK: - Helpers
 
   /// The names of an item's blocks other than `make`, in the order `runBlocksAsTheRenderPass(of:with:_:)` runs them.
