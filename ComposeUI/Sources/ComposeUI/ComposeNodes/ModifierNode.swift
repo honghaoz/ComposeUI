@@ -57,7 +57,7 @@ private struct ModifierNode: ComposeNode {
   private let animationTiming: AnimationTiming?
   private let zIndex: CGFloat?
 
-  fileprivate init(node: ComposeNode,
+  fileprivate init(node: some ComposeNode,
                    willInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
                    didInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
                    willUpdate: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
@@ -212,6 +212,90 @@ private struct ModifierNode: ComposeNode {
         return false
       case .none:
         return true
+      }
+    }
+  }
+}
+
+// MARK: - RenderableUpdateKey
+
+extension RenderableUpdateKey {
+
+  /// Resets the property that the key's update block sets to the value of a freshly made renderable, before the
+  /// renderable is added to the reuse pool.
+  ///
+  /// A built-in modifier's reset follows from its update's key instead of being a block of the modifier, so that
+  /// stacked modifiers don't combine their reset blocks into new closures, see `RenderItem.performResetForReuse(_:)`.
+  ///
+  /// - Parameter renderable: The renderable to reset.
+  func resetForReuse(_ renderable: Renderable) {
+    switch self {
+    case .backgroundColor:
+      let layer = renderable.layer
+      if layer.backgroundColor != nil {
+        layer.disableActions(for: "backgroundColor") {
+          layer.backgroundColor = nil
+        }
+      }
+    case .opacity:
+      let layer = renderable.layer
+      if layer.opacity != 1 {
+        // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
+        layer.setKeyPathValue("opacity", Float(1))
+      }
+    case .border:
+      let layer = renderable.layer
+      let defaultBorderColor = layer.defaultBorderColor
+      if layer.borderColor != defaultBorderColor || layer.borderWidth != 0 {
+        layer.disableActions(for: "borderColor", "borderWidth") {
+          layer.borderColor = defaultBorderColor
+          layer.borderWidth = 0
+        }
+      }
+    case .cornerRadius:
+      let layer = renderable.layer
+      if layer.cornerCurve != .continuous {
+        layer.cornerCurve = .continuous
+      }
+      if layer.cornerRadius != 0 {
+        layer.disableActions(for: "cornerRadius") {
+          layer.cornerRadius = 0
+        }
+      }
+    case .masksToBounds:
+      if renderable.layer.masksToBounds != false {
+        renderable.layer.masksToBounds = false
+      }
+    case .shadow:
+      let layer = renderable.layer
+      layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
+        layer.shadowColor = layer.defaultShadowColor
+        layer.shadowOpacity = 0
+        layer.shadowRadius = 3
+        layer.shadowOffset = CGSize(width: 0, height: -3)
+        layer.shadowPath = nil
+      }
+    case .interactive:
+      guard let view = renderable.view else {
+        return
+      }
+      #if canImport(AppKit)
+      if view.ignoreHitTest != false {
+        view.ignoreHitTest = false
+      }
+      #endif
+      #if canImport(UIKit)
+      if view.isUserInteractionEnabled != true {
+        view.isUserInteractionEnabled = true
+      }
+      #endif
+    case .rasterize:
+      let layer = renderable.layer
+      if layer.shouldRasterize != false {
+        layer.shouldRasterize = false
+      }
+      if layer.rasterizationScale != 1 {
+        layer.rasterizationScale = 1
       }
     }
   }
@@ -380,15 +464,7 @@ public extension ComposeNode {
         } else {
           layer.retarget(keyPath: "backgroundColor", to: color)
         }
-      }),
-      resetForReuse: { renderable in
-        let layer = renderable.layer
-        if layer.backgroundColor != nil {
-          layer.disableActions(for: "backgroundColor") {
-            layer.backgroundColor = nil
-          }
-        }
-      }
+      })
     )
   }
 
@@ -433,14 +509,7 @@ public extension ComposeNode {
           // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
           layer.retargetOpacity(to: opacity)
         }
-      }),
-      resetForReuse: { renderable in
-        let layer = renderable.layer
-        if layer.opacity != 1 {
-          // `setKeyPathValue` sets a backing view's alpha too, so the two stay in sync
-          layer.setKeyPathValue("opacity", Float(1))
-        }
-      }
+      })
     )
   }
 
@@ -497,17 +566,7 @@ public extension ComposeNode {
           layer.retarget(keyPath: "borderColor", to: color)
           layer.retarget(keyPath: "borderWidth", to: width)
         }
-      }),
-      resetForReuse: { renderable in
-        let layer = renderable.layer
-        let defaultBorderColor = layer.defaultBorderColor
-        if layer.borderColor != defaultBorderColor || layer.borderWidth != 0 {
-          layer.disableActions(for: "borderColor", "borderWidth") {
-            layer.borderColor = defaultBorderColor
-            layer.borderWidth = 0
-          }
-        }
-      }
+      })
     )
   }
 
@@ -542,18 +601,7 @@ public extension ComposeNode {
         } else {
           layer.retarget(keyPath: "cornerRadius", to: radius)
         }
-      }),
-      resetForReuse: { renderable in
-        let layer = renderable.layer
-        if layer.cornerCurve != .continuous {
-          layer.cornerCurve = .continuous
-        }
-        if layer.cornerRadius != 0 {
-          layer.disableActions(for: "cornerRadius") {
-            layer.cornerRadius = 0
-          }
-        }
-      }
+      })
     )
   }
 
@@ -578,12 +626,7 @@ public extension ComposeNode {
 
         let layer = item.layer
         layer.masksToBounds = masksToBounds
-      }),
-      resetForReuse: { renderable in
-        if renderable.layer.masksToBounds != false {
-          renderable.layer.masksToBounds = false
-        }
-      }
+      })
     )
   }
 
@@ -698,17 +741,7 @@ public extension ComposeNode {
             }
           }
         }
-      }),
-      resetForReuse: { renderable in
-        let layer = renderable.layer
-        layer.disableActions(for: "shadowColor", "shadowOpacity", "shadowRadius", "shadowOffset", "shadowPath") {
-          layer.shadowColor = layer.defaultShadowColor
-          layer.shadowOpacity = 0
-          layer.shadowRadius = 3
-          layer.shadowOffset = CGSize(width: 0, height: -3)
-          layer.shadowPath = nil
-        }
-      }
+      })
     )
   }
 
@@ -759,22 +792,7 @@ public extension ComposeNode {
         #if canImport(UIKit)
         view.isUserInteractionEnabled = isEnabled
         #endif
-      }),
-      resetForReuse: { renderable in
-        guard let view = renderable.view else {
-          return
-        }
-        #if canImport(AppKit)
-        if view.ignoreHitTest != false {
-          view.ignoreHitTest = false
-        }
-        #endif
-        #if canImport(UIKit)
-        if view.isUserInteractionEnabled != true {
-          view.isUserInteractionEnabled = true
-        }
-        #endif
-      }
+      })
     )
   }
 
@@ -805,16 +823,7 @@ public extension ComposeNode {
           layer.shouldRasterize = false
           layer.rasterizationScale = 1
         }
-      }),
-      resetForReuse: { renderable in
-        let layer = renderable.layer
-        if layer.shouldRasterize != false {
-          layer.shouldRasterize = false
-        }
-        if layer.rasterizationScale != 1 {
-          layer.rasterizationScale = 1
-        }
-      }
+      })
     )
   }
 }

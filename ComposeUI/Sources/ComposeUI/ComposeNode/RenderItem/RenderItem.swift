@@ -53,6 +53,9 @@ public typealias RenderableItem = RenderItem<Renderable>
 /// one property, for example `.opacity(0.3).opacity(1)`, then apply only the outermost value, since applying each value
 /// in turn would animate the layer through the overridden values.
 ///
+/// Before the renderable is added to the reuse pool, the property of each of the item's keys is reset, after the
+/// item's `resetForReuse` blocks, see `resetForReuse(_:)`.
+///
 /// - Note: A raw value is the key's bit index in a `UInt64`, so there can be at most 64 keys.
 enum RenderableUpdateKey: UInt64 {
   case backgroundColor
@@ -209,7 +212,7 @@ public struct RenderItem<T> {
   /// the reused renderable is clean (freshly-made-equivalent) for its next use.
   public var resetForReuse: ((T) -> Void)? {
     let storage = storage
-    guard storage.typedItem(with: .resetForReuse) != nil else {
+    guard storage.typedItem(with: .resetForReuse) != nil || storage.additionalUpdates.hasKeyedBlocks else {
       return storage.resetForReuse
     }
     return { storage.performResetForReuse($0) }
@@ -372,6 +375,28 @@ public struct RenderItem<T> {
       forEach(skipping: KeySet(), body)
     }
 
+    /// Whether the list has a keyed block.
+    var hasKeyedBlocks: Bool {
+      !keys.isEmpty
+    }
+
+    /// Calls the body with the key of each keyed block, once for each key, in the order of the keys' raw values.
+    func forEachKey(_ body: (RenderableUpdateKey) -> Void) {
+      keys.forEach(body)
+    }
+
+    /// The keys of the keyed blocks.
+    private var keys: KeySet {
+      switch self {
+      case .none:
+        return KeySet()
+      case .one(let update):
+        return KeySet().inserting(update.key)
+      case .more(let update, let previous):
+        return previous.keys.inserting(update.key)
+      }
+    }
+
     private func forEach(skipping laterKeys: KeySet, _ body: (AdditionalUpdate) -> Void) {
       switch self {
       case .none:
@@ -407,6 +432,22 @@ public struct RenderItem<T> {
         var keySet = self
         keySet.bits |= 1 << key.rawValue
         return keySet
+      }
+
+      var isEmpty: Bool {
+        bits == 0
+      }
+
+      /// Calls the body with each key, in the order of the keys' raw values.
+      func forEach(_ body: (RenderableUpdateKey) -> Void) {
+        var remainingBits = bits
+        while remainingBits != 0 {
+          let rawValue = UInt64(remainingBits.trailingZeroBitCount)
+          remainingBits &= remainingBits - 1
+          if let key = RenderableUpdateKey(rawValue: rawValue) {
+            body(key)
+          }
+        }
       }
     }
   }
@@ -534,6 +575,10 @@ public struct RenderItem<T> {
     func performResetForReuse(_ renderable: T) {
       typedItem(with: .resetForReuse)?.performResetForReuse(erased: Self.toRenderable(renderable))
       resetForReuse?(renderable)
+      // only a built-in modifier adds a keyed block, to a `RenderableItem`, so where the item has one, `T` is `Renderable`
+      additionalUpdates.forEachKey {
+        $0.resetForReuse(Self.toRenderable(renderable))
+      }
     }
 
     // Only a `RenderableItem` has a typed item, see `Source.typedItem`, so where the methods above convert between `T`
