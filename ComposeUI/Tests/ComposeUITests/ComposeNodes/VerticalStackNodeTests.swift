@@ -283,6 +283,37 @@ class VerticalStackNodeTests: XCTestCase {
     expect(spacers.map(\.size)) == [CGSize(width: 0, height: 35), CGSize(width: 0, height: 10), CGSize(width: 40, height: 35)]
   }
 
+  func test_layout_infiniteFixedHeight() {
+    // given: a test assertion failure handler, since an infinite fixed height is invalid
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: laying out a vstack whose only child has an infinite fixed height
+    var node = VStack {
+      LayerNode().frame(width: 50, height: .infinity)
+    }
+    _ = node.layout(containerSize: CGSize(width: 50, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the layout finishes and asserts, and the child keeps its height
+    expect(assertionMessages) == ["fixed sizing must have a non-infinite size"]
+    expect(node.size) == CGSize(width: 50, height: CGFloat.infinity)
+
+    // when: laying out a vstack with the child next to a flexible child
+    node = VStack {
+      LayerNode()
+      LayerNode().frame(width: 50, height: .infinity)
+    }
+    _ = node.layout(containerSize: CGSize(width: 50, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the flexible child gets half of the height, as it does next to another flexible child
+    expect(node.childNodes.map(\.size)) == [CGSize(width: 50, height: 50), CGSize(width: 50, height: CGFloat.infinity)]
+  }
+
   func test_fixedWidth_fixedHeight_alignment() {
     // left alignment
     do {
