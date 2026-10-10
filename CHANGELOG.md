@@ -74,6 +74,7 @@
 - Fixed a `VStack` or `HStack` that could never finish its layout in release builds when a child has an infinite fixed size, such as from `.frame(width: .infinity, height: 50)`. The stack now divides its space as if the child were flexible. An infinite fixed size still asserts in debug builds, so use `.flexible` to fill the space instead.
 - Erasing a view or layer item to a `RenderableItem` is faster: the erased item runs the item's blocks through it, instead of copying each block into a new closure.
 - Refreshing and scrolling content with modifiers is faster: a modifier applies all its changes to a render item in one copy of the item, instead of one copy for each change.
+- Building content with stacked modifiers is faster: a modifier merges with the modifier it wraps without boxing it, and the built-in modifiers reset the properties they set without reset blocks of their own, which stacked modifiers combined into new closures.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

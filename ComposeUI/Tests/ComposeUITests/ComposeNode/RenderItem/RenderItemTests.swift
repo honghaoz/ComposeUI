@@ -238,6 +238,49 @@ class RenderItemTests: XCTestCase {
     expect(layer.name) == "own,added"
   }
 
+  // MARK: - Resetting Keyed Properties
+
+  func test_resetForReuse_resetsThePropertiesOfTheKeyedBlocksAfterTheItemsBlocks() {
+    // given: an item with keyed update blocks of the opacity, twice, and of the background color, and a reset block that
+    // records the layer's opacity when it runs
+    let item = makeItem()
+      .addUpdates(updateList(
+        keyedUpdate(.opacity) { _, _ in },
+        keyedUpdate(.backgroundColor) { _, _ in },
+        keyedUpdate(.opacity) { _, _ in }
+      ))
+      .addResetForReuse { renderable in Self.appendToken("opacity \(renderable.layer.opacity)", to: renderable) }
+    let layer = CALayer()
+    layer.opacity = 0.5
+    layer.backgroundColor = CGColor(gray: 0, alpha: 1)
+
+    // when: resetting the layer for reuse, as the render pass does
+    item.performResetForReuse(.layer(layer))
+
+    // then: the item's reset block ran first, then the properties of the keys reset
+    expect(layer.name) == "opacity 0.5"
+    expect(layer.opacity) == 1
+    expect(layer.backgroundColor).to(beNil())
+  }
+
+  func test_resetForReuse_readingTheBlock_resetsThePropertiesOfTheKeyedBlocks() {
+    // given: an item without reset blocks, and the item with an unkeyed and a keyed update block
+    let item = makeItem()
+    let itemWithKeyedBlock = item.addUpdates(updateList(
+      keyedUpdate(nil) { _, _ in },
+      keyedUpdate(.opacity) { _, _ in }
+    ))
+
+    // then: the item has no reset block, and the item with the keyed block has one, which resets the opacity
+    expect(item.resetForReuse).to(beNil())
+    expect(item.addUpdate { _, _ in }.resetForReuse).to(beNil())
+
+    let layer = CALayer()
+    layer.opacity = 0.5
+    itemWithKeyedBlock.resetForReuse?(.layer(layer))
+    expect(layer.opacity) == 1
+  }
+
   // MARK: - Running Blocks
 
   func test_renderPass_runsTheItemsBlocks() {

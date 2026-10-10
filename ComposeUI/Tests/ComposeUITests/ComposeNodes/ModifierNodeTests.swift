@@ -1994,6 +1994,19 @@ class ModifierNodeTests: XCTestCase {
 
   // MARK: - Reset for reuse
 
+  func test_resetForReuse_border_defaultColorWithAWidth_resetsTheWidth() {
+    // given: a layer with the default border color and a border width
+    let layer = CALayer()
+    layer.borderWidth = 2
+
+    // when: resetting the border for reuse
+    RenderableUpdateKey.border.resetForReuse(.layer(layer))
+
+    // then: the border width is reset, and the border color stays a fresh layer's
+    expect(layer.borderWidth) == 0
+    expect(layer.borderColor) == CALayer().borderColor
+  }
+
   func test_layerModifiers_resetForReuse_resetsModifiedProperties() {
     // each built-in layer modifier registers a `resetForReuse` block that resets the property it set back to the
     // value a freshly made layer would have, so a recycled layer never leaks state into a differently-configured reuse.
