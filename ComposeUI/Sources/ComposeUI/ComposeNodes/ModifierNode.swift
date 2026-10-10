@@ -160,44 +160,60 @@ private struct ModifierNode: ComposeNode {
   func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     // the child's items are changed in place, which reuses the array the child made instead of allocating a copy
     var items = node.renderableItems(in: visibleBounds)
-    for index in items.indices {
-      var item = items[index]
-      if let willInsert = willInsert {
-        item = item.addWillInsert(willInsert)
+
+    // a modifier that only adds update blocks, as `onUpdate(_:)` does, adds them with `addUpdates(_:)`, which does what
+    // `addingModifier(...)` does without passing the modifier's other blocks and values, which costs a few hundred
+    // instructions per item
+    if onlyAddsUpdates {
+      for index in items.indices {
+        items[index] = items[index].addUpdates(updates)
       }
-      if let didInsert = didInsert {
-        item = item.addDidInsert(didInsert)
+    } else {
+      for index in items.indices {
+        items[index] = items[index].addingModifier(
+          willInsert: willInsert,
+          didInsert: didInsert,
+          willUpdate: willUpdate,
+          updates: updates,
+          willRemove: willRemove,
+          didRemove: didRemove,
+          reuseId: reuseId,
+          resetForReuse: resetForReuse,
+          transition: transition,
+          animationTiming: animationTiming,
+          zIndex: zIndex
+        )
       }
-      if let willUpdate = willUpdate {
-        item = item.addWillUpdate(willUpdate)
-      }
-      if !updates.isEmpty {
-        item = item.addUpdates(updates)
-      }
-      if let willRemove = willRemove {
-        item = item.addWillRemove(willRemove)
-      }
-      if let didRemove = didRemove {
-        item = item.addDidRemove(didRemove)
-      }
-      if let reuseId = reuseId {
-        item = item.reuseId(reuseId)
-      }
-      if let resetForReuse = resetForReuse {
-        item = item.addResetForReuse(resetForReuse)
-      }
-      if let transition = transition {
-        item = item.transition(transition)
-      }
-      if let animationTiming = animationTiming {
-        item = item.animation(animationTiming)
-      }
-      if let zIndex = zIndex {
-        item = item.zIndex(zIndex)
-      }
-      items[index] = item
     }
     return items
+  }
+
+  /// Whether the modifier only adds update blocks, as `onUpdate(_:)` does.
+  private var onlyAddsUpdates: Bool {
+    guard willInsert == nil,
+          didInsert == nil,
+          willUpdate == nil,
+          willRemove == nil,
+          didRemove == nil,
+          reuseId == nil,
+          resetForReuse == nil,
+          zIndex == nil
+    else {
+      return false
+    }
+
+    // the transition and the animation are matched instead of compared with `nil`, which copies them and their blocks
+    switch transition {
+    case .some:
+      return false
+    case .none:
+      switch animationTiming {
+      case .some:
+        return false
+      case .none:
+        return true
+      }
+    }
   }
 }
 

@@ -866,6 +866,156 @@ extension RenderItem.AdditionalUpdate where T == Renderable {
   }
 }
 
+extension RenderItem where T == Renderable {
+
+  /// Returns the item with a modifier's blocks and values added, as the builders add them one at a time, see
+  /// `addWillInsert(_:)` and the others, in one copy of the item's storage instead of one for each.
+  ///
+  /// The blocks take a `Renderable`, so a modifier passes its blocks as they are, instead of converting each to a block
+  /// that takes the item's generic renderable type, which allocates a reabstraction thunk.
+  ///
+  /// - Parameters:
+  ///   - willInsert: The block to run after the item's `willInsert` block.
+  ///   - didInsert: The block to run after the item's `didInsert` block.
+  ///   - willUpdate: The block to run after the item's `willUpdate` block.
+  ///   - updates: The update blocks to add, see `addUpdates(_:)`.
+  ///   - willRemove: The block to run after the item's `willRemove` block.
+  ///   - didRemove: The block to run after the item's `didRemove` block.
+  ///   - reuseId: The reuse identifier to set, unless the item has a reuse identifier that isn't the framework's, see
+  ///     `reuseId(_:)`.
+  ///   - resetForReuse: The block to run after the item's `resetForReuse` block.
+  ///   - transition: The transition to set, unless the item has one.
+  ///   - animationTiming: The animation to set, unless the item has one.
+  ///   - zIndex: The z-index to set in place of the item's.
+  /// - Returns: The item with the blocks and values added.
+  func addingModifier(willInsert: ((Renderable, RenderableInsertContext) -> Void)?,
+                      didInsert: ((Renderable, RenderableInsertContext) -> Void)?,
+                      willUpdate: ((Renderable, RenderableUpdateContext) -> Void)?,
+                      updates: AdditionalUpdates,
+                      willRemove: ((Renderable, RenderableRemoveContext) -> Void)?,
+                      didRemove: ((Renderable, RenderableRemoveContext) -> Void)?,
+                      reuseId: String?,
+                      resetForReuse: ((Renderable) -> Void)?,
+                      transition: RenderableTransition?,
+                      animationTiming: AnimationTiming?,
+                      zIndex: CGFloat?) -> Self
+  {
+    addingModifierBlocks(
+      willInsert: willInsert,
+      didInsert: didInsert,
+      willUpdate: willUpdate,
+      updates: updates,
+      willRemove: willRemove,
+      didRemove: didRemove,
+      reuseId: reuseId,
+      resetForReuse: resetForReuse,
+      transition: transition,
+      animationTiming: animationTiming,
+      zIndex: zIndex
+    )
+  }
+}
+
+private extension RenderItem {
+
+  /// Adds a modifier's blocks and values, see `addingModifier(willInsert:didInsert:willUpdate:updates:willRemove:didRemove:reuseId:resetForReuse:transition:animationTiming:zIndex:)`.
+  ///
+  /// This is generic code, where a block that takes `T` has the representation the storage keeps its blocks in, so the
+  /// blocks made here are stored as they are, while a block made where `T` is `Renderable` is converted through a
+  /// reabstraction thunk when stored. Only `addingModifier` calls it, so `T` is `Renderable` and the casts do nothing.
+  func addingModifierBlocks(willInsert: ((Renderable, RenderableInsertContext) -> Void)?,
+                            didInsert: ((Renderable, RenderableInsertContext) -> Void)?,
+                            willUpdate: ((Renderable, RenderableUpdateContext) -> Void)?,
+                            updates: AdditionalUpdates,
+                            willRemove: ((Renderable, RenderableRemoveContext) -> Void)?,
+                            didRemove: ((Renderable, RenderableRemoveContext) -> Void)?,
+                            reuseId: String?,
+                            resetForReuse: ((Renderable) -> Void)?,
+                            transition: RenderableTransition?,
+                            animationTiming: AnimationTiming?,
+                            zIndex: CGFloat?) -> Self
+  {
+    // the storage is made here instead of through `with(...)`, which would copy each of the item's blocks and values
+    // again, since a modifier's values aren't known when the code is compiled, as a builder's are
+    let storage = storage
+
+    var newWillInsert = storage.willInsert
+    if let willInsert {
+      let itemWillInsert = newWillInsert
+      newWillInsert = { renderable, context in
+        itemWillInsert?(renderable, context)
+        willInsert(renderable as! Renderable, context) // swiftlint:disable:this force_cast
+      }
+    }
+    var newDidInsert = storage.didInsert
+    if let didInsert {
+      let itemDidInsert = newDidInsert
+      newDidInsert = { renderable, context in
+        itemDidInsert?(renderable, context)
+        didInsert(renderable as! Renderable, context) // swiftlint:disable:this force_cast
+      }
+    }
+    var newWillUpdate = storage.willUpdate
+    if let willUpdate {
+      let itemWillUpdate = newWillUpdate
+      newWillUpdate = { renderable, context in
+        itemWillUpdate?(renderable, context)
+        willUpdate(renderable as! Renderable, context) // swiftlint:disable:this force_cast
+      }
+    }
+    var newWillRemove = storage.willRemove
+    if let willRemove {
+      let itemWillRemove = newWillRemove
+      newWillRemove = { renderable, context in
+        itemWillRemove?(renderable, context)
+        willRemove(renderable as! Renderable, context) // swiftlint:disable:this force_cast
+      }
+    }
+    var newDidRemove = storage.didRemove
+    if let didRemove {
+      let itemDidRemove = newDidRemove
+      newDidRemove = { renderable, context in
+        itemDidRemove?(renderable, context)
+        didRemove(renderable as! Renderable, context) // swiftlint:disable:this force_cast
+      }
+    }
+    var newResetForReuse = storage.resetForReuse
+    if let resetForReuse {
+      let itemResetForReuse = newResetForReuse
+      newResetForReuse = { renderable in
+        itemResetForReuse?(renderable)
+        resetForReuse(renderable as! Renderable) // swiftlint:disable:this force_cast
+      }
+    }
+
+    var newReuseId = storage.reuseId
+    if let reuseId, newReuseId?.namespace != .user {
+      newReuseId = ReuseId(namespace: .user, id: reuseId)
+    }
+
+    return Self(
+      id: id,
+      frame: frame,
+      storage: Storage(
+        source: storage.source,
+        willInsert: newWillInsert,
+        didInsert: newDidInsert,
+        willUpdate: newWillUpdate,
+        update: storage.update,
+        additionalUpdates: storage.additionalUpdates.adding(contentsOf: updates),
+        willRemove: newWillRemove,
+        didRemove: newDidRemove,
+        reuseId: newReuseId,
+        renderableType: storage.renderableType,
+        resetForReuse: newResetForReuse,
+        transition: storage.transition ?? transition,
+        animationTiming: storage.animationTiming ?? animationTiming,
+        zIndex: zIndex ?? storage.zIndex
+      )
+    )
+  }
+}
+
 public extension ViewItem {
 
   /// Erase the view item to a generic `RenderableItem`.
