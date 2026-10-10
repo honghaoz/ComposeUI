@@ -392,11 +392,13 @@ class RenderPerformanceTests: BenchmarkTestCase {
         Self.makeNestedRow(i)
       }
     }
-    _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    // the passes share the content's evaluation, as a `ComposeView` lays out its content again in a new pass
+    let contentEvaluation = ContentEvaluation()
+    _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: contentEvaluation))
 
     // when: measuring layouts of the same rows, each in a new pass
     let result = measure(warmup: 3, iterations: 30) { _ in
-      _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+      _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: contentEvaluation))
     }
 
     // then: report the timings
