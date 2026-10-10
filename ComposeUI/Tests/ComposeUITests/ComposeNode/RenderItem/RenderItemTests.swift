@@ -484,6 +484,7 @@ class RenderItemTests: XCTestCase {
   }
 
   func test_addingModifier_setsTheValuesAsTheBuilders() {
+    // given: an item with every value, an item with the framework's reuse id, and an item without values
     let cases: [(name: String, item: RenderableItem, expectedReuseId: ReuseId, expectsItsTransition: Bool, expectedAnimation: AnimationTiming)] = [
       (
         "an item with every value, which keeps its own but the z-index",
