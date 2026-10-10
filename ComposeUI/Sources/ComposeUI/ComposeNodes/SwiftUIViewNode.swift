@@ -118,11 +118,12 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
       return []
     }
 
-    // capture only content and configuration, since renderState also owns the cache retaining these closures.
+    // capture only content and configuration, since renderState also holds the item slot, whose cache retains these
+    // closures.
     let content = renderState.content
     let isStaticContent = isStaticContent
 
-    let item = renderState.itemCache.item(id: id, frame: frame) {
+    let item = RenderableItemCache.item(in: renderState.itemSlot, id: id, frame: frame) {
       ViewItem<View>(
         id: id,
         frame: frame,
@@ -180,12 +181,14 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
 
     let evaluation: ContentEvaluation
     let content: ContentEvaluation.LazyValue<Content>
-    let itemCache: RenderableItemCache
+
+    /// The node's slot in the item cache of the evaluation's content.
+    let itemSlot: RenderableItemCache.Slot
 
     init(evaluation: ContentEvaluation, content: ContentEvaluation.LazyValue<Content>) {
       self.evaluation = evaluation
       self.content = content
-      self.itemCache = RenderableItemCache()
+      self.itemSlot = evaluation.renderableItemCache.makeSlot()
     }
   }
 }

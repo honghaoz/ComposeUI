@@ -697,10 +697,10 @@ class TextNodeTests: XCTestCase {
     expect(weakProbe).to(beNil())
   }
 
-  func test_renderableItems_sharedCache_selectableChange_notStale() {
-    // Two copies of a base text node share its item cache (a reference in a value type). Changing `selectable` does not
-    // change the frame, so the cache's frame key cannot detect it; the setter must reset the cache so the copy rebuilds
-    // instead of returning the base's cached (selectable) item.
+  func test_renderableItems_copiesOfABase_selectableChange_notStale() {
+    // Two copies of a base text node each take their own item slot when they're laid out. Changing `selectable` does not
+    // change the frame, so the cache's frame key cannot detect it, and a copy sharing the base's slot would return the
+    // base's cached (selectable) item.
 
     // given: two copies of a base text node, one with selectable disabled
     let base = TextNode("hi").fixedSize(width: true, height: true)
@@ -719,7 +719,65 @@ class TextNodeTests: XCTestCase {
 
     // then: each copy renders with its own selectable state
     expect(defaultView?.isSelectable) == true // TextNode is selectable by default
-    expect(nonSelectableView?.isSelectable) == false // would be true (stale) if the setter did not reset the shared cache
+    expect(nonSelectableView?.isSelectable) == false // would be true (stale) if the copies shared the base's slot
+  }
+
+  func test_renderableItems_copyConfiguredAfterLayout_rendersItsOwnSetting() throws {
+    // given: a text node that's laid out and has made its item, and a copy of it made non-selectable after the layout,
+    // laid out with the same context, as a container that reconfigures a laid out child does
+    let context = ComposeNodeLayoutContext(scaleFactor: 2)
+    let containerSize = CGSize(width: 100, height: 100)
+    let bounds = CGRect(origin: .zero, size: containerSize)
+    var node = TextNode("hi")
+    _ = node.layout(containerSize: containerSize, context: context)
+    _ = node.renderableItems(in: bounds)
+    var copy = node.selectable(false)
+    _ = copy.layout(containerSize: containerSize, context: context)
+
+    // when: rendering the copy's item into a text view
+    let item = try copy.renderableItems(in: bounds).first.unwrap()
+    let contentView = ComposeView()
+    let renderable = item.make(RenderableMakeContext(initialFrame: nil, contentView: contentView))
+    item.update(renderable, RenderableUpdateContext(
+      updateType: .insert,
+      oldFrame: .zero,
+      newFrame: item.frame,
+      previousRenderBounds: nil,
+      renderBounds: bounds,
+      animationTiming: nil,
+      contentView: contentView,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision.disabled
+    ))
+
+    // then: the text view isn't selectable, since the setter cleared the copy's slot, so the copy took its own slot
+    // instead of returning the node's cached (selectable) item
+    expect((renderable.view as? BaseTextView)?.isSelectable) == false
+  }
+
+  // MARK: - Memory Layout
+
+  func test_memoryLayout_takesAtMost120Bytes() {
+    // then: a text node takes at most 120 bytes, since at 128 the compiler checks an optional text node out of line,
+    // which makes each layout of a label, which holds an optional text node, about 100 instructions slower
+    expect(MemoryLayout<TextNode>.stride) <= 120
+  }
+
+  func test_lineBreakMode_rawValueThatDoesntFitInAByte_asserts() throws {
+    // given: an assertion failure handler that records the messages
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: setting a line break mode whose raw value is above a byte's range
+    _ = try TextNode("hi").lineBreakMode(NSLineBreakMode(rawValue: 256).unwrap())
+
+    // then: it asserts, since the node stores the line break mode in a byte
+    expect(assertionMessages) == ["a line break mode's raw value must fit in a byte"]
   }
 
   // MARK: - Helpers

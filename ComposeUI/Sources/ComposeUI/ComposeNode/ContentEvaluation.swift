@@ -31,7 +31,7 @@
 // TODO: can expose this as a public API so third-party node with closure-built content defer the content evaluation
 // until the node is laid out, and share the same content evaluation in layouts and rendering.
 
-/// An object that manages content evaluation.
+/// An object that manages content evaluation, and caches the items that the content's nodes build.
 /// It is used to share the evaluated content between node copies and nested ComposeViews.
 ///
 /// Like layout and rendering, it must be used on the main thread only: the value map and the lazy values are not
@@ -71,6 +71,13 @@ final class ContentEvaluation {
 
   /// The map of the lazy values by the provider's identifier.
   private var values: [ObjectIdentifier: AnyObject] = [:]
+
+  /// The cache of the items that the nodes of the evaluated content build, see `RenderableItemCache`.
+  ///
+  /// The evaluation is shared by the layout and rendering of one content tree, so the cache lives as long as the tree.
+  /// It's a constant instead of made lazily, so that a node laid out again compares its slot's cache with it without
+  /// retaining it.
+  let renderableItemCache = RenderableItemCache()
 
   init() {}
 
