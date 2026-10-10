@@ -47,7 +47,7 @@ public typealias RenderableItem = RenderItem<Renderable>
 
 // MARK: - RenderableUpdateKey
 
-/// The renderable property that a built-in modifier's update block sets.
+/// The renderable property that a built-in modifier's update sets, see `RenderablePropertyUpdate`.
 ///
 /// Of a render item's update blocks with one key, only the last one runs, at its own position. Stacked modifiers of
 /// one property, for example `.opacity(0.3).opacity(1)`, then apply only the outermost value, since applying each value
@@ -66,6 +66,47 @@ enum RenderableUpdateKey: UInt64 {
   case shadow
   case interactive
   case rasterize
+}
+
+// MARK: - RenderablePropertyUpdate
+
+/// A built-in modifier's update of a renderable property, with the value it sets.
+///
+/// A built-in modifier's update is a value instead of a block, so that making the modifier doesn't allocate a context
+/// for a block that captures the value. A value of up to 16 bytes, the size of a block, is stored inline, so that an
+/// update with a value is no larger than one with a block, and a bigger value is boxed, as a block's context would be.
+enum RenderablePropertyUpdate {
+
+  case backgroundColor(ThemedColor)
+  case opacity(Themed<CGFloat>)
+  indirect case border(color: ThemedColor, width: Themed<CGFloat>)
+  case cornerRadius(CGFloat, cornerCurve: CALayerCornerCurve)
+  case masksToBounds(Bool)
+  indirect case shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?)
+  case interactive(Bool)
+  case rasterize(scale: CGFloat?)
+
+  /// The renderable property the update sets.
+  var key: RenderableUpdateKey {
+    switch self {
+    case .backgroundColor:
+      return .backgroundColor
+    case .opacity:
+      return .opacity
+    case .border:
+      return .border
+    case .cornerRadius:
+      return .cornerRadius
+    case .masksToBounds:
+      return .masksToBounds
+    case .shadow:
+      return .shadow
+    case .interactive:
+      return .interactive
+    case .rasterize:
+      return .rasterize
+    }
+  }
 }
 
 // MARK: - RenderItem
@@ -276,26 +317,49 @@ public struct RenderItem<T> {
     storage.performResetForReuse(renderable)
   }
 
-  /// An update block added to a render item, optionally keyed by the renderable property it sets.
+  // MARK: - AdditionalUpdate
+
+  /// A built-in modifier's property update or an update block added to a render item, optionally keyed by the
+  /// renderable property it sets.
   struct AdditionalUpdate {
 
-    /// The update block.
+    /// What an update runs: a built-in modifier's property update, or a block stored with the renderable type it takes.
     ///
-    /// Stored before `key`, so that the key's byte packs after `Block`'s tag byte. The other way around, padding
-    /// makes each node of `AdditionalUpdates` 16 bytes larger.
-    private let block: Block
+    /// A closure that takes a `Renderable` is stored as it is instead of as a `(T, RenderableUpdateContext) -> Void`: a
+    /// closure typed with the generic `T` takes the renderable indirectly, so converting an existing closure to it
+    /// allocates a reabstraction thunk, for example for each `onUpdate` modifier.
+    fileprivate enum Kind {
 
-    /// The renderable property the block sets, see `RenderableUpdateKey`. `nil` for a block that is never replaced.
+      /// A built-in modifier's property update, which only a `RenderableItem` has, see `init(_:)`.
+      case property(RenderablePropertyUpdate)
+
+      /// A block that takes the item's renderable type, see `addUpdate(_:)`.
+      case generic((T, RenderableUpdateContext) -> Void)
+
+      /// A block that takes a `Renderable`, which only a `RenderableItem` has, see `init(key:block:)`.
+      case renderable((Renderable, RenderableUpdateContext) -> Void)
+    }
+
+    /// What the update runs.
+    ///
+    /// Stored before `key`, so that the key's byte packs after `Kind`'s tag byte. The other way around, padding
+    /// makes each node of `AdditionalUpdates` 16 bytes larger.
+    private let kind: Kind
+
+    /// The renderable property the update sets, see `RenderableUpdateKey`. `nil` for an update that is never replaced.
     let key: RenderableUpdateKey?
 
-    fileprivate init(block: Block, key: RenderableUpdateKey?) {
-      self.block = block
+    fileprivate init(kind: Kind, key: RenderableUpdateKey?) {
+      self.kind = kind
       self.key = key
     }
 
-    /// Runs the block.
+    /// Runs the update.
     func perform(_ renderable: T, _ context: RenderableUpdateContext) {
-      switch block {
+      switch kind {
+      case .property(let update):
+        // only `init(_:)` makes a `property` update, and it requires `T` to be `Renderable`, so the cast does nothing
+        update.perform(renderable as! Renderable, context) // swiftlint:disable:this force_cast
       case .generic(let block):
         block(renderable, context)
       case .renderable(let block):
@@ -304,21 +368,9 @@ public struct RenderItem<T> {
         block(renderable as! Renderable, context) // swiftlint:disable:this force_cast
       }
     }
-
-    /// An update block, stored with the renderable type it takes.
-    ///
-    /// A closure that takes a `Renderable` is stored as it is instead of as a `(T, RenderableUpdateContext) -> Void`: a
-    /// closure typed with the generic `T` takes the renderable indirectly, so converting an existing closure to it
-    /// allocates a reabstraction thunk, for example for each `onUpdate` modifier.
-    fileprivate enum Block {
-
-      /// A block that takes the item's renderable type, see `addUpdate(_:)`.
-      case generic((T, RenderableUpdateContext) -> Void)
-
-      /// A block that takes a `Renderable`, which only a `RenderableItem` has, see `init(key:block:)`.
-      case renderable((Renderable, RenderableUpdateContext) -> Void)
-    }
   }
+
+  // MARK: - AdditionalUpdates
 
   /// The update blocks added to a render item, in the order they run.
   ///
@@ -452,22 +504,24 @@ public struct RenderItem<T> {
     }
   }
 
-  /// Where an item's renderable and its lifecycle blocks come from.
-  fileprivate enum Source {
-
-    /// The item's own `make` block, with the item's own lifecycle blocks.
-    case make((RenderableMakeContext) -> T)
-
-    /// The storage of the view or layer item that the item was erased from, which makes the renderable and runs its
-    /// lifecycle blocks, of the kinds in `blocks`, see `eraseToRenderableItem()`. Only a `RenderableItem` has one.
-    case typedItem(any TypedItemStorage, blocks: TypedItemBlocks)
-  }
+  // MARK: - Storage
 
   /// The boxed behavior backing a `RenderItem`. See `storage`.
   ///
   /// Holds everything except `id` and `frame`. Because all fields are immutable, the box can be shared freely across
   /// the copies a render pass makes (containers copy child items to re-position them), so each copy is one retain.
   fileprivate final class Storage {
+
+    /// Where an item's renderable and its lifecycle blocks come from.
+    enum Source {
+
+      /// The item's own `make` block, with the item's own lifecycle blocks.
+      case make((RenderableMakeContext) -> T)
+
+      /// The storage of the view or layer item that the item was erased from, which makes the renderable and runs its
+      /// lifecycle blocks, of the kinds in `blocks`, see `eraseToRenderableItem()`. Only a `RenderableItem` has one.
+      case typedItem(any TypedItemStorage, blocks: TypedItemBlocks)
+    }
 
     /// Where the renderable and the lifecycle blocks come from.
     ///
@@ -492,7 +546,7 @@ public struct RenderItem<T> {
     let animationTiming: AnimationTiming?
     let zIndex: CGFloat?
 
-    init(source: Source,
+    init(source: Storage.Source,
          willInsert: ((T, RenderableInsertContext) -> Void)?,
          didInsert: ((T, RenderableInsertContext) -> Void)?,
          willUpdate: ((T, RenderableUpdateContext) -> Void)?,
@@ -592,6 +646,8 @@ public struct RenderItem<T> {
       renderable as! T // swiftlint:disable:this force_cast
     }
   }
+
+  // MARK: - Init
 
   public init(id: ComposeNodeId,
               frame: CGRect,
@@ -708,7 +764,7 @@ public struct RenderItem<T> {
   /// - Parameter additionalUpdate: The additional update block.
   /// - Returns: The renderable item with the additional update block.
   public func addUpdate(_ additionalUpdate: @escaping (T, RenderableUpdateContext) -> Void) -> Self {
-    with(additionalUpdates: storage.additionalUpdates.adding(AdditionalUpdate(block: .generic(additionalUpdate), key: nil)))
+    with(additionalUpdates: storage.additionalUpdates.adding(AdditionalUpdate(kind: .generic(additionalUpdate), key: nil)))
   }
 
   /// Add additional update blocks to the renderable item, in order.
@@ -901,13 +957,20 @@ public struct RenderItem<T> {
 
 extension RenderItem.AdditionalUpdate where T == Renderable {
 
-  /// Makes a `RenderableItem`'s update block that takes a `Renderable`, which is stored as it is, see `Block`.
+  /// Makes a `RenderableItem`'s update of a built-in modifier's property, keyed by the property.
+  ///
+  /// - Parameter update: The property update.
+  init(_ update: RenderablePropertyUpdate) {
+    self.init(kind: .property(update), key: update.key)
+  }
+
+  /// Makes a `RenderableItem`'s update block that takes a `Renderable`, which is stored as it is, see `Kind`.
   ///
   /// - Parameters:
   ///   - key: The renderable property the block sets, see `RenderableUpdateKey`. `nil` for a block that is never replaced.
   ///   - block: The update block.
   init(key: RenderableUpdateKey?, block: @escaping (Renderable, RenderableUpdateContext) -> Void) {
-    self.init(block: .renderable(block), key: key)
+    self.init(kind: .renderable(block), key: key)
   }
 }
 
@@ -1085,10 +1148,10 @@ private extension RenderItem where T == Renderable {
 
   /// Makes an item that makes the view or layer item's renderables and runs its blocks.
   ///
-  /// The erased item keeps the item's storage and calls it for the item's blocks, see `Source.typedItem`, instead of
-  /// wrapping each block in a closure that casts the renderable to the item's type, which allocates a closure for each
-  /// block. Only the update is wrapped, since the render pass runs it on every update of the renderable, and a call
-  /// through the item's storage runs unspecialized, with a slower cast.
+  /// The erased item keeps the item's storage and calls it for the item's blocks, see `Storage.Source.typedItem`,
+  /// instead of wrapping each block in a closure that casts the renderable to the item's type, which allocates a
+  /// closure for each block. Only the update is wrapped, since the render pass runs it on every update of the
+  /// renderable, and a call through the item's storage runs unspecialized, with a slower cast.
   ///
   /// - Parameter item: The view or layer item to erase.
   init<Item: NSObject>(erasing item: RenderItem<Item>) {
@@ -1121,7 +1184,7 @@ private extension RenderItem where T == Renderable {
 // MARK: - TypedItemStorage
 
 /// The storage of a view or layer item, which a `RenderableItem` erased from the item makes its renderables and runs
-/// its lifecycle blocks through, see `RenderItem.Source.typedItem`.
+/// its lifecycle blocks through, see `RenderItem.Storage.Source.typedItem`.
 private protocol TypedItemStorage: AnyObject {
 
   /// Makes a renderable with the item's `make` block.
@@ -1147,7 +1210,7 @@ private protocol TypedItemStorage: AnyObject {
 }
 
 /// The kinds of lifecycle blocks a view or layer item has, which the item erased from it keeps, so that it calls the
-/// item's storage only for a block the item has, see `RenderItem.Source.typedItem`.
+/// item's storage only for a block the item has, see `RenderItem.Storage.Source.typedItem`.
 private struct TypedItemBlocks: OptionSet {
 
   let rawValue: UInt8
