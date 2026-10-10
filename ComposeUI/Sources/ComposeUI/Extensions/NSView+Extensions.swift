@@ -139,7 +139,9 @@ public extension NSView {
 
   // MARK: - ignoreHitTest
 
-  private static let _ignoreHitTestKey: String = ["ign", "oreH", "it", "T", "est"].joined()
+  // the key is made from an Objective-C string, since Swift copies a short string into a new Objective-C string each
+  // time it passes the string to `setValue(_:forKey:)`, while a string made from one is passed as it is
+  private static let _ignoreHitTestKey: String = ["ign", "oreH", "it", "T", "est"].joined() as NSString as String
 
   /// A boolean flag indicating whether the view should ignore hit testing.
   var ignoreHitTest: Bool {

@@ -333,6 +333,24 @@ class NSView_ExtensionsTests: XCTestCase {
     let hitView2 = view.hitTest(point)
     expect(hitView2) == nil
   }
+
+  func test_ignoreHitTest_doesNotAllocate() {
+    // given: a view whose ignore hit test flag was set and read once
+    let view = NSTextField(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.ignoreHitTest = true
+    _ = view.ignoreHitTest
+
+    // when: setting and reading the flag
+    let allocations = AllocationCounter.count {
+      view.ignoreHitTest = false
+      view.ignoreHitTest = true
+      _ = view.ignoreHitTest
+    }
+
+    // then: neither passes a new copy of the key to Objective-C
+    expect(allocations) == 0
+    expect(view.ignoreHitTest) == true
+  }
 }
 
 private class TestView: NSView {
