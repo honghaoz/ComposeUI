@@ -1383,20 +1383,20 @@ open class ComposeView: BaseScrollView {
 
         if let oldRenderableItem = oldRenderableItemMap[oldId], let oldRenderable = oldRenderableMap[oldId] {
           let oldFrame = oldRenderable.frame
-          oldRenderableItem.willRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
+          oldRenderableItem.performWillRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
 
           let removeTransition = animationDecision.allowsTransitions ? oldRenderableItem.transition?.remove : nil
 
           let removeBlock = {
             oldRenderable.removeFromParent()
-            oldRenderableItem.didRemove?(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
+            oldRenderableItem.performDidRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
 
             // if the item opts into reuse, park the now-detached renderable in the pool so a future insertion of the
             // same kind can reuse it instead of creating a new renderable.
             // the cancel path (re-insertion during a remove transition) does not run this block, so a revived renderable is never pooled.
             if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = self.renderablePool {
               removeTransition?.resetForReuse(renderable: oldRenderable)
-              oldRenderableItem.resetForReuse?(oldRenderable)
+              oldRenderableItem.performResetForReuse(oldRenderable)
 
               // a renderable may have in-flight animations, must clear them here to avoid leaking into the next reuse.
               // animations in sublayers should be cleared by the node's `resetForReuse` block.
@@ -1541,7 +1541,7 @@ open class ComposeView: BaseScrollView {
           animationDecision: animationDecision
         )
 
-        renderableItem.willUpdate?(renderable, renderableUpdateContext)
+        renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
         if zOrderNeedsFullUpdate, renderable.view != nil {
           // only view items need re-stacking: the subview order drives the hit-testing order.
@@ -1600,7 +1600,7 @@ open class ComposeView: BaseScrollView {
           // reuse a pooled renderable of the same kind instead of creating a new one
           renderable = pooledRenderable
         } else {
-          renderable = renderableItem.make(RenderableMakeContext(initialFrame: newFrame, contentView: self))
+          renderable = renderableItem.makeRenderable(RenderableMakeContext(initialFrame: newFrame, contentView: self))
         }
 
         #if DEBUG
@@ -1610,7 +1610,7 @@ open class ComposeView: BaseScrollView {
         renderable.layer.restoreIdentityTransformIfNeeded()
 
         let frameBeforeWillInsert = renderable.frame
-        renderableItem.willInsert?(renderable, RenderableInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame, contentView: self))
+        renderableItem.performWillInsert(renderable, RenderableInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame, contentView: self))
         let frameAfterWillInsert = renderable.frame
 
         let renderableUpdateContext = RenderableUpdateContext(
@@ -1625,7 +1625,7 @@ open class ComposeView: BaseScrollView {
           animationDecision: animationDecision
         )
 
-        renderableItem.willUpdate?(renderable, renderableUpdateContext)
+        renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
         renderable.addToParent(contentContainerView)
         renderable.assertIdentityTransform()
@@ -1654,7 +1654,7 @@ open class ComposeView: BaseScrollView {
             //
             // insert: [-------------------] setting frame to frame1
             // reuse:        [-----]         during the insert transition, the renderable's frame is updated to frame2
-            renderableItem.didInsert?(renderable, renderableInsertContext)
+            renderableItem.performDidInsert(renderable, renderableInsertContext)
 
             #if DEBUG
             self?.debug?.onEvent(.renderDidInsertRenderable(item: renderableItem, renderable: renderable))
@@ -1672,7 +1672,7 @@ open class ComposeView: BaseScrollView {
           )
         } else {
           // no insert transition, just call did insert
-          renderableItem.didInsert?(renderable, renderableInsertContext)
+          renderableItem.performDidInsert(renderable, renderableInsertContext)
 
           #if DEBUG
           debug?.onEvent(.renderDidInsertRenderable(item: renderableItem, renderable: renderable))

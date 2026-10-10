@@ -33,8 +33,7 @@ import CoreGraphics
 /// A per-node cache of a single built `RenderableItem`.
 ///
 /// A node builds its `RenderableItem` once and reuses it across render passes through this cache, avoiding the per-pass
-/// cost of constructing the typed item and erasing it (`eraseToRenderableItem()`), which allocates closures and
-/// instantiates function-type metadata.
+/// cost of constructing the typed item with its blocks and erasing it (`eraseToRenderableItem()`), which allocate.
 ///
 /// The cache holds a single entry, keyed by the id's full configuration and the frame. While scrolling, both are stable
 /// (the node tree and layout are unchanged), so the cached item is returned directly. If the configuration or frame
