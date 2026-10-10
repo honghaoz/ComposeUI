@@ -284,6 +284,37 @@ class HorizontalStackNodeTests: XCTestCase {
     expect(spacers.map(\.size)) == [CGSize(width: 35, height: 0), CGSize(width: 10, height: 0), CGSize(width: 35, height: 40)]
   }
 
+  func test_layout_infiniteFixedWidth() {
+    // given: a test assertion failure handler, since an infinite fixed width is invalid
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: laying out an hstack whose only child has an infinite fixed width
+    var node = HStack {
+      LayerNode().frame(width: .infinity, height: 50)
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the layout finishes and asserts, and the child keeps its width
+    expect(assertionMessages) == ["fixed sizing must have a non-infinite size"]
+    expect(node.size) == CGSize(width: CGFloat.infinity, height: 50)
+
+    // when: laying out an hstack with the child next to a flexible child
+    node = HStack {
+      LayerNode()
+      LayerNode().frame(width: .infinity, height: 50)
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the flexible child gets half of the width, as it does next to another flexible child
+    expect(node.childNodes.map(\.size)) == [CGSize(width: 50, height: 50), CGSize(width: CGFloat.infinity, height: 50)]
+  }
+
   func test_fixedWidth_fixedHeight_alignment() {
     // given: an hstack with top alignment
     do {

@@ -619,4 +619,87 @@ class Layout_StackLayout: XCTestCase {
       expect(result) == [20, 10, 0, 15]
     }
   }
+
+  func test_infiniteFixedNodes() {
+    // given: an infinite fixed size item, which is invalid, so the layout asserts and lays it out as a flexible item
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    let items: [ComposeNodeSizing.Sizing] = [.fixed(.infinity)]
+
+    // when: proposed space is positive
+    do {
+      let result = Layout.stackLayout(space: 100, items: items)
+
+      // then: the item takes the space, and the layout asserts once
+      expect(result) == [100]
+      expect(assertionMessages) == ["fixed sizing must have a non-infinite size"]
+    }
+
+    // when: proposed space is zero
+    do {
+      let result = Layout.stackLayout(space: 0, items: items)
+
+      // then: the item gets zero size
+      expect(result) == [0]
+    }
+
+    // when: proposed space is negative
+    do {
+      let result = Layout.stackLayout(space: -100, items: items)
+
+      // then: the item gets zero size
+      expect(result) == [0]
+    }
+  }
+
+  func test_infiniteFixedNodes_with_otherNodes() {
+    // given: a test assertion failure handler, since an infinite fixed size is invalid
+    ComposeUI.Assert.setTestAssertionFailureHandler { _, _, _, _ in }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the infinite fixed size item is next to a flexible item
+    do {
+      let result = Layout.stackLayout(space: 100, items: [.fixed(.infinity), .flexible])
+
+      // then: the items split the space, as two flexible items do
+      expect(result) == [50, 50]
+    }
+
+    // when: the infinite fixed size item is next to a fixed item and a range item
+    do {
+      let result = Layout.stackLayout(space: 100, items: [.fixed(20), .fixed(.infinity), .range(min: 10, max: 30)])
+
+      // then: the range item grows to its max size, and the infinite fixed size item takes the rest, as a flexible item does
+      // extra space: 70
+      // 70 / 2 = 35, the range item takes 20 of it, so the infinite fixed size item takes 35 + 15
+      expect(result) == [20, 50, 30]
+    }
+
+    // when: proposed space is less than the fixed size + min size
+    do {
+      let result = Layout.stackLayout(space: 20, items: [.fixed(20), .fixed(.infinity), .range(min: 10, max: 30)])
+
+      // then: the range item gets its min size and the infinite fixed size item gets zero size
+      expect(result) == [20, 0, 10]
+    }
+  }
+
+  func test_infiniteSpace() {
+    // given: a flexible item and a range item
+    let items: [ComposeNodeSizing.Sizing] = [.flexible, .range(min: 10, max: 20)]
+
+    // when: proposed space is infinite
+    let result = Layout.stackLayout(space: .infinity, items: items)
+
+    // then: the range item gets its max size and the flexible item takes the infinite space
+    expect(result) == [.infinity, 20]
+  }
 }

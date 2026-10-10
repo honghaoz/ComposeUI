@@ -65,8 +65,9 @@ extension Layout {
     // the total allocated space.
     var allocatedSpace: CGFloat = 0
 
-    // the indices of the expandable items, in temporary memory, since a layout needs them only during this call
-    withUnsafeTemporaryAllocation(of: Int.self, capacity: count) { expandableItemIndices in
+    // the expandable items, each with its index and the maximum size it can grow to, in temporary memory, since a layout
+    // needs them only during this call
+    withUnsafeTemporaryAllocation(of: (index: Int, max: CGFloat).self, capacity: count) { expandableItems in
       var expandableItemCount = 0
 
       // first pass: allocate fixed sizes and minimum sizes for range items
@@ -76,13 +77,14 @@ extension Layout {
         case .fixed(let size):
           allocations[i] = size // always allocate the fixed size
           allocatedSpace += size
-        case .range(let min, _):
+        case .range(let min, let max):
           allocations[i] = min // always allocate the minimum size
           allocatedSpace += min
-          expandableItemIndices.initializeElement(at: expandableItemCount, to: i)
+          expandableItems.initializeElement(at: expandableItemCount, to: (i, max))
           expandableItemCount += 1
         case .flexible:
-          expandableItemIndices.initializeElement(at: expandableItemCount, to: i)
+          // a flexible item has no maximum, so it's kept with an infinite one, which never limits its share of the space
+          expandableItems.initializeElement(at: expandableItemCount, to: (i, .infinity))
           expandableItemCount += 1
         }
       }
@@ -96,38 +98,28 @@ extension Layout {
 
         var i = 0
         while i < expandableItemCount {
-          let index = expandableItemIndices[i]
+          let (index, max) = expandableItems[i]
 
-          switch items[index] {
-          case .range(_, let max):
-            let currentAllocation = allocations[index]
-            let additionalSpace = Swift.min(max - currentAllocation, spacePerItem)
+          let currentAllocation = allocations[index]
+          let additionalSpace = Swift.min(max - currentAllocation, spacePerItem)
 
-            if additionalSpace <= 0 {
-              // this should be impossible
-              // removes the item, moving the last one into its place, as `swapRemove(at:)` does
-              expandableItemIndices[i] = expandableItemIndices[expandableItemCount - 1]
-              expandableItemCount -= 1
-              continue
-            }
+          if additionalSpace <= 0 {
+            // this should be impossible
+            // removes the item, moving the last one into its place, as `swapRemove(at:)` does
+            expandableItems[i] = expandableItems[expandableItemCount - 1]
+            expandableItemCount -= 1
+            continue
+          }
 
-            allocations[index] += additionalSpace
-            remainingSpace -= additionalSpace
+          allocations[index] += additionalSpace
+          remainingSpace -= additionalSpace
 
-            if allocations[index] >= max {
-              // the item is fulfilled
-              // removes the item, moving the last one into its place, as `swapRemove(at:)` does
-              expandableItemIndices[i] = expandableItemIndices[expandableItemCount - 1]
-              expandableItemCount -= 1
-              continue
-            }
-
-          case .flexible:
-            allocations[index] += spacePerItem
-            remainingSpace -= spacePerItem
-
-          case .fixed:
-            break // impossible
+          if allocations[index] >= max {
+            // the item is fulfilled
+            // removes the item, moving the last one into its place, as `swapRemove(at:)` does
+            expandableItems[i] = expandableItems[expandableItemCount - 1]
+            expandableItemCount -= 1
+            continue
           }
 
           i += 1
