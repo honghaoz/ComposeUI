@@ -158,44 +158,46 @@ private struct ModifierNode: ComposeNode {
   }
 
   func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    node.renderableItems(in: visibleBounds)
-      .map { item in
-        var item = item
-        if let willInsert = willInsert {
-          item = item.addWillInsert(willInsert)
-        }
-        if let didInsert = didInsert {
-          item = item.addDidInsert(didInsert)
-        }
-        if let willUpdate = willUpdate {
-          item = item.addWillUpdate(willUpdate)
-        }
-        if !updates.isEmpty {
-          item = item.addUpdates(updates)
-        }
-        if let willRemove = willRemove {
-          item = item.addWillRemove(willRemove)
-        }
-        if let didRemove = didRemove {
-          item = item.addDidRemove(didRemove)
-        }
-        if let reuseId = reuseId {
-          item = item.reuseId(reuseId)
-        }
-        if let resetForReuse = resetForReuse {
-          item = item.addResetForReuse(resetForReuse)
-        }
-        if let transition = transition {
-          item = item.transition(transition)
-        }
-        if let animationTiming = animationTiming {
-          item = item.animation(animationTiming)
-        }
-        if let zIndex = zIndex {
-          item = item.zIndex(zIndex)
-        }
-        return item
+    // the child's items are changed in place, which reuses the array the child made instead of allocating a copy
+    var items = node.renderableItems(in: visibleBounds)
+    for index in items.indices {
+      var item = items[index]
+      if let willInsert = willInsert {
+        item = item.addWillInsert(willInsert)
       }
+      if let didInsert = didInsert {
+        item = item.addDidInsert(didInsert)
+      }
+      if let willUpdate = willUpdate {
+        item = item.addWillUpdate(willUpdate)
+      }
+      if !updates.isEmpty {
+        item = item.addUpdates(updates)
+      }
+      if let willRemove = willRemove {
+        item = item.addWillRemove(willRemove)
+      }
+      if let didRemove = didRemove {
+        item = item.addDidRemove(didRemove)
+      }
+      if let reuseId = reuseId {
+        item = item.reuseId(reuseId)
+      }
+      if let resetForReuse = resetForReuse {
+        item = item.addResetForReuse(resetForReuse)
+      }
+      if let transition = transition {
+        item = item.transition(transition)
+      }
+      if let animationTiming = animationTiming {
+        item = item.animation(animationTiming)
+      }
+      if let zIndex = zIndex {
+        item = item.zIndex(zIndex)
+      }
+      items[index] = item
+    }
+    return items
   }
 }
 

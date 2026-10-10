@@ -190,24 +190,51 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
     let visibleChildRange = layoutCache.visibleChildRange(minPosition: visibleBounds.minX, maxPosition: visibleBounds.maxX)
 
-    var mappedChildItems: [RenderableItem] = []
-    // typically each visible child provides at least one item, so reserving one slot per visible child
-    // avoids the initial growth reallocations without over-allocating for large stacks
-    mappedChildItems.reserveCapacity(visibleChildRange.count)
+    // the visible children's items are collected in temporary memory first, so the stack's items are made in one array
+    // of their exact count, instead of an array that grows when the children give more items than it has room for
+    return withUnsafeTemporaryAllocation(of: [RenderableItem].self, capacity: visibleChildRange.count) { childItems in
+      var itemCount = 0
+      var childWithItems: Int?
+      var childWithItemsCount = 0
+      for i in visibleChildRange {
+        let childOrigin = layoutCache.child(at: i).origin
+        let boundsInChild = visibleBounds.translate(-childOrigin)
+        let items = childNodes[i].renderableItems(in: boundsInChild)
+        if !items.isEmpty {
+          itemCount += items.count
+          childWithItems = i
+          childWithItemsCount += 1
+        }
+        childItems.initializeElement(at: i - visibleChildRange.lowerBound, to: items)
+      }
+      defer {
+        childItems.deinitialize()
+      }
 
-    for i in visibleChildRange {
-      let node = childNodes[i]
-      let childOrigin = layoutCache.child(at: i).origin
-      let boundsInChild = visibleBounds.translate(-childOrigin)
-
-      let childItems = node.renderableItems(in: boundsInChild)
-      for var item in childItems {
-        item.id = id.join(with: item.id, suffix: "\(i)")
-        item.frame = item.frame.translate(childOrigin)
-        mappedChildItems.append(item)
+      if childWithItemsCount == 1, let i = childWithItems {
+        // the only child with items gives its array, swapped out of the temporary memory so it has no other reference
+        // and is changed in place instead of being copied
+        var items: [RenderableItem] = []
+        swap(&items, &childItems[i - visibleChildRange.lowerBound])
+        let childOrigin = layoutCache.child(at: i).origin
+        for index in items.indices {
+          items[index].id = id.join(with: items[index].id, suffix: "\(i)")
+          items[index].frame = items[index].frame.translate(childOrigin)
+        }
+        return items
+      } else {
+        var mappedChildItems: [RenderableItem] = []
+        mappedChildItems.reserveCapacity(itemCount)
+        for i in visibleChildRange {
+          let childOrigin = layoutCache.child(at: i).origin
+          for var item in childItems[i - visibleChildRange.lowerBound] {
+            item.id = id.join(with: item.id, suffix: "\(i)")
+            item.frame = item.frame.translate(childOrigin)
+            mappedChildItems.append(item)
+          }
+        }
+        return mappedChildItems
       }
     }
-
-    return mappedChildItems
   }
 }

@@ -71,29 +71,37 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     // for the child node
     let childItems = node.renderableItems(in: visibleBounds)
 
-    var mappedChildItems: [RenderableItem] = []
-    mappedChildItems.reserveCapacity(childItems.count)
-
-    for var item in childItems {
-      item.id = id.join(with: item.id)
-      mappedChildItems.append(item)
-    }
-
     // for the overlay node
     let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
     let boundsInOverlay = visibleBounds.translate(-overlayFrame.origin)
     let overlayItems = overlayNode.renderableItems(in: boundsInOverlay)
 
-    var mappedOverlayItems: [RenderableItem] = []
-    mappedOverlayItems.reserveCapacity(overlayItems.count)
-
-    for var item in overlayItems {
+    func placeOverlayItem(_ item: inout RenderableItem) {
       item.id = id.join(with: item.id, suffix: "O")
       item.frame = item.frame.translate(overlayFrame.origin)
-      mappedOverlayItems.append(item)
     }
 
-    return mappedChildItems + mappedOverlayItems
+    // the items reuse the child's array, with the overlay's items added to it, or the overlay's array when the child
+    // has no items. `consume` moves the array into the items, so it has no other reference and is changed in place
+    // instead of being copied
+    if childItems.isEmpty {
+      var items = consume overlayItems
+      for index in items.indices {
+        placeOverlayItem(&items[index])
+      }
+      return items
+    } else {
+      var items = consume childItems
+      items.reserveCapacity(items.count + overlayItems.count)
+      for index in items.indices {
+        items[index].id = id.join(with: items[index].id)
+      }
+      for var item in overlayItems {
+        placeOverlayItem(&item)
+        items.append(item)
+      }
+      return items
+    }
   }
 }
 

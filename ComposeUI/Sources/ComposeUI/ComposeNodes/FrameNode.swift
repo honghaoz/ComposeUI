@@ -143,18 +143,13 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
     // convert the bounds from self's coordinates to the child node's coordinates
     let boundsInChild = visibleBounds.translate(-childFrame.origin)
 
-    let childItems = node.renderableItems(in: boundsInChild)
-
-    var mappedChildItems: [RenderableItem] = []
-    mappedChildItems.reserveCapacity(childItems.count)
-
-    for var item in childItems {
-      item.id = id.join(with: item.id)
-      item.frame = item.frame.translate(childFrame.origin) // translate the frame back to the parent node's coordinates
-      mappedChildItems.append(item)
+    // the child's items are changed in place, which reuses the array the child made instead of allocating a copy
+    var items = node.renderableItems(in: boundsInChild)
+    for index in items.indices {
+      items[index].id = id.join(with: items[index].id)
+      items[index].frame = items[index].frame.translate(childFrame.origin) // translate the frame back to the parent node's coordinates
     }
-
-    return mappedChildItems
+    return items
   }
 }
 

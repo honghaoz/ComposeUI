@@ -61,6 +61,35 @@ class UnderlayNodeTests: XCTestCase {
     expect(items[3].id.id) == "UL|UL|UL|C"
   }
 
+  func test_renderableItems_alignedUnderlay() {
+    // given: a laid out node with a smaller underlay aligned to the bottom right
+    var node = ColorNode(.red).underlay(alignment: .bottomRight) {
+      ColorNode(.blue).frame(width: 20, height: 30)
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // when: getting renderable items
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    // then: the underlay's item comes first, at the bottom right corner, and the child's item fills the node
+    expect(items.map(\.frame)) == [CGRect(x: 80, y: 70, width: 20, height: 30), CGRect(x: 0, y: 0, width: 100, height: 100)]
+  }
+
+  func test_renderableItems_underlayWithoutItems() {
+    // given: a laid out node with an underlay of a spacer, which has no items
+    var node = LayerNode().underlay {
+      Spacer()
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // when: getting renderable items
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 50))
+
+    // then: the child's item is the only item, filling the node and with the child's id
+    expect(items.map(\.frame)) == [CGRect(x: 0, y: 0, width: 100, height: 50)]
+    expect(items.map(\.id.id)) == ["UL|L"]
+  }
+
   func test_renderableItemsBoundingRect() {
     // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)

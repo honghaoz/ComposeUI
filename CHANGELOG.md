@@ -70,6 +70,7 @@
 - Laying out text is faster: a text's measured size is looked up without allocating.
 - Refreshing themed content is faster on macOS: the renderables' updates read the view's appearance once per render pass.
 - Starting and retargeting layer animations is faster: the framework passes the key paths it animates to Core Animation without copying them, doesn't store an animation's default speed, and a retarget reads the layer's animations once and keeps them without allocating.
+- Refreshing and scrolling are faster: frames, padding, offsets, overlays, underlays, gesture recognizers and modifiers change their child's render items in place instead of copying them, and stacks collect their children's items in one array of the exact size, or reuse the array of their only child with items.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
