@@ -2008,8 +2008,9 @@ class ModifierNodeTests: XCTestCase {
   }
 
   func test_layerModifiers_resetForReuse_resetsModifiedProperties() {
-    // each built-in layer modifier registers a `resetForReuse` block that resets the property it set back to the
-    // value a freshly made layer would have, so a recycled layer never leaks state into a differently-configured reuse.
+    // an item with a built-in layer modifier has a `resetForReuse` block that resets the property the modifier set
+    // back to the value a freshly made layer would have, so a recycled layer never leaks state into a
+    // differently-configured reuse.
 
     // backgroundColor
     do {
