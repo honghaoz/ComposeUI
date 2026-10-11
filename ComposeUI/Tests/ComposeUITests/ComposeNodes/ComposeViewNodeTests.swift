@@ -747,4 +747,71 @@ class ComposeViewNodeTests: XCTestCase {
     // Clean up assertion handler
     Assert.resetTestAssertionFailureHandler()
   }
+
+  func test_releasedHost_releasesTheNestedContent() {
+    // given: a host that renders a nested compose view, whose content keeps an object
+    weak var weakObject: NSObject?
+    weak var weakHost: ComposeView?
+    autoreleasepool {
+      let object = NSObject()
+      weakObject = object
+      let contentView = ComposeView {
+        ComposeViewNode {
+          LayerNode()
+            .onUpdate { [object] _, _ in _ = object }
+            .frame(width: 10, height: 10)
+        }
+      }
+      weakHost = contentView
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: the host renders, and leaves scope
+      contentView.refresh(animated: false)
+    }
+
+    // then: the host's cached items don't keep the nested content, which keeps the object
+    expect(weakHost).toEventually(beNil())
+    expect(weakObject).toEventually(beNil())
+  }
+
+  func test_releasedHost_releasesANestedViewThatACachedItemKeeps() {
+    // given: a host that renders a nested compose view, and a view node whose cached update block keeps the nested
+    // view, through a box that the nested view's insert block fills
+    weak var weakNestedView: ComposeView?
+    weak var weakHost: ComposeView?
+    var didInsertNestedView = false
+    autoreleasepool {
+      let nestedViewBox = NestedViewBox()
+      let contentView = ComposeView {
+        ComposeViewNode {
+          LayerNode()
+            .frame(width: 10, height: 10)
+        }
+        .onInsert { renderable, _ in
+          nestedViewBox.view = renderable.view as? ComposeView
+          didInsertNestedView = nestedViewBox.view != nil
+        }
+        ViewNode<BaseView>(update: { _, _ in
+          _ = nestedViewBox
+        })
+      }
+      weakHost = contentView
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: the host renders, and leaves scope
+      contentView.refresh(animated: false)
+      weakNestedView = nestedViewBox.view
+    }
+
+    // then: the nested view was inserted, and the host's cached items don't keep it alive with the host's content
+    expect(didInsertNestedView) == true
+    expect(weakHost).toEventually(beNil())
+    expect(weakNestedView).toEventually(beNil())
+  }
+}
+
+/// A box that keeps a nested compose view, which a cached item's block can keep.
+private final class NestedViewBox {
+
+  var view: ComposeView?
 }

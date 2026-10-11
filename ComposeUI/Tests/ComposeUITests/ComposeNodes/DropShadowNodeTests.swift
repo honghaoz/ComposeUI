@@ -793,9 +793,9 @@ class DropShadowNodeTests: XCTestCase {
   }
 
   func test_renderableItems_doesNotRetainNodeThroughItemCache() {
-    // The cached item's `update` closure must not capture `self` (the node): the node holds the item cache, so capturing
-    // `self` would form `itemCache -> cachedItem -> update -> self -> itemCache`, a retain cycle that leaks the node and
-    // everything it captures when the node tree is replaced (refresh / size change).
+    // The cached item's `update` closure must not capture `self` (the node): the node holds its slot in the item cache,
+    // so capturing `self` would form `item cache -> cached item -> update -> self -> slot -> item cache`, a retain cycle
+    // that leaks the node and everything it captures when the node tree is replaced (refresh / size change).
 
     // given: a node whose path closure captures a probe object
     weak var weakProbe: AnyObject?

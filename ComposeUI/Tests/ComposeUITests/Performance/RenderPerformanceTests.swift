@@ -183,13 +183,13 @@ class RenderPerformanceTests: BenchmarkTestCase {
   // MARK: - Renderable Items (node-level, isolates the tree walk + id mapping)
 
   func test_renderableItems_flatRows_10000() {
-    // given: a laid out stack of 10000 flat color rows
-    var node: any ComposeNode = VStack {
+    // given: a laid out stack of 10000 flat color rows, in a content root, which a compose view renders
+    let node = ComposeView.LayoutCacheNode(node: VStack {
       for _ in 0 ..< 10000 {
         ColorNode(.red)
           .frame(width: .flexible, height: Constants.rowHeight)
       }
-    }
+    })
 
     let containerSize = Constants.viewSize
     _ = node.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
@@ -211,12 +211,12 @@ class RenderPerformanceTests: BenchmarkTestCase {
   }
 
   func test_renderableItems_nestedRows_10000() {
-    // given: a laid out stack of 10000 nested rows
-    var node: any ComposeNode = VStack {
+    // given: a laid out stack of 10000 nested rows, in a content root, which a compose view renders
+    let node = ComposeView.LayoutCacheNode(node: VStack {
       for i in 0 ..< 10000 {
         Self.makeNestedRow(i)
       }
-    }
+    })
 
     let containerSize = Constants.viewSize
     _ = node.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
@@ -392,11 +392,13 @@ class RenderPerformanceTests: BenchmarkTestCase {
         Self.makeNestedRow(i)
       }
     }
-    _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    // the passes share the content's evaluation, as a `ComposeView` lays out its content again in a new pass
+    let contentEvaluation = ContentEvaluation()
+    _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: contentEvaluation))
 
     // when: measuring layouts of the same rows, each in a new pass
     let result = measure(warmup: 3, iterations: 30) { _ in
-      _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+      _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: contentEvaluation))
     }
 
     // then: report the timings

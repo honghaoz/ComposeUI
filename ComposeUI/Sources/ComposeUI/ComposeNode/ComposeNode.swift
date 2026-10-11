@@ -69,6 +69,10 @@ public protocol ComposeNode: ComposeContent {
 
   /// Compute the node's layout with the given container size and layout context.
   ///
+  /// A node can be laid out many times between refreshes, such as while its view resizes. Make the node's child nodes
+  /// once and keep them across layouts, instead of making new ones in each layout: each built-in node made in a layout
+  /// keeps its render item until the content is refreshed.
+  ///
   /// - Parameters:
   ///   - containerSize: The proposed container size.
   ///   - context: The layout context.

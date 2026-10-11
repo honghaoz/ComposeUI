@@ -889,7 +889,7 @@ class LabelNodeTests: XCTestCase {
 
   func test_renderableItems_sharedBase_selectableChange_notStale() {
     // LabelNode delegates to an inner TextNode that it recreates when a setter runs (copy.node = nil), so two copies of
-    // a shared base get their own TextNode (and item cache) and a config change is never served a stale cached item.
+    // a shared base get their own TextNode (and item slot) and a config change is never served a stale cached item.
 
     // given: two copies of a shared label base, one made selectable
     let base = LabelNode("hi")

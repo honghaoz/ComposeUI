@@ -57,6 +57,9 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   /// The render state by the most recent layout.
   private var renderState: RenderState?
 
+  /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
+  private var itemSlot = RenderableItemCache.Slot.unassigned
+
   /// Create a static SwiftUI view node.
   ///
   /// A static SwiftUI view node will evaluate the SwiftUI view once and not update it on refresh.
@@ -89,6 +92,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    RenderableItemCache.updateSlot(&itemSlot)
     let content = prepareContent(for: context.contentEvaluation)
 
     switch (isFixedWidth, isFixedHeight) {
@@ -118,11 +122,11 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
       return []
     }
 
-    // capture only content and configuration, since renderState also owns the cache retaining these closures.
+    // capture only content and configuration, instead of `self`, so that the cached item doesn't keep the node.
     let content = renderState.content
     let isStaticContent = isStaticContent
 
-    let item = renderState.itemCache.item(id: id, frame: frame) {
+    let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
       ViewItem<View>(
         id: id,
         frame: frame,
@@ -180,12 +184,5 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
 
     let evaluation: ContentEvaluation
     let content: ContentEvaluation.LazyValue<Content>
-    let itemCache: RenderableItemCache
-
-    init(evaluation: ContentEvaluation, content: ContentEvaluation.LazyValue<Content>) {
-      self.evaluation = evaluation
-      self.content = content
-      self.itemCache = RenderableItemCache()
-    }
   }
 }
