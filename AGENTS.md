@@ -132,6 +132,7 @@ Hard-won rules from past corrections, grouped by theme.
 - Do not recommend a performance optimization from first principles alone. Measure the delta first (a local A/B is often enough), because plausible-sounding savings can be ~0 (for example `-xctestrun` vs `-workspace`/`-scheme` for `test-without-building` in this repo).
 - Anything that can run per frame is a hot path, including animation and update code, not only layout and render.
 - No per-call heap allocations in a hot path: fixed-size data is a value type, not an array, and a chain of collection operations allocates at every step, so use one pass.
+- Build a small array whose elements you have together as an array literal, which allocates it at its size directly, instead of reserving capacity in an empty array and appending to it, which takes the array's general growth path and checks the array's uniqueness and capacity on each append.
 - Read an external collection once per call and do everything that needs it in that pass. Framework accessors often copy on each read.
 - A fast path has to fire in the steady state, not just on the first call. Measure in the state the code itself creates, inside the context it runs in, with a warm-up. Otherwise the harness dominates the numbers.
 - Give the common case an exact shortcut when it is trivially exact, and keep the general path for the rest.

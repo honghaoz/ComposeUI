@@ -70,7 +70,9 @@ public enum ComposeContentBuilder {
   }
 
   // A refresh builds every block again, so a block of up to ten statements has an overload of its own, which builds its
-  // nodes without the array of items that the variadic overload takes.
+  // nodes without the array of items that the variadic overload takes. A block of single nodes, the common case, makes
+  // its array as a literal, which allocates the array at its size directly, instead of growing an empty array's capacity
+  // and appending each node.
 
   /// For a block of one statement.
   public static func buildBlock(_ item: Item<ComposeContent>) -> Item<ComposeContent> {
@@ -81,11 +83,15 @@ public enum ComposeContentBuilder {
   public static func buildBlock(_ item0: Item<ComposeContent>,
                                 _ item1: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(2)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0), let node1 = singleNode(of: item1) {
+      return Item(.nodes([node0, node1]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(2)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For a block of three statements.
@@ -93,12 +99,16 @@ public enum ComposeContentBuilder {
                                 _ item1: Item<ComposeContent>,
                                 _ item2: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(3)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    appendNodes(of: item2, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0), let node1 = singleNode(of: item1), let node2 = singleNode(of: item2) {
+      return Item(.nodes([node0, node1, node2]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(3)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      appendNodes(of: item2, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For a block of four statements.
@@ -107,13 +117,21 @@ public enum ComposeContentBuilder {
                                 _ item2: Item<ComposeContent>,
                                 _ item3: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(4)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    appendNodes(of: item2, to: &nodes)
-    appendNodes(of: item3, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0),
+       let node1 = singleNode(of: item1),
+       let node2 = singleNode(of: item2),
+       let node3 = singleNode(of: item3)
+    {
+      return Item(.nodes([node0, node1, node2, node3]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(4)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      appendNodes(of: item2, to: &nodes)
+      appendNodes(of: item3, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For a block of five statements.
@@ -123,14 +141,23 @@ public enum ComposeContentBuilder {
                                 _ item3: Item<ComposeContent>,
                                 _ item4: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(5)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    appendNodes(of: item2, to: &nodes)
-    appendNodes(of: item3, to: &nodes)
-    appendNodes(of: item4, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0),
+       let node1 = singleNode(of: item1),
+       let node2 = singleNode(of: item2),
+       let node3 = singleNode(of: item3),
+       let node4 = singleNode(of: item4)
+    {
+      return Item(.nodes([node0, node1, node2, node3, node4]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(5)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      appendNodes(of: item2, to: &nodes)
+      appendNodes(of: item3, to: &nodes)
+      appendNodes(of: item4, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For a block of six statements.
@@ -141,15 +168,25 @@ public enum ComposeContentBuilder {
                                 _ item4: Item<ComposeContent>,
                                 _ item5: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(6)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    appendNodes(of: item2, to: &nodes)
-    appendNodes(of: item3, to: &nodes)
-    appendNodes(of: item4, to: &nodes)
-    appendNodes(of: item5, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0),
+       let node1 = singleNode(of: item1),
+       let node2 = singleNode(of: item2),
+       let node3 = singleNode(of: item3),
+       let node4 = singleNode(of: item4),
+       let node5 = singleNode(of: item5)
+    {
+      return Item(.nodes([node0, node1, node2, node3, node4, node5]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(6)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      appendNodes(of: item2, to: &nodes)
+      appendNodes(of: item3, to: &nodes)
+      appendNodes(of: item4, to: &nodes)
+      appendNodes(of: item5, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For a block of seven statements.
@@ -161,16 +198,27 @@ public enum ComposeContentBuilder {
                                 _ item5: Item<ComposeContent>,
                                 _ item6: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(7)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    appendNodes(of: item2, to: &nodes)
-    appendNodes(of: item3, to: &nodes)
-    appendNodes(of: item4, to: &nodes)
-    appendNodes(of: item5, to: &nodes)
-    appendNodes(of: item6, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0),
+       let node1 = singleNode(of: item1),
+       let node2 = singleNode(of: item2),
+       let node3 = singleNode(of: item3),
+       let node4 = singleNode(of: item4),
+       let node5 = singleNode(of: item5),
+       let node6 = singleNode(of: item6)
+    {
+      return Item(.nodes([node0, node1, node2, node3, node4, node5, node6]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(7)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      appendNodes(of: item2, to: &nodes)
+      appendNodes(of: item3, to: &nodes)
+      appendNodes(of: item4, to: &nodes)
+      appendNodes(of: item5, to: &nodes)
+      appendNodes(of: item6, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For a block of eight statements.
@@ -183,17 +231,29 @@ public enum ComposeContentBuilder {
                                 _ item6: Item<ComposeContent>,
                                 _ item7: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(8)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    appendNodes(of: item2, to: &nodes)
-    appendNodes(of: item3, to: &nodes)
-    appendNodes(of: item4, to: &nodes)
-    appendNodes(of: item5, to: &nodes)
-    appendNodes(of: item6, to: &nodes)
-    appendNodes(of: item7, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0),
+       let node1 = singleNode(of: item1),
+       let node2 = singleNode(of: item2),
+       let node3 = singleNode(of: item3),
+       let node4 = singleNode(of: item4),
+       let node5 = singleNode(of: item5),
+       let node6 = singleNode(of: item6),
+       let node7 = singleNode(of: item7)
+    {
+      return Item(.nodes([node0, node1, node2, node3, node4, node5, node6, node7]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(8)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      appendNodes(of: item2, to: &nodes)
+      appendNodes(of: item3, to: &nodes)
+      appendNodes(of: item4, to: &nodes)
+      appendNodes(of: item5, to: &nodes)
+      appendNodes(of: item6, to: &nodes)
+      appendNodes(of: item7, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For a block of nine statements.
@@ -207,18 +267,31 @@ public enum ComposeContentBuilder {
                                 _ item7: Item<ComposeContent>,
                                 _ item8: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(9)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    appendNodes(of: item2, to: &nodes)
-    appendNodes(of: item3, to: &nodes)
-    appendNodes(of: item4, to: &nodes)
-    appendNodes(of: item5, to: &nodes)
-    appendNodes(of: item6, to: &nodes)
-    appendNodes(of: item7, to: &nodes)
-    appendNodes(of: item8, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0),
+       let node1 = singleNode(of: item1),
+       let node2 = singleNode(of: item2),
+       let node3 = singleNode(of: item3),
+       let node4 = singleNode(of: item4),
+       let node5 = singleNode(of: item5),
+       let node6 = singleNode(of: item6),
+       let node7 = singleNode(of: item7),
+       let node8 = singleNode(of: item8)
+    {
+      return Item(.nodes([node0, node1, node2, node3, node4, node5, node6, node7, node8]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(9)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      appendNodes(of: item2, to: &nodes)
+      appendNodes(of: item3, to: &nodes)
+      appendNodes(of: item4, to: &nodes)
+      appendNodes(of: item5, to: &nodes)
+      appendNodes(of: item6, to: &nodes)
+      appendNodes(of: item7, to: &nodes)
+      appendNodes(of: item8, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For a block of ten statements.
@@ -233,19 +306,33 @@ public enum ComposeContentBuilder {
                                 _ item8: Item<ComposeContent>,
                                 _ item9: Item<ComposeContent>) -> Item<ComposeContent>
   {
-    var nodes: [any ComposeNode] = []
-    nodes.reserveCapacity(10)
-    appendNodes(of: item0, to: &nodes)
-    appendNodes(of: item1, to: &nodes)
-    appendNodes(of: item2, to: &nodes)
-    appendNodes(of: item3, to: &nodes)
-    appendNodes(of: item4, to: &nodes)
-    appendNodes(of: item5, to: &nodes)
-    appendNodes(of: item6, to: &nodes)
-    appendNodes(of: item7, to: &nodes)
-    appendNodes(of: item8, to: &nodes)
-    appendNodes(of: item9, to: &nodes)
-    return Item(.nodes(nodes))
+    if let node0 = singleNode(of: item0),
+       let node1 = singleNode(of: item1),
+       let node2 = singleNode(of: item2),
+       let node3 = singleNode(of: item3),
+       let node4 = singleNode(of: item4),
+       let node5 = singleNode(of: item5),
+       let node6 = singleNode(of: item6),
+       let node7 = singleNode(of: item7),
+       let node8 = singleNode(of: item8),
+       let node9 = singleNode(of: item9)
+    {
+      return Item(.nodes([node0, node1, node2, node3, node4, node5, node6, node7, node8, node9]))
+    } else {
+      var nodes: [any ComposeNode] = []
+      nodes.reserveCapacity(10)
+      appendNodes(of: item0, to: &nodes)
+      appendNodes(of: item1, to: &nodes)
+      appendNodes(of: item2, to: &nodes)
+      appendNodes(of: item3, to: &nodes)
+      appendNodes(of: item4, to: &nodes)
+      appendNodes(of: item5, to: &nodes)
+      appendNodes(of: item6, to: &nodes)
+      appendNodes(of: item7, to: &nodes)
+      appendNodes(of: item8, to: &nodes)
+      appendNodes(of: item9, to: &nodes)
+      return Item(.nodes(nodes))
+    }
   }
 
   /// For `if`/`else`/`switch` statements.
@@ -320,6 +407,21 @@ public enum ComposeContentBuilder {
       return nodes
     case .void:
       return []
+    }
+  }
+
+  /// Returns the item's node if the item is a single node, otherwise `nil`.
+  private static func singleNode(of item: Item<ComposeContent>) -> (any ComposeNode)? {
+    switch item.storage {
+    case .node(let node):
+      return node
+    case .array,
+         .optional,
+         .expressionSingle,
+         .expressionArray,
+         .nodes,
+         .void:
+      return nil
     }
   }
 
