@@ -168,7 +168,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   /// Returns the content value for the given content evaluation. It returns the cached content if possible.
   private mutating func prepareContent(for evaluation: ContentEvaluation) -> ContentEvaluation.LazyValue<Content> {
     // Repeated layout proposals reuse the cached content without another dictionary lookup in the evaluation.
-    if let renderState, renderState.evaluation === evaluation {
+    if let renderState, renderState.itemSlot.isIn(evaluation.renderableItemCache) {
       return renderState.content
     }
 
@@ -179,14 +179,16 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
 
   private struct RenderState {
 
-    let evaluation: ContentEvaluation
     let content: ContentEvaluation.LazyValue<Content>
 
     /// The node's slot in the item cache of the evaluation's content.
+    ///
+    /// It also identifies the evaluation, by the cache, which only that evaluation has and which the slot keeps alive,
+    /// instead of keeping the evaluation: the cached items' blocks can keep this node, so an evaluation kept through
+    /// them would never be released, which is when it releases the items.
     let itemSlot: RenderableItemCache.Slot
 
     init(evaluation: ContentEvaluation, content: ContentEvaluation.LazyValue<Content>) {
-      self.evaluation = evaluation
       self.content = content
       self.itemSlot = evaluation.renderableItemCache.makeSlot()
     }

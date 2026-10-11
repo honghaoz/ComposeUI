@@ -656,8 +656,62 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
       contentView.refresh(animated: false)
     }
 
-    // then: the host's cached items don't keep the nested content, whose SwiftUI node keeps the content evaluation
+    // then: the host's cached items don't keep the nested content, which keeps the provider
     expect(weakHost).toEventually(beNil())
     expect(weakProbe).toEventually(beNil())
+  }
+
+  func test_nestedContentInAReferenceTypeNode_releasesProviderWhenHostIsReleased() {
+    // given: a provider retained by a SwiftUI node in a reference-type node, in the content of a nested compose view,
+    // whose captured content shares the node that its layout changes
+    weak var weakProbe: NSObject?
+    weak var weakHost: ComposeView?
+    autoreleasepool {
+      let probe = NSObject()
+      weakProbe = probe
+      let contentView = ComposeView {
+        ComposeViewNode {
+          ReferenceNode(
+            SwiftUIViewNode { [probe] in
+              _ = probe
+              return SwiftUI.Color.red.frame(width: 80, height: 50)
+            }.fixedSize()
+          )
+        }
+      }
+      weakHost = contentView
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: the host renders, and leaves scope
+      contentView.refresh(animated: false)
+    }
+
+    // then: the SwiftUI node doesn't keep the content evaluation, so releasing the evaluation releases its cached items
+    expect(weakHost).toEventually(beNil())
+    expect(weakProbe).toEventually(beNil())
+  }
+}
+
+/// A node that's a class, so that its copies share the child that its layout changes.
+private final class ReferenceNode: ComposeNode {
+
+  private var child: any ComposeNode
+
+  init(_ child: any ComposeNode) {
+    self.child = child
+  }
+
+  var id: ComposeNodeId = .custom("reference")
+
+  var size: CGSize {
+    child.size
+  }
+
+  func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    child.layout(containerSize: containerSize, context: context)
+  }
+
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    child.renderableItems(in: visibleBounds)
   }
 }

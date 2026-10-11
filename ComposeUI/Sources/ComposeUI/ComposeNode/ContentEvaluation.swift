@@ -83,7 +83,8 @@ final class ContentEvaluation {
 
   deinit {
     // a cached item's blocks can keep a node laid out in this content, whose slot keeps the cache, so the items are
-    // released with the evaluation, which the content's owner releases, instead of with the cache, which they keep
+    // released with the evaluation, which only the content's owners keep, instead of with the cache, which they keep.
+    // a node identifies the evaluation by its slot's cache instead of keeping it, which would keep it through the items.
     renderableItemCache.removeAllItems()
   }
 

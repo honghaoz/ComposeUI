@@ -58,6 +58,14 @@ final class RenderableItemCache {
 
     /// The slot's index in the cache's items.
     fileprivate let index: Int
+
+    /// Whether the slot is in the given cache.
+    ///
+    /// - Parameter cache: The cache.
+    /// - Returns: `true` if the slot is in the cache, otherwise `false`.
+    func isIn(_ cache: RenderableItemCache) -> Bool {
+      self.cache === cache
+    }
   }
 
   /// The items of the slots, by the slots' indices, `nil` for a slot whose node hasn't built its item.
