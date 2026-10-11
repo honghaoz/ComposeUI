@@ -37,9 +37,11 @@ import CoreGraphics
 /// cache when it's laid out, see `ComposeNodeLayoutContext.updateRenderableItemSlot(_:)`, and looks up its item in the
 /// slot when it makes its items, see `item(in:id:frame:build:)`.
 ///
-/// The cache is the content evaluation's, so it lives as long as the tree, and the slots of all the tree's nodes share
-/// it, instead of each node allocating a cache when it's made: a refresh rebuilds every node of the content, including
-/// the nodes it never renders.
+/// The cache is the content evaluation's, instead of each node allocating a cache when it's made: a refresh rebuilds
+/// every node of the content, including the nodes it never renders. A slot is a number instead of a reference to the
+/// cache, so the cached items, whose blocks can keep nodes, never keep the cache alive. A node reaches the cache only
+/// while the content's root collects the content's items, see `collectItems(_:)` and `ComposeView.LayoutCacheNode`,
+/// and a node that makes its items at another time, or for another content, builds them without caching them.
 ///
 /// A slot holds a single item, keyed by the id's full configuration and the frame. While scrolling, both are stable
 /// (the node tree and layout are unchanged), so the cached item is returned directly. If the configuration or frame
@@ -51,22 +53,59 @@ import CoreGraphics
 final class RenderableItemCache {
 
   /// A node's place in a cache, which the node takes when it's laid out.
-  struct Slot {
+  struct Slot: Equatable {
 
-    /// The cache that the slot is in.
-    fileprivate let cache: RenderableItemCache
+    /// The slot of a node that isn't laid out, which no cache has.
+    static let unassigned = Slot(rawValue: 0)
+
+    /// The id of the slot's cache in the high bits, and the slot's index in the cache's items in the low bits.
+    fileprivate let rawValue: UInt64
+
+    fileprivate init(rawValue: UInt64) {
+      self.rawValue = rawValue
+    }
+
+    fileprivate init(cacheId: UInt64, index: Int) {
+      self.rawValue = cacheId << Constants.indexBitCount | UInt64(index)
+    }
+
+    /// The id of the slot's cache.
+    fileprivate var cacheId: UInt64 {
+      rawValue >> Constants.indexBitCount
+    }
 
     /// The slot's index in the cache's items.
-    fileprivate let index: Int
+    fileprivate var index: Int {
+      Int(truncatingIfNeeded: rawValue & Constants.maximumIndex)
+    }
 
     /// Whether the slot is in the given cache.
     ///
     /// - Parameter cache: The cache.
     /// - Returns: `true` if the slot is in the cache, otherwise `false`.
     func isIn(_ cache: RenderableItemCache) -> Bool {
-      self.cache === cache
+      cacheId == cache.id
     }
   }
+
+  /// The cache whose content's items are being collected, see `collectItems(_:)`.
+  ///
+  /// It's kept in memory that the cache manages instead of a static variable, every access to which the compiler
+  /// checks at run time, and it doesn't retain the cache, which `collectItems(_:)` keeps alive while it's set.
+  private static let current: UnsafeMutablePointer<Unmanaged<RenderableItemCache>?> = {
+    let pointer = UnsafeMutablePointer<Unmanaged<RenderableItemCache>?>.allocate(capacity: 1)
+    pointer.initialize(to: nil)
+    return pointer
+  }()
+
+  /// The id of the next cache.
+  private static var nextId: UInt64 = 1
+
+  /// The cache's id, which the slots in it have, between 1 and `Constants.maximumId`.
+  ///
+  /// Ids start over after the maximum, so a slot kept from the cache that many caches earlier would match, which a
+  /// process doesn't reach.
+  private let id: UInt64
 
   /// The items of the slots, by the slots' indices, `nil` for a slot whose node hasn't built its item.
   ///
@@ -77,68 +116,85 @@ final class RenderableItemCache {
   private var items: UnsafeMutablePointer<RenderableItem?>?
 
   /// The number of items in `items`, including the `nil` items of slots not taken yet.
-  private(set) var itemCount = 0
+  ///
+  /// It's private, with `itemCountForTesting` for tests, so that the compiler sees every access to it and doesn't check
+  /// the accesses at run time.
+  private var itemCount = 0
 
   /// The number of slots taken.
   private var slotCount = 0
 
-  deinit {
-    removeAllItems()
+  init() {
+    id = Self.nextId
+    Self.nextId = Self.nextId == Constants.maximumId ? 1 : Self.nextId + 1
   }
 
-  /// Releases the cached items, keeping the slots.
-  ///
-  /// The content evaluation calls this when it's released, see `ContentEvaluation`. The items are detached before
-  /// they're released, so that a deinitializer that releasing an item runs finds the cache empty.
-  func removeAllItems() {
-    guard let items else {
-      return
+  deinit {
+    if let items {
+      items.deinitialize(count: itemCount)
+      items.deallocate()
+    }
+  }
+
+  /// Returns a new slot in the cache, or `Slot.unassigned` if the cache has no more indices, for a node that builds its
+  /// item without caching it.
+  func makeSlot() -> Slot {
+    guard UInt64(slotCount) <= Constants.maximumIndex else {
+      return .unassigned
     }
 
-    let count = itemCount
-    self.items = nil
-    itemCount = 0
-    items.deinitialize(count: count)
-    items.deallocate()
-  }
-
-  /// Returns a new slot in the cache.
-  func makeSlot() -> Slot {
-    let slot = Slot(cache: self, index: slotCount)
+    let slot = Slot(cacheId: id, index: slotCount)
     slotCount += 1
     return slot
   }
 
-  /// Replaces the node's slot with a new slot in the cache.
+  /// Makes the cache the one that nodes look up their items in while `body` collects the content's items.
   ///
-  /// It's out of line, so that a node's layout, which calls it only for a node new to the cache, keeps only the check
-  /// of its slot, see `ComposeNodeLayoutContext.updateRenderableItemSlot(_:)`.
+  /// The content's root calls this around its call of the content's `renderableItems(in:)`, see
+  /// `ComposeView.LayoutCacheNode`. It sets the cache back to the one set before, so that a collection within another
+  /// one finds its own cache.
   ///
-  /// - Parameter slot: The node's slot.
-  @inline(never)
-  fileprivate func replace(_ slot: inout Slot?) {
-    slot = makeSlot()
+  /// - Parameter body: Collects the content's items.
+  /// - Returns: What `body` returns.
+  func collectItems<Result>(_ body: () -> Result) -> Result {
+    let previous = Self.current.pointee
+    Self.current.pointee = Unmanaged.passUnretained(self)
+    defer {
+      Self.current.pointee = previous
+    }
+    return withExtendedLifetime(self, body)
   }
 
   /// Returns the item cached in the slot for the given `id` and `frame`, building and caching it on a miss.
   ///
+  /// A node builds its item without caching it when its slot isn't in the cache whose content's items are being
+  /// collected, such as when the node isn't laid out, it renders outside a collection, or its content was replaced.
+  ///
   /// - Parameters:
-  ///   - slot: The node's slot, or `nil` for a node that isn't laid out, which builds its item without caching it.
+  ///   - slot: The node's slot.
   ///   - id: The item's id.
   ///   - frame: The item's frame.
   ///   - build: Builds the item, with the given `id` and `frame`, on a miss. It is non-escaping, so it is not
   ///     heap-allocated on a hit.
   /// - Returns: The cached item on a hit, otherwise a freshly built (and now cached) item.
-  static func item(in slot: Slot?, id: ComposeNodeId, frame: CGRect, build: () -> RenderableItem) -> RenderableItem {
-    guard let slot else {
+  static func item(in slot: Slot, id: ComposeNodeId, frame: CGRect, build: () -> RenderableItem) -> RenderableItem {
+    guard let current = current.pointee else {
       return build()
     }
-    return slot.cache.item(at: slot.index, id: id, frame: frame, build: build)
+    // the cache is used without retaining it, since `collectItems(_:)` keeps it alive
+    return current._withUnsafeGuaranteedRef { cache in
+      cache.item(in: slot, id: id, frame: frame, build: build)
+    }
   }
 
-  private func item(at index: Int, id: ComposeNodeId, frame: CGRect, build: () -> RenderableItem) -> RenderableItem {
+  private func item(in slot: Slot, id: ComposeNodeId, frame: CGRect, build: () -> RenderableItem) -> RenderableItem {
+    guard slot.isIn(self) else {
+      return build()
+    }
+
     // compare the full configuration (id string and isFixed), not `==`: `==` ignores `isFixed`, but the built item's
     // composition in the parent's `join(with:)` depends on it, so a fixed/non-fixed change for the same string must rebuild.
+    let index = slot.index
     if index < itemCount, let item = items.unsafelyUnwrapped[index], item.id.isSameConfiguration(as: id), item.frame == frame {
       return item
     }
@@ -160,9 +216,8 @@ final class RenderableItemCache {
 
   /// Makes `items` hold an item for each slot taken, keeping the cached items.
   ///
-  /// The first items are made for exactly the slots taken. Slots taken after them, such as the slots of each of a tree's
-  /// nested compose views, which lay out their content while the tree renders, at least double the items, so that each
-  /// slot past them doesn't move all the items again.
+  /// The first items are made for exactly the slots taken. Slots taken after them, such as by nodes that a custom node
+  /// makes in its layout, at least double the items, so that each slot past them doesn't move all the items again.
   private func makeItemsForAllSlots() {
     let newItemCount = max(slotCount, itemCount * 2)
     let newItems = UnsafeMutablePointer<RenderableItem?>.allocate(capacity: newItemCount)
@@ -176,6 +231,38 @@ final class RenderableItemCache {
   }
 
   #if DEBUG
+  /// The number of items in `items`, for tests.
+  var itemCountForTesting: Int {
+    itemCount
+  }
+
+  /// The id of the next cache, for tests.
+  static var nextIdForTesting: UInt64 {
+    get {
+      nextId
+    }
+    set {
+      nextId = newValue
+    }
+  }
+
+  /// The largest id of a cache, for tests.
+  static var maximumIdForTesting: UInt64 {
+    Constants.maximumId
+  }
+
+  /// The largest index of a slot, for tests.
+  static var maximumSlotIndexForTesting: Int {
+    Int(Constants.maximumIndex)
+  }
+
+  /// Makes the cache's next slot take the given index, for tests.
+  ///
+  /// - Parameter index: The index of the next slot.
+  func setNextSlotIndexForTesting(_ index: Int) {
+    slotCount = index
+  }
+
   /// Fails the assertion that a built item has the id and frame it's cached for, since the cache finds the item by them.
   ///
   /// The lookup compares them itself and calls this only when they differ, so that the debug builds that the
@@ -185,6 +272,20 @@ final class RenderableItemCache {
     ComposeUI.assertFailure("the built item must have the id and frame it's cached for")
   }
   #endif
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The number of a slot's low bits that hold its index.
+    static let indexBitCount: UInt64 = 24
+
+    /// The largest index of a slot, which also masks a slot's index bits.
+    static let maximumIndex: UInt64 = (1 << indexBitCount) - 1
+
+    /// The largest id of a cache, which fits in a slot's high bits.
+    static let maximumId: UInt64 = (1 << (64 - indexBitCount)) - 1
+  }
 }
 
 extension ComposeNodeLayoutContext {
@@ -195,17 +296,10 @@ extension ComposeNodeLayoutContext {
   /// A node that caches its item calls this when it's laid out, see `RenderableItemCache`.
   ///
   /// - Parameter slot: The node's slot.
-  func updateRenderableItemSlot(_ slot: inout RenderableItemCache.Slot?) {
+  func updateRenderableItemSlot(_ slot: inout RenderableItemCache.Slot) {
     let cache = contentEvaluation.renderableItemCache
-    // the slot is checked in place, so that laying out a node again in its content doesn't copy the slot, which retains
-    // and releases the cache, and it's replaced out of line, so that the retain and release don't make the node's layout
-    // too big to be inlined into its caller's
-    switch slot {
-    case .some(let currentSlot) where currentSlot.cache === cache:
-      return
-    case .some,
-         .none:
-      cache.replace(&slot)
+    if !slot.isIn(cache) {
+      slot = cache.makeSlot()
     }
   }
 }

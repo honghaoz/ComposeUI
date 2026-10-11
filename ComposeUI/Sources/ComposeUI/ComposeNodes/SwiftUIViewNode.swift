@@ -118,8 +118,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
       return []
     }
 
-    // capture only content and configuration, since renderState also holds the item slot, whose cache retains these
-    // closures.
+    // capture only content and configuration, instead of `self`, so that the cached item doesn't keep the node.
     let content = renderState.content
     let isStaticContent = isStaticContent
 
@@ -183,9 +182,8 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
 
     /// The node's slot in the item cache of the evaluation's content.
     ///
-    /// It also identifies the evaluation, by the cache, which only that evaluation has and which the slot keeps alive,
-    /// instead of keeping the evaluation: the cached items' blocks can keep this node, so an evaluation kept through
-    /// them would never be released, which is when it releases the items.
+    /// It also identifies the evaluation, by the cache, which only that evaluation has, instead of keeping the
+    /// evaluation, which owns the cache, whose items' blocks can keep this node.
     let itemSlot: RenderableItemCache.Slot
 
     init(evaluation: ContentEvaluation, content: ContentEvaluation.LazyValue<Content>) {

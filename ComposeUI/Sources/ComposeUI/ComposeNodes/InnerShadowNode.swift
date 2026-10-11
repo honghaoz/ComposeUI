@@ -50,7 +50,7 @@ public struct InnerShadowNode: ComposeNode {
   private let paths: (CGSize) -> InnerShadowPaths
 
   /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
-  private var itemSlot: RenderableItemCache.Slot?
+  private var itemSlot = RenderableItemCache.Slot.unassigned
 
   /// Initialize a themed inner shadow node.
   ///
@@ -126,9 +126,8 @@ public struct InnerShadowNode: ComposeNode {
       return []
     }
 
-    // bind the configuration values locally so the cached `update` closure captures them instead of `self`.
-    // capturing `self` (a struct, captured by value) would copy in `itemSlot`, forming the retain cycle:
-    // item cache -> cached item -> update -> self copy -> itemSlot -> item cache.
+    // bind the configuration values locally so the cached `update` closure keeps them, instead of a copy of `self` and
+    // everything that it keeps.
     let color = color
     let opacity = opacity
     let radius = radius

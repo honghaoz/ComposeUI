@@ -74,19 +74,12 @@ final class ContentEvaluation {
 
   /// The cache of the items that the nodes of the evaluated content build, see `RenderableItemCache`.
   ///
-  /// The evaluation is shared by the layout and rendering of one content tree, so the cache lives as long as the tree.
-  /// It's a constant instead of made lazily, so that a node laid out again compares its slot's cache with it without
-  /// retaining it.
+  /// The evaluation is shared by the layout and rendering of one content tree, so the cache lives as long as the tree,
+  /// with the content's root, which collects the content's items in it. A node must not keep the evaluation or the
+  /// cache, since a cached item's blocks can keep the node.
   let renderableItemCache = RenderableItemCache()
 
   init() {}
-
-  deinit {
-    // a cached item's blocks can keep a node laid out in this content, whose slot keeps the cache, so the items are
-    // released with the evaluation, which only the content's owners keep, instead of with the cache, which they keep.
-    // a node identifies the evaluation by its slot's cache instead of keeping it, which would keep it through the items.
-    renderableItemCache.removeAllItems()
-  }
 
   /// Returns the lazy value for the provider's content.
   ///

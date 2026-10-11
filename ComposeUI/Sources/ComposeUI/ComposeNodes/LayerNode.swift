@@ -49,7 +49,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   private let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
   /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
-  private var itemSlot: RenderableItemCache.Slot?
+  private var itemSlot = RenderableItemCache.Slot.unassigned
 
   /// Make a layer node with an external layer.
   ///

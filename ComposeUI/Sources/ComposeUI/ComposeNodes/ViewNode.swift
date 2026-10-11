@@ -55,7 +55,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   private let didRemove: ((T, RenderableRemoveContext) -> Void)?
 
   /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
-  private var itemSlot: RenderableItemCache.Slot?
+  private var itemSlot = RenderableItemCache.Slot.unassigned
 
   /// Make a view node with an external view.
   ///

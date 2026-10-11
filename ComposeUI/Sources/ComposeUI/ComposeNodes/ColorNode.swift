@@ -44,7 +44,7 @@ public struct ColorNode: ComposeNode {
   private let color: ThemedColor
 
   /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
-  private var itemSlot: RenderableItemCache.Slot?
+  private var itemSlot = RenderableItemCache.Slot.unassigned
 
   /// Initialize a color node with a color.
   ///
@@ -78,9 +78,8 @@ public struct ColorNode: ComposeNode {
       return []
     }
 
-    // bind the color value locally so the cached `update` closure captures it instead of `self`.
-    // capturing `self` (a struct, captured by value) would copy in `itemSlot`, forming the retain cycle:
-    // item cache -> cached item -> update -> self copy -> itemSlot -> item cache.
+    // bind the color value locally so the cached `update` closure keeps it, instead of a copy of `self` and everything
+    // that it keeps.
     let themedColor = color
 
     let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {

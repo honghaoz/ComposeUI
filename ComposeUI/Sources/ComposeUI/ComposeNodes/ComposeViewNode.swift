@@ -96,10 +96,10 @@ public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
   public var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeUI.ComposeNodeLayoutContext) -> ComposeUI.ComposeNodeSizing {
+    // use the content node to do the layout
+    let sizing = node.layout(containerSize: containerSize, context: context)
+
     if viewNode == nil {
-      // the content is captured before it's laid out: the view node's item, which keeps this closure, is in the item
-      // cache of the content that this node is laid out in, which the laid out content's item slots keep, so capturing
-      // the laid out content would make the cache keep itself alive
       viewNode = ViewNode(
         make: {
           ComposeView(frame: $0.initialFrame ?? .zero)
@@ -117,9 +117,6 @@ public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
       )
       viewNode?.id = id
     }
-
-    // use the content node to do the layout
-    let sizing = node.layout(containerSize: containerSize, context: context)
 
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
