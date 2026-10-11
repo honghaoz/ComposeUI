@@ -105,7 +105,12 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
       view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
       return view
     }
-    self.intrinsicSizeProvider = intrinsicSize ?? { _ in view.bounds.size }
+    // `if let` instead of `??`, whose generic operands take a closure through allocated reabstraction thunks
+    if let intrinsicSize {
+      self.intrinsicSizeProvider = intrinsicSize
+    } else {
+      self.intrinsicSizeProvider = { _ in view.bounds.size }
+    }
     self.willInsert = willInsert
     self.didInsert = didInsert
     self.willUpdate = willUpdate
@@ -125,6 +130,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with with frame set to `context.initialFrame` if it's provided.
+  ///     The default, also used for `nil`, makes a `T` with its frame set to `context.initialFrame`.
   ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
   ///     **Important** when using fixed sizing (via `fixedSize(width:height:)`). If `nil`, the node falls back to creating a measurement view via `make` (without `update` configuration),
   ///     which is inefficient and may produce wrong sizes for views whose size depends on configuration applied via `update` (e.g., a label with text).
@@ -134,7 +140,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - update: A closure to update the view.
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
-  public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
+  public init(make: ((_ context: RenderableMakeContext) -> T)? = { ViewNode.makeView($0) },
               intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
@@ -143,20 +149,13 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
               willRemove: ((_ view: T, _ context: RenderableRemoveContext) -> Void)? = nil,
               didRemove: ((_ view: T, _ context: RenderableRemoveContext) -> Void)? = nil)
   {
-    self.make = make ?? { context in
-      let view: T
-      if let initialFrame = context.initialFrame {
-        view = T(frame: initialFrame)
-      } else {
-        view = T()
-      }
-      #if canImport(AppKit)
-      if T.self == View.self {
-        view.wantsLayer = true
-      }
-      #endif
-      view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
-      return view
+    // the default `make` is made at the call site, which an optimized build specializes for `T`, so it captures
+    // nothing, while a closure made here keeps `T` in an allocated context, which only an explicit `nil` pays for.
+    // `make` isn't passed through `??`, whose generic operands take a closure through allocated reabstraction thunks.
+    if let make {
+      self.make = make
+    } else {
+      self.make = { Self.makeView($0) }
     }
     self.intrinsicSizeProvider = intrinsicSize
     self.willInsert = willInsert
@@ -167,6 +166,27 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     self.didRemove = didRemove
     self.isFixedWidth = false
     self.isFixedHeight = false
+  }
+
+  /// Makes a view with its frame set to the context's initial frame, the default `make`.
+  ///
+  /// - Parameter context: The make context.
+  /// - Returns: The new view.
+  @usableFromInline
+  static func makeView(_ context: RenderableMakeContext) -> T {
+    let view: T
+    if let initialFrame = context.initialFrame {
+      view = T(frame: initialFrame)
+    } else {
+      view = T()
+    }
+    #if canImport(AppKit)
+    if T.self == View.self {
+      view.wantsLayer = true
+    }
+    #endif
+    view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
+    return view
   }
 
   // MARK: - IntrinsicSizableComposeNode

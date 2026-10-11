@@ -78,7 +78,12 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
               didRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil)
   {
     self.make = { _ in layer }
-    self.intrinsicSizeProvider = intrinsicSize ?? { _ in layer.bounds.size }
+    // `if let` instead of `??`, whose generic operands take a closure through allocated reabstraction thunks
+    if let intrinsicSize {
+      self.intrinsicSizeProvider = intrinsicSize
+    } else {
+      self.intrinsicSizeProvider = { _ in layer.bounds.size }
+    }
     self.willInsert = willInsert
     self.didInsert = didInsert
     self.willUpdate = willUpdate
@@ -98,6 +103,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - make: A closure to create a layer. To avoid incorrect transition animation, the layer should be created with frame set to `context.initialFrame` if it's provided.
+  ///     The default, also used for `nil`, makes a `T` with its frame set to `context.initialFrame`.
   ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
   ///     Required for fixed sizing (when using `fixedSize(width:height:)`).
   ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy. It must not change the transform, see `Renderable`.
@@ -106,7 +112,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - update: A closure to update the layer.
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
-  public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
+  public init(make: ((_ context: RenderableMakeContext) -> T)? = { LayerNode.makeLayer($0) },
               intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ layer: T, _ context: RenderableInsertContext) -> Void)? = nil,
@@ -115,12 +121,13 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
               willRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil,
               didRemove: ((_ layer: T, _ context: RenderableRemoveContext) -> Void)? = nil)
   {
-    self.make = make ?? { context in
-      let layer = T()
-      if let initialFrame = context.initialFrame {
-        layer.frame = initialFrame
-      }
-      return layer
+    // the default `make` is made at the call site, which an optimized build specializes for `T`, so it captures
+    // nothing, while a closure made here keeps `T` in an allocated context, which only an explicit `nil` pays for.
+    // `make` isn't passed through `??`, whose generic operands take a closure through allocated reabstraction thunks.
+    if let make {
+      self.make = make
+    } else {
+      self.make = { Self.makeLayer($0) }
     }
     self.intrinsicSizeProvider = intrinsicSize
     self.willInsert = willInsert
@@ -131,6 +138,19 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
     self.didRemove = didRemove
     self.isFixedWidth = false
     self.isFixedHeight = false
+  }
+
+  /// Makes a layer with its frame set to the context's initial frame, the default `make`.
+  ///
+  /// - Parameter context: The make context.
+  /// - Returns: The new layer.
+  @usableFromInline
+  static func makeLayer(_ context: RenderableMakeContext) -> T {
+    let layer = T()
+    if let initialFrame = context.initialFrame {
+      layer.frame = initialFrame
+    }
+    return layer
   }
 
   // MARK: - IntrinsicSizableComposeNode
