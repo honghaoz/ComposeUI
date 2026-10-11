@@ -81,6 +81,12 @@ final class ContentEvaluation {
 
   init() {}
 
+  deinit {
+    // a cached item's blocks can keep a node laid out in this content, whose slot keeps the cache, so the items are
+    // released with the evaluation, which the content's owner releases, instead of with the cache, which they keep
+    renderableItemCache.removeAllItems()
+  }
+
   /// Returns the lazy value for the provider's content.
   ///
   /// - Parameter provider: The provider shared by node copies that should use the same content.

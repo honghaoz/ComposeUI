@@ -75,10 +75,23 @@ final class RenderableItemCache {
   private var slotCount = 0
 
   deinit {
-    if let items {
-      items.deinitialize(count: itemCount)
-      items.deallocate()
+    removeAllItems()
+  }
+
+  /// Releases the cached items, keeping the slots.
+  ///
+  /// The content evaluation calls this when it's released, see `ContentEvaluation`. The items are detached before
+  /// they're released, so that a deinitializer that releasing an item runs finds the cache empty.
+  func removeAllItems() {
+    guard let items else {
+      return
     }
+
+    let count = itemCount
+    self.items = nil
+    itemCount = 0
+    items.deinitialize(count: count)
+    items.deallocate()
   }
 
   /// Returns a new slot in the cache.

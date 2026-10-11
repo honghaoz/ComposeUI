@@ -747,4 +747,30 @@ class ComposeViewNodeTests: XCTestCase {
     // Clean up assertion handler
     Assert.resetTestAssertionFailureHandler()
   }
+
+  func test_releasedHost_releasesTheNestedContent() {
+    // given: a host that renders a nested compose view, whose content keeps an object
+    weak var weakObject: NSObject?
+    weak var weakHost: ComposeView?
+    autoreleasepool {
+      let object = NSObject()
+      weakObject = object
+      let contentView = ComposeView {
+        ComposeViewNode {
+          LayerNode()
+            .onUpdate { [object] _, _ in _ = object }
+            .frame(width: 10, height: 10)
+        }
+      }
+      weakHost = contentView
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: the host renders, and leaves scope
+      contentView.refresh(animated: false)
+    }
+
+    // then: the host's cached items don't keep the nested content, which keeps the object
+    expect(weakHost).toEventually(beNil())
+    expect(weakObject).toEventually(beNil())
+  }
 }

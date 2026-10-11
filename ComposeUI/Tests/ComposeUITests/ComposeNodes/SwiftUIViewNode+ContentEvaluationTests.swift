@@ -633,4 +633,31 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
     expect(weakHost).toEventually(beNil())
     expect(weakProbe).toEventually(beNil())
   }
+
+  func test_nestedContent_releasesProviderWhenHostIsReleased() {
+    // given: a provider retained by a SwiftUI node in the content of a nested compose view
+    weak var weakProbe: NSObject?
+    weak var weakHost: ComposeView?
+    autoreleasepool {
+      let probe = NSObject()
+      weakProbe = probe
+      let contentView = ComposeView {
+        ComposeViewNode {
+          SwiftUIViewNode { [probe] in
+            _ = probe
+            return SwiftUI.Color.red.frame(width: 80, height: 50)
+          }.fixedSize()
+        }
+      }
+      weakHost = contentView
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: the host renders, and leaves scope
+      contentView.refresh(animated: false)
+    }
+
+    // then: the host's cached items don't keep the nested content, whose SwiftUI node keeps the content evaluation
+    expect(weakHost).toEventually(beNil())
+    expect(weakProbe).toEventually(beNil())
+  }
 }

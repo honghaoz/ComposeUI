@@ -172,4 +172,33 @@ class ContentEvaluationTests: XCTestCase {
     expect(weakProvider) == nil
     expect(weakValue) == nil
   }
+
+  func test_releasingTheEvaluation_releasesCachedItemsThatKeepTheirSlots() {
+    // given: an item cached in a slot of an evaluation's item cache, whose update block keeps the slot, which keeps the
+    // cache, and an object
+    weak var weakObject: NSObject?
+    weak var weakCache: RenderableItemCache?
+    do {
+      let object = NSObject()
+      weakObject = object
+      let evaluation = ContentEvaluation()
+      weakCache = evaluation.renderableItemCache
+      var slot: RenderableItemCache.Slot?
+      ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: evaluation).updateRenderableItemSlot(&slot)
+      let id = ComposeNodeId.custom("x")
+      let frame = CGRect(x: 0, y: 0, width: 10, height: 10)
+      _ = RenderableItemCache.item(in: slot, id: id, frame: frame) { [slot] in
+        RenderableItem(id: id, frame: frame, make: { _ in .layer(CALayer()) }, update: { _, _ in
+          _ = slot
+          _ = object
+        })
+      }
+
+      // when: the evaluation is released, at the end of the scope
+    }
+
+    // then: the evaluation emptied its cache, which released the item, the slot that the item kept, and the cache
+    expect(weakObject) == nil
+    expect(weakCache) == nil
+  }
 }
