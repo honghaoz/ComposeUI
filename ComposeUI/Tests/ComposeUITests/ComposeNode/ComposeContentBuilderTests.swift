@@ -147,6 +147,119 @@ class ComposeContentBuilderTests: XCTestCase {
     }
   }
 
+  func test_blockOfEachSize_withAStatementThatIsNotANode_keepsTheNodesInOrder() {
+    // given: a true condition, so that an if statement adds its two nodes
+    let condition = true
+
+    // when: building blocks of two to ten statements, whose last statement is an if statement instead of a node
+    let blocks = [
+      Self.nodeIds {
+        Self.node(0)
+        if condition {
+          Self.node(1)
+          Self.node(2)
+        }
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        if condition {
+          Self.node(2)
+          Self.node(3)
+        }
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        if condition {
+          Self.node(3)
+          Self.node(4)
+        }
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        if condition {
+          Self.node(4)
+          Self.node(5)
+        }
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        if condition {
+          Self.node(5)
+          Self.node(6)
+        }
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        if condition {
+          Self.node(6)
+          Self.node(7)
+        }
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        Self.node(6)
+        if condition {
+          Self.node(7)
+          Self.node(8)
+        }
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        Self.node(6)
+        Self.node(7)
+        if condition {
+          Self.node(8)
+          Self.node(9)
+        }
+      },
+      Self.nodeIds {
+        Self.node(0)
+        Self.node(1)
+        Self.node(2)
+        Self.node(3)
+        Self.node(4)
+        Self.node(5)
+        Self.node(6)
+        Self.node(7)
+        Self.node(8)
+        if condition {
+          Self.node(9)
+          Self.node(10)
+        }
+      },
+    ]
+
+    // then: each block keeps its nodes in order, including the two nodes of its if statement
+    expect(blocks) == (2 ... 10).map { count in
+      (0 ... count).map { "\($0)" }
+    }
+  }
+
   func test_emptyBlock_buildsNoNodes() {
     // when: building an empty block
     let ids = Self.nodeIds {}
