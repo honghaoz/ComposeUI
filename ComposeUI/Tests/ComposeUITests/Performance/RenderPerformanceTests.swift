@@ -183,13 +183,13 @@ class RenderPerformanceTests: BenchmarkTestCase {
   // MARK: - Renderable Items (node-level, isolates the tree walk + id mapping)
 
   func test_renderableItems_flatRows_10000() {
-    // given: a laid out stack of 10000 flat color rows
-    var node: any ComposeNode = VStack {
+    // given: a laid out stack of 10000 flat color rows, in a content root, which a compose view renders
+    let node = ComposeView.LayoutCacheNode(node: VStack {
       for _ in 0 ..< 10000 {
         ColorNode(.red)
           .frame(width: .flexible, height: Constants.rowHeight)
       }
-    }
+    })
 
     let containerSize = Constants.viewSize
     _ = node.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
@@ -211,12 +211,12 @@ class RenderPerformanceTests: BenchmarkTestCase {
   }
 
   func test_renderableItems_nestedRows_10000() {
-    // given: a laid out stack of 10000 nested rows
-    var node: any ComposeNode = VStack {
+    // given: a laid out stack of 10000 nested rows, in a content root, which a compose view renders
+    let node = ComposeView.LayoutCacheNode(node: VStack {
       for i in 0 ..< 10000 {
         Self.makeNestedRow(i)
       }
-    }
+    })
 
     let containerSize = Constants.viewSize
     _ = node.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))

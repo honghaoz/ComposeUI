@@ -72,12 +72,12 @@ class ModifierPerformanceTests: BenchmarkTestCase {
 
   func test_renderableItems() {
     for workload in Workload.allCases {
-      // given: a laid out stack of rows, all in the visible bounds
-      var node: any ComposeNode = VStack {
+      // given: a laid out stack of rows, all in the visible bounds, in a content root, which a compose view renders
+      let node = ComposeView.LayoutCacheNode(node: VStack {
         for _ in 0 ..< Constants.rowCount {
           Self.makeRow(workload)
         }
-      }
+      })
       _ = node.layout(containerSize: Constants.allRowsSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
       let visibleBounds = CGRect(origin: .zero, size: node.size)
 
