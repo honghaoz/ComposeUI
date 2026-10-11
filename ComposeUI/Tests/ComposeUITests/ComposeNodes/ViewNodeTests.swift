@@ -449,6 +449,88 @@ class ViewNodeTests: XCTestCase {
     }
   }
 
+  func test_make_default_makesTheViewTypeAtTheInitialFrame() throws {
+    // given: a node of a view subclass with the default view factory
+    let node = ViewNode<ConstraintBasedView>()
+
+    // when: making its view with an initial frame
+    let view = try makeView(of: node, initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4))
+
+    // then: the view is of the node's type, at the initial frame, and lays out by its frame
+    expect(view is ConstraintBasedView) == true
+    expect(view.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
+    expect(view.translatesAutoresizingMaskIntoConstraints) == true
+
+    // when: making its view without an initial frame
+    let viewWithoutInitialFrame = try makeView(of: node, initialFrame: nil)
+
+    // then: the view is of the node's type, at a zero frame, and lays out by its frame
+    expect(viewWithoutInitialFrame is ConstraintBasedView) == true
+    expect(viewWithoutInitialFrame.frame) == .zero
+    expect(viewWithoutInitialFrame.translatesAutoresizingMaskIntoConstraints) == true
+  }
+
+  #if canImport(AppKit)
+  func test_make_default_plainView_isLayerBacked() throws {
+    // given: a node of plain views with the default view factory
+    let node = ViewNode<View>()
+
+    // when: making its view
+    let view = try makeView(of: node, initialFrame: nil)
+
+    // then: the view is layer-backed
+    expect(view.wantsLayer) == true
+
+    // when: making the view of a node of a view subclass with the default view factory
+    let subclassView = try makeView(of: ViewNode<ConstraintBasedView>(), initialFrame: nil)
+
+    // then: the subclass's layer backing is left to the subclass
+    expect(subclassView.wantsLayer) == false
+  }
+  #endif
+
+  func test_make_nil_makesTheDefaultView() throws {
+    // given: a node of a view subclass with a nil view factory
+    let node = ViewNode<ConstraintBasedView>(make: nil)
+
+    // when: making its view with an initial frame
+    let view = try makeView(of: node, initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4))
+
+    // then: the view is the default one, of the node's type at the initial frame
+    expect(view is ConstraintBasedView) == true
+    expect(view.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
+    expect(view.translatesAutoresizingMaskIntoConstraints) == true
+  }
+
+  func test_make_custom_makesTheCustomView() throws {
+    // given: a node with a custom view factory
+    let customView = View()
+    let node = ViewNode(make: { _ in customView })
+
+    // when: making its view
+    let view = try makeView(of: node, initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4))
+
+    // then: the view is the custom one
+    expect(view) === customView
+  }
+
+  func test_init_withAViewFactory_keepsTheFactoryWithoutAllocating() {
+    // given: a view factory and an update, and a body that makes a node with them, run once already, since a first run
+    // can also allocate what the runtime makes on first use, such as type metadata
+    let make: (RenderableMakeContext) -> View = { _ in View() }
+    let update: (View, RenderableUpdateContext) -> Void = { _, _ in }
+    let body = {
+      _ = ViewNode(make: make, update: update)
+    }
+    _ = AllocationCounter.count(body)
+
+    // when: counting the allocations of the body
+    let allocations = AllocationCounter.count(body)
+
+    // then: the node keeps the factory as it is, without wrapping it in a reabstraction thunk
+    expect(allocations) == 0
+  }
+
   func test_view_as_composeContent() {
     // given: a compose view using a plain view as content
     let view = ComposeView {
@@ -636,9 +718,33 @@ class ViewNodeTests: XCTestCase {
     expect(assertionCount) == 1
   }
   #endif
+
+  // MARK: - Helpers
+
+  /// Lays out the node and makes the view of its item.
+  private func makeView(of node: ViewNode<some Any>, initialFrame: CGRect?) throws -> View {
+    var node = node
+    _ = node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let item = try unwrap(node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10)).first)
+    return try unwrap(item.make(RenderableMakeContext(initialFrame: initialFrame, contentView: nil)).view)
+  }
 }
 
 // MARK: - Test Helpers
+
+/// A view that lays out by constraints when it's made, so a test can tell that a factory sets it to lay out by its frame.
+private class ConstraintBasedView: View {
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    translatesAutoresizingMaskIntoConstraints = false
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+}
 
 private class FixedSizeView: BaseView {
 

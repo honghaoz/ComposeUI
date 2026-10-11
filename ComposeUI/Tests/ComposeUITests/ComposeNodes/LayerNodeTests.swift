@@ -282,6 +282,66 @@ class LayerNodeTests: XCTestCase {
     }
   }
 
+  func test_make_default_makesTheLayerTypeAtTheInitialFrame() throws {
+    // given: a node of a layer subclass with the default layer factory
+    let node = LayerNode<CAShapeLayer>()
+
+    // when: making its layer with an initial frame
+    let layer = try makeLayer(of: node, initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4))
+
+    // then: the layer is of the node's type, at the initial frame
+    expect(layer is CAShapeLayer) == true
+    expect(layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
+
+    // when: making its layer without an initial frame
+    let layerWithoutInitialFrame = try makeLayer(of: node, initialFrame: nil)
+
+    // then: the layer is of the node's type, at a zero frame
+    expect(layerWithoutInitialFrame is CAShapeLayer) == true
+    expect(layerWithoutInitialFrame.frame) == .zero
+  }
+
+  func test_make_nil_makesTheDefaultLayer() throws {
+    // given: a node of a layer subclass with a nil layer factory
+    let node = LayerNode<CAShapeLayer>(make: nil)
+
+    // when: making its layer with an initial frame
+    let layer = try makeLayer(of: node, initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4))
+
+    // then: the layer is the default one, of the node's type at the initial frame
+    expect(layer is CAShapeLayer) == true
+    expect(layer.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
+  }
+
+  func test_make_custom_makesTheCustomLayer() throws {
+    // given: a node with a custom layer factory
+    let customLayer = CALayer()
+    let node = LayerNode(make: { _ in customLayer })
+
+    // when: making its layer
+    let layer = try makeLayer(of: node, initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4))
+
+    // then: the layer is the custom one
+    expect(layer) === customLayer
+  }
+
+  func test_init_withALayerFactory_keepsTheFactoryWithoutAllocating() {
+    // given: a layer factory and an update, and a body that makes a node with them, run once already, since a first run
+    // can also allocate what the runtime makes on first use, such as type metadata
+    let make: (RenderableMakeContext) -> CAShapeLayer = { _ in CAShapeLayer() }
+    let update: (CAShapeLayer, RenderableUpdateContext) -> Void = { _, _ in }
+    let body = {
+      _ = LayerNode(make: make, update: update)
+    }
+    _ = AllocationCounter.count(body)
+
+    // when: counting the allocations of the body
+    let allocations = AllocationCounter.count(body)
+
+    // then: the node keeps the factory as it is, without wrapping it in a reabstraction thunk
+    expect(allocations) == 0
+  }
+
   func test_factoryLayer_requiresIntrinsicSizeForFixedSizing() {
     // given: a fixed size layer node with a layer factory and no intrinsic size
     var node = LayerNode()
@@ -468,5 +528,15 @@ class LayerNodeTests: XCTestCase {
     expect(view.contentContainerView.layer.sublayers?.count) == 1
     expect(view.contentContainerView.layer.sublayers?[0].frame) == CGRect(x: 25, y: 25, width: 50, height: 50)
     #endif
+  }
+
+  // MARK: - Helpers
+
+  /// Lays out the node and makes the layer of its item.
+  private func makeLayer(of node: LayerNode<some Any>, initialFrame: CGRect?) throws -> CALayer {
+    var node = node
+    _ = node.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let item = try unwrap(node.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10)).first)
+    return item.make(RenderableMakeContext(initialFrame: initialFrame, contentView: nil)).layer
   }
 }

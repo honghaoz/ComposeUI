@@ -77,6 +77,7 @@
 - Building content with stacked modifiers is faster: a modifier merges with the modifier it wraps without boxing it, and the built-in modifiers reset the properties they set without reset blocks of their own, which stacked modifiers combined into new closures.
 - Building content with built-in modifiers, such as `opacity(_:)` or `backgroundColor(_:)`, is faster: a built-in modifier stores its value instead of a closure that captures it.
 - Refreshing content is faster: the built-in nodes, such as `ColorNode` and `TextNode`, share one render item cache per content, instead of each allocating its own when it's made, including the nodes that are never shown. The cache serves a compose view's render passes, so a node's `renderableItems(in:)` called outside one builds its items each time. Make a custom node's child nodes once and keep them across layouts: each built-in node made in a layout keeps its render item until the content is refreshed.
+- Building a `LayerNode` or `ViewNode` is faster: it keeps its layer or view factory, the default one or one passed in, without allocating.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
