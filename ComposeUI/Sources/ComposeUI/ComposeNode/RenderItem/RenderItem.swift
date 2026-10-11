@@ -361,11 +361,16 @@ public struct RenderItem<T> {
         // only `init(_:)` makes a `property` update, and it requires `T` to be `Renderable`, so the cast does nothing
         update.perform(renderable as! Renderable, context) // swiftlint:disable:this force_cast
       case .generic(let block):
-        block(renderable, context)
+        // a block can change the layer's animations without the framework knowing, see `SharedAnimationReads`
+        SharedAnimationReads.performUnshared {
+          block(renderable, context)
+        }
       case .renderable(let block):
         // only `init(key:block:)` makes a `renderable` block, and it requires `T` to be `Renderable`, so the cast does
         // nothing
-        block(renderable as! Renderable, context) // swiftlint:disable:this force_cast
+        SharedAnimationReads.performUnshared {
+          block(renderable as! Renderable, context) // swiftlint:disable:this force_cast
+        }
       }
     }
   }
@@ -613,7 +618,15 @@ public struct RenderItem<T> {
 
     func performUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
       update(renderable, context)
-      additionalUpdates.forEach { $0.perform(renderable, context) }
+      // only a `RenderableItem` has built-in property updates, which set different properties of the renderable's layer,
+      // so they share one read of the layer's animations instead of each reading them
+      if T.self == Renderable.self, !additionalUpdates.isEmpty {
+        SharedAnimationReads.performUpdates {
+          additionalUpdates.forEach { $0.perform(renderable, context) }
+        }
+      } else {
+        additionalUpdates.forEach { $0.perform(renderable, context) }
+      }
     }
 
     func performWillRemove(_ renderable: T, _ context: RenderableRemoveContext) {

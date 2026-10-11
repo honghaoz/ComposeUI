@@ -223,6 +223,7 @@ public extension CALayer {
     let rawKey = key ?? objectiveCKeyPath
     let animationKey = animation.isAdditive ? uniqueAnimationKey(key: rawKey) : rawKey
     add(animation, forKey: animationKey)
+    SharedAnimationReads.noteAnimationAdded(to: self, keyPath: keyPath)
     #if DEBUG
     WorkCounter.count(.animation)
     #endif
@@ -321,13 +322,21 @@ public extension CALayer {
   /// An animation added without a key isn't included, since `animationKeys()` doesn't list it, and without a key it
   /// can't be looked up.
   ///
+  /// In a render item's updates, the lookup can filter a read of the layer's animations that it shares with the other
+  /// updates' lookups instead of reading them itself, see `SharedAnimationReads`.
+  ///
   /// - Parameter keyPath: The animated key path.
   /// - Returns: The animations in the layer's animation key order, or `nil` when no animation changes the key path.
   internal func animationSequence(forKeyPath keyPath: String) -> KeyPathAnimationSequence? {
-    guard let keys = unbridgedAnimationKeys else {
-      return nil
+    switch SharedAnimationReads.lookUp(self, keyPath: keyPath) {
+    case .shared(let animations):
+      return animations
+    case .live:
+      guard let keys = unbridgedAnimationKeys else {
+        return nil
+      }
+      return KeyPathAnimationSequence(layer: self, keyPath: keyPath, keys: keys)
     }
-    return KeyPathAnimationSequence(layer: self, keyPath: keyPath, keys: keys)
   }
 
   /// The layer's animation keys, or `nil` when it has no animations.
@@ -335,6 +344,9 @@ public extension CALayer {
   /// `animationKeys()` bridges Core Animation's array of keys to a Swift array of strings, which costs more than
   /// looking up the animations, so the keys are read through `AnimationKeysMessage`, which declares the array as it is.
   internal var unbridgedAnimationKeys: AnimationKeys? {
+    #if DEBUG
+    WorkCounter.count(.animationKeysRead)
+    #endif
     let layer: AnyObject = self
     let keys = layer.animationKeyArray?() ?? nil
     return keys.map { AnimationKeys($0) }
@@ -429,19 +441,36 @@ enum KeyPathAnimation {
 /// `CALayer.animationSequence(forKeyPath:)`.
 struct KeyPathAnimationSequence: Sequence, IteratorProtocol {
 
-  private let layer: CALayer
+  /// Where the sequence looks up the animations.
+  private enum Source {
+
+    /// The layer's keys, whose animations the sequence looks up in the layer as it iterates them.
+    case layer(CALayer, AnimationKeys)
+
+    /// The animations of a read that the layer's lookups share, see `SharedAnimationReads`.
+    case shared([SharedAnimationReads.Animation])
+  }
+
+  private let source: Source
   private let keyPath: String
-  private let keys: AnimationKeys
   private var index = 0
 
   /// The first animation, found when the sequence is created, which `next()` returns first.
   private var first: (key: String, animation: KeyPathAnimation)?
 
-  /// Creates the sequence, or returns `nil` when no animation changes the key path.
+  /// Creates the sequence of the layer's animations, or returns `nil` when no animation changes the key path.
   fileprivate init?(layer: CALayer, keyPath: String, keys: AnimationKeys) {
-    self.layer = layer
+    self.init(source: .layer(layer, keys), keyPath: keyPath)
+  }
+
+  /// Creates the sequence of the animations of a shared read, or returns `nil` when no animation changes the key path.
+  init?(sharedAnimations: [SharedAnimationReads.Animation], keyPath: String) {
+    self.init(source: .shared(sharedAnimations), keyPath: keyPath)
+  }
+
+  private init?(source: Source, keyPath: String) {
+    self.source = source
     self.keyPath = keyPath
-    self.keys = keys
     guard let first = lookUpNext() else {
       return nil
     }
@@ -456,24 +485,51 @@ struct KeyPathAnimationSequence: Sequence, IteratorProtocol {
     return lookUpNext()
   }
 
-  /// Looks up the next animation that changes the key path, after the keys looked up so far.
+  /// Looks up the next animation that changes the key path, after the animations looked up so far.
   private mutating func lookUpNext() -> (key: String, animation: KeyPathAnimation)? {
-    while index < keys.endIndex {
-      let key = keys[index]
-      index += 1
-      let animation = layer.animation(forKey: key)
-      if let propertyAnimation = animation as? CAPropertyAnimation, let animatedKeyPath = propertyAnimation.keyPath {
-        if animatedKeyPath == keyPath {
-          return (key, .direct(propertyAnimation))
+    switch source {
+    case .layer(let layer, let keys):
+      while index < keys.endIndex {
+        let key = keys[index]
+        index += 1
+        let animation = layer.animation(forKey: key)
+        let propertyAnimation = animation as? CAPropertyAnimation
+        if let keyPathAnimation = keyPathAnimation(animation, propertyAnimation: propertyAnimation, animatedKeyPath: propertyAnimation?.keyPath) {
+          return (key, keyPathAnimation)
         }
-        if Self.isKeyPath(animatedKeyPath, aComponentOf: keyPath) || Self.isKeyPath(keyPath, aComponentOf: animatedKeyPath) {
-          return (key, .indirect(propertyAnimation))
+      }
+    case .shared(let animations):
+      while index < animations.count {
+        let animation = animations[index]
+        index += 1
+        if let keyPathAnimation = keyPathAnimation(animation.animation, propertyAnimation: animation.propertyAnimation, animatedKeyPath: animation.keyPath) {
+          return (animation.key, keyPathAnimation)
         }
-      } else if let group = animation as? CAAnimationGroup, Self.group(group, changes: keyPath) {
-        return (key, .indirect(group))
       }
     }
     return nil
+  }
+
+  /// How an animation changes what the key path shows, `nil` when it doesn't.
+  ///
+  /// - Parameters:
+  ///   - animation: The animation.
+  ///   - propertyAnimation: The animation as a property animation, `nil` for an animation of another kind.
+  ///   - animatedKeyPath: The property animation's key path.
+  private func keyPathAnimation(_ animation: CAAnimation?, propertyAnimation: CAPropertyAnimation?, animatedKeyPath: String?) -> KeyPathAnimation? {
+    if let propertyAnimation, let animatedKeyPath {
+      if animatedKeyPath == keyPath {
+        return .direct(propertyAnimation)
+      } else if Self.isKeyPath(animatedKeyPath, aComponentOf: keyPath) || Self.isKeyPath(keyPath, aComponentOf: animatedKeyPath) {
+        return .indirect(propertyAnimation)
+      } else {
+        return nil
+      }
+    } else if let group = animation as? CAAnimationGroup, Self.group(group, changes: keyPath) {
+      return .indirect(group)
+    } else {
+      return nil
+    }
   }
 
   /// Whether a group changes what a key path shows, with an animation of the key path, of one of its components, or of
@@ -495,7 +551,7 @@ struct KeyPathAnimationSequence: Sequence, IteratorProtocol {
   ///
   /// The bytes are compared instead of splitting the key path into components by character, since splitting by
   /// character segments grapheme clusters, which costs more than the lookup the check is for.
-  private static func isKeyPath(_ keyPath: String, aComponentOf otherKeyPath: String) -> Bool {
+  static func isKeyPath(_ keyPath: String, aComponentOf otherKeyPath: String) -> Bool {
     let bytes = keyPath.utf8
     let otherBytes = otherKeyPath.utf8
     return bytes.count > otherBytes.count && bytes.starts(with: otherBytes) && bytes.dropFirst(otherBytes.count).first == UInt8(ascii: ".")

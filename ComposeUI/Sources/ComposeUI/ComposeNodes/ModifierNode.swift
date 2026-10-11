@@ -256,6 +256,9 @@ extension RenderablePropertyUpdate {
   // never inlined, so that a bounds change returns from `perform(_:_:)` without this function's register saves
   @inline(never)
   private func setProperty(of renderable: Renderable, _ context: RenderableUpdateContext) {
+    // the item's property updates set different properties of the layer, so they share one read of its animations
+    SharedAnimationReads.startSharing(for: renderable)
+
     switch self {
     case .backgroundColor(let color):
       let layer = renderable.layer
@@ -352,7 +355,10 @@ extension RenderablePropertyUpdate {
         if layer.shadowOffset != offset {
           layer.animate(keyPath: "shadowOffset", to: offset, timing: animationTiming)
         }
-        let path = path?(renderable)
+        // a path provider can change the layer's animations without the framework knowing, see `SharedAnimationReads`
+        let path = SharedAnimationReads.performUnshared {
+          path?(renderable)
+        }
         if layer.shadowPath != path {
           layer.animate(
             keyPath: "shadowPath",
@@ -368,7 +374,11 @@ extension RenderablePropertyUpdate {
         layer.retarget(keyPath: "shadowRadius", to: radius)
         layer.retarget(keyPath: "shadowOffset", to: offset)
 
-        if let path = path?(renderable) {
+        // a path provider can change the layer's animations without the framework knowing, see `SharedAnimationReads`
+        let path = SharedAnimationReads.performUnshared {
+          path?(renderable)
+        }
+        if let path {
           layer.retarget(keyPath: "shadowPath", to: path)
         } else {
           // without a path, the shadow follows the layer's content, so there is no path to continue toward

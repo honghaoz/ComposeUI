@@ -54,6 +54,24 @@ class RenderableTests: XCTestCase {
     expect(renderable.layer) === view.layer()
   }
 
+  func test_view_case_existingLayer_property() {
+    // given: a view-backed renderable of a layer-backed view
+    let view = BaseView(frame: CGRect(x: 10, y: 20, width: 100, height: 200))
+    let renderable = Renderable.view(view)
+
+    // then: the existing layer is the view's layer
+    expect(renderable.existingLayer) === view.layer()
+
+    #if canImport(AppKit)
+    // given: a view-backed renderable of a view that isn't layer-backed
+    let plainView = NSView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    let plainRenderable = Renderable.view(plainView)
+
+    // then: there is no existing layer, without the assertion that the layer property makes
+    expect(plainRenderable.existingLayer) == nil
+    #endif
+  }
+
   func test_view_case_bounds_property() {
     // given: a view-backed renderable
     let view = BaseView(frame: CGRect(x: 10, y: 20, width: 100, height: 200))
@@ -346,6 +364,15 @@ class RenderableTests: XCTestCase {
 
     // then: the layer property returns the layer
     expect(renderable.layer) === layer
+  }
+
+  func test_layer_case_existingLayer_property() {
+    // given: a layer-backed renderable
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+
+    // then: the existing layer is the layer
+    expect(renderable.existingLayer) === layer
   }
 
   func test_layer_case_bounds_property() {

@@ -2238,6 +2238,120 @@ class ModifierNodeTests: XCTestCase {
     }
   }
 
+  func test_layerModifiers_nonAnimatedUpdateOfEveryProperty_readsTheLayersAnimationsTwice() throws {
+    // given: a layer whose built-in properties all animate to new values over a second
+    let baseItem = try styledItem()
+    let layer = CALayer()
+    layer.frame = baseItem.frame
+    refresh(.layer(layer), with: baseItem, animationTiming: nil)
+    try refresh(
+      .layer(layer),
+      with: styledItem(backgroundColor: .yellow, opacity: 0.8, borderColor: .yellow, borderWidth: 5, cornerRadius: 8, shadowColor: .yellow, shadowOpacity: 0.9, shadowRadius: 6, shadowOffset: CGSize(width: 3, height: 4), shadowPathInset: 2),
+      animationTiming: .easeInEaseOut(duration: 1)
+    )
+
+    // when: a non-animated update sets other values of all of them
+    let newItem = try styledItem(backgroundColor: .cyan, opacity: 0.2, borderColor: .cyan, borderWidth: 7, cornerRadius: 12, shadowColor: .cyan, shadowOpacity: 0.6, shadowRadius: 9, shadowOffset: CGSize(width: 5, height: 6), shadowPathInset: 4)
+    let counts = WorkCounter.counting {
+      refresh(.layer(layer), with: newItem, animationTiming: nil)
+    }
+
+    // then: the updates read the layer's animations once before the shadow path provider and once after it, instead of
+    // once for each property, and each property glides to its new value, landing when its animation would have, as when
+    // it's the only one that changes
+    expect(counts.animationKeysReads) == 2
+    let newValues: [(keyPath: String, value: Any)] = [
+      ("backgroundColor", Color.cyan.cgColor),
+      ("opacity", Float(0.2)),
+      ("borderColor", Color.cyan.cgColor),
+      ("borderWidth", CGFloat(7)),
+      ("cornerRadius", CGFloat(12)),
+      ("shadowColor", Color.cyan.cgColor),
+      ("shadowOpacity", Float(0.6)),
+      ("shadowRadius", CGFloat(9)),
+      ("shadowOffset", CGSize(width: 5, height: 6)),
+      ("shadowPath", CGPath(rect: baseItem.frame.insetBy(dx: 4, dy: 4), transform: nil)),
+    ]
+    expect(Set(layer.animationKeys() ?? [])) == Set(newValues.map(\.keyPath))
+    for (keyPath, value) in newValues {
+      expect((layer.value(forKeyPath: keyPath) as AnyObject).isEqual(value), keyPath) == true
+      let glide = try (layer.animation(forKey: keyPath) as? CABasicAnimation).unwrap()
+      expect(glide.timingFunction, keyPath) == CAMediaTimingFunction(name: .easeOut)
+      expect(glide.duration, keyPath) == 1
+    }
+  }
+
+  func test_layerModifiers_nonAnimatedUpdate_animationAddedByAnUpdateBlock_isRetargeted() throws {
+    // given: a layer whose node sets its background color, runs an update block, which can add a corner radius
+    // animation, and sets its corner radius
+    func item(backgroundColor: Color, cornerRadius: CGFloat, blockAddsAnimation: Bool) throws -> RenderableItem {
+      try firstRenderableItem(
+        of: LayerNode()
+          .backgroundColor(backgroundColor)
+          .onUpdate { renderable, _ in
+            guard blockAddsAnimation else {
+              return
+            }
+            let animation = CABasicAnimation(keyPath: "cornerRadius")
+            animation.fromValue = 0
+            animation.toValue = 20
+            animation.duration = 1
+            animation.beginTime = renderable.layer.currentTime
+            renderable.layer.add(animation, forKey: "block-radius")
+          }
+          .cornerRadius(cornerRadius)
+      ).unwrap()
+    }
+    let baseItem = try item(backgroundColor: .red, cornerRadius: 4, blockAddsAnimation: false)
+    let layer = CALayer()
+    layer.frame = baseItem.frame
+    refresh(.layer(layer), with: baseItem, animationTiming: nil)
+
+    // when: a non-animated update changes both properties, and the block adds its animation between their updates
+    try refresh(.layer(layer), with: item(backgroundColor: .yellow, cornerRadius: 12, blockAddsAnimation: true), animationTiming: nil)
+
+    // then: the corner radius's update finds the block's animation, though the background color's update read the
+    // layer's animations before the block added it, and replaces it with a glide to the new corner radius
+    expect(layer.backgroundColor) == Color.yellow.cgColor
+    expect(layer.cornerRadius) == 12
+    expect(layer.animation(forKey: "block-radius")) == nil
+    let glide = try (layer.animation(forKey: "cornerRadius") as? CABasicAnimation).unwrap()
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+  }
+
+  func test_shadow_nonAnimatedUpdate_animationAddedByThePathProvider_isRetargeted() throws {
+    // given: a layer whose shadow has a path provider, which can add a shadow path animation
+    func item(color: Color, inset: CGFloat, providerAddsAnimation: Bool) throws -> RenderableItem {
+      try firstRenderableItem(of: LayerNode().shadow(color: color, opacity: 0.3, radius: 3, offset: .zero, path: { renderable in
+        if providerAddsAnimation {
+          let animation = CABasicAnimation(keyPath: "shadowPath")
+          animation.fromValue = CGPath(rect: .zero, transform: nil)
+          animation.toValue = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 10), transform: nil)
+          animation.duration = 1
+          animation.beginTime = renderable.layer.currentTime
+          renderable.layer.add(animation, forKey: "provider-path")
+        }
+        return CGPath(rect: renderable.layer.bounds.insetBy(dx: inset, dy: inset), transform: nil)
+      })).unwrap()
+    }
+    let baseItem = try item(color: .red, inset: 2, providerAddsAnimation: false)
+    let layer = CALayer()
+    layer.frame = baseItem.frame
+    refresh(.layer(layer), with: baseItem, animationTiming: nil)
+
+    // when: a non-animated update changes the shadow's color and path, and the provider adds its animation between
+    // their updates
+    try refresh(.layer(layer), with: item(color: .yellow, inset: 4, providerAddsAnimation: true), animationTiming: nil)
+
+    // then: the path's update finds the provider's animation, though the color's update read the layer's animations
+    // before the provider added it, and replaces it with a glide to the new path
+    expect(layer.shadowColor) == Color.yellow.cgColor
+    expect(layer.shadowPath) == CGPath(rect: baseItem.frame.insetBy(dx: 4, dy: 4), transform: nil)
+    expect(layer.animation(forKey: "provider-path")) == nil
+    let glide = try (layer.animation(forKey: "shadowPath") as? CABasicAnimation).unwrap()
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+  }
+
   func test_shadow_nonAnimatedUpdate_withoutPath_removesTheInFlightPathAnimation() throws {
     // given: a layer whose shadow path animates to an inset path
     let layer = CALayer()

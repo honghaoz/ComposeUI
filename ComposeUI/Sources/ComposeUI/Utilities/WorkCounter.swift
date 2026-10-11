@@ -53,6 +53,9 @@ enum WorkCounter {
     /// An animation added to a layer.
     case animation
 
+    /// A read of a layer's animation keys, which Core Animation copies into a new array.
+    case animationKeysRead
+
     /// A step of solving a cubic bezier timing function for the progress at a fraction.
     case bezierSolverStep
   }
@@ -78,6 +81,8 @@ enum WorkCounter {
       counts.textMeasurements += amount
     case .animation:
       counts.animations += amount
+    case .animationKeysRead:
+      counts.animationKeysReads += amount
     case .bezierSolverStep:
       counts.bezierSolverSteps += amount
     }
@@ -92,6 +97,9 @@ enum WorkCounter {
     /// The animations added to layers.
     fileprivate(set) var animations = 0
 
+    /// The reads of layers' animation keys.
+    fileprivate(set) var animationKeysReads = 0
+
     /// The steps taken to solve cubic bezier timing functions.
     fileprivate(set) var bezierSolverSteps = 0
 
@@ -100,6 +108,7 @@ enum WorkCounter {
       var sum = self
       sum.textMeasurements += other.textMeasurements
       sum.animations += other.animations
+      sum.animationKeysReads += other.animationKeysReads
       sum.bezierSolverSteps += other.bezierSolverSteps
       return sum
     }

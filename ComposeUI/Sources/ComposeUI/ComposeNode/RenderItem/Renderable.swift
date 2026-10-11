@@ -68,6 +68,16 @@ public enum Renderable {
     }
   }
 
+  /// The layer of the renderable, `nil` for a view that isn't layer-backed, which `layer` asserts on.
+  var existingLayer: CALayer? {
+    switch self {
+    case .view(let view):
+      return view.layer
+    case .layer(let layer):
+      return layer
+    }
+  }
+
   /// The bounds of the renderable.
   public var bounds: CGRect {
     switch self {
