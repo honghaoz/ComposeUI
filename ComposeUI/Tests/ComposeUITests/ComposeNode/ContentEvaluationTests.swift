@@ -172,38 +172,4 @@ class ContentEvaluationTests: XCTestCase {
     expect(weakProvider) == nil
     expect(weakValue) == nil
   }
-
-  func test_releasingTheEvaluation_releasesCachedItemsThatKeepALaidOutNode() {
-    // given: an item cached in an evaluation's item cache, whose update block keeps a node laid out in the content,
-    // which has a slot in the cache, and an object
-    weak var weakObject: NSObject?
-    weak var weakCache: RenderableItemCache?
-    do {
-      let object = NSObject()
-      weakObject = object
-      let evaluation = ContentEvaluation()
-      weakCache = evaluation.renderableItemCache
-      let context = ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: evaluation)
-      var node = ColorNode(.red)
-      node.layout(containerSize: CGSize(width: 10, height: 10), context: context)
-      var slot = RenderableItemCache.Slot.unassigned
-      context.updateRenderableItemSlot(&slot)
-      let id = ComposeNodeId.custom("x")
-      let frame = CGRect(x: 0, y: 0, width: 10, height: 10)
-      _ = evaluation.renderableItemCache.collectItems {
-        RenderableItemCache.item(in: slot, id: id, frame: frame) { [node] in
-          RenderableItem(id: id, frame: frame, make: { _ in .layer(CALayer()) }, update: { _, _ in
-            _ = node
-            _ = object
-          })
-        }
-      }
-
-      // when: the evaluation is released, at the end of the scope
-    }
-
-    // then: the cache went away with the evaluation, its only owner, and so did the item and what the item kept
-    expect(weakObject) == nil
-    expect(weakCache) == nil
-  }
 }

@@ -57,6 +57,9 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   /// The render state by the most recent layout.
   private var renderState: RenderState?
 
+  /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
+  private var itemSlot = RenderableItemCache.Slot.unassigned
+
   /// Create a static SwiftUI view node.
   ///
   /// A static SwiftUI view node will evaluate the SwiftUI view once and not update it on refresh.
@@ -89,6 +92,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    RenderableItemCache.updateSlot(&itemSlot)
     let content = prepareContent(for: context.contentEvaluation)
 
     switch (isFixedWidth, isFixedHeight) {
@@ -122,7 +126,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
     let content = renderState.content
     let isStaticContent = isStaticContent
 
-    let item = RenderableItemCache.item(in: renderState.itemSlot, id: id, frame: frame) {
+    let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
       ViewItem<View>(
         id: id,
         frame: frame,
@@ -167,7 +171,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
   /// Returns the content value for the given content evaluation. It returns the cached content if possible.
   private mutating func prepareContent(for evaluation: ContentEvaluation) -> ContentEvaluation.LazyValue<Content> {
     // Repeated layout proposals reuse the cached content without another dictionary lookup in the evaluation.
-    if let renderState, renderState.itemSlot.isIn(evaluation.renderableItemCache) {
+    if let renderState, renderState.evaluation === evaluation {
       return renderState.content
     }
 
@@ -178,17 +182,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
 
   private struct RenderState {
 
+    let evaluation: ContentEvaluation
     let content: ContentEvaluation.LazyValue<Content>
-
-    /// The node's slot in the item cache of the evaluation's content.
-    ///
-    /// It also identifies the evaluation, by the cache, which only that evaluation has, instead of keeping the
-    /// evaluation, which owns the cache, whose items' blocks can keep this node.
-    let itemSlot: RenderableItemCache.Slot
-
-    init(evaluation: ContentEvaluation, content: ContentEvaluation.LazyValue<Content>) {
-      self.content = content
-      self.itemSlot = evaluation.renderableItemCache.makeSlot()
-    }
   }
 }

@@ -131,8 +131,8 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(cachedNode.size) == CGSize(width: 50, height: 50)
   }
 
-  func test_renderableItems_afterLayout_cachesTheItemsInTheContentsCache() {
-    // given: a root wrapping a node that caches its item, laid out in a content
+  func test_renderableItems_afterLayout_cachesTheItems() {
+    // given: a root wrapping a laid out node that caches its item
     let buildCount = CachingNode.Counter()
     let root = ComposeView.LayoutCacheNode(node: CachingNode(buildCount: buildCount))
     _ = root.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
@@ -141,7 +141,7 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     _ = root.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10))
     _ = root.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10))
 
-    // then: the node builds its item once, which the content's cache keeps
+    // then: the node builds its item once, which the root's cache keeps
     expect(buildCount.value) == 1
   }
 
@@ -158,22 +158,22 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(buildCount.value) == 2
   }
 
-  func test_layout_skippedInAnotherContent_keepsTheCacheOfTheSlots() {
-    // given: a root laid out in a content, whose node's item is cached
-    let buildCount = CachingNode.Counter()
-    let root = ComposeView.LayoutCacheNode(node: CachingNode(buildCount: buildCount))
-    let containerSize = CGSize(width: 10, height: 10)
-    _ = root.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
-    _ = root.renderableItems(in: CGRect(origin: .zero, size: containerSize))
+  func test_releasingTheRoot_releasesCachedItemsThatKeepALaidOutNode() {
+    // given: a root whose cache keeps an item whose update block keeps a node laid out in the content, which has a slot
+    // in the cache, and an object
+    weak var weakObject: NSObject?
+    do {
+      let object = NSObject()
+      weakObject = object
+      let root = ComposeView.LayoutCacheNode(node: KeepingNode(object: object))
+      _ = root.layout(containerSize: CGSize(width: 10, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 2))
+      _ = root.renderableItems(in: CGRect(x: 0, y: 0, width: 10, height: 10))
 
-    // when: laying the root out again in another content with the same inputs, which skips the node's layout, and
-    // making its items
-    _ = root.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
-    _ = root.renderableItems(in: CGRect(origin: .zero, size: containerSize))
+      // when: the root is released, at the end of the scope
+    }
 
-    // then: the root collects the items in the first content's cache, which has the node's slot, so the item stays
-    // cached
-    expect(buildCount.value) == 1
+    // then: the root's cache went away with it, and so did the item and what the item kept
+    expect(weakObject) == nil
   }
 
   func test_renderableItemsBoundingRect() {
@@ -240,7 +240,7 @@ private struct CachingNode: ComposeNode {
   private(set) var size: CGSize = .zero
 
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    context.updateRenderableItemSlot(&itemSlot)
+    RenderableItemCache.updateSlot(&itemSlot)
     size = containerSize
     return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
   }
@@ -252,6 +252,43 @@ private struct CachingNode: ComposeNode {
     let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
       buildCount.value += 1
       return RenderableItem(id: id, frame: frame, make: { _ in .layer(CALayer()) }, update: { _, _ in })
+    }
+    return [item]
+  }
+}
+
+/// A node that caches its item, whose update block keeps the node's laid out child and an object.
+private struct KeepingNode: ComposeNode {
+
+  private var child = ColorNode(.red)
+  private let object: AnyObject
+  private var itemSlot = RenderableItemCache.Slot.unassigned
+
+  init(object: AnyObject) {
+    self.object = object
+  }
+
+  var id: ComposeNodeId = .custom("keeping")
+
+  private(set) var size: CGSize = .zero
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    RenderableItemCache.updateSlot(&itemSlot)
+    _ = child.layout(containerSize: containerSize, context: context)
+    size = containerSize
+    return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+  }
+
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    let id = id
+    let frame = CGRect(origin: .zero, size: size)
+    let child = child
+    let object = object
+    let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
+      RenderableItem(id: id, frame: frame, make: { _ in .layer(CALayer()) }, update: { _, _ in
+        _ = child
+        _ = object
+      })
     }
     return [item]
   }

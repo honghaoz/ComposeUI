@@ -34,14 +34,15 @@ import CoreGraphics
 ///
 /// A node reuses its item across the tree's render passes through the cache, avoiding the per-pass cost of constructing
 /// the typed item with its blocks and erasing it (`eraseToRenderableItem()`), which allocate. A node takes a slot in the
-/// cache when it's laid out, see `ComposeNodeLayoutContext.updateRenderableItemSlot(_:)`, and looks up its item in the
-/// slot when it makes its items, see `item(in:id:frame:build:)`.
+/// cache when it's laid out, see `updateSlot(_:)`, and looks up its item in the slot when it makes its items, see
+/// `item(in:id:frame:build:)`.
 ///
-/// The cache is the content evaluation's, instead of each node allocating a cache when it's made: a refresh rebuilds
-/// every node of the content, including the nodes it never renders. A slot is a number instead of a reference to the
-/// cache, so the cached items, whose blocks can keep nodes, never keep the cache alive. A node reaches the cache only
-/// while the content's root collects the content's items, see `collectItems(_:)` and `ComposeView.LayoutCacheNode`,
-/// and a node that makes its items at another time, or for another content, builds them without caching them.
+/// The cache is the content root's, `ComposeView.LayoutCacheNode`, which is its only owner, instead of each node
+/// allocating a cache when it's made: a refresh rebuilds every node of the content, including the nodes it never
+/// renders. A slot is a number instead of a reference to the cache, so the cached items, whose blocks can keep nodes,
+/// never keep the cache alive. A node reaches the cache only while the root lays out the content or collects its items,
+/// see `performAsCurrent(_:)`, and a node laid out or making its items at another time, or for another content, doesn't
+/// cache its item.
 ///
 /// A slot holds a single item, keyed by the id's full configuration and the frame. While scrolling, both are stable
 /// (the node tree and layout are unchanged), so the cached item is returned directly. If the configuration or frame
@@ -88,10 +89,10 @@ final class RenderableItemCache {
     }
   }
 
-  /// The cache whose content's items are being collected, see `collectItems(_:)`.
+  /// The cache whose content is being laid out or whose items are being collected, see `performAsCurrent(_:)`.
   ///
   /// It's kept in memory that the cache manages instead of a static variable, every access to which the compiler
-  /// checks at run time, and it doesn't retain the cache, which `collectItems(_:)` keeps alive while it's set.
+  /// checks at run time, and it doesn't retain the cache, which `performAsCurrent(_:)` keeps alive while it's set.
   private static let current: UnsafeMutablePointer<Unmanaged<RenderableItemCache>?> = {
     let pointer = UnsafeMutablePointer<Unmanaged<RenderableItemCache>?>.allocate(capacity: 1)
     pointer.initialize(to: nil)
@@ -148,15 +149,15 @@ final class RenderableItemCache {
     return slot
   }
 
-  /// Makes the cache the one that nodes look up their items in while `body` collects the content's items.
+  /// Makes the cache the one that nodes take their slots in and look up their items in while `body` runs.
   ///
-  /// The content's root calls this around its call of the content's `renderableItems(in:)`, see
-  /// `ComposeView.LayoutCacheNode`. It sets the cache back to the one set before, so that a collection within another
-  /// one finds its own cache.
+  /// The content's root calls this around its calls of the content's `layout(containerSize:context:)` and
+  /// `renderableItems(in:)`, see `ComposeView.LayoutCacheNode`. It sets the cache back to the one set before, so that a
+  /// root's call within another root's finds its own cache.
   ///
-  /// - Parameter body: Collects the content's items.
+  /// - Parameter body: Lays out the content or collects its items.
   /// - Returns: What `body` returns.
-  func collectItems<Result>(_ body: () -> Result) -> Result {
+  func performAsCurrent<Result>(_ body: () -> Result) -> Result {
     let previous = Self.current.pointee
     Self.current.pointee = Unmanaged.passUnretained(self)
     defer {
@@ -165,10 +166,28 @@ final class RenderableItemCache {
     return withExtendedLifetime(self, body)
   }
 
+  /// Keeps the node's slot if it's in the current cache, otherwise replaces it with a new slot in the current cache.
+  ///
+  /// A node that caches its item calls this when it's laid out. A node laid out where no cache is current, outside a
+  /// content root's layout, keeps its slot.
+  ///
+  /// - Parameter slot: The node's slot.
+  static func updateSlot(_ slot: inout Slot) {
+    guard let current = current.pointee else {
+      return
+    }
+    // the cache is used without retaining it, since `performAsCurrent(_:)` keeps it alive
+    current._withUnsafeGuaranteedRef { cache in
+      if !slot.isIn(cache) {
+        slot = cache.makeSlot()
+      }
+    }
+  }
+
   /// Returns the item cached in the slot for the given `id` and `frame`, building and caching it on a miss.
   ///
-  /// A node builds its item without caching it when its slot isn't in the cache whose content's items are being
-  /// collected, such as when the node isn't laid out, it renders outside a collection, or its content was replaced.
+  /// A node builds its item without caching it when its slot isn't in the current cache, such as when the node isn't
+  /// laid out, it makes its items where no cache is current, or its content was replaced.
   ///
   /// - Parameters:
   ///   - slot: The node's slot.
@@ -181,7 +200,7 @@ final class RenderableItemCache {
     guard let current = current.pointee else {
       return build()
     }
-    // the cache is used without retaining it, since `collectItems(_:)` keeps it alive
+    // the cache is used without retaining it, since `performAsCurrent(_:)` keeps it alive
     return current._withUnsafeGuaranteedRef { cache in
       cache.item(in: slot, id: id, frame: frame, build: build)
     }
@@ -285,21 +304,5 @@ final class RenderableItemCache {
 
     /// The largest id of a cache, which fits in a slot's high bits.
     static let maximumId: UInt64 = (1 << (64 - indexBitCount)) - 1
-  }
-}
-
-extension ComposeNodeLayoutContext {
-
-  /// Keeps the node's slot if it's in the item cache of the content that the context lays out, otherwise replaces it
-  /// with a new slot in the cache.
-  ///
-  /// A node that caches its item calls this when it's laid out, see `RenderableItemCache`.
-  ///
-  /// - Parameter slot: The node's slot.
-  func updateRenderableItemSlot(_ slot: inout RenderableItemCache.Slot) {
-    let cache = contentEvaluation.renderableItemCache
-    if !slot.isIn(cache) {
-      slot = cache.makeSlot()
-    }
   }
 }

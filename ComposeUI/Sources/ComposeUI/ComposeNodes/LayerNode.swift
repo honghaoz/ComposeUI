@@ -154,7 +154,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    context.updateRenderableItemSlot(&itemSlot)
+    RenderableItemCache.updateSlot(&itemSlot)
 
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):

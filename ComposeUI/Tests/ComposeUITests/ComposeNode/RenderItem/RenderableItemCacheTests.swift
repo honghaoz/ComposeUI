@@ -38,15 +38,15 @@ class RenderableItemCacheTests: XCTestCase {
     RenderableItem(id: id, frame: frame, make: { _ in .view(BaseView(frame: .zero)) }, update: { _, _ in })
   }
 
-  /// Returns the item for the slot while the cache's items are collected, as a node's `renderableItems(in:)` does in a
-  /// render pass.
+  /// Returns the item for the slot while the cache is current, as a node's `renderableItems(in:)` does when a content root
+  /// collects the items.
   private func item(in slot: RenderableItemCache.Slot,
                     of cache: RenderableItemCache,
                     id: ComposeNodeId,
                     frame: CGRect,
                     build: () -> RenderableItem) -> RenderableItem
   {
-    cache.collectItems {
+    cache.performAsCurrent {
       RenderableItemCache.item(in: slot, id: id, frame: frame, build: build)
     }
   }
@@ -293,8 +293,8 @@ class RenderableItemCacheTests: XCTestCase {
     expect(buildCount) == 2
   }
 
-  func test_item_outsideACollection_buildsWithoutCaching() {
-    // given: a slot whose item is cached while the cache's items are collected
+  func test_item_withoutACurrentCache_buildsWithoutCaching() {
+    // given: a slot whose item is cached while the cache is current
     let cache = RenderableItemCache()
     let slot = cache.makeSlot()
     let id = ComposeNodeId.custom("x")
@@ -306,7 +306,7 @@ class RenderableItemCacheTests: XCTestCase {
     }
     _ = item(in: slot, of: cache, id: id, frame: frame, build: build)
 
-    // when: requesting the item outside a collection, as a node rendered outside a render pass does
+    // when: requesting the item where no cache is current, as a node rendered outside a content root does
     _ = RenderableItemCache.item(in: slot, id: id, frame: frame, build: build)
 
     // then: the request builds the item, since it can't reach the cache
@@ -314,7 +314,7 @@ class RenderableItemCacheTests: XCTestCase {
   }
 
   func test_item_slotOfAnotherCache_buildsWithoutCaching() {
-    // given: a slot in one cache, and another cache whose items are collected
+    // given: a slot in one cache, and another cache
     let cache = RenderableItemCache()
     let slot = cache.makeSlot()
     let otherCache = RenderableItemCache()
@@ -326,8 +326,8 @@ class RenderableItemCacheTests: XCTestCase {
       return makeItem(id: id, frame: frame)
     }
 
-    // when: requesting the slot's item twice while the other cache's items are collected, as a node of a replaced
-    // content rendered in a new content's pass does
+    // when: requesting the slot's item twice while the other cache is current, as a node of a replaced content rendered
+    // in a new content's pass does
     _ = item(in: slot, of: otherCache, id: id, frame: frame, build: build)
     _ = item(in: slot, of: otherCache, id: id, frame: frame, build: build)
 
@@ -336,8 +336,8 @@ class RenderableItemCacheTests: XCTestCase {
     expect(otherCache.itemCountForTesting) == 0
   }
 
-  func test_collectItems_withinAnotherCollection_restoresTheOuterCache() {
-    // given: a slot in a cache whose items are collected, and another cache
+  func test_performAsCurrent_withinAnother_restoresTheOuterCache() {
+    // given: a slot in a cache, and another cache
     let cache = RenderableItemCache()
     let slot = cache.makeSlot()
     let otherCache = RenderableItemCache()
@@ -349,14 +349,14 @@ class RenderableItemCacheTests: XCTestCase {
       return makeItem(id: id, frame: frame)
     }
 
-    // when: the other cache's items are collected within the cache's collection, which then requests the item twice
-    cache.collectItems {
-      otherCache.collectItems {}
+    // when: the other cache is made current while the cache is current, which then requests the item twice
+    cache.performAsCurrent {
+      otherCache.performAsCurrent {}
       _ = RenderableItemCache.item(in: slot, id: id, frame: frame, build: build)
       _ = RenderableItemCache.item(in: slot, id: id, frame: frame, build: build)
     }
 
-    // then: the outer collection finds its own cache again, so the second request is a hit
+    // then: the cache is current again, so the second request is a hit
     expect(buildCount) == 1
   }
 
@@ -383,13 +383,38 @@ class RenderableItemCacheTests: XCTestCase {
     expect(builtItem.frame) == CGRect(x: 0, y: 0, width: 20, height: 20)
   }
 
-  // MARK: - Layout Context
+  func test_item_builtWithAnotherId_asserts() {
+    // given: an assertion failure handler that records the messages
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+    let cache = RenderableItemCache()
+    let slot = cache.makeSlot()
+    let frame = CGRect(x: 0, y: 0, width: 10, height: 10)
 
-  func test_updateRenderableItemSlot_slotInTheContentsCache_keepsTheSlot() {
-    // given: a node's slot taken with a context, whose item is cached
-    let evaluation = ContentEvaluation()
+    // when: a build closure returns an item with an id other than the requested one, at the requested frame
+    let builtItem = item(in: slot, of: cache, id: .custom("x"), frame: frame) {
+      makeItem(id: .custom("y"), frame: frame)
+    }
+
+    // then: it asserts, since the item couldn't be found by its request, and the built item is returned
+    expect(assertionMessages) == ["the built item must have the id and frame it's cached for"]
+    expect(builtItem.id.id) == "y"
+  }
+
+  // MARK: - Slot Updates
+
+  func test_updateSlot_slotInTheCurrentCache_keepsTheSlot() {
+    // given: a node's slot taken while a cache is current, whose item is cached
+    let cache = RenderableItemCache()
     var slot = RenderableItemCache.Slot.unassigned
-    ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: evaluation).updateRenderableItemSlot(&slot)
+    cache.performAsCurrent {
+      RenderableItemCache.updateSlot(&slot)
+    }
     let id = ComposeNodeId.custom("x")
     let frame = CGRect(x: 0, y: 0, width: 10, height: 10)
     var buildCount = 0
@@ -397,21 +422,25 @@ class RenderableItemCacheTests: XCTestCase {
       buildCount += 1
       return makeItem(id: id, frame: frame)
     }
-    _ = item(in: slot, of: evaluation.renderableItemCache, id: id, frame: frame, build: build)
+    _ = item(in: slot, of: cache, id: id, frame: frame, build: build)
 
-    // when: updating the slot with another context of the same content, as laying out the node again in a new pass does
-    ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: evaluation).updateRenderableItemSlot(&slot)
-    _ = item(in: slot, of: evaluation.renderableItemCache, id: id, frame: frame, build: build)
+    // when: updating the slot while the cache is current again, as laying the node out again in its content does
+    cache.performAsCurrent {
+      RenderableItemCache.updateSlot(&slot)
+    }
+    _ = item(in: slot, of: cache, id: id, frame: frame, build: build)
 
     // then: the slot is kept, so its cached item is returned
     expect(buildCount) == 1
   }
 
-  func test_updateRenderableItemSlot_slotInAnotherCache_takesASlotInTheContentsCache() {
-    // given: a node's slot taken with a context of one content, whose item is cached
-    let firstContext = ComposeNodeLayoutContext(scaleFactor: 2)
+  func test_updateSlot_slotInAnotherCache_takesASlotInTheCurrentCache() {
+    // given: a node's slot taken while one cache is current, whose item is cached
+    let firstCache = RenderableItemCache()
     var slot = RenderableItemCache.Slot.unassigned
-    firstContext.updateRenderableItemSlot(&slot)
+    firstCache.performAsCurrent {
+      RenderableItemCache.updateSlot(&slot)
+    }
     let id = ComposeNodeId.custom("x")
     let frame = CGRect(x: 0, y: 0, width: 10, height: 10)
     var buildCount = 0
@@ -419,17 +448,36 @@ class RenderableItemCacheTests: XCTestCase {
       buildCount += 1
       return makeItem(id: id, frame: frame)
     }
-    _ = item(in: slot, of: firstContext.contentEvaluation.renderableItemCache, id: id, frame: frame, build: build)
+    _ = item(in: slot, of: firstCache, id: id, frame: frame, build: build)
 
-    // when: updating the slot with a context of another content, as laying out a copy of the node in it does
-    let evaluation = ContentEvaluation()
-    ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: evaluation).updateRenderableItemSlot(&slot)
-    _ = item(in: slot, of: evaluation.renderableItemCache, id: id, frame: frame, build: build)
+    // when: updating the slot while another cache is current, as laying out a copy of the node in another content does
+    let cache = RenderableItemCache()
+    cache.performAsCurrent {
+      RenderableItemCache.updateSlot(&slot)
+    }
+    _ = item(in: slot, of: cache, id: id, frame: frame, build: build)
 
-    // then: the node takes a new slot in the other content's cache, which builds its own item and keeps it
+    // then: the node takes a new slot in the current cache, which builds its own item and keeps it
     expect(buildCount) == 2
-    ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: evaluation).updateRenderableItemSlot(&slot)
-    _ = item(in: slot, of: evaluation.renderableItemCache, id: id, frame: frame, build: build)
+    expect(slot.isIn(cache)) == true
+    _ = item(in: slot, of: cache, id: id, frame: frame, build: build)
     expect(buildCount) == 2
+  }
+
+  func test_updateSlot_withoutACurrentCache_keepsTheSlot() {
+    // given: a node's slot taken while a cache is current
+    let cache = RenderableItemCache()
+    var slot = RenderableItemCache.Slot.unassigned
+    cache.performAsCurrent {
+      RenderableItemCache.updateSlot(&slot)
+    }
+    let takenSlot = slot
+
+    // when: updating the slot where no cache is current, as laying the node out outside a content root does
+    RenderableItemCache.updateSlot(&slot)
+
+    // then: the node keeps its slot, so that it still finds its item when it renders in its content
+    expect(slot) == takenSlot
+    expect(slot.isIn(cache)) == true
   }
 }

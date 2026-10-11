@@ -33,8 +33,7 @@ import Foundation
 extension ComposeView {
 
   /// The root wrapper of a content tree that skips the layout when the layout inputs are unchanged, so that a scroll
-  /// pass doesn't lay out the content again, and collects the content's items in the item cache of the content that
-  /// it's laid out in.
+  /// pass doesn't lay out the content again, and caches the items of the content's nodes.
   ///
   /// This is a reference type, so a `ComposeView` must create one root per content tree and never place it inside the
   /// content: copies of a content tree would share it and overwrite each other's layout.
@@ -46,10 +45,12 @@ extension ComposeView {
     /// The cached layout result of the wrapped node, keyed by the layout inputs.
     private var cachedLayout: (containerSize: CGSize, scaleFactor: CGFloat, sizing: ComposeNodeSizing)?
 
-    /// The item cache of the content that the wrapped node was last laid out in, which has the slots of its nodes.
+    /// The cache of the items that the content's nodes build, which the root makes current while it lays out the content
+    /// and collects its items.
     ///
-    /// The root keeps it, instead of the content's nodes, since no cached item can reach the root.
-    private var itemCache: RenderableItemCache?
+    /// The root owns it, instead of the content evaluation, which a nested compose view also keeps: an item cached here
+    /// can keep the nested view, which would keep the cache alive through the evaluation.
+    private let itemCache = RenderableItemCache()
 
     /// Creates a root wrapper around the content node.
     ///
@@ -77,20 +78,17 @@ extension ComposeView {
       if let cachedLayout, cachedLayout.containerSize == containerSize, cachedLayout.scaleFactor == context.scaleFactor {
         return cachedLayout.sizing
       } else {
-        let sizing = node.layout(containerSize: containerSize, context: context)
+        let sizing = itemCache.performAsCurrent {
+          node.layout(containerSize: containerSize, context: context)
+        }
         cachedLayout = (containerSize, context.scaleFactor, sizing)
-        itemCache = context.contentEvaluation.renderableItemCache
         return sizing
       }
     }
 
     func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-      if let itemCache {
-        return itemCache.collectItems {
-          node.renderableItems(in: visibleBounds)
-        }
-      } else {
-        return node.renderableItems(in: visibleBounds)
+      itemCache.performAsCurrent {
+        node.renderableItems(in: visibleBounds)
       }
     }
   }

@@ -686,7 +686,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
       contentView.refresh(animated: false)
     }
 
-    // then: the SwiftUI node doesn't keep the content evaluation, so releasing the evaluation releases its cached items
+    // then: the host's cached items don't keep the nested content alive, though the captured content shares the node
     expect(weakHost).toEventually(beNil())
     expect(weakProbe).toEventually(beNil())
   }

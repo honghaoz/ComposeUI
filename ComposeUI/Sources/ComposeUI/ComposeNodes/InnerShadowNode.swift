@@ -115,7 +115,7 @@ public struct InnerShadowNode: ComposeNode {
   public private(set) var size: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    context.updateRenderableItemSlot(&itemSlot)
+    RenderableItemCache.updateSlot(&itemSlot)
     size = containerSize
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
