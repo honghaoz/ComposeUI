@@ -189,6 +189,39 @@ class RenderableItemCacheTests: XCTestCase {
     expect(items.map(\.id.id)) == ["first", "second", "third"]
   }
 
+  func test_item_slotsTakenAfterTheFirstBuild_growTheItemsGeometrically() {
+    // given: a cache with three slots taken
+    let cache = RenderableItemCache()
+    let id = ComposeNodeId.custom("x")
+    let frame = CGRect(x: 0, y: 0, width: 10, height: 10)
+    let firstSlot = cache.makeSlot()
+    _ = cache.makeSlot()
+    _ = cache.makeSlot()
+
+    // when: the first slot builds its item
+    _ = RenderableItemCache.item(in: firstSlot, id: id, frame: frame) { makeItem(id: id, frame: frame) }
+
+    // then: the cache makes items for exactly the slots taken
+    expect(cache.itemCount) == 3
+
+    // when: slots are taken one at a time, as by each of a tree's nested compose views, and each builds its item
+    var itemCounts: [Int] = []
+    for _ in 0 ..< 6 {
+      _ = RenderableItemCache.item(in: cache.makeSlot(), id: id, frame: frame) { makeItem(id: id, frame: frame) }
+      itemCounts.append(cache.itemCount)
+    }
+
+    // then: a slot past the items doubles them, instead of growing them to the number of slots, and the first slot's
+    // item stays cached
+    expect(itemCounts) == [6, 6, 6, 12, 12, 12]
+    var rebuilt = false
+    _ = RenderableItemCache.item(in: firstSlot, id: id, frame: frame) {
+      rebuilt = true
+      return makeItem(id: id, frame: frame)
+    }
+    expect(rebuilt) == false
+  }
+
   func test_item_withoutASlot_buildsEachTime() {
     // given: no slot, as for a node that isn't laid out
     let id = ComposeNodeId.custom("x")

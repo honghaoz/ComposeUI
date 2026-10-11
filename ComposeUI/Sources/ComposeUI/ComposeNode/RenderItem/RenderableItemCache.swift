@@ -76,8 +76,8 @@ final class RenderableItemCache {
   /// deinitializer could reach the cache again, so the compiler would check every access to the array at run time.
   private var items: UnsafeMutablePointer<RenderableItem?>?
 
-  /// The number of items in `items`.
-  private var itemCount = 0
+  /// The number of items in `items`, including the `nil` items of slots not taken yet.
+  private(set) var itemCount = 0
 
   /// The number of slots taken.
   private var slotCount = 0
@@ -159,15 +159,20 @@ final class RenderableItemCache {
   }
 
   /// Makes `items` hold an item for each slot taken, keeping the cached items.
+  ///
+  /// The first items are made for exactly the slots taken. Slots taken after them, such as the slots of each of a tree's
+  /// nested compose views, which lay out their content while the tree renders, at least double the items, so that each
+  /// slot past them doesn't move all the items again.
   private func makeItemsForAllSlots() {
-    let newItems = UnsafeMutablePointer<RenderableItem?>.allocate(capacity: slotCount)
+    let newItemCount = max(slotCount, itemCount * 2)
+    let newItems = UnsafeMutablePointer<RenderableItem?>.allocate(capacity: newItemCount)
     if let items {
       newItems.moveInitialize(from: items, count: itemCount)
       items.deallocate()
     }
-    (newItems + itemCount).initialize(repeating: nil, count: slotCount - itemCount)
+    (newItems + itemCount).initialize(repeating: nil, count: newItemCount - itemCount)
     items = newItems
-    itemCount = slotCount
+    itemCount = newItemCount
   }
 
   #if DEBUG
