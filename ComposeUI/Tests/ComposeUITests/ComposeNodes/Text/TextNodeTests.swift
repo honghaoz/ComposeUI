@@ -763,8 +763,8 @@ class TextNodeTests: XCTestCase {
     expect(MemoryLayout<TextNode>.stride) <= 120
   }
 
-  func test_lineBreakMode_rawValueThatDoesntFitInAByte_asserts() throws {
-    // given: an assertion failure handler that records the messages
+  func test_lineBreakMode_rawValueThatDoesntFitInAByte_assertsAndKeepsTheMode() throws {
+    // given: an assertion failure handler that records the messages, and a text node that truncates its tail
     var assertionMessages: [String] = []
     Assert.setTestAssertionFailureHandler { message, _, _, _ in
       assertionMessages.append(message)
@@ -772,12 +772,31 @@ class TextNodeTests: XCTestCase {
     defer {
       Assert.resetTestAssertionFailureHandler()
     }
+    let node = TextNode("hi").lineBreakMode(.byTruncatingTail)
 
     // when: setting a line break mode whose raw value is above a byte's range
-    _ = try TextNode("hi").lineBreakMode(NSLineBreakMode(rawValue: 256).unwrap())
+    var copy = try node.lineBreakMode(NSLineBreakMode(rawValue: 256).unwrap())
 
-    // then: it asserts, since the node stores the line break mode in a byte
+    // then: it asserts, since the node stores the line break mode in a byte, and the copy keeps truncating its tail
     expect(assertionMessages) == ["a line break mode's raw value must fit in a byte"]
+
+    let containerSize = CGSize(width: 100, height: 100)
+    _ = copy.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let item = try copy.renderableItems(in: CGRect(origin: .zero, size: containerSize)).first.unwrap()
+    let contentView = ComposeView()
+    let renderable = item.make(RenderableMakeContext(initialFrame: nil, contentView: contentView))
+    item.update(renderable, RenderableUpdateContext(
+      updateType: .insert,
+      oldFrame: .zero,
+      newFrame: item.frame,
+      previousRenderBounds: nil,
+      renderBounds: CGRect(origin: .zero, size: containerSize),
+      animationTiming: nil,
+      contentView: contentView,
+      contentEvaluation: nil,
+      animationDecision: ComposeView.AnimationDecision.disabled
+    ))
+    expect((renderable.view as? BaseTextView)?.lineBreakMode) == .byTruncatingTail
   }
 
   // MARK: - Helpers

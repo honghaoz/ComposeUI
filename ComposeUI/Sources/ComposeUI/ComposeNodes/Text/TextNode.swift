@@ -60,8 +60,11 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       NSLineBreakMode(rawValue: numericCast(lineBreakModeRawValue))! // swiftlint:disable:this force_unwrapping
     }
     set {
-      ComposeUI.assert(newValue.rawValue <= UInt8.max, "a line break mode's raw value must fit in a byte")
-      lineBreakModeRawValue = UInt8(truncatingIfNeeded: newValue.rawValue)
+      guard let rawValue = UInt8(exactly: newValue.rawValue) else {
+        ComposeUI.assertFailure("a line break mode's raw value must fit in a byte")
+        return
+      }
+      lineBreakModeRawValue = rawValue
     }
   }
 
