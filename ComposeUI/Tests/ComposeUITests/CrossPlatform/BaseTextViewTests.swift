@@ -411,6 +411,72 @@ class BaseTextViewTests: XCTestCase {
     expect(textStorage.string) == "مرحبا بالعالم"
     expect(style()?.baseWritingDirection ?? .natural) == .natural
   }
+
+  func test_attributedString_equalTextAfterAnEditableChange_showsTheTextForTheNewSetting() throws {
+    let text = Self.makeText("مرحبا بالعالم")
+    let resolvedStyle = text.resolvingNaturalWritingDirections().attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+    let resolvedDirection = resolvedStyle?.baseWritingDirection ?? .natural
+    for (isEditable, isEdited) in [(false, false), (true, false), (false, true)] {
+      // given: a text view, editable or not, showing a right-to-left text without a writing direction, and edited after
+      // the text is set or not
+      let scenario = "editable: \(isEditable), edited: \(isEdited)"
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.isEditable = isEditable
+      textView.attributedString = text
+      let textStorage = try Self.textStorage(of: textView).unwrap()
+      if isEdited {
+        textStorage.replaceCharacters(in: NSRange(location: 0, length: 0), with: "x")
+      }
+      let direction = { (textStorage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.baseWritingDirection ?? .natural }
+
+      // when: the text view's editable setting changes, and the text view is set to the same text
+      textView.isEditable = !isEditable
+      textView.attributedString = text
+
+      // then: the text storage shows the text for the new setting, without its direction when editable and in its
+      // direction when not
+      expect(direction(), scenario) == (isEditable ? resolvedDirection : .natural)
+
+      // when: the setting changes back, and the text view is set to the same text
+      textView.isEditable = isEditable
+      textView.attributedString = text
+
+      // then: the text storage shows the text for the setting again
+      expect(direction(), scenario) == (isEditable ? .natural : resolvedDirection)
+    }
+  }
+
+  func test_layout_editableRightToLeftText_fitsTheMeasuredSize() throws {
+    let text = Self.makeText("مرحبا بالعالم، هذا نص عربي طويل يلتف عبر عدة أسطر!")
+    for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+      // given: a right-to-left text without a writing direction, measured in its direction for 160 points wide
+      let scenario = "\(numberOfLines) lines"
+      let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
+      let size = measuredSize.roundedUp(scaleFactor: 1)
+      let makeTextView = { (isEditable: Bool) -> BaseTextView in
+        let textView = BaseTextView(frame: CGRect(origin: .zero, size: size))
+        textView.isEditable = isEditable
+        textView.numberOfLines = numberOfLines
+        textView.lineBreakMode = lineBreakMode
+        textView.attributedString = text
+        return textView
+      }
+
+      // when: showing the text in an editable text view of the measured size, which shows it without its direction, and
+      // in one that isn't editable
+      let editableLineRects = try Self.lineRects(of: makeTextView(true))
+      let lineRects = try Self.lineRects(of: makeTextView(false))
+
+      // then: the editable text view lays out as many lines, each within the other's, within its bounds and the measured
+      // height, since TextKit 1 orders a paragraph without a direction by its text, which leaves its line breaks as they
+      // are and changes only its alignment
+      expect(editableLineRects.count, scenario) == lineRects.count
+      expect(zip(editableLineRects, lineRects).allSatisfy { $0.width <= $1.width }, scenario) == true
+      expect(editableLineRects.allSatisfy { $0.minX >= 0 && $0.maxX <= size.width }, scenario) == true
+      let usedRect = editableLineRects.reduce(CGRect.null) { $0.union($1) }
+      expect(usedRect.height, scenario).to(beApproximatelyEqual(to: measuredSize.height, within: 0.01))
+    }
+  }
   #endif
 
   func test_attributedString_rightToLeftText_keepsTheTextAsSet() throws {

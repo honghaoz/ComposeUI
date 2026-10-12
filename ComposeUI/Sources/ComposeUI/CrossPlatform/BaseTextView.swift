@@ -463,6 +463,9 @@ final class ShownText: NSObject {
   /// Whether the text storage's text is being set.
   private var isSettingText = false
 
+  /// Whether the text storage shows the last text with the writing directions of its paragraphs.
+  private var showsWritingDirections = true
+
   /// Creates the shown text of a text storage.
   ///
   /// - Parameter textStorage: The text storage that shows the text.
@@ -502,12 +505,20 @@ final class ShownText: NSObject {
       }
       lastText = Self.immutableText(of: text)
       isTextStorageEdited = false
+      showsWritingDirections = resolvesWritingDirections
       return true
     } else if !lastText.isEqual(to: text) {
       // comparing the text as it was set also leaves the writing directions to resolve only for a new text
       set(resolvesWritingDirections ? text.resolvingNaturalWritingDirections() : text, with: setText)
       lastText = Self.immutableText(of: text)
+      showsWritingDirections = resolvesWritingDirections
       return true
+    } else if resolvesWritingDirections != showsWritingDirections {
+      // an equal text is shown again when its writing directions change, such as after the text view becomes editable,
+      // which leaves the text's size as it was
+      set(resolvesWritingDirections ? text.resolvingNaturalWritingDirections() : text, with: setText)
+      showsWritingDirections = resolvesWritingDirections
+      return false
     } else {
       return false
     }

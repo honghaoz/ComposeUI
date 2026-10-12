@@ -426,6 +426,43 @@ class TextNodeTests: XCTestCase {
       expect(shownStyle?.baseWritingDirection ?? .natural, "editable: \(isEditable)") == expectedStyle?.baseWritingDirection ?? .natural
     }
   }
+
+  func test_editable_changedOnRefresh_showsTheTextForTheNewSetting() throws {
+    // given: a rendered text node that isn't editable, of a right-to-left text without a writing direction
+    let text = NSAttributedString(string: "مرحبا بالعالم")
+    var isEditable = false
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .editable(isEditable)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let direction = { [self] in
+      (shownAttributedText(of: textView)?.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.baseWritingDirection ?? .natural
+    }
+    let resolvedStyle = text.resolvingNaturalWritingDirections().attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+
+    // when: the node becomes editable, with the same text, and the content refreshes
+    isEditable = true
+    contentView.refresh(animated: false)
+
+    // then: the same text view shows the text without a writing direction, as an editable text view shows it
+    expect(renderedView) === textView
+    expect(direction()) == .natural
+
+    // when: the node stops being editable, and the content refreshes
+    isEditable = false
+    contentView.refresh(animated: false)
+
+    // then: the text view shows the text in its direction again
+    expect(renderedView) === textView
+    expect(direction()) == resolvedStyle?.baseWritingDirection ?? .natural
+  }
   #endif
 
   func test_boundsChange_preservesEditingAndTextOptionsUntilRefresh() throws {
