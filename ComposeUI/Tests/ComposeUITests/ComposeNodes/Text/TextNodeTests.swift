@@ -563,12 +563,124 @@ class TextNodeTests: XCTestCase {
     expect(textView.attributedString.string) == text
   }
 
+  func test_renderableItems_reuseId_matchesTheInteractionSettings() throws {
+    for (isEditable, isSelectable, expectedId) in [
+      (false, true, "BaseTextView"),
+      (false, false, "BaseTextView.unselectable"),
+      (true, true, "BaseTextView.editable"),
+      (true, false, "BaseTextView.editable.unselectable"),
+    ] {
+      // given: a laid out text node with the interaction settings
+      var node = TextNode("Hello").editable(isEditable).selectable(isSelectable)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+      // when: making its renderable item
+      let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
+
+      // then: the item's text view is pooled with the text views of the same interaction settings only
+      expect(item.reuseId, expectedId) == ReuseId(namespace: .framework, id: expectedId)
+    }
+  }
+
+  func test_reuse_textViewsOfTheSameInteractionSettings() throws {
+    // given: a compose view with its own pool, showing an unselectable text node
+    var showsText = true
+    var isSelectable = false
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      if showsText {
+        TextNode("Hello", font: Font.systemFont(ofSize: 14))
+          .selectable(isSelectable)
+          .onUpdate { item, _ in
+            renderedView = item.view as? BaseTextView
+          }
+      }
+    }
+    contentView.renderablePool = RenderablePool()
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    let unselectableView = try unwrap(renderedView)
+
+    // when: the text is removed, so its text view goes to the pool
+    showsText = false
+    contentView.refresh(animated: false)
+
+    // then: the pooled text view keeps its interaction settings
+    expect(unselectableView.isSelectable) == false
+
+    // when: a selectable text node is shown
+    showsText = true
+    isSelectable = true
+    contentView.refresh(animated: false)
+
+    // then: it gets a new text view, instead of the unselectable one, which it would have to make selectable
+    let selectableView = try unwrap(renderedView)
+    expect(selectableView) !== unselectableView
+    expect(selectableView.isSelectable) == true
+
+    // when: the text is removed, and an unselectable text node is shown
+    showsText = false
+    contentView.refresh(animated: false)
+    showsText = true
+    isSelectable = false
+    contentView.refresh(animated: false)
+
+    // then: it reuses the unselectable text view, which is unselectable already
+    expect(renderedView) === unselectableView
+    expect(unselectableView.isSelectable) == false
+  }
+
+  func test_refresh_restoresTheSettingsChangedOnTheTextView() throws {
+    // given: a text node rendered with its settings, whose text view's settings were then changed directly
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode("Hello", font: Font.systemFont(ofSize: 14))
+        .numberOfLines(2)
+        .lineBreakMode(.byTruncatingTail)
+        .textContainerInset(horizontal: 4, vertical: 2)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    textView.numberOfLines = 5
+    textView.lineBreakMode = .byCharWrapping
+    #if canImport(AppKit)
+    textView.textContainerInset = CGSize(width: 10, height: 10)
+    #endif
+    #if canImport(UIKit)
+    textView.textContainerInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+    #endif
+    #if !os(tvOS)
+    textView.isEditable = true
+    #endif
+    textView.isSelectable = false
+
+    // when: refreshing
+    contentView.refresh(animated: false)
+
+    // then: the text view has the node's settings again, since each setting is compared with the text view's
+    expect(textView.numberOfLines) == 2
+    expect(textView.lineBreakMode) == .byTruncatingTail
+    #if canImport(AppKit)
+    expect(textView.textContainerInset) == CGSize(width: 4, height: 2)
+    #endif
+    #if canImport(UIKit)
+    expect(textView.textContainerInset) == UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
+    #endif
+    #if !os(tvOS)
+    expect(textView.isEditable) == false
+    #endif
+    expect(textView.isSelectable) == true
+  }
+
   #if canImport(AppKit)
   func test_refresh_insetChangedOnly_relaysOutTheTextContainer() throws {
-    for (usesTextKit1, keepsTheTextObject) in [(false, false), (false, true), (true, false), (true, true)] {
-      // given: text that wraps across several lines, rendered 200 points wide in a new text view of the TextKit under
-      // test, with the layout it scheduled run, made of the same text object on each refresh, as a label's text is, or
-      // of a new one
+    for keepsTheTextObject in [false, true] {
+      // given: text that wraps across several lines, rendered 200 points wide in a new text view, made of the same text
+      // object on each refresh, as a label's text is, or of a new one
       let string = "A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container."
       let keptNode = TextNode(string, font: Font.systemFont(ofSize: 14))
       var inset: CGFloat = 0
@@ -583,18 +695,14 @@ class TextNodeTests: XCTestCase {
       }
       contentView.renderablePool = RenderablePool()
       contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 300)
-      BaseTextView.usesTextKit1ForTesting = usesTextKit1
       contentView.refresh(animated: false)
-      BaseTextView.usesTextKit1ForTesting = false
       let textView = try unwrap(renderedView)
-      let scenario = "\(textKitName(of: textView)), \(keepsTheTextObject ? "same" : "new") text object"
-      runScheduledBlocks()
+      let scenario = keepsTheTextObject ? "same text object" : "new text object"
       let lineCountAt200 = lineCount(of: textView)
 
-      // when: changing only the horizontal inset, refreshing, and running the blocks the refresh scheduled
+      // when: changing only the horizontal inset, and refreshing
       inset = 30
       contentView.refresh(animated: false)
-      runScheduledBlocks()
 
       // then: the text container is 140 points wide, and the text wraps in it as after an explicit layout
       expect(textView.textContainer?.size.width, scenario) == 140
@@ -607,10 +715,9 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_refresh_widthChangedOnly_relaysOutTheTextContainer() throws {
-    for (usesTextKit1, keepsTheTextObject) in [(false, false), (false, true), (true, false), (true, true)] {
-      // given: text that wraps across several lines, rendered 200 points wide in a new text view of the TextKit under
-      // test, with the layout it scheduled run, made of the same text object on each refresh, as a label's text is, or
-      // of a new one
+    for keepsTheTextObject in [false, true] {
+      // given: text that wraps across several lines, rendered 200 points wide in a new text view, made of the same text
+      // object on each refresh, as a label's text is, or of a new one
       let string = "A paragraph that wraps across several lines in a narrow container and fewer lines in a wide container."
       let keptNode = TextNode(string, font: Font.systemFont(ofSize: 14))
       var width: CGFloat = 200
@@ -624,18 +731,14 @@ class TextNodeTests: XCTestCase {
       }
       contentView.renderablePool = RenderablePool()
       contentView.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
-      BaseTextView.usesTextKit1ForTesting = usesTextKit1
       contentView.refresh(animated: false)
-      BaseTextView.usesTextKit1ForTesting = false
       let textView = try unwrap(renderedView)
-      let scenario = "\(textKitName(of: textView)), \(keepsTheTextObject ? "same" : "new") text object"
-      runScheduledBlocks()
+      let scenario = keepsTheTextObject ? "same text object" : "new text object"
       let lineCountAt200 = lineCount(of: textView)
 
-      // when: changing only the text's width, refreshing, and running the blocks the refresh scheduled
+      // when: changing only the text's width, and refreshing
       width = 140
       contentView.refresh(animated: false)
-      runScheduledBlocks()
 
       // then: the text container is 140 points wide, and the text wraps in it as after an explicit layout
       expect(textView.textContainer?.size.width, scenario) == 140
@@ -765,19 +868,10 @@ class TextNodeTests: XCTestCase {
 
   // MARK: - Helpers
 
-  /// Runs the main run loop until the blocks scheduled on it so far have run, such as a text view's scheduled layout.
-  private func runScheduledBlocks() {
-    var isDrained = false
-    RunLoop.main.perform {
-      isDrained = true
-    }
-    expect(isDrained).toEventually(beTrue())
-  }
-
   /// Returns the string that the text view shows.
   private func shownString(of textView: BaseTextView) -> String? {
     #if canImport(AppKit)
-    return textView.shownTextStorage?.string
+    return textView.textStorage?.string
     #endif
     #if canImport(UIKit)
     return textView.attributedText.string
@@ -787,7 +881,7 @@ class TextNodeTests: XCTestCase {
   /// Returns the foreground color of the first character that the text view shows.
   private func shownForegroundColor(of textView: BaseTextView) -> Color? {
     #if canImport(AppKit)
-    return textView.shownTextStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color
+    return textView.textStorage?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color
     #endif
     #if canImport(UIKit)
     return textView.attributedText.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color
@@ -795,23 +889,10 @@ class TextNodeTests: XCTestCase {
   }
 
   #if canImport(AppKit)
-  /// Returns the name of the TextKit the text view uses.
-  private func textKitName(of textView: BaseTextView) -> String {
-    if #available(macOS 12.0, *), textView.textLayoutManager != nil {
-      return "TextKit 2"
-    }
-    return "TextKit 1"
-  }
-
   /// Returns the number of lines the text view lays out its text in.
   private func lineCount(of textView: BaseTextView) -> Int {
     var count = 0
-    if #available(macOS 12.0, *), let textLayoutManager = textView.textLayoutManager {
-      textLayoutManager.enumerateTextLayoutFragments(from: textLayoutManager.documentRange.location, options: [.ensuresLayout]) { fragment in
-        count += fragment.textLineFragments.count
-        return true
-      }
-    } else if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
+    if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
       layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, _, _, _, _ in
         count += 1
       }

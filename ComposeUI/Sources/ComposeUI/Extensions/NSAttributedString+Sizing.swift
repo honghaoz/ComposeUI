@@ -103,7 +103,13 @@ extension NSAttributedString {
 
     // === TextKit [BEGIN] ===
 
-    let textStorage = NSTextStorage(attributedString: self)
+    // a paragraph's writing direction changes how its lines are laid out, so the text is measured with the directions
+    // that text views lay it out with
+    #if canImport(UIKit)
+    let textStorage = NSTextStorage(attributedString: resolvingNaturalWritingDirections().recordingOriginalFonts())
+    #else
+    let textStorage = NSTextStorage(attributedString: resolvingNaturalWritingDirections())
+    #endif
 
     let layoutManager = NSLayoutManager()
     textStorage.addLayoutManager(layoutManager)
@@ -116,7 +122,14 @@ extension NSAttributedString {
     layoutManager.addTextContainer(textContainer)
 
     layoutManager.ensureLayout(for: textContainer)
-    return layoutManager.usedRect(for: textContainer).size
+
+    // a right-to-left paragraph aligns its lines to the right edge of the layout width, so the lines of paragraphs in
+    // different directions span more than the widest of them, which is the width the text needs
+    var width: CGFloat = 0
+    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, usedRect, _, _, _ in
+      width = max(width, usedRect.width)
+    }
+    return CGSize(width: width, height: layoutManager.usedRect(for: textContainer).height)
 
     // === TextKit [END] ===
 
@@ -258,6 +271,45 @@ extension NSAttributedString {
 
     return CGSize(width: width, height: height)
   }
+
+  #if canImport(UIKit)
+  /// The attribute that UIKit text views record a run's font in when they give its characters a substitute font, which
+  /// isn't public.
+  private static let originalFontKey = NSAttributedString.Key("NSOriginalFont")
+
+  /// The font that TextKit lays out a run without a font in.
+  private static let defaultFont: Font? = {
+    // TextKit gives the font to such a run when it fixes the text's attributes. it's read from TextKit instead of named,
+    // since the default that the font attribute documents, 12 point Helvetica or Helvetica Neue, has differed between
+    // systems
+    let text = NSMutableAttributedString(string: "a")
+    text.fixAttributes(in: NSRange(location: 0, length: text.length))
+    return text.attribute(.font, at: 0, effectiveRange: nil) as? Font
+  }()
+
+  /// Returns the text with a substitute font given to each character that its font doesn't have, and the font recorded
+  /// for each run that gets one, as UIKit text views record it.
+  ///
+  /// The layout takes a run's line height from its recorded font instead of its substitute font, so a UIKit text view
+  /// lays out a line of characters that its font doesn't have, such as Devanagari in the system font, as tall as the
+  /// font's lines.
+  func recordingOriginalFonts() -> NSAttributedString {
+    let fixedText = NSMutableAttributedString(attributedString: self)
+    let range = NSRange(location: 0, length: fixedText.length)
+    fixedText.fixAttributes(in: range)
+    enumerateAttribute(.font, in: range) { value, runRange, _ in
+      guard let font = (value as? Font) ?? Self.defaultFont else {
+        return
+      }
+      fixedText.enumerateAttribute(.font, in: runRange) { fixedValue, fixedRange, _ in
+        if let fixedFont = fixedValue as? Font, fixedFont != font {
+          fixedText.addAttribute(Self.originalFontKey, value: font, range: fixedRange)
+        }
+      }
+    }
+    return fixedText
+  }
+  #endif
 
   //  /// Adjust the line break mode of the attributed string.
   //  ///

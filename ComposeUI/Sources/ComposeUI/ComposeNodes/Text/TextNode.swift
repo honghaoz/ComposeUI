@@ -393,8 +393,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
             isSelectable: isSelectable
           )
         },
-        reuseId: ReuseId(namespace: .framework, id: "BaseTextView"),
-        resetForReuse: { $0.resetForReuse() }
+        reuseId: Self.reuseId(isEditable: isEditable, isSelectable: isSelectable),
+        resetForReuse: { $0.resetForReuse(keepsInteraction: true) }
       )
       .eraseToRenderableItem()
     }
@@ -403,6 +403,23 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   }
 
   // MARK: - Private
+
+  /// Returns the reuse identifier of a text view with the interaction settings.
+  ///
+  /// A text view is reused only by a node with the same interaction settings, and its reset keeps them, since changing
+  /// them costs work, such as hundreds of allocations each time a UIKit text view becomes selectable or not.
+  private static func reuseId(isEditable: Bool, isSelectable: Bool) -> ReuseId {
+    switch (isEditable, isSelectable) {
+    case (false, true):
+      return ReuseId(namespace: .framework, id: "BaseTextView")
+    case (false, false):
+      return ReuseId(namespace: .framework, id: "BaseTextView.unselectable")
+    case (true, true):
+      return ReuseId(namespace: .framework, id: "BaseTextView.editable")
+    case (true, false):
+      return ReuseId(namespace: .framework, id: "BaseTextView.editable.unselectable")
+    }
+  }
 
   private static func updateTextView(_ textView: BaseTextView,
                                      theme: Theme,
@@ -415,26 +432,42 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   {
     textView.attributedString = themedText(of: attributedString, theme: theme, in: textView)
 
-    textView.numberOfLines = numberOfLines
-    textView.lineBreakMode = lineBreakMode
+    // a refresh updates each text view with settings that rarely change, and setting some of them costs work even when
+    // the value is unchanged, such as about 300 ns each for the inset and `isSelectable` on macOS, so a setting is set
+    // only when it differs from the text view's
+    if textView.numberOfLines != numberOfLines {
+      textView.numberOfLines = numberOfLines
+    }
+    if textView.lineBreakMode != lineBreakMode {
+      textView.lineBreakMode = lineBreakMode
+    }
 
     #if canImport(AppKit)
-    textView.textContainerInset = textContainerInset
+    if textView.textContainerInset != textContainerInset {
+      textView.textContainerInset = textContainerInset
+    }
     #endif
 
     #if canImport(UIKit)
-    textView.textContainerInset = UIEdgeInsets(
+    let insets = UIEdgeInsets(
       top: textContainerInset.height,
       left: textContainerInset.width,
       bottom: textContainerInset.height,
       right: textContainerInset.width
     )
+    if textView.textContainerInset != insets {
+      textView.textContainerInset = insets
+    }
     #endif
 
     #if !os(tvOS)
-    textView.isEditable = isEditable
+    if textView.isEditable != isEditable {
+      textView.isEditable = isEditable
+    }
     #endif
-    textView.isSelectable = isSelectable
+    if textView.isSelectable != isSelectable {
+      textView.isSelectable = isSelectable
+    }
 
     let isInteractive = isSelectable || isEditable
 

@@ -956,10 +956,10 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 93.344, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 36.89599609375, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 93.344, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 38.176, within: 1e-1))
     #endif
   }
@@ -1058,10 +1058,10 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 96.896, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 36.89599609375, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 96.896, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 38.176, within: 1e-1))
     #endif
   }
@@ -1160,10 +1160,10 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 95.12, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 36.89599609375, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 95.12, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 38.176, within: 1e-1))
     #endif
   }
@@ -1234,6 +1234,42 @@ class NSAttributedString_SizingTests: XCTestCase {
     expect(size.width).to(beApproximatelyEqual(to: 93.648, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 19.088, within: 1e-1))
     #endif
+  }
+
+  func test_multiline_rightToLeftText_isMeasuredInItsWritingDirection() {
+    // given: a right-to-left text without a writing direction, and the same text with a right-to-left writing direction
+    let string = "مرحبا بالعالم، هذا نص عربي طويل"
+    let font = Font.systemFont(ofSize: 13)
+    let text = NSAttributedString(string: string, attributes: [.font: font])
+    let style = NSMutableParagraphStyle()
+    style.baseWritingDirection = .rightToLeft
+    let rightToLeftText = NSAttributedString(string: string, attributes: [.font: font, .paragraphStyle: style])
+
+    // when: measuring them for 160 points wide
+    let size = text.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+    let rightToLeftSize = rightToLeftText.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+
+    // then: the text is measured in the right-to-left direction of its text, as text views lay it out, instead of with
+    // the natural direction, which TextKit 1 lays out with the trailing space of the first line left out
+    expect(size) == rightToLeftSize
+  }
+
+  func test_multiline_paragraphsInBothWritingDirections_takeTheWidthOfTheWidestLine() {
+    let font = Font.systemFont(ofSize: 13)
+    for (leftToRight, rightToLeft, end) in [("Hello world", "مرحبا بالعالم، هذا نص عربي طويل", ""), ("Hello world", "مرحبا بالعالم", "\n")] {
+      // given: a text of a left-to-right paragraph and a right-to-left paragraph, ending with a newline or not
+      let text = NSAttributedString(string: leftToRight + "\n" + rightToLeft + end, attributes: [.font: font])
+
+      // when: measuring it and each paragraph for 160 points wide
+      let size = text.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+      let leftToRightSize = NSAttributedString(string: leftToRight, attributes: [.font: font]).computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+      let rightToLeftSize = NSAttributedString(string: rightToLeft, attributes: [.font: font]).computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+
+      // then: the text is as wide as its widest line, instead of spanning from the left edge, where the left-to-right
+      // paragraph starts, to the right edge, where the right-to-left paragraph and the line after its newline end
+      expect(size.width, text.string) == max(leftToRightSize.width, rightToLeftSize.width)
+      expect(size.width, text.string) < 160
+    }
   }
 
   // MARK: - Cache
