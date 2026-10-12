@@ -795,6 +795,65 @@ class TextNodeTests: XCTestCase {
     expect(textView.isSelectable) == true
   }
 
+  #if canImport(UIKit)
+  func test_update_setsTheSettingsBeforeTheText() throws {
+    for reusesTextView in [false, true] {
+      // given: a compose view with its own pool, and for a reused text view, a text node that was shown and then
+      // removed, so that the pool reset its text view
+      let scenario = reusesTextView ? "reused text view" : "new text view"
+      var showsText = reusesTextView
+      var hasSettings = false
+      var insertedTextView: BaseTextView?
+      let contentView = ComposeView {
+        if showsText {
+          TextNode(hasSettings ? "Hello, world!" : "First", font: Font.systemFont(ofSize: 14))
+            .numberOfLines(hasSettings ? 2 : 0)
+            .lineBreakMode(hasSettings ? .byTruncatingTail : .byWordWrapping)
+            .textContainerInset(horizontal: hasSettings ? 4 : 0, vertical: hasSettings ? 2 : 0)
+            .willInsert { renderable, _ in
+              insertedTextView = renderable.view as? BaseTextView
+            }
+        }
+      }
+      contentView.renderablePool = RenderablePool()
+      contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+      contentView.refresh(animated: false)
+      let firstTextView = insertedTextView
+      showsText = false
+      contentView.refresh(animated: false)
+
+      // when: showing a text node with settings that aren't a text view's defaults, recording the text view's settings
+      // each time its text storage processes an edit
+      var settingsAtEdits: [(numberOfLines: Int, lineBreakMode: NSLineBreakMode, inset: UIEdgeInsets)] = []
+      let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: nil, queue: nil) { notification in
+        if let textView = insertedTextView, textView.textStorage === notification.object as AnyObject? {
+          settingsAtEdits.append((textView.numberOfLines, textView.lineBreakMode, textView.textContainerInset))
+        }
+      }
+      defer {
+        NotificationCenter.default.removeObserver(observer)
+      }
+      insertedTextView = nil
+      showsText = true
+      hasSettings = true
+      contentView.refresh(animated: false)
+
+      // then: the text view has the node's settings when it gets the text, so that setting them doesn't invalidate the
+      // layout of a text in place
+      let textView = try unwrap(insertedTextView)
+      if reusesTextView {
+        expect(textView, scenario) === firstTextView
+      }
+      expect(settingsAtEdits.isEmpty, scenario) == false
+      for settings in settingsAtEdits {
+        expect(settings.numberOfLines, scenario) == 2
+        expect(settings.lineBreakMode, scenario) == .byTruncatingTail
+        expect(settings.inset, scenario) == UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
+      }
+    }
+  }
+  #endif
+
   #if canImport(AppKit)
   func test_refresh_insetChangedOnly_relaysOutTheTextContainer() throws {
     for keepsTheTextObject in [false, true] {
