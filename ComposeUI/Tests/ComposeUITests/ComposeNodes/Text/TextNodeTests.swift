@@ -398,6 +398,36 @@ class TextNodeTests: XCTestCase {
     expect(shownString(of: textView)) == "Configured text"
   }
 
+  #if canImport(AppKit) || canImport(UIKit) && !os(tvOS)
+  func test_editable_showsTheTextWithoutResolvingItsWritingDirections() throws {
+    let text = NSAttributedString(string: "مرحبا بالعالم")
+    for isEditable in [false, true] {
+      // given: a text node, editable or not, of a right-to-left text without a writing direction
+      var renderedView: BaseTextView?
+      let contentView = ComposeView {
+        TextNode(text)
+          .editable(isEditable)
+          .onUpdate { item, _ in
+            renderedView = item.view as? BaseTextView
+          }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+
+      // when: rendering it in a new text view
+      contentView.refresh(animated: false)
+
+      // then: the text view shows the text in the direction of its text unless it's editable, which the node makes it
+      // before setting its text
+      let textView = try unwrap(renderedView)
+      let shownText = try unwrap(shownAttributedText(of: textView))
+      let shownStyle = shownText.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+      let expectedText = isEditable ? text : text.resolvingNaturalWritingDirections()
+      let expectedStyle = expectedText.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+      expect(shownStyle?.baseWritingDirection ?? .natural, "editable: \(isEditable)") == expectedStyle?.baseWritingDirection ?? .natural
+    }
+  }
+  #endif
+
   func test_boundsChange_preservesEditingAndTextOptionsUntilRefresh() throws {
     // given: editable text with a selection and edits not yet reflected in its configuration
     var renderedView: BaseTextView?
@@ -875,6 +905,16 @@ class TextNodeTests: XCTestCase {
     #endif
     #if canImport(UIKit)
     return textView.attributedText.string
+    #endif
+  }
+
+  /// Returns the text that the text view shows, with the attributes that it shows it with.
+  private func shownAttributedText(of textView: BaseTextView) -> NSAttributedString? {
+    #if canImport(AppKit)
+    return textView.textStorage
+    #endif
+    #if canImport(UIKit)
+    return textView.attributedText
     #endif
   }
 

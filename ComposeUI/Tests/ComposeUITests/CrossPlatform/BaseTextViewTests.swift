@@ -280,6 +280,53 @@ class BaseTextViewTests: XCTestCase {
     #endif
   }
 
+  func test_layout_indentedText_fitsTheMeasuredSize() throws {
+    let indents: [(String, firstLineHeadIndent: CGFloat, headIndent: CGFloat, tailIndent: CGFloat)] = [
+      ("first line indent", 30, 0, 0),
+      ("head indent", 20, 20, 0),
+      ("hanging indent", 0, 20, 0),
+      ("tail indent", 0, 0, -20),
+      ("tail indent from the leading edge", 0, 0, 140),
+      ("all indents", 10, 30, -15),
+    ]
+    let strings = [
+      "A paragraph that wraps across several lines in a narrow text view.",
+      "مرحبا بالعالم، هذا نص عربي طويل يلتف عبر عدة أسطر",
+    ]
+    for (name, firstLineHeadIndent, headIndent, tailIndent) in indents {
+      for string in strings {
+        for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+          // given: an indented paragraph in a number of lines with a line break mode, laid out in a text view 160 points
+          // wide and measured for that width
+          let scenario = "\(name), \(string.prefix(8)), \(numberOfLines) lines"
+          let style = NSMutableParagraphStyle()
+          style.firstLineHeadIndent = firstLineHeadIndent
+          style.headIndent = headIndent
+          style.tailIndent = tailIndent
+          let text = NSAttributedString(string: string, attributes: [.font: Font.systemFont(ofSize: 13), .paragraphStyle: style])
+          let makeTextView = { (size: CGSize) -> BaseTextView in
+            let textView = BaseTextView(frame: CGRect(origin: .zero, size: size))
+            textView.numberOfLines = numberOfLines
+            textView.lineBreakMode = lineBreakMode
+            textView.attributedString = text
+            return textView
+          }
+          let proposedLineRects = try Self.lineRects(of: makeTextView(CGSize(width: 160, height: 1000)))
+          let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
+
+          // when: showing the text in a text view of the measured size rounded up to whole points, as `TextNode` sizes it
+          let size = measuredSize.roundedUp(scaleFactor: 1)
+          let lineRects = try Self.lineRects(of: makeTextView(size))
+
+          // then: the text view lays out the lines that it lays out 160 points wide, wrapped and truncated alike, within
+          // its bounds, since the measured width has room for each line's indents
+          expect(lineRects.map(\.width), scenario) == proposedLineRects.map(\.width)
+          expect(lineRects.allSatisfy { $0.minX >= 0 && $0.maxX <= size.width }, scenario) == true
+        }
+      }
+    }
+  }
+
   func test_attributedString_rightToLeftText_alignsItsLinesToTheRight() throws {
     // given: a text view 160 points wide
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 160, height: 100))
@@ -294,6 +341,77 @@ class BaseTextViewTests: XCTestCase {
     expect(lineRects[1].maxX).to(beApproximatelyEqual(to: 160, within: 0.5))
     expect(lineRects[1].minX) > 10
   }
+
+  func test_layout_oneLineWithParagraphSettingsAndAttachments_fitsTheMeasuredSize() throws {
+    let font = Font.systemFont(ofSize: 13)
+    let makeText = { (configure: (NSMutableParagraphStyle) -> Void) -> NSAttributedString in
+      let style = NSMutableParagraphStyle()
+      configure(style)
+      return NSAttributedString(string: "Hello world", attributes: [.font: font, .paragraphStyle: style])
+    }
+    let attachment = NSTextAttachment()
+    attachment.bounds = CGRect(x: 0, y: 0, width: 20, height: 20)
+    let attachmentText = NSMutableAttributedString(string: "Hello ", attributes: [.font: font])
+    attachmentText.append(NSAttributedString(attachment: attachment))
+    let texts: [(String, NSAttributedString)] = [
+      ("line height multiple", makeText { $0.lineHeightMultiple = 1.5 }),
+      ("minimum line height", makeText { $0.minimumLineHeight = 30 }),
+      ("maximum line height", makeText { $0.maximumLineHeight = 10 }),
+      ("first line indent", makeText { $0.firstLineHeadIndent = 20 }),
+      ("tail indent", makeText { $0.tailIndent = -10 }),
+      ("baseline offset", NSAttributedString(string: "Hello world", attributes: [.font: font, .baselineOffset: 5])),
+      ("attachment", attachmentText),
+      ("no font", NSAttributedString(string: "Hello world")),
+    ]
+    for (name, text) in texts {
+      // given: the text measured in one line, and laid out in a wide one-line text view
+      let makeTextView = { (size: CGSize) -> BaseTextView in
+        let textView = BaseTextView(frame: CGRect(origin: .zero, size: size))
+        textView.numberOfLines = 1
+        textView.lineBreakMode = .byTruncatingTail
+        textView.attributedString = text
+        return textView
+      }
+      let measuredSize = text.computeBoundingRectSize(numberOfLines: 1, layoutWidth: 160)
+      let wideLineRects = try Self.lineRects(of: makeTextView(CGSize(width: 1000, height: 1000)))
+
+      // when: showing the text in a one-line text view of the measured size rounded up to whole points, as `TextNode`
+      // sizes it
+      let size = measuredSize.roundedUp(scaleFactor: 1)
+      let lineRects = try Self.lineRects(of: makeTextView(size))
+
+      // then: the text view lays out the line that it lays out when wide, without truncating it, in the measured height,
+      // since the line is measured with the settings and attachments that the text view lays it out with
+      expect(lineRects.map(\.width), name) == wideLineRects.map(\.width)
+      let usedRect = lineRects.reduce(CGRect.null) { $0.union($1) }
+      expect(usedRect.height, name).to(beApproximatelyEqual(to: measuredSize.height, within: 0.01))
+    }
+  }
+
+  #if canImport(AppKit) || canImport(UIKit) && !os(tvOS)
+  func test_attributedString_editable_showsTheTextAsSet() throws {
+    // given: an editable text view
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.isEditable = true
+
+    // when: setting a right-to-left text without a writing direction
+    textView.attributedString = Self.makeText("مرحبا بالعالم")
+
+    // then: the text storage shows the text without a writing direction, so that it aligns by the same rule as the
+    // paragraphs that the user types
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    let style = { textStorage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle }
+    expect(style()?.baseWritingDirection ?? .natural) == .natural
+
+    // when: the user edits the text, and the text is set again
+    textStorage.replaceCharacters(in: NSRange(location: 0, length: 0), with: "x")
+    textView.attributedString = Self.makeText("مرحبا بالعالم")
+
+    // then: the text storage shows the text again, still without a writing direction
+    expect(textStorage.string) == "مرحبا بالعالم"
+    expect(style()?.baseWritingDirection ?? .natural) == .natural
+  }
+  #endif
 
   func test_attributedString_rightToLeftText_keepsTheTextAsSet() throws {
     // given: a text view, and a right-to-left text without a writing direction
@@ -494,7 +612,7 @@ class BaseTextViewTests: XCTestCase {
       ("both directions", Self.makeText("A first paragraph\nمرحبا بالعالم، هذا نص عربي\nA third paragraph")),
     ]
     for (name, text) in texts {
-      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
         // given: the text measured for 160 points wide, in a number of lines with a line break mode
         let scenario = "\(name), \(numberOfLines) lines"
         let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
@@ -506,7 +624,8 @@ class BaseTextViewTests: XCTestCase {
         textView.lineBreakMode = lineBreakMode
         textView.attributedString = text
 
-        // then: the text view lays out the text in the measured width and height, with each line within its bounds
+        // then: the text view lays out the text in the measured width and height, with each line within its bounds, in
+        // one line as in more
         let layoutManager = try textView.layoutManager.unwrap()
         let textContainer = try textView.textContainer.unwrap()
         layoutManager.ensureLayout(for: textContainer)
@@ -546,6 +665,22 @@ class BaseTextViewTests: XCTestCase {
     expect(editCount) == 0
   }
 
+  func test_init_givenTextKit1ContainerWithText_showsTheFirstTextSet() throws {
+    // given: a text view of a given TextKit 1 text container, whose text storage has a text
+    let textStorage = NSTextStorage(string: "Existing text")
+    let layoutManager = NSLayoutManager()
+    textStorage.addLayoutManager(layoutManager)
+    let textContainer = NSTextContainer(size: CGSize(width: 200, height: 50))
+    layoutManager.addTextContainer(textContainer)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50), textContainer: textContainer)
+
+    // when: setting an empty text, equal to the text that the text view starts with
+    textView.attributedString = NSAttributedString()
+
+    // then: the text storage shows the empty text instead of its own
+    expect(textStorage.length) == 0
+  }
+
   func test_init_givenTextKit2Container_showsTheText() throws {
     guard #available(iOS 16.0, tvOS 16.0, *) else {
       throw XCTSkip("text views use TextKit 2 from iOS 16 and tvOS 16")
@@ -583,7 +718,7 @@ class BaseTextViewTests: XCTestCase {
       ("both directions", NSAttributedString(string: "A first paragraph\nمرحبا بالعالم، هذا نص عربي\nनमस्ते दुनिया", attributes: [.font: font])),
     ]
     for (name, text) in texts {
-      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
         // given: the text measured for 160 points wide, in a number of lines with a line break mode
         let scenario = "\(name), \(numberOfLines) lines"
         let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
@@ -596,7 +731,8 @@ class BaseTextViewTests: XCTestCase {
         textView.attributedString = text
 
         // then: the text view lays out the text in the measured height, within its bounds, since the text is measured with
-        // the line heights of the fonts that the text view records for the characters it gives substitute fonts
+        // the line heights of the fonts that the text view records for the characters it gives substitute fonts, in one
+        // line as in more
         let usedSize = Self.usedSize(of: textView)
         expect(usedSize.height, scenario).to(beApproximatelyEqual(to: measuredSize.height, within: 0.01))
         expect(usedSize.width <= size.width, scenario) == true

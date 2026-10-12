@@ -430,11 +430,32 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
                                      isEditable: Bool,
                                      isSelectable: Bool)
   {
-    textView.attributedString = themedText(of: attributedString, theme: theme, in: textView)
-
     // a refresh updates each text view with settings that rarely change, and setting some of them costs work even when
     // the value is unchanged, such as about 300 ns each for the inset and `isSelectable` on macOS, so a setting is set
-    // only when it differs from the text view's
+    // only when it differs from the text view's. the interaction settings are set before the text, since whether the
+    // text view is editable when its text is set decides whether it shows the text in the directions of its paragraphs
+    #if !os(tvOS)
+    if textView.isEditable != isEditable {
+      textView.isEditable = isEditable
+    }
+    #endif
+
+    if textView.isSelectable != isSelectable {
+      textView.isSelectable = isSelectable
+    }
+
+    let isInteractive = isSelectable || isEditable
+
+    #if canImport(AppKit)
+    textView.ignoreHitTest = !isInteractive
+    #endif
+
+    #if canImport(UIKit)
+    textView.isUserInteractionEnabled = isInteractive
+    #endif
+
+    textView.attributedString = themedText(of: attributedString, theme: theme, in: textView)
+
     if textView.numberOfLines != numberOfLines {
       textView.numberOfLines = numberOfLines
     }
@@ -458,25 +479,6 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     if textView.textContainerInset != insets {
       textView.textContainerInset = insets
     }
-    #endif
-
-    #if !os(tvOS)
-    if textView.isEditable != isEditable {
-      textView.isEditable = isEditable
-    }
-    #endif
-    if textView.isSelectable != isSelectable {
-      textView.isSelectable = isSelectable
-    }
-
-    let isInteractive = isSelectable || isEditable
-
-    #if canImport(AppKit)
-    textView.ignoreHitTest = !isInteractive
-    #endif
-
-    #if canImport(UIKit)
-    textView.isUserInteractionEnabled = isInteractive
     #endif
   }
 

@@ -124,6 +124,81 @@ class NSAttributedString_WritingDirectionTests: XCTestCase {
     }
   }
 
+  func test_rightToLeftCharactersOtherThanLetters_setRightToLeft() {
+    let strings = [
+      "\u{05BE}", // Hebrew maqaf
+      "\u{061B}", // Arabic semicolon
+      "\u{0608}", // Arabic ray, a math symbol
+      "\u{FDFC}", // Rial sign, a currency symbol
+      "\u{070F}", // Syriac abbreviation mark, a format character
+      "\u{07C0}", // NKo digit zero
+      "\u{1E950}", // Adlam digit zero
+    ]
+    for string in strings {
+      // when: resolving the natural writing direction of a text that starts with a right-to-left character other than
+      // a letter, followed by a left-to-right letter, for a left-to-right user language
+      let resolvedText = Self.makeText(string + "abc").resolvingNaturalWritingDirections(userWritingDirection: .leftToRight)
+
+      // then: the paragraph is right-to-left, as the character's direction is strong
+      expect(Self.writingDirections(of: resolvedText), string) == [.rightToLeft]
+    }
+  }
+
+  func test_neutralCharactersOfRightToLeftBlocks_areSkipped() {
+    let strings = [
+      "\u{060C}", // Arabic comma
+      "\u{066A}", // Arabic percent sign
+      "\u{FB29}", // Hebrew plus sign
+      "\u{FD3E}", // ornate left parenthesis
+      "\u{10E60}", // Rumi digit one
+      "\u{06DD}", // Arabic end of ayah, a format character
+      "\u{0610}", // an Arabic combining mark
+    ]
+    for string in strings {
+      // when: resolving the natural writing direction of a text that starts with a neutral character of a
+      // right-to-left block, followed by a left-to-right letter, for a right-to-left user language
+      let resolvedText = Self.makeText(string + "abc").resolvingNaturalWritingDirections(userWritingDirection: .rightToLeft)
+
+      // then: the paragraph takes the direction of the letter
+      expect(Self.writingDirections(of: resolvedText), string) == [.leftToRight]
+    }
+  }
+
+  func test_leftToRightCharactersOtherThanLetters_setLeftToRight() {
+    let strings = [
+      "\u{0903}", // Devanagari visarga, a mark that takes space
+      "\u{0966}", // Devanagari digit zero
+      "\u{2160}", // Roman numeral one
+      "\u{E000}", // a private use character
+      "\u{F0000}", // a supplementary private use character
+    ]
+    for string in strings {
+      // when: resolving the natural writing direction of a text that starts with a left-to-right character other than
+      // a letter, followed by a right-to-left letter, for a right-to-left user language
+      let resolvedText = Self.makeText(string + "مرحبا").resolvingNaturalWritingDirections(userWritingDirection: .rightToLeft)
+
+      // then: the paragraph is left-to-right, as the character's direction is strong
+      expect(Self.writingDirections(of: resolvedText), string) == [.leftToRight]
+    }
+  }
+
+  func test_neutralCharactersOfLeftToRightCategories_areSkipped() {
+    let strings = [
+      "\u{02C6}", // modifier letter circumflex accent
+      "\u{FF11}", // fullwidth digit one
+      "\u{1D7CE}", // mathematical bold digit zero
+      "\u{10140}", // Greek acrophonic numeral
+    ]
+    for string in strings {
+      // when: resolving the natural writing direction of a text that starts with a neutral character of a category whose
+      // other characters are left-to-right, followed by a right-to-left letter, for a left-to-right user language
+      let resolvedText = Self.makeText(string + "مرحبا").resolvingNaturalWritingDirections(userWritingDirection: .leftToRight)
+
+      // then: the paragraph takes the direction of the letter
+      expect(Self.writingDirections(of: resolvedText), string) == [.rightToLeft]
+    }
+  }
+
   func test_paragraphs_resolveSeparately() {
     // given: a text of paragraphs in both directions, separated by each paragraph separator, and a line separator that
     // doesn't end a paragraph
@@ -198,10 +273,10 @@ class NSAttributedString_WritingDirectionTests: XCTestCase {
     expect(lastStyle.baseWritingDirection) == .rightToLeft
   }
 
-  func test_textWithoutLetters_keepsTheNaturalDirection() {
+  func test_textWithoutStrongCharacters_keepsTheNaturalDirection() {
     for string in ["123 456", "!?", "😀👍", "١٢٣", "   ", "\n\n"] {
       for userWritingDirection in [NSWritingDirection.leftToRight, .rightToLeft] {
-        // given: a text without a letter or directional mark
+        // given: a text without a character with a strong direction
         let text = Self.makeText(string)
 
         // when: resolving its natural writing directions
@@ -213,7 +288,7 @@ class NSAttributedString_WritingDirectionTests: XCTestCase {
     }
   }
 
-  func test_charactersBeforeTheFirstLetter_areSkipped() {
+  func test_charactersBeforeTheFirstStrongCharacter_areSkipped() {
     for (string, userWritingDirection, expectedDirection) in [
       ("123 مرحبا", .leftToRight, .rightToLeft), // digits
       ("(«مرحبا»)", .leftToRight, .rightToLeft), // punctuation
@@ -222,7 +297,7 @@ class NSAttributedString_WritingDirectionTests: XCTestCase {
       ("\u{0301}مرحبا", .leftToRight, .rightToLeft), // a combining mark
       ("\u{05B0}Hello", .rightToLeft, .leftToRight), // a Hebrew point, which is in the Hebrew block
     ] as [(String, NSWritingDirection, NSWritingDirection)] {
-      // when: resolving the natural writing direction of a text with characters before its first letter
+      // when: resolving the natural writing direction of a text with neutral characters before its first letter
       let resolvedText = Self.makeText(string).resolvingNaturalWritingDirections(userWritingDirection: userWritingDirection)
 
       // then: the paragraph takes the direction of its first letter

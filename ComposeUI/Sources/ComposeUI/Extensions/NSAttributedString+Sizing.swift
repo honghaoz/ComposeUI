@@ -29,7 +29,6 @@
 //
 
 import Foundation
-import CoreText
 
 #if canImport(AppKit)
 import AppKit
@@ -97,11 +96,12 @@ extension NSAttributedString {
     WorkCounter.count(.textMeasurement)
     #endif
 
-    if numberOfLines == 1 {
-      return singleLineTextBoundingRectSize()
-    }
-
     // === TextKit [BEGIN] ===
+
+    // one line is measured unwrapped, so its size doesn't depend on the layout width or the line break mode, which the
+    // cache leaves out of its key
+    let layoutWidth = numberOfLines == 1 ? .greatestFiniteMagnitude : layoutWidth
+    let lineBreakMode = numberOfLines == 1 ? .byWordWrapping : lineBreakMode
 
     // a paragraph's writing direction changes how its lines are laid out, so the text is measured with the directions
     // that text views lay it out with
@@ -123,11 +123,26 @@ extension NSAttributedString {
 
     layoutManager.ensureLayout(for: textContainer)
 
-    // a right-to-left paragraph aligns its lines to the right edge of the layout width, so the lines of paragraphs in
-    // different directions span more than the widest of them, which is the width the text needs
+    // the width is the widest line's glyphs and its paragraph's indents, which the line needs to keep its line breaks,
+    // instead of the span of the lines, which also has the offsets that alignments give lines in the layout width, such
+    // as a right-to-left paragraph's lines at its right edge
+    let string: CFString = CFAttributedStringGetString(textStorage)
+    var paragraphStart = 0
+    var paragraphEnd = 0
+    var paragraphStyle = NSParagraphStyle.default
     var width: CGFloat = 0
-    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, usedRect, _, _, _ in
-      width = max(width, usedRect.width)
+    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, usedRect, _, glyphRange, _ in
+      let lineStart = layoutManager.characterIndexForGlyph(at: glyphRange.location)
+      if lineStart >= paragraphEnd {
+        // the lines come in order, so a paragraph's bounds are found from its first line
+        CFStringGetParagraphBounds(string, CFRange(location: lineStart, length: 0), &paragraphStart, &paragraphEnd, nil)
+        paragraphStyle = textStorage.attribute(.paragraphStyle, at: paragraphStart, effectiveRange: nil) as? NSParagraphStyle ?? .default
+      }
+      let headIndent = lineStart == paragraphStart ? paragraphStyle.firstLineHeadIndent : paragraphStyle.headIndent
+      // a negative tail indent insets the line from the trailing edge, while a positive one is a distance from the
+      // leading edge, which needs no room past the line's glyphs
+      let tailInset = max(-paragraphStyle.tailIndent, 0)
+      width = max(width, headIndent + usedRect.width + tailInset)
     }
     return CGSize(width: width, height: layoutManager.usedRect(for: textContainer).height)
 
@@ -242,34 +257,6 @@ extension NSAttributedString {
     //    #endif
     //
     // === CTFramesetter [END] ===
-  }
-
-  /// Returns single line text bounding box size in fractional size.
-  ///
-  /// For multiline text, only the first line size is returned.
-  ///
-  /// Ported from: https://github.com/honghaoz/ChouTiUI/blob/c2cc7b8452d269d6ee55993a977ed4b5fabf15d4/ChouTiUI/Sources/ChouTiUI/Universal/Text/TextSizeProvider.swift#L312
-  ///
-  /// - Returns: The bounding box for the text.
-  private func singleLineTextBoundingRectSize() -> CGSize {
-    let attributedString = self
-    guard attributedString.length > 0 else {
-      return .zero
-    }
-
-    let typesetter = CTTypesetterCreateWithAttributedString(attributedString)
-
-    let count = CTTypesetterSuggestLineBreak(typesetter, 0, .greatestFiniteMagnitude)
-    let range = CFRange(location: 0, length: count)
-    let line = CTTypesetterCreateLine(typesetter, range)
-
-    var ascent: CGFloat = 0
-    var descent: CGFloat = 0
-    var leading: CGFloat = 0
-    let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-    let height = ascent + descent + leading
-
-    return CGSize(width: width, height: height)
   }
 
   #if canImport(UIKit)

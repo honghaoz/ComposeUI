@@ -32,6 +32,10 @@
 import AppKit
 
 /// A base text view.
+///
+/// The text view removes its registrations for `NSView.frameDidChangeNotification` when it moves into a window and
+/// when it's removed from its superview, unless its superview is a clip view, so a subclass observes frame changes with
+/// another object than itself.
 open class BaseTextView: TextView {
 
   /// The text that the text view shows.
@@ -58,9 +62,14 @@ open class BaseTextView: TextView {
   ///
   /// Setting a text equal to the shown one can leave the shown text in place, so to change an attribute object, such as
   /// an attachment's image, set a text with a new object instead of changing the object.
+  ///
+  /// A text view that isn't editable when its text is set shows each paragraph without a writing direction in the
+  /// direction of its text, as ComposeUI measures it. An editable text view shows the text as set, so that the text and
+  /// the paragraphs that the user types align by the same rule, by the user's language, as in other TextKit 1 text
+  /// views.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
-      let isChanged = shownText.show(attributedString) { textStorage?.setAttributedString($0) }
+      let isChanged = shownText.show(attributedString, resolvesWritingDirections: !isEditable) { textStorage?.setAttributedString($0) }
 
       // the intrinsic size is computed from the text, so only a different text invalidates it
       if isChanged {
@@ -114,6 +123,7 @@ open class BaseTextView: TextView {
     textStorage.addLayoutManager(layoutManager)
 
     shownText = ShownText(textStorage: textStorage)
+
     super.init(frame: frame, textContainer: textContainer)
 
     updateCommonSettings()
@@ -278,10 +288,21 @@ open class BaseTextView: UITextView {
   ///
   /// Setting a text equal to the shown one can leave the shown text in place, so to change an attribute object, such as
   /// an attachment's image, set a text with a new object instead of changing the object.
+  ///
+  /// A text view that isn't editable when its text is set shows each paragraph without a writing direction in the
+  /// direction of its text, as ComposeUI measures it. An editable text view shows the text as set, so that the text and
+  /// the paragraphs that the user types align by the same rule, by the user's language, as in other TextKit 1 text
+  /// views.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
       if let shownText {
-        _ = shownText.show(attributedString) { attributedText = $0 }
+        #if os(tvOS)
+        // a tvOS text view isn't editable
+        let resolvesWritingDirections = true
+        #else
+        let resolvesWritingDirections = !isEditable
+        #endif
+        _ = shownText.show(attributedString, resolvesWritingDirections: resolvesWritingDirections) { attributedText = $0 }
       } else {
         attributedText = attributedString
       }
@@ -437,7 +458,7 @@ final class ShownText: NSObject {
   private var lastText = NSAttributedString()
 
   /// Whether the text storage was edited since its text was last set, such as by the user.
-  private var isTextStorageEdited = false
+  private var isTextStorageEdited: Bool
 
   /// Whether the text storage's text is being set.
   private var isSettingText = false
@@ -447,6 +468,11 @@ final class ShownText: NSObject {
   /// - Parameter textStorage: The text storage that shows the text.
   init(textStorage: NSTextStorage) {
     self.textStorage = textStorage
+
+    // a given text storage can come with text that the text view wasn't set to show, so the first text is compared with
+    // the text storage, as after an edit
+    isTextStorageEdited = textStorage.length > 0
+
     super.init()
 
     NotificationCenter.default.addObserver(
@@ -459,27 +485,27 @@ final class ShownText: NSObject {
 
   /// Shows a text, unless the text storage shows an equal one.
   ///
-  /// The text storage shows the text with the writing directions of its paragraphs, since TextKit 1 aligns a paragraph
-  /// without one by the user's language instead of by its text, see `resolvingNaturalWritingDirections()`.
-  ///
   /// - Parameters:
   ///   - text: The text to show.
+  ///   - resolvesWritingDirections: Whether to show the text with the writing directions of its paragraphs, since
+  ///     TextKit 1 aligns a paragraph without one by the user's language instead of by its text, see
+  ///     `resolvingNaturalWritingDirections()`.
   ///   - setText: Sets the text storage's text to the given text.
   /// - Returns: Whether the text differs from the text that the text view was last set to show.
-  func show(_ text: NSAttributedString, setText: (NSAttributedString) -> Void) -> Bool {
+  func show(_ text: NSAttributedString, resolvesWritingDirections: Bool, setText: (NSAttributedString) -> Void) -> Bool {
     if isTextStorageEdited {
       // the text storage holds an edit, such as the user's, which a text replaces unless it's equal to the edited text,
       // so the text is compared with the text storage, with the substitute fonts that the text storage gives it
-      let directedText = text.resolvingNaturalWritingDirections()
-      if !textStorage.isEqual(to: Self.textWithSubstituteFonts(of: directedText)) {
-        set(directedText, with: setText)
+      let shownText = resolvesWritingDirections ? text.resolvingNaturalWritingDirections() : text
+      if !textStorage.isEqual(to: Self.textWithSubstituteFonts(of: shownText)) {
+        set(shownText, with: setText)
       }
       lastText = Self.immutableText(of: text)
       isTextStorageEdited = false
       return true
     } else if !lastText.isEqual(to: text) {
       // comparing the text as it was set also leaves the writing directions to resolve only for a new text
-      set(text.resolvingNaturalWritingDirections(), with: setText)
+      set(resolvesWritingDirections ? text.resolvingNaturalWritingDirections() : text, with: setText)
       lastText = Self.immutableText(of: text)
       return true
     } else {
