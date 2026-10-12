@@ -213,7 +213,6 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   {
     var attributes: [NSAttributedString.Key: Any] = [
       .font: font,
-      .themedForegroundColor: foregroundColor,
       .paragraphStyle: {
         let style = NSMutableParagraphStyle()
         style.alignment = textAlignment
@@ -222,8 +221,19 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       }(),
     ]
 
+    // a color that's the same in both themes is set as it is, such as a label's default color, which leaves the text
+    // nothing to apply a theme to, so that a text view shows the text itself instead of a themed copy
+    if foregroundColor.light == foregroundColor.dark {
+      attributes[.foregroundColor] = foregroundColor.light
+    } else {
+      attributes[.themedForegroundColor] = foregroundColor
+    }
     if let backgroundColor = backgroundColor {
-      attributes[.themedBackgroundColor] = backgroundColor
+      if backgroundColor.light == backgroundColor.dark {
+        attributes[.backgroundColor] = backgroundColor.light
+      } else {
+        attributes[.themedBackgroundColor] = backgroundColor
+      }
     }
     if let shadow = shadow {
       attributes[.themedShadow] = shadow
@@ -490,7 +500,9 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       return last.themedText
     }
 
-    let themedText = NSMutableAttributedString(attributedString: attributedString).apply(theme: theme)
+    // a text with nothing to apply a theme to is shown as it is, instead of as a copy, which the text view would copy again
+    // to compare a later text with, since the copy is mutable
+    let themedText = attributedString.hasThemedAttributes ? NSMutableAttributedString(attributedString: attributedString).apply(theme: theme) : attributedString
     // a mutable text can change and stay the same object, so it isn't kept, and its theme is applied on each update
     textView.lastThemedText = attributedString is NSMutableAttributedString ? nil : (attributedString, theme, themedText)
     return themedText

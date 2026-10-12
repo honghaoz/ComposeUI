@@ -93,6 +93,25 @@ class NSAttributedString_ThemeTests: XCTestCase {
     }
   }
 
+  func test_hasThemedAttributes() {
+    let themedColor = ThemedColor(light: .red, dark: .blue)
+    let themedShadow = Themed<NSShadow>(light: NSShadow(), dark: NSShadow())
+    let laterRun = NSMutableAttributedString(string: "Hello, ", attributes: [.foregroundColor: Color.red])
+    laterRun.append(NSAttributedString(string: "world", attributes: [.themedBackgroundColor: themedColor]))
+    for (name, attributedString, expected) in [
+      ("empty", NSAttributedString(string: ""), false),
+      ("no attributes", NSAttributedString(string: "Hello"), false),
+      ("colors that aren't themed", NSAttributedString(string: "Hello", attributes: [.foregroundColor: Color.red, .backgroundColor: Color.blue]), false),
+      ("themed foreground color", NSAttributedString(string: "Hello", attributes: [.themedForegroundColor: themedColor]), true),
+      ("themed background color", NSAttributedString(string: "Hello", attributes: [.themedBackgroundColor: themedColor]), true),
+      ("themed shadow", NSAttributedString(string: "Hello", attributes: [.themedShadow: themedShadow]), true),
+      ("themed color in a later run", laterRun, true),
+    ] as [(String, NSAttributedString, Bool)] {
+      // then: the attributed string has themed attributes only when it has one of the themed keys, in any of its runs
+      expect(attributedString.hasThemedAttributes, name) == expected
+    }
+  }
+
   func test_incorrectValue() {
     // given: a test assertion handler and an attributed string with incorrect themed attribute values
     let value = NSObject()

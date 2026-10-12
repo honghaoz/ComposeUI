@@ -62,6 +62,27 @@ public extension NSAttributedString.Key {
 
 extension NSAttributedString {
 
+  /// Whether the attributed string has an attribute that a theme applies to: a themed foreground color, background color
+  /// or shadow.
+  var hasThemedAttributes: Bool {
+    hasAttribute(.themedForegroundColor) || hasAttribute(.themedBackgroundColor) || hasAttribute(.themedShadow)
+  }
+
+  /// Returns whether the attributed string has a value for the key anywhere.
+  private func hasAttribute(_ key: NSAttributedString.Key) -> Bool {
+    // the runs are read in a loop instead of with `enumerateAttribute(_:in:options:using:)`, whose block would box the
+    // result that it sets
+    var index = 0
+    var range = NSRange()
+    while index < length {
+      if attribute(key, at: index, effectiveRange: &range) != nil {
+        return true
+      }
+      index = NSMaxRange(range)
+    }
+    return false
+  }
+
   /// Applies the theme to the attributed string.
   ///
   /// Note: If the attributed string is already mutable, it will be used directly. Otherwise, a new mutable attributed string will be created.

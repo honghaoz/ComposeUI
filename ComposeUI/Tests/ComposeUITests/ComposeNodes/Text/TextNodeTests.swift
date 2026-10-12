@@ -345,6 +345,58 @@ class TextNodeTests: XCTestCase {
     expect(shownForegroundColor(of: textView)) == .blue
   }
 
+  func test_refresh_textWithoutThemedAttributes_showsTheTextItself() throws {
+    // given: a text node of a text without themed attributes, in the light theme
+    let text = NSAttributedString(string: "Text", attributes: [.foregroundColor: Color.red])
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.overrideTheme = .light
+
+    // when: rendering it
+    contentView.refresh(animated: false)
+
+    // then: the text view shows the text itself, instead of a copy with a theme applied
+    let textView = try unwrap(renderedView)
+    expect(textView.attributedString) === text
+    expect(shownForegroundColor(of: textView)) == .red
+
+    // when: the theme changes and the content refreshes
+    contentView.overrideTheme = .dark
+    contentView.refresh(animated: false)
+
+    // then: the text view still shows the text itself, whose color is the same in both themes
+    expect(textView.attributedString) === text
+    expect(shownForegroundColor(of: textView)) == .red
+  }
+
+  func test_attributedString_colorsTheSameInBothThemes_areSetAsTheyAre() {
+    // given: the colors of a simple text, the same in both themes or not
+    let sameColor = ThemedColor(light: .red, dark: .red)
+    let themedColor = ThemedColor(light: .red, dark: .blue)
+
+    // when: making the attributed strings of simple text with them
+    let plainText = TextNode.attributedString("Text", font: .systemFont(ofSize: 13), foregroundColor: sameColor, backgroundColor: sameColor, shadow: nil, textAlignment: .natural, lineBreakMode: .byWordWrapping)
+    let themedText = TextNode.attributedString("Text", font: .systemFont(ofSize: 13), foregroundColor: themedColor, backgroundColor: themedColor, shadow: nil, textAlignment: .natural, lineBreakMode: .byWordWrapping)
+
+    // then: a color that's the same in both themes is set as it is, which leaves the text nothing to apply a theme to,
+    // and a color that differs is set as a themed color
+    let plainAttributes = plainText.attributes(at: 0, effectiveRange: nil)
+    expect(plainAttributes[.foregroundColor] as? Color) == .red
+    expect(plainAttributes[.backgroundColor] as? Color) == .red
+    expect(plainText.hasThemedAttributes) == false
+    let themedAttributes = themedText.attributes(at: 0, effectiveRange: nil)
+    expect(themedAttributes[.themedForegroundColor] as? ThemedColor) == themedColor
+    expect(themedAttributes[.themedBackgroundColor] as? ThemedColor) == themedColor
+    expect(themedAttributes[.foregroundColor]) == nil
+    expect(themedAttributes[.backgroundColor]) == nil
+  }
+
   func test_refresh_mutableTextChangedInPlace_showsTheChangedText() throws {
     // given: a rendered text node whose text is one mutable object with a themed color, in the light theme
     let text = NSMutableAttributedString(string: "Text", attributes: [.themedForegroundColor: ThemedColor(light: .red, dark: .blue)])
