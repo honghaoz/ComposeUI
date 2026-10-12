@@ -106,45 +106,12 @@ extension NSAttributedString {
     // a paragraph's writing direction changes how its lines are laid out, so the text is measured with the directions
     // that text views lay it out with
     #if canImport(UIKit)
-    let textStorage = NSTextStorage(attributedString: resolvingNaturalWritingDirections().recordingOriginalFonts())
+    let text = resolvingNaturalWritingDirections().recordingOriginalFonts()
     #else
-    let textStorage = NSTextStorage(attributedString: resolvingNaturalWritingDirections())
+    let text = resolvingNaturalWritingDirections()
     #endif
 
-    let layoutManager = NSLayoutManager()
-    textStorage.addLayoutManager(layoutManager)
-
-    let textContainer = NSTextContainer(size: CGSize(width: layoutWidth, height: .greatestFiniteMagnitude))
-    textContainer.lineFragmentPadding = 0
-    textContainer.maximumNumberOfLines = numberOfLines
-    textContainer.lineBreakMode = lineBreakMode
-
-    layoutManager.addTextContainer(textContainer)
-
-    layoutManager.ensureLayout(for: textContainer)
-
-    // the width is the widest line's glyphs and its paragraph's indents, which the line needs to keep its line breaks,
-    // instead of the span of the lines, which also has the offsets that alignments give lines in the layout width, such
-    // as a right-to-left paragraph's lines at its right edge
-    let string: CFString = CFAttributedStringGetString(textStorage)
-    var paragraphStart = 0
-    var paragraphEnd = 0
-    var paragraphStyle = NSParagraphStyle.default
-    var width: CGFloat = 0
-    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, usedRect, _, glyphRange, _ in
-      let lineStart = layoutManager.characterIndexForGlyph(at: glyphRange.location)
-      if lineStart >= paragraphEnd {
-        // the lines come in order, so a paragraph's bounds are found from its first line
-        CFStringGetParagraphBounds(string, CFRange(location: lineStart, length: 0), &paragraphStart, &paragraphEnd, nil)
-        paragraphStyle = textStorage.attribute(.paragraphStyle, at: paragraphStart, effectiveRange: nil) as? NSParagraphStyle ?? .default
-      }
-      let headIndent = lineStart == paragraphStart ? paragraphStyle.firstLineHeadIndent : paragraphStyle.headIndent
-      // a negative tail indent insets the line from the trailing edge, while a positive one is a distance from the
-      // leading edge, which needs no room past the line's glyphs
-      let tailInset = max(-paragraphStyle.tailIndent, 0)
-      width = max(width, headIndent + usedRect.width + tailInset)
-    }
-    return CGSize(width: width, height: layoutManager.usedRect(for: textContainer).height)
+    return TextMeasuringSystem.size(of: text, numberOfLines: numberOfLines, layoutWidth: layoutWidth, lineBreakMode: lineBreakMode)
 
     // === TextKit [END] ===
 
@@ -342,6 +309,115 @@ extension NSAttributedString {
   //
   //    return mutableCopy
   //  }
+}
+
+// MARK: - Text Measuring System
+
+/// A TextKit 1 text system that measures texts as text views lay them out.
+///
+/// On the main thread, where text is measured for layout, one text system measures one text after another, which
+/// allocates less than half as much as a new text system for each text. It keeps the last text it measures until the
+/// end of the run loop turn, instead of until the next measurement, so that it doesn't keep the objects that a text's
+/// attributes hold, such as an attachment's image, after the layout that measures the text.
+private final class TextMeasuringSystem {
+
+  /// The text system that measures texts on the main thread, `nil` while it measures one, so that a measurement inside
+  /// another, such as one that a custom attachment makes for its bounds, uses a new text system.
+  private static var main: TextMeasuringSystem? = TextMeasuringSystem()
+
+  /// Whether the main text system removes its text at the end of the run loop turn.
+  private static var isTextRemovalScheduled = false
+
+  private let textStorage = NSTextStorage()
+  private let layoutManager = NSLayoutManager()
+  private let textContainer = NSTextContainer(size: .zero)
+
+  /// Creates a text system that measures texts.
+  init() {
+    textStorage.addLayoutManager(layoutManager)
+    textContainer.lineFragmentPadding = 0
+    layoutManager.addTextContainer(textContainer)
+  }
+
+  /// Returns the size that a text lays out in, measured in the main text system on the main thread, and in a new text
+  /// system elsewhere.
+  ///
+  /// - Parameters:
+  ///   - text: The text to measure, with the writing directions and the fonts that text views lay it out with.
+  ///   - numberOfLines: The number of lines to lay out. Use 0 for unlimited lines.
+  ///   - layoutWidth: The width of the layout.
+  ///   - lineBreakMode: The line break mode to use for the layout.
+  /// - Returns: The size that the text lays out in.
+  static func size(of text: NSAttributedString, numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode) -> CGSize {
+    guard Thread.isMainThread, let system = main else {
+      return TextMeasuringSystem().size(of: text, numberOfLines: numberOfLines, layoutWidth: layoutWidth, lineBreakMode: lineBreakMode)
+    }
+
+    main = nil
+    defer {
+      main = system
+    }
+
+    if !isTextRemovalScheduled {
+      isTextRemovalScheduled = true
+      onNextRunLoop {
+        system.removeText()
+        isTextRemovalScheduled = false
+      }
+    }
+
+    return system.size(of: text, numberOfLines: numberOfLines, layoutWidth: layoutWidth, lineBreakMode: lineBreakMode)
+  }
+
+  /// Returns the size that a text lays out in, measured in this text system.
+  ///
+  /// - Parameters:
+  ///   - text: The text to measure, with the writing directions and the fonts that text views lay it out with.
+  ///   - numberOfLines: The number of lines to lay out. Use 0 for unlimited lines.
+  ///   - layoutWidth: The width of the layout.
+  ///   - lineBreakMode: The line break mode to use for the layout.
+  /// - Returns: The size that the text lays out in.
+  func size(of text: NSAttributedString, numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode) -> CGSize {
+    textContainer.size = CGSize(width: layoutWidth, height: .greatestFiniteMagnitude)
+    textContainer.maximumNumberOfLines = numberOfLines
+    textContainer.lineBreakMode = lineBreakMode
+    textStorage.setAttributedString(text)
+    layoutManager.ensureLayout(for: textContainer)
+
+    // the width is the widest line's glyphs and its paragraph's indents, which the line needs to keep its line breaks,
+    // instead of the span of the lines, which also has the offsets that alignments give lines in the layout width, such
+    // as a right-to-left paragraph's lines at its right edge. the lines are read in a loop instead of with
+    // `enumerateLineFragments(forGlyphRange:using:)`, whose block would box each variable that it changes
+    let string: CFString = CFAttributedStringGetString(textStorage)
+    let glyphEnd = NSMaxRange(layoutManager.glyphRange(for: textContainer))
+    var glyphIndex = 0
+    var paragraphStart = 0
+    var paragraphEnd = 0
+    var paragraphStyle = NSParagraphStyle.default
+    var width: CGFloat = 0
+    while glyphIndex < glyphEnd {
+      var lineGlyphRange = NSRange()
+      let usedRect = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: &lineGlyphRange)
+      let lineStart = layoutManager.characterIndexForGlyph(at: lineGlyphRange.location)
+      if lineStart >= paragraphEnd {
+        // the lines come in order, so a paragraph's bounds are found from its first line
+        CFStringGetParagraphBounds(string, CFRange(location: lineStart, length: 0), &paragraphStart, &paragraphEnd, nil)
+        paragraphStyle = textStorage.attribute(.paragraphStyle, at: paragraphStart, effectiveRange: nil) as? NSParagraphStyle ?? .default
+      }
+      let headIndent = lineStart == paragraphStart ? paragraphStyle.firstLineHeadIndent : paragraphStyle.headIndent
+      // a negative tail indent insets the line from the trailing edge, while a positive one is a distance from the
+      // leading edge, which needs no room past the line's glyphs
+      let tailInset = max(-paragraphStyle.tailIndent, 0)
+      width = max(width, headIndent + usedRect.width + tailInset)
+      glyphIndex = NSMaxRange(lineGlyphRange)
+    }
+    return CGSize(width: width, height: layoutManager.usedRect(for: textContainer).height)
+  }
+
+  /// Removes the text system's text, which lets the objects that its attributes hold go.
+  private func removeText() {
+    textStorage.setAttributedString(NSAttributedString())
+  }
 }
 
 // MARK: - Text Size Cache

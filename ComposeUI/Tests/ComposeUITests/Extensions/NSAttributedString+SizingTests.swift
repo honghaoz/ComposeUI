@@ -1624,6 +1624,106 @@ class NSAttributedString_SizingTests: XCTestCase {
     expect(counts.textMeasurements) == 1
   }
 
+  // MARK: - Text Measuring System
+
+  func test_computeBoundingRectSize_textsOneAfterAnother_measureAsInNewTextSystems() throws {
+    // given: texts that differ in their fonts, scripts, writing directions, paragraph settings and attachments, in
+    // numbers of lines, widths and line break modes that differ too, and their sizes measured off the main thread, where
+    // each text is measured in a new text system
+    let font = Font.systemFont(ofSize: 13)
+    let paragraphStyle = NSMutableParagraphStyle()
+    paragraphStyle.firstLineHeadIndent = 20
+    paragraphStyle.tailIndent = -10
+    paragraphStyle.lineHeightMultiple = 1.5
+    paragraphStyle.alignment = .center
+    let attachment = NSTextAttachment()
+    attachment.bounds = CGRect(x: 0, y: 0, width: 20, height: 30)
+    let attachmentText = NSMutableAttributedString(string: "Hello ", attributes: [.font: font])
+    attachmentText.append(NSAttributedString(attachment: attachment))
+    let measurements: [(text: NSAttributedString, numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode)] = try [
+      (NSAttributedString(string: "A label", attributes: [.font: font]), 1, 100, .byWordWrapping),
+      (NSAttributedString(string: "A paragraph that wraps across several lines in a narrow layout.", attributes: [.font: Font.boldSystemFont(ofSize: 17), .paragraphStyle: paragraphStyle]), 0, 120, .byWordWrapping),
+      (NSAttributedString(string: "مرحبا بالعالم، هذا نص عربي طويل يلتف عبر عدة أسطر", attributes: [.font: font]), 2, 100, .byTruncatingTail),
+      (NSAttributedString(string: "नमस्ते दुनिया, यह एक लंबा वाक्य है जो कई पंक्तियों में आता है"), 0, 140, .byCharWrapping),
+      (attachmentText, 1, 0, .byTruncatingTail),
+      (NSAttributedString(string: "Two\nparagraphs", attributes: [.font: unwrap(Font(name: "HelveticaNeue", size: 16))]), 0, 200, .byWordWrapping),
+    ]
+    let sizesMeasured = expectation(description: "the sizes are measured off the main thread")
+    var expectedSizes: [CGSize] = []
+    DispatchQueue.global().async {
+      expectedSizes = measurements.map { $0.text.computeBoundingRectSize(numberOfLines: $0.numberOfLines, layoutWidth: $0.layoutWidth, lineBreakMode: $0.lineBreakMode) }
+      sizesMeasured.fulfill()
+    }
+    wait(for: [sizesMeasured], timeout: 10)
+
+    for index in Array(measurements.indices) + measurements.indices.reversed() {
+      // when: measuring the texts one after another on the main thread, in the text system that measures them there,
+      // forward and then backward
+      let measurement = measurements[index]
+      let size = measurement.text.computeBoundingRectSize(numberOfLines: measurement.numberOfLines, layoutWidth: measurement.layoutWidth, lineBreakMode: measurement.lineBreakMode)
+
+      // then: each text has the size that a new text system measures, since no text or setting of the measurements
+      // before it is left in the text system
+      expect(size, measurement.text.string) == expectedSizes[index]
+    }
+  }
+
+  func test_computeBoundingRectSize_insideAMeasurement_measuresInANewTextSystem() throws {
+    // given: a text with characters around an attachment that measures another text for its bounds when the text is laid
+    // out, the size of the other text alone, and the text's size measured off the main thread, where each measurement
+    // uses a new text system
+    let font = Font.systemFont(ofSize: 13)
+    let innerText = NSAttributedString(string: "Inner text", attributes: [.font: Font.boldSystemFont(ofSize: 17)])
+    let innerSize = innerText.computeBoundingRectSize(numberOfLines: 1, layoutWidth: 0)
+    let makeText = { (attachment: TextMeasuringAttachment) -> NSAttributedString in
+      let text = NSMutableAttributedString(string: "Hello ", attributes: [.font: font])
+      text.append(NSAttributedString(attachment: attachment))
+      text.append(NSAttributedString(string: " and the text after the attachment", attributes: [.font: font]))
+      return text
+    }
+    let sizeMeasured = expectation(description: "the size is measured off the main thread")
+    var expectedSize: CGSize?
+    DispatchQueue.global().async {
+      expectedSize = makeText(TextMeasuringAttachment(text: innerText)).computeBoundingRectSize(numberOfLines: 1, layoutWidth: 0)
+      sizeMeasured.fulfill()
+    }
+    wait(for: [sizeMeasured], timeout: 10)
+    let attachment = TextMeasuringAttachment(text: innerText)
+    let text = makeText(attachment)
+
+    // when: measuring the text on the main thread
+    let size = text.computeBoundingRectSize(numberOfLines: 1, layoutWidth: 0)
+
+    // then: the attachment measures the other text as alone, in a new text system, which leaves the text's measurement in
+    // place, so that the text has the size measured off the main thread
+    expect(attachment.measuredSize) == innerSize
+    expect(size) == expectedSize
+  }
+
+  func test_computeBoundingRectSize_letsTheTextGoAtTheEndOfTheRunLoopTurn() {
+    for turn in 1 ... 2 {
+      // given: a text with an attribute that holds an object, measured on the main thread, after which nothing else holds
+      // the object
+      weak var weakObject: NSObject?
+      autoreleasepool {
+        let object = NSObject()
+        weakObject = object
+        let text = NSAttributedString(string: "Hello", attributes: [.font: Font.systemFont(ofSize: 13), NSAttributedString.Key("io.chouti.composeui.test"): object])
+        _ = text.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 100)
+      }
+
+      // when: the run loop turn ends
+      let turnEnded = expectation(description: "the run loop turn ends")
+      onNextRunLoop {
+        turnEnded.fulfill()
+      }
+      wait(for: [turnEnded], timeout: 1)
+
+      // then: the text system lets the text go, and with it the object, at the end of each turn
+      expect(weakObject, "turn \(turn)") == nil
+    }
+  }
+
   // MARK: - Helpers
 
   private func makeAttributedString(font: Font, lineBreakMode: NSLineBreakMode) throws -> NSAttributedString {
@@ -1648,4 +1748,55 @@ class NSAttributedString_SizingTests: XCTestCase {
   private enum Constants {
     static let string: String = "ComposéUI is a Swift framework for building UI using AppKit and UIKit with declarative syntax."
   }
+}
+
+/// An attachment that measures a text for its bounds, the size of the text, when it's laid out.
+private final class TextMeasuringAttachment: NSTextAttachment {
+
+  /// The text to measure.
+  private let text: NSAttributedString
+
+  /// The size of the text, once measured.
+  private(set) var measuredSize: CGSize?
+
+  init(text: NSAttributedString) {
+    self.text = text
+    super.init(data: nil, ofType: nil)
+    #if canImport(AppKit)
+    // an AppKit text system lays an attachment out by its cell instead of its bounds
+    let cell = Cell()
+    cell.measuringAttachment = self
+    attachmentCell = cell
+    #endif
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+
+  /// Measures the text.
+  fileprivate func measure() -> CGSize {
+    let size = text.computeBoundingRectSize(numberOfLines: 1, layoutWidth: 0)
+    measuredSize = size
+    return size
+  }
+
+  #if canImport(UIKit)
+  override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect, glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
+    CGRect(origin: .zero, size: measure())
+  }
+  #endif
+
+  #if canImport(AppKit)
+  /// The cell that lays the attachment out in the size of its text.
+  private final class Cell: NSTextAttachmentCell {
+
+    weak var measuringAttachment: TextMeasuringAttachment?
+
+    override func cellFrame(for textContainer: NSTextContainer, proposedLineFragment lineFrag: NSRect, glyphPosition position: NSPoint, characterIndex charIndex: Int) -> NSRect {
+      NSRect(origin: .zero, size: measuringAttachment?.measure() ?? .zero)
+    }
+  }
+  #endif
 }
