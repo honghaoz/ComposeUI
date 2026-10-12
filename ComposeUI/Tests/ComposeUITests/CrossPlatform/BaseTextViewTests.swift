@@ -1028,6 +1028,60 @@ class BaseTextViewTests: XCTestCase {
     }
   }
 
+  func test_resetForReuse_keepingTextNodeSettings_resetAgainInTheSameTurn_schedulesTheTextViewOnce() {
+    // given: a text view reset for a reuse by a text node, which then gets another text, as a text node that reuses it
+    // sets
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    let countBefore = BaseTextView.scheduledTextRemovalCount
+    textView.resetForReuse(keepsTextNodeSettings: true)
+    textView.attributedString = NSAttributedString(string: "Another text")
+
+    // when: it's reset again before the run loop turn ends, as when a later refresh in the same turn removes it again
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: it's scheduled once
+    expect(BaseTextView.scheduledTextRemovalCount) == countBefore + 1
+
+    // when: the run loop turn ends
+    let turnEnded = expectation(description: "the run loop turn ends")
+    onNextRunLoop {
+      turnEnded.fulfill()
+    }
+    wait(for: [turnEnded], timeout: 1)
+
+    // then: it removes its text, since the second reset scheduled the removal again
+    expect(textView.attributedString.string) == ""
+    expect(Self.textStorage(of: textView)?.length) == 0
+    expect(BaseTextView.scheduledTextRemovalCount) == 0
+  }
+
+  func test_resetForReuse_keepingTextNodeSettings_resetAgainInALaterTurn_removesTheTextAgain() {
+    // given: a text view reset for a reuse by a text node, which removed its text at the end of the run loop turn
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    textView.resetForReuse(keepsTextNodeSettings: true)
+    let firstTurnEnded = expectation(description: "the first run loop turn ends")
+    onNextRunLoop {
+      firstTurnEnded.fulfill()
+    }
+    wait(for: [firstTurnEnded], timeout: 1)
+    expect(textView.attributedString.string) == ""
+
+    // when: a text node reuses it, it's reset again, and the next turn ends
+    textView.attributedString = NSAttributedString(string: "Another text")
+    textView.resetForReuse(keepsTextNodeSettings: true)
+    let secondTurnEnded = expectation(description: "the second run loop turn ends")
+    onNextRunLoop {
+      secondTurnEnded.fulfill()
+    }
+    wait(for: [secondTurnEnded], timeout: 1)
+
+    // then: it removes the other text too, since the end of the first turn took it off the list
+    expect(textView.attributedString.string) == ""
+    expect(Self.textStorage(of: textView)?.length) == 0
+  }
+
   func test_resetForReuse_keepingTextNodeSettings_textSetBeforeTheEndOfTheTurn_isKept() {
     // given: a text view with a text, reset for a reuse by a text node
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))

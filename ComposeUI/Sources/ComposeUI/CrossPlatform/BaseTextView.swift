@@ -87,6 +87,18 @@ open class BaseTextView: TextView {
   /// Whether the text view removes its text at the end of the run loop turn, unless it gets another text before.
   fileprivate var isTextRemovalScheduled = false
 
+  /// Whether the text view is in the list of text views that remove their text at the end of the run loop turn, where it
+  /// stays until then, also when another text cancels the removal.
+  fileprivate var isInTextRemovalList = false
+
+  #if DEBUG
+  /// The number of text views in the list of text views that remove their text at the end of the run loop turn, for
+  /// tests.
+  static var scheduledTextRemovalCount: Int {
+    ScheduledTextRemoval.count
+  }
+  #endif
+
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
     didSet {
@@ -291,29 +303,52 @@ open class BaseTextView: TextView {
 ///
 /// A text view that a text node resets for reuse keeps its text until then, so that a reuse in the same render pass
 /// replaces the text in one edit, while a text view that stays in the pool doesn't keep its text, and the objects that
-/// the text's attributes hold, for longer than the turn.
+/// the text's attributes hold, for longer than the turn. The list holds each text view once, so that it stays as long as
+/// the number of text views reset in the turn, however many refreshes run in it.
+///
+/// The list holds its text views strongly: AppKit keeps a text view that its owners let go of alive for longer than a run
+/// loop turn, so a weak reference wouldn't let one that the pool has no room for deallocate any sooner.
 private enum ScheduledTextRemoval {
 
   /// The text views that remove their text at the end of the run loop turn.
   private static var textViews: [BaseTextView] = []
 
+  #if DEBUG
+  /// The number of text views in the list.
+  static var count: Int {
+    textViews.count
+  }
+  #endif
+
   /// Schedules a text view to remove its text at the end of the run loop turn, unless it gets another text before.
   static func schedule(_ textView: BaseTextView) {
+    textView.isTextRemovalScheduled = true
+
+    // a text view that's reused and reset again in the same turn is in the list already
+    guard !textView.isInTextRemovalList else {
+      return
+    }
+
     if textViews.isEmpty {
       onNextRunLoop {
         removeTexts()
       }
     }
-    textView.isTextRemovalScheduled = true
+    textView.isInTextRemovalList = true
     textViews.append(textView)
   }
 
-  /// Removes the text of each scheduled text view that hasn't got another text.
+  /// Removes the text of each listed text view that hasn't got another text.
   private static func removeTexts() {
+    // a text storage edit can call back into code that resets text views, which then schedule into a new list, so the
+    // list is taken first instead of cleared after the loop
     let textViews = textViews
     Self.textViews = []
-    for textView in textViews where textView.isTextRemovalScheduled {
-      textView.attributedString = NSAttributedString()
+    for textView in textViews {
+      textView.isInTextRemovalList = false
+      if textView.isTextRemovalScheduled {
+        textView.attributedString = NSAttributedString()
+      }
     }
   }
 }
