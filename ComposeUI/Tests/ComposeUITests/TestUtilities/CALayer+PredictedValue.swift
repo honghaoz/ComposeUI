@@ -109,7 +109,6 @@ extension CALayer {
     let earlier = try predictedValue(forKeyPath: keyPath, at: times.lowerBound, scalar: scalar)
     let later = try predictedValue(forKeyPath: keyPath, at: times.upperBound, scalar: scalar)
     let description = "\(keyPath), predicted \(earlier) to \(later)"
-    expect(shown, description, file: file, line: line) >= min(earlier, later) - tolerance
-    expect(shown, description, file: file, line: line) <= max(earlier, later) + tolerance
+    expect(shown, description, file: file, line: line).to(beBetween(earlier, and: later, within: tolerance))
   }
 }

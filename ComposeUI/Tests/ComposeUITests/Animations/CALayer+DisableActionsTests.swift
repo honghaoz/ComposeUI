@@ -177,7 +177,7 @@ class CALayer_DisableActionsTests: XCTestCase {
     }
   }
 
-  func test_disableAllActions_throwingWork_restoresDelegateAndClass() throws {
+  func test_disableAllActions_throwingWork_restoresDelegateAndClass() {
     struct TestError: Error {}
 
     // given: a layer without a delegate
@@ -220,7 +220,7 @@ class CALayer_DisableActionsTests: XCTestCase {
       }
 
       // then: the class is restored and the delegate is untouched
-      try expect(ObjectIdentifier(unwrap(object_getClass(layer)))) == ObjectIdentifier(CALayer.self)
+      expect(object_getClass(layer)) == CALayer.self
       expect(layer.delegate) === delegate
     }
   }

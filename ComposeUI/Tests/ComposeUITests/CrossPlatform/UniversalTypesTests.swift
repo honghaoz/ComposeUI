@@ -48,17 +48,17 @@ final class UniversalTypesTests: XCTestCase {
 
   func test_appKit_typealiases() {
     // then: universal typealiases map to the AppKit types
-    expect(ObjectIdentifier(ComposeUI.Window.self)) == ObjectIdentifier(NSWindow.self)
-    expect(ObjectIdentifier(ComposeUI.View.self)) == ObjectIdentifier(NSView.self)
-    expect(ObjectIdentifier(ComposeUI.TextView.self)) == ObjectIdentifier(NSTextView.self)
-    expect(ObjectIdentifier(ComposeUI.Color.self)) == ObjectIdentifier(NSColor.self)
-    expect(ObjectIdentifier(ComposeUI.Font.self)) == ObjectIdentifier(NSFont.self)
-    expect(ObjectIdentifier(ComposeUI.FontDescriptor.self)) == ObjectIdentifier(NSFontDescriptor.self)
-    expect(ObjectIdentifier(ComposeUI.BezierPath.self)) == ObjectIdentifier(NSBezierPath.self)
-    expect(ObjectIdentifier(ComposeUI.GestureRecognizer.self)) == ObjectIdentifier(NSGestureRecognizer.self)
-    expect(ObjectIdentifier(ComposeUI.TapGestureRecognizer.self)) == ObjectIdentifier(NSClickGestureRecognizer.self)
-    expect(ObjectIdentifier(ComposeUI.PressGestureRecognizer.self)) == ObjectIdentifier(NSPressGestureRecognizer.self)
-    expect(ObjectIdentifier(ComposeUI.PanGestureRecognizer.self)) == ObjectIdentifier(NSPanGestureRecognizer.self)
+    expect(ComposeUI.Window.self) == NSWindow.self
+    expect(ComposeUI.View.self) == NSView.self
+    expect(ComposeUI.TextView.self) == NSTextView.self
+    expect(ComposeUI.Color.self) == NSColor.self
+    expect(ComposeUI.Font.self) == NSFont.self
+    expect(ComposeUI.FontDescriptor.self) == NSFontDescriptor.self
+    expect(ComposeUI.BezierPath.self) == NSBezierPath.self
+    expect(ComposeUI.GestureRecognizer.self) == NSGestureRecognizer.self
+    expect(ComposeUI.TapGestureRecognizer.self) == NSClickGestureRecognizer.self
+    expect(ComposeUI.PressGestureRecognizer.self) == NSPressGestureRecognizer.self
+    expect(ComposeUI.PanGestureRecognizer.self) == NSPanGestureRecognizer.self
   }
 
   func test_appKit_edgeInsets_isNSEdgeInsets() {
@@ -92,17 +92,17 @@ final class UniversalTypesTests: XCTestCase {
 
   func test_uiKit_typealiases() {
     // then: universal typealiases map to the UIKit types
-    expect(ObjectIdentifier(ComposeUI.Window.self)) == ObjectIdentifier(UIWindow.self)
-    expect(ObjectIdentifier(ComposeUI.View.self)) == ObjectIdentifier(UIView.self)
-    expect(ObjectIdentifier(ComposeUI.TextView.self)) == ObjectIdentifier(UITextView.self)
-    expect(ObjectIdentifier(ComposeUI.Color.self)) == ObjectIdentifier(UIColor.self)
-    expect(ObjectIdentifier(ComposeUI.Font.self)) == ObjectIdentifier(UIFont.self)
-    expect(ObjectIdentifier(ComposeUI.FontDescriptor.self)) == ObjectIdentifier(UIFontDescriptor.self)
-    expect(ObjectIdentifier(ComposeUI.BezierPath.self)) == ObjectIdentifier(UIBezierPath.self)
-    expect(ObjectIdentifier(ComposeUI.GestureRecognizer.self)) == ObjectIdentifier(UIGestureRecognizer.self)
-    expect(ObjectIdentifier(ComposeUI.TapGestureRecognizer.self)) == ObjectIdentifier(UITapGestureRecognizer.self)
-    expect(ObjectIdentifier(ComposeUI.PressGestureRecognizer.self)) == ObjectIdentifier(UILongPressGestureRecognizer.self)
-    expect(ObjectIdentifier(ComposeUI.PanGestureRecognizer.self)) == ObjectIdentifier(UIPanGestureRecognizer.self)
+    expect(ComposeUI.Window.self) == UIWindow.self
+    expect(ComposeUI.View.self) == UIView.self
+    expect(ComposeUI.TextView.self) == UITextView.self
+    expect(ComposeUI.Color.self) == UIColor.self
+    expect(ComposeUI.Font.self) == UIFont.self
+    expect(ComposeUI.FontDescriptor.self) == UIFontDescriptor.self
+    expect(ComposeUI.BezierPath.self) == UIBezierPath.self
+    expect(ComposeUI.GestureRecognizer.self) == UIGestureRecognizer.self
+    expect(ComposeUI.TapGestureRecognizer.self) == UITapGestureRecognizer.self
+    expect(ComposeUI.PressGestureRecognizer.self) == UILongPressGestureRecognizer.self
+    expect(ComposeUI.PanGestureRecognizer.self) == UIPanGestureRecognizer.self
   }
 
   func test_uiKit_edgeInsets_isUIEdgeInsets() {

@@ -284,8 +284,7 @@ class CALayer_AnimationsTests: XCTestCase {
       let timeBefore = CACurrentMediaTime()
       let shownX = try Double(layer.presentation().unwrap().position.x)
       let timeAfter = CACurrentMediaTime()
-      expect(shownX) >= 5 + 100 * (timeBefore - beginTime)
-      expect(shownX) <= 5 + 100 * (timeAfter - beginTime)
+      expect(shownX).to(beBetween(5 + 100 * (timeBefore - beginTime), and: 5 + 100 * (timeAfter - beginTime)))
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
     }
   }

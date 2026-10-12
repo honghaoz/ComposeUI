@@ -254,8 +254,7 @@ class CALayer_AdditivePathTests: XCTestCase {
       // Core Animation turns the lines of a path it interpolates into curves, so the shape shown is compared by its bounds
       let (shownBounds, times) = try layer.readPresentation { try $0.path.unwrap().boundingBoxOfPath }
       for shownInset in [shownBounds.minX, shownBounds.minY, 100 - shownBounds.maxX, 50 - shownBounds.maxY] {
-        expect(shownInset) >= expectedInset(at: times.lowerBound) - 0.5
-        expect(shownInset) <= expectedInset(at: times.upperBound) + 0.5
+        expect(shownInset).to(beBetween(expectedInset(at: times.lowerBound), and: expectedInset(at: times.upperBound), within: 0.5))
       }
     }
   }

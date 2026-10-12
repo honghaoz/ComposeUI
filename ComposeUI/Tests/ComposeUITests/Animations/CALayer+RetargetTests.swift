@@ -1269,8 +1269,7 @@ class CALayer_RetargetTests: XCTestCase {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
       let (shown, times) = try layer.readPresentation { $0.cornerRadius }
       try layer.expectShown(shown, forKeyPath: "cornerRadius", between: times, scalar: numberScalar, within: 0.5)
-      expect(shown) <= radiusAtRetarget + 0.5
-      expect(shown) >= -0.5
+      expect(shown).to(beBetween(0, and: radiusAtRetarget, within: 0.5))
       landed = shown < 0.1
     }
     expect(landed) == true
