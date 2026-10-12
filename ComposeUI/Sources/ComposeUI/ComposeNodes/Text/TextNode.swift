@@ -404,7 +404,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
           )
         },
         reuseId: Self.reuseId(isEditable: isEditable, isSelectable: isSelectable),
-        resetForReuse: { $0.resetForReuse(keepsInteraction: true) }
+        resetForReuse: { $0.resetForReuse(keepsTextNodeSettings: true) }
       )
       .eraseToRenderableItem()
     }

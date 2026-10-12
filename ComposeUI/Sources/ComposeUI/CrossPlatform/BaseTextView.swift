@@ -28,6 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
+// MARK: - AppKit
+
 #if canImport(AppKit)
 import AppKit
 
@@ -69,6 +71,7 @@ open class BaseTextView: TextView {
   /// views.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
+      isTextRemovalScheduled = false
       let isChanged = shownText.show(attributedString, resolvesWritingDirections: !isEditable) { textStorage?.setAttributedString($0) }
 
       // the intrinsic size is computed from the text, so only a different text invalidates it
@@ -80,6 +83,21 @@ open class BaseTextView: TextView {
 
   /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
   var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?
+
+  /// Whether the text view removes its text at the end of the run loop turn, unless it gets another text before.
+  fileprivate var isTextRemovalScheduled = false
+
+  /// Whether the text view is in the list of text views that remove their text at the end of the run loop turn, where it
+  /// stays until then, also when another text cancels the removal.
+  fileprivate var isInTextRemovalList = false
+
+  #if DEBUG
+  /// The number of text views in the list of text views that remove their text at the end of the run loop turn, for
+  /// tests.
+  static var scheduledTextRemovalCount: Int {
+    ScheduledTextRemoval.count
+  }
+  #endif
 
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
@@ -222,14 +240,21 @@ open class BaseTextView: TextView {
 
   /// Reset the text view so it can be reused as if freshly made.
   open func resetForReuse() {
-    resetForReuse(keepsInteraction: false)
+    resetForReuse(keepsTextNodeSettings: false)
   }
 
-  /// Resets the text view so it can be reused as if freshly made, except for its interaction settings when it's kept.
+  /// Resets the text view so it can be reused as if freshly made, except for what a text node sets on each reuse when
+  /// it's kept.
   ///
-  /// - Parameter keepsInteraction: Whether to keep the text view's editable, selectable and hit testing settings, for a
-  ///   reuse that sets the same ones.
-  func resetForReuse(keepsInteraction: Bool) {
+  /// A text node sets a text view's interaction settings, number of lines, line break mode, inset and text each time it
+  /// reuses the text view, so setting them back to their defaults would pay for each change twice, and a change of the
+  /// number of lines, the line break mode or the inset with the text in place lays the text out again. So they're kept,
+  /// and the text view removes its text at the end of the run loop turn, unless it gets another text before, which
+  /// replaces the text in one edit, such as when a scroll reuses it in the same render pass.
+  ///
+  /// - Parameter keepsTextNodeSettings: Whether to keep the settings and, until the end of the run loop turn, the text,
+  ///   for a reuse by a text node.
+  func resetForReuse(keepsTextNodeSettings: Bool) {
     let selectedRange = selectedRange
     if selectedRange.location != 0 || selectedRange.length != 0 {
       setSelectedRange(NSRange(location: 0, length: 0))
@@ -241,39 +266,96 @@ open class BaseTextView: TextView {
 
     delegate = nil
 
-    attributedString = NSAttributedString()
-    lastThemedText = nil
-
-    if numberOfLines != 0 {
-      numberOfLines = 0
-    }
-    if lineBreakMode != .byWordWrapping {
-      lineBreakMode = .byWordWrapping
-    }
-
-    if !keepsInteraction {
+    if keepsTextNodeSettings {
+      ScheduledTextRemoval.schedule(self)
+    } else {
+      attributedString = NSAttributedString()
+      if numberOfLines != 0 {
+        numberOfLines = 0
+      }
+      if lineBreakMode != .byWordWrapping {
+        lineBreakMode = .byWordWrapping
+      }
+      if textContainerInset != .zero {
+        textContainerInset = .zero
+      }
       isEditable = false
       isSelectable = true
+      ignoreHitTest = false
     }
+    lastThemedText = nil
+
     isRichText = false
 
     drawsBackground = false
 
-    if textContainerInset != .zero {
-      textContainerInset = .zero
-    }
     textContainer?.lineFragmentPadding = 0
 
     ensureClipsToBounds()
 
-    if !keepsInteraction {
-      ignoreHitTest = false
-    }
     typingAttributes = [:]
   }
 }
 
+// MARK: - Scheduled Text Removal
+
+/// The text views that remove their text at the end of the run loop turn, unless they get another text before.
+///
+/// A text view that a text node resets for reuse keeps its text until then, so that a reuse in the same render pass
+/// replaces the text in one edit, while a text view that stays in the pool doesn't keep its text, and the objects that
+/// the text's attributes hold, for longer than the turn. The list holds each text view once, so that it stays as long as
+/// the number of text views reset in the turn, however many refreshes run in it.
+///
+/// The list holds its text views strongly: AppKit keeps a text view that its owners let go of alive for longer than a run
+/// loop turn, so a weak reference wouldn't let one that the pool has no room for deallocate any sooner.
+private enum ScheduledTextRemoval {
+
+  /// The text views that remove their text at the end of the run loop turn.
+  private static var textViews: [BaseTextView] = []
+
+  #if DEBUG
+  /// The number of text views in the list.
+  static var count: Int {
+    textViews.count
+  }
+  #endif
+
+  /// Schedules a text view to remove its text at the end of the run loop turn, unless it gets another text before.
+  static func schedule(_ textView: BaseTextView) {
+    textView.isTextRemovalScheduled = true
+
+    // a text view that's reused and reset again in the same turn is in the list already
+    guard !textView.isInTextRemovalList else {
+      return
+    }
+
+    if textViews.isEmpty {
+      onNextRunLoop {
+        removeTexts()
+      }
+    }
+    textView.isInTextRemovalList = true
+    textViews.append(textView)
+  }
+
+  /// Removes the text of each listed text view that hasn't got another text.
+  private static func removeTexts() {
+    // a text storage edit can call back into code that resets text views, which then schedule into a new list, so the
+    // list is taken first instead of cleared after the loop
+    let textViews = textViews
+    Self.textViews = []
+    for textView in textViews {
+      textView.isInTextRemovalList = false
+      if textView.isTextRemovalScheduled {
+        textView.attributedString = NSAttributedString()
+      }
+    }
+  }
+}
+
 #endif
+
+// MARK: - UIKit
 
 #if canImport(UIKit)
 import UIKit
@@ -383,14 +465,19 @@ open class BaseTextView: UITextView {
 
   /// Reset the text view so it can be reused as if freshly made.
   open func resetForReuse() {
-    resetForReuse(keepsInteraction: false)
+    resetForReuse(keepsTextNodeSettings: false)
   }
 
-  /// Resets the text view so it can be reused as if freshly made, except for its interaction settings when it's kept.
+  /// Resets the text view so it can be reused as if freshly made, except for the settings that a text node sets on each
+  /// reuse when they're kept.
   ///
-  /// - Parameter keepsInteraction: Whether to keep the text view's editable, selectable and user interaction settings,
-  ///   for a reuse that sets the same ones.
-  func resetForReuse(keepsInteraction: Bool) {
+  /// A text node sets a text view's interaction settings, number of lines, line break mode and inset each time it reuses
+  /// the text view, so setting them back to their defaults would pay for each change twice. The text is removed at once,
+  /// unlike on AppKit, since replacing a UIKit text view's text costs more than removing it and setting the new one, and
+  /// a reuse moves and resizes the text view before it sets the new text, which costs more with a text in place.
+  ///
+  /// - Parameter keepsTextNodeSettings: Whether to keep the settings, for a reuse by a text node.
+  func resetForReuse(keepsTextNodeSettings: Bool) {
     let selectedRange = selectedRange
     if selectedRange.location != 0 || selectedRange.length != 0 {
       self.selectedRange = NSRange(location: 0, length: 0)
@@ -404,16 +491,17 @@ open class BaseTextView: UITextView {
 
     attributedString = NSAttributedString()
     lastThemedText = nil
-    if numberOfLines != 0 {
-      numberOfLines = 0
-    }
-    if lineBreakMode != .byWordWrapping {
-      lineBreakMode = .byWordWrapping
-    }
 
-    contentInsetAdjustmentBehavior = .never
-
-    if !keepsInteraction {
+    if !keepsTextNodeSettings {
+      if numberOfLines != 0 {
+        numberOfLines = 0
+      }
+      if lineBreakMode != .byWordWrapping {
+        lineBreakMode = .byWordWrapping
+      }
+      if textContainerInset != .zero {
+        textContainerInset = .zero
+      }
       #if !os(tvOS)
       isEditable = false
       #endif
@@ -421,11 +509,10 @@ open class BaseTextView: UITextView {
       isUserInteractionEnabled = true
     }
 
+    contentInsetAdjustmentBehavior = .never
+
     backgroundColor = nil
 
-    if textContainerInset != .zero {
-      textContainerInset = .zero
-    }
     if textContainer.lineFragmentPadding != 0 {
       textContainer.lineFragmentPadding = 0
     }
