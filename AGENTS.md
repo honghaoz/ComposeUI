@@ -173,6 +173,7 @@ Hard-won rules from past corrections, grouped by theme.
 
 - A test must not assume two reads happen at the same moment. The main thread can stall between any two statements for tens of milliseconds on a loaded machine, and no tolerance bounds that. Compare values computed for one time, or bracket a presentation read between two clock reads and accept any value between the predictions for them.
 - Check coverage with zero line counts or `llvm-cov report`, not only with the `-show-regions` markers: a region marker appears only where part of a line ran, so a line that never ran shows none.
+- A test tells nothing about the code it guards when it passes with that code broken, which happens whenever its input doesn't reach the failure that the code prevents. Break the code and see the test fail, and when it doesn't, change the input until it reaches the failure, such as a text that goes on past the point where a nested measurement runs, or a check of each line's width where the line count stays the same.
 
 ## Cross-platform
 
