@@ -941,18 +941,26 @@ class BaseTextViewTests: XCTestCase {
     expect(weakText) == nil
   }
 
-  func test_resetForReuse_keepingInteraction_keepsTheInteractionSettings() {
+  func test_resetForReuse_keepingTextNodeSettings_keepsThem() {
     #if os(tvOS)
     let settings = [false]
     #else
     let settings = [true, false]
     #endif
     for isInteractive in settings {
-      // given: a text view with a text, a number of lines, and the interaction settings of an editable text view or of
-      // a text view that isn't interactive, which aren't the defaults
+      // given: a text view with a text, a number of lines, a line break mode, an inset, and the interaction settings of
+      // an editable text view or of a text view that isn't interactive, which aren't the defaults
+      let scenario = "interactive \(isInteractive)"
       let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
       textView.attributedString = NSAttributedString(string: "Hello, world!")
       textView.numberOfLines = 2
+      textView.lineBreakMode = .byTruncatingTail
+      #if canImport(AppKit)
+      textView.textContainerInset = CGSize(width: 4, height: 2)
+      #endif
+      #if canImport(UIKit)
+      textView.textContainerInset = UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
+      #endif
       #if !os(tvOS)
       textView.isEditable = isInteractive
       #endif
@@ -964,24 +972,97 @@ class BaseTextViewTests: XCTestCase {
       textView.isUserInteractionEnabled = isInteractive
       #endif
 
-      // when: resetting it for a reuse that sets the same interaction settings
-      textView.resetForReuse(keepsInteraction: true)
+      // when: resetting it for a reuse by a text node
+      textView.resetForReuse(keepsTextNodeSettings: true)
 
-      // then: the interaction settings stay, and the rest is reset
+      // then: the settings that a text node sets on each reuse stay
       #if !os(tvOS)
-      expect(textView.isEditable, "interactive \(isInteractive)") == isInteractive
+      expect(textView.isEditable, scenario) == isInteractive
       #endif
-      expect(textView.isSelectable, "interactive \(isInteractive)") == isInteractive
+      expect(textView.isSelectable, scenario) == isInteractive
       #if canImport(AppKit)
-      expect(textView.ignoreHitTest, "interactive \(isInteractive)") == !isInteractive
+      expect(textView.ignoreHitTest, scenario) == !isInteractive
+      expect(textView.textContainerInset, scenario) == CGSize(width: 4, height: 2)
       #endif
       #if canImport(UIKit)
-      expect(textView.isUserInteractionEnabled, "interactive \(isInteractive)") == isInteractive
+      expect(textView.isUserInteractionEnabled, scenario) == isInteractive
+      expect(textView.textContainerInset, scenario) == UIEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
       #endif
-      expect(textView.attributedString.string, "interactive \(isInteractive)") == ""
-      expect(textView.numberOfLines, "interactive \(isInteractive)") == 0
+      expect(textView.numberOfLines, scenario) == 2
+      expect(textView.lineBreakMode, scenario) == .byTruncatingTail
     }
   }
+
+  #if canImport(AppKit)
+  func test_resetForReuse_keepingTextNodeSettings_keepsTheTextUntilTheEndOfTheRunLoopTurn() {
+    for isEditable in [true, false] {
+      // given: a text view, editable or not, with a text whose attribute holds an object
+      let scenario = "editable \(isEditable)"
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.isEditable = isEditable
+      weak var weakObject: NSObject?
+      autoreleasepool {
+        let object = NSObject()
+        weakObject = object
+        textView.attributedString = NSAttributedString(string: "Hello, world!", attributes: [NSAttributedString.Key("io.chouti.composeui.test"): object])
+      }
+
+      // when: resetting it for a reuse by a text node
+      textView.resetForReuse(keepsTextNodeSettings: true)
+
+      // then: it keeps the text, which a reuse in the same render pass replaces in one edit
+      expect(textView.attributedString.string, scenario) == "Hello, world!"
+      expect(Self.textStorage(of: textView)?.string, scenario) == "Hello, world!"
+
+      // when: the run loop turn ends
+      let turnEnded = expectation(description: "the run loop turn ends")
+      onNextRunLoop {
+        turnEnded.fulfill()
+      }
+      wait(for: [turnEnded], timeout: 1)
+
+      // then: the text view removes its text, and lets go of the object that the text held
+      expect(textView.attributedString.string, scenario) == ""
+      expect(Self.textStorage(of: textView)?.length, scenario) == 0
+      expect(weakObject, scenario) == nil
+    }
+  }
+
+  func test_resetForReuse_keepingTextNodeSettings_textSetBeforeTheEndOfTheTurn_isKept() {
+    // given: a text view with a text, reset for a reuse by a text node
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // when: the text view gets another text, as a text node that reuses it sets, and the run loop turn ends
+    textView.attributedString = NSAttributedString(string: "Another text")
+    let turnEnded = expectation(description: "the run loop turn ends")
+    onNextRunLoop {
+      turnEnded.fulfill()
+    }
+    wait(for: [turnEnded], timeout: 1)
+
+    // then: the text view keeps the other text, since it got it before its text was to be removed
+    expect(textView.attributedString.string) == "Another text"
+    expect(Self.textStorage(of: textView)?.string) == "Another text"
+  }
+  #endif
+
+  #if canImport(UIKit)
+  func test_resetForReuse_keepingTextNodeSettings_removesTheText() {
+    // given: a text view with a text
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+
+    // when: resetting it for a reuse by a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: it removes its text at once, since a reuse moves and resizes the text view before it sets the new text,
+    // which costs more with a text in place
+    expect(textView.attributedString.string) == ""
+    expect(Self.textStorage(of: textView)?.length) == 0
+  }
+  #endif
 
   func test_resetForReuse_clearsNumberOfLines() {
     // given: a text view with a number of lines set

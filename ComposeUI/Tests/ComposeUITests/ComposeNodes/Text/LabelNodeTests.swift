@@ -852,13 +852,29 @@ class LabelNodeTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    // then: the view is enqueued into the pool, which resets it (via TextNode's resetForReuse) for reuse, keeping its
-    // interaction settings, since only a text node with the same settings reuses it
+    // then: the view is enqueued into the pool, which resets it (via TextNode's resetForReuse) for reuse, keeping what a
+    // text node sets on each reuse, such as its interaction settings and number of lines, since only a text node with
+    // the same interaction settings reuses it, and on macOS, its text until the run loop turn ends
     expect(firstBaseTextView(in: view)) == nil
-    expect(textView.attributedString.string) == ""
-    expect(textView.numberOfLines) == 0
-    expect(textView.lineBreakMode) == .byWordWrapping
+    expect(textView.numberOfLines) == 2
+    expect(textView.lineBreakMode) == .byTruncatingTail
     expect(textView.isSelectable) == false
+    #if canImport(AppKit)
+    expect(textView.attributedString.string) == "First"
+
+    // when: the run loop turn ends with the view still in the pool
+    let turnEnded = expectation(description: "the run loop turn ends")
+    onNextRunLoop {
+      turnEnded.fulfill()
+    }
+    wait(for: [turnEnded], timeout: 1)
+
+    // then: the pooled view removes its text
+    expect(textView.attributedString.string) == ""
+    #endif
+    #if canImport(UIKit)
+    expect(textView.attributedString.string) == ""
+    #endif
 
     // when: rendering a new label
     view.setContent {

@@ -749,6 +749,57 @@ class TextNodeTests: XCTestCase {
     expect(unselectableView.isSelectable) == false
   }
 
+  #if canImport(AppKit)
+  func test_reuse_inTheSameRenderPass_replacesTheTextInOneEdit() throws {
+    // given: a compose view with its own pool, showing a label, and an observer of its text view's text storage edits
+    var id = "first"
+    var text = "First"
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      LabelNode(text)
+        .id(id)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.renderablePool = RenderablePool()
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let textStorage = try unwrap(textView.textStorage)
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: another label replaces it, so one render pass removes the text view to the pool and reuses it for the other
+    // label
+    id = "second"
+    text = "Second"
+    contentView.refresh(animated: false)
+
+    // then: the text view replaces its text in one edit, since the reset for the pool keeps the text until the end of
+    // the run loop turn, instead of removing it in an edit of its own
+    expect(renderedView) === textView
+    expect(editCount) == 1
+    expect(shownString(of: textView)) == "Second"
+
+    // when: the run loop turn ends
+    let turnEnded = expectation(description: "the run loop turn ends")
+    onNextRunLoop {
+      turnEnded.fulfill()
+    }
+    wait(for: [turnEnded], timeout: 1)
+
+    // then: the text view keeps the other label's text
+    expect(shownString(of: textView)) == "Second"
+    expect(editCount) == 1
+  }
+  #endif
+
   func test_refresh_restoresTheSettingsChangedOnTheTextView() throws {
     // given: a text node rendered with its settings, whose text view's settings were then changed directly
     var renderedView: BaseTextView?
