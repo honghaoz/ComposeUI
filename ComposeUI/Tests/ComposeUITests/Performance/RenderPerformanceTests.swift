@@ -78,6 +78,15 @@ class RenderPerformanceTests: BenchmarkTestCase {
     }
   }
 
+  func test_scroll_mixedLabelRows_10000() {
+    // when: scrolling through 10000 rows of labels with different settings
+    // the labels of a row share a pool, so a scroll reuses each text view for the other kind of label, which changes
+    // the text view's number of lines.
+    runScrollBenchmark(name: "scroll.mixedLabels.10000", rowCount: 10000) { i in
+      Self.makeMixedLabelRow(i)
+    }
+  }
+
   func test_scroll_flatSmallRows_5000() {
     // when: scrolling through 5000 flat small rows
     // small rows make many items visible (~105), amplifying the per-item z-order maintenance cost
@@ -542,6 +551,21 @@ class RenderPerformanceTests: BenchmarkTestCase {
       VStack(alignment: .left, spacing: 2) {
         LabelNode("Row \(i) title")
         LabelNode("Subtitle for row \(i) with longer text")
+      }
+      Spacer()
+    }
+    .padding(8)
+  }
+
+  /// A list row like the nested row, with a one-line title and a two-line description.
+  private static func makeMixedLabelRow(_ i: Int) -> some ComposeNode {
+    HStack(spacing: 8) {
+      ColorNode(.blue)
+        .frame(width: 32, height: 32)
+      VStack(alignment: .left, spacing: 2) {
+        LabelNode("Row \(i) title")
+        LabelNode("Description for row \(i) with longer text")
+          .numberOfLines(2)
       }
       Spacer()
     }

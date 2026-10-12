@@ -442,8 +442,14 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   {
     // a refresh updates each text view with settings that rarely change, and setting some of them costs work even when
     // the value is unchanged, such as about 300 ns each for the inset and `isSelectable` on macOS, so a setting is set
-    // only when it differs from the text view's. the interaction settings are set before the text, since whether the
-    // text view is editable when its text is set decides whether it shows the text in the directions of its paragraphs
+    // only when it differs from the text view's.
+    //
+    // the interaction settings are set before the text, since whether the text view is editable when its text is set
+    // decides whether it shows the text in the directions of its paragraphs.
+    //
+    // the other settings are set before the text on UIKit, where changing them with a text in place costs about 10 times
+    // the allocations of the change on an empty text view, as a new text view is, and a reused one, whose text the reset
+    // for reuse removes, and after the text on AppKit, where that order takes about 5% fewer instructions to scroll labels
     #if !os(tvOS)
     if textView.isEditable != isEditable {
       textView.isEditable = isEditable
@@ -464,7 +470,9 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     textView.isUserInteractionEnabled = isInteractive
     #endif
 
+    #if canImport(AppKit)
     textView.attributedString = themedText(of: attributedString, theme: theme, in: textView)
+    #endif
 
     if textView.numberOfLines != numberOfLines {
       textView.numberOfLines = numberOfLines
@@ -489,6 +497,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     if textView.textContainerInset != insets {
       textView.textContainerInset = insets
     }
+
+    textView.attributedString = themedText(of: attributedString, theme: theme, in: textView)
     #endif
   }
 

@@ -84,6 +84,7 @@
 - Laying out new text is faster: on the main thread, text is measured in one TextKit text system, one text after another, instead of in a new text system for each text, which takes 13% less time and less than half the allocations for new labels. The text system keeps the last text it measures until the end of the run loop turn.
 - Scrolling labels into view allocates 10% less: a text color that's the same in both themes, such as a label's default color, is set on the text as it is, and a text view shows a text without themed attributes as it is, instead of as a copy with the theme applied, which the text view copied again.
 - Showing and scrolling labels and other text that isn't selectable is faster, especially on iOS, where making a text view selectable or not rebuilds its interactions: a text view is reused only by a text node with the same editable and selectable settings, and keeps them when it's reset for reuse.
+- Scrolling labels is faster on iOS: a text node sets a UIKit text view's number of lines, line break mode and inset before its text, while a new or reused text view is still empty, instead of after it, which takes 17% fewer instructions and 20% fewer allocations for rows of labels.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
