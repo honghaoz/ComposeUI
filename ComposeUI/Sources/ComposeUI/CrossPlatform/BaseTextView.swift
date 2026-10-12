@@ -32,46 +32,14 @@
 import AppKit
 
 /// A base text view.
+///
+/// The text view removes its registrations for `NSView.frameDidChangeNotification` when it moves into a window and
+/// when it's removed from its superview, unless its superview is a clip view, so a subclass observes frame changes with
+/// another object than itself.
 open class BaseTextView: TextView {
 
-  /// A flag to indicate whether to use TextKit 2.
-  ///
-  /// Even though TextKit 2 is available on macOS 12, however, using TextKit 2 on macOS 12 could result in various
-  /// issues, such as text not updated on `attributedString` set.
-  ///
-  /// Bumping up the minimum macOS version to 13 to use TextKit 2.
-  ///
-  /// References:
-  /// - "Meet TextKit 2" (https://developer.apple.com/videos/play/wwdc2021/10061)
-  /// - "What's new in TextKit and text views" (https://developer.apple.com/videos/play/wwdc2022/10090/)
-  private static let shouldUseTextKit2 = {
-    if #available(macOS 13.0, *) {
-      return true
-    } else {
-      return false
-    }
-  }()
-
-  #if DEBUG
-  /// Whether the text views made from now on use TextKit 1, so that tests cover the TextKit 1 paths, which macOS 13 and
-  /// later don't take.
-  static var usesTextKit1ForTesting = false
-  #endif
-
-  /// Whether the text view uses TextKit 2.
-  private let usesTextKit2: Bool
-
-  /// Whether a layout is scheduled for the next turn of the run loop.
-  private var isLayoutScheduled = false
-
-  /// The text storage that shows the text.
-  var shownTextStorage: NSTextStorage? {
-    if usesTextKit2, #available(macOS 12.0, *) {
-      return textContentStorage?.textStorage
-    } else {
-      return textStorage
-    }
-  }
+  /// The text that the text view shows.
+  private let shownText: ShownText
 
   override open var isFlipped: Bool { true }
 
@@ -94,21 +62,19 @@ open class BaseTextView: TextView {
   ///
   /// Setting a text equal to the shown one can leave the shown text in place, so to change an attribute object, such as
   /// an attachment's image, set a text with a new object instead of changing the object.
+  ///
+  /// A text view that isn't editable when its text is set shows each paragraph without a writing direction in the
+  /// direction of its text, as ComposeUI measures it. An editable text view shows the text as set, so that the text and
+  /// the paragraphs that the user types align by the same rule, by the user's language, as in other TextKit 1 text
+  /// views.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
-      let storage = shownTextStorage
+      let isChanged = shownText.show(attributedString, resolvesWritingDirections: !isEditable) { textStorage?.setAttributedString($0) }
 
-      // replacing the text storage's content edits it even with an equal text, which costs allocations and moves the
-      // selection to the end, so an equal text is left in place. it's compared with the text storage instead of the old
-      // value, since the text storage can hold the user's edits, which a new value replaces as before
-      if storage?.isEqual(to: attributedString) != true {
-        storage?.setAttributedString(attributedString)
+      // the intrinsic size is computed from the text, so only a different text invalidates it
+      if isChanged {
+        invalidateIntrinsicContentSize()
       }
-
-      // an equal text still invalidates the intrinsic size, which is computed from this property, and schedules a
-      // layout, which also applies the changes made since the last one, such as a new inset
-      invalidateIntrinsicContentSize()
-      scheduleLayout()
     }
   }
 
@@ -125,7 +91,6 @@ open class BaseTextView: TextView {
       }
 
       invalidateIntrinsicContentSize()
-      scheduleLayout()
     }
   }
 
@@ -135,44 +100,36 @@ open class BaseTextView: TextView {
       textContainer?.lineBreakMode = lineBreakMode
 
       invalidateIntrinsicContentSize()
-      scheduleLayout()
+    }
+  }
+
+  override open var textContainerInset: NSSize {
+    didSet {
+      // the text view moves its text container by the inset without resizing it
+      fitTextContainer()
     }
   }
 
   override public init(frame: CGRect) {
-    #if DEBUG
-    let usesTextKit2 = BaseTextView.shouldUseTextKit2 && !BaseTextView.usesTextKit1ForTesting
-    #else
-    let usesTextKit2 = BaseTextView.shouldUseTextKit2
-    #endif
-    self.usesTextKit2 = usesTextKit2
+    // the text is laid out with TextKit 1, as ComposeUI measures text, so that it fits the size measured for it.
+    // a TextKit 2 text view lays out the part of its text that's visible, so it lays out again whenever the scroll view
+    // it's in scrolls, even when its text and size are unchanged
+    let textContainer = NSTextContainer(size: frame.size)
 
-    if usesTextKit2, #available(macOS 12.0, *) {
-      let textContainer = NSTextContainer(size: frame.size)
+    let layoutManager = NSLayoutManager()
+    layoutManager.addTextContainer(textContainer)
 
-      let textLayoutManager = NSTextLayoutManager()
-      textLayoutManager.textContainer = textContainer
+    let textStorage = NSTextStorage()
+    textStorage.addLayoutManager(layoutManager)
 
-      let textContentStorage = NSTextContentStorage()
-      textContentStorage.addTextLayoutManager(textLayoutManager)
+    shownText = ShownText(textStorage: textStorage)
 
-      super.init(frame: frame, textContainer: textContainer)
-    } else {
-      let textContainer = NSTextContainer(size: frame.size)
-
-      let layoutManager = NSLayoutManager()
-      layoutManager.addTextContainer(textContainer)
-
-      let textStorage = NSTextStorage()
-      textStorage.addLayoutManager(layoutManager)
-
-      super.init(frame: frame, textContainer: textContainer)
-    }
+    super.init(frame: frame, textContainer: textContainer)
 
     updateCommonSettings()
 
-    textContainer?.maximumNumberOfLines = numberOfLines
-    textContainer?.lineBreakMode = lineBreakMode
+    textContainer.maximumNumberOfLines = numberOfLines
+    textContainer.lineBreakMode = lineBreakMode
 
     isEditable = false
     isSelectable = true
@@ -195,6 +152,14 @@ open class BaseTextView: TextView {
     attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: frame.width).roundedUp(scaleFactor: 1)
   }
 
+  override open func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+
+    // the text container is fitted when the size changes, instead of in the layout that the change asks for, which a
+    // text view without a window doesn't get
+    fitTextContainer()
+  }
+
   override open func layout() {
     super.layout()
 
@@ -202,28 +167,44 @@ open class BaseTextView: TextView {
   }
 
   open func layoutSubviews() {
-    let size = bounds.size
-    textContainer?.size = CGSize(width: size.width - textContainerInset.width * 2, height: size.height > 0 ? size.height : .greatestFiniteMagnitude)
+    fitTextContainer()
 
     invalidateIntrinsicContentSize()
   }
 
-  private func scheduleLayout() {
-    // a refresh sets the text, the number of lines and the line break mode in one turn, and each schedules a layout,
-    // but one layout after all of them does the same work, so a layout that is already scheduled isn't scheduled again
-    guard !isLayoutScheduled else {
+  /// Fits the text container in the bounds, inside the horizontal inset.
+  private func fitTextContainer() {
+    let size = bounds.size
+    textContainer?.size = CGSize(
+      width: size.width - textContainerInset.width * 2,
+      height: size.height > 0 ? size.height : .greatestFiniteMagnitude
+    )
+  }
+
+  override open func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+
+    stopObservingEveryFrameChange()
+  }
+
+  override open func removeFromSuperview() {
+    super.removeFromSuperview()
+
+    stopObservingEveryFrameChange()
+  }
+
+  /// Removes the text view's registration for the frame changes of every view, unless its superview is a clip view.
+  private func stopObservingEveryFrameChange() {
+    // AppKit registers a text view for the frame changes of every view each time it moves to a superview that isn't a
+    // clip view, even while it deallocates, so each frame change in the process calls into each such text view, and a
+    // text view that's gone leaves a registration that each later frame change scans. AppKit registers it after
+    // `viewDidMoveToSuperview()`, so it's removed in the calls after it, on a move into a window and on each removal
+    // from a superview. Under a clip view, AppKit registers the text view for the clip view's frame changes only, which
+    // the text view keeps, as the clip view's document view
+    guard !(superview is NSClipView) else {
       return
     }
-    isLayoutScheduled = true
-
-    // schedule a layout on the next runloop to avoid an issue where the underlying `_NSTextViewportElementView`
-    // doesn't update immediately when setting text with different lengths
-    onNextRunLoop { [weak self] in
-      // cleared before the layout, so that a change made during the layout schedules another one
-      self?.isLayoutScheduled = false
-      self?.setNeedsLayout()
-      self?.layoutIfNeeded()
-    }
+    NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: nil)
   }
 
   override open func resignFirstResponder() -> Bool {
@@ -237,49 +218,18 @@ open class BaseTextView: TextView {
     // clips the text within the bounds of the text view
     // for attributed text with `.byTruncatingTail` break mode, the text can overflow the bounds of the text view
     clipsToBounds = true
-
-    // TextKit 1 draws the text in the text view itself, without the TextKit 2 subviews below, so their lookups would
-    // fail their assertions
-    guard usesTextKit2 else {
-      return
-    }
-
-    if #available(macOS 26.0, *) {
-      // macOS 26 (Tahoe) 26.4.1 (25E253)
-      // (lldb) po subviews
-      // ▿ 3 elements
-      //   - 0 : <_NSTextSelectionView: 0x70ee1e080>
-      //   - 1 : <_NSTextRenderingSurfacesGroupView: 0x70ee1e580>
-      //   - 2 : <_NSTextContentView: 0x70ee1de00>
-      if let textContentView = subviews.first(where: { $0.className == "_NSTextContentView" }).assertNotNil(),
-         textContentView.clipsToBounds == false
-      {
-        textContentView.clipsToBounds = true
-      }
-    } else if #available(macOS 16.0, *) {
-      // macOS 26 (Tahoe) beta 2
-      // subviews:
-      //   - 0 : <_NSTextSelectionView: 0xbc2a2e800>
-      //   - 1 : <_NSTextRenderingSurfacesGroupView: 0xbc2a2e580>
-      //   - 2 : <_NSTextRenderingSurfacesGroupView: 0xbc2a2e300>
-      for subview in subviews where subview.className == "_NSTextRenderingSurfacesGroupView" {
-        ComposeUI.assert(subview.clipsToBounds == true)
-      }
-    } else if #available(macOS 12.0, *) {
-      // macOS 15 (Sequoia)
-      // subviews:
-      //   - 0 : <_NSTextSelectionView: 0x128808a80>
-      //   - 1 : <_NSTextContentView: 0x128808650>
-      if let textContentView = subviews.first(where: { $0.className == "_NSTextContentView" }).assertNotNil(),
-         textContentView.clipsToBounds == false
-      {
-        textContentView.clipsToBounds = true
-      }
-    }
   }
 
   /// Reset the text view so it can be reused as if freshly made.
   open func resetForReuse() {
+    resetForReuse(keepsInteraction: false)
+  }
+
+  /// Resets the text view so it can be reused as if freshly made, except for its interaction settings when it's kept.
+  ///
+  /// - Parameter keepsInteraction: Whether to keep the text view's editable, selectable and hit testing settings, for a
+  ///   reuse that sets the same ones.
+  func resetForReuse(keepsInteraction: Bool) {
     let selectedRange = selectedRange
     if selectedRange.location != 0 || selectedRange.length != 0 {
       setSelectedRange(NSRange(location: 0, length: 0))
@@ -301,8 +251,10 @@ open class BaseTextView: TextView {
       lineBreakMode = .byWordWrapping
     }
 
-    isEditable = false
-    isSelectable = true
+    if !keepsInteraction {
+      isEditable = false
+      isSelectable = true
+    }
     isRichText = false
 
     drawsBackground = false
@@ -314,7 +266,9 @@ open class BaseTextView: TextView {
 
     ensureClipsToBounds()
 
-    ignoreHitTest = false
+    if !keepsInteraction {
+      ignoreHitTest = false
+    }
     typingAttributes = [:]
   }
 }
@@ -326,16 +280,32 @@ import UIKit
 
 open class BaseTextView: UITextView {
 
+  /// The text that the text view shows, `nil` for a given TextKit 2 text container, with which the text view leaves an
+  /// equal text in place itself.
+  private let shownText: ShownText?
+
   /// The attributed string content of the text view.
   ///
   /// Setting a text equal to the shown one can leave the shown text in place, so to change an attribute object, such as
   /// an attachment's image, set a text with a new object instead of changing the object.
+  ///
+  /// A text view that isn't editable when its text is set shows each paragraph without a writing direction in the
+  /// direction of its text, as ComposeUI measures it. An editable text view shows the text as set, so that the text and
+  /// the paragraphs that the user types align by the same rule, by the user's language, as in other TextKit 1 text
+  /// views.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
-      // UITextView leaves an equal text in place itself, so there's no check here. tvOS adds the label color to a text
-      // without a color, so it replaces such a text when it's set again, which isn't worked around, since that would
-      // copy tvOS's rule
-      attributedText = attributedString
+      if let shownText {
+        #if os(tvOS)
+        // a tvOS text view isn't editable
+        let resolvesWritingDirections = true
+        #else
+        let resolvesWritingDirections = !isEditable
+        #endif
+        _ = shownText.show(attributedString, resolvesWritingDirections: resolvesWritingDirections) { attributedText = $0 }
+      } else {
+        attributedText = attributedString
+      }
     }
   }
 
@@ -361,7 +331,25 @@ open class BaseTextView: UITextView {
   }
 
   override public init(frame: CGRect, textContainer: NSTextContainer?) {
-    super.init(frame: frame, textContainer: textContainer)
+    if let textContainer {
+      shownText = textContainer.layoutManager?.textStorage.map { ShownText(textStorage: $0) }
+      super.init(frame: frame, textContainer: textContainer)
+    } else {
+      // the text is laid out with TextKit 1, as ComposeUI measures text, so that it fits the size measured for it, which
+      // also lays out new text with far fewer allocations than TextKit 2, which the text view uses when it makes its own
+      // text system
+      let textContainer = NSTextContainer(size: frame.size)
+
+      let layoutManager = NSLayoutManager()
+      layoutManager.addTextContainer(textContainer)
+
+      // the text view doesn't keep the text storage of a given text container, so the shown text keeps it
+      let textStorage = NSTextStorage()
+      textStorage.addLayoutManager(layoutManager)
+
+      shownText = ShownText(textStorage: textStorage)
+      super.init(frame: frame, textContainer: textContainer)
+    }
 
     self.textContainer.maximumNumberOfLines = numberOfLines
     self.textContainer.lineBreakMode = lineBreakMode
@@ -395,6 +383,14 @@ open class BaseTextView: UITextView {
 
   /// Reset the text view so it can be reused as if freshly made.
   open func resetForReuse() {
+    resetForReuse(keepsInteraction: false)
+  }
+
+  /// Resets the text view so it can be reused as if freshly made, except for its interaction settings when it's kept.
+  ///
+  /// - Parameter keepsInteraction: Whether to keep the text view's editable, selectable and user interaction settings,
+  ///   for a reuse that sets the same ones.
+  func resetForReuse(keepsInteraction: Bool) {
     let selectedRange = selectedRange
     if selectedRange.location != 0 || selectedRange.length != 0 {
       self.selectedRange = NSRange(location: 0, length: 0)
@@ -417,11 +413,13 @@ open class BaseTextView: UITextView {
 
     contentInsetAdjustmentBehavior = .never
 
-    #if !os(tvOS)
-    isEditable = false
-    #endif
-    isSelectable = true
-    isUserInteractionEnabled = true
+    if !keepsInteraction {
+      #if !os(tvOS)
+      isEditable = false
+      #endif
+      isSelectable = true
+      isUserInteractionEnabled = true
+    }
 
     backgroundColor = nil
 
@@ -443,3 +441,117 @@ open class BaseTextView: UITextView {
   }
 }
 #endif
+
+// MARK: - Shown Text
+
+/// The text that a TextKit 1 text view shows, which leaves an equal text in place.
+///
+/// Replacing a text storage's content edits it even with an equal text, which costs allocations and moves the selection
+/// to the end. The text storage gives a substitute font to the characters that their font doesn't have, so it differs
+/// from an equal text, which is compared with the text that the text view was last set to instead.
+final class ShownText: NSObject {
+
+  /// The text storage that shows the text.
+  private let textStorage: NSTextStorage
+
+  /// The text that the text view was last set to show, as it was set.
+  private var lastText = NSAttributedString()
+
+  /// Whether the text storage was edited since its text was last set, such as by the user.
+  private var isTextStorageEdited: Bool
+
+  /// Whether the text storage's text is being set.
+  private var isSettingText = false
+
+  /// Whether the text storage shows the last text with the writing directions of its paragraphs.
+  private var showsWritingDirections = true
+
+  /// Creates the shown text of a text storage.
+  ///
+  /// - Parameter textStorage: The text storage that shows the text.
+  init(textStorage: NSTextStorage) {
+    self.textStorage = textStorage
+
+    // a given text storage can come with text that the text view wasn't set to show, so the first text is compared with
+    // the text storage, as after an edit
+    isTextStorageEdited = textStorage.length > 0
+
+    super.init()
+
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(didProcessTextStorageEditing(_:)),
+      name: NSTextStorage.didProcessEditingNotification,
+      object: textStorage
+    )
+  }
+
+  /// Shows a text, unless the text storage shows an equal one.
+  ///
+  /// - Parameters:
+  ///   - text: The text to show.
+  ///   - resolvesWritingDirections: Whether to show the text with the writing directions of its paragraphs, since
+  ///     TextKit 1 aligns a paragraph without one by the user's language instead of by its text, see
+  ///     `resolvingNaturalWritingDirections()`.
+  ///   - setText: Sets the text storage's text to the given text.
+  /// - Returns: Whether the text differs from the text that the text view was last set to show.
+  func show(_ text: NSAttributedString, resolvesWritingDirections: Bool, setText: (NSAttributedString) -> Void) -> Bool {
+    if isTextStorageEdited {
+      // the text storage holds an edit, such as the user's, which a text replaces unless it's equal to the edited text,
+      // so the text is compared with the text storage, with the substitute fonts that the text storage gives it
+      let shownText = resolvesWritingDirections ? text.resolvingNaturalWritingDirections() : text
+      if !textStorage.isEqual(to: Self.textWithSubstituteFonts(of: shownText)) {
+        set(shownText, with: setText)
+      }
+      lastText = Self.immutableText(of: text)
+      isTextStorageEdited = false
+      showsWritingDirections = resolvesWritingDirections
+      return true
+    } else if !lastText.isEqual(to: text) {
+      // comparing the text as it was set also leaves the writing directions to resolve only for a new text
+      set(resolvesWritingDirections ? text.resolvingNaturalWritingDirections() : text, with: setText)
+      lastText = Self.immutableText(of: text)
+      showsWritingDirections = resolvesWritingDirections
+      return true
+    } else if resolvesWritingDirections != showsWritingDirections {
+      // an equal text is shown again when its writing directions change, such as after the text view becomes editable,
+      // which leaves the text's size as it was
+      set(resolvesWritingDirections ? text.resolvingNaturalWritingDirections() : text, with: setText)
+      showsWritingDirections = resolvesWritingDirections
+      return false
+    } else {
+      return false
+    }
+  }
+
+  /// Sets the text storage's text, which isn't an edit to compare a new text with.
+  private func set(_ text: NSAttributedString, with setText: (NSAttributedString) -> Void) {
+    isSettingText = true
+    setText(text)
+    isSettingText = false
+  }
+
+  @objc private func didProcessTextStorageEditing(_ notification: NSNotification) {
+    if !isSettingText {
+      isTextStorageEdited = true
+    }
+  }
+
+  /// Returns the text with the substitute fonts that a text view's text storage gives it.
+  private static func textWithSubstituteFonts(of text: NSAttributedString) -> NSAttributedString {
+    #if canImport(AppKit)
+    let fixedText = NSMutableAttributedString(attributedString: text)
+    fixedText.fixAttributes(in: NSRange(location: 0, length: fixedText.length))
+    return fixedText
+    #else
+    // a UIKit text view's text storage also records the font of each run that it gives a substitute font
+    return text.recordingOriginalFonts()
+    #endif
+  }
+
+  /// Returns an immutable copy of a text, or the text itself when it's immutable.
+  private static func immutableText(of text: NSAttributedString) -> NSAttributedString {
+    // a mutable text can change after it's set, so it's compared later through a copy
+    text is NSMutableAttributedString ? NSAttributedString(attributedString: text) : text
+  }
+}

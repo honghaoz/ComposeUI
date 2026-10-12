@@ -29,7 +29,6 @@
 //
 
 import Foundation
-import CoreText
 
 #if canImport(AppKit)
 import AppKit
@@ -97,13 +96,20 @@ extension NSAttributedString {
     WorkCounter.count(.textMeasurement)
     #endif
 
-    if numberOfLines == 1 {
-      return singleLineTextBoundingRectSize()
-    }
-
     // === TextKit [BEGIN] ===
 
-    let textStorage = NSTextStorage(attributedString: self)
+    // one line is measured unwrapped, so its size doesn't depend on the layout width or the line break mode, which the
+    // cache leaves out of its key
+    let layoutWidth = numberOfLines == 1 ? .greatestFiniteMagnitude : layoutWidth
+    let lineBreakMode = numberOfLines == 1 ? .byWordWrapping : lineBreakMode
+
+    // a paragraph's writing direction changes how its lines are laid out, so the text is measured with the directions
+    // that text views lay it out with
+    #if canImport(UIKit)
+    let textStorage = NSTextStorage(attributedString: resolvingNaturalWritingDirections().recordingOriginalFonts())
+    #else
+    let textStorage = NSTextStorage(attributedString: resolvingNaturalWritingDirections())
+    #endif
 
     let layoutManager = NSLayoutManager()
     textStorage.addLayoutManager(layoutManager)
@@ -116,7 +122,29 @@ extension NSAttributedString {
     layoutManager.addTextContainer(textContainer)
 
     layoutManager.ensureLayout(for: textContainer)
-    return layoutManager.usedRect(for: textContainer).size
+
+    // the width is the widest line's glyphs and its paragraph's indents, which the line needs to keep its line breaks,
+    // instead of the span of the lines, which also has the offsets that alignments give lines in the layout width, such
+    // as a right-to-left paragraph's lines at its right edge
+    let string: CFString = CFAttributedStringGetString(textStorage)
+    var paragraphStart = 0
+    var paragraphEnd = 0
+    var paragraphStyle = NSParagraphStyle.default
+    var width: CGFloat = 0
+    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, usedRect, _, glyphRange, _ in
+      let lineStart = layoutManager.characterIndexForGlyph(at: glyphRange.location)
+      if lineStart >= paragraphEnd {
+        // the lines come in order, so a paragraph's bounds are found from its first line
+        CFStringGetParagraphBounds(string, CFRange(location: lineStart, length: 0), &paragraphStart, &paragraphEnd, nil)
+        paragraphStyle = textStorage.attribute(.paragraphStyle, at: paragraphStart, effectiveRange: nil) as? NSParagraphStyle ?? .default
+      }
+      let headIndent = lineStart == paragraphStart ? paragraphStyle.firstLineHeadIndent : paragraphStyle.headIndent
+      // a negative tail indent insets the line from the trailing edge, while a positive one is a distance from the
+      // leading edge, which needs no room past the line's glyphs
+      let tailInset = max(-paragraphStyle.tailIndent, 0)
+      width = max(width, headIndent + usedRect.width + tailInset)
+    }
+    return CGSize(width: width, height: layoutManager.usedRect(for: textContainer).height)
 
     // === TextKit [END] ===
 
@@ -231,33 +259,44 @@ extension NSAttributedString {
     // === CTFramesetter [END] ===
   }
 
-  /// Returns single line text bounding box size in fractional size.
+  #if canImport(UIKit)
+  /// The attribute that UIKit text views record a run's font in when they give its characters a substitute font, which
+  /// isn't public.
+  private static let originalFontKey = NSAttributedString.Key("NSOriginalFont")
+
+  /// The font that TextKit lays out a run without a font in.
+  private static let defaultFont: Font? = {
+    // TextKit gives the font to such a run when it fixes the text's attributes. it's read from TextKit instead of named,
+    // since the default that the font attribute documents, 12 point Helvetica or Helvetica Neue, has differed between
+    // systems
+    let text = NSMutableAttributedString(string: "a")
+    text.fixAttributes(in: NSRange(location: 0, length: text.length))
+    return text.attribute(.font, at: 0, effectiveRange: nil) as? Font
+  }()
+
+  /// Returns the text with a substitute font given to each character that its font doesn't have, and the font recorded
+  /// for each run that gets one, as UIKit text views record it.
   ///
-  /// For multiline text, only the first line size is returned.
-  ///
-  /// Ported from: https://github.com/honghaoz/ChouTiUI/blob/c2cc7b8452d269d6ee55993a977ed4b5fabf15d4/ChouTiUI/Sources/ChouTiUI/Universal/Text/TextSizeProvider.swift#L312
-  ///
-  /// - Returns: The bounding box for the text.
-  private func singleLineTextBoundingRectSize() -> CGSize {
-    let attributedString = self
-    guard attributedString.length > 0 else {
-      return .zero
+  /// The layout takes a run's line height from its recorded font instead of its substitute font, so a UIKit text view
+  /// lays out a line of characters that its font doesn't have, such as Devanagari in the system font, as tall as the
+  /// font's lines.
+  func recordingOriginalFonts() -> NSAttributedString {
+    let fixedText = NSMutableAttributedString(attributedString: self)
+    let range = NSRange(location: 0, length: fixedText.length)
+    fixedText.fixAttributes(in: range)
+    enumerateAttribute(.font, in: range) { value, runRange, _ in
+      guard let font = (value as? Font) ?? Self.defaultFont else {
+        return
+      }
+      fixedText.enumerateAttribute(.font, in: runRange) { fixedValue, fixedRange, _ in
+        if let fixedFont = fixedValue as? Font, fixedFont != font {
+          fixedText.addAttribute(Self.originalFontKey, value: font, range: fixedRange)
+        }
+      }
     }
-
-    let typesetter = CTTypesetterCreateWithAttributedString(attributedString)
-
-    let count = CTTypesetterSuggestLineBreak(typesetter, 0, .greatestFiniteMagnitude)
-    let range = CFRange(location: 0, length: count)
-    let line = CTTypesetterCreateLine(typesetter, range)
-
-    var ascent: CGFloat = 0
-    var descent: CGFloat = 0
-    var leading: CGFloat = 0
-    let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-    let height = ascent + descent + leading
-
-    return CGSize(width: width, height: height)
+    return fixedText
   }
+  #endif
 
   //  /// Adjust the line break mode of the attributed string.
   //  ///

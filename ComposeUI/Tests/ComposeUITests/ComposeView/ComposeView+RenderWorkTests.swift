@@ -111,6 +111,28 @@ class ComposeView_RenderWorkTests: XCTestCase {
     expect(pool.hitCount) == 10
   }
 
+  #if canImport(AppKit)
+  func test_scroll_textRows_leavesTheTextViewsThatStayLaidOut() {
+    // given: text rows rendered at the top, with their text views laid out
+    let view = makeRowsView { index in
+      TextNode("Row \(index)")
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+    view.refresh(animated: false)
+    view.layoutSubtreeIfNeeded()
+    let textViews = view.contentContainerView.subviews.compactMap { $0 as? BaseTextView }
+    expect(textViews.count) == 2
+    expect(textViews.map(\.needsLayout)) == [false, false]
+
+    // when: scrolling by less than a row, so the 2 rows that show stay in view
+    view.contentOffset = CGPoint(x: 0, y: 10)
+
+    // then: their text views don't need a layout, since their texts and sizes are unchanged
+    expect(view.contentContainerView.subviews.compactMap { $0 as? BaseTextView }.count) == 3
+    expect(textViews.map(\.needsLayout)) == [false, false]
+  }
+  #endif
+
   func test_refresh_unchangedContent_updatesTheRenderablesInPlace() {
     // given: rows rendered at the top
     let view = makeRowsView { _ in
@@ -198,11 +220,7 @@ class ComposeView_RenderWorkTests: XCTestCase {
 
   /// Returns the text storage that shows the text view's text.
   private func textStorage(of textView: BaseTextView) -> NSTextStorage? {
-    #if canImport(AppKit)
-    return textView.shownTextStorage
-    #else
-    return textView.textStorage
-    #endif
+    textView.textStorage
   }
 }
 

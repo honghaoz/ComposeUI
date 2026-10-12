@@ -56,9 +56,8 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    // ascent: 15.46875, descent: 3.375, leading: 0.0, height: 18.84375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     // ascent: 15.234375, descent: 3.859375, leading: 0.0, height: 19.09375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
@@ -75,7 +74,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byWordWrapping_paragraphStyle_byCharWrapping_systemFont() throws {
@@ -87,9 +90,8 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    // ascent: 15.46875, descent: 3.375, leading: 0.0, height: 18.84375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     // ascent: 15.234375, descent: 3.859375, leading: 0.0, height: 19.09375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
@@ -106,7 +108,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byWordWrapping_paragraphStyle_byClipping_systemFont() throws {
@@ -118,9 +124,8 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    // ascent: 15.46875, descent: 3.375, leading: 0.0, height: 18.84375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     // ascent: 15.234375, descent: 3.859375, leading: 0.0, height: 19.09375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
@@ -137,7 +142,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byWordWrapping_paragraphStyle_byTruncatingTail_systemFont() throws {
@@ -150,7 +159,7 @@ class NSAttributedString_SizingTests: XCTestCase {
     // then: the size matches the expected size
     #if os(macOS)
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
@@ -166,7 +175,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byWordWrapping_paragraphStyle_byTruncatingHead_systemFont() throws {
@@ -179,7 +192,7 @@ class NSAttributedString_SizingTests: XCTestCase {
     // then: the size matches the expected size
     #if os(macOS)
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
@@ -195,7 +208,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byWordWrapping_paragraphStyle_byTruncatingMiddle_systemFont() throws {
@@ -208,7 +225,7 @@ class NSAttributedString_SizingTests: XCTestCase {
     // then: the size matches the expected size
     #if os(macOS)
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
@@ -224,7 +241,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byCharWrapping_paragraphStyle_byWordWrapping_systemFont() throws {
@@ -236,9 +257,8 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    // ascent: 15.46875, descent: 3.375, leading: 0.0, height: 18.84375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     // ascent: 15.234375, descent: 3.859375, leading: 0.0, height: 19.09375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
@@ -255,7 +275,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byCharWrapping_paragraphStyle_byCharWrapping_systemFont() throws {
@@ -267,9 +291,8 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    // ascent: 15.46875, descent: 3.375, leading: 0.0, height: 18.84375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     // ascent: 15.234375, descent: 3.859375, leading: 0.0, height: 19.09375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
@@ -286,7 +309,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byCharWrapping_paragraphStyle_byClipping_systemFont() throws {
@@ -298,9 +325,8 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    // ascent: 15.46875, descent: 3.375, leading: 0.0, height: 18.84375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     // ascent: 15.234375, descent: 3.859375, leading: 0.0, height: 19.09375
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
@@ -317,7 +343,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byCharWrapping_paragraphStyle_byTruncatingTail_systemFont() throws {
@@ -330,7 +360,7 @@ class NSAttributedString_SizingTests: XCTestCase {
     // then: the size matches the expected size
     #if os(macOS)
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
@@ -346,7 +376,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byCharWrapping_paragraphStyle_byTruncatingHead_systemFont() throws {
@@ -359,7 +393,7 @@ class NSAttributedString_SizingTests: XCTestCase {
     // then: the size matches the expected size
     #if os(macOS)
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
@@ -375,7 +409,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   func test_singleLine_byCharWrapping_paragraphStyle_byTruncatingMiddle_systemFont() throws {
@@ -388,7 +426,7 @@ class NSAttributedString_SizingTests: XCTestCase {
     // then: the size matches the expected size
     #if os(macOS)
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 18.84, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 18, within: 1e-1))
     #else
     expect(size.width).to(beApproximatelyEqual(to: 681.98, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
@@ -404,7 +442,11 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     expect(size.width).to(beApproximatelyEqual(to: 678.848, within: 1e-1))
+    #if os(macOS)
+    expect(size.height).to(beApproximatelyEqual(to: 18.448, within: 1e-1))
+    #else
     expect(size.height).to(beApproximatelyEqual(to: 19.09, within: 1e-1))
+    #endif
   }
 
   // MARK: - Multiline
@@ -956,10 +998,10 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 93.344, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 36.89599609375, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 93.344, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 38.176, within: 1e-1))
     #endif
   }
@@ -1058,10 +1100,10 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 96.896, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 36.89599609375, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 96.896, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 38.176, within: 1e-1))
     #endif
   }
@@ -1160,10 +1202,10 @@ class NSAttributedString_SizingTests: XCTestCase {
 
     // then: the size matches the expected size
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 95.12, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 36.89599609375, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 98.064, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 95.12, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 38.176, within: 1e-1))
     #endif
   }
@@ -1234,6 +1276,87 @@ class NSAttributedString_SizingTests: XCTestCase {
     expect(size.width).to(beApproximatelyEqual(to: 93.648, within: 1e-1))
     expect(size.height).to(beApproximatelyEqual(to: 19.088, within: 1e-1))
     #endif
+  }
+
+  func test_multiline_rightToLeftText_isMeasuredInItsWritingDirection() {
+    // given: a right-to-left text without a writing direction, and the same text with a right-to-left writing direction
+    let string = "مرحبا بالعالم، هذا نص عربي طويل"
+    let font = Font.systemFont(ofSize: 13)
+    let text = NSAttributedString(string: string, attributes: [.font: font])
+    let style = NSMutableParagraphStyle()
+    style.baseWritingDirection = .rightToLeft
+    let rightToLeftText = NSAttributedString(string: string, attributes: [.font: font, .paragraphStyle: style])
+
+    // when: measuring them for 160 points wide
+    let size = text.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+    let rightToLeftSize = rightToLeftText.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+
+    // then: the text is measured in the right-to-left direction of its text, as text views lay it out, instead of with
+    // the natural direction, which TextKit 1 lays out with the trailing space of the first line left out
+    expect(size) == rightToLeftSize
+  }
+
+  func test_multiline_paragraphsInBothWritingDirections_takeTheWidthOfTheWidestLine() {
+    let font = Font.systemFont(ofSize: 13)
+    for (leftToRight, rightToLeft, end) in [("Hello world", "مرحبا بالعالم، هذا نص عربي طويل", ""), ("Hello world", "مرحبا بالعالم", "\n")] {
+      // given: a text of a left-to-right paragraph and a right-to-left paragraph, ending with a newline or not
+      let text = NSAttributedString(string: leftToRight + "\n" + rightToLeft + end, attributes: [.font: font])
+
+      // when: measuring it and each paragraph for 160 points wide
+      let size = text.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+      let leftToRightSize = NSAttributedString(string: leftToRight, attributes: [.font: font]).computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+      let rightToLeftSize = NSAttributedString(string: rightToLeft, attributes: [.font: font]).computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+
+      // then: the text is as wide as its widest line, instead of spanning from the left edge, where the left-to-right
+      // paragraph starts, to the right edge, where the right-to-left paragraph and the line after its newline end
+      expect(size.width, text.string) == max(leftToRightSize.width, rightToLeftSize.width)
+      expect(size.width, text.string) < 160
+    }
+  }
+
+  func test_multiline_indentedParagraph_includesTheIndentsInItsWidth() {
+    let font = Font.systemFont(ofSize: 13)
+    for string in ["Hello world", "مرحبا بالعالم"] {
+      // given: a paragraph that fits in one line, without indents, with a first line indent and a tail indent from the
+      // trailing edge, and with a tail indent from the leading edge
+      let insetStyle = NSMutableParagraphStyle()
+      insetStyle.firstLineHeadIndent = 30
+      insetStyle.headIndent = 5
+      insetStyle.tailIndent = -20
+      let lineLengthStyle = NSMutableParagraphStyle()
+      lineLengthStyle.tailIndent = 140
+      let text = NSAttributedString(string: string, attributes: [.font: font])
+      let insetText = NSAttributedString(string: string, attributes: [.font: font, .paragraphStyle: insetStyle])
+      let lineLengthText = NSAttributedString(string: string, attributes: [.font: font, .paragraphStyle: lineLengthStyle])
+
+      // when: measuring them for 160 points wide
+      let size = text.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+      let insetSize = insetText.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+      let lineLengthSize = lineLengthText.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+
+      // then: the paragraph is as wide as its line and the indents that its line needs to stay in one line, in either
+      // writing direction, which a tail indent from the leading edge doesn't add to
+      expect(insetSize.width, string).to(beApproximatelyEqual(to: size.width + 50, within: 1e-9))
+      expect(insetSize.height, string) == size.height
+      expect(lineLengthSize, string) == size
+    }
+  }
+
+  func test_multiline_paragraphsWithDifferentIndents_takeTheIndentsOfEachParagraph() {
+    // given: a text of three paragraphs that fit in one line each, of which the second has a first line indent
+    let font = Font.systemFont(ofSize: 13)
+    let style = NSMutableParagraphStyle()
+    style.firstLineHeadIndent = 30
+    let text = NSMutableAttributedString(string: "Hello world\n", attributes: [.font: font])
+    text.append(NSAttributedString(string: "Hello world\n", attributes: [.font: font, .paragraphStyle: style]))
+    text.append(NSAttributedString(string: "Hello world", attributes: [.font: font]))
+
+    // when: measuring it and one of its paragraphs for 160 points wide
+    let size = text.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+    let paragraphSize = NSAttributedString(string: "Hello world", attributes: [.font: font]).computeBoundingRectSize(numberOfLines: 0, layoutWidth: 160)
+
+    // then: the text is as wide as the second paragraph's line and its indent
+    expect(size.width).to(beApproximatelyEqual(to: paragraphSize.width + 30, within: 1e-9))
   }
 
   // MARK: - Cache

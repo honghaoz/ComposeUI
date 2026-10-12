@@ -820,14 +820,15 @@ class LabelNodeTests: XCTestCase {
   // MARK: - View reuse
 
   func test_viewReuse_defaultReuseKey_usesFrameworkNamespace() {
-    // LabelNode renders through TextNode, so its renderable opts into the same framework-internal BaseTextView pool bucket.
+    // LabelNode renders through TextNode, so its renderable opts into TextNode's framework-internal pool bucket for text
+    // views with its interaction settings.
 
-    // given: a renderable item of a label node
+    // given: a renderable item of a label node, which isn't selectable
     let item = firstRenderableItem(of: LabelNode("Hello"))
 
-    // then: the reuse ids use the framework BaseTextView pool bucket
-    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
-    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
+    // then: the reuse ids use the framework pool bucket of unselectable text views
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView.unselectable")
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView.unselectable")
   }
 
   func test_viewReuse_recycledView_resetsStateAndReuses() throws {
@@ -851,12 +852,13 @@ class LabelNodeTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    // then: the view is enqueued into the pool, which resets it (via TextNode's resetForReuse) for reuse
+    // then: the view is enqueued into the pool, which resets it (via TextNode's resetForReuse) for reuse, keeping its
+    // interaction settings, since only a text node with the same settings reuses it
     expect(firstBaseTextView(in: view)) == nil
     expect(textView.attributedString.string) == ""
     expect(textView.numberOfLines) == 0
     expect(textView.lineBreakMode) == .byWordWrapping
-    expect(textView.isSelectable) == true
+    expect(textView.isSelectable) == false
 
     // when: rendering a new label
     view.setContent {

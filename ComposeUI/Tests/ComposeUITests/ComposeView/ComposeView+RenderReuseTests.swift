@@ -231,7 +231,6 @@ class ComposeView_RenderReuseTests: XCTestCase {
       TextNode("First")
         .numberOfLines(2)
         .lineBreakMode(.byTruncatingTail)
-        .editable()
         .selectable(false)
         .textContainerInset(horizontal: 10, vertical: 20)
         .frame(width: 100, height: 100)
@@ -266,6 +265,15 @@ class ComposeView_RenderReuseTests: XCTestCase {
     textView.isEditable = true
     #endif
     textView.isSelectable = false
+    #if !os(tvOS)
+    let isEditableBeforeReset = textView.isEditable
+    #endif
+    #if canImport(AppKit)
+    let ignoresHitTestBeforeReset = textView.ignoreHitTest
+    #endif
+    #if canImport(UIKit)
+    let isUserInteractionEnabledBeforeReset = textView.isUserInteractionEnabled
+    #endif
 
     // when: the text node is removed so its view is enqueued to the pool
     view.setContent {
@@ -273,21 +281,22 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    // then: the same text view is enqueued with its state reset
+    // then: the same text view is enqueued with its state reset, except for its interaction settings, which only a text
+    // node with the same settings reuses it with, and which that node's update sets again
     let enqueued = try (pool.lastEnqueuedRenderable?.view as? BaseTextView).unwrap()
     expect(enqueued) === textView
     expect(textView.attributedString.string) == ""
     expect(textView.numberOfLines) == 0
     expect(textView.lineBreakMode) == .byWordWrapping
     #if !os(tvOS)
-    expect(textView.isEditable) == false
+    expect(textView.isEditable) == isEditableBeforeReset
     #endif
-    expect(textView.isSelectable) == true
+    expect(textView.isSelectable) == false
 
     #if canImport(AppKit)
     expect(textView.string) == ""
     expect(textView.textContainerInset) == .zero
-    expect(textView.ignoreHitTest) == false
+    expect(textView.ignoreHitTest) == ignoresHitTestBeforeReset
     expect(textView.isRichText) == false
     expect(textView.drawsBackground) == false
     expect(textView.selectedRange()) == NSRange(location: 0, length: 0)
@@ -295,7 +304,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     #if canImport(UIKit)
     expect(textView.text) == ""
     expect(textView.textContainerInset) == .zero
-    expect(textView.isUserInteractionEnabled) == true
+    expect(textView.isUserInteractionEnabled) == isUserInteractionEnabledBeforeReset
     expect(textView.backgroundColor) == nil
     expect(textView.contentInset) == .zero
     expect(textView.horizontalScrollIndicatorInsets) == .zero
@@ -304,18 +313,29 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(textView.selectedRange) == NSRange(location: 0, length: 0)
     #endif
 
-    // when: a new text node reuses the pooled view
+    // when: a new text node with the same interaction settings reuses the pooled view
     view.setContent {
       TextNode("Second")
+        .selectable(false)
         .frame(width: 100, height: 100)
     }
     view.refresh(animated: false)
 
-    // then: the same view is dequeued and configured for the new text
+    // then: the same view is dequeued and configured for the new text and the node's interaction settings
     expect(pool.lastDequeuedRenderable?.view) === textView
     expect(textView.attributedString.string) == "Second"
     expect(textView.numberOfLines) == 0
     expect(textView.lineBreakMode) == .byWordWrapping
+    #if !os(tvOS)
+    expect(textView.isEditable) == false
+    #endif
+    expect(textView.isSelectable) == false
+    #if canImport(AppKit)
+    expect(textView.ignoreHitTest) == true
+    #endif
+    #if canImport(UIKit)
+    expect(textView.isUserInteractionEnabled) == false
+    #endif
   }
 
   func test_colorNode_recycledLayer_resetsModifierStateFromPreviousUse() {

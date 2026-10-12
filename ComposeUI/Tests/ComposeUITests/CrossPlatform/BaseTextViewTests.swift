@@ -101,9 +101,77 @@ class BaseTextViewTests: XCTestCase {
   // MARK: - Text
 
   func test_attributedString_equalText_leavesTheTextStorageUnedited() throws {
-    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view showing a text, and an observer of its text storage's edits
-      textView.attributedString = Self.makeText("Hello, world!")
+    // given: a text view showing a text, and an observer of its text storage's edits
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello, world!")
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: setting an equal text, made anew
+    textView.attributedString = Self.makeText("Hello, world!")
+
+    // then: the text storage isn't edited
+    expect(editCount) == 0
+
+    // when: setting another text
+    textView.attributedString = Self.makeText("Goodbye")
+
+    // then: the text storage is edited to show it
+    expect(editCount) == 1
+    expect(textStorage.string) == "Goodbye"
+  }
+
+  func test_attributedString_equalText_keepsTheSelection() {
+    // given: a text view showing a text, with part of it selected
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello, world!")
+    #if canImport(AppKit)
+    textView.setSelectedRange(NSRange(location: 0, length: 5))
+    #endif
+    #if canImport(UIKit)
+    textView.selectedRange = NSRange(location: 0, length: 5)
+    #endif
+
+    // when: setting an equal text, made anew, as a refresh of unchanged content does
+    textView.attributedString = Self.makeText("Hello, world!")
+
+    // then: the selection stays
+    expect(textView.selectedRange) == NSRange(location: 0, length: 5)
+  }
+
+  func test_attributedString_sameTextAfterAnEdit_replacesTheEdit() throws {
+    // given: a text view showing a text, which the user then edited
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello")
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+    expect(textStorage.string) == "Hello, world!"
+
+    // when: setting the same text as before the edit
+    textView.attributedString = Self.makeText("Hello")
+
+    // then: the text replaces the edit, since an equal text is compared with the text storage, not the old text
+    expect(textStorage.string) == "Hello"
+  }
+
+  func test_attributedString_equalTextWithSubstituteFonts_leavesTheTextStorageUnedited() throws {
+    for string in ["مرحبا بالعالم", "Hello 😀👍🏽", "你好，世界", "नमस्ते दुनिया"] {
+      // given: a text view showing a text with characters that its font doesn't have, which the text storage gives
+      // substitute fonts, with part of it selected, and an observer of the text storage's edits
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.attributedString = Self.makeText(string)
+      #if canImport(AppKit)
+      textView.setSelectedRange(NSRange(location: 0, length: 2))
+      #endif
+      #if canImport(UIKit)
+      textView.selectedRange = NSRange(location: 0, length: 2)
+      #endif
       let textStorage = try Self.textStorage(of: textView).unwrap()
       var editCount = 0
       let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
@@ -114,137 +182,640 @@ class BaseTextViewTests: XCTestCase {
       }
 
       // when: setting an equal text, made anew
-      textView.attributedString = Self.makeText("Hello, world!")
+      textView.attributedString = Self.makeText(string)
 
-      // then: the text storage isn't edited
-      expect(editCount, textKit) == 0
-
-      // when: setting another text
-      textView.attributedString = Self.makeText("Goodbye")
-
-      // then: the text storage is edited to show it
-      expect(editCount, textKit) == 1
-      expect(textStorage.string, textKit) == "Goodbye"
+      // then: the text storage isn't edited, and the selection stays
+      expect(editCount, string) == 0
+      expect(textView.selectedRange, string) == NSRange(location: 0, length: 2)
     }
   }
 
-  func test_attributedString_equalText_keepsTheSelection() {
-    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view showing a text, with part of it selected
-      textView.attributedString = Self.makeText("Hello, world!")
-      #if canImport(AppKit)
-      textView.setSelectedRange(NSRange(location: 0, length: 5))
-      #endif
-      #if canImport(UIKit)
-      textView.selectedRange = NSRange(location: 0, length: 5)
-      #endif
+  func test_attributedString_mutableTextChangedInPlace_showsTheChange() throws {
+    // given: a text view showing a model's mutable text
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    let modelText = NSMutableAttributedString(attributedString: Self.makeText("Hello"))
+    textView.attributedString = modelText
 
-      // when: setting an equal text, made anew, as a refresh of unchanged content does
-      textView.attributedString = Self.makeText("Hello, world!")
+    // when: the model changes its text in place, and sets the same object again
+    modelText.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+    textView.attributedString = modelText
 
-      // then: the selection stays
-      expect(textView.selectedRange, textKit) == NSRange(location: 0, length: 5)
+    // then: the text storage shows the changed text
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    expect(textStorage.string) == "Hello, world!"
+  }
+
+  func test_attributedString_editedTextWithSubstituteFontsSetBack_leavesTheTextStorage() throws {
+    // given: a text view showing a text with characters that its font doesn't have, which the text storage gives
+    // substitute fonts, which the user then edited, with part of it selected, and an observer of the text storage's
+    // edits
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("你好")
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    textStorage.replaceCharacters(in: NSRange(location: 2, length: 0), with: "世界")
+    #if canImport(AppKit)
+    textView.setSelectedRange(NSRange(location: 0, length: 2))
+    #endif
+    #if canImport(UIKit)
+    textView.selectedRange = NSRange(location: 0, length: 2)
+    #endif
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: the model takes the edit into a text, and sets it
+    textView.attributedString = Self.makeText("你好世界")
+
+    // then: the text storage, which already shows the text with the substitute fonts, isn't edited and keeps the
+    // selection
+    expect(editCount) == 0
+    expect(textView.selectedRange) == NSRange(location: 0, length: 2)
+  }
+
+  func test_attributedString_equalTextWithSubstituteFonts_doesntAllocate() {
+    for string in ["你好，世界", "مرحبا بالعالم"] {
+      // given: a text view just set to show a text with characters that its font doesn't have, which the text storage
+      // gives substitute fonts, after another text view was set to an equal text, since a first set can also allocate
+      // what the runtime makes on first use
+      let warmedUpTextView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      warmedUpTextView.attributedString = Self.makeText(string)
+      warmedUpTextView.attributedString = Self.makeText(string)
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.attributedString = Self.makeText(string)
+      let equalText = Self.makeText(string)
+
+      // when: counting the allocations of setting an equal text
+      let allocations = AllocationCounter.count {
+        textView.attributedString = equalText
+      }
+
+      // then: the text is compared with the text that the text view was set to, since the text view's own set isn't an
+      // edit, instead of with a copy of the text that has the substitute fonts, and a right-to-left text isn't copied
+      // to give it its writing direction again
+      expect(allocations, string) == 0
     }
   }
 
-  func test_attributedString_sameTextAfterAnEdit_replacesTheEdit() throws {
-    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view showing a text, which the user then edited
-      textView.attributedString = Self.makeText("Hello")
+  func test_init_laysOutWithTextKit1() {
+    // when: making a text view
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+
+    // then: it lays out its text with TextKit 1, as ComposeUI measures text. the TextKit 2 layout manager is checked
+    // first, since asking a TextKit 2 text view for its TextKit 1 layout manager switches it to TextKit 1
+    #if canImport(AppKit)
+    if #available(macOS 12.0, *) {
+      expect(textView.textLayoutManager) == nil
+    }
+    expect(textView.layoutManager?.textStorage) === textView.textStorage
+    #endif
+    #if canImport(UIKit)
+    if #available(iOS 16.0, tvOS 16.0, *) {
+      expect(textView.textLayoutManager) == nil
+    }
+    expect(textView.layoutManager.textStorage) === textView.textStorage
+    #endif
+  }
+
+  func test_layout_indentedText_fitsTheMeasuredSize() throws {
+    let indents: [(String, firstLineHeadIndent: CGFloat, headIndent: CGFloat, tailIndent: CGFloat)] = [
+      ("first line indent", 30, 0, 0),
+      ("head indent", 20, 20, 0),
+      ("hanging indent", 0, 20, 0),
+      ("tail indent", 0, 0, -20),
+      ("tail indent from the leading edge", 0, 0, 140),
+      ("all indents", 10, 30, -15),
+    ]
+    let strings = [
+      "A paragraph that wraps across several lines in a narrow text view.",
+      "مرحبا بالعالم، هذا نص عربي طويل يلتف عبر عدة أسطر",
+    ]
+    for (name, firstLineHeadIndent, headIndent, tailIndent) in indents {
+      for string in strings {
+        for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+          // given: an indented paragraph in a number of lines with a line break mode, laid out in a text view 160 points
+          // wide and measured for that width
+          let scenario = "\(name), \(string.prefix(8)), \(numberOfLines) lines"
+          let style = NSMutableParagraphStyle()
+          style.firstLineHeadIndent = firstLineHeadIndent
+          style.headIndent = headIndent
+          style.tailIndent = tailIndent
+          let text = NSAttributedString(string: string, attributes: [.font: Font.systemFont(ofSize: 13), .paragraphStyle: style])
+          let makeTextView = { (size: CGSize) -> BaseTextView in
+            let textView = BaseTextView(frame: CGRect(origin: .zero, size: size))
+            textView.numberOfLines = numberOfLines
+            textView.lineBreakMode = lineBreakMode
+            textView.attributedString = text
+            return textView
+          }
+          let proposedLineRects = try Self.lineRects(of: makeTextView(CGSize(width: 160, height: 1000)))
+          let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
+
+          // when: showing the text in a text view of the measured size rounded up to whole points, as `TextNode` sizes it
+          let size = measuredSize.roundedUp(scaleFactor: 1)
+          let lineRects = try Self.lineRects(of: makeTextView(size))
+
+          // then: the text view lays out the lines that it lays out 160 points wide, wrapped and truncated alike, within
+          // its bounds, since the measured width has room for each line's indents
+          expect(lineRects.map(\.width), scenario) == proposedLineRects.map(\.width)
+          expect(lineRects.allSatisfy { $0.minX >= 0 && $0.maxX <= size.width }, scenario) == true
+        }
+      }
+    }
+  }
+
+  func test_attributedString_rightToLeftText_alignsItsLinesToTheRight() throws {
+    // given: a text view 160 points wide
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 160, height: 100))
+
+    // when: setting a right-to-left text without a writing direction, which wraps to two lines
+    textView.attributedString = Self.makeText("مرحبا بالعالم، هذا نص عربي طويل")
+
+    // then: the wrapped line ends at the right edge, as the text's direction aligns it, instead of starting at the left
+    // edge, as TextKit 1 aligns it for a left-to-right user language
+    let lineRects = try Self.lineRects(of: textView)
+    expect(lineRects.count) == 2
+    expect(lineRects[1].maxX).to(beApproximatelyEqual(to: 160, within: 0.5))
+    expect(lineRects[1].minX) > 10
+  }
+
+  func test_layout_oneLineWithParagraphSettingsAndAttachments_fitsTheMeasuredSize() throws {
+    let font = Font.systemFont(ofSize: 13)
+    let makeText = { (configure: (NSMutableParagraphStyle) -> Void) -> NSAttributedString in
+      let style = NSMutableParagraphStyle()
+      configure(style)
+      return NSAttributedString(string: "Hello world", attributes: [.font: font, .paragraphStyle: style])
+    }
+    let attachment = NSTextAttachment()
+    attachment.bounds = CGRect(x: 0, y: 0, width: 20, height: 20)
+    let attachmentText = NSMutableAttributedString(string: "Hello ", attributes: [.font: font])
+    attachmentText.append(NSAttributedString(attachment: attachment))
+    let texts: [(String, NSAttributedString)] = [
+      ("line height multiple", makeText { $0.lineHeightMultiple = 1.5 }),
+      ("minimum line height", makeText { $0.minimumLineHeight = 30 }),
+      ("maximum line height", makeText { $0.maximumLineHeight = 10 }),
+      ("first line indent", makeText { $0.firstLineHeadIndent = 20 }),
+      ("tail indent", makeText { $0.tailIndent = -10 }),
+      ("baseline offset", NSAttributedString(string: "Hello world", attributes: [.font: font, .baselineOffset: 5])),
+      ("attachment", attachmentText),
+      ("no font", NSAttributedString(string: "Hello world")),
+    ]
+    for (name, text) in texts {
+      // given: the text measured in one line, and laid out in a wide one-line text view
+      let makeTextView = { (size: CGSize) -> BaseTextView in
+        let textView = BaseTextView(frame: CGRect(origin: .zero, size: size))
+        textView.numberOfLines = 1
+        textView.lineBreakMode = .byTruncatingTail
+        textView.attributedString = text
+        return textView
+      }
+      let measuredSize = text.computeBoundingRectSize(numberOfLines: 1, layoutWidth: 160)
+      let wideLineRects = try Self.lineRects(of: makeTextView(CGSize(width: 1000, height: 1000)))
+
+      // when: showing the text in a one-line text view of the measured size rounded up to whole points, as `TextNode`
+      // sizes it
+      let size = measuredSize.roundedUp(scaleFactor: 1)
+      let lineRects = try Self.lineRects(of: makeTextView(size))
+
+      // then: the text view lays out the line that it lays out when wide, without truncating it, in the measured height,
+      // since the line is measured with the settings and attachments that the text view lays it out with
+      expect(lineRects.map(\.width), name) == wideLineRects.map(\.width)
+      let usedRect = lineRects.reduce(CGRect.null) { $0.union($1) }
+      expect(usedRect.height, name).to(beApproximatelyEqual(to: measuredSize.height, within: 0.01))
+    }
+  }
+
+  #if canImport(AppKit) || canImport(UIKit) && !os(tvOS)
+  func test_attributedString_editable_showsTheTextAsSet() throws {
+    // given: an editable text view
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.isEditable = true
+
+    // when: setting a right-to-left text without a writing direction
+    textView.attributedString = Self.makeText("مرحبا بالعالم")
+
+    // then: the text storage shows the text without a writing direction, so that it aligns by the same rule as the
+    // paragraphs that the user types
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    let style = { textStorage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle }
+    expect(style()?.baseWritingDirection ?? .natural) == .natural
+
+    // when: the user edits the text, and the text is set again
+    textStorage.replaceCharacters(in: NSRange(location: 0, length: 0), with: "x")
+    textView.attributedString = Self.makeText("مرحبا بالعالم")
+
+    // then: the text storage shows the text again, still without a writing direction
+    expect(textStorage.string) == "مرحبا بالعالم"
+    expect(style()?.baseWritingDirection ?? .natural) == .natural
+  }
+
+  func test_attributedString_equalTextAfterAnEditableChange_showsTheTextForTheNewSetting() throws {
+    let text = Self.makeText("مرحبا بالعالم")
+    let resolvedStyle = text.resolvingNaturalWritingDirections().attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+    let resolvedDirection = resolvedStyle?.baseWritingDirection ?? .natural
+    for (isEditable, isEdited) in [(false, false), (true, false), (false, true)] {
+      // given: a text view, editable or not, showing a right-to-left text without a writing direction, and edited after
+      // the text is set or not
+      let scenario = "editable: \(isEditable), edited: \(isEdited)"
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.isEditable = isEditable
+      textView.attributedString = text
       let textStorage = try Self.textStorage(of: textView).unwrap()
-      textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
-      expect(textStorage.string, textKit) == "Hello, world!"
+      if isEdited {
+        textStorage.replaceCharacters(in: NSRange(location: 0, length: 0), with: "x")
+      }
+      let direction = { (textStorage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.baseWritingDirection ?? .natural }
 
-      // when: setting the same text as before the edit
-      textView.attributedString = Self.makeText("Hello")
+      // when: the text view's editable setting changes, and the text view is set to the same text
+      textView.isEditable = !isEditable
+      textView.attributedString = text
 
-      // then: the text replaces the edit, since an equal text is compared with the text storage, not the old text
-      expect(textStorage.string, textKit) == "Hello"
+      // then: the text storage shows the text for the new setting, without its direction when editable and in its
+      // direction when not
+      expect(direction(), scenario) == (isEditable ? resolvedDirection : .natural)
+
+      // when: the setting changes back, and the text view is set to the same text
+      textView.isEditable = isEditable
+      textView.attributedString = text
+
+      // then: the text storage shows the text for the setting again
+      expect(direction(), scenario) == (isEditable ? .natural : resolvedDirection)
     }
+  }
+
+  func test_layout_editableRightToLeftText_fitsTheMeasuredSize() throws {
+    let text = Self.makeText("مرحبا بالعالم، هذا نص عربي طويل يلتف عبر عدة أسطر!")
+    for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+      // given: a right-to-left text without a writing direction, measured in its direction for 160 points wide
+      let scenario = "\(numberOfLines) lines"
+      let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
+      let size = measuredSize.roundedUp(scaleFactor: 1)
+      let makeTextView = { (isEditable: Bool) -> BaseTextView in
+        let textView = BaseTextView(frame: CGRect(origin: .zero, size: size))
+        textView.isEditable = isEditable
+        textView.numberOfLines = numberOfLines
+        textView.lineBreakMode = lineBreakMode
+        textView.attributedString = text
+        return textView
+      }
+
+      // when: showing the text in an editable text view of the measured size, which shows it without its direction, and
+      // in one that isn't editable
+      let editableLineRects = try Self.lineRects(of: makeTextView(true))
+      let lineRects = try Self.lineRects(of: makeTextView(false))
+
+      // then: the editable text view lays out as many lines, each within the other's, within its bounds and the measured
+      // height, since TextKit 1 orders a paragraph without a direction by its text, which leaves its line breaks as they
+      // are and changes only its alignment
+      expect(editableLineRects.count, scenario) == lineRects.count
+      expect(zip(editableLineRects, lineRects).allSatisfy { $0.width <= $1.width }, scenario) == true
+      expect(editableLineRects.allSatisfy { $0.minX >= 0 && $0.maxX <= size.width }, scenario) == true
+      let usedRect = editableLineRects.reduce(CGRect.null) { $0.union($1) }
+      expect(usedRect.height, scenario).to(beApproximatelyEqual(to: measuredSize.height, within: 0.01))
+    }
+  }
+  #endif
+
+  func test_attributedString_rightToLeftText_keepsTheTextAsSet() throws {
+    // given: a text view, and a right-to-left text without a writing direction
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    let text = Self.makeText("مرحبا بالعالم")
+
+    // when: setting the text
+    textView.attributedString = text
+
+    // then: the text view returns the text as set, and shows it with the text's writing direction
+    expect(textView.attributedString) === text
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    expect(textStorage.string) == text.string
+    let shownStyle = textStorage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+    expect(shownStyle) == text.resolvingNaturalWritingDirections().attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
   }
 
   #if canImport(AppKit)
-  func test_attributedString_equalText_stillLaysOutTheTextContainer() {
-    for (textKit, textView) in Self.makeTextViews({ BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view showing a text, with the layout it scheduled run, whose horizontal inset then changed
-      textView.attributedString = Self.makeText("Hello, world!")
-      runScheduledBlocks()
-      textView.textContainerInset = CGSize(width: 30, height: 0)
+  func test_attributedString_equalText_leavesTheIntrinsicSize() {
+    // given: a text view showing a text, with its intrinsic size invalidations counted from then
+    let textView = CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello, world!")
+    textView.intrinsicSizeInvalidationCount = 0
 
-      // when: setting an equal text, and running the blocks it scheduled
-      textView.attributedString = Self.makeText("Hello, world!")
-      runScheduledBlocks()
+    // when: setting an equal text, made anew
+    textView.attributedString = Self.makeText("Hello, world!")
 
-      // then: the text view is laid out again, as for a different text, so its text container fits the new inset
-      expect(textView.textContainer?.size.width, textKit) == 140
+    // then: the intrinsic size, which is computed from the text, isn't invalidated
+    expect(textView.intrinsicSizeInvalidationCount) == 0
+
+    // when: setting another text
+    textView.attributedString = Self.makeText("Goodbye")
+
+    // then: the intrinsic size is invalidated
+    expect(textView.intrinsicSizeInvalidationCount) == 1
+  }
+
+  func test_textContainerInset_fitsTheTextContainerInTheInset() {
+    // given: a text view 200 points wide
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+
+    // when: setting a horizontal inset
+    textView.textContainerInset = CGSize(width: 30, height: 0)
+
+    // then: the text container fits in the inset right away, which the text view itself doesn't do, since it only moves
+    // the text container by the inset
+    expect(textView.textContainer?.size.width) == 140
+  }
+
+  func test_setFrameSize_fitsTheTextContainerInTheBounds() {
+    for (height, expectedHeight) in [(50, 50), (0, CGFloat.greatestFiniteMagnitude)] as [(CGFloat, CGFloat)] {
+      // given: a text view with a horizontal inset
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.textContainerInset = CGSize(width: 10, height: 0)
+
+      // when: resizing it
+      textView.setFrameSize(CGSize(width: 120, height: height))
+
+      // then: the text container fits in the new bounds inside the inset right away, instead of in the layout that the
+      // change asks for, which a text view without a window doesn't get, with no height limit for a zero height
+      expect(textView.textContainer?.size, "height \(height)") == CGSize(width: 100, height: expectedHeight)
+      expect(textView.window) == nil
     }
   }
 
   func test_attributedString_userEditedTextSetBack_leavesTheTextStorageAndInvalidatesTheIntrinsicSize() throws {
-    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view showing a model's mutable text, which the user then edited, with part of it selected, and an
-      // observer of the text storage's edits
-      let modelText = NSMutableAttributedString(attributedString: Self.makeText("Hello"))
-      textView.attributedString = modelText
-      let textStorage = try Self.textStorage(of: textView).unwrap()
-      textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
-      textView.setSelectedRange(NSRange(location: 0, length: 5))
-      var editCount = 0
-      let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
-        editCount += 1
-      }
-      defer {
-        NotificationCenter.default.removeObserver(observer)
-      }
-      textView.intrinsicSizeInvalidationCount = 0
+    // given: a text view showing a model's mutable text, which the user then edited, with part of it selected, and an
+    // observer of the text storage's edits
+    let textView = CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    let modelText = NSMutableAttributedString(attributedString: Self.makeText("Hello"))
+    textView.attributedString = modelText
+    let textStorage = try Self.textStorage(of: textView).unwrap()
+    textStorage.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+    textView.setSelectedRange(NSRange(location: 0, length: 5))
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    textView.intrinsicSizeInvalidationCount = 0
 
-      // when: the model takes the edit into its mutable text, and sets the same object again
-      modelText.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
-      textView.attributedString = modelText
+    // when: the model takes the edit into its mutable text, and sets the same object again
+    modelText.replaceCharacters(in: NSRange(location: 5, length: 0), with: ", world!")
+    textView.attributedString = modelText
 
-      // then: the text storage, which already shows the text, isn't edited and keeps the selection, and the intrinsic
-      // size, which is computed from the text, is invalidated
-      expect(editCount, textKit) == 0
-      expect(textView.selectedRange, textKit) == NSRange(location: 0, length: 5)
-      expect(textView.intrinsicSizeInvalidationCount, textKit) == 1
+    // then: the text storage, which already shows the text, isn't edited and keeps the selection, and the intrinsic
+    // size, which is computed from the text, is invalidated
+    expect(editCount) == 0
+    expect(textView.selectedRange) == NSRange(location: 0, length: 5)
+    expect(textView.intrinsicSizeInvalidationCount) == 1
+  }
+
+  func test_textAndLayoutSettings_applyWithoutLayingOutTheTextView() throws {
+    // given: a text view 160 points wide showing a text
+    let textView = CountingTextView(frame: CGRect(x: 0, y: 0, width: 160, height: 200))
+    textView.attributedString = Self.makeText("Hello")
+
+    // when: setting a text that wraps, a number of lines and a line break mode, as a refresh does, and running the
+    // blocks scheduled on the main run loop
+    textView.attributedString = Self.makeText("A paragraph that wraps across several lines in a narrow text view.")
+    textView.numberOfLines = 2
+    textView.lineBreakMode = .byTruncatingTail
+    runScheduledBlocks()
+
+    // then: the text is laid out in 2 lines without a layout of the text view, since TextKit 1 lays out the text again
+    // for each of the changes
+    expect(textView.layoutCount) == 0
+    expect(try Self.lineRects(of: textView).count) == 2
+    expect(textView.textContainer?.lineBreakMode) == .byTruncatingTail
+  }
+
+  func test_superviewChanges_leaveNoRegistrationForEveryViewsFrameChanges() {
+    // given: a text view in a superview without a window, and a view elsewhere
+    let textView = FrameChangeCountingTextView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+    let container = NSView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    container.addSubview(textView)
+    let otherView = NSView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+
+    // when: the other view's frame changes
+    var count = textView.everyFrameChangeCount
+    otherView.frame.size.width += 1
+
+    // then: the text view is told, since AppKit registered it for the frame changes of every view, with no later call to
+    // remove it from without a window
+    expect(textView.everyFrameChangeCount - count) == 1
+
+    // when: the text view moves out of its superview without a window, which AppKit registers it again for, and the other
+    // view's frame changes
+    textView.removeFromSuperview()
+    count = textView.everyFrameChangeCount
+    otherView.frame.size.width += 1
+
+    // then: the text view isn't told
+    expect(textView.everyFrameChangeCount - count) == 0
+
+    // when: the text view moves into the superview and out without needing display, as it moves out when it deallocates,
+    // and the other view's frame changes
+    container.addSubview(textView)
+    textView.removeFromSuperviewWithoutNeedingDisplay()
+    count = textView.everyFrameChangeCount
+    otherView.frame.size.width += 1
+
+    // then: the text view isn't told
+    expect(textView.everyFrameChangeCount - count) == 0
+
+    // when: the text view moves into the superview, the superview moves into a window, and the other view's frame changes
+    container.addSubview(textView)
+    let window = TestWindow()
+    window.contentView = container
+    count = textView.everyFrameChangeCount
+    otherView.frame.size.width += 1
+
+    // then: the text view isn't told
+    expect(textView.everyFrameChangeCount - count) == 0
+
+    // when: the text view moves out of its superview in the window, and the other view's frame changes
+    textView.removeFromSuperview()
+    count = textView.everyFrameChangeCount
+    otherView.frame.size.width += 1
+
+    // then: the text view isn't told
+    expect(textView.everyFrameChangeCount - count) == 0
+  }
+
+  func test_documentViewOfAScrollView_keepsTheRegistrationForTheClipViewsFrameChanges() {
+    // given: a text view as the document view of a scroll view in a window
+    let textView = FrameChangeCountingTextView(frame: CGRect(x: 0, y: 0, width: 100, height: 200))
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.documentView = textView
+    let window = TestWindow()
+    window.contentView?.addSubview(scrollView)
+
+    // when: the scroll view resizes its clip view
+    let count = textView.clipViewFrameChangeCount
+    scrollView.setFrameSize(CGSize(width: 120, height: 100))
+
+    // then: the text view is told of its clip view's frame change, which AppKit registers it for under a clip view
+    expect(textView.clipViewFrameChangeCount - count) > 0
+  }
+
+  func test_layout_fitsTheMeasuredSize() throws {
+    let mixedFonts = NSMutableAttributedString(attributedString: Self.makeText("Regular text, then "))
+    mixedFonts.append(NSAttributedString(string: "bold text that wraps", attributes: [.font: Font.boldSystemFont(ofSize: 17)]))
+    let characterWrapping = NSMutableAttributedString(attributedString: Self.makeText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor."))
+    let characterWrappingStyle = NSMutableParagraphStyle()
+    characterWrappingStyle.lineBreakMode = .byCharWrapping
+    characterWrapping.addAttribute(.paragraphStyle, value: characterWrappingStyle, range: NSRange(location: 0, length: characterWrapping.length))
+    let texts: [(String, NSAttributedString)] = [
+      ("Latin", Self.makeText("A paragraph that wraps across several lines in a narrow text view.")),
+      ("Devanagari", Self.makeText("नमस्ते दुनिया, यह एक लंबा वाक्य है जो कई पंक्तियों में आता है")),
+      ("Arabic", Self.makeText("مرحبا بالعالم، هذا نص عربي طويل يلتف عبر عدة أسطر")),
+      ("CJK", Self.makeText("你好，世界。这是一个很长的句子，用来测试换行。")),
+      ("emoji", Self.makeText("Hello 😀👍🏽 world 🎉, with emoji in a line that wraps")),
+      ("mixed fonts", mixedFonts),
+      ("character wrapping", characterWrapping),
+      ("both directions", Self.makeText("A first paragraph\nمرحبا بالعالم، هذا نص عربي\nA third paragraph")),
+    ]
+    for (name, text) in texts {
+      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+        // given: the text measured for 160 points wide, in a number of lines with a line break mode
+        let scenario = "\(name), \(numberOfLines) lines"
+        let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
+
+        // when: showing the text in a text view of the measured size rounded up to whole points, as `TextNode` sizes it
+        let size = measuredSize.roundedUp(scaleFactor: 1)
+        let textView = BaseTextView(frame: CGRect(origin: .zero, size: size))
+        textView.numberOfLines = numberOfLines
+        textView.lineBreakMode = lineBreakMode
+        textView.attributedString = text
+
+        // then: the text view lays out the text in the measured width and height, with each line within its bounds, in
+        // one line as in more
+        let layoutManager = try textView.layoutManager.unwrap()
+        let textContainer = try textView.textContainer.unwrap()
+        layoutManager.ensureLayout(for: textContainer)
+        let lineRects = try Self.lineRects(of: textView)
+        expect(lineRects.map(\.width).max(), scenario) == measuredSize.width
+        expect(layoutManager.usedRect(for: textContainer).height, scenario) == measuredSize.height
+        expect(lineRects.allSatisfy { $0.minX >= 0 && $0.maxX <= size.width }, scenario) == true
+      }
+    }
+  }
+  #endif
+
+  #if canImport(UIKit)
+  func test_init_givenTextKit1Container_leavesAnEqualTextWithSubstituteFontsInPlace() throws {
+    // given: a text view of a given TextKit 1 text container, showing a text with characters that its font doesn't have,
+    // and an observer of the text storage's edits
+    let textStorage = NSTextStorage()
+    let layoutManager = NSLayoutManager()
+    textStorage.addLayoutManager(layoutManager)
+    let textContainer = NSTextContainer(size: CGSize(width: 200, height: 50))
+    layoutManager.addTextContainer(textContainer)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50), textContainer: textContainer)
+    textView.attributedString = Self.makeText("你好，世界")
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: setting an equal text, made anew
+    textView.attributedString = Self.makeText("你好，世界")
+
+    // then: the text view uses the given text system, whose text storage isn't edited
+    expect(textView.textStorage) === textStorage
+    expect(editCount) == 0
+  }
+
+  func test_init_givenTextKit1ContainerWithText_showsTheFirstTextSet() throws {
+    // given: a text view of a given TextKit 1 text container, whose text storage has a text
+    let textStorage = NSTextStorage(string: "Existing text")
+    let layoutManager = NSLayoutManager()
+    textStorage.addLayoutManager(layoutManager)
+    let textContainer = NSTextContainer(size: CGSize(width: 200, height: 50))
+    layoutManager.addTextContainer(textContainer)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50), textContainer: textContainer)
+
+    // when: setting an empty text, equal to the text that the text view starts with
+    textView.attributedString = NSAttributedString()
+
+    // then: the text storage shows the empty text instead of its own
+    expect(textStorage.length) == 0
+  }
+
+  func test_init_givenTextKit2Container_showsTheText() throws {
+    guard #available(iOS 16.0, tvOS 16.0, *) else {
+      throw XCTSkip("text views use TextKit 2 from iOS 16 and tvOS 16")
+    }
+
+    // given: a text view of a given TextKit 2 text container
+    let textContainer = NSTextContainer(size: CGSize(width: 200, height: 50))
+    let textLayoutManager = NSTextLayoutManager()
+    textLayoutManager.textContainer = textContainer
+    let textContentStorage = NSTextContentStorage()
+    textContentStorage.addTextLayoutManager(textLayoutManager)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50), textContainer: textContainer)
+
+    // when: setting a text
+    textView.attributedString = Self.makeText("Hello, world!")
+
+    // then: the text view shows it with the given TextKit 2 text system
+    expect(textView.textLayoutManager) === textLayoutManager
+    expect(textView.attributedText.string) == "Hello, world!"
+  }
+
+  func test_layout_fitsTheMeasuredSize() throws {
+    let font = Font.systemFont(ofSize: 13)
+    let mixedFonts = NSMutableAttributedString(string: "Regular text, then ", attributes: [.font: font])
+    mixedFonts.append(NSAttributedString(string: "नमस्ते bold text", attributes: [.font: Font.boldSystemFont(ofSize: 17)]))
+    let texts: [(String, NSAttributedString)] = [
+      ("Latin", NSAttributedString(string: "A paragraph that wraps across several lines in a narrow view.", attributes: [.font: font])),
+      ("Devanagari", NSAttributedString(string: "नमस्ते दुनिया, यह एक लंबा वाक्य है जो कई पंक्तियों में आता है", attributes: [.font: font])),
+      ("Arabic", NSAttributedString(string: "مرحبا بالعالم، هذا نص عربي طويل يلتف عبر عدة أسطر", attributes: [.font: font])),
+      ("Thai", NSAttributedString(string: "สวัสดีชาวโลก นี่คือประโยคภาษาไทยที่ยาวมาก", attributes: [.font: font])),
+      ("CJK", NSAttributedString(string: "你好，世界。这是一个很长的句子，用来测试换行。", attributes: [.font: font])),
+      ("emoji", NSAttributedString(string: "Hello 😀👍🏽 world 🎉, with emoji in a line that wraps", attributes: [.font: font])),
+      ("mixed fonts", mixedFonts),
+      ("no font", NSAttributedString(string: "नमस्ते दुनिया, यह एक लंबा वाक्य है")),
+      ("both directions", NSAttributedString(string: "A first paragraph\nمرحبا بالعالم، هذا نص عربي\nनमस्ते दुनिया", attributes: [.font: font])),
+    ]
+    for (name, text) in texts {
+      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+        // given: the text measured for 160 points wide, in a number of lines with a line break mode
+        let scenario = "\(name), \(numberOfLines) lines"
+        let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
+
+        // when: showing the text in a text view of the measured size rounded up to whole points, as `TextNode` sizes it
+        let size = measuredSize.roundedUp(scaleFactor: 1)
+        let textView = BaseTextView(frame: CGRect(origin: .zero, size: size))
+        textView.numberOfLines = numberOfLines
+        textView.lineBreakMode = lineBreakMode
+        textView.attributedString = text
+
+        // then: the text view lays out the text in the measured height, within its bounds, since the text is measured with
+        // the line heights of the fonts that the text view records for the characters it gives substitute fonts, in one
+        // line as in more
+        let usedSize = Self.usedSize(of: textView)
+        expect(usedSize.height, scenario).to(beApproximatelyEqual(to: measuredSize.height, within: 0.01))
+        expect(usedSize.width <= size.width, scenario) == true
+      }
     }
   }
 
-  func test_textAndLayoutSettings_setInOneTurn_layOutTheTextViewOnce() {
-    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view showing a text, with the layout it scheduled run
-      textView.attributedString = Self.makeText("Hello")
-      runScheduledBlocks()
-      textView.layoutCount = 0
-
-      // when: setting another text, number of lines and line break mode in one turn, as a refresh does, and running the
-      // blocks they scheduled
-      textView.attributedString = Self.makeText("Hello, world!")
-      textView.numberOfLines = 2
-      textView.lineBreakMode = .byClipping
-      runScheduledBlocks()
-
-      // then: the text view is laid out once, after all of the changes
-      expect(textView.layoutCount, textKit) == 1
-    }
-  }
-
-  func test_changeDuringTheScheduledLayout_schedulesAnotherLayout() {
-    for (textKit, textView) in Self.makeTextViews({ CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50)) }) {
-      // given: a text view whose first scheduled layout sets the number of lines, as a subclass can
-      textView.onLayout = { [weak textView] in
-        textView?.onLayout = nil
-        textView?.numberOfLines = 3
-      }
-
-      // when: setting a text, and running the blocks it scheduled, then the blocks its layout scheduled
-      textView.attributedString = Self.makeText("Hello")
-      runScheduledBlocks()
-      runScheduledBlocks()
-
-      // then: the change made during the layout gets a layout of its own
-      expect(textView.layoutCount, textKit) == 2
-      expect(textView.textContainer?.maximumNumberOfLines, textKit) == 3
+  /// Returns the size that the text view lays out its text in.
+  private static func usedSize(of textView: BaseTextView) -> CGSize {
+    // the TextKit 2 layout manager is read first, since asking a TextKit 2 text view for its TextKit 1 layout manager
+    // switches it to TextKit 1
+    if #available(iOS 16.0, tvOS 16.0, *), let textLayoutManager = textView.textLayoutManager {
+      textLayoutManager.ensureLayout(for: textLayoutManager.documentRange)
+      return textLayoutManager.usageBoundsForTextContainer.size
+    } else {
+      textView.layoutManager.ensureLayout(for: textView.textContainer)
+      return textView.layoutManager.usedRect(for: textView.textContainer).size
     }
   }
   #endif
@@ -368,6 +939,48 @@ class BaseTextViewTests: XCTestCase {
 
     // then: the text is released
     expect(weakText) == nil
+  }
+
+  func test_resetForReuse_keepingInteraction_keepsTheInteractionSettings() {
+    #if os(tvOS)
+    let settings = [false]
+    #else
+    let settings = [true, false]
+    #endif
+    for isInteractive in settings {
+      // given: a text view with a text, a number of lines, and the interaction settings of an editable text view or of
+      // a text view that isn't interactive, which aren't the defaults
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.attributedString = NSAttributedString(string: "Hello, world!")
+      textView.numberOfLines = 2
+      #if !os(tvOS)
+      textView.isEditable = isInteractive
+      #endif
+      textView.isSelectable = isInteractive
+      #if canImport(AppKit)
+      textView.ignoreHitTest = !isInteractive
+      #endif
+      #if canImport(UIKit)
+      textView.isUserInteractionEnabled = isInteractive
+      #endif
+
+      // when: resetting it for a reuse that sets the same interaction settings
+      textView.resetForReuse(keepsInteraction: true)
+
+      // then: the interaction settings stay, and the rest is reset
+      #if !os(tvOS)
+      expect(textView.isEditable, "interactive \(isInteractive)") == isInteractive
+      #endif
+      expect(textView.isSelectable, "interactive \(isInteractive)") == isInteractive
+      #if canImport(AppKit)
+      expect(textView.ignoreHitTest, "interactive \(isInteractive)") == !isInteractive
+      #endif
+      #if canImport(UIKit)
+      expect(textView.isUserInteractionEnabled, "interactive \(isInteractive)") == isInteractive
+      #endif
+      expect(textView.attributedString.string, "interactive \(isInteractive)") == ""
+      expect(textView.numberOfLines, "interactive \(isInteractive)") == 0
+    }
   }
 
   func test_resetForReuse_clearsNumberOfLines() {
@@ -649,35 +1262,28 @@ class BaseTextViewTests: XCTestCase {
 
   /// Returns the text storage that shows the text view's text.
   private static func textStorage(of textView: BaseTextView) -> NSTextStorage? {
-    #if canImport(AppKit)
-    return textView.shownTextStorage
-    #else
-    return textView.textStorage
-    #endif
+    textView.textStorage
   }
 
-  /// Returns a text view of each TextKit the platform's text views use, TextKit 2 and TextKit 1 on macOS, with the
-  /// TextKit's name.
-  private static func makeTextViews<T: BaseTextView>(_ make: () -> T) -> [(String, T)] {
+  /// Returns the rect that each line that the text view lays out uses.
+  private static func lineRects(of textView: BaseTextView) throws -> [CGRect] {
     #if canImport(AppKit)
-    BaseTextView.usesTextKit1ForTesting = true
-    let textKit1TextView = make()
-    BaseTextView.usesTextKit1ForTesting = false
-    // text views use TextKit 2 from macOS 13
-    guard #available(macOS 13.0, *) else {
-      return [("TextKit 1", textKit1TextView)]
+    let layoutManager = try textView.layoutManager.unwrap()
+    let textContainer = try textView.textContainer.unwrap()
+    #endif
+    #if canImport(UIKit)
+    let layoutManager = textView.layoutManager
+    let textContainer = textView.textContainer
+    #endif
+    layoutManager.ensureLayout(for: textContainer)
+    var rects: [CGRect] = []
+    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, usedRect, _, _, _ in
+      rects.append(usedRect)
     }
-    let textKit2TextView = make()
-    // if the flag stopped taking effect, the TextKit 1 runs would silently test TextKit 2 again
-    expect(textKit2TextView.textLayoutManager) != nil
-    expect(textKit1TextView.textLayoutManager) == nil
-    return [("TextKit 2", textKit2TextView), ("TextKit 1", textKit1TextView)]
-    #else
-    return [("TextKit", make())]
-    #endif
+    return rects
   }
 
-  /// Runs the main run loop until the blocks scheduled on it so far have run, such as a text view's scheduled layout.
+  /// Runs the main run loop until the blocks scheduled on it so far have run.
   private func runScheduledBlocks() {
     var isDrained = false
     RunLoop.main.perform {
@@ -694,18 +1300,32 @@ private final class CountingTextView: BaseTextView {
   var layoutCount = 0
   var intrinsicSizeInvalidationCount = 0
 
-  /// Called at the end of each layout pass.
-  var onLayout: (() -> Void)?
-
   override func layout() {
     super.layout()
     layoutCount += 1
-    onLayout?()
   }
 
   override func invalidateIntrinsicContentSize() {
     super.invalidateIntrinsicContentSize()
     intrinsicSizeInvalidationCount += 1
+  }
+}
+
+/// A text view that counts the view frame changes that AppKit tells it of, through the private methods AppKit registers
+/// for them.
+private final class FrameChangeCountingTextView: BaseTextView {
+
+  var everyFrameChangeCount = 0
+  var clipViewFrameChangeCount = 0
+
+  @objc(_anyViewFrameChangedWithNotification:)
+  func countEveryFrameChange(_ notification: NSNotification) {
+    everyFrameChangeCount += 1
+  }
+
+  @objc(_superviewClipViewFrameChangedWithNotification:)
+  func countClipViewFrameChange(_ notification: NSNotification) {
+    clipViewFrameChangeCount += 1
   }
 }
 #endif
