@@ -405,6 +405,27 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "layout.nested.200", result: result)
   }
 
+  func test_layout_nestedRows_200_newTexts() {
+    // given: 200 nested rows, laid out once
+    var content = VStack {
+      for i in 0 ..< 200 {
+        Self.makeNestedRow(i)
+      }
+    }
+    let contentEvaluation = ContentEvaluation()
+    _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: contentEvaluation))
+
+    // when: measuring layouts of the same rows with an empty text size cache, each in a new pass, which measures each
+    // label's text as a first layout measures new texts
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      NSAttributedString.clearTextSizeCache()
+      _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: contentEvaluation))
+    }
+
+    // then: report the timings
+    report(name: "layout.nested.200.newTexts", result: result)
+  }
+
   // MARK: - Frame Update (renderable-level, a reused renderable's frame update)
 
   func test_updateFrame_nonAnimated_layer_unchanged() {
