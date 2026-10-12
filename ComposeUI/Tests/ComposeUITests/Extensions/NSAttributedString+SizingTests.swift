@@ -1700,7 +1700,7 @@ class NSAttributedString_SizingTests: XCTestCase {
     expect(size) == expectedSize
   }
 
-  func test_computeBoundingRectSize_letsTheTextGoAtTheEndOfTheRunLoopTurn() {
+  func test_computeBoundingRectSize_keepsTheTextUntilTheEndOfTheRunLoopTurn() {
     for turn in 1 ... 2 {
       // given: a text with an attribute that holds an object, measured on the main thread, after which nothing else holds
       // the object
@@ -1711,6 +1711,10 @@ class NSAttributedString_SizingTests: XCTestCase {
         let text = NSAttributedString(string: "Hello", attributes: [.font: Font.systemFont(ofSize: 13), NSAttributedString.Key("io.chouti.composeui.test"): object])
         _ = text.computeBoundingRectSize(numberOfLines: 0, layoutWidth: 100)
       }
+
+      // then: the text system keeps the text, and with it the object, until the run loop turn ends, since it measures
+      // the next text too
+      expect(weakObject, "turn \(turn)") != nil
 
       // when: the run loop turn ends
       let turnEnded = expectation(description: "the run loop turn ends")
