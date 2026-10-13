@@ -820,6 +820,47 @@ class BaseTextViewTests: XCTestCase {
   }
   #endif
 
+  #if canImport(UIKit)
+  func test_attributedString_notEditable_emptyText_tellsTheDelegateThatTheSelectionMoved() {
+    // given: a text view that isn't editable, showing a text with the selection at its end, and a delegate that counts
+    // the selection changes
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    expect(textView.selectedRange) == NSRange(location: 13, length: 0)
+    let counter = SelectionChangeCounter()
+    textView.delegate = counter
+
+    // when: setting an empty text
+    textView.attributedString = NSAttributedString()
+
+    // then: the text is gone, and the delegate is told that the selection moved to the start
+    expect(textView.textStorage.length) == 0
+    expect(textView.selectedRange) == NSRange(location: 0, length: 0)
+    expect(counter.count) == 1
+  }
+
+  func test_attributedString_notEditable_showsTheTextWithItsFontColorAndAlignment() {
+    // given: a selectable text view that isn't editable, showing a text, with a selection of some of it
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 300, height: 50))
+    textView.isSelectable = true
+    textView.attributedString = NSAttributedString(string: "Hello, world! How are you?")
+    textView.selectedRange = NSRange(location: 5, length: 10)
+
+    // when: showing a text with a font, a color and an alignment, which has room for the selection
+    let style = NSMutableParagraphStyle()
+    style.alignment = .center
+    let font = UIFont.systemFont(ofSize: 21)
+    textView.attributedString = NSAttributedString(string: "Goodbye, everyone! Have a nice day.", attributes: [.font: font, .foregroundColor: UIColor.red, .paragraphStyle: style])
+
+    // then: the text view's font, text color and alignment are the text's, and the selection collapses to the end, as
+    // `attributedText` sets them
+    expect(textView.font) == font
+    expect(textView.textColor) == .red
+    expect(textView.textAlignment) == .center
+    expect(textView.selectedRange) == NSRange(location: 35, length: 0)
+  }
+  #endif
+
   // MARK: - resetForReuse
 
   func test_resetForReuse_clearsSelection() {
@@ -1198,6 +1239,50 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.attributedString.string) == ""
     expect(Self.textStorage(of: textView)?.length) == 0
   }
+
+  func test_resetForReuse_keepingTextNodeSettings_removesTheTextThroughTheTextStorage() {
+    // given: a text view with a text, with the selection at its end
+    let textView = AttributedTextCountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    expect(textView.selectedRange) == NSRange(location: 13, length: 0)
+    textView.attributedTextSetCount = 0
+
+    // when: resetting it for a reuse by a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: it removes its text through its text storage instead of through `attributedText`, which takes the selection
+    // to the start
+    expect(textView.attributedTextSetCount) == 0
+    expect(textView.textStorage.length) == 0
+    expect(textView.selectedRange) == NSRange(location: 0, length: 0)
+
+    // when: the next text node sets a text with a font, a color and an alignment
+    let style = NSMutableParagraphStyle()
+    style.alignment = .center
+    let font = UIFont.systemFont(ofSize: 21)
+    textView.attributedString = NSAttributedString(string: "Next", attributes: [.font: font, .foregroundColor: UIColor.red, .paragraphStyle: style])
+
+    // then: it's shown through `attributedText`, which sets the text view's font, text color and alignment from it
+    expect(textView.attributedTextSetCount) == 1
+    expect(textView.font) == font
+    expect(textView.textColor) == .red
+    expect(textView.textAlignment) == .center
+  }
+
+  func test_resetForReuse_removesTheTextThroughAttributedText() {
+    // given: a text view with a text
+    let textView = AttributedTextCountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    textView.attributedTextSetCount = 0
+
+    // when: resetting it for reuse
+    textView.resetForReuse()
+
+    // then: it removes its text through `attributedText`, since an app may still observe a text view that it resets
+    // itself
+    expect(textView.attributedTextSetCount) == 1
+    expect(textView.textStorage.length) == 0
+  }
   #endif
 
   func test_resetForReuse_clearsNumberOfLines() {
@@ -1567,6 +1652,18 @@ extension SelectionChangeCounter: UITextViewDelegate {
 
   func textViewDidChangeSelection(_ textView: UITextView) {
     count += 1
+  }
+}
+
+/// A text view that counts the texts set through `attributedText`.
+private final class AttributedTextCountingTextView: BaseTextView {
+
+  var attributedTextSetCount = 0
+
+  override var attributedText: NSAttributedString! {
+    didSet {
+      attributedTextSetCount += 1
+    }
   }
 }
 #endif

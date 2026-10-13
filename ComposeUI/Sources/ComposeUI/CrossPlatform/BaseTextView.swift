@@ -388,7 +388,17 @@ open class BaseTextView: UITextView {
         #else
         let resolvesWritingDirections = !isEditable
         #endif
-        _ = shownText.show(attributedString, resolvesWritingDirections: resolvesWritingDirections) { attributedText = $0 }
+        _ = shownText.show(
+          attributedString,
+          resolvesWritingDirections: resolvesWritingDirections,
+          setText: { text in
+            if isRemovingTextForReuse {
+              textStorage.setAttributedString(text)
+            } else {
+              attributedText = text
+            }
+          }
+        )
       } else {
         attributedText = attributedString
       }
@@ -397,6 +407,9 @@ open class BaseTextView: UITextView {
 
   /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
   var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?
+
+  /// Whether the text view is removing its text for a reuse by a text node.
+  private var isRemovingTextForReuse = false
 
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
@@ -495,7 +508,14 @@ open class BaseTextView: UITextView {
 
     delegate = nil
 
+    // removing a text through the text storage leaves the text view as `attributedText` does, in a little over half of
+    // the allocations, but tells no one that the selection moved to the start, which `attributedText` tells the
+    // delegate, the input delegate and key-value observers. so only a text node's reset removes it this way, since the
+    // text view has no delegate and isn't the first responder by now, and goes to the pool, where nothing else observes
+    // it, while an app may still observe a text view that it resets itself
+    isRemovingTextForReuse = keepsTextNodeSettings
     attributedString = NSAttributedString()
+    isRemovingTextForReuse = false
     lastThemedText = nil
 
     if !keepsTextNodeSettings {
