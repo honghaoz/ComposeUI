@@ -859,6 +859,100 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.textAlignment) == .center
     expect(textView.selectedRange) == NSRange(location: 35, length: 0)
   }
+
+  #if !os(tvOS)
+  func test_attributedString_newText_removesTheUndoActions() {
+    // given: an editable text view that the user typed into
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
+    expect(textView.undoManager?.canUndo) == true
+
+    // when: showing a shorter text, past whose end the typing's undo action would read
+    textView.attributedString = NSAttributedString(string: "Hi")
+
+    // then: the text view shows the text, without the undo actions of the edits to the other text
+    expect(textView.textStorage.string) == "Hi"
+    expect(textView.undoManager?.canUndo) == false
+    withExtendedLifetime(window) {}
+  }
+
+  func test_attributedString_editedThenNotEditable_newText_removesTheUndoActions() {
+    // given: a text view that the user typed into while it was editable, which isn't editable anymore
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
+    textView.isEditable = false
+    expect(textView.undoManager?.canUndo) == true
+
+    // when: showing a shorter text
+    textView.attributedString = NSAttributedString(string: "Hi")
+
+    // then: the text view removes the undo actions, which undoing would apply past the text's end once it's editable
+    // again
+    expect(textView.undoManager?.canUndo) == false
+    withExtendedLifetime(window) {}
+  }
+
+  func test_attributedString_neverEditable_newText_leavesTheUndoActions() throws {
+    // given: a text view that has never been editable, with an undo action that the app registered
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 300, height: 60))
+    textView.attributedString = NSAttributedString(string: "Hello")
+    let undoManager = try textView.undoManager.unwrap()
+    let target = NSObject()
+    undoManager.beginUndoGrouping()
+    undoManager.registerUndo(withTarget: target) { _ in }
+    undoManager.endUndoGrouping()
+    expect(undoManager.canUndo) == true
+
+    // when: showing another text
+    textView.attributedString = NSAttributedString(string: "Hi")
+
+    // then: the text view leaves its undo manager alone, since only a text view that has been editable has the undo
+    // actions of the user's edits
+    expect(undoManager.canUndo) == true
+  }
+
+  func test_attributedString_textOfTheUsersEdit_keepsTheUndoActions() {
+    // given: an editable text view that the user typed into
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world")
+
+    // when: showing the text that the user's edit made, as a text node does whose text follows the user's edits
+    textView.attributedString = NSAttributedString(attributedString: textView.textStorage)
+
+    // then: the user can still undo the typing
+    expect(textView.undoManager?.canUndo) == true
+    textView.undoManager?.undo()
+    expect(textView.textStorage.string) == "Hello"
+    withExtendedLifetime(window) {}
+  }
+
+  func test_attributedString_textKit2_newText_removesTheUndoActions() {
+    // given: an editable text view with a TextKit 2 text container, which the user typed into
+    let (textContainer, contentStorage) = Self.makeTextKit2TextContainer()
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more", textContainer: textContainer)
+    expect(textView.undoManager?.canUndo) == true
+
+    // when: showing a shorter text
+    textView.attributedString = NSAttributedString(string: "Hi")
+
+    // then: the text view shows the text, without the undo actions of the edits to the other text
+    expect(textView.text) == "Hi"
+    expect(textView.undoManager?.canUndo) == false
+    withExtendedLifetime((window, contentStorage)) {}
+  }
+
+  func test_attributedString_textKit2_textOfTheUsersEdit_keepsTheUndoActions() {
+    // given: an editable text view with a TextKit 2 text container, which the user typed into
+    let (textContainer, contentStorage) = Self.makeTextKit2TextContainer()
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world", textContainer: textContainer)
+
+    // when: showing the text that the user's edit made, which the text view leaves in place
+    textView.attributedString = NSAttributedString(attributedString: textView.attributedText)
+
+    // then: the user can still undo the typing
+    expect(textView.undoManager?.canUndo) == true
+    textView.undoManager?.undo()
+    expect(textView.text) == "Hello"
+    withExtendedLifetime((window, contentStorage)) {}
+  }
+  #endif
   #endif
 
   // MARK: - resetForReuse
@@ -1283,6 +1377,25 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.attributedTextSetCount) == 1
     expect(textView.textStorage.length) == 0
   }
+
+  #if !os(tvOS)
+  func test_resetForReuse_keepingTextNodeSettings_textThatTheUserEmptied_removesTheUndoActions() {
+    // given: an editable text view whose user typed into its empty text and deleted what they typed
+    let (textView, window) = Self.makeTypedTextView(text: "", typed: "abc")
+    textView.deleteBackward()
+    textView.deleteBackward()
+    textView.deleteBackward()
+    expect(textView.textStorage.length) == 0
+    expect(textView.undoManager?.canUndo) == true
+
+    // when: resetting it for a reuse by a text node, which leaves its empty text in place
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: the next text node starts without the undo actions, which would bring back what the user typed
+    expect(textView.undoManager?.canUndo) == false
+    withExtendedLifetime(window) {}
+  }
+  #endif
   #endif
 
   func test_resetForReuse_clearsNumberOfLines() {
@@ -1566,6 +1679,40 @@ class BaseTextViewTests: XCTestCase {
   private static func textStorage(of textView: BaseTextView) -> NSTextStorage? {
     textView.textStorage
   }
+
+  #if canImport(UIKit) && !os(tvOS)
+  /// Returns an editable text view in a key window, which shows a text that the user typed into at its end, and the
+  /// window, which the caller keeps until the end of the test.
+  ///
+  /// - Parameters:
+  ///   - text: The text that the text view shows.
+  ///   - typed: The text that the user types at the end of the text.
+  ///   - textContainer: The text view's text container, `nil` for one of its own.
+  private static func makeTypedTextView(text: String, typed: String, textContainer: NSTextContainer? = nil) -> (BaseTextView, UIWindow) {
+    let window = TestWindow()
+    window.rootViewController = UIViewController()
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 300, height: 60), textContainer: textContainer)
+    window.rootViewController?.view.addSubview(textView)
+    window.makeKeyAndVisible()
+    textView.isEditable = true
+    textView.attributedString = NSAttributedString(string: text)
+    textView.becomeFirstResponder()
+    textView.selectedRange = NSRange(location: textView.textStorage.length, length: 0)
+    textView.insertText(typed)
+    return (textView, window)
+  }
+
+  /// Returns a TextKit 2 text container, and the content storage that keeps its text, which the caller keeps until the
+  /// end of the test.
+  private static func makeTextKit2TextContainer() -> (NSTextContainer, NSTextContentStorage) {
+    let textContainer = NSTextContainer(size: CGSize(width: 300, height: 60))
+    let textLayoutManager = NSTextLayoutManager()
+    textLayoutManager.textContainer = textContainer
+    let contentStorage = NSTextContentStorage()
+    contentStorage.addTextLayoutManager(textLayoutManager)
+    return (textContainer, contentStorage)
+  }
+  #endif
 
   /// Returns the rect that each line that the text view lays out uses.
   private static func lineRects(of textView: BaseTextView) throws -> [CGRect] {

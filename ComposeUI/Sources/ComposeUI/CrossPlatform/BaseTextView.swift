@@ -396,11 +396,17 @@ open class BaseTextView: UITextView {
               textStorage.setAttributedString(text)
             } else {
               attributedText = text
+              removeUndoActions()
             }
           }
         )
       } else {
+        // the text view leaves an equal text in place itself, with the undo actions that still fit it
+        let isNewText = !attributedText.isEqual(to: attributedString)
         attributedText = attributedString
+        if isNewText {
+          removeUndoActions()
+        }
       }
     }
   }
@@ -410,6 +416,20 @@ open class BaseTextView: UITextView {
 
   /// Whether the text view is removing its text for a reuse by a text node.
   private var isRemovingTextForReuse = false
+
+  #if !os(tvOS)
+  /// Whether the text view has been editable, also when it isn't anymore, since the undo actions of the user's edits
+  /// stay after it stops being editable.
+  private var hasBeenEditable = false
+
+  override open var isEditable: Bool {
+    didSet {
+      if isEditable {
+        hasBeenEditable = true
+      }
+    }
+  }
+  #endif
 
   /// The number of lines to display. Set to 0 for unlimited lines (default).
   open var numberOfLines: Int = 0 {
@@ -457,6 +477,8 @@ open class BaseTextView: UITextView {
 
     #if !os(tvOS)
     isEditable = false
+    // the text view's own initializer sets it to its default, editable, before the user can edit anything
+    hasBeenEditable = false
     #endif
     isSelectable = true
 
@@ -478,6 +500,22 @@ open class BaseTextView: UITextView {
     if #available(iOS 16.0, *) {
       subviews.first(where: { String(cString: object_getClassName($0)) == "_UITextContainerView" }).assertNotNil()?.clipsToBounds = true
     }
+  }
+
+  /// Removes the undo actions of the user's edits.
+  ///
+  /// An undo action edits the text at the range where its edit was made, so undoing it in another text edits that text
+  /// at the wrong place, or crashes where the range is past the text's end.
+  private func removeUndoActions() {
+    #if !os(tvOS)
+    // only a text view that has been editable has the actions of the user's edits, and the undo manager costs
+    // instructions even without actions, so a text view that has never been editable, such as a label's, leaves it alone
+    guard hasBeenEditable else {
+      return
+    }
+    // a UIKit text view has an undo manager of its own, so this leaves the actions of other views in place
+    undoManager?.removeAllActions()
+    #endif
   }
 
   /// Reset the text view so it can be reused as if freshly made.
@@ -516,6 +554,11 @@ open class BaseTextView: UITextView {
     isRemovingTextForReuse = keepsTextNodeSettings
     attributedString = NSAttributedString()
     isRemovingTextForReuse = false
+
+    // the next user starts without the undo actions of this one's edits, also when the edits left the text empty, which
+    // the removal above leaves in place
+    removeUndoActions()
+
     lastThemedText = nil
 
     if !keepsTextNodeSettings {

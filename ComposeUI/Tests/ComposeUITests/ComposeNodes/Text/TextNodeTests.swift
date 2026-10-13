@@ -517,6 +517,44 @@ class TextNodeTests: XCTestCase {
   }
   #endif
 
+  #if canImport(UIKit) && !os(tvOS)
+  func test_editable_newTextAfterTheUserTyped_removesTheUndoActions() throws {
+    // given: an editable text node in a key window, whose text view the user typed into
+    var text = "Hello"
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .editable()
+        .frame(width: 300, height: 60)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    let window = TestWindow()
+    window.rootViewController = UIViewController()
+    window.rootViewController?.view.addSubview(contentView)
+    window.makeKeyAndVisible()
+    contentView.frame = CGRect(x: 0, y: 0, width: 300, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    textView.becomeFirstResponder()
+    textView.selectedRange = NSRange(location: textView.textStorage.length, length: 0)
+    textView.insertText(", world and more")
+    expect(textView.undoManager?.canUndo) == true
+
+    // when: the node's text changes to a shorter one, and the content refreshes
+    text = "Hi"
+    contentView.refresh(animated: false)
+
+    // then: the text view shows the new text, without the undo actions of the typing, which undoing would apply past the
+    // new text's end
+    expect(renderedView) === textView
+    expect(textView.textStorage.string) == "Hi"
+    expect(textView.undoManager?.canUndo) == false
+    withExtendedLifetime(window) {}
+  }
+  #endif
+
   func test_boundsChange_preservesEditingAndTextOptionsUntilRefresh() throws {
     // given: editable text with a selection and edits not yet reflected in its configuration
     var renderedView: BaseTextView?
