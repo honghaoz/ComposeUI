@@ -379,6 +379,9 @@ open class BaseTextView: UITextView {
   /// direction of its text, as ComposeUI measures it. An editable text view shows the text as set, so that the text and
   /// the paragraphs that the user types align by the same rule, by the user's language, as in other TextKit 1 text
   /// views.
+  ///
+  /// In a text view that has been editable, a text with other characters removes the actions of its undo manager,
+  /// except during an undo, a redo, or an undo group that the app opened.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
       if let shownText {
@@ -395,19 +398,27 @@ open class BaseTextView: UITextView {
             if isRemovingTextForReuse {
               textStorage.setAttributedString(text)
             } else {
-              attributedText = text
-              removeUndoActions()
+              showText(text)
             }
           }
         )
       } else {
-        // the text view leaves an equal text in place itself, with the undo actions that still fit it
-        let isNewText = !attributedText.isEqual(to: attributedString)
-        attributedText = attributedString
-        if isNewText {
-          removeUndoActions()
-        }
+        showText(attributedString)
       }
+    }
+  }
+
+  /// Shows a text through `attributedText`, and removes the undo actions when the characters change, since the actions
+  /// edit the text at ranges of the old characters.
+  ///
+  /// - Parameter text: The text to show.
+  private func showText(_ text: NSAttributedString) {
+    let replacesCharacters = hasBeenEditable && !textStorage.mutableString.isEqual(to: text.string)
+    attributedText = text
+    // a running undo operation accounts for the change itself
+    if replacesCharacters, let undoManager, !undoManager.isRunningUndoOperation {
+      // UIKit registers the user's edits with a private target, so all the actions go
+      undoManager.removeAllActionsKeepingRegistration()
     }
   }
 
@@ -417,9 +428,14 @@ open class BaseTextView: UITextView {
   /// Whether the text view is removing its text for a reuse by a text node.
   private var isRemovingTextForReuse = false
 
-  #if !os(tvOS)
-  /// Whether the text view has been editable, also when it isn't anymore, since the undo actions of the user's edits
-  /// stay after it stops being editable.
+  #if os(tvOS)
+  /// Whether the text view has been editable, which a tvOS text view can't be.
+  private var hasBeenEditable: Bool {
+    false
+  }
+  #else
+  /// Whether the text view has ever been editable, so that it may have undo actions of the user's edits, which outlast
+  /// the editing. A text view that never was, such as a label's, skips reading its undo manager, which is costly.
   private var hasBeenEditable = false
 
   override open var isEditable: Bool {
@@ -477,7 +493,7 @@ open class BaseTextView: UITextView {
 
     #if !os(tvOS)
     isEditable = false
-    // the text view's own initializer sets it to its default, editable, before the user can edit anything
+    // `UITextView`'s initializer sets `isEditable` to its default, `true`, through the override
     hasBeenEditable = false
     #endif
     isSelectable = true
@@ -502,20 +518,19 @@ open class BaseTextView: UITextView {
     }
   }
 
-  /// Removes the undo actions of the user's edits.
-  ///
-  /// An undo action edits the text at the range where its edit was made, so undoing it in another text edits that text
-  /// at the wrong place, or crashes where the range is past the text's end.
-  private func removeUndoActions() {
-    #if !os(tvOS)
-    // only a text view that has been editable has the actions of the user's edits, and the undo manager costs
-    // instructions even without actions, so a text view that has never been editable, such as a label's, leaves it alone
-    guard hasBeenEditable else {
+  /// Removes the undo actions of the user's edits, before the next user can edit the text.
+  private func removeUndoActionsForReuse() {
+    guard hasBeenEditable, let undoManager else {
       return
     }
-    // a UIKit text view has an undo manager of its own, so this leaves the actions of other views in place
-    undoManager?.removeAllActions()
-    #endif
+    if undoManager.isRunningUndoOperation {
+      // retried in the next pass of the run loop, which comes before the next user's edits
+      RunLoop.main.perform(inModes: [.common]) { [weak self] in
+        self?.removeUndoActionsForReuse()
+      }
+    } else {
+      undoManager.removeAllActionsKeepingRegistration()
+    }
   }
 
   /// Reset the text view so it can be reused as if freshly made.
@@ -555,9 +570,8 @@ open class BaseTextView: UITextView {
     attributedString = NSAttributedString()
     isRemovingTextForReuse = false
 
-    // the next user starts without the undo actions of this one's edits, also when the edits left the text empty, which
-    // the removal above leaves in place
-    removeUndoActions()
+    // removing the text leaves the undo actions when it goes through the text storage, or the text is already empty
+    removeUndoActionsForReuse()
 
     lastThemedText = nil
 
@@ -594,6 +608,30 @@ open class BaseTextView: UITextView {
     setContentOffset(.zero, animated: false)
 
     typingAttributes = [:]
+  }
+}
+
+private extension UndoManager {
+
+  /// Whether the undo manager runs an undo, a redo, or an undo group that its client opened, which removing the actions
+  /// would break.
+  var isRunningUndoOperation: Bool {
+    // grouping by event makes the outermost group the manager's own, and a client's groups nest in it
+    isUndoing || isRedoing || groupingLevel > (groupsByEvent ? 1 : 0)
+  }
+
+  /// Removes all undo and redo actions, and keeps undo registration disabled as many times as it is.
+  func removeAllActionsKeepingRegistration() {
+    // removing the actions enables registration, after which the client's balancing enables would raise
+    var disableCount = 0
+    while !isUndoRegistrationEnabled {
+      enableUndoRegistration()
+      disableCount += 1
+    }
+    removeAllActions()
+    for _ in 0 ..< disableCount {
+      disableUndoRegistration()
+    }
   }
 }
 #endif

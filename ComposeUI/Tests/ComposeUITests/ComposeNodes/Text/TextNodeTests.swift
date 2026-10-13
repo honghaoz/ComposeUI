@@ -542,12 +542,11 @@ class TextNodeTests: XCTestCase {
     textView.insertText(", world and more")
     expect(textView.undoManager?.canUndo) == true
 
-    // when: the node's text changes to a shorter one, and the content refreshes
+    // when: refreshing with a shorter text
     text = "Hi"
     contentView.refresh(animated: false)
 
-    // then: the text view shows the new text, without the undo actions of the typing, which undoing would apply past the
-    // new text's end
+    // then: the text is shown, and the undo actions are gone
     expect(renderedView) === textView
     expect(textView.textStorage.string) == "Hi"
     expect(textView.undoManager?.canUndo) == false
