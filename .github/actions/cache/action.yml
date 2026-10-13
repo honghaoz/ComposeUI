@@ -17,7 +17,9 @@ runs:
       with:
         # DerivedData caching was measured and did not improve iOS wall time on
         # public runners (simulator boot dominates and stale DerivedData can
-        # hurt), so only cache reusable tool/SPM/.build artifacts here.
+        # hurt), so only cache reusable tool/SPM/.build artifacts here, without
+        # the simulator builds that the benchmarks keep in .build, a few hundred
+        # megabytes for each commit.
         path: |
           bin/jq
           bin/swiftformat
@@ -25,6 +27,7 @@ runs:
           bin/xcbeautify
           ~/Library/Caches/org.swift.swiftpm
           ComposeUI/.build
+          !ComposeUI/.build/benchmark-*
         key: ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ inputs.xcode-version }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions') }}-${{ github.sha }}
         restore-keys: |
           ci-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-xcode-${{ inputs.xcode-version }}-${{ hashFiles('ComposeUI/Package.resolved', 'bin/.versions') }}-

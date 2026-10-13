@@ -6,6 +6,10 @@
 # for a few rounds, and compares each benchmark's time, instructions and allocations. Both sides run the working tree's
 # benchmark files, so a change to a benchmark doesn't show as a change in the code it measures, and the comparison stops
 # when those files don't build against the base.
+#
+# On an iOS or tvOS simulator, the benchmarks build and run with xcodebuild, see benchmark-xcodebuild.sh, and the
+# working tree's build is kept in the package's build directory, so that the next comparison builds only what changed,
+# as `swift build` does on macOS.
 
 set -euo pipefail
 
@@ -15,10 +19,11 @@ RESET=$( [ -n "${TERM:-}" ] && [ "$TERM" != "dumb" ] && tput sgr0 || echo "")
 print_help() {
   echo "${BOLD}OVERVIEW:${RESET} Compare the benchmarks of the working tree against a base revision, on this machine."
   echo ""
-  echo "${BOLD}USAGE:${RESET} $0 [--base <revision>] [--filter <regex>] [--rounds <count>] [--time-threshold <percent>] [--summary <file>]"
+  echo "${BOLD}USAGE:${RESET} $0 [--base <revision>] [--platform <macOS|iOS|tvOS>] [--filter <regex>] [--rounds <count>] [--time-threshold <percent>] [--summary <file>]"
   echo ""
   echo "${BOLD}OPTIONS:${RESET}"
   echo "  --base <revision>           The revision to compare against. Default is origin/master."
+  echo "  --platform <macOS|iOS|tvOS> The platform to run on, macOS or the newest available simulator of iOS or tvOS. Default is macOS."
   echo "  --filter <regex>            The benchmarks to run, as a swift test filter. Default is the benchmark suites, all of them."
   echo "  --rounds <count>            The number of rounds to run each side. Default is 5."
   echo "  --time-threshold <percent>  The slowdown past which a time warns. Default is 20."
@@ -34,6 +39,7 @@ print_help() {
 }
 
 BASE="origin/master"
+PLATFORM="macOS"
 FILTER=""
 ROUNDS=5
 TIME_THRESHOLD=20
@@ -44,6 +50,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
   --base)
     BASE="$2"
+    shift 2
+    ;;
+  --platform)
+    PLATFORM="$2"
     shift 2
     ;;
   --filter)
@@ -84,6 +94,13 @@ if ! [[ "$TIME_THRESHOLD" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   echo "🛑 --time-threshold must be a non-negative number: $TIME_THRESHOLD" >&2
   exit 1
 fi
+case "$PLATFORM" in
+macOS | iOS | tvOS) ;;
+*)
+  echo "🛑 --platform must be macOS, iOS or tvOS: $PLATFORM" >&2
+  exit 1
+  ;;
+esac
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)
@@ -130,12 +147,26 @@ fi
 # the tests use debug-only hooks, so the release build defines DEBUG
 BUILD_FLAGS=(-c release -Xswiftc -enable-testing -Xswiftc -DDEBUG)
 
+PLATFORM_DESCRIPTION="macOS"
+if [ "$PLATFORM" != "macOS" ]; then
+  SCHEME="ComposeUI"
+  # shellcheck source-path=SCRIPTDIR source=benchmark-xcodebuild.sh
+  source "$SCRIPT_DIR/benchmark-xcodebuild.sh"
+  benchmark_pick_simulator "$PLATFORM"
+  PLATFORM_DESCRIPTION="$PLATFORM, $DEVICE_DESCRIPTION"
+fi
+# a simulator side's build, the head's in the package's build directory, so that the next comparison builds only what
+# changed, as `swift build` does on macOS
+HEAD_DERIVED_DATA="$PACKAGE_DIR/.build/benchmark-$PLATFORM"
+BASE_DERIVED_DATA="$WORK_DIR/base-derived-data"
+
 HEAD_DESCRIPTION=$(git -C "$REPO_ROOT" log --oneline -1 HEAD)
 if [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
   HEAD_DESCRIPTION="$HEAD_DESCRIPTION, with uncommitted changes"
 fi
 echo "${BOLD}Base:${RESET} $BASE, $(git -C "$REPO_ROOT" log --oneline -1 "$BASE_COMMIT")"
 echo "${BOLD}Head:${RESET} the working tree, $HEAD_DESCRIPTION"
+echo "${BOLD}Platform:${RESET} $PLATFORM_DESCRIPTION"
 echo "${BOLD}Benchmarks:${RESET} $FILTER, $ROUNDS rounds, times warn past $TIME_THRESHOLD%"
 echo ""
 
@@ -145,26 +176,53 @@ BASE_PACKAGE_DIR="$BASE_DIR/$PACKAGE_PATH_IN_REPO"
 rsync -a --delete "$PACKAGE_DIR/$BENCHMARKS_PATH_IN_PACKAGE/" "$BASE_PACKAGE_DIR/$BENCHMARKS_PATH_IN_PACKAGE/"
 
 # Builds the tests of a package, or prints the end of the build log and fails.
-build() { # <name> <package dir>
+build() { # <name> <package dir> <simulator derived data dir>
   local log="$WORK_DIR/$1-build.log"
-  if ! swift build "${BUILD_FLAGS[@]}" --build-tests --package-path "$2" > "$log" 2>&1; then
+  local status=0
+  if [ "$PLATFORM" = "macOS" ]; then
+    swift build "${BUILD_FLAGS[@]}" --build-tests --package-path "$2" > "$log" 2>&1 || status=$?
+  else
+    benchmark_build_for_simulator "$2" "$3" > "$log" 2>&1 || status=$?
+  fi
+  if [ "$status" -ne 0 ]; then
     tail -20 "$log" >&2
     return 1
   fi
 }
 
 echo "Building the head..."
-build head "$PACKAGE_DIR" || fail "The head doesn't build, see the errors in the log."
+build head "$PACKAGE_DIR" "$HEAD_DERIVED_DATA" || fail "The head doesn't build, see the errors in the log."
 echo "Building the base..."
 # the base's own benchmark files can measure different work under the same names, or not report every cost, so the
 # comparison stops instead of falling back to them
-build base "$BASE_PACKAGE_DIR" || fail "The base doesn't build with the working tree's benchmark files, see the errors in the log. Compare against a revision they build against."
+build base "$BASE_PACKAGE_DIR" "$BASE_DERIVED_DATA" || fail "The base doesn't build with the working tree's benchmark files, see the errors in the log. Compare against a revision they build against."
+
+if [ "$PLATFORM" != "macOS" ]; then
+  # the simulator boots after the builds, since booting and building both take the processor, and overlapping them was
+  # slower than running them in turn on CI's few-core runners
+  echo "Booting the simulator..."
+  benchmark_boot_simulator
+  # each side runs the tests of its own build that the filter selects, as swift test applies the filter to each side.
+  # xcodebuild runs every test when it's given none to run, so an empty selection stops the comparison
+  echo "Selecting the benchmarks..."
+  benchmark_select_tests "$PACKAGE_DIR" "$HEAD_DERIVED_DATA" "$FILTER" "$WORK_DIR/head-tests.txt" || fail "The head's tests can't be listed, see the end of the log."
+  benchmark_select_tests "$BASE_PACKAGE_DIR" "$BASE_DERIVED_DATA" "$FILTER" "$WORK_DIR/base-tests.txt" || fail "The base's tests can't be listed, see the end of the log."
+  if [ ! -s "$WORK_DIR/head-tests.txt" ] || [ ! -s "$WORK_DIR/base-tests.txt" ]; then
+    fail "No tests match the filter: $FILTER"
+  fi
+fi
 
 # Runs the benchmarks of a side once, and keeps the round's test log, from which the comparison reads the results and the
 # skipped tests. A benchmark that runs without reporting fails its test, which fails the round.
-run() { # <side> <package dir> <round>
+run() { # <side> <package dir> <round> <simulator derived data dir>
   local log="$RESULTS_DIR/$1-$3.txt"
-  if ! BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --skip-build -c release --package-path "$2" --filter "$FILTER" --skip "/test_profile_" > "$log" 2>&1; then
+  local status=0
+  if [ "$PLATFORM" = "macOS" ]; then
+    BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --skip-build -c release --package-path "$2" --filter "$FILTER" --skip "/test_profile_" > "$log" 2>&1 || status=$?
+  else
+    benchmark_run_on_simulator "$2" "$4" "$WORK_DIR/$1-tests.txt" > "$log" 2>&1 || status=$?
+  fi
+  if [ "$status" -ne 0 ]; then
     tail -30 "$log" >&2
     fail "The $1 benchmarks failed in round $3, see the end of their log."
   fi
@@ -174,11 +232,11 @@ for round in $(seq "$ROUNDS"); do
   echo "Running round $round of $ROUNDS..."
   # alternate which side runs first, so a drift in the machine's speed affects both sides alike
   if ((round % 2 == 1)); then
-    run base "$BASE_PACKAGE_DIR" "$round"
-    run head "$PACKAGE_DIR" "$round"
+    run base "$BASE_PACKAGE_DIR" "$round" "$BASE_DERIVED_DATA"
+    run head "$PACKAGE_DIR" "$round" "$HEAD_DERIVED_DATA"
   else
-    run head "$PACKAGE_DIR" "$round"
-    run base "$BASE_PACKAGE_DIR" "$round"
+    run head "$PACKAGE_DIR" "$round" "$HEAD_DERIVED_DATA"
+    run base "$BASE_PACKAGE_DIR" "$round" "$BASE_DERIVED_DATA"
   fi
 done
 
@@ -192,6 +250,7 @@ if [ -n "$SUMMARY" ]; then
     echo ""
     echo "- Base: $BASE, $(git -C "$REPO_ROOT" log --oneline -1 "$BASE_COMMIT")"
     echo "- Head: $HEAD_DESCRIPTION"
+    echo "- Platform: $PLATFORM_DESCRIPTION"
     echo "- Benchmarks: \`$FILTER\`, $ROUNDS rounds, times warn past $TIME_THRESHOLD%"
     echo ""
     echo "$report"
