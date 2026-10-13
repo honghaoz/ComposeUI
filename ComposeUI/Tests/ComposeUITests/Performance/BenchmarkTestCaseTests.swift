@@ -74,6 +74,68 @@ class BenchmarkTestCaseTests: XCTestCase {
     expect(result.allocationsPerIteration) == nil
   }
 
+  func test_measure_takesTheCounterReadsOutOfEachIteration() {
+    // given: a benchmark harness, and a counter that counts 100 instructions for each of its reads
+    let harness = BenchmarkTestCase()
+    let counted = CountedInstructions()
+    let counter = { () -> UInt64? in
+      counted.retired += 100
+      return counted.retired
+    }
+
+    // when: measuring a block that retires 1,000 instructions
+    let result = harness.measure(warmup: 2, iterations: 3, instructionCounter: counter) { _ in
+      counted.retired += 1000
+    }
+
+    // then: each iteration counts the block's instructions, without the read in its span
+    expect(result.instructions) == [1000, 1000, 1000]
+  }
+
+  func test_measure_iterationUnderTheEmptyIterationsMedian_countsNoInstructions() {
+    // given: a benchmark harness, and a counter that counts 300 instructions for each read until the measured
+    // iterations, and 100 in them, so a measured iteration counts fewer instructions than an empty one before it
+    let harness = BenchmarkTestCase()
+    let counted = CountedInstructions()
+    let counter = { () -> UInt64? in
+      counted.retired += counted.blockCalls > 2 ? 100 : 300
+      return counted.retired
+    }
+
+    // when: measuring a block that only counts its calls, after 2 warm-up iterations
+    let result = harness.measure(warmup: 2, iterations: 3, instructionCounter: counter) { _ in
+      counted.blockCalls += 1
+    }
+
+    // then: each iteration counts no instructions, instead of a count that wraps around
+    expect(result.instructions) == [0, 0, 0]
+  }
+
+  func test_measure_instructionsNotCounted_reportsNone() {
+    // given: a benchmark harness, and a counter that can't count, as in a virtual machine
+    let harness = BenchmarkTestCase()
+    let counter: () -> UInt64? = { nil }
+
+    // when: measuring a block
+    let result = harness.measure(warmup: 2, iterations: 3, instructionCounter: counter) { _ in }
+
+    // then: the result has no instructions
+    expect(result.instructions) == nil
+  }
+
+  func test_measure_emptyBlock_countsAlmostNoInstructions() throws {
+    // given: a benchmark harness on a machine that counts instructions
+    try XCTSkipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
+    let harness = BenchmarkTestCase()
+
+    // when: measuring a block that does nothing
+    let result = harness.measure(warmup: 10, iterations: 201) { _ in }
+
+    // then: the iterations leave out the counter reads around them, which retire thousands of instructions
+    let instructions = try result.medianInstructions.unwrap()
+    expect(instructions) < 1000
+  }
+
   // MARK: - Report
 
   func test_reportLine_parsesBackIntoTheSameCosts() throws {
@@ -265,4 +327,12 @@ class BenchmarkTestCaseTests: XCTestCase {
       hook.pointee = previousLogger
     }
   }
+}
+
+/// The instructions that a scripted counter has counted, and the calls to the block it measures, in one object that the
+/// counter and the block both change.
+private final class CountedInstructions {
+
+  var retired: UInt64 = 0
+  var blockCalls = 0
 }
