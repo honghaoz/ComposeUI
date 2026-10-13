@@ -861,17 +861,30 @@ class BaseTextViewTests: XCTestCase {
   }
 
   #if !os(tvOS)
-  func test_attributedString_newText_removesTheUndoActions() {
-    // given: an editable text view that the user typed into
+  func test_attributedString_newText_removesTheUndoActionsAfterTheTypingsPass() throws {
+    // given: a typed text view, in the pass of the run loop whose undo group holds the typing
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
-    expect(textView.undoManager?.canUndo) == true
+    let undoManager = try textView.undoManager.unwrap()
 
-    // when: showing a shorter text
+    // when: showing a shorter text in the same pass, as an app that refreshes on each edit does
     textView.attributedString = NSAttributedString(string: "Hi")
 
-    // then: the text is shown, and the undo actions are gone
+    // then: the text is shown, and the undo actions stay in the open group
     expect(textView.textStorage.string) == "Hi"
-    expect(textView.undoManager?.canUndo) == false
+    expect(undoManager.canUndo) == true
+
+    // when: the pass ends
+    RunLoop.main.run(until: Date())
+
+    // then: the undo actions are gone
+    expect(undoManager.canUndo) == false
+
+    // when: the user types again, and the pass ends
+    textView.insertText("!")
+    RunLoop.main.run(until: Date())
+
+    // then: the new typing stays undoable
+    expect(undoManager.canUndo) == true
     withExtendedLifetime(window) {}
   }
 
@@ -879,10 +892,10 @@ class BaseTextViewTests: XCTestCase {
     // given: a text view that the user typed into, which isn't editable anymore
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     textView.isEditable = false
-    expect(textView.undoManager?.canUndo) == true
 
-    // when: showing a shorter text
+    // when: showing a shorter text, and the pass of the run loop ends
     textView.attributedString = NSAttributedString(string: "Hi")
+    RunLoop.main.run(until: Date())
 
     // then: the undo actions are gone
     expect(textView.undoManager?.canUndo) == false
@@ -900,8 +913,9 @@ class BaseTextViewTests: XCTestCase {
     undoManager.endUndoGrouping()
     expect(undoManager.canUndo) == true
 
-    // when: showing another text
+    // when: showing another text, and the pass of the run loop ends
     textView.attributedString = NSAttributedString(string: "Hi")
+    RunLoop.main.run(until: Date())
 
     // then: the app's undo action stays
     expect(undoManager.canUndo) == true
@@ -925,8 +939,9 @@ class BaseTextViewTests: XCTestCase {
     // given: an editable text view that the user typed into
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world")
 
-    // when: showing the same characters in another color
+    // when: showing the same characters in another color, and the pass of the run loop ends
     textView.attributedString = NSAttributedString(string: "Hello, world", attributes: [.foregroundColor: UIColor.red])
+    RunLoop.main.run(until: Date())
 
     // then: the user can still undo the typing
     expect(textView.undoManager?.canUndo) == true
@@ -935,18 +950,23 @@ class BaseTextViewTests: XCTestCase {
     withExtendedLifetime(window) {}
   }
 
-  func test_attributedString_undoRegistrationDisabledTwice_newText_keepsBothDisables() throws {
-    // given: a typed text view whose undo registration the app disabled twice
+  func test_attributedString_newTextDuringUndo_undoRegistrationDisabledTwice_keepsBothDisables() throws {
+    // given: a typed text view after the typing's pass, then the app's undoable change to a shorter text
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     let undoManager = try textView.undoManager.unwrap()
-    undoManager.disableUndoRegistration()
-    undoManager.disableUndoRegistration()
+    RunLoop.main.run(until: Date())
+    Self.showUndoably("Hi", in: textView)
 
-    // when: showing a shorter text
-    textView.attributedString = NSAttributedString(string: "Hi")
+    // when: undoing the change, whose undo action shows the previous text, then disabling registration twice before
+    // the pass of the run loop ends
+    undoManager.undo()
+    undoManager.disableUndoRegistration()
+    undoManager.disableUndoRegistration()
+    RunLoop.main.run(until: Date())
 
     // then: the undo actions are gone, and registration stays disabled
     expect(undoManager.canUndo) == false
+    expect(undoManager.canRedo) == false
     expect(undoManager.isUndoRegistrationEnabled) == false
 
     // when: the app enables registration once
@@ -963,42 +983,60 @@ class BaseTextViewTests: XCTestCase {
     withExtendedLifetime(window) {}
   }
 
-  func test_attributedString_newTextDuringUndo_keepsTheUndoActions() throws {
-    // given: a typed text view, then the app's undoable change to a shorter text
+  func test_attributedString_newTextDuringUndo_removesTheUndoActionsAfterIt() throws {
+    // given: a typed text view after the typing's pass, then the app's undoable change to a shorter text
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     let undoManager = try textView.undoManager.unwrap()
+    RunLoop.main.run(until: Date())
     Self.showUndoably("Hi", in: textView)
 
     // when: undoing the app's change
     undoManager.undo()
 
-    // then: the previous text is shown, and the redo action stays
+    // then: the previous text is shown
     expect(textView.textStorage.string) == "Hello, world and more"
-    expect(undoManager.canRedo) == true
+
+    // when: the pass of the run loop ends
+    RunLoop.main.run(until: Date())
+
+    // then: the undo actions are gone, also the redo
+    expect(undoManager.canUndo) == false
+    expect(undoManager.canRedo) == false
     withExtendedLifetime(window) {}
   }
 
-  func test_attributedString_newTextDuringRedo_keepsTheUndoActions() throws {
-    // given: a typed text view, then the app's undoable change in its own undo group, undone
+  func test_attributedString_newTextDuringRedo_removesTheUndoActionsAfterIt() throws {
+    // given: a typed text view after the typing's pass, and an app's undo action whose redo shows a shorter text, undone
+    // in a pass that has ended
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     let undoManager = try textView.undoManager.unwrap()
     RunLoop.main.run(until: Date())
-    undoManager.beginUndoGrouping()
-    Self.showUndoably("Hi", in: textView)
-    undoManager.endUndoGrouping()
+    undoManager.registerUndo(withTarget: textView) { textView in
+      textView.undoManager?.registerUndo(withTarget: textView) { textView in
+        textView.attributedString = NSAttributedString(string: "Hi")
+      }
+    }
+    RunLoop.main.run(until: Date())
     undoManager.undo()
+    RunLoop.main.run(until: Date())
 
-    // when: redoing the app's change
+    // when: redoing
     undoManager.redo()
 
-    // then: the text is shown again, and the typing's undo action stays
+    // then: the redo shows the text, and the typing's undo actions stay until the redo ends
     expect(textView.textStorage.string) == "Hi"
     expect(undoManager.canUndo) == true
+
+    // when: the pass of the run loop ends
+    RunLoop.main.run(until: Date())
+
+    // then: the undo actions are gone
+    expect(undoManager.canUndo) == false
     withExtendedLifetime(window) {}
   }
 
-  func test_attributedString_newTextInTheAppsUndoGroup_keepsTheUndoActions() throws {
-    // given: a typed text view, after the typing's pass of the run loop
+  func test_attributedString_newTextInTheAppsUndoGroup_removesTheUndoActionsAfterIt() throws {
+    // given: a typed text view after the typing's pass
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     let undoManager = try textView.undoManager.unwrap()
     RunLoop.main.run(until: Date())
@@ -1008,49 +1046,39 @@ class BaseTextViewTests: XCTestCase {
     Self.showUndoably("Hi", in: textView)
     undoManager.endUndoGrouping()
 
-    // then: the text is shown
+    // then: the group ends with the text shown, and the undo actions stay
     expect(textView.textStorage.string) == "Hi"
+    expect(undoManager.canUndo) == true
 
-    // when: undoing the app's group
-    undoManager.undo()
+    // when: the pass of the run loop ends
+    RunLoop.main.run(until: Date())
 
-    // then: the previous text is shown
-    expect(textView.textStorage.string) == "Hello, world and more"
-
-    // when: undoing again
-    undoManager.undo()
-
-    // then: the typing is undone
-    expect(textView.textStorage.string) == "Hello"
+    // then: the undo actions are gone
+    expect(undoManager.canUndo) == false
     withExtendedLifetime(window) {}
   }
 
-  func test_attributedString_newTextInTheAppsUndoGroup_notGroupingByEvent_keepsTheUndoActions() throws {
-    // given: a typed text view whose undo manager doesn't group by event
+  func test_attributedString_newTextInTheAppsUndoGroup_notGroupingByEvent_removesTheUndoActionsAfterIt() throws {
+    // given: a typed text view after the typing's pass, whose undo manager doesn't group by event
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     let undoManager = try textView.undoManager.unwrap()
     RunLoop.main.run(until: Date())
     undoManager.groupsByEvent = false
 
-    // when: the app makes an undoable change in its own undo group
+    // when: the app makes an undoable change in its own undo group, the only group open
     undoManager.beginUndoGrouping()
     Self.showUndoably("Hi", in: textView)
     undoManager.endUndoGrouping()
 
-    // then: the text is shown
+    // then: the group ends with the text shown, and the undo actions stay
     expect(textView.textStorage.string) == "Hi"
+    expect(undoManager.canUndo) == true
 
-    // when: undoing the app's group
-    undoManager.undo()
+    // when: the pass of the run loop ends
+    RunLoop.main.run(until: Date())
 
-    // then: the previous text is shown
-    expect(textView.textStorage.string) == "Hello, world and more"
-
-    // when: undoing again
-    undoManager.undo()
-
-    // then: the typing is undone
-    expect(textView.textStorage.string) == "Hello"
+    // then: the undo actions are gone
+    expect(undoManager.canUndo) == false
     withExtendedLifetime(window) {}
   }
 
@@ -1062,10 +1090,10 @@ class BaseTextViewTests: XCTestCase {
     // given: a typed text view with a TextKit 2 text container
     let (textContainer, contentStorage) = Self.makeTextKit2TextContainer()
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more", textContainer: textContainer)
-    expect(textView.undoManager?.canUndo) == true
 
-    // when: showing a shorter text
+    // when: showing a shorter text, and the pass of the run loop ends
     textView.attributedString = NSAttributedString(string: "Hi")
+    RunLoop.main.run(until: Date())
 
     // then: the text is shown, and the undo actions are gone
     expect(textView.text) == "Hi"
@@ -1519,11 +1547,12 @@ class BaseTextViewTests: XCTestCase {
 
   #if !os(tvOS)
   func test_resetForReuse_keepingTextNodeSettings_textThatTheUserEmptied_removesTheUndoActions() {
-    // given: a text view whose user typed into its empty text, then deleted the typing
+    // given: a text view whose user typed into its empty text, then deleted the typing, in a pass that has ended
     let (textView, window) = Self.makeTypedTextView(text: "", typed: "abc")
     textView.deleteBackward()
     textView.deleteBackward()
     textView.deleteBackward()
+    RunLoop.main.run(until: Date())
     expect(textView.textStorage.length) == 0
     expect(textView.undoManager?.canUndo) == true
 
@@ -1557,7 +1586,8 @@ class BaseTextViewTests: XCTestCase {
   }
 
   func test_resetForReuse_keepingTextNodeSettings_inTheAppsUndoGroupOverPasses_removesTheUndoActionsAfterIt() throws {
-    // given: a typed text view whose undo manager doesn't group by event, in an undo group that the app opened
+    // given: a typed text view after the typing's pass, whose undo manager doesn't group by event, in an undo group that
+    // the app opened
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     let undoManager = try textView.undoManager.unwrap()
     RunLoop.main.run(until: Date())
@@ -1590,8 +1620,9 @@ class BaseTextViewTests: XCTestCase {
     undoManager.registerUndo(withTarget: target) { _ in }
     undoManager.endUndoGrouping()
 
-    // when: resetting it for a text node
+    // when: resetting it for a text node, and the pass of the run loop ends
     textView.resetForReuse(keepsTextNodeSettings: true)
+    RunLoop.main.run(until: Date())
 
     // then: the app's undo action stays
     expect(undoManager.canUndo) == true
@@ -1882,8 +1913,8 @@ class BaseTextViewTests: XCTestCase {
   }
 
   #if canImport(UIKit) && !os(tvOS)
-  /// Returns an editable text view in a key window that the user typed into, and the window, which the caller keeps
-  /// until the end of the test.
+  /// Returns an editable text view in a key window that the user typed into, in a pass of the run loop whose undo group
+  /// holds the typing, and the window, which the caller keeps until the end of the test.
   ///
   /// - Parameters:
   ///   - text: The text that the text view shows.

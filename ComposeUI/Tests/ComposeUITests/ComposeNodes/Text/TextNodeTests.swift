@@ -542,9 +542,10 @@ class TextNodeTests: XCTestCase {
     textView.insertText(", world and more")
     expect(textView.undoManager?.canUndo) == true
 
-    // when: refreshing with a shorter text
+    // when: refreshing with a shorter text in the typing's pass of the run loop, and the pass ends
     text = "Hi"
     contentView.refresh(animated: false)
+    RunLoop.main.run(until: Date())
 
     // then: the text is shown, and the undo actions are gone
     expect(renderedView) === textView

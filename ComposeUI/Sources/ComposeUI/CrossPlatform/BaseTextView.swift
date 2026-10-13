@@ -380,8 +380,8 @@ open class BaseTextView: UITextView {
   /// the paragraphs that the user types align by the same rule, by the user's language, as in other TextKit 1 text
   /// views.
   ///
-  /// In a text view that has been editable, a text with other characters removes the actions of its undo manager,
-  /// except during an undo, a redo, or an undo group that the app opened.
+  /// In a text view that has been editable, a text with other characters removes the actions of its undo manager, after
+  /// any undo, redo or undo group in progress.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
       if let shownText {
@@ -415,10 +415,8 @@ open class BaseTextView: UITextView {
   private func showText(_ text: NSAttributedString) {
     let replacesCharacters = hasBeenEditable && !textStorage.mutableString.isEqual(to: text.string)
     attributedText = text
-    // a running undo operation accounts for the change itself
-    if replacesCharacters, let undoManager, !undoManager.isRunningUndoOperation {
-      // UIKit registers the user's edits with a private target, so all the actions go
-      undoManager.removeAllActionsKeepingRegistration()
+    if replacesCharacters {
+      removeUndoActions()
     }
   }
 
@@ -518,18 +516,43 @@ open class BaseTextView: UITextView {
     }
   }
 
-  /// Removes the undo actions of the user's edits, before the next user can edit the text.
-  private func removeUndoActionsForReuse() {
+  /// The undo manager whose undo operation the text view waits for, to remove the undo actions after it.
+  private weak var awaitedUndoManager: UndoManager?
+
+  /// Removes the undo actions of the user's edits, after the undo manager's undo operation if one is running.
+  ///
+  /// UIKit removes them itself when the text changes, except during an undo operation, which removing them would break.
+  private func removeUndoActions() {
     guard hasBeenEditable, let undoManager else {
       return
     }
     if undoManager.isRunningUndoOperation {
-      // retried in the next pass of the run loop, which comes before the next user's edits
-      RunLoop.main.perform(inModes: [.common]) { [weak self] in
-        self?.removeUndoActionsForReuse()
+      if awaitedUndoManager == nil {
+        awaitedUndoManager = undoManager
+        for name in Constants.undoOperationEndNotifications {
+          NotificationCenter.default.addObserver(self, selector: #selector(undoOperationDidEnd), name: name, object: undoManager)
+        }
       }
     } else {
+      if let awaitedUndoManager {
+        for name in Constants.undoOperationEndNotifications {
+          NotificationCenter.default.removeObserver(self, name: name, object: awaitedUndoManager)
+        }
+        self.awaitedUndoManager = nil
+      }
+      // UIKit registers the user's edits with a private target, so all the actions go
       undoManager.removeAllActionsKeepingRegistration()
+    }
+  }
+
+  /// Removes the awaited undo actions once the undo operation that the undo manager ends has finished.
+  @objc private func undoOperationDidEnd() {
+    // the undo manager posts these before it finishes the operation
+    RunLoop.main.perform(inModes: [.common]) { [weak self] in
+      guard let self, awaitedUndoManager != nil else {
+        return
+      }
+      removeUndoActions()
     }
   }
 
@@ -570,8 +593,8 @@ open class BaseTextView: UITextView {
     attributedString = NSAttributedString()
     isRemovingTextForReuse = false
 
-    // removing the text leaves the undo actions when it goes through the text storage, or the text is already empty
-    removeUndoActionsForReuse()
+    // UIKit leaves the undo actions when the text is already empty, or during an undo operation
+    removeUndoActions()
 
     lastThemedText = nil
 
@@ -609,15 +632,25 @@ open class BaseTextView: UITextView {
 
     typingAttributes = [:]
   }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The notifications that an undo manager posts when an undo group closes, or an undo or a redo ends.
+    static let undoOperationEndNotifications: [Notification.Name] = [
+      .NSUndoManagerDidCloseUndoGroup,
+      .NSUndoManagerDidUndoChange,
+      .NSUndoManagerDidRedoChange,
+    ]
+  }
 }
 
 private extension UndoManager {
 
-  /// Whether the undo manager runs an undo, a redo, or an undo group that its client opened, which removing the actions
-  /// would break.
+  /// Whether the undo manager runs an undo, a redo, or an undo group, which removing the actions would break.
   var isRunningUndoOperation: Bool {
-    // grouping by event makes the outermost group the manager's own, and a client's groups nest in it
-    isUndoing || isRedoing || groupingLevel > (groupsByEvent ? 1 : 0)
+    isUndoing || isRedoing || groupingLevel > 0
   }
 
   /// Removes all undo and redo actions, and keeps undo registration disabled as many times as it is.
