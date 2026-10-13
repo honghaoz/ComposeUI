@@ -55,8 +55,9 @@ import ChouTiTest
 /// - Time depends on the machine and its load. Compare times only between builds measured on the same machine at the
 ///   same time, interleaved.
 /// - Instructions retired don't depend on the machine's speed or load, only on the CPU architecture, the compiler and the
-///   OS. A change of about 1% shows in a few runs. The count covers the whole process, and is unavailable in virtual
-///   machines, such as GitHub's macOS runners, which don't expose the CPU's counters.
+///   OS. A change of about 1% shows in a few runs. The count covers the whole process, without the counter reads around
+///   each iteration, and is unavailable in virtual machines, such as GitHub's macOS runners, which don't expose the CPU's
+///   counters.
 /// - Allocations on the calling thread are exact for a given build, but differ between debug and release builds, and
 ///   with the OS for the allocations inside the system frameworks.
 class BenchmarkTestCase: XCTestCase {
@@ -90,14 +91,16 @@ class BenchmarkTestCase: XCTestCase {
   /// Runs the warm-up iterations, then the measured iterations, each in its own autorelease pool, so that autoreleased
   /// objects don't pile up across iterations. The allocations are counted in the second half of the warm-up, once the
   /// first half has warmed up the state, instead of in the measured iterations, since counting slows every allocation
-  /// down.
+  /// down. Each measured iteration's instructions leave out the median instructions of an empty iteration, the counter
+  /// reads around it.
   ///
   /// - Parameters:
   ///   - warmup: The number of iterations to run before measuring.
   ///   - iterations: The number of iterations to measure. Must be positive.
+  ///   - instructionCounter: Returns the instructions the process has retired, `nil` if they can't be counted.
   ///   - block: The block to measure, given the index of the iteration, counting the warm-up iterations first.
   /// - Returns: The costs of the measured iterations.
-  func measure(warmup: Int, iterations: Int, _ block: (Int) -> Void) -> BenchmarkResult {
+  func measure(warmup: Int, iterations: Int, instructionCounter: () -> UInt64? = InstructionCounter.current, _ block: (Int) -> Void) -> BenchmarkResult {
     precondition(iterations > 0, "a benchmark measures at least one iteration")
 
     let countedWarmupStart = warmup / 2
@@ -114,6 +117,11 @@ class BenchmarkTestCase: XCTestCase {
       }
     }
 
+    // each iteration's instructions include part of the two counter reads around it, thousands of instructions whose
+    // count differs between test processes, by about 300 on a simulator, so the instructions of an empty iteration,
+    // measured in the same process just before the measured iterations, are taken out of each
+    let readInstructions = Self.readInstructions(instructionCounter: instructionCounter)
+
     var durations: [Double] = []
     durations.reserveCapacity(iterations)
     var instructions: [UInt64] = []
@@ -121,15 +129,17 @@ class BenchmarkTestCase: XCTestCase {
     for index in warmup ..< warmup + iterations {
       autoreleasepool {
         // read the instruction counter outside of the timed span, since the read is a system call
-        let startInstructions = InstructionCounter.current()
+        let startInstructions = instructionCounter()
         let start = DispatchTime.now().uptimeNanoseconds
         block(index)
         let end = DispatchTime.now().uptimeNanoseconds
-        let endInstructions = InstructionCounter.current()
+        let endInstructions = instructionCounter()
 
         durations.append(Double(end - start) / 1000)
-        if let startInstructions, let endInstructions {
-          instructions.append(endInstructions - startInstructions)
+        if let startInstructions, let endInstructions, let readInstructions {
+          // an iteration can count a few instructions fewer than the empty iteration's median, which would wrap
+          let spanInstructions = endInstructions - startInstructions
+          instructions.append(spanInstructions > readInstructions ? spanInstructions - readInstructions : 0)
         }
       }
     }
@@ -140,6 +150,32 @@ class BenchmarkTestCase: XCTestCase {
       instructions: instructions.count == iterations ? instructions.sorted() : nil,
       allocationsPerIteration: countedWarmup > 0 ? allocations.map { Double($0) / Double(countedWarmup) } : nil
     )
+  }
+
+  /// Returns the median instructions of a measured iteration with nothing in it, the part of the counter reads around
+  /// each iteration that its count includes.
+  ///
+  /// - Parameter instructionCounter: Returns the instructions the process has retired, `nil` if they can't be counted.
+  /// - Returns: The median instructions, `nil` if they can't be counted.
+  private static func readInstructions(instructionCounter: () -> UInt64?) -> UInt64? {
+    var spans: [UInt64] = []
+    spans.reserveCapacity(Constants.emptyIterations)
+    for _ in 0 ..< Constants.emptyIterations {
+      autoreleasepool {
+        // the steps of a measured iteration, without the block
+        let startInstructions = instructionCounter()
+        _ = DispatchTime.now().uptimeNanoseconds
+        _ = DispatchTime.now().uptimeNanoseconds
+        let endInstructions = instructionCounter()
+        if let startInstructions, let endInstructions {
+          spans.append(endInstructions - startInstructions)
+        }
+      }
+    }
+    guard spans.count == Constants.emptyIterations else {
+      return nil
+    }
+    return spans.sorted()[spans.count / 2]
   }
 
   /// Writes the costs of a benchmark in one line to the standard error, in this format:
@@ -188,6 +224,14 @@ class BenchmarkTestCase: XCTestCase {
     }
     return line
   }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The number of empty iterations whose median instructions are taken out of each measured iteration's.
+    static let emptyIterations = 101
+  }
 }
 
 /// The costs of a benchmark's measured iterations.
@@ -196,7 +240,8 @@ struct BenchmarkResult {
   /// The wall-clock time of each measured iteration, in microseconds, sorted ascending.
   let durations: [Double]
 
-  /// The instructions the process retired in each measured iteration, sorted ascending, `nil` if they can't be counted.
+  /// The instructions the process retired in each measured iteration, without the counter reads around it, sorted
+  /// ascending, `nil` if they can't be counted.
   let instructions: [UInt64]?
 
   /// The allocations on the calling thread per iteration, `nil` if they can't be counted.
