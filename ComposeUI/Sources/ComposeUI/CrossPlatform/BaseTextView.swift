@@ -38,6 +38,9 @@ import AppKit
 /// The text view removes its registrations for `NSView.frameDidChangeNotification` when it moves into a window and
 /// when it's removed from its superview, unless its superview is a clip view, so a subclass observes frame changes with
 /// another object than itself.
+///
+/// A text view that has allowed undo while editable removes the undo actions of the user's edits from its window's undo
+/// manager when it leaves the window, also to come back later, since their undo would edit a text view that isn't in it.
 open class BaseTextView: TextView {
 
   /// The text that the text view shows.
@@ -91,11 +94,11 @@ open class BaseTextView: TextView {
   ///
   /// - Parameter text: The text to show.
   private func showText(_ text: NSAttributedString) {
-    let replacesCharacters = mayHaveUndoActions && textStorage?.mutableString.isEqual(to: text.string) == false
-    textStorage?.setAttributedString(text)
-    if replacesCharacters {
+    // removed before the text changes, so that code that observes the change, such as an undo, finds them gone
+    if mayHaveUndoActions, textStorage?.mutableString.isEqual(to: text.string) == false {
       removeUndoActions()
     }
+    textStorage?.setAttributedString(text)
   }
 
   /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
@@ -127,9 +130,6 @@ open class BaseTextView: TextView {
   private var undoManagerOfEdits: UndoManager? {
     undoManager ?? window?.undoManager
   }
-
-  /// The undo manager of the window that the text view last left, which keeps the undo actions of the user's edits.
-  private weak var undoManagerOfLeftWindow: UndoManager?
 
   /// Whether the text view removes its text at the end of the run loop turn, unless it gets another text before.
   fileprivate var isTextRemovalScheduled = false
@@ -247,11 +247,9 @@ open class BaseTextView: TextView {
   }
 
   override open func viewWillMove(toWindow newWindow: NSWindow?) {
-    // the window keeps the undo actions of the user's edits after the text view leaves it, where the text view no longer
-    // reaches its undo manager, so the undo manager is kept to remove them from when the text changes or is reset
-    if mayHaveUndoActions, window != nil {
-      undoManagerOfLeftWindow = undoManagerOfEdits
-    }
+    // the window would keep the undo actions of the user's edits after the text view leaves it, where the text view no
+    // longer reaches them, so they leave with it
+    removeUndoActions()
 
     super.viewWillMove(toWindow: newWindow)
   }
@@ -295,19 +293,14 @@ open class BaseTextView: TextView {
     clipsToBounds = true
   }
 
-  /// Removes the undo actions of the user's edits, from the undo manager and from the one of the window that the text view
-  /// left.
+  /// Removes the undo actions of the user's edits.
   private func removeUndoActions() {
     guard mayHaveUndoActions, let textStorage else {
       return
     }
     // AppKit registers the user's edits with the text storage as their target, so only they go, from an undo manager that
     // a window shares with its other views, whose registration and undo groups stay as they are
-    let undoManager = undoManagerOfEdits
-    undoManager?.removeAllActions(withTarget: textStorage)
-    if let undoManagerOfLeftWindow, undoManagerOfLeftWindow !== undoManager {
-      undoManagerOfLeftWindow.removeAllActions(withTarget: textStorage)
-    }
+    undoManagerOfEdits?.removeAllActions(withTarget: textStorage)
   }
 
   /// Reset the text view so it can be reused as if freshly made.
