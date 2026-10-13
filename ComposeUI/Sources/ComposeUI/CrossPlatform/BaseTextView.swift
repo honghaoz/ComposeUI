@@ -384,11 +384,30 @@ open class BaseTextView: UITextView {
       if let shownText {
         #if os(tvOS)
         // a tvOS text view isn't editable
-        let resolvesWritingDirections = true
+        let isTextEditable = false
         #else
-        let resolvesWritingDirections = !isEditable
+        let isTextEditable = isEditable
         #endif
-        _ = shownText.show(attributedString, resolvesWritingDirections: resolvesWritingDirections) { attributedText = $0 }
+        _ = shownText.show(
+          attributedString,
+          resolvesWritingDirections: !isTextEditable,
+          setText: { text in
+            if isTextEditable {
+              attributedText = text
+            } else {
+              // a text view that isn't editable gets its text through its text storage: `attributedText` also moves the
+              // selection to the end and sets the attributes to type with, which only an editable text view needs, and
+              // which take about 40% of the allocations of clearing a text and setting a new one
+              textStorage.setAttributedString(text)
+
+              // the text storage keeps a selection of some text that the new text has room for, which `attributedText`
+              // collapses to the end of the text
+              if selectedRange.length != 0 {
+                selectedRange = NSRange(location: textStorage.length, length: 0)
+              }
+            }
+          }
+        )
       } else {
         attributedText = attributedString
       }

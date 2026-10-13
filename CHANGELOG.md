@@ -86,6 +86,7 @@
 - Showing and scrolling labels and other text that isn't selectable is faster, especially on iOS, where making a text view selectable or not rebuilds its interactions: a text view is reused only by a text node with the same editable and selectable settings, and keeps them when it's reset for reuse.
 - Scrolling labels is faster on iOS: a text node sets a UIKit text view's number of lines, line break mode and inset before its text, while a new or reused text view is still empty, instead of after it, which takes 17% fewer instructions and 20% fewer allocations for rows of labels.
 - Scrolling text is faster on macOS: a text view that a text node resets for reuse keeps its number of lines, line break mode and inset, which the next text node sets again, leaves an empty selection where it is, and keeps its text until the end of the run loop turn, so a text view reused in the same render pass replaces its text in one edit instead of two, which takes 28% fewer instructions and 26% fewer allocations for rows of labels. On iOS, it keeps the same settings but removes its text at once, which takes up to 6% fewer instructions.
+- Setting the text of a text view that isn't editable is faster on iOS: it's set through the text storage instead of through `attributedText`, which takes 9% fewer instructions and 23% fewer allocations to scroll rows of labels.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 

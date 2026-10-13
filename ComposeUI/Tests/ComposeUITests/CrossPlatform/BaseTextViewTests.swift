@@ -820,6 +820,54 @@ class BaseTextViewTests: XCTestCase {
   }
   #endif
 
+  #if canImport(UIKit)
+  func test_attributedString_notEditable_setsTheTextWithoutMovingTheSelection() {
+    // given: a text view that isn't editable, with a delegate that counts the selection changes
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    let counter = SelectionChangeCounter()
+    textView.delegate = counter
+
+    // when: setting a text, and then another one
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    textView.attributedString = NSAttributedString(string: "Another text")
+
+    // then: the text view shows the text without moving the selection, which `attributedText` moves to the end
+    expect(textView.attributedText.string) == "Another text"
+    expect(counter.count) == 0
+    expect(textView.selectedRange) == NSRange(location: 0, length: 0)
+  }
+
+  #if !os(tvOS)
+  func test_attributedString_editable_movesTheSelectionToTheEndAndTypesWithTheTextsAttributes() {
+    // given: an editable text view
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.isEditable = true
+    let font = UIFont.systemFont(ofSize: 21)
+
+    // when: setting a text
+    textView.attributedString = NSAttributedString(string: "Hello, world!", attributes: [.font: font])
+
+    // then: the selection is at the end, where the user types, with the text's attributes
+    expect(textView.selectedRange) == NSRange(location: 13, length: 0)
+    expect(textView.typingAttributes[.font] as? UIFont) == font
+  }
+  #endif
+
+  func test_attributedString_notEditable_selectionOfSomeText_collapsesToTheEnd() {
+    // given: a selectable text view that isn't editable, with a text and a selection of some of it
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 300, height: 50))
+    textView.isSelectable = true
+    textView.attributedString = NSAttributedString(string: "Hello, world! How are you?")
+    textView.selectedRange = NSRange(location: 5, length: 10)
+
+    // when: setting a text that has room for the selection
+    textView.attributedString = NSAttributedString(string: "Goodbye, everyone! Have a nice day.")
+
+    // then: the selection collapses to the end of the text, as with `attributedText`, instead of staying over other text
+    expect(textView.selectedRange) == NSRange(location: 35, length: 0)
+  }
+  #endif
+
   // MARK: - resetForReuse
 
   func test_resetForReuse_clearsSelection() {
@@ -844,11 +892,15 @@ class BaseTextViewTests: XCTestCase {
   }
 
   func test_resetForReuse_emptySelectionAtTheEnd_movesItToTheStart() {
-    // given: a text view with a text, whose empty selection is at the end, where setting the text leaves it, and a
-    // delegate that counts the selection changes
+    // given: a text view with a text, an empty selection at the end, and a delegate that counts the selection changes
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     textView.attributedString = NSAttributedString(string: "Hello, world!")
-    expect(textView.selectedRange) == NSRange(location: 13, length: 0)
+    #if canImport(AppKit)
+    textView.setSelectedRange(NSRange(location: 13, length: 0))
+    #endif
+    #if canImport(UIKit)
+    textView.selectedRange = NSRange(location: 13, length: 0)
+    #endif
     let counter = SelectionChangeCounter()
     textView.delegate = counter
 
@@ -861,11 +913,15 @@ class BaseTextViewTests: XCTestCase {
   }
 
   func test_resetForReuse_keepingTextNodeSettings_emptySelection_isNotMoved() {
-    // given: a text view with a text, whose empty selection is at the end, where setting the text leaves it, and a
-    // delegate that counts the selection changes
+    // given: a text view with a text, an empty selection at the end, and a delegate that counts the selection changes
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     textView.attributedString = NSAttributedString(string: "Hello, world!")
-    expect(textView.selectedRange) == NSRange(location: 13, length: 0)
+    #if canImport(AppKit)
+    textView.setSelectedRange(NSRange(location: 13, length: 0))
+    #endif
+    #if canImport(UIKit)
+    textView.selectedRange = NSRange(location: 13, length: 0)
+    #endif
     let counter = SelectionChangeCounter()
     textView.delegate = counter
 
