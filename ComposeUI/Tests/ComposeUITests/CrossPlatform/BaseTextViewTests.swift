@@ -907,6 +907,24 @@ class BaseTextViewTests: XCTestCase {
     #endif
   }
 
+  #if canImport(AppKit)
+  func test_resetForReuse_keepingTextNodeSettings_emptySelectionWithOtherRanges_isRemoved() {
+    // given: a text view with a text, an empty first selection and a selection of some text after it, which `selectedRange`
+    // doesn't show
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    textView.setSelectedRanges([NSValue(range: NSRange(location: 2, length: 0)), NSValue(range: NSRange(location: 7, length: 5))], affinity: .downstream, stillSelecting: false)
+    expect(textView.selectedRanges.map(\.rangeValue)) == [NSRange(location: 2, length: 0), NSRange(location: 7, length: 5)]
+
+    // when: resetting it for a reuse by a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: the selection is gone, since the text view keeps its text, which a text node can leave in place with the
+    // selection
+    expect(textView.selectedRanges.map(\.rangeValue)) == [NSRange(location: 0, length: 0)]
+  }
+  #endif
+
   func test_resetForReuse_clearsFirstResponder() {
     #if canImport(AppKit)
     // given: a text view that is the first responder in a window

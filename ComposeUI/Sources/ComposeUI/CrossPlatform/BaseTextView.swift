@@ -257,9 +257,10 @@ open class BaseTextView: TextView {
   func resetForReuse(keepsTextNodeSettings: Bool) {
     // moving the selection makes the text view's text checking read the text around it, which allocates even when the
     // text view isn't editable. a text node sets a text on each reuse, which moves the selection, or leaves an equal text
-    // in place, where an empty selection doesn't show, so for a text node, only a selection of some text is reset
+    // in place, where an insertion point doesn't show, so for a text node, only an insertion point, an empty selection
+    // with no other selected ranges after it, is left in place
     let selectedRange = selectedRange
-    if selectedRange.length != 0 || (!keepsTextNodeSettings && selectedRange.location != 0) {
+    if selectedRange.length != 0 || (keepsTextNodeSettings ? selectedRanges.count > 1 : selectedRange.location != 0) {
       setSelectedRange(NSRange(location: 0, length: 0))
     }
 
