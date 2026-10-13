@@ -129,7 +129,7 @@ Hard-won rules from past corrections, grouped by theme.
 ## Performance
 
 - In hot paths (layout/render), order computations so work is only done when needed: check early-exit conditions (for example `.isNull`) before computing values used after the check.
-- Do not recommend a performance optimization from first principles alone. Measure the delta first (a local A/B is often enough), because plausible-sounding savings can be ~0 (for example `-xctestrun` vs `-workspace`/`-scheme` for `test-without-building` in this repo).
+- Do not recommend a performance optimization from first principles alone. Measure the delta first (a local A/B is often enough), because plausible-sounding savings can be ~0 (for example `-xctestrun` vs `-workspace`/`-scheme` for `test-without-building` in this repo). Measure the whole sequence the change runs in, not the step it removes: a later step can take over part of the removed step's work, such as removing a text, which moves the selection that a skipped move would have moved, so the saving is only the difference.
 - Anything that can run per frame is a hot path, including animation and update code, not only layout and render.
 - No per-call heap allocations in a hot path: fixed-size data is a value type, not an array, and a chain of collection operations allocates at every step, so use one pass.
 - Build a small array whose elements you have together as an array literal, which allocates it at its size directly, instead of reserving capacity in an empty array and appending to it, which takes the array's general growth path and checks the array's uniqueness and capacity on each append.

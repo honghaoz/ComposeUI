@@ -843,6 +843,88 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.selectedRange.length) == 0
   }
 
+  func test_resetForReuse_emptySelectionAtTheEnd_movesItToTheStart() {
+    // given: a text view with a text, whose empty selection is at the end, where setting the text leaves it, and a
+    // delegate that counts the selection changes
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    expect(textView.selectedRange) == NSRange(location: 13, length: 0)
+    let counter = SelectionChangeCounter()
+    textView.delegate = counter
+
+    // when: reset for reuse
+    textView.resetForReuse()
+
+    // then: the reset moves the selection to the start, as in a new text view
+    expect(counter.count) == 1
+    expect(textView.selectedRange) == NSRange(location: 0, length: 0)
+  }
+
+  func test_resetForReuse_keepingTextNodeSettings_emptySelection_isNotMoved() {
+    // given: a text view with a text, whose empty selection is at the end, where setting the text leaves it, and a
+    // delegate that counts the selection changes
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    expect(textView.selectedRange) == NSRange(location: 13, length: 0)
+    let counter = SelectionChangeCounter()
+    textView.delegate = counter
+
+    // when: resetting it for a reuse by a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: the reset doesn't move the selection, which the text node's next text moves
+    expect(counter.count) == 0
+    #if canImport(AppKit)
+    expect(textView.selectedRange) == NSRange(location: 13, length: 0)
+    #endif
+  }
+
+  func test_resetForReuse_keepingTextNodeSettings_selectionOfSomeText_isRemoved() {
+    // given: a text view with a text, a selection of some of it, and a delegate that counts the selection changes
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    #if canImport(AppKit)
+    textView.setSelectedRange(NSRange(location: 0, length: 5))
+    #endif
+    #if canImport(UIKit)
+    textView.selectedRange = NSRange(location: 0, length: 5)
+    #endif
+    let counter = SelectionChangeCounter()
+    textView.delegate = counter
+
+    // when: resetting it for a reuse by a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: the selection is gone
+    expect(textView.selectedRange) == NSRange(location: 0, length: 0)
+    #if canImport(AppKit)
+    // the reset moves it, since the text view keeps its text, which a text node can leave in place with the selection
+    expect(counter.count) == 1
+    #endif
+    #if canImport(UIKit)
+    // the reset removes the text, which takes the selection with it, after it lets go of the delegate
+    expect(counter.count) == 0
+    #endif
+  }
+
+  #if canImport(AppKit)
+  func test_resetForReuse_keepingTextNodeSettings_emptySelectionWithOtherRanges_isRemoved() {
+    // given: a text view with a text, an empty first selection and a selection of some text after it, which `selectedRange`
+    // doesn't show
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    textView.setSelectedRanges([NSValue(range: NSRange(location: 2, length: 0)), NSValue(range: NSRange(location: 7, length: 5))], affinity: .downstream, stillSelecting: false)
+    expect(textView.selectedRanges.map(\.rangeValue)) == [NSRange(location: 2, length: 0), NSRange(location: 7, length: 5)]
+
+    // when: resetting it for a reuse by a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: the selection is gone, since the text view keeps its text, which a text node can leave in place with the
+    // selection
+    expect(textView.selectedRanges.map(\.rangeValue)) == [NSRange(location: 0, length: 0)]
+  }
+  #endif
+
   func test_resetForReuse_clearsFirstResponder() {
     #if canImport(AppKit)
     // given: a text view that is the first responder in a window
@@ -1461,6 +1543,30 @@ private final class FrameChangeCountingTextView: BaseTextView {
   @objc(_superviewClipViewFrameChangedWithNotification:)
   func countClipViewFrameChange(_ notification: NSNotification) {
     clipViewFrameChangeCount += 1
+  }
+}
+#endif
+
+/// A text view delegate that counts the selection changes that the text view tells it of.
+private final class SelectionChangeCounter: NSObject {
+
+  var count = 0
+}
+
+#if canImport(AppKit)
+extension SelectionChangeCounter: NSTextViewDelegate {
+
+  func textViewDidChangeSelection(_ notification: Notification) {
+    count += 1
+  }
+}
+#endif
+
+#if canImport(UIKit)
+extension SelectionChangeCounter: UITextViewDelegate {
+
+  func textViewDidChangeSelection(_ textView: UITextView) {
+    count += 1
   }
 }
 #endif
