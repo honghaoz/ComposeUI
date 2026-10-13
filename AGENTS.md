@@ -46,6 +46,8 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 - `make -C ComposeUI test-macOS` / `test-iOS` / `test-tvOS` / `test-visionOS`: run platform tests.
 - `make -C ComposeUI test-codecov`: run SwiftPM tests with coverage output.
 - `cd ComposeUI && swift test --filter <TestCase>.<test_name>`: run a focused test quickly (always from `ComposeUI/`, not the root package).
+- `make -C ComposeUI benchmark [PLATFORM=iOS] [FILTER=<regex>]`: run the benchmarks once in release, on macOS by default or on an iOS or tvOS simulator. Make expands a `$` in `FILTER`, so write it as `$$`.
+- `make -C ComposeUI benchmark-compare [BASE=origin/master] [PLATFORM=iOS] [FILTER=<regex>]`: compare the working tree's benchmarks against a base revision on this machine, failing on more allocations or more than 1% more instructions.
 
 # Coding Style & Naming Conventions
 

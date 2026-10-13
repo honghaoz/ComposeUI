@@ -1,4 +1,6 @@
-# This workflow compares the benchmarks of a change against its base, both built and run on one runner.
+# This workflow compares the benchmarks of a change against its base, both built and run on one runner, on macOS and on
+# an iOS simulator, since AppKit and UIKit implement the same work separately, so a cost measured on one tells nothing
+# about the other.
 #
 # It fails on what the comparison fails on: more allocations than the base made in any round, a benchmark that a side
 # doesn't report once in every round, and a skipped test. Instructions aren't available on GitHub's virtual machines,
@@ -43,8 +45,12 @@ env:
 
 jobs:
   benchmark:
-    name: Benchmark (macOS)
-    # two release builds and 5 rounds of each side take about 26 minutes on the runner's 3 virtual cores
+    name: Benchmark (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macOS, iOS]
+    # two release builds and 5 rounds of each side take about 26 minutes on macOS on the runner's 3 virtual cores
     timeout-minutes: 60
     runs-on: ${{ vars.MACOS }}
     steps:
@@ -57,7 +63,7 @@ jobs:
       - name: Cache CI artifacts
         uses: ./.github/actions/cache
         with:
-          kind: benchmark
+          kind: benchmark-${{ matrix.platform }}
           xcode-version: ${{ vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
@@ -68,4 +74,5 @@ jobs:
           # started from when the base branch moves, so it would count the base branch's later changes as the pull
           # request's.
           BASE: ${{ github.event_name == 'pull_request' && format('{0}^1', github.sha) || inputs.base }}
-        run: make benchmark-compare -C ComposeUI BASE="$BASE" TIME_THRESHOLD="$TIME_THRESHOLD" SUMMARY="$GITHUB_STEP_SUMMARY"
+          PLATFORM: ${{ matrix.platform }}
+        run: make benchmark-compare -C ComposeUI BASE="$BASE" PLATFORM="$PLATFORM" TIME_THRESHOLD="$TIME_THRESHOLD" SUMMARY="$GITHUB_STEP_SUMMARY"
