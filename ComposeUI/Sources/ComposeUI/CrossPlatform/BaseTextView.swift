@@ -392,19 +392,15 @@ open class BaseTextView: UITextView {
           attributedString,
           resolvesWritingDirections: !isTextEditable,
           setText: { text in
-            if isTextEditable {
+            if isTextEditable || text.length != 0 {
+              // `attributedText` also sets the text view's font, text color and alignment from the text, which the text
+              // storage doesn't, and for an editable text view, the selection and the attributes to type with
               attributedText = text
             } else {
-              // a text view that isn't editable gets its text through its text storage: `attributedText` also moves the
-              // selection to the end and sets the attributes to type with, which only an editable text view needs, and
-              // which take about 40% of the allocations of clearing a text and setting a new one
+              // a text view that isn't editable removes its text through its text storage, which takes about a third of
+              // the allocations of `attributedText`, keeps the font, text color and alignment as `attributedText` does,
+              // and takes the selection to the start
               textStorage.setAttributedString(text)
-
-              // the text storage keeps a selection of some text that the new text has room for, which `attributedText`
-              // collapses to the end of the text
-              if selectedRange.length != 0 {
-                selectedRange = NSRange(location: textStorage.length, length: 0)
-              }
             }
           }
         )
