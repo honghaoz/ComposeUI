@@ -2228,6 +2228,35 @@ class BaseTextViewTests: XCTestCase {
   #endif
 
   #if canImport(UIKit)
+  func test_init_doesNotScroll() {
+    // given: a text view, and one of a given TextKit 1 text container
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    let textStorage = NSTextStorage()
+    let layoutManager = NSLayoutManager()
+    textStorage.addLayoutManager(layoutManager)
+    let textContainer = NSTextContainer(size: CGSize(width: 200, height: 50))
+    layoutManager.addTextContainer(textContainer)
+    let textViewOfGivenContainer = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50), textContainer: textContainer)
+
+    // then: they don't scroll, since they lay out their text in their bounds
+    expect(textView.isScrollEnabled) == false
+    expect(textViewOfGivenContainer.isScrollEnabled) == false
+  }
+
+  func test_resetForReuse_turnsScrollingOffAgain() {
+    for keepsTextNodeSettings in [false, true] {
+      // given: a text view that an app made scroll
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.isScrollEnabled = true
+
+      // when: reset for reuse
+      textView.resetForReuse(keepsTextNodeSettings: keepsTextNodeSettings)
+
+      // then: it doesn't scroll again
+      expect(textView.isScrollEnabled, "keepsTextNodeSettings: \(keepsTextNodeSettings)") == false
+    }
+  }
+
   func test_resetForReuse_clearsContentOffset() {
     // given: a text view with a content offset
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
