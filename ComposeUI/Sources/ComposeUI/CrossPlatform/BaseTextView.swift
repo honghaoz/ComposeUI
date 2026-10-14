@@ -539,10 +539,6 @@ open class BaseTextView: UITextView {
 
     contentInsetAdjustmentBehavior = .never
 
-    // the text view lays out its text in its bounds, so it has nothing to scroll, while a scroll view's bookkeeping would
-    // run on each frame and text change, so it doesn't scroll, as on AppKit
-    isScrollEnabled = false
-
     #if !os(tvOS)
     isEditable = false
     // `UITextView`'s initializer sets `isEditable` to its default, `true`, through the override
@@ -644,10 +640,6 @@ open class BaseTextView: UITextView {
     }
 
     contentInsetAdjustmentBehavior = .never
-
-    if isScrollEnabled {
-      isScrollEnabled = false
-    }
 
     backgroundColor = nil
 

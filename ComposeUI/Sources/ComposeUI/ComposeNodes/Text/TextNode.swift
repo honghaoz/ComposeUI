@@ -468,6 +468,13 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     #if canImport(UIKit)
     textView.isUserInteractionEnabled = isInteractive
+
+    // a UIKit text view that scrolls lays out its whole text, also past its bounds, and runs a scroll view's bookkeeping
+    // on each frame and text change, so a text view that isn't editable doesn't scroll, and stops its text at its bounds,
+    // as on AppKit, while an editable one scrolls, so that the user reaches the text typed past its bounds
+    if textView.isScrollEnabled != isEditable {
+      textView.isScrollEnabled = isEditable
+    }
     #endif
 
     #if canImport(AppKit)
