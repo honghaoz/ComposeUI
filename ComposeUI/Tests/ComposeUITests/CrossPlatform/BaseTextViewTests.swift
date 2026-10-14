@@ -2170,18 +2170,47 @@ class BaseTextViewTests: XCTestCase {
     #endif
   }
 
-  func test_resetForReuse_clearsClipsToBounds() {
-    // given: a text view with clips to bounds enabled
+  func test_resetForReuse_restoresClipsToBounds() {
+    // given: a text view whose clipping an app turned off
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
-    textView.clipsToBounds = true
-    expect(textView.clipsToBounds) == true
+    textView.clipsToBounds = false
 
     // when: reset for reuse
     textView.resetForReuse()
 
-    // then: clips to bounds stays enabled
+    // then: it clips again
     expect(textView.clipsToBounds) == true
   }
+
+  #if canImport(UIKit)
+  func test_resetForReuse_keepingTextNodeSettings_textContainerViewKeepsClipping() throws {
+    guard #available(iOS 16.0, *) else {
+      throw XCTSkip("the text view clips its text container view from iOS 16")
+    }
+
+    // given: a text view in a window, showing a text
+    let window = TestWindow()
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    window.addSubview(textView)
+    textView.attributedString = Self.makeText("Hello, world")
+    textView.layoutIfNeeded()
+    let textContainerView = try Self.textContainerView(of: textView).unwrap()
+
+    // then: the view that UIKit draws the text in clips
+    expect(textContainerView.clipsToBounds) == true
+
+    // when: resetting it for a text node, and reusing it for another text
+    textView.removeFromSuperview()
+    textView.resetForReuse(keepsTextNodeSettings: true)
+    window.addSubview(textView)
+    textView.attributedString = Self.makeText("Another text")
+    textView.layoutIfNeeded()
+
+    // then: UIKit draws the text in the same view, which still clips
+    expect(Self.textContainerView(of: textView)) === textContainerView
+    expect(textContainerView.clipsToBounds) == true
+  }
+  #endif
 
   #if canImport(AppKit)
   func test_resetForReuse_clearsIgnoreHitTest() {
@@ -2268,6 +2297,13 @@ class BaseTextViewTests: XCTestCase {
   private static func textStorage(of textView: BaseTextView) -> NSTextStorage? {
     textView.textStorage
   }
+
+  #if canImport(UIKit)
+  /// Returns the subview that UIKit draws a text view's text in.
+  private static func textContainerView(of textView: UITextView) -> UIView? {
+    textView.subviews.first { String(cString: object_getClassName($0)) == "_UITextContainerView" }
+  }
+  #endif
 
   #if canImport(UIKit) && !os(tvOS)
   /// Returns an editable text view in a key window that the user typed into, in a pass of the run loop whose undo group
