@@ -1383,9 +1383,7 @@ class BaseTextViewTests: XCTestCase {
 
     // then: the reset doesn't move the selection, which the text node's next text moves
     expect(counter.count) == 0
-    #if canImport(AppKit)
     expect(textView.selectedRange) == NSRange(location: 13, length: 0)
-    #endif
   }
 
   func test_resetForReuse_keepingTextNodeSettings_selectionOfSomeText_isRemoved() {
@@ -1404,16 +1402,10 @@ class BaseTextViewTests: XCTestCase {
     // when: resetting it for a reuse by a text node
     textView.resetForReuse(keepsTextNodeSettings: true)
 
-    // then: the selection is gone
+    // then: the reset moves the selection to the start, since the text view keeps its text, which a text node can leave
+    // in place with the selection
     expect(textView.selectedRange) == NSRange(location: 0, length: 0)
-    #if canImport(AppKit)
-    // the reset moves it, since the text view keeps its text, which a text node can leave in place with the selection
     expect(counter.count) == 1
-    #endif
-    #if canImport(UIKit)
-    // the reset removes the text, which takes the selection with it, after it lets go of the delegate
-    expect(counter.count) == 0
-    #endif
   }
 
   #if canImport(AppKit)
@@ -1584,13 +1576,19 @@ class BaseTextViewTests: XCTestCase {
     }
   }
 
-  #if canImport(AppKit)
   func test_resetForReuse_keepingTextNodeSettings_keepsTheTextUntilTheEndOfTheRunLoopTurn() {
-    for isEditable in [true, false] {
+    #if os(tvOS)
+    let editableStates = [false]
+    #else
+    let editableStates = [true, false]
+    #endif
+    for isEditable in editableStates {
       // given: a text view, editable or not, with a text whose attribute holds an object
       let scenario = "editable \(isEditable)"
       let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      #if !os(tvOS)
       textView.isEditable = isEditable
+      #endif
       weak var weakObject: NSObject?
       autoreleasepool {
         let object = NSObject()
@@ -1612,10 +1610,13 @@ class BaseTextViewTests: XCTestCase {
       }
       wait(for: [turnEnded], timeout: 1)
 
-      // then: the text view removes its text, and lets go of the object that the text held
+      // then: the text view removes its text, and on AppKit lets go of the object that the text held, which a UIKit text
+      // view keeps until it gets another text
       expect(textView.attributedString.string, scenario) == ""
       expect(Self.textStorage(of: textView)?.length, scenario) == 0
+      #if canImport(AppKit)
       expect(weakObject, scenario) == nil
+      #endif
     }
   }
 
@@ -1692,6 +1693,7 @@ class BaseTextViewTests: XCTestCase {
     expect(Self.textStorage(of: textView)?.string) == "Another text"
   }
 
+  #if canImport(AppKit)
   func test_resetForReuse_keepingTextNodeSettings_undoAllowed_removesTheUndoActions() throws {
     // given: a text view that allows undo, which the user typed into
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
@@ -1869,29 +1871,85 @@ class BaseTextViewTests: XCTestCase {
   #endif
 
   #if canImport(UIKit)
-  func test_resetForReuse_keepingTextNodeSettings_removesTheText() {
-    // given: a text view with a text
+  func test_resetForReuse_keepingTextNodeSettings_frameChangeThatResizes_removesTheTextFirst() {
+    // given: a text view with a text, reset for a reuse by a text node, and an observer that records the text view's
+    // size at each edit of its text storage
+    let textView = AttributedTextCountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    textView.resetForReuse(keepsTextNodeSettings: true)
+    textView.attributedTextSetCount = 0
+    var sizesAtEdits: [CGSize] = []
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textView.textStorage, queue: nil) { _ in
+      sizesAtEdits.append(textView.frame.size)
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: a frame change resizes it, as when a text node of another size reuses it
+    textView.frame = CGRect(x: 0, y: 20, width: 160, height: 50)
+
+    // then: it removes the text through its text storage before the resize, which would lay the text out again
+    expect(sizesAtEdits) == [CGSize(width: 200, height: 50)]
+    expect(textView.attributedTextSetCount) == 0
+    expect(textView.textStorage.length) == 0
+    expect(textView.frame) == CGRect(x: 0, y: 20, width: 160, height: 50)
+  }
+
+  func test_resetForReuse_keepingTextNodeSettings_frameChangeThatMoves_keepsTheText() {
+    // given: a text view with a text, reset for a reuse by a text node, and an observer of its text storage edits
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    textView.resetForReuse(keepsTextNodeSettings: true)
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textView.textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: a frame change moves it without resizing it, as when a text node of the same size reuses it
+    textView.frame = CGRect(x: 0, y: 20, width: 200, height: 50)
+
+    // then: it keeps the text
+    expect(editCount) == 0
+    expect(textView.textStorage.string) == "Hello, world!"
+
+    // when: it gets another text, as the text node that reuses it sets
+    textView.attributedString = NSAttributedString(string: "Another text")
+
+    // then: it replaces the text in one edit
+    expect(editCount) == 1
+    expect(textView.textStorage.string) == "Another text"
+  }
+
+  func test_frameChangeThatResizes_keepsTheText() {
+    // given: a text view with a text, which no reset is to remove
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     textView.attributedString = NSAttributedString(string: "Hello, world!")
 
-    // when: resetting it for a reuse by a text node
-    textView.resetForReuse(keepsTextNodeSettings: true)
+    // when: a frame change resizes it
+    textView.frame = CGRect(x: 0, y: 0, width: 160, height: 50)
 
-    // then: it removes its text at once, since a reuse moves and resizes the text view before it sets the new text,
-    // which costs more with a text in place
-    expect(textView.attributedString.string) == ""
-    expect(Self.textStorage(of: textView)?.length) == 0
+    // then: it keeps the text
+    expect(textView.textStorage.string) == "Hello, world!"
   }
 
   func test_resetForReuse_keepingTextNodeSettings_removesTheTextThroughTheTextStorage() {
-    // given: a text view with a text, with the selection at its end
+    // given: a text view with a text, with the selection at its end, reset for a reuse by a text node
     let textView = AttributedTextCountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     textView.attributedString = NSAttributedString(string: "Hello, world!")
     expect(textView.selectedRange) == NSRange(location: 13, length: 0)
     textView.attributedTextSetCount = 0
-
-    // when: resetting it for a reuse by a text node
     textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // when: the run loop turn ends with the text view still in the pool
+    let turnEnded = expectation(description: "the run loop turn ends")
+    onNextRunLoop {
+      turnEnded.fulfill()
+    }
+    wait(for: [turnEnded], timeout: 1)
 
     // then: it removes its text through its text storage instead of through `attributedText`, which takes the selection
     // to the start

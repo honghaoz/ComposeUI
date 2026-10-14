@@ -285,6 +285,11 @@ open class BaseTextView: TextView {
     self.undoManagerOfEdits = nil
   }
 
+  /// Removes the text that a reset for a reuse by a text node kept.
+  fileprivate func removeTextForReuse() {
+    attributedString = NSAttributedString()
+  }
+
   /// Reset the text view so it can be reused as if freshly made.
   open func resetForReuse() {
     resetForReuse(keepsTextNodeSettings: false)
@@ -350,62 +355,6 @@ open class BaseTextView: TextView {
   }
 }
 
-// MARK: - Scheduled Text Removal
-
-/// The text views that remove their text at the end of the run loop turn, unless they get another text before.
-///
-/// A text view that a text node resets for reuse keeps its text until then, so that a reuse in the same render pass
-/// replaces the text in one edit, while a text view that stays in the pool doesn't keep its text, and the objects that
-/// the text's attributes hold, for longer than the turn. The list holds each text view once, so that it stays as long as
-/// the number of text views reset in the turn, however many refreshes run in it.
-///
-/// The list holds its text views strongly: AppKit keeps a text view that its owners let go of alive for longer than a run
-/// loop turn, so a weak reference wouldn't let one that the pool has no room for deallocate any sooner.
-private enum ScheduledTextRemoval {
-
-  /// The text views that remove their text at the end of the run loop turn.
-  private static var textViews: [BaseTextView] = []
-
-  #if DEBUG
-  /// The number of text views in the list.
-  static var count: Int {
-    textViews.count
-  }
-  #endif
-
-  /// Schedules a text view to remove its text at the end of the run loop turn, unless it gets another text before.
-  static func schedule(_ textView: BaseTextView) {
-    textView.isTextRemovalScheduled = true
-
-    // a text view that's reused and reset again in the same turn is in the list already
-    guard !textView.isInTextRemovalList else {
-      return
-    }
-
-    if textViews.isEmpty {
-      onNextRunLoop {
-        removeTexts()
-      }
-    }
-    textView.isInTextRemovalList = true
-    textViews.append(textView)
-  }
-
-  /// Removes the text of each listed text view that hasn't got another text.
-  private static func removeTexts() {
-    // a text storage edit can call back into code that resets text views, which then schedule into a new list, so the
-    // list is taken first instead of cleared after the loop
-    let textViews = textViews
-    Self.textViews = []
-    for textView in textViews {
-      textView.isInTextRemovalList = false
-      if textView.isTextRemovalScheduled {
-        textView.attributedString = NSAttributedString()
-      }
-    }
-  }
-}
-
 #endif
 
 // MARK: - UIKit
@@ -434,6 +383,7 @@ open class BaseTextView: UITextView {
   /// would break.
   public var attributedString: NSAttributedString = NSAttributedString() {
     didSet {
+      isTextRemovalScheduled = false
       if let shownText {
         #if os(tvOS)
         // a tvOS text view isn't editable
@@ -475,6 +425,30 @@ open class BaseTextView: UITextView {
 
   /// Whether the text view is removing its text for a reuse by a text node.
   private var isRemovingTextForReuse = false
+
+  /// Whether the text view removes its text at the end of the run loop turn, unless it gets another text before.
+  fileprivate var isTextRemovalScheduled = false
+
+  /// Whether the text view is in the list of text views that remove their text at the end of the run loop turn, where
+  /// it stays until then, also when another text cancels the removal.
+  fileprivate var isInTextRemovalList = false
+
+  #if DEBUG
+  /// The number of text views in the list of text views that remove their text at the end of the run loop turn, for tests.
+  static var scheduledTextRemovalCount: Int {
+    ScheduledTextRemoval.count
+  }
+  #endif
+
+  override open var frame: CGRect {
+    willSet {
+      // resizing the text view resizes its text container, whose layout manager lays out the text in it again at once,
+      // so the text that a reset kept goes first, while a move keeps it, for the next text to replace in one edit
+      if isTextRemovalScheduled, newValue.size != frame.size {
+        removeTextForReuse()
+      }
+    }
+  }
 
   #if os(tvOS)
   /// Whether the text view has been editable, which a tvOS text view can't be.
@@ -580,25 +554,41 @@ open class BaseTextView: UITextView {
     undoManager.removeAllActionsKeepingRegistration()
   }
 
+  /// Removes the text that a reset for a reuse by a text node kept.
+  fileprivate func removeTextForReuse() {
+    // removing a text through the text storage leaves the text view as `attributedText` does, in a little over half of
+    // the allocations, but tells no one that the selection moved to the start, which `attributedText` tells the
+    // delegate, the input delegate and key-value observers. so only a text that a text node's reset kept goes this way,
+    // in the pool, where nothing observes the text view, or right before the text node sets its next text through
+    // `attributedText`, which tells them where the selection goes, while an app may still observe a text view that it
+    // resets itself
+    isRemovingTextForReuse = true
+    attributedString = NSAttributedString()
+    isRemovingTextForReuse = false
+  }
+
   /// Reset the text view so it can be reused as if freshly made.
   open func resetForReuse() {
     resetForReuse(keepsTextNodeSettings: false)
   }
 
-  /// Resets the text view so it can be reused as if freshly made, except for the settings that a text node sets on each
-  /// reuse when they're kept.
+  /// Resets the text view so it can be reused as if freshly made, except for what a text node sets on each reuse when
+  /// it's kept.
   ///
-  /// A text node sets a text view's interaction settings, number of lines, line break mode and inset each time it reuses
-  /// the text view, so setting them back to their defaults would pay for each change twice. The text is removed at once,
-  /// unlike on AppKit, since replacing a UIKit text view's text costs more than removing it and setting the new one, and
-  /// a reuse moves and resizes the text view before it sets the new text, which costs more with a text in place.
+  /// A text node sets a text view's interaction settings, number of lines, line break mode, inset and text each time it
+  /// reuses the text view, so setting them back to their defaults would pay for each change twice. So they're kept, and
+  /// the text view removes its text at the end of the run loop turn, unless it gets another text before, which replaces
+  /// the text in one edit, such as when a scroll reuses it in the same render pass, or a frame change resizes it, which
+  /// removes the text first.
   ///
-  /// - Parameter keepsTextNodeSettings: Whether to keep the settings, for a reuse by a text node.
+  /// - Parameter keepsTextNodeSettings: Whether to keep the settings and, until the end of the run loop turn, the text,
+  ///   for a reuse by a text node.
   func resetForReuse(keepsTextNodeSettings: Bool) {
-    // removing the text below takes the selection to the start, so a text node's reset doesn't also move it there first,
-    // which allocates
+    // moving the selection allocates, and a text node sets a text on each reuse, which moves the selection, or leaves an
+    // equal text in place, where an insertion point doesn't show, so for a text node, only an insertion point is left in
+    // place
     let selectedRange = selectedRange
-    if !keepsTextNodeSettings, selectedRange.location != 0 || selectedRange.length != 0 {
+    if selectedRange.length != 0 || (!keepsTextNodeSettings && selectedRange.location != 0) {
       self.selectedRange = NSRange(location: 0, length: 0)
     }
 
@@ -608,16 +598,14 @@ open class BaseTextView: UITextView {
 
     delegate = nil
 
-    // removing a text through the text storage leaves the text view as `attributedText` does, in a little over half of
-    // the allocations, but tells no one that the selection moved to the start, which `attributedText` tells the
-    // delegate, the input delegate and key-value observers. so only a text node's reset removes it this way, since the
-    // text view has no delegate and isn't the first responder by now, and goes to the pool, where nothing else observes
-    // it, while an app may still observe a text view that it resets itself
-    isRemovingTextForReuse = keepsTextNodeSettings
-    attributedString = NSAttributedString()
-    isRemovingTextForReuse = false
+    if keepsTextNodeSettings {
+      ScheduledTextRemoval.schedule(self)
+    } else {
+      attributedString = NSAttributedString()
+    }
 
-    // UIKit leaves the undo actions when the text is already empty, or while an undo group is open
+    // the undo actions stay with a text that a text node's reset keeps, and UIKit leaves them when the text is already
+    // empty, or while an undo group is open
     removeUndoActions()
 
     lastThemedText = nil
@@ -685,6 +673,63 @@ private extension UndoManager {
   }
 }
 #endif
+
+// MARK: - Scheduled Text Removal
+
+/// The text views that remove their text at the end of the run loop turn, unless they get another text before.
+///
+/// A text view that a text node resets for reuse keeps its text until then, so that a reuse in the same render pass
+/// replaces the text in one edit, while a text view that stays in the pool doesn't keep its text for longer than the
+/// turn, nor on AppKit the objects that the text's attributes hold, which a UIKit text view keeps until it gets another
+/// text. The list holds each text view once, so that it stays as long as the number of text views reset in the turn,
+/// however many refreshes run in it.
+///
+/// The list holds its text views strongly, which keeps one that the pool has no room for until the end of the turn:
+/// AppKit keeps a text view that its owners let go of alive for longer than that anyway.
+private enum ScheduledTextRemoval {
+
+  /// The text views that remove their text at the end of the run loop turn.
+  private static var textViews: [BaseTextView] = []
+
+  #if DEBUG
+  /// The number of text views in the list.
+  static var count: Int {
+    textViews.count
+  }
+  #endif
+
+  /// Schedules a text view to remove its text at the end of the run loop turn, unless it gets another text before.
+  static func schedule(_ textView: BaseTextView) {
+    textView.isTextRemovalScheduled = true
+
+    // a text view that's reused and reset again in the same turn is in the list already
+    guard !textView.isInTextRemovalList else {
+      return
+    }
+
+    if textViews.isEmpty {
+      onNextRunLoop {
+        removeTexts()
+      }
+    }
+    textView.isInTextRemovalList = true
+    textViews.append(textView)
+  }
+
+  /// Removes the text of each listed text view that hasn't got another text.
+  private static func removeTexts() {
+    // a text storage edit can call back into code that resets text views, which then schedule into a new list, so the
+    // list is taken first instead of cleared after the loop
+    let textViews = textViews
+    Self.textViews = []
+    for textView in textViews {
+      textView.isInTextRemovalList = false
+      if textView.isTextRemovalScheduled {
+        textView.removeTextForReuse()
+      }
+    }
+  }
+}
 
 // MARK: - Shown Text
 
