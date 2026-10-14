@@ -835,6 +835,72 @@ class TextNodeTests: XCTestCase {
     expect(shownString(of: textView)) == "Second"
     expect(editCount) == 1
   }
+
+  func test_editable_undoAllowed_newTextAfterTheUserTyped_removesTheUndoActions() throws {
+    // given: an editable text node whose text view allows undo, in a window, whose text view the user typed into
+    var text = "Hello"
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .editable()
+        .frame(width: 300, height: 60)
+        .onUpdate { item, _ in
+          let textView = item.view as? BaseTextView
+          textView?.allowsUndo = true
+          renderedView = textView
+        }
+    }
+    let window = TestWindow()
+    window.contentView?.addSubview(contentView)
+    contentView.frame = CGRect(x: 0, y: 0, width: 300, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let undoManager = try Self.type(", world and more", into: textView, in: window)
+
+    // when: refreshing with a shorter text
+    text = "Hi"
+    contentView.refresh(animated: false)
+
+    // then: the text is shown, and the undo actions are gone
+    expect(renderedView) === textView
+    expect(shownString(of: textView)) == "Hi"
+    expect(undoManager.canUndo) == false
+  }
+
+  func test_reuse_undoAllowed_removesTheUndoActionsFromTheWindow() throws {
+    // given: a compose view with its own pool, in a window, showing an editable text node whose text view allows undo,
+    // which the user typed into
+    var id = "first"
+    var text = "Hello"
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text)
+        .editable()
+        .id(id)
+        .frame(width: 300, height: 60)
+        .onUpdate { item, _ in
+          let textView = item.view as? BaseTextView
+          textView?.allowsUndo = true
+          renderedView = textView
+        }
+    }
+    contentView.renderablePool = RenderablePool()
+    let window = TestWindow()
+    window.contentView?.addSubview(contentView)
+    contentView.frame = CGRect(x: 0, y: 0, width: 300, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let undoManager = try Self.type(", world and more", into: textView, in: window)
+
+    // when: another node with the typed characters replaces it, and the render pass reuses its text view for it
+    id = "second"
+    text = "Hello, world and more"
+    contentView.refresh(animated: false)
+
+    // then: the undo actions are gone, since their undo would edit the other node's text
+    expect(renderedView) === textView
+    expect(undoManager.canUndo) == false
+  }
   #endif
 
   func test_refresh_restoresTheSettingsChangedOnTheTextView() throws {
@@ -1174,6 +1240,23 @@ class TextNodeTests: XCTestCase {
       }
     }
     return count
+  }
+
+  /// Types a text at the end of a text view's text as the user does, in a pass of the run loop that then ends, and returns
+  /// the undo manager that records the typing.
+  ///
+  /// - Parameters:
+  ///   - text: The text to type.
+  ///   - textView: The text view to type into.
+  ///   - window: The text view's window.
+  private static func type(_ text: String, into textView: BaseTextView, in window: NSWindow) throws -> UndoManager {
+    window.makeFirstResponder(textView)
+    textView.setSelectedRange(NSRange(location: textView.textStorage?.length ?? 0, length: 0))
+    textView.insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
+    RunLoop.main.run(until: Date())
+    let undoManager = try unwrap(window.undoManager)
+    expect(undoManager.canUndo) == true
+    return undoManager
   }
   #endif
 }
