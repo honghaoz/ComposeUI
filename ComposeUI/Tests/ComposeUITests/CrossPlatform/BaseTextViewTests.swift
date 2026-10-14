@@ -893,16 +893,19 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.string) == "A completely different and much longer text"
   }
 
-  func test_undoNotAllowed_newTextResetAndWindowExit_leaveTheUndoManagerAlone() {
+  func test_undoNotAllowed_userEditNewTextResetAndWindowExit_leaveTheUndoManagerAlone() {
     // given: an editable text view that doesn't allow undo, in a window that counts the reads of its undo manager
     let window = UndoManagerReadCountingWindow()
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 300, height: 60))
     textView.isEditable = true
     window.contentView?.addSubview(textView)
     textView.attributedString = NSAttributedString(string: "Hello")
+    window.makeFirstResponder(textView)
     window.undoManagerReadCount = 0
 
-    // when: showing another text, resetting the text view for a text node, and removing it from the window
+    // when: the user types, then showing another text, resetting the text view for a text node, and removing it from
+    // the window
+    textView.insertText(", world", replacementRange: NSRange(location: NSNotFound, length: 0))
     textView.attributedString = NSAttributedString(string: "Hi")
     textView.resetForReuse(keepsTextNodeSettings: true)
     textView.removeFromSuperview()
