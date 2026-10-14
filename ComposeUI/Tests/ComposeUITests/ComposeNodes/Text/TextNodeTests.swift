@@ -1006,6 +1006,92 @@ class TextNodeTests: XCTestCase {
       }
     }
   }
+
+  func test_notEditable_textViewStopsTheTextAtItsBounds() throws {
+    // given: a compose view showing a text node that isn't editable, in a frame smaller than its text, whose frame then
+    // changes, after which a UIKit text view that scrolls lays out its whole text
+    var width: CGFloat = 120
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
+        .frame(width: width, height: 40)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+
+    // when: the frame changes
+    width = 140
+    contentView.refresh(animated: false)
+
+    // then: the text view doesn't scroll, and lays out only the text in its bounds, as on AppKit
+    let textView = try unwrap(renderedView)
+    expect(textView.bounds.size) == CGSize(width: 140, height: 40)
+    expect(textView.isScrollEnabled) == false
+    expect(Self.laidOutGlyphCount(of: textView)) < textView.layoutManager.numberOfGlyphs
+  }
+
+  func test_editable_textViewScrollsToTheTextPastItsBounds() throws {
+    // given: a compose view showing an editable text node, in a frame smaller than its text, whose frame then changes
+    var width: CGFloat = 120
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
+        .editable()
+        .frame(width: width, height: 40)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+
+    // when: the frame changes
+    width = 140
+    contentView.refresh(animated: false)
+
+    // then: the text view scrolls, and lays out its whole text, past its bounds, so that the user reaches it
+    let textView = try unwrap(renderedView)
+    expect(textView.bounds.size) == CGSize(width: 140, height: 40)
+    expect(textView.isScrollEnabled) == true
+    expect(Self.laidOutGlyphCount(of: textView)) == textView.layoutManager.numberOfGlyphs
+    expect(textView.contentSize.height) > textView.bounds.height
+  }
+
+  func test_editableChangedToNotEditable_scrolledTextView_showsTheTextFromItsTop() throws {
+    // given: a compose view showing an editable text node, in a frame smaller than its text, whose frame changed, so
+    // that its text view laid out its whole text, and which the user scrolled down
+    var isEditable = true
+    var width: CGFloat = 120
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
+        .editable(isEditable)
+        .frame(width: width, height: 40)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    width = 140
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    textView.contentOffset = CGPoint(x: 0, y: 30)
+    expect(textView.contentOffset) == CGPoint(x: 0, y: 30)
+
+    // when: the text node stops being editable
+    isEditable = false
+    contentView.refresh(animated: false)
+
+    // then: the same text view stops scrolling, and shows its text from its top, where it lays the text out
+    expect(renderedView) === textView
+    expect(textView.isScrollEnabled) == false
+    expect(textView.contentOffset) == .zero
+    expect(Self.laidOutGlyphCount(of: textView)) < textView.layoutManager.numberOfGlyphs
+  }
   #endif
 
   #if canImport(AppKit)
@@ -1230,6 +1316,13 @@ class TextNodeTests: XCTestCase {
     #endif
   }
 
+  #if canImport(UIKit)
+  /// Returns the number of glyphs that the text view lays out in its text container.
+  private static func laidOutGlyphCount(of textView: BaseTextView) -> Int {
+    textView.layoutManager.glyphRange(for: textView.textContainer).length
+  }
+  #endif
+
   #if canImport(AppKit)
   /// Returns the number of lines the text view lays out its text in.
   private func lineCount(of textView: BaseTextView) -> Int {
@@ -1257,6 +1350,17 @@ class TextNodeTests: XCTestCase {
     let undoManager = try unwrap(window.undoManager)
     expect(undoManager.canUndo) == true
     return undoManager
+  }
+  #endif
+
+  #if canImport(UIKit)
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// A text taller than the frames that the tests show it in.
+    static let textTallerThanItsFrame = "A paragraph that wraps across several lines in a narrow frame, and goes on past the bottom of the frame."
   }
   #endif
 }
