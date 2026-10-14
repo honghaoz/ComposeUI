@@ -1059,6 +1059,39 @@ class TextNodeTests: XCTestCase {
     expect(Self.laidOutGlyphCount(of: textView)) == textView.layoutManager.numberOfGlyphs
     expect(textView.contentSize.height) > textView.bounds.height
   }
+
+  func test_editableChangedToNotEditable_scrolledTextView_showsTheTextFromItsTop() throws {
+    // given: a compose view showing an editable text node, in a frame smaller than its text, whose frame changed, so
+    // that its text view laid out its whole text, and which the user scrolled down
+    var isEditable = true
+    var width: CGFloat = 120
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
+        .editable(isEditable)
+        .frame(width: width, height: 40)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    width = 140
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    textView.contentOffset = CGPoint(x: 0, y: 30)
+    expect(textView.contentOffset) == CGPoint(x: 0, y: 30)
+
+    // when: the text node stops being editable
+    isEditable = false
+    contentView.refresh(animated: false)
+
+    // then: the same text view stops scrolling, and shows its text from its top, where it lays the text out
+    expect(renderedView) === textView
+    expect(textView.isScrollEnabled) == false
+    expect(textView.contentOffset) == .zero
+    expect(Self.laidOutGlyphCount(of: textView)) < textView.layoutManager.numberOfGlyphs
+  }
   #endif
 
   #if canImport(AppKit)
