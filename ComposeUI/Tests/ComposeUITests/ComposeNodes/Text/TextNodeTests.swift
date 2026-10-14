@@ -1173,26 +1173,28 @@ class TextNodeTests: XCTestCase {
     expect(Self.laidOutGlyphCount(of: textView)) < textView.layoutManager.numberOfGlyphs
   }
 
-  func test_textView_doesNotAutoresizeItsSubviews() throws {
-    for isEditable in [false, true] {
-      // given: a compose view showing a text node, editable or not
-      var renderedView: BaseTextView?
-      let contentView = ComposeView {
-        TextNode("Hello", font: Font.systemFont(ofSize: 14))
-          .editable(isEditable)
-          .onUpdate { renderable, _ in
-            renderedView = renderable.view as? BaseTextView
-          }
-      }
-      contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
-
-      // when: rendering it in a new text view
-      contentView.refresh(animated: false)
-
-      // then: the text view doesn't autoresize its subviews, which UIKit lays out itself
-      let textView = try unwrap(renderedView)
-      expect(textView.autoresizesSubviews, "editable: \(isEditable)") == false
+  func test_resize_subviewThatAnAppAdded_isAutoresized() {
+    // given: a compose view showing a text node in a frame, whose text view an app added a subview to, which
+    // autoresizes its width with the text view
+    var width: CGFloat = 120
+    let subview = UIView(frame: CGRect(x: 0, y: 0, width: 120, height: 10))
+    subview.autoresizingMask = [.flexibleWidth]
+    let contentView = ComposeView {
+      TextNode("Hello", font: Font.systemFont(ofSize: 14))
+        .frame(width: width, height: 40)
+        .onInsert { renderable, _ in
+          renderable.view?.addSubview(subview)
+        }
     }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+
+    // when: the frame grows
+    width = 160
+    contentView.refresh(animated: false)
+
+    // then: the subview is autoresized with the text view
+    expect(subview.frame) == CGRect(x: 0, y: 0, width: 160, height: 10)
   }
 
   func test_resize_textViewLaysOutItsSubviewsForTheNewSize() throws {
@@ -1214,8 +1216,8 @@ class TextNodeTests: XCTestCase {
     size = CGSize(width: 160, height: 60)
     contentView.refresh(animated: false)
 
-    // then: the text view, which doesn't autoresize its subviews, fits its text container view and its text container in
-    // its new size
+    // then: the text view, which skips autoresizing its subviews, since none has an autoresizing mask, fits its text
+    // container view and its text container in its new size
     let textView = try unwrap(renderedView)
     textView.layoutIfNeeded()
     let textContainerView = try unwrap(textView.subviews.first { String(cString: object_getClassName($0)) == "_UITextContainerView" })

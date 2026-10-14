@@ -1936,6 +1936,111 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.textStorage.string) == "Hello, world!"
   }
 
+  func test_resize_subviewsWithoutAutoresizingMasks_skipsAutoresizing() throws {
+    // given: a text view with a text, which doesn't scroll, as a text node's, and has only its own subviews, without
+    // autoresizing masks
+    let textView = AutoresizingRecordingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.isScrollEnabled = false
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    expect(textView.subviews.allSatisfy(\.autoresizingMask.isEmpty)) == true
+    textView.autoresizesSubviewsValues = []
+
+    // when: a frame change moves it
+    textView.frame = CGRect(x: 0, y: 20, width: 200, height: 50)
+
+    // then: autoresizing is left as it is
+    expect(textView.autoresizesSubviewsValues) == []
+
+    // when: a frame change resizes it
+    textView.frame = CGRect(x: 0, y: 20, width: 240, height: 60)
+
+    // then: the resize skips autoresizing, which leaves a subview without a mask as it is, and turns it back on after,
+    // except on tvOS, which autoresizes without the cost of iOS, and the text view lays out its subviews itself
+    #if os(tvOS)
+    expect(textView.autoresizesSubviewsValues) == []
+    #else
+    expect(textView.autoresizesSubviewsValues) == [false, true]
+    #endif
+    expect(textView.autoresizesSubviews) == true
+    textView.layoutIfNeeded()
+    let textContainerView = try unwrap(Self.textContainerView(of: textView))
+    expect(textContainerView.frame) == textView.bounds
+  }
+
+  func test_resize_subviewWithAnAutoresizingMask_isAutoresized() {
+    // given: a text view with a subview that an app added, whose autoresizing mask keeps its width the text view's
+    let textView = AutoresizingRecordingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    let subview = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 10))
+    subview.autoresizingMask = [.flexibleWidth]
+    textView.addSubview(subview)
+    textView.autoresizesSubviewsValues = []
+
+    // when: a frame change resizes the text view
+    textView.frame = CGRect(x: 0, y: 0, width: 240, height: 50)
+
+    // then: the subview is autoresized
+    expect(textView.autoresizesSubviewsValues) == []
+    expect(subview.frame) == CGRect(x: 0, y: 0, width: 240, height: 10)
+  }
+
+  func test_resize_autoresizingTurnedOff_staysOff() {
+    // given: a text view whose app turned autoresizing off
+    let textView = AutoresizingRecordingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.autoresizesSubviews = false
+    textView.autoresizesSubviewsValues = []
+
+    // when: a frame change resizes it
+    textView.frame = CGRect(x: 0, y: 0, width: 240, height: 50)
+
+    // then: autoresizing stays off
+    expect(textView.autoresizesSubviewsValues) == []
+    expect(textView.autoresizesSubviews) == false
+  }
+
+  #if !os(tvOS)
+  func test_resize_firstResponderWithASelection_autoresizesItsSubviews() {
+    for isEditable in [false, true] {
+      // given: a selectable text view, editable or not, the first responder in a key window with a selection, for which
+      // UIKit adds the cursor, the selection views and the scroll indicators, which have autoresizing masks
+      let scenario = "editable \(isEditable)"
+      let window = TestWindow()
+      window.rootViewController = UIViewController()
+      let textView = AutoresizingRecordingTextView(frame: CGRect(x: 10, y: 10, width: 120, height: 60))
+      textView.isEditable = isEditable
+      textView.isScrollEnabled = isEditable
+      window.rootViewController?.view.addSubview(textView)
+      window.makeKeyAndVisible()
+      textView.attributedString = NSAttributedString(string: "A paragraph that wraps across several lines in a narrow frame.")
+      textView.becomeFirstResponder()
+      textView.selectedRange = NSRange(location: 5, length: 20)
+      expect(textView.subviews.contains { !$0.autoresizingMask.isEmpty }, scenario) == true
+      textView.autoresizesSubviewsValues = []
+
+      // when: a frame change resizes it
+      textView.frame = CGRect(x: 10, y: 30, width: 180, height: 80)
+
+      // then: it autoresizes its subviews, as UIKit does
+      expect(textView.autoresizesSubviewsValues, scenario) == []
+      expect(textView.autoresizesSubviews, scenario) == true
+      textView.resignFirstResponder()
+    }
+  }
+  #endif
+
+  func test_resetForReuse_unchangedScrollIndicatorInsets_makesNoScrollIndicators() {
+    // given: a text view whose scroll indicator insets are as made, and its subviews
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = NSAttributedString(string: "Hello, world!")
+    let subviews = textView.subviews
+
+    // when: resetting it for a reuse by a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: it has the same subviews, since setting a scroll indicator inset would make scroll indicators, whose
+    // autoresizing masks would keep a resize autoresizing the subviews
+    expect(textView.subviews) == subviews
+  }
+
   func test_resetForReuse_keepingTextNodeSettings_removesTheTextThroughTheTextStorage() {
     // given: a text view with a text, with the selection at its end, reset for a reuse by a text node
     let textView = AttributedTextCountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
@@ -2559,6 +2664,18 @@ extension SelectionChangeCounter: UITextViewDelegate {
 
   func textViewDidChangeSelection(_ textView: UITextView) {
     count += 1
+  }
+}
+
+/// A text view that records the values that `autoresizesSubviews` is set to.
+private final class AutoresizingRecordingTextView: BaseTextView {
+
+  var autoresizesSubviewsValues: [Bool] = []
+
+  override var autoresizesSubviews: Bool {
+    didSet {
+      autoresizesSubviewsValues.append(autoresizesSubviews)
+    }
   }
 }
 

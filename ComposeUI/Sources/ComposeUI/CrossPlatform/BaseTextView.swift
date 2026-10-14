@@ -441,12 +441,37 @@ open class BaseTextView: UITextView {
   #endif
 
   override open var frame: CGRect {
-    willSet {
+    get {
+      super.frame
+    }
+    set {
+      guard newValue.size != super.frame.size else {
+        super.frame = newValue
+        return
+      }
+
       // resizing the text view resizes its text container, whose layout manager lays out the text in it again at once,
       // so the text that a reset kept goes first, while a move keeps it, for the next text to replace in one edit
-      if isTextRemovalScheduled, newValue.size != frame.size {
+      if isTextRemovalScheduled {
         removeTextForReuse()
       }
+
+      #if os(tvOS)
+      // tvOS autoresizes the subviews without the block copies that iOS makes, so a resize doesn't read the subviews,
+      // which allocates, to skip autoresizing
+      super.frame = newValue
+      #else
+      // autoresizing leaves a subview without an autoresizing mask as it is, and still costs a block copy for each
+      // subview, so a resize skips it when no subview has a mask, as when the text view has only its own subviews,
+      // which UIKit lays out itself
+      if autoresizesSubviews, subviews.allSatisfy(\.autoresizingMask.isEmpty) {
+        autoresizesSubviews = false
+        super.frame = newValue
+        autoresizesSubviews = true
+      } else {
+        super.frame = newValue
+      }
+      #endif
     }
   }
 
@@ -640,8 +665,14 @@ open class BaseTextView: UITextView {
     clipsToBounds = true
 
     contentInset = .zero
-    horizontalScrollIndicatorInsets = .zero
-    verticalScrollIndicatorInsets = .zero
+    // setting a scroll indicator inset, also to its current value, makes the text view's scroll indicators, whose
+    // autoresizing masks keep a resize autoresizing the subviews, so an inset is only set back when an app changed it
+    if horizontalScrollIndicatorInsets != .zero {
+      horizontalScrollIndicatorInsets = .zero
+    }
+    if verticalScrollIndicatorInsets != .zero {
+      verticalScrollIndicatorInsets = .zero
+    }
     setContentOffset(.zero, animated: false)
 
     typingAttributes = [:]
