@@ -786,6 +786,86 @@ class TextNodeTests: XCTestCase {
     expect(unselectableView.isSelectable) == false
   }
 
+  #if canImport(UIKit)
+  func test_reuse_inTheSameRenderPass_sameSize_replacesTheTextInOneEdit() throws {
+    // given: a compose view with its own pool, showing a text node in a fixed frame, and an observer of its text view's
+    // text storage edits
+    var id = "first"
+    var text = "First"
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(text, font: Font.systemFont(ofSize: 14))
+        .id(id)
+        .frame(width: 100, height: 20)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.renderablePool = RenderablePool()
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textView.textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: another text node of the same size replaces it, so one render pass removes the text view to the pool and
+    // reuses it for the other text node, without resizing it
+    id = "second"
+    text = "Second"
+    contentView.refresh(animated: false)
+
+    // then: the text view replaces its text in one edit, since the reset for the pool keeps the text
+    expect(renderedView) === textView
+    expect(editCount) == 1
+    expect(shownString(of: textView)) == "Second"
+  }
+
+  func test_reuse_inTheSameRenderPass_resized_removesTheTextBeforeTheResize() throws {
+    // given: a compose view with its own pool, showing a label, and an observer that records its text view's size at
+    // each edit of its text storage
+    var id = "first"
+    var text = "First"
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      LabelNode(text)
+        .id(id)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.renderablePool = RenderablePool()
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let firstSize = textView.frame.size
+    var sizesAtEdits: [CGSize] = []
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: textView.textStorage, queue: nil) { _ in
+      sizesAtEdits.append(textView.frame.size)
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: a label of another size replaces it, so one render pass removes the text view to the pool and reuses it,
+    // resized, for the other label
+    id = "second"
+    text = "Second, a longer text"
+    contentView.refresh(animated: false)
+
+    // then: the text view removes the old text before the resize, which would lay the old text out again, and then
+    // shows the new text
+    expect(renderedView) === textView
+    expect(textView.frame.size) != firstSize
+    expect(sizesAtEdits) == [firstSize, textView.frame.size]
+    expect(shownString(of: textView)) == "Second, a longer text"
+  }
+  #endif
+
   #if canImport(AppKit)
   func test_reuse_inTheSameRenderPass_replacesTheTextInOneEdit() throws {
     // given: a compose view with its own pool, showing a label, and an observer of its text view's text storage edits

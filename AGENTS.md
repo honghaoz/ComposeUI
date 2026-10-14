@@ -182,7 +182,7 @@ Hard-won rules from past corrections, grouped by theme.
 ## Cross-platform
 
 - Do not ship platform-dependent rendered output with a doc note. When a platform primitive differs (for example AppKit anchors view-backing layers at the bottom left corner while everything else anchors at the center), compensate in the implementation so the visual result matches across platforms, instead of documenting the difference.
-- Measure a performance change on each platform whose code it changes. AppKit and UIKit implement the same TextKit operations separately, so a cost measured on one tells nothing about the other, such as replacing a text view's text, which costs less than removing it and setting the new one in an `NSTextView` but more in a `UITextView`.
+- Measure a performance change on each platform whose code it changes. AppKit and UIKit implement the same TextKit operations separately, so a cost measured on one tells nothing about the other, such as keeping a reused text view's text through a resize, which saves work in an `NSTextView` but costs more in a `UITextView`, where resizing lays the text out again at once.
 
 ## Scripts
 

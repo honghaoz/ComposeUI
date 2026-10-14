@@ -283,7 +283,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     // then: the same text view is enqueued with its state reset, except for what a text node sets on each reuse, which
     // only a text node with the same interaction settings reuses it with: its interaction settings, number of lines,
-    // line break mode and inset, and on macOS, its text until the run loop turn ends
+    // line break mode and inset, and its text until the run loop turn ends
     let enqueued = try (pool.lastEnqueuedRenderable?.view as? BaseTextView).unwrap()
     expect(enqueued) === textView
     expect(textView.numberOfLines) == 3
@@ -303,8 +303,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(textView.selectedRange()) == NSRange(location: 0, length: 0)
     #endif
     #if canImport(UIKit)
-    expect(textView.attributedString.string) == ""
-    expect(textView.text) == ""
+    expect(textView.attributedString.string) == "First"
+    expect(textView.text) == "User edited text"
     expect(textView.textContainerInset) == UIEdgeInsets(top: 4, left: 3, bottom: 4, right: 3)
     expect(textView.isUserInteractionEnabled) == isUserInteractionEnabledBeforeReset
     expect(textView.backgroundColor) == nil
@@ -315,7 +315,6 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(textView.selectedRange) == NSRange(location: 0, length: 0)
     #endif
 
-    #if canImport(AppKit)
     // when: the run loop turn ends with the text view still in the pool
     let turnEnded = expectation(description: "the run loop turn ends")
     onNextRunLoop {
@@ -325,7 +324,11 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     // then: the pooled text view removes its text
     expect(textView.attributedString.string) == ""
+    #if canImport(AppKit)
     expect(textView.string) == ""
+    #endif
+    #if canImport(UIKit)
+    expect(textView.text) == ""
     #endif
 
     // when: a new text node with the same interaction settings reuses the pooled view
