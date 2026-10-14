@@ -647,7 +647,9 @@ open class BaseTextView: UITextView {
       textContainer.lineFragmentPadding = 0
     }
 
-    ensureClipsToBounds()
+    // not `ensureClipsToBounds()`, whose lookup of the text container view allocates: UIKit keeps that view and the
+    // clipping that the initializer gave it, so only the text view's own clipping, which an app can change, is restored
+    clipsToBounds = true
 
     contentInset = .zero
     horizontalScrollIndicatorInsets = .zero
