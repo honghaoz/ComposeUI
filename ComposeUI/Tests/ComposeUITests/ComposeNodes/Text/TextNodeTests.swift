@@ -1172,6 +1172,57 @@ class TextNodeTests: XCTestCase {
     expect(textView.contentOffset) == .zero
     expect(Self.laidOutGlyphCount(of: textView)) < textView.layoutManager.numberOfGlyphs
   }
+
+  func test_textView_doesNotAutoresizeItsSubviews() throws {
+    for isEditable in [false, true] {
+      // given: a compose view showing a text node, editable or not
+      var renderedView: BaseTextView?
+      let contentView = ComposeView {
+        TextNode("Hello", font: Font.systemFont(ofSize: 14))
+          .editable(isEditable)
+          .onUpdate { renderable, _ in
+            renderedView = renderable.view as? BaseTextView
+          }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+
+      // when: rendering it in a new text view
+      contentView.refresh(animated: false)
+
+      // then: the text view doesn't autoresize its subviews, which UIKit lays out itself
+      let textView = try unwrap(renderedView)
+      expect(textView.autoresizesSubviews, "editable: \(isEditable)") == false
+    }
+  }
+
+  func test_resize_textViewLaysOutItsSubviewsForTheNewSize() throws {
+    // given: a compose view showing a text node with an inset, in a frame
+    var size = CGSize(width: 120, height: 40)
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
+        .textContainerInset(horizontal: 4, vertical: 2)
+        .frame(width: size.width, height: size.height)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+
+    // when: the frame grows
+    size = CGSize(width: 160, height: 60)
+    contentView.refresh(animated: false)
+
+    // then: the text view, which doesn't autoresize its subviews, fits its text container view and its text container in
+    // its new size
+    let textView = try unwrap(renderedView)
+    textView.layoutIfNeeded()
+    let textContainerView = try unwrap(textView.subviews.first { String(cString: object_getClassName($0)) == "_UITextContainerView" })
+    expect(textView.bounds.size) == CGSize(width: 160, height: 60)
+    expect(textContainerView.frame) == textView.bounds
+    expect(textView.textContainer.size) == CGSize(width: 152, height: 56)
+  }
   #endif
 
   #if canImport(AppKit)

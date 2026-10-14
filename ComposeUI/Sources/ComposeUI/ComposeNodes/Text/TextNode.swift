@@ -383,7 +383,15 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       ViewItem<BaseTextView>(
         id: id,
         frame: frame,
-        make: { BaseTextView(frame: $0.initialFrame ?? .zero) },
+        make: { context in
+          let textView = BaseTextView(frame: context.initialFrame ?? .zero)
+          #if canImport(UIKit)
+          // UIKit lays out a text view's own subviews itself, so autoresizing them on each resize only costs work, such
+          // as a block copy for each subview on iOS
+          textView.autoresizesSubviews = false
+          #endif
+          return textView
+        },
         update: { view, context in
           switch context.updateType {
           case .insert,
