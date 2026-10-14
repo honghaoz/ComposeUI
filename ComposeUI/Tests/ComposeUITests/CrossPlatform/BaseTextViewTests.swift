@@ -754,7 +754,7 @@ class BaseTextViewTests: XCTestCase {
     RunLoop.main.run(until: Date())
     undoManager.undo()
 
-    // then: the text stays, since the typing's undo actions, which would edit it at their ranges, are gone
+    // then: the text stays, since the typing's undo actions are gone
     expect(textView.string) == "A completely different and much longer text"
   }
 
@@ -786,8 +786,7 @@ class BaseTextViewTests: XCTestCase {
   }
 
   func test_attributedString_undoAllowedThenNotAllowed_newText_removesTheUndoActions() throws {
-    // given: a text view that the user typed into while it allowed undo, which doesn't allow undo anymore, and so gives
-    // no undo manager
+    // given: a text view that the user typed into while it allowed undo, which doesn't allow undo anymore
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     let undoManager = try window.undoManager.unwrap()
     textView.allowsUndo = false
@@ -795,8 +794,23 @@ class BaseTextViewTests: XCTestCase {
     // when: showing another text
     textView.attributedString = NSAttributedString(string: "Hi")
 
-    // then: the window's undo manager no longer has the undo actions of the user's edits
+    // then: the undo actions are gone
     expect(undoManager.canUndo) == false
+  }
+
+  func test_attributedString_undoManagerOfTheDelegateChanged_newText_removesTheUndoActionsFromThePreviousOne() {
+    // given: a text view that allows undo, which the user typed into, whose delegate gives another undo manager since
+    let delegate = UndoManagerProvidingDelegate()
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more", delegate: delegate)
+    let previousUndoManager = delegate.undoManager
+    delegate.undoManager = UndoManager()
+
+    // when: showing another text
+    textView.attributedString = NSAttributedString(string: "Hi")
+
+    // then: the undo actions are gone from the undo manager that recorded them
+    expect(previousUndoManager.canUndo) == false
+    withExtendedLifetime(window) {}
   }
 
   func test_attributedString_undoAllowed_newText_removesTheUndoActionsBeforeTheTextChanges() throws {
@@ -1683,7 +1697,7 @@ class BaseTextViewTests: XCTestCase {
     // when: resetting it for a text node in its window
     textView.resetForReuse(keepsTextNodeSettings: true)
 
-    // then: the window's undo manager no longer has the undo actions of the user's edits
+    // then: the undo actions are gone
     expect(undoManager.canUndo) == false
   }
 
@@ -1701,34 +1715,60 @@ class BaseTextViewTests: XCTestCase {
     withExtendedLifetime(window) {}
   }
 
-  func test_removeFromSuperview_undoAllowed_removesTheUndoActions() throws {
-    // given: a text view that allows undo, which the user typed into
+  func test_resetForReuse_keepingTextNodeSettings_undoAllowed_outsideItsWindow_removesTheUndoActions() throws {
+    // given: a text view that allows undo, which the user typed into, removed from its window, as a text node's text view
+    // is before its reset
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
     let undoManager = try window.undoManager.unwrap()
-
-    // when: removing it from its window, as a text node's text view is when it goes to the pool
     textView.removeFromSuperview()
 
-    // then: the window's undo manager no longer has the undo actions of the user's edits, whose undo would edit the
-    // text view outside it
+    // when: resetting it for a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: the undo actions are gone
     expect(undoManager.canUndo) == false
   }
 
-  func test_viewWillMoveToWindow_undoAllowed_anotherWindow_removesTheUndoActionsFromTheFirstWindow() throws {
+  func test_removeFromSuperview_undoAllowed_backInTheWindow_keepsTheUndoActions() throws {
     // given: a text view that allows undo, which the user typed into
-    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world")
     let undoManager = try window.undoManager.unwrap()
+    let contentView = try window.contentView.unwrap()
 
-    // when: moving it to another window
+    // when: removing it from its window
+    textView.removeFromSuperview()
+
+    // then: the window keeps the undo actions
+    expect(undoManager.canUndo) == true
+
+    // when: adding it back, as a tab view does with the views of its tabs
+    contentView.addSubview(textView)
+
+    // then: the user can still undo the typing
+    undoManager.undo()
+    expect(textView.string) == "Hello"
+  }
+
+  func test_moveToAnotherWindow_undoAllowed_sharedUndoManager_keepsTheUndoActions() throws {
+    // given: a text view that allows undo, which the user typed into, in a window that shares its undo manager with
+    // another one, as a document's windows do
+    let windowDelegate = UndoManagerProvidingWindowDelegate()
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world", windowDelegate: windowDelegate)
     let otherWindow = TestWindow()
+    otherWindow.delegate = windowDelegate
+
+    // when: moving it to the other window
     otherWindow.contentView?.addSubview(textView)
 
-    // then: the first window's undo manager no longer has the undo actions of the user's edits
-    expect(undoManager.canUndo) == false
-    withExtendedLifetime(otherWindow) {}
+    // then: the user can still undo the typing there
+    let undoManager = try textView.undoManager.unwrap()
+    expect(undoManager) === windowDelegate.undoManager
+    undoManager.undo()
+    expect(textView.string) == "Hello"
+    withExtendedLifetime(window) {}
   }
 
-  func test_viewWillMoveToWindow_undoAllowed_sameWindow_keepsTheUndoActions() throws {
+  func test_moveWithinTheWindow_undoAllowed_keepsTheUndoActions() throws {
     // given: a text view that allows undo, which the user typed into, and two containers in its window
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world")
     let undoManager = try window.undoManager.unwrap()
@@ -1741,7 +1781,7 @@ class BaseTextViewTests: XCTestCase {
     // when: moving it to another superview in its window
     container.addSubview(textView)
 
-    // then: the window's undo manager keeps the undo actions of the user's edits
+    // then: the window keeps the undo actions
     expect(undoManager.canUndo) == true
 
     // when: moving its superview to another superview in its window
@@ -1751,6 +1791,77 @@ class BaseTextViewTests: XCTestCase {
     expect(undoManager.canUndo) == true
     undoManager.undo()
     expect(textView.string) == "Hello"
+  }
+
+  func test_userEdit_undoAllowed_inAnotherWindow_removesTheUndoActionsFromTheFirstWindow() throws {
+    // given: a text view that allows undo, which the user typed into
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world")
+    let undoManager = try window.undoManager.unwrap()
+    let otherWindow = TestWindow()
+
+    // when: moving it to another window
+    otherWindow.contentView?.addSubview(textView)
+
+    // then: the first window keeps the undo actions
+    expect(undoManager.canUndo) == true
+
+    // when: the user types in the other window
+    otherWindow.makeFirstResponder(textView)
+    textView.insertText(" again", replacementRange: NSRange(location: NSNotFound, length: 0))
+    RunLoop.main.run(until: Date())
+
+    // then: the first window's undo actions are gone, and the other window's undo manager records the edit
+    expect(undoManager.canUndo) == false
+    expect(otherWindow.undoManager?.canUndo) == true
+  }
+
+  func test_userEdit_undoManagerOfTheDelegateChanged_removesTheUndoActionsFromThePreviousOne() {
+    // given: a text view that allows undo, which the user typed into, whose delegate gives another undo manager since
+    let delegate = UndoManagerProvidingDelegate()
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world", delegate: delegate)
+    let previousUndoManager = delegate.undoManager
+    let undoManager = UndoManager()
+    delegate.undoManager = undoManager
+
+    // when: the user types again
+    textView.insertText(" again", replacementRange: NSRange(location: NSNotFound, length: 0))
+    RunLoop.main.run(until: Date())
+
+    // then: the previous undo manager's actions are gone, and the new one records the edit
+    expect(previousUndoManager.canUndo) == false
+    expect(undoManager.canUndo) == true
+    withExtendedLifetime(window) {}
+  }
+
+  func test_userEdit_undoTurnedOff_removesTheUndoActions() throws {
+    // given: a text view that the user typed into while it allowed undo, which doesn't allow undo anymore
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world")
+    let undoManager = try window.undoManager.unwrap()
+    textView.allowsUndo = false
+
+    // when: the user types again, which no undo manager records
+    textView.insertText(" again", replacementRange: NSRange(location: NSNotFound, length: 0))
+
+    // then: the undo actions are gone
+    expect(undoManager.canUndo) == false
+    expect(textView.string) == "Hello, world again"
+  }
+
+  func test_userEdit_rejected_keepsTheUndoActions() throws {
+    // given: a text view that the user typed into while it allowed undo, which doesn't allow undo anymore, and whose
+    // delegate rejects edits
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world")
+    let undoManager = try window.undoManager.unwrap()
+    textView.allowsUndo = false
+    let delegate = EditRejectingDelegate()
+    textView.delegate = delegate
+
+    // when: the user types again, which the delegate rejects
+    textView.insertText(" again", replacementRange: NSRange(location: NSNotFound, length: 0))
+
+    // then: the text and the undo actions stay
+    expect(textView.string) == "Hello, world"
+    expect(undoManager.canUndo) == true
   }
   #endif
 
@@ -2217,8 +2328,10 @@ class BaseTextViewTests: XCTestCase {
   ///   - typed: The text that the user types at the end of the text.
   ///   - endsPass: Whether the pass of the run loop whose undo group holds the typing ends.
   ///   - delegate: The text view's delegate, which can give it an undo manager.
-  private static func makeTypedTextView(text: String, typed: String, endsPass: Bool = true, delegate: NSTextViewDelegate? = nil) -> (BaseTextView, NSWindow) {
+  ///   - windowDelegate: The window's delegate, which can give the window an undo manager.
+  private static func makeTypedTextView(text: String, typed: String, endsPass: Bool = true, delegate: NSTextViewDelegate? = nil, windowDelegate: NSWindowDelegate? = nil) -> (BaseTextView, NSWindow) {
     let window = TestWindow()
+    window.delegate = windowDelegate
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 300, height: 60))
     textView.allowsUndo = true
     textView.isEditable = true
@@ -2303,10 +2416,28 @@ private final class UndoManagerReadCountingWindow: NSWindow {
 /// A text view delegate that gives the text view an undo manager of its own.
 private final class UndoManagerProvidingDelegate: NSObject, NSTextViewDelegate {
 
-  let undoManager = UndoManager()
+  var undoManager = UndoManager()
 
   func undoManager(for view: NSTextView) -> UndoManager? {
     undoManager
+  }
+}
+
+/// A window delegate that gives each of its windows the same undo manager.
+private final class UndoManagerProvidingWindowDelegate: NSObject, NSWindowDelegate {
+
+  let undoManager = UndoManager()
+
+  func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? {
+    undoManager
+  }
+}
+
+/// A text view delegate that rejects every edit.
+private final class EditRejectingDelegate: NSObject, NSTextViewDelegate {
+
+  func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
+    false
   }
 }
 #endif

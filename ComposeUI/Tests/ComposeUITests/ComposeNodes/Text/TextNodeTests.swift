@@ -871,9 +871,10 @@ class TextNodeTests: XCTestCase {
     // given: a compose view with its own pool, in a window, showing an editable text node whose text view allows undo,
     // which the user typed into
     var id = "first"
+    var text = "Hello"
     var renderedView: BaseTextView?
     let contentView = ComposeView {
-      TextNode("Hello")
+      TextNode(text)
         .editable()
         .id(id)
         .frame(width: 300, height: 60)
@@ -891,11 +892,13 @@ class TextNodeTests: XCTestCase {
     let textView = try unwrap(renderedView)
     let undoManager = try Self.type(", world and more", into: textView, in: window)
 
-    // when: another text node replaces it, so the render pass removes its text view from the window to the pool
+    // when: another node with the typed characters replaces it, and the render pass reuses its text view for it
     id = "second"
+    text = "Hello, world and more"
     contentView.refresh(animated: false)
 
-    // then: the window's undo manager no longer has the undo actions of the user's edits
+    // then: the undo actions are gone, since their undo would edit the other node's text
+    expect(renderedView) === textView
     expect(undoManager.canUndo) == false
   }
   #endif
