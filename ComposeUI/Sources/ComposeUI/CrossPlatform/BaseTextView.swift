@@ -248,8 +248,11 @@ open class BaseTextView: TextView {
 
   override open func viewWillMove(toWindow newWindow: NSWindow?) {
     // the window would keep the undo actions of the user's edits after the text view leaves it, where the text view no
-    // longer reaches them, so they leave with it
-    removeUndoActions()
+    // longer reaches them, so they leave with it. AppKit also calls this for a move within the window, where the text
+    // view still reaches them, so they stay
+    if mayHaveUndoActions, newWindow !== window {
+      removeUndoActions()
+    }
 
     super.viewWillMove(toWindow: newWindow)
   }

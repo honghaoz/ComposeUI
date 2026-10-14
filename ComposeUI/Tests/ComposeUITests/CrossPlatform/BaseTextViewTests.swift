@@ -1727,6 +1727,31 @@ class BaseTextViewTests: XCTestCase {
     expect(undoManager.canUndo) == false
     withExtendedLifetime(otherWindow) {}
   }
+
+  func test_viewWillMoveToWindow_undoAllowed_sameWindow_keepsTheUndoActions() throws {
+    // given: a text view that allows undo, which the user typed into, and two containers in its window
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world")
+    let undoManager = try window.undoManager.unwrap()
+    let contentView = try window.contentView.unwrap()
+    let container = NSView(frame: contentView.bounds)
+    let otherContainer = NSView(frame: contentView.bounds)
+    contentView.addSubview(container)
+    contentView.addSubview(otherContainer)
+
+    // when: moving it to another superview in its window
+    container.addSubview(textView)
+
+    // then: the window's undo manager keeps the undo actions of the user's edits
+    expect(undoManager.canUndo) == true
+
+    // when: moving its superview to another superview in its window
+    otherContainer.addSubview(container)
+
+    // then: the user can still undo the typing
+    expect(undoManager.canUndo) == true
+    undoManager.undo()
+    expect(textView.string) == "Hello"
+  }
   #endif
 
   #if canImport(UIKit)
