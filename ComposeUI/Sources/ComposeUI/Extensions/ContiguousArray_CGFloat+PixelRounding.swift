@@ -30,7 +30,7 @@
 
 import CoreGraphics
 
-extension ContiguousArray where Element == CGFloat {
+extension ContiguousArray<CGFloat> {
 
   /// Rounding an array of sizes to nearest pixel.
   ///
