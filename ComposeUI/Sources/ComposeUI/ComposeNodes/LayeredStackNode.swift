@@ -56,7 +56,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     layoutCache.itemsBoundingRect
   }
 
-  /// The cached children layout information, used to cull invisible children in `renderableItems(in:)`.
+  /// The cached children layout information, used to cull invisible children in `appendRenderableItems(in:to:)`.
   private var layoutCache = StackLayoutCache()
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
@@ -90,7 +90,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
     size = CGSize(width: maxWidth, height: maxHeight)
 
-    // cache the children layout information for renderableItems(in:)
+    // cache the children layout information for appendRenderableItems(in:to:)
     layoutCache.reset(reservingCapacity: childCount)
 
     for node in childNodes {
@@ -99,74 +99,35 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
       layoutCache.appendChild(origin: childOrigin, itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
     }
 
-    // no main axis: children in a layered stack overlap each other, so `renderableItems(in:)` checks each child's
-    // bounding rect directly instead of binary searching a visible range.
+    // no main axis: children in a layered stack overlap each other, so `appendRenderableItems(in:to:)` checks each
+    // child's bounding rect directly instead of binary searching a visible range.
     layoutCache.finish(mainAxis: nil)
 
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let childCount = childNodes.count
     guard layoutCache.childCount == childCount else {
-      ComposeUI.assertFailure("renderableItems(in:) requires layout(containerSize:context:) to be called first")
-      return []
+      ComposeUI.assertFailure("appendRenderableItems(in:to:) requires layout(containerSize:context:) to be called first")
+      return
     }
 
-    // the visible children's items are collected in temporary memory first, so the stack's items are made in one array
-    // of their exact count, instead of an array that grows when the children give more items than it has room for
-    return withUnsafeTemporaryAllocation(of: (index: Int, items: [RenderableItem]).self, capacity: childCount) { childItems in
-      var visibleChildCount = 0
-      var itemCount = 0
-      var visibleChildWithItems: Int?
-      var childWithItemsCount = 0
-      for i in 0 ..< childCount {
-        // children in a layered stack can overlap each other, so there's no visible range to binary search.
-        // instead, skip children whose items bounding rect doesn't intersect the visible bounds.
-        let child = layoutCache.child(at: i)
-        guard visibleBounds.intersects(child.itemsBoundingRect) else {
-          continue
-        }
-
-        let boundsInChild = visibleBounds.translate(-child.origin)
-        let items = childNodes[i].renderableItems(in: boundsInChild)
-        if !items.isEmpty {
-          itemCount += items.count
-          visibleChildWithItems = visibleChildCount
-          childWithItemsCount += 1
-        }
-        childItems.initializeElement(at: visibleChildCount, to: (i, items))
-        visibleChildCount += 1
-      }
-      let visibleChildItems = UnsafeMutableBufferPointer(rebasing: childItems[..<visibleChildCount])
-      defer {
-        visibleChildItems.deinitialize()
+    // each visible child appends its items to the pass's array, where they're changed in place
+    for i in 0 ..< childCount {
+      // children in a layered stack can overlap each other, so there's no visible range to binary search.
+      // instead, skip children whose items bounding rect doesn't intersect the visible bounds.
+      let child = layoutCache.child(at: i)
+      guard visibleBounds.intersects(child.itemsBoundingRect) else {
+        continue
       }
 
-      if childWithItemsCount == 1, let visibleChild = visibleChildWithItems {
-        // the only child with items gives its array, swapped out of the temporary memory so it has no other reference
-        // and is changed in place instead of being copied
-        var items: [RenderableItem] = []
-        swap(&items, &visibleChildItems[visibleChild].items)
-        let i = visibleChildItems[visibleChild].index
-        let childOrigin = layoutCache.child(at: i).origin
-        for index in items.indices {
-          items[index].id = id.join(with: items[index].id, suffix: "\(i)")
-          items[index].frame = items[index].frame.translate(childOrigin)
-        }
-        return items
-      } else {
-        var mappedChildItems: [RenderableItem] = []
-        mappedChildItems.reserveCapacity(itemCount)
-        for (i, items) in visibleChildItems {
-          let childOrigin = layoutCache.child(at: i).origin
-          for var item in items {
-            item.id = id.join(with: item.id, suffix: "\(i)")
-            item.frame = item.frame.translate(childOrigin)
-            mappedChildItems.append(item)
-          }
-        }
-        return mappedChildItems
+      let boundsInChild = visibleBounds.translate(-child.origin)
+      let start = items.count
+      childNodes[i].appendRenderableItems(in: boundsInChild, to: &items)
+      for index in start ..< items.count {
+        items[index].id = id.join(with: items[index].id, suffix: "\(i)")
+        items[index].frame = items[index].frame.translate(child.origin)
       }
     }
   }

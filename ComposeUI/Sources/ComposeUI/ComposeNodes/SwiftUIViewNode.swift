@@ -111,15 +111,15 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
     }
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     guard let renderState else {
-      ComposeUI.assertFailure("renderableItems(in:) is called before layout(containerSize:context:).")
-      return []
+      ComposeUI.assertFailure("appendRenderableItems(in:to:) is called before layout(containerSize:context:).")
+      return
     }
 
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
-      return []
+      return
     }
 
     // capture only content and configuration, instead of `self`, so that the cached item doesn't keep the node.
@@ -163,7 +163,7 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
       .eraseToRenderableItem()
     }
 
-    return [item]
+    items.append(item)
   }
 
   // MARK: - Content

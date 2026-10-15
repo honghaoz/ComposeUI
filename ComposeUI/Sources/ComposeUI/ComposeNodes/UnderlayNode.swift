@@ -70,36 +70,21 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    // for the child node
-    let childItems = node.renderableItems(in: visibleBounds)
-
-    // for the underlay node
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+    // the underlay's items, and then the child's, are appended to the pass's array, where they're changed in place
     let underlayFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
     let boundsInUnderlay = visibleBounds.translate(-underlayFrame.origin)
-    let underlayItems = underlayNode.renderableItems(in: boundsInUnderlay)
+    let start = items.count
+    underlayNode.appendRenderableItems(in: boundsInUnderlay, to: &items)
+    for index in start ..< items.count {
+      items[index].id = id.join(with: items[index].id, suffix: "U")
+      items[index].frame = items[index].frame.translate(underlayFrame.origin)
+    }
 
-    // the items reuse the underlay's array, with the child's items added after it, or the child's array when the
-    // underlay has no items. `consume` moves the array into the items, so it has no other reference and is changed in
-    // place instead of being copied
-    if underlayItems.isEmpty {
-      var items = consume childItems
-      for index in items.indices {
-        items[index].id = id.join(with: items[index].id)
-      }
-      return items
-    } else {
-      var items = consume underlayItems
-      items.reserveCapacity(items.count + childItems.count)
-      for index in items.indices {
-        items[index].id = id.join(with: items[index].id, suffix: "U")
-        items[index].frame = items[index].frame.translate(underlayFrame.origin)
-      }
-      for var item in childItems {
-        item.id = id.join(with: item.id)
-        items.append(item)
-      }
-      return items
+    let childStart = items.count
+    node.appendRenderableItems(in: visibleBounds, to: &items)
+    for index in childStart ..< items.count {
+      items[index].id = id.join(with: items[index].id)
     }
   }
 }

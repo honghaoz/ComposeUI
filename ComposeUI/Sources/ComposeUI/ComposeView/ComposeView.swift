@@ -1192,7 +1192,7 @@ open class ComposeView: BaseScrollView {
         height: max(contentSize.height, sizeBetweenInsets.height)
       )
 
-      // logic copied from FrameNode.renderableItems(in:) (part 1)
+      // logic copied from FrameNode.appendRenderableItems(in:to:) (part 1)
       centeredChildFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
       contentSize = adjustedContentSize
     }
@@ -1307,32 +1307,27 @@ open class ComposeView: BaseScrollView {
     let visibleBounds = renderBounds.inset(by: visibleBoundsInsets)
 
     // get renderable items
-    let renderableItems: [RenderableItem]
+    // the nodes append their items to one array, made at the previous pass's item count, which is usually this pass's
+    var renderableItems: [RenderableItem] = []
+    renderableItems.reserveCapacity(renderableItemIds.count)
     if let centeredChildFrame {
-      // logic copied from FrameNode.renderableItems(in:) (part 2)
+      // logic copied from FrameNode.appendRenderableItems(in:to:) (part 2)
       let boundsInChild = visibleBounds.translate(-centeredChildFrame.origin)
 
       #if DEBUG
       debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: boundsInChild))
       #endif
 
-      let childItems = contentNode.renderableItems(in: boundsInChild)
-
-      var mappedChildItems: [RenderableItem] = []
-      mappedChildItems.reserveCapacity(childItems.count)
-
-      for var item in childItems {
-        item.frame = item.frame.translate(centeredChildFrame.origin)
-        mappedChildItems.append(item)
+      contentNode.appendRenderableItems(in: boundsInChild, to: &renderableItems)
+      for index in renderableItems.indices {
+        renderableItems[index].frame = renderableItems[index].frame.translate(centeredChildFrame.origin)
       }
-
-      renderableItems = mappedChildItems
     } else {
       #if DEBUG
       debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: visibleBounds))
       #endif
 
-      renderableItems = contentNode.renderableItems(in: visibleBounds)
+      contentNode.appendRenderableItems(in: visibleBounds, to: &renderableItems)
     }
 
     #if DEBUG

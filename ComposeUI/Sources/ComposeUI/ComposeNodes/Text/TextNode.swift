@@ -364,10 +364,10 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     return intrinsicSize.roundedUp(scaleFactor: 1)
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
-      return []
+      return
     }
 
     // bind config locally so the cached `update` closure keeps these values, instead of a copy of `self` and everything
@@ -409,7 +409,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       .eraseToRenderableItem()
     }
 
-    return [item]
+    items.append(item)
   }
 
   // MARK: - Private

@@ -77,7 +77,7 @@ class ComposeNodeTests: XCTestCase {
   }
 
   func test_renderableItems_childKeepsItsItems_staysUnchanged() {
-    // given: a node that keeps its items and returns them on each call, inside nodes that change their child's items
+    // given: a node that keeps its items and appends them on each call, inside nodes that change their child's items
     let itemsKeepingNode = ItemsKeepingNode()
     var node = itemsKeepingNode
       .padding(5)
@@ -102,9 +102,85 @@ class ComposeNodeTests: XCTestCase {
     expect(itemsKeepingNode.storage.items.map(\.frame)) == [CGRect(x: 0, y: 0, width: 10, height: 10)]
     expect(itemsKeepingNode.storage.items.map(\.id)) == [.custom("kept", isFixed: false)]
   }
+
+  func test_renderableItems_returnsTheItemsThatTheNodeAppends() {
+    // given: a node that appends the items it keeps, laid out
+    var node = ItemsKeepingNode()
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // when: getting its items
+    let items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+    // then: they're the items that the node appends, in a new array
+    expect(items.map(\.id)) == [.custom("kept", isFixed: false)]
+    expect(items.map(\.frame)) == [CGRect(x: 0, y: 0, width: 10, height: 10)]
+  }
+
+  func test_appendRenderableItems_builtInNodes_appendTheItemsOfRenderableItemsAfterTheExistingOnes() {
+    // given: each built-in node, with children where it has them, and the number of items it makes
+    let shadowPath: (CGSize) -> CGPath = { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
+    let nodes: [(String, any ComposeNode, Int)] = [
+      ("color", ColorNode(.red), 1),
+      ("text", TextNode("Hello"), 1),
+      ("label", LabelNode("Hello"), 1),
+      ("layer", LayerNode(), 1),
+      ("view", ViewNode(), 1),
+      ("button", ButtonNode(content: { _ in ColorNode(.red) }, onTap: {}), 1),
+      ("drop shadow", DropShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), path: shadowPath), 1),
+      ("inner shadow", InnerShadowNode(color: .black, opacity: 0.5, radius: 4, offset: CGSize(width: 0, height: 2), path: shadowPath), 1),
+      ("compose view", ComposeViewNode { ColorNode(.red) }, 1),
+      ("empty", Empty(), 0),
+      ("spacer", Spacer(), 0),
+      ("frame", ColorNode(.red).frame(width: 40, height: 30), 1),
+      ("padding", ColorNode(.red).padding(5), 1),
+      ("offset", ColorNode(.red).offset(x: 3, y: 4), 1),
+      ("modifier", ColorNode(.red).opacity(0.5), 1),
+      ("modifier that adds updates", ColorNode(.red).onUpdate { _, _ in }, 1),
+      ("gesture recognizer", ColorNode(.red).onTap { _ in }, 2),
+      ("gesture recognizer of a node without items", Empty().onTap { _ in }, 0),
+      ("overlay", ColorNode(.red).overlay { ColorNode(.blue).frame(width: 10, height: 10) }, 2),
+      ("underlay", ColorNode(.red).underlay { ColorNode(.blue).frame(width: 10, height: 10) }, 2),
+      ("vertical stack", VStack { ColorNode(.red).frame(width: 40, height: 20)
+        ColorNode(.blue).padding(2).frame(width: 40, height: 20)
+      }, 2),
+      ("horizontal stack", HStack { ColorNode(.red).frame(width: 20, height: 40)
+        ColorNode(.blue).padding(2).frame(width: 20, height: 40)
+      }, 2),
+      ("layered stack", ZStack { ColorNode(.red).frame(width: 40, height: 20)
+        ColorNode(.blue).offset(x: 5, y: 5)
+      }, 2),
+      ("layout cache", ComposeView.LayoutCacheNode(node: VStack { ColorNode(.red).frame(width: 40, height: 20)
+        ColorNode(.blue)
+      }), 2),
+    ]
+    let existingItem = Self.makeItem(id: "existing", frame: CGRect(x: 1, y: 2, width: 3, height: 4))
+    let visibleBounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    for (name, node, itemCount) in nodes {
+      var node = node
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+      let expectedItems = node.renderableItems(in: visibleBounds)
+      expect(expectedItems.count, name) == itemCount
+
+      // when: appending the node's items to an array with another node's item
+      var items = [existingItem]
+      node.appendRenderableItems(in: visibleBounds, to: &items)
+
+      // then: the node's items follow the existing one, which stays as it was
+      expect(items.first?.id, name) == existingItem.id
+      expect(items.first?.frame, name) == existingItem.frame
+      expect(Array(items.dropFirst()).map(\.id), name) == expectedItems.map(\.id)
+      expect(Array(items.dropFirst()).map(\.frame), name) == expectedItems.map(\.frame)
+    }
+  }
+
+  /// Returns a layer item with the given id and frame.
+  private static func makeItem(id: String, frame: CGRect) -> RenderableItem {
+    LayerItem<CALayer>(id: .custom(id, isFixed: false), frame: frame, make: { _ in CALayer() }, update: { _, _ in }).eraseToRenderableItem()
+  }
 }
 
-/// A node that keeps its items and returns the same array on each call.
+/// A node that keeps its items and appends them on each call.
 private struct ItemsKeepingNode: ComposeNode {
 
   final class Storage {
@@ -127,8 +203,8 @@ private struct ItemsKeepingNode: ComposeNode {
     return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    storage.items
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+    items.append(contentsOf: storage.items)
   }
 }
 
@@ -141,7 +217,5 @@ private class MockComposeNode: ComposeNode {
     ComposeNodeSizing(width: .fixed(100), height: .fixed(100))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    []
-  }
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {}
 }

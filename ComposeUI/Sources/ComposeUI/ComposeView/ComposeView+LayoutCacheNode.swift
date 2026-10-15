@@ -86,9 +86,9 @@ extension ComposeView {
       }
     }
 
-    func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
       itemCache.performAsCurrent {
-        node.renderableItems(in: visibleBounds)
+        node.appendRenderableItems(in: visibleBounds, to: &items)
       }
     }
   }

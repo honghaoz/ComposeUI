@@ -441,13 +441,13 @@ private struct FixedSizeNode: ComposeNode {
     return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let layerItem = LayerItem<CALayer>(
       id: id,
       frame: CGRect(origin: .zero, size: size),
       make: { _ in CALayer() },
       update: { _, _ in }
     )
-    return [layerItem.eraseToRenderableItem()]
+    items.append(layerItem.eraseToRenderableItem())
   }
 }

@@ -54,8 +54,7 @@ struct TestNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     state.renderCount += 1
-    return []
   }
 }

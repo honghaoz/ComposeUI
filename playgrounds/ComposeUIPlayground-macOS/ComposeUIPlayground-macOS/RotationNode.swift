@@ -58,13 +58,13 @@ private struct RotationNode<Node: ComposeNode>: ComposeNode {
     node.layout(containerSize: containerSize, context: context)
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    let childItems = node.renderableItems(in: visibleBounds)
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+    // the child appends its items, which are then replaced in place with items that rotate them
+    let start = items.count
+    node.appendRenderableItems(in: visibleBounds, to: &items)
 
-    var mappedChildItems: [RenderableItem] = []
-    mappedChildItems.reserveCapacity(childItems.count)
-
-    for item in childItems {
+    for index in start ..< items.count {
+      let item = items[index]
       let mappedItem = ViewItem<RotationView>(
         id: id.join(with: item.id),
         frame: item.frame,
@@ -91,9 +91,7 @@ private struct RotationNode<Node: ComposeNode>: ComposeNode {
           }
         }
       )
-      mappedChildItems.append(mappedItem.eraseToRenderableItem())
+      items[index] = mappedItem.eraseToRenderableItem()
     }
-
-    return mappedChildItems
   }
 }

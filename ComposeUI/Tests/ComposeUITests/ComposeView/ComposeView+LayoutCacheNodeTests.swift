@@ -213,9 +213,9 @@ private struct ScaleDependentNode: ComposeNode {
     )
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     state.renderCount += 1
-    return node.renderableItems(in: visibleBounds)
+    node.appendRenderableItems(in: visibleBounds, to: &items)
   }
 }
 
@@ -245,7 +245,7 @@ private struct CachingNode: ComposeNode {
     return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let id = id
     let frame = CGRect(origin: .zero, size: size)
     let buildCount = buildCount
@@ -253,7 +253,7 @@ private struct CachingNode: ComposeNode {
       buildCount.value += 1
       return RenderableItem(id: id, frame: frame, make: { _ in .layer(CALayer()) }, update: { _, _ in })
     }
-    return [item]
+    items.append(item)
   }
 }
 
@@ -279,7 +279,7 @@ private struct KeepingNode: ComposeNode {
     return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let id = id
     let frame = CGRect(origin: .zero, size: size)
     let child = child
@@ -290,6 +290,6 @@ private struct KeepingNode: ComposeNode {
         _ = object
       })
     }
-    return [item]
+    items.append(item)
   }
 }

@@ -140,11 +140,11 @@ public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
     }
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [ComposeUI.RenderableItem] {
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [ComposeUI.RenderableItem]) {
     guard let viewNode else {
-      ComposeUI.assertFailure("renderableItems(in:) is called before layout(containerSize:context:).")
-      return []
+      ComposeUI.assertFailure("appendRenderableItems(in:to:) is called before layout(containerSize:context:).")
+      return
     }
-    return viewNode.renderableItems(in: visibleBounds)
+    viewNode.appendRenderableItems(in: visibleBounds, to: &items)
   }
 }

@@ -152,8 +152,8 @@ final class RenderableItemCache {
   /// Makes the cache the one that nodes take their slots in and look up their items in while `body` runs.
   ///
   /// The content's root calls this around its calls of the content's `layout(containerSize:context:)` and
-  /// `renderableItems(in:)`, see `ComposeView.LayoutCacheNode`. It sets the cache back to the one set before, so that a
-  /// root's call within another root's finds its own cache.
+  /// `appendRenderableItems(in:to:)`, see `ComposeView.LayoutCacheNode`. It sets the cache back to the one set before,
+  /// so that a root's call within another root's finds its own cache.
   ///
   /// - Parameter body: Lays out the content or collects its items.
   /// - Returns: What `body` returns.

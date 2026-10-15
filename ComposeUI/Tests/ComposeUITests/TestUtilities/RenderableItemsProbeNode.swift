@@ -33,12 +33,12 @@ import QuartzCore
 
 import ComposeUI
 
-/// A fixed size node that tracks `renderableItems(in:)` calls, for testing renderable items culling.
+/// A fixed size node that tracks `appendRenderableItems(in:to:)` calls, for testing renderable items culling.
 struct RenderableItemsProbeNode: ComposeNode {
 
   final class State {
 
-    /// The number of times `renderableItems(in:)` is called.
+    /// The number of times `appendRenderableItems(in:to:)` is called.
     var renderableItemsCallCount = 0
   }
 
@@ -61,12 +61,12 @@ struct RenderableItemsProbeNode: ComposeNode {
     return ComposeNodeSizing(width: .fixed(fixedSize.width), height: .fixed(fixedSize.height))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     state.renderableItemsCallCount += 1
 
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
-      return []
+      return
     }
 
     let layerItem = LayerItem<CALayer>(
@@ -76,6 +76,6 @@ struct RenderableItemsProbeNode: ComposeNode {
       update: { _, _ in }
     )
 
-    return [layerItem.eraseToRenderableItem()]
+    items.append(layerItem.eraseToRenderableItem())
   }
 }

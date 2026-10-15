@@ -73,7 +73,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
     layoutCache.itemsBoundingRect
   }
 
-  /// The cached children layout information, used to cull invisible children in `renderableItems(in:)`.
+  /// The cached children layout information, used to cull invisible children in `appendRenderableItems(in:to:)`.
   private var layoutCache = StackLayoutCache()
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
@@ -151,7 +151,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
     size = CGSize(width: maxWidth, height: totalChildNodesHeight + totalSpacing)
 
-    // cache the children layout information for renderableItems(in:)
+    // cache the children layout information for appendRenderableItems(in:to:)
     layoutCache.reset(reservingCapacity: childCount)
 
     var y: CGFloat = 0
@@ -182,58 +182,23 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
     return sizing
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     guard layoutCache.childCount == childNodes.count else {
-      ComposeUI.assertFailure("renderableItems(in:) requires layout(containerSize:context:) to be called first")
-      return []
+      ComposeUI.assertFailure("appendRenderableItems(in:to:) requires layout(containerSize:context:) to be called first")
+      return
     }
 
     let visibleChildRange = layoutCache.visibleChildRange(minPosition: visibleBounds.minY, maxPosition: visibleBounds.maxY)
 
-    // the visible children's items are collected in temporary memory first, so the stack's items are made in one array
-    // of their exact count, instead of an array that grows when the children give more items than it has room for
-    return withUnsafeTemporaryAllocation(of: [RenderableItem].self, capacity: visibleChildRange.count) { childItems in
-      var itemCount = 0
-      var childWithItems: Int?
-      var childWithItemsCount = 0
-      for i in visibleChildRange {
-        let childOrigin = layoutCache.child(at: i).origin
-        let boundsInChild = visibleBounds.translate(-childOrigin)
-        let items = childNodes[i].renderableItems(in: boundsInChild)
-        if !items.isEmpty {
-          itemCount += items.count
-          childWithItems = i
-          childWithItemsCount += 1
-        }
-        childItems.initializeElement(at: i - visibleChildRange.lowerBound, to: items)
-      }
-      defer {
-        childItems.deinitialize()
-      }
-
-      if childWithItemsCount == 1, let i = childWithItems {
-        // the only child with items gives its array, swapped out of the temporary memory so it has no other reference
-        // and is changed in place instead of being copied
-        var items: [RenderableItem] = []
-        swap(&items, &childItems[i - visibleChildRange.lowerBound])
-        let childOrigin = layoutCache.child(at: i).origin
-        for index in items.indices {
-          items[index].id = id.join(with: items[index].id, suffix: "\(i)")
-          items[index].frame = items[index].frame.translate(childOrigin)
-        }
-        return items
-      } else {
-        var mappedChildItems: [RenderableItem] = []
-        mappedChildItems.reserveCapacity(itemCount)
-        for i in visibleChildRange {
-          let childOrigin = layoutCache.child(at: i).origin
-          for var item in childItems[i - visibleChildRange.lowerBound] {
-            item.id = id.join(with: item.id, suffix: "\(i)")
-            item.frame = item.frame.translate(childOrigin)
-            mappedChildItems.append(item)
-          }
-        }
-        return mappedChildItems
+    // each visible child appends its items to the pass's array, where they're changed in place
+    for i in visibleChildRange {
+      let childOrigin = layoutCache.child(at: i).origin
+      let boundsInChild = visibleBounds.translate(-childOrigin)
+      let start = items.count
+      childNodes[i].appendRenderableItems(in: boundsInChild, to: &items)
+      for index in start ..< items.count {
+        items[index].id = id.join(with: items[index].id, suffix: "\(i)")
+        items[index].frame = items[index].frame.translate(childOrigin)
       }
     }
   }
