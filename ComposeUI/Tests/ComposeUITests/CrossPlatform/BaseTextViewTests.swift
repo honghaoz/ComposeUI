@@ -2043,6 +2043,101 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.subviews) == subviews
   }
 
+  #if os(iOS)
+  func test_resize_withoutScrolling_keepsTheScrollPositionToRestore() {
+    // given: a text view that scrolls, whose width changed, so that it laid out its whole text, scrolled down, and that
+    // then stopped scrolling, which moved its content offset back to zero
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 120, height: 40))
+    textView.attributedString = NSAttributedString(string: Constants.textTallerThanItsFrame, attributes: [.font: UIFont.systemFont(ofSize: 14)])
+    textView.frame = CGRect(x: 0, y: 0, width: 140, height: 40)
+    textView.layoutIfNeeded()
+    textView.contentOffset = CGPoint(x: 0, y: 30)
+    textView.isScrollEnabled = false
+    expect(textView.contentOffset) == .zero
+
+    // when: a frame change resizes it, and it scrolls again
+    textView.frame = CGRect(x: 0, y: 0, width: 150, height: 45)
+    textView.layoutIfNeeded()
+    textView.isScrollEnabled = true
+    textView.layoutIfNeeded()
+
+    // then: it restores the scroll position from before it stopped scrolling, since it skipped the unchanged content
+    // offsets of the resize, for which UIKit would record the top as the position to restore
+    expect(textView.contentOffset) == CGPoint(x: 0, y: 30)
+  }
+
+  func test_contentOffset_withoutScrolling_setsAChangedOffset() {
+    // given: a text view that doesn't scroll, with a text taller than its frame
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 120, height: 40))
+    textView.isScrollEnabled = false
+    textView.attributedString = NSAttributedString(string: Constants.textTallerThanItsFrame, attributes: [.font: UIFont.systemFont(ofSize: 14)])
+
+    // when: setting another content offset, as code can while a text view doesn't scroll
+    textView.contentOffset = CGPoint(x: 0, y: 10)
+
+    // then: the text view has it
+    expect(textView.contentOffset) == CGPoint(x: 0, y: 10)
+  }
+
+  func test_scrolling_keepsTheContentOffsetsOfAUIKitTextView() {
+    // given: a text view that scrolls, and a UIKit text view set up as it sets itself up, with the same text
+    let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 14)]
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 120, height: 40))
+    textView.attributedString = NSAttributedString(string: Constants.textTallerThanItsFrame, attributes: attributes)
+    let uiKitTextView = Self.makeUIKitTextView(frame: CGRect(x: 0, y: 0, width: 120, height: 40))
+    uiKitTextView.attributedText = NSAttributedString(string: Constants.textTallerThanItsFrame, attributes: attributes)
+
+    // when: both scroll, resize while scrolling, stop and resume scrolling, and resize and leave their superview
+    let offsets = Self.scrollAndResize(textView)
+    let uiKitOffsets = Self.scrollAndResize(uiKitTextView)
+
+    // then: the text view has the content offsets of the UIKit text view at each step
+    expect(offsets) == uiKitOffsets
+  }
+
+  /// Returns a UIKit text view set up as `BaseTextView` sets itself up, with a TextKit 1 text container.
+  private static func makeUIKitTextView(frame: CGRect) -> UITextView {
+    let textContainer = NSTextContainer(size: frame.size)
+    let layoutManager = NSLayoutManager()
+    layoutManager.addTextContainer(textContainer)
+    let textStorage = NSTextStorage()
+    textStorage.addLayoutManager(layoutManager)
+    let textView = UITextView(frame: frame, textContainer: textContainer)
+    textView.contentInsetAdjustmentBehavior = .never
+    textView.isEditable = false
+    textView.backgroundColor = nil
+    textView.textContainerInset = .zero
+    textView.textContainer.lineFragmentPadding = 0
+    return textView
+  }
+
+  /// Scrolls and resizes a text view that scrolls, and returns its content offset after each step.
+  private static func scrollAndResize(_ textView: UITextView) -> [CGPoint] {
+    var offsets: [CGPoint] = []
+    textView.frame = CGRect(x: 0, y: 0, width: 140, height: 40)
+    textView.layoutIfNeeded()
+    textView.contentOffset = CGPoint(x: 0, y: 30)
+    offsets.append(textView.contentOffset)
+    textView.frame = CGRect(x: 0, y: 0, width: 100, height: 40)
+    textView.layoutIfNeeded()
+    offsets.append(textView.contentOffset)
+    textView.isScrollEnabled = false
+    offsets.append(textView.contentOffset)
+    textView.isScrollEnabled = true
+    textView.layoutIfNeeded()
+    offsets.append(textView.contentOffset)
+    let superview = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+    superview.addSubview(textView)
+    textView.contentOffset = CGPoint(x: 0, y: 20)
+    textView.frame = CGRect(x: 0, y: 0, width: 160, height: 40)
+    textView.layoutIfNeeded()
+    offsets.append(textView.contentOffset)
+    textView.removeFromSuperview()
+    offsets.append(textView.contentOffset)
+    return offsets
+  }
+  #endif
+
   func test_resetForReuse_keepingTextNodeSettings_removesTheTextThroughTheTextStorage() {
     // given: a text view with a text, with the selection at its end, reset for a reuse by a text node
     let textView = AttributedTextCountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
@@ -2564,6 +2659,9 @@ class BaseTextViewTests: XCTestCase {
   // MARK: - Constants
 
   private enum Constants {
+
+    /// A text that wraps across more lines than a narrow frame shows.
+    static let textTallerThanItsFrame = "A paragraph that wraps across several lines in a narrow frame, and goes on past the bottom of the frame, with more text after it so that it scrolls."
 
     /// The assertion message for a text change during an undo operation of an editable text view's undo manager.
     static let undoOperationAssertionMessage = "an editable text view's text must not change during an undo operation of its undo manager, change it after the operation, such as with `setNeedsRefresh(animated:)`"

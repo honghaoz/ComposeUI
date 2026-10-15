@@ -440,6 +440,23 @@ open class BaseTextView: UITextView {
   }
   #endif
 
+  #if os(iOS)
+  override open var contentOffset: CGPoint {
+    get {
+      super.contentOffset
+    }
+    set {
+      // UIKit sets the content offset again, also unchanged, on each frame change and when the text view leaves its
+      // superview, and the text view records a restorable scroll position for each, which a text view that doesn't
+      // scroll, whose content offset stays at zero, has no use for until it scrolls again, so it skips an unchanged one
+      guard isScrollEnabled || newValue != super.contentOffset else {
+        return
+      }
+      super.contentOffset = newValue
+    }
+  }
+  #endif
+
   override open var frame: CGRect {
     get {
       super.frame
