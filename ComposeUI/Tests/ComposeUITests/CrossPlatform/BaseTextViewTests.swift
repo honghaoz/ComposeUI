@@ -1936,13 +1936,15 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.textStorage.string) == "Hello, world!"
   }
 
-  func test_resize_subviewsWithoutAutoresizingMasks_skipsAutoresizing() throws {
-    // given: a text view with a text, which doesn't scroll, as a text node's, and has only its own subviews, without
-    // autoresizing masks
+  func test_resize_textViewWithItsOwnSubviews_skipsAutoresizingOnIOS() throws {
+    // given: a text view with a text, which doesn't scroll, as a text node's, and has only its own subviews, which have
+    // no autoresizing masks on iOS
     let textView = AutoresizingRecordingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
     textView.isScrollEnabled = false
     textView.attributedString = NSAttributedString(string: "Hello, world!")
+    #if os(iOS)
     expect(textView.subviews.allSatisfy(\.autoresizingMask.isEmpty)) == true
+    #endif
     textView.autoresizesSubviewsValues = []
 
     // when: a frame change moves it
@@ -1954,12 +1956,12 @@ class BaseTextViewTests: XCTestCase {
     // when: a frame change resizes it
     textView.frame = CGRect(x: 0, y: 20, width: 240, height: 60)
 
-    // then: the resize skips autoresizing, which leaves a subview without a mask as it is, and turns it back on after,
-    // except on tvOS, which autoresizes without the cost of iOS, and the text view lays out its subviews itself
-    #if os(tvOS)
-    expect(textView.autoresizesSubviewsValues) == []
-    #else
+    // then: on iOS, the resize skips autoresizing, which leaves a subview without a mask as it is, and turns it back on
+    // after, while tvOS and visionOS autoresize as before, and the text view lays out its subviews itself
+    #if os(iOS)
     expect(textView.autoresizesSubviewsValues) == [false, true]
+    #else
+    expect(textView.autoresizesSubviewsValues) == []
     #endif
     expect(textView.autoresizesSubviews) == true
     textView.layoutIfNeeded()

@@ -456,11 +456,7 @@ open class BaseTextView: UITextView {
         removeTextForReuse()
       }
 
-      #if os(tvOS)
-      // tvOS autoresizes the subviews without the block copies that iOS makes, so a resize doesn't read the subviews,
-      // which allocates, to skip autoresizing
-      super.frame = newValue
-      #else
+      #if os(iOS)
       // autoresizing leaves a subview without an autoresizing mask as it is, and still costs a block copy for each
       // subview, so a resize skips it when no subview has a mask, as when the text view has only its own subviews,
       // which UIKit lays out itself
@@ -471,6 +467,10 @@ open class BaseTextView: UITextView {
       } else {
         super.frame = newValue
       }
+      #else
+      // tvOS autoresizes the subviews without the block copies that iOS makes, and a visionOS text view has a subview
+      // with an autoresizing mask of its own, so a resize doesn't read the subviews, which allocates, to skip autoresizing
+      super.frame = newValue
       #endif
     }
   }
