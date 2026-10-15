@@ -441,6 +441,19 @@ open class BaseTextView: UITextView {
   #endif
 
   #if os(iOS)
+  /// Whether UIKit keeps a scroll position of the text view to restore when it scrolls again, which it does when the
+  /// text view stops scrolling away from its top, and which the unchanged content offsets that the text view skips
+  /// don't replace.
+  private var keepsScrollPositionToRestore = false
+
+  override open var isScrollEnabled: Bool {
+    willSet {
+      if !newValue, isScrollEnabled, contentOffset != .zero {
+        keepsScrollPositionToRestore = true
+      }
+    }
+  }
+
   override open var contentOffset: CGPoint {
     get {
       super.contentOffset
@@ -691,6 +704,14 @@ open class BaseTextView: UITextView {
       verticalScrollIndicatorInsets = .zero
     }
     setContentOffset(.zero, animated: false)
+    #if os(iOS)
+    // the scroll position that UIKit keeps would carry to the next use, which would restore it when it scrolls, so the
+    // reset sets the content offset past the skip of an unchanged one, which makes UIKit keep the top instead
+    if keepsScrollPositionToRestore {
+      super.contentOffset = .zero
+      keepsScrollPositionToRestore = false
+    }
+    #endif
 
     typingAttributes = [:]
   }

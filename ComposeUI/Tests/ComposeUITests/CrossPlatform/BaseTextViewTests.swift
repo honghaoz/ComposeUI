@@ -2066,6 +2066,32 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.contentOffset) == CGPoint(x: 0, y: 30)
   }
 
+  func test_resetForReuse_afterScrollingStoppedAwayFromTheTop_nextUseScrollsFromTheTop() {
+    // given: an editable text view whose width changed, so that it laid out its whole text, scrolled down, and that then
+    // stopped being editable and scrolling, as the text view of a text node that stops being editable, for which UIKit
+    // keeps the scroll position to restore
+    let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 14)]
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 120, height: 40))
+    textView.isEditable = true
+    textView.attributedString = NSAttributedString(string: Constants.textTallerThanItsFrame, attributes: attributes)
+    textView.frame = CGRect(x: 0, y: 0, width: 140, height: 40)
+    textView.layoutIfNeeded()
+    textView.contentOffset = CGPoint(x: 0, y: 30)
+    textView.isEditable = false
+    textView.isScrollEnabled = false
+
+    // when: it's reset for a reuse by a text node, the next text node shows its text in it, and then becomes editable
+    textView.resetForReuse(keepsTextNodeSettings: true)
+    textView.frame = CGRect(x: 0, y: 50, width: 140, height: 40)
+    textView.attributedString = NSAttributedString(string: "The next text, which also wraps across several lines and goes on past the bottom of the frame.", attributes: attributes)
+    textView.isEditable = true
+    textView.isScrollEnabled = true
+    textView.layoutIfNeeded()
+
+    // then: it shows the next text from its top, instead of restoring the scroll position of its previous use
+    expect(textView.contentOffset) == .zero
+  }
+
   func test_contentOffset_withoutScrolling_setsAChangedOffset() {
     // given: a text view that doesn't scroll, with a text taller than its frame
     let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 120, height: 40))
