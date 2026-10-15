@@ -1094,6 +1094,34 @@ class BaseTextViewTests: XCTestCase {
     withExtendedLifetime(window) {}
   }
 
+  func test_attributedString_newText_keepsTheUndoActionsOfOtherViews() throws {
+    // given: a typed text view, and an undo action of another view in its window's undo manager
+    let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
+    let windowUndoManager = try window.undoManager.unwrap()
+    let otherView = UIView()
+    var isOtherActionUndone = false
+    windowUndoManager.registerUndo(withTarget: otherView) { _ in
+      isOtherActionUndone = true
+    }
+    RunLoop.main.run(until: Date())
+
+    // when: showing another text
+    textView.attributedString = NSAttributedString(string: "Hi")
+
+    // then: the text view's undo actions are gone, and the other view's action stays, since the text view removes all the
+    // actions of its undo manager, which is its own, not the window's
+    expect(textView.undoManager) !== windowUndoManager
+    expect(textView.undoManager?.canUndo) == false
+    expect(windowUndoManager.canUndo) == true
+
+    // when: undoing in the window
+    windowUndoManager.undo()
+
+    // then: the other view's action is undone, and the text stays
+    expect(isOtherActionUndone) == true
+    expect(textView.textStorage.string) == "Hi"
+  }
+
   func test_attributedString_editedThenNotEditable_newText_removesTheUndoActions() {
     // given: a text view that the user typed into, which isn't editable anymore
     let (textView, window) = Self.makeTypedTextView(text: "Hello", typed: ", world and more")
