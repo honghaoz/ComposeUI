@@ -96,9 +96,7 @@ public struct SpacerNode: ComposeNode {
     .null // the node provides no renderable items
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    return []
-  }
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {}
 
   // MARK: - Public
 

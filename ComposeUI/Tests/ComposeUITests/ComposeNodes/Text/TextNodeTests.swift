@@ -738,6 +738,21 @@ class TextNodeTests: XCTestCase {
     }
   }
 
+  func test_appendRenderableItems_outsideTheVisibleBounds_appendsNothing() throws {
+    // given: a laid out text node, and an array with another node's item
+    var node = TextNode("Hello")
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    var items = node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let existingItem = try items.first.unwrap()
+
+    // when: appending its items for visible bounds that don't intersect it
+    node.appendRenderableItems(in: CGRect(x: 0, y: 200, width: 100, height: 100), to: &items)
+
+    // then: nothing is appended, and the existing item stays as it was
+    expect(items.map(\.id)) == [existingItem.id]
+    expect(items.map(\.frame)) == [existingItem.frame]
+  }
+
   func test_reuse_textViewsOfTheSameInteractionSettings() throws {
     // given: a compose view with its own pool, showing an unselectable text node
     var showsText = true

@@ -86,17 +86,17 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
     )
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let childOrigin = CGPoint(x: insets.left, y: insets.top)
     let boundsInChild = visibleBounds.translate(-childOrigin)
 
-    // the child's items are changed in place, which reuses the array the child made instead of allocating a copy
-    var items = node.renderableItems(in: boundsInChild)
-    for index in items.indices {
+    // the child appends its items to the pass's array, where they're changed in place
+    let start = items.count
+    node.appendRenderableItems(in: boundsInChild, to: &items)
+    for index in start ..< items.count {
       items[index].id = id.join(with: items[index].id)
       items[index].frame = items[index].frame.translate(childOrigin)
     }
-    return items
   }
 }
 

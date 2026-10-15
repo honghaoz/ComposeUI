@@ -59,7 +59,7 @@ class LabelNodeTests: XCTestCase {
     // given: a label node and a test assertion failure handler
     var assertionCount = 0
     ComposeUI.Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "layout(containerSize:context:) should be called before calling renderableItems(in:)"
+      expect(message) == "layout(containerSize:context:) should be called before calling appendRenderableItems(in:to:)"
       assertionCount += 1
     }
     defer {

@@ -251,7 +251,7 @@ class LayeredStackNodeTests: XCTestCase {
     // given: a test assertion failure handler
     var assertionCount = 0
     ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      expect(message) == "renderableItems(in:) requires layout(containerSize:context:) to be called first"
+      expect(message) == "appendRenderableItems(in:to:) requires layout(containerSize:context:) to be called first"
       assertionCount += 1
     }
     defer {

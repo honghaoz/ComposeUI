@@ -119,10 +119,10 @@ public struct DropShadowNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
-      return []
+      return
     }
 
     // bind the configuration values locally so the cached `update` closure keeps them, instead of a copy of `self` and
@@ -172,7 +172,7 @@ public struct DropShadowNode: ComposeNode {
       .eraseToRenderableItem()
     }
 
-    return [item]
+    items.append(item)
   }
 }
 

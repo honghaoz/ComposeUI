@@ -443,6 +443,48 @@ class ModifierNodeTests: XCTestCase {
 
   // MARK: - Opacity
 
+  func test_appendRenderableItems_afterAnotherChildsItems_modifiesOnlyItsChildsItems() {
+    // given: a stack of a layer, a layer with an opacity and an insert block, and a layer with only an update block,
+    // whose modifiers apply to their children's items after the items of the children before them in the render pass's
+    // array
+    var firstLayer: CALayer?
+    var insertedLayers: [CALayer] = []
+    var updatedLayers: [CALayer] = []
+    let contentView = ComposeView {
+      VStack {
+        LayerNode()
+          .frame(width: .flexible, height: 10)
+          .onInsert { renderable, _ in
+            firstLayer = renderable.layer
+          }
+        LayerNode()
+          .frame(width: .flexible, height: 10)
+          .opacity(0.5)
+          .onInsert { renderable, _ in
+            insertedLayers.append(renderable.layer)
+          }
+        LayerNode()
+          .frame(width: .flexible, height: 10)
+          .onUpdate { renderable, _ in
+            updatedLayers.append(renderable.layer)
+          }
+      }
+    }
+
+    // when: the view is sized and refreshed
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh()
+
+    // then: the first layer keeps its opacity, and each block runs only for the layer of its own child
+    expect(firstLayer?.opacity) == 1
+    expect(insertedLayers.count) == 1
+    expect(insertedLayers.first) !== firstLayer
+    expect(insertedLayers.first?.opacity) == 0.5
+    expect(updatedLayers.count) == 1
+    expect(updatedLayers.first) !== firstLayer
+    expect(updatedLayers.first) !== insertedLayers.first
+  }
+
   func test_opacity() {
     // normal opacity value
     do {

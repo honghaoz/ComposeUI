@@ -44,12 +44,10 @@ public protocol ComposeNode: ComposeContent {
   /// The id must be unique for a node type.
   ///
   /// For your own node type, use `.custom` with a prefix to avoid conflicts.
+  /// For example, if you have a `MyCustomNode`, you can use id like `.custom("com.myapp.mycustomnode", isFixed: false)`.
   ///
-  /// For example, if you have a `MyCustomNode`, you can use id like
-  /// `.custom("com.myapp.mycustomnode", isFixed: false)`.
-  ///
-  /// The id is used to generate unique ids for the renderable items, which is used
-  /// to diff the renderable items in the renderable hierarchy.
+  /// The id is used to generate unique ids for the renderable items, which is used to diff the renderable items in the
+  /// renderable hierarchy.
   var id: ComposeNodeId { get set }
 
   /// The size of the node.
@@ -58,11 +56,11 @@ public protocol ComposeNode: ComposeContent {
   /// The bounding rect of all renderable items that the node can provide, in the node's coordinate space.
   ///
   /// Container nodes use this rect to skip querying child nodes that can't provide visible renderable items.
-  /// For visible bounds that don't intersect this rect, `renderableItems(in:)` must return an empty array.
+  /// For visible bounds that don't intersect this rect, `appendRenderableItems(in:to:)` must append nothing.
   ///
   /// The default implementation returns the node's bounds, i.e. `CGRect(origin: .zero, size: size)`.
-  /// You only need to provide a custom implementation if the node can provide renderable items outside
-  /// of the node's bounds, for example, if the node translates its child node's renderable items.
+  /// You only need to provide a custom implementation if the node can provide renderable items outside of the node's
+  /// bounds, for example, if the node translates its child node's renderable items.
   ///
   /// Like `size`, this value is only valid after `layout(containerSize:context:)` is called.
   var renderableItemsBoundingRect: CGRect { get }
@@ -80,14 +78,19 @@ public protocol ComposeNode: ComposeContent {
   @discardableResult
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing
 
-  /// Get the renderable items that are visible in the given bounds.
+  /// Appends the renderable items that are visible in the given bounds to an array.
+  ///
+  /// A render pass collects the items of all its nodes in one array, which each node appends its items to in place,
+  /// instead of making an array of its own. A node with child nodes passes the array on to them, and adjusts the items
+  /// that they append, such as their frames.
   ///
   /// For the same render item id, you must make sure the underlying renderable has the same view or layer type.
   /// Otherwise, it may cause unexpected behavior.
   ///
-  /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
-  /// - Returns: The renderable items that are visible in the given bounds.
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem]
+  /// - Parameters:
+  ///   - visibleBounds: The visible bounds, in the node's coordinate space.
+  ///   - items: The array to append the items to. The items already in it belong to other nodes, and must stay as they are.
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem])
 }
 
 // MARK: - Default Implementations
@@ -96,6 +99,24 @@ public extension ComposeNode {
 
   var renderableItemsBoundingRect: CGRect {
     CGRect(origin: .zero, size: size)
+  }
+}
+
+// MARK: - Renderable Items
+
+public extension ComposeNode {
+
+  /// Returns the renderable items that are visible in the given bounds, in a new array.
+  ///
+  /// A node with child nodes gets their items with `appendRenderableItems(in:to:)` instead, which appends them to its
+  /// own array without making one for each child.
+  ///
+  /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
+  /// - Returns: The renderable items that are visible in the given bounds.
+  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+    var items: [RenderableItem] = []
+    appendRenderableItems(in: visibleBounds, to: &items)
+    return items
   }
 }
 

@@ -509,9 +509,7 @@ private struct ExpandingNode: ComposeNode {
     ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    []
-  }
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {}
 
   func _nodes() -> [any ComposeNode] {
     state.nodesCallCount += 1

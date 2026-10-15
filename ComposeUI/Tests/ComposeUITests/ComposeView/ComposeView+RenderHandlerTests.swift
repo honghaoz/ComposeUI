@@ -810,7 +810,5 @@ private struct PixelRoundedNode: ComposeNode {
     return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    []
-  }
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {}
 }

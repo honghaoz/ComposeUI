@@ -67,40 +67,21 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
-    // for the child node
-    let childItems = node.renderableItems(in: visibleBounds)
-
-    // for the overlay node
-    let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
-    let boundsInOverlay = visibleBounds.translate(-overlayFrame.origin)
-    let overlayItems = overlayNode.renderableItems(in: boundsInOverlay)
-
-    func placeOverlayItem(_ item: inout RenderableItem) {
-      item.id = id.join(with: item.id, suffix: "O")
-      item.frame = item.frame.translate(overlayFrame.origin)
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+    // the child's items, and then the overlay's, are appended to the pass's array, where they're changed in place
+    let start = items.count
+    node.appendRenderableItems(in: visibleBounds, to: &items)
+    for index in start ..< items.count {
+      items[index].id = id.join(with: items[index].id)
     }
 
-    // the items reuse the child's array, with the overlay's items added to it, or the overlay's array when the child
-    // has no items. `consume` moves the array into the items, so it has no other reference and is changed in place
-    // instead of being copied
-    if childItems.isEmpty {
-      var items = consume overlayItems
-      for index in items.indices {
-        placeOverlayItem(&items[index])
-      }
-      return items
-    } else {
-      var items = consume childItems
-      items.reserveCapacity(items.count + overlayItems.count)
-      for index in items.indices {
-        items[index].id = id.join(with: items[index].id)
-      }
-      for var item in overlayItems {
-        placeOverlayItem(&item)
-        items.append(item)
-      }
-      return items
+    let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
+    let boundsInOverlay = visibleBounds.translate(-overlayFrame.origin)
+    let overlayStart = items.count
+    overlayNode.appendRenderableItems(in: boundsInOverlay, to: &items)
+    for index in overlayStart ..< items.count {
+      items[index].id = id.join(with: items[index].id, suffix: "O")
+      items[index].frame = items[index].frame.translate(overlayFrame.origin)
     }
   }
 }

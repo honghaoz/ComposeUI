@@ -537,7 +537,7 @@ private struct ScrollFollowingNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .fixed(400))
   }
 
-  func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let item = LayerItem<CALayer>(
       id: id,
       frame: CGRect(x: 0, y: visibleBounds.minY, width: size.width, height: 30),
@@ -547,7 +547,7 @@ private struct ScrollFollowingNode: ComposeNode {
         update(layer, context)
       }
     )
-    return [item.eraseToRenderableItem()]
+    items.append(item.eraseToRenderableItem())
   }
 }
 

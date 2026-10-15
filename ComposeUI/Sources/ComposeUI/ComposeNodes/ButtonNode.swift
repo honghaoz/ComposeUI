@@ -93,10 +93,10 @@ public struct ButtonNode: ComposeNode {
     buttonNode.layout(containerSize: containerSize, context: context)
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
-      return []
+      return
     }
 
     let viewItem = ViewItem<ButtonView>(
@@ -123,7 +123,7 @@ public struct ButtonNode: ComposeNode {
       }
     )
 
-    return [viewItem.eraseToRenderableItem()]
+    items.append(viewItem.eraseToRenderableItem())
   }
 
   // MARK: - Public

@@ -194,10 +194,10 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
     }
   }
 
-  public func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
+  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
-      return []
+      return
     }
 
     let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
@@ -215,7 +215,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
       .eraseToRenderableItem()
     }
 
-    return [item]
+    items.append(item)
   }
 }
 

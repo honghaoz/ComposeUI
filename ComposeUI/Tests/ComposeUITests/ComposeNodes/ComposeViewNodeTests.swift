@@ -733,7 +733,7 @@ class ComposeViewNodeTests: XCTestCase {
 
     var assertionCount = 0
     Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "renderableItems(in:) is called before layout(containerSize:context:)."
+      expect(message) == "appendRenderableItems(in:to:) is called before layout(containerSize:context:)."
       assertionCount += 1
     }
 
