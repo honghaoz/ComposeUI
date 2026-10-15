@@ -290,7 +290,7 @@ class CALayer_AnimationsTests: XCTestCase {
   }
 
   func test_animate_negativeDelay_beginsNow() throws {
-    for delay in [-0.5, -2, -.infinity] {
+    for delay: TimeInterval in [-0.5, -2, -.infinity] {
       // given: a layer with partial opacity
       let layer = CALayer()
       layer.opacity = 0.2
