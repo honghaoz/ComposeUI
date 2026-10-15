@@ -115,7 +115,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(madeCount) == 1
 
     // when: the same string id renders again, now fixed
-    // the render maps (renderableItemMap/renderableMap) must treat it as the same key.
+    // the render maps (renderableItemIndexMap/renderableMap) must treat it as the same key.
     view.setContent {
       LayerNode(make: { _ in
         madeCount += 1

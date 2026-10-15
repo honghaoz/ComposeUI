@@ -71,11 +71,12 @@ extension ComposeView {
   /// - Parameters:
   ///   - oldIds: The renderable item ids of the previous render pass, in z-order (back to front).
   ///   - newIds: The renderable item ids of the current render pass, in z-order (back to front).
-  ///   - reusingIds: The ids that are in both `oldIds` and `newIds`.
+  ///   - reusingIds: The ids of the reused renderables, which are in both `oldIds` and `newIds`.
   /// - Returns: The z-order plan.
   static func makeZOrderPlan(oldIds: [ComposeNodeId], newIds: [ComposeNodeId], reusingIds: Set<ComposeNodeId>) -> ZOrderPlan {
-    // when the content is unchanged, no z-order maintenance is needed.
-    if newIds == oldIds {
+    // when the content is unchanged and every renderable is reused, no z-order maintenance is needed. a renderable that
+    // replaces one of another type keeps its id, but it's new and inserted at the front, so it needs placing.
+    if reusingIds.count == newIds.count, newIds == oldIds {
       return .minimal(needsNewItemPlacement: false)
     }
 

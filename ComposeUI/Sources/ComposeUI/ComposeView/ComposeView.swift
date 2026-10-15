@@ -159,8 +159,11 @@ open class ComposeView: BaseScrollView {
   /// The ids of the renderable items that are being rendered.
   private var renderableItemIds: [ComposeNodeId] = []
 
-  /// The map of the renderable items that are being rendered.
-  private var renderableItemMap: [ComposeNodeId: RenderableItem] = [:]
+  /// The renderable items that are being rendered, in the order of `renderableItemIds`.
+  private var renderableItems: [RenderableItem] = []
+
+  /// The indices of the renderable items in `renderableItems`, by their ids.
+  private var renderableItemIndexMap: [ComposeNodeId: Int] = [:]
 
   /// The map of the renderables that are being rendered.
   private var renderableMap: [ComposeNodeId: Renderable] = [:]
@@ -178,10 +181,21 @@ open class ComposeView: BaseScrollView {
     let completion: CancellableBlock
   }
 
+  /// The key of a renderable with an in-flight removal: its item's id and renderable type, since only an item with the
+  /// same id and renderable type can take the renderable back.
+  struct RemovingRenderableKey: Hashable {
+
+    /// The id of the renderable's item.
+    let id: ComposeNodeId
+
+    /// The renderable type of the renderable's item.
+    let renderableType: ObjectIdentifier?
+  }
+
   /// The map of the renderables that are being removed.
   ///
   /// The removing renderables are the ones that are not in the renderable hierarchy but still rendered due to the transition.
-  private var removingRenderableMap: [ComposeNodeId: RemovingRenderable] = [:]
+  private var removingRenderableMap: [RemovingRenderableKey: RemovingRenderable] = [:]
 
   /// The map of the inserting renderable transition completion blocks.
   private var insertingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] = [:]
@@ -461,6 +475,15 @@ open class ComposeView: BaseScrollView {
   public func debug(eventHandler: @escaping (_ view: ComposeView, _ event: ComposeView.Debug.Event) -> Void) -> Self {
     debug = Debug(composeView: self, eventHandler: eventHandler)
     return self
+  }
+
+  /// Returns the renderable items that are being rendered, by their ids, for a debug event.
+  ///
+  /// It's never inlined, since the render pass calls it in the debug builds that the benchmarks use, where inlining the
+  /// map's construction would change how the optimizer compiles the render pass.
+  @inline(never)
+  private func makeRenderableItemMap() -> [ComposeNodeId: RenderableItem] {
+    Dictionary(uniqueKeysWithValues: zip(renderableItemIds, renderableItems))
   }
   #endif
 
@@ -1307,9 +1330,10 @@ open class ComposeView: BaseScrollView {
     let visibleBounds = renderBounds.inset(by: visibleBoundsInsets)
 
     // get renderable items
+
     // the nodes append their items to one array, made at the previous pass's item count, which is usually this pass's
-    var renderableItems: [RenderableItem] = []
-    renderableItems.reserveCapacity(renderableItemIds.count)
+    var newRenderableItems: [RenderableItem] = []
+    newRenderableItems.reserveCapacity(renderableItemIds.count)
     if let centeredChildFrame {
       // logic copied from FrameNode.appendRenderableItems(in:to:) (part 2)
       let boundsInChild = visibleBounds.translate(-centeredChildFrame.origin)
@@ -1318,158 +1342,188 @@ open class ComposeView: BaseScrollView {
       debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: boundsInChild))
       #endif
 
-      contentNode.appendRenderableItems(in: boundsInChild, to: &renderableItems)
-      for index in renderableItems.indices {
-        renderableItems[index].frame = renderableItems[index].frame.translate(centeredChildFrame.origin)
+      contentNode.appendRenderableItems(in: boundsInChild, to: &newRenderableItems)
+      for index in newRenderableItems.indices {
+        newRenderableItems[index].frame = newRenderableItems[index].frame.translate(centeredChildFrame.origin)
       }
     } else {
       #if DEBUG
       debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: visibleBounds))
       #endif
 
-      contentNode.appendRenderableItems(in: visibleBounds, to: &renderableItems)
+      contentNode.appendRenderableItems(in: visibleBounds, to: &newRenderableItems)
     }
 
     #if DEBUG
-    debug?.onEvent(.renderDidReceiveRenderableItems(renderableItems: renderableItems, contentSize: contentSize))
+    debug?.onEvent(.renderDidReceiveRenderableItems(renderableItems: newRenderableItems, contentSize: contentSize))
     #endif
 
     // set up the renderable item ids and map
+    let oldRenderableItems = renderableItems
     let oldRenderableItemIds = renderableItemIds
-    let oldRenderableItemMap = renderableItemMap
-    let oldRenderableMap = renderableMap
+    var oldRenderableMap = renderableMap
 
     #if DEBUG
     // sanity check for old renderable item ids and maps before rendering
-    ComposeUI.assert(oldRenderableItemIds.count == oldRenderableItemMap.count, "mismatched old renderable item count")
+    let oldRenderableItemIndexMap = renderableItemIndexMap
+    ComposeUI.assert(oldRenderableItems.count == oldRenderableItemIds.count, "mismatched old renderable item and id counts")
+    ComposeUI.assert(oldRenderableItemIds.count == oldRenderableItemIndexMap.count, "mismatched old renderable item count")
     ComposeUI.assert(oldRenderableItemIds.count == oldRenderableMap.count, "mismatched old renderable count")
-    for id in oldRenderableItemIds {
-      ComposeUI.assert(oldRenderableItemMap[id] != nil, "missing old renderable item: \(id.id)")
+    for (index, id) in oldRenderableItemIds.enumerated() {
+      ComposeUI.assert(oldRenderableItemIndexMap[id] == index, "mismatched old renderable item index: \(id.id)")
       ComposeUI.assert(oldRenderableMap[id] != nil, "missing old renderable: \(id.id)")
     }
     #endif
 
-    let renderableItemsCount = renderableItems.count
+    let newRenderableItemsCount = newRenderableItems.count
     renderableItemIds = []
-    renderableItemIds.reserveCapacity(renderableItemsCount)
-    renderableItemMap = [:]
-    renderableItemMap.reserveCapacity(renderableItemsCount)
+    renderableItemIds.reserveCapacity(newRenderableItemsCount)
+    renderableItemIndexMap = [:]
+    renderableItemIndexMap.reserveCapacity(newRenderableItemsCount)
     renderableMap = [:]
-    renderableMap.reserveCapacity(renderableItemsCount)
+    renderableMap.reserveCapacity(newRenderableItemsCount)
 
-    for item in renderableItems {
-      let id = item.id
-      ComposeUI.assert(renderableItemMap[id] == nil, "conflicting renderable item id: \(id.id)")
+    for index in newRenderableItems.indices {
+      let id = newRenderableItems[index].id
+      ComposeUI.assert(renderableItemIndexMap[id] == nil, "conflicting renderable item id: \(id.id)")
       renderableItemIds.append(id)
-      renderableItemMap[id] = item
+      renderableItemIndexMap[id] = index
     }
+    renderableItems = newRenderableItems
 
     // update the renderables
+
+    // the ids of the items whose renderable is still in the content and will be reused
     var reusingIds: Set<ComposeNodeId> = []
 
-    for oldId in oldRenderableItemIds {
-      if renderableItemMap[oldId] == nil {
-        // [1/3] 🗑️ remove the renderable item that are no longer in the content
+    // the ids of the items whose renderable type changed, so their renderables are replaced
+    var replacedIds: Set<ComposeNodeId> = []
 
-        // the renderable may still have an in-flight insert transition. cancel its pending completion so a late
-        // `didInsert` is not called for a renderable that is being removed (it may even be pooled and serving a
-        // different item by the time the insert transition completes).
-        insertingRenderableTransitionCompletionMap[oldId]?.cancel()
+    // the old and new items are read in place from their arrays, by index, since looking them up in a map of items
+    // would copy each item, which retains and releases its references
+    for oldIndex in oldRenderableItemIds.indices {
+      let oldId = oldRenderableItemIds[oldIndex]
 
-        if let oldRenderableItem = oldRenderableItemMap[oldId], let oldRenderable = oldRenderableMap[oldId] {
-          let oldFrame = oldRenderable.frame
-          oldRenderableItem.performWillRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
+      let isReplaced: Bool
+      if let newIndex = renderableItemIndexMap[oldId] {
+        if oldRenderableItems[oldIndex].hasSameRenderableType(as: newRenderableItems[newIndex]) {
+          // this renderable item is still in the content, plan to reuse it
+          reusingIds.insert(oldId)
+          continue
+        } else {
+          // an item can only update a renderable of its own type, so when its type changed, the old renderable is
+          // removed and a new one is inserted, both without transitions, since the item stays in the content
+          isReplaced = true
+          replacedIds.insert(oldId)
+        }
+      } else {
+        isReplaced = false
+      }
 
-          let removeTransition = animationDecision.allowsTransitions ? oldRenderableItem.transition?.remove : nil
+      // [1/3] 🗑️ remove the renderable item that is no longer in the content, or whose renderable type changed
 
-          let removeBlock = {
-            oldRenderable.removeFromParent()
-            oldRenderableItem.performDidRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
+      // the renderable may still have an in-flight insert transition. cancel its pending completion so a late
+      // `didInsert` is not called for a renderable that is being removed (it may even be pooled and serving a
+      // different item by the time the insert transition completes).
+      insertingRenderableTransitionCompletionMap[oldId]?.cancel()
 
-            // if the item opts into reuse, park the now-detached renderable in the pool so a future insertion of the
-            // same kind can reuse it instead of creating a new renderable.
-            // the cancel path (re-insertion during a remove transition) does not run this block, so a revived renderable is never pooled.
-            if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = self.renderablePool {
-              removeTransition?.resetForReuse(renderable: oldRenderable)
-              oldRenderableItem.performResetForReuse(oldRenderable)
+      if let oldRenderable = oldRenderableMap[oldId] {
+        let oldRenderableItem = oldRenderableItems[oldIndex]
+        let oldFrame = oldRenderable.frame
+        oldRenderableItem.performWillRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
 
-              // a renderable may have in-flight animations, must clear them here to avoid leaking into the next reuse.
-              // animations in sublayers should be cleared by the node's `resetForReuse` block.
-              oldRenderable.layer.removeAllAnimations()
+        let removeTransition = !isReplaced && animationDecision.allowsTransitions ? oldRenderableItem.transition?.remove : nil
 
-              // the render pass owns the renderable layer's `zPosition` (see `updateZPosition(of:zIndex:index:)`),
-              // reset it so the pooled renderable is freshly-made-equivalent.
-              if oldRenderable.layer.zPosition != 0 {
-                oldRenderable.layer.disableActions(for: "zPosition") {
-                  oldRenderable.layer.zPosition = 0
-                }
+        let removeBlock = {
+          oldRenderable.removeFromParent()
+          oldRenderableItem.performDidRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
+
+          // if the item opts into reuse, park the now-detached renderable in the pool so a future insertion of the
+          // same kind can reuse it instead of creating a new renderable.
+          // the cancel path (re-insertion during a remove transition) does not run this block, so a revived renderable is never pooled.
+          if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = self.renderablePool {
+            removeTransition?.resetForReuse(renderable: oldRenderable)
+            oldRenderableItem.performResetForReuse(oldRenderable)
+
+            // a renderable may have in-flight animations, must clear them here to avoid leaking into the next reuse.
+            // animations in sublayers should be cleared by the node's `resetForReuse` block.
+            oldRenderable.layer.removeAllAnimations()
+
+            // the render pass owns the renderable layer's `zPosition` (see `updateZPosition(of:zIndex:index:)`),
+            // reset it so the pooled renderable is freshly-made-equivalent.
+            if oldRenderable.layer.zPosition != 0 {
+              oldRenderable.layer.disableActions(for: "zPosition") {
+                oldRenderable.layer.zPosition = 0
               }
-
-              renderablePool.enqueue(oldRenderable, key: reuseKey)
             }
+
+            renderablePool.enqueue(oldRenderable, key: reuseKey)
           }
+        }
 
-          if let removeTransition {
-            let completion = CancellableBlock { [weak self] in
-              ComposeUI.assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
-              guard let self else {
-                return
-              }
-
-              self.removingRenderableMap.removeValue(forKey: oldId)
-
-              removeBlock()
-
-              #if DEBUG
-              debug?.onEvent(.renderDidRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
-              #endif
-
-            } cancel: { [weak self] in
-              guard let self else {
-                return
-              }
-
-              self.removingRenderableMap.removeValue(forKey: oldId)
-
-              #if DEBUG
-              debug?.onEvent(.renderDidCancelRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
-              #endif
+        if let removeTransition {
+          let removingKey = RemovingRenderableKey(id: oldId, renderableType: oldRenderableItem.renderableType)
+          let completion = CancellableBlock { [weak self] in
+            ComposeUI.assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
+            guard let self else {
+              return
             }
 
-            // if there's a remove transition, it can take time to complete, we need to track the old renderable until
-            // the transition is completed because the renderable may be re-inserted into the renderable hierarchy later
-            removingRenderableMap[oldId] = RemovingRenderable(
-              renderable: oldRenderable,
-              removeTransition: removeTransition,
-              completion: completion
-            )
-
-            #if DEBUG
-            debug?.onEvent(.renderWillRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
-            #endif
-
-            removeTransition.animate(
-              renderable: oldRenderable,
-              context: RenderableTransition.RemoveTransition.Context(contentView: self),
-              completion: completion.execute
-            )
-          } else {
-            #if DEBUG
-            debug?.onEvent(.renderWillRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
-            #endif
+            self.removingRenderableMap.removeValue(forKey: removingKey)
 
             removeBlock()
 
             #if DEBUG
             debug?.onEvent(.renderDidRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
             #endif
+
+          } cancel: { [weak self] in
+            guard let self else {
+              return
+            }
+
+            self.removingRenderableMap.removeValue(forKey: removingKey)
+
+            #if DEBUG
+            debug?.onEvent(.renderDidCancelRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+            #endif
           }
+
+          // if there's a remove transition, it can take time to complete, we need to track the old renderable until
+          // the transition is completed because the renderable may be re-inserted into the renderable hierarchy later
+          removingRenderableMap[removingKey] = RemovingRenderable(
+            renderable: oldRenderable,
+            removeTransition: removeTransition,
+            completion: completion
+          )
+
+          #if DEBUG
+          debug?.onEvent(.renderWillRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+          #endif
+
+          removeTransition.animate(
+            renderable: oldRenderable,
+            context: RenderableTransition.RemoveTransition.Context(contentView: self),
+            completion: completion.execute
+          )
         } else {
-          ComposeUI.assertFailure("old renderable item or old renderable not found: \(oldId.id)")
+          #if DEBUG
+          debug?.onEvent(.renderWillRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+          #endif
+
+          removeBlock()
+
+          #if DEBUG
+          debug?.onEvent(.renderDidRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+          #endif
         }
       } else {
-        // this renderable item is still in the content, plan to reuse it
-        reusingIds.insert(oldId)
+        ComposeUI.assertFailure("old renderable item or old renderable not found: \(oldId.id)")
+      }
+
+      if isReplaced {
+        // the update pass inserts a renderable of the new type instead of reusing the old one
+        oldRenderableMap[oldId] = nil
       }
     }
 
@@ -1492,7 +1546,7 @@ open class ComposeView: BaseScrollView {
     let zOrderPlan = Self.makeZOrderPlan(oldIds: oldRenderableItemIds, newIds: renderableItemIds, reusingIds: reusingIds)
     let zOrderNeedsFullUpdate = zOrderPlan.needsFullUpdate
 
-    for (itemIndex, renderableItem) in renderableItems.enumerated() {
+    for (itemIndex, renderableItem) in newRenderableItems.enumerated() {
       let id = renderableItem.id
 
       let renderable: Renderable
@@ -1564,8 +1618,9 @@ open class ComposeView: BaseScrollView {
         // [3/3] 🆕 insert the renderable item that is new
         let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
 
-        // the insert transition that will animate this insertion, if any.
-        let insertTransition = animationDecision.allowsTransitions ? renderableItem.transition?.insert : nil
+        // the insert transition that will animate this insertion, if any. a renderable that replaces one of another type
+        // isn't animated in, since its item stays in the content.
+        let insertTransition = animationDecision.allowsTransitions && !replacedIds.contains(id) ? renderableItem.transition?.insert : nil
 
         // the root-layer model position and transform the removal left behind, captured before this pass applies the
         // target frame and resets the transform to identity, so a taking-over insert transition can anchor its
@@ -1573,7 +1628,7 @@ open class ComposeView: BaseScrollView {
         var revivalPosition: CGPoint?
         var revivalTransform: CATransform3D?
 
-        if let removingRenderable = removingRenderableMap[id] {
+        if let removingRenderable = removingRenderableMap[RemovingRenderableKey(id: id, renderableType: renderableItem.renderableType)] {
           // found a matching removing renderable, should add it back to the renderable hierarchy.
           // cancelling the completion cancels the removal and clears it from `removingRenderableMap`.
           removingRenderable.completion.cancel()
@@ -1694,10 +1749,10 @@ open class ComposeView: BaseScrollView {
 
     #if DEBUG
     // sanity check for renderable item ids and maps after rendering
-    ComposeUI.assert(renderableItemIds.count == renderableItemMap.count, "mismatched renderable item count")
+    ComposeUI.assert(renderableItemIds.count == renderableItemIndexMap.count, "mismatched renderable item count")
     ComposeUI.assert(renderableItemIds.count == renderableMap.count, "mismatched renderable count")
     for id in renderableItemIds {
-      ComposeUI.assert(renderableItemMap[id] != nil, "missing renderable item: \(id.id)")
+      ComposeUI.assert(renderableItemIndexMap[id] != nil, "missing renderable item: \(id.id)")
       ComposeUI.assert(renderableMap[id] != nil, "missing renderable: \(id.id)")
     }
     #endif
@@ -1707,7 +1762,7 @@ open class ComposeView: BaseScrollView {
     }
 
     #if DEBUG
-    debug?.onEvent(.renderDidFinish(renderableItemIds: renderableItemIds, renderableItemMap: renderableItemMap, renderableMap: renderableMap))
+    debug?.onEvent(.renderDidFinish(renderableItemIds: renderableItemIds, renderableItemMap: makeRenderableItemMap(), renderableMap: renderableMap))
     #endif
 
     lastRenderBounds = renderBounds
@@ -2029,7 +2084,7 @@ open class ComposeView: BaseScrollView {
       host.contentUpdateContext
     }
 
-    var removingRenderableMap: [ComposeNodeId: RemovingRenderable] {
+    var removingRenderableMap: [RemovingRenderableKey: RemovingRenderable] {
       host.removingRenderableMap
     }
 

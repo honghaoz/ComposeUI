@@ -84,8 +84,10 @@ public protocol ComposeNode: ComposeContent {
   /// instead of making an array of its own. A node with child nodes passes the array on to them, and adjusts the items
   /// that they append, such as their frames.
   ///
-  /// For the same render item id, you must make sure the underlying renderable has the same view or layer type.
-  /// Otherwise, it may cause unexpected behavior.
+  /// When the view or layer type of an item changes under the same id, `ComposeView` replaces its renderable with a new
+  /// one of the new type, without the item's transitions. This works for items converted from a `ViewItem` or a
+  /// `LayerItem`. A `RenderableItem` made with its own initializer records no view or layer type, so its `make` must
+  /// keep returning the same type under the same id.
   ///
   /// - Parameters:
   ///   - visibleBounds: The visible bounds, in the node's coordinate space.
