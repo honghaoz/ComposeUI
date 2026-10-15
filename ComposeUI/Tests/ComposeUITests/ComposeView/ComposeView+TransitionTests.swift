@@ -786,4 +786,45 @@ class ComposeView_TransitionTests: XCTestCase {
 
     removalCompletion?()
   }
+
+  func test_removeTransition_viewReleasedBeforeItCompletes_deallocatesTheView() throws {
+    // given: a compose view whose node is being removed, with a transition that hasn't completed
+    weak var weakContentView: ComposeView?
+    var removalCompletion: (() -> Void)?
+    var didRemoveCount = 0
+    let transition = RenderableTransition(
+      insert: nil,
+      remove: RenderableTransition.RemoveTransition { _, _, completion in
+        removalCompletion = completion
+      }
+    )
+    autoreleasepool {
+      let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      weakContentView = contentView
+      contentView.setContent {
+        ColorNode(.red)
+          .transition(transition)
+          .onRemove { _, _ in
+            didRemoveCount += 1
+          }
+      }
+      contentView.refresh(animated: false)
+      contentView.setContent {
+        Empty()
+      }
+      contentView.refresh(animated: true)
+      expect(contentView.test.removingRenderableMap.count) == 1
+
+      // when: the view is released before the removal completes, at the end of the scope
+    }
+
+    // then: the removal in flight doesn't keep the view
+    expect(weakContentView) == nil
+
+    // when: the removal completes
+    try removalCompletion.unwrap()()
+
+    // then: there's no removal left to finish, since the view is gone
+    expect(didRemoveCount) == 0
+  }
 }
