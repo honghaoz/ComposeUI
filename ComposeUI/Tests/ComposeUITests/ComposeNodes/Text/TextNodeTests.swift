@@ -1172,6 +1172,59 @@ class TextNodeTests: XCTestCase {
     expect(textView.contentOffset) == .zero
     expect(Self.laidOutGlyphCount(of: textView)) < textView.layoutManager.numberOfGlyphs
   }
+
+  func test_resize_subviewThatAnAppAdded_isAutoresized() {
+    // given: a compose view showing a text node in a frame, whose text view an app added a subview to, which
+    // autoresizes its width with the text view
+    var width: CGFloat = 120
+    let subview = UIView(frame: CGRect(x: 0, y: 0, width: 120, height: 10))
+    subview.autoresizingMask = [.flexibleWidth]
+    let contentView = ComposeView {
+      TextNode("Hello", font: Font.systemFont(ofSize: 14))
+        .frame(width: width, height: 40)
+        .onInsert { renderable, _ in
+          renderable.view?.addSubview(subview)
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+
+    // when: the frame grows
+    width = 160
+    contentView.refresh(animated: false)
+
+    // then: the subview is autoresized with the text view
+    expect(subview.frame) == CGRect(x: 0, y: 0, width: 160, height: 10)
+  }
+
+  func test_resize_textViewLaysOutItsSubviewsForTheNewSize() throws {
+    // given: a compose view showing a text node with an inset, in a frame
+    var size = CGSize(width: 120, height: 40)
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
+        .textContainerInset(horizontal: 4, vertical: 2)
+        .frame(width: size.width, height: size.height)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+
+    // when: the frame grows
+    size = CGSize(width: 160, height: 60)
+    contentView.refresh(animated: false)
+
+    // then: the text view, which skips autoresizing its subviews, since none has an autoresizing mask, fits its text
+    // container view and its text container in its new size
+    let textView = try unwrap(renderedView)
+    textView.layoutIfNeeded()
+    let textContainerView = try unwrap(textView.subviews.first { String(cString: object_getClassName($0)) == "_UITextContainerView" })
+    expect(textView.bounds.size) == CGSize(width: 160, height: 60)
+    expect(textContainerView.frame) == textView.bounds
+    expect(textView.textContainer.size) == CGSize(width: 152, height: 56)
+  }
   #endif
 
   #if canImport(AppKit)
