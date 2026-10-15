@@ -660,6 +660,52 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.clipViewFrameChangeCount - count) > 0
   }
 
+  func test_appKitTextViewInAScrollView_clipViewFrameChanges_leaveItAsItWas() throws {
+    // given: an AppKit text view with TextKit 1, as a text view lays out with, nested in the document view of a scroll
+    // view in a window, as a text view is in a compose view, which keeps the registration for the frame changes of every
+    // view that a text view removes
+    let textContainer = NSTextContainer(size: CGSize(width: 200, height: 100))
+    let layoutManager = NSLayoutManager()
+    layoutManager.addTextContainer(textContainer)
+    let textStorage = NSTextStorage(attributedString: Self.makeText("A paragraph that wraps across several lines in a narrow text view."))
+    textStorage.addLayoutManager(layoutManager)
+    let textView = ClipViewFrameChangeCountingAppKitTextView(frame: CGRect(x: 10, y: 10, width: 200, height: 100), textContainer: textContainer)
+    textView.isEditable = false
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+    scrollView.documentView = NSView(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
+    let window = TestWindow()
+    window.contentView?.addSubview(scrollView)
+    scrollView.documentView?.addSubview(textView)
+    window.contentView?.layoutSubtreeIfNeeded()
+
+    func lineRects() -> [CGRect] {
+      layoutManager.ensureLayout(for: textContainer)
+      var rects: [CGRect] = []
+      layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, usedRect, _, _, _ in
+        rects.append(usedRect)
+      }
+      return rects
+    }
+    let frame = textView.frame
+    let textContainerSize = textContainer.size
+    let initialLineRects = lineRects()
+
+    // when: the scroll view resizes its clip view twice, where the registration lets AppKit find the clip view on the
+    // first change, after which AppKit watches the clip view instead
+    scrollView.setFrameSize(CGSize(width: 320, height: 300))
+    scrollView.setFrameSize(CGSize(width: 260, height: 280))
+
+    // then: AppKit handles both changes for the text view without asking it to lay out, and its frame and text layout
+    // stay, so a text view that removes the registration misses nothing
+    expect(textView.clipViewFrameChangeCount) == 2
+    expect(textView.needsLayout) == false
+    window.contentView?.layoutSubtreeIfNeeded()
+    expect(textView.frame) == frame
+    expect(textContainer.size) == textContainerSize
+    expect(lineRects()) == initialLineRects
+    withExtendedLifetime(textStorage) {}
+  }
+
   func test_layout_fitsTheMeasuredSize() throws {
     let mixedFonts = NSMutableAttributedString(attributedString: Self.makeText("Regular text, then "))
     mixedFonts.append(NSAttributedString(string: "bold text that wraps", attributes: [.font: Font.boldSystemFont(ofSize: 17)]))
@@ -2603,6 +2649,21 @@ private final class FrameChangeCountingTextView: BaseTextView {
   @objc(_superviewClipViewFrameChangedWithNotification:)
   func countClipViewFrameChange(_ notification: NSNotification) {
     clipViewFrameChangeCount += 1
+  }
+}
+
+/// An AppKit text view that counts AppKit's calls for the frame changes of the clip view that it watches, and passes them
+/// on to AppKit.
+private final class ClipViewFrameChangeCountingAppKitTextView: NSTextView {
+
+  var clipViewFrameChangeCount = 0
+
+  @objc(_superviewClipViewFrameChangedWithNotification:)
+  func countClipViewFrameChange(_ notification: NSNotification) {
+    clipViewFrameChangeCount += 1
+    let selector = #selector(countClipViewFrameChange(_:))
+    typealias Handler = @convention(c) (NSTextView, Selector, NSNotification) -> Void
+    unsafeBitCast(class_getMethodImplementation(NSTextView.self, selector), to: Handler.self)(self, selector, notification)
   }
 }
 
