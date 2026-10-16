@@ -145,6 +145,9 @@ open class BaseTextView: TextView {
     didSet {
       // the text view moves its text container by the inset without resizing it
       fitTextContainer()
+
+      // the intrinsic content size includes the inset
+      invalidateIntrinsicContentSize()
     }
   }
 
@@ -187,7 +190,11 @@ open class BaseTextView: TextView {
   }
 
   override open var intrinsicContentSize: NSSize {
-    attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: frame.width).roundedUp(scaleFactor: 1)
+    // the text lays out inside the inset, so it's measured in the width inside it, and the inset adds to the size on
+    // each side, as in a UIKit text view's intrinsic content size
+    let inset = textContainerInset
+    let textSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: frame.width - inset.width * 2)
+    return NSSize(width: textSize.width + inset.width * 2, height: textSize.height + inset.height * 2).roundedUp(scaleFactor: 1)
   }
 
   override open func setFrameSize(_ newSize: NSSize) {

@@ -1457,6 +1457,68 @@ class TextNodeTests: XCTestCase {
     expect(textView?.bounds.size) == CGSize(width: 83, height: 36)
   }
 
+  func test_fixedSize_textContainerInset_includesTheInsetOnEachSide() throws {
+    // given: the text's size, measured by a text node without an inset
+    let font = try unwrap(Font(name: "HelveticaNeue", size: 18))
+    let containerSize = CGSize(width: 500, height: 100)
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    var textNode = TextNode("Hello, world!", font: font).fixedSize()
+    _ = textNode.layout(containerSize: containerSize, context: context)
+    let textSize = textNode.size
+
+    for (isFixedWidth, isFixedHeight) in [(true, true), (true, false), (false, true)] {
+      // given: a text node of the same text with a text container inset, fixed to its text's size in some dimensions
+      var node = TextNode("Hello, world!", font: font)
+        .fixedSize(width: isFixedWidth, height: isFixedHeight)
+        .textContainerInset(horizontal: 10, vertical: 4)
+
+      // when: laying it out
+      _ = node.layout(containerSize: containerSize, context: context)
+
+      // then: a fixed dimension is the text's size plus the inset on each side, and a flexible one fills the container
+      let expectedSize = CGSize(
+        width: isFixedWidth ? textSize.width + 20 : containerSize.width,
+        height: isFixedHeight ? textSize.height + 8 : containerSize.height
+      )
+      expect(node.size, "fixed width: \(isFixedWidth), fixed height: \(isFixedHeight)") == expectedSize
+    }
+  }
+
+  func test_fixedSize_textContainerInset_textViewShowsTheWholeText() throws {
+    // given: a compose view with a text node of its text's size, with a text container inset
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode("Hello, world")
+        .fixedSize()
+        .textContainerInset(horizontal: 10, vertical: 4)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 500, height: 100)
+
+    // when: rendering it
+    contentView.refresh(animated: false)
+
+    // then: the text view lays out the whole text on one line inside the inset, as the node measured it
+    let textView = try renderedView.unwrap()
+    #if canImport(AppKit)
+    let layoutManager = try textView.layoutManager.unwrap()
+    let textContainer = try textView.textContainer.unwrap()
+    #endif
+    #if canImport(UIKit)
+    let layoutManager = textView.layoutManager
+    let textContainer = textView.textContainer
+    #endif
+    let glyphRange = layoutManager.glyphRange(for: textContainer)
+    var lineCount = 0
+    layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, _, _, _, _ in
+      lineCount += 1
+    }
+    expect(layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil).length) == 12
+    expect(lineCount) == 1
+  }
+
   func test_renderableItems_doesNotRetainNodeThroughItemCache() {
     // The cached item's `update` closure must not capture `self` (the node holds the item cache), else
     // itemCache -> cachedItem -> update -> self -> itemCache leaks the node when the tree is replaced.
