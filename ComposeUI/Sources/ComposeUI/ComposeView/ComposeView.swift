@@ -1434,14 +1434,16 @@ open class ComposeView: BaseScrollView {
 
         let removeTransition = !isReplaced && animationDecision.allowsTransitions ? oldRenderableItem.transition?.remove : nil
 
-        let removeBlock = {
+        // the view is an argument instead of a capture, since a removal transition keeps this block until it completes,
+        // and mustn't keep the view alive, as an insert transition doesn't
+        let removeBlock = { (contentView: ComposeView) in
           oldRenderable.removeFromParent()
-          oldRenderableItem.performDidRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
+          oldRenderableItem.performDidRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: contentView))
 
           // if the item opts into reuse, park the now-detached renderable in the pool so a future insertion of the
           // same kind can reuse it instead of creating a new renderable.
           // the cancel path (re-insertion during a remove transition) does not run this block, so a revived renderable is never pooled.
-          if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = self.renderablePool {
+          if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = contentView.renderablePool {
             removeTransition?.resetForReuse(renderable: oldRenderable)
             oldRenderableItem.performResetForReuse(oldRenderable)
 
@@ -1465,27 +1467,24 @@ open class ComposeView: BaseScrollView {
           let removingKey = RemovingRenderableKey(id: oldId, renderableType: oldRenderableItem.renderableType)
           let completion = CancellableBlock { [weak self] in
             ComposeUI.assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
+            // the view can be released before its removal transition completes, which leaves no removal to finish
             guard let self else {
               return
             }
 
             self.removingRenderableMap.removeValue(forKey: removingKey)
 
-            removeBlock()
+            removeBlock(self)
 
             #if DEBUG
             debug?.onEvent(.renderDidRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
             #endif
 
           } cancel: { [weak self] in
-            guard let self else {
-              return
-            }
-
-            self.removingRenderableMap.removeValue(forKey: removingKey)
+            self?.removingRenderableMap.removeValue(forKey: removingKey)
 
             #if DEBUG
-            debug?.onEvent(.renderDidCancelRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
+            self?.debug?.onEvent(.renderDidCancelRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
             #endif
           }
 
@@ -1511,7 +1510,7 @@ open class ComposeView: BaseScrollView {
           debug?.onEvent(.renderWillRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
           #endif
 
-          removeBlock()
+          removeBlock(self)
 
           #if DEBUG
           debug?.onEvent(.renderDidRemoveRenderable(item: oldRenderableItem, renderable: oldRenderable))
