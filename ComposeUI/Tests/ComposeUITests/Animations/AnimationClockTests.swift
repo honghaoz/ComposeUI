@@ -69,15 +69,17 @@ class AnimationClockTests: XCTestCase {
   }
 
   func test_now_afterTheLoopWaits_readsANewTime() throws {
-    // given: the time of the current turn of the main run loop, and a read of the clock scheduled 10 ms later
+    // given: the time of the current turn of the main run loop, and a read of the clock scheduled 10 ms later, which
+    // stops the loop
     let turnTime = AnimationClock.now
     var scheduledRead: CFTimeInterval?
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
       scheduledRead = AnimationClock.now
+      CFRunLoopStop(CFRunLoopGetMain())
     }
 
-    // when: the main run loop runs past the scheduled read, waiting for it in between
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+    // when: the main run loop runs until the scheduled read, waiting for it in between
+    runMainLoopUntilStopped()
 
     // then: the loop ended the turn before it waited, so the scheduled read is the time of a new turn, 10 ms later
     expect(try scheduledRead.unwrap() - turnTime) >= 0.01
@@ -106,7 +108,8 @@ class AnimationClockTests: XCTestCase {
 
   func test_now_firstReadDuringTheCommit_theTurnEndsWhenTheLoopWakes() throws {
     // given: the clock's first read, in an observer of the pass that commits before the main run loop waits, as in a
-    // layout Core Animation's commit runs, an event 30 ms after it, and an observer of the wake that reads the clock
+    // layout Core Animation's commit runs, an event 30 ms after it, which stops the loop, and an observer of the wake
+    // that reads the clock
     AnimationClock.resetForTesting()
     var firstRead: CFTimeInterval?
     var eventRead: CFTimeInterval?
@@ -116,6 +119,7 @@ class AnimationClockTests: XCTestCase {
       // late the main thread gets to the first read
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
         eventRead = AnimationClock.now
+        CFRunLoopStop(CFRunLoopGetMain())
       }
     }
     var wakeRead: (timeBefore: CFTimeInterval, read: CFTimeInterval)?
@@ -125,8 +129,8 @@ class AnimationClockTests: XCTestCase {
     CFRunLoopAddObserver(CFRunLoopGetMain(), commitReader, .commonModes)
     CFRunLoopAddObserver(CFRunLoopGetMain(), wakeReader, .commonModes)
 
-    // when: the loop waits and wakes without exiting in between, as an app's main run loop does
-    CFRunLoopRunInMode(.defaultMode, 0.1, false)
+    // when: the loop waits and wakes without exiting in between, as an app's main run loop does, until the event stops it
+    runMainLoopUntilStopped()
 
     // then: the observers the first read installed missed its pass, but the turn ended when the loop woke, before the
     // wake's other observers, so the reads after the wait are new times
@@ -258,6 +262,16 @@ class AnimationClockTests: XCTestCase {
 
     // then: it asserts, as the given time is main thread state
     expect(assertionMessages) == ["sharingTime(at:_:) must be called on the main thread"]
+  }
+
+  // MARK: - Helpers
+
+  /// Runs the main run loop in one run, which waits between its turns, until a block that the test scheduled stops it.
+  ///
+  /// The block stops the run, instead of a time limit, since a loaded machine can stall the main thread past any limit
+  /// before the block runs. The limit only ends a run whose block never comes.
+  private func runMainLoopUntilStopped() {
+    CFRunLoopRunInMode(.defaultMode, 5, false)
   }
 }
 
