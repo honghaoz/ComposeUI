@@ -59,6 +59,10 @@ extension Playground {
 
     @ComposeContentBuilder
     override var content: ComposeContent {
+      insetSizingDemo
+
+      Spacer(height: 16)
+
       Text(attributedString(alignment: .center))
         .numberOfLines(0)
         .fixedSize(width: false, height: true)
@@ -141,8 +145,90 @@ extension Playground {
         return node.border()
       }
     }
+
+    /// Texts that fit their size to their text with a text container inset, on the left, next to the same texts with
+    /// padding instead of the inset, on the right, which they should look the same as.
+    @ComposeContentBuilder
+    private var insetSizingDemo: ComposeContent {
+      VStack(alignment: .left, spacing: 8) {
+        Label("Fixed size text with textContainerInset(horizontal: 12, vertical: 6) on the left, and with padding(horizontal: 12, vertical: 6) on the right. Each pair should look the same.")
+          .font(.systemFont(ofSize: 11))
+          .numberOfLines(0)
+
+        for title in ["New", "Hello, ComposéUI!"] {
+          HStack(alignment: .top, spacing: 16) {
+            chipText(title)
+              .textContainerInset(horizontal: 12, vertical: 6)
+              .background { ColorNode(.systemBlue) }
+            chipText(title)
+              .padding(horizontal: 12, vertical: 6)
+              .background { ColorNode(.systemBlue) }
+          }
+        }
+
+        HStack(alignment: .top, spacing: 16) {
+          paragraphText()
+            .textContainerInset(horizontal: 12, vertical: 6)
+            .border()
+            .frame(width: 180, height: .intrinsic, alignment: .topLeft)
+          paragraphText()
+            .padding(horizontal: 12, vertical: 6)
+            .border()
+            .frame(width: 180, height: .intrinsic, alignment: .topLeft)
+        }
+
+        #if canImport(AppKit)
+        Label("A text view with textContainerInset = (12, 6) that Auto Layout sizes to its intrinsic content size.")
+          .font(.systemFont(ofSize: 11))
+          .numberOfLines(0)
+
+        ViewNode(make: { _ in AutoLayoutInsetTextViewContainer() })
+          .frame(width: .flexible, height: 40)
+        #endif
+      }
+    }
+
+    private func chipText(_ title: String) -> TextNode {
+      Text(title, font: .systemFont(ofSize: 13), foregroundColor: ThemedColor(.white))
+        .fixedSize()
+    }
+
+    private func paragraphText() -> TextNode {
+      Text("A paragraph that wraps in the width left by the inset or the padding.", font: .systemFont(ofSize: 13))
+        .fixedSize()
+    }
   }
 }
+
+#if canImport(AppKit)
+/// A view that sizes a text view with a text container inset to the text view's intrinsic content size with Auto Layout.
+private final class AutoLayoutInsetTextViewContainer: NSView {
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+
+    wantsLayer = true
+
+    let textView = BaseTextView(frame: .zero)
+    textView.isSelectable = false
+    textView.textContainerInset = NSSize(width: 12, height: 6)
+    textView.drawsBackground = true
+    textView.backgroundColor = .systemBlue
+    textView.attributedString = NSAttributedString(string: "Hello, ComposéUI!", attributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.white])
+    textView.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(textView)
+    NSLayoutConstraint.activate([
+      textView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      textView.topAnchor.constraint(equalTo: topAnchor),
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+}
+#endif
 
 private let longText = """
 Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.

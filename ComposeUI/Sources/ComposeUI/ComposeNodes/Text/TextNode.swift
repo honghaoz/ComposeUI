@@ -361,7 +361,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     let rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width - textContainerInset.width * 2)
     let sizeAdjustment = adjustIntrinsicTextSize?(rawIntrinsicSize) ?? .zero
     let intrinsicSize = CGSize(
-      width: rawIntrinsicSize.width + sizeAdjustment.width,
+      width: rawIntrinsicSize.width + textContainerInset.width * 2 + sizeAdjustment.width,
       height: rawIntrinsicSize.height + textContainerInset.height * 2 + sizeAdjustment.height
     )
     return intrinsicSize.roundedUp(scaleFactor: 1)

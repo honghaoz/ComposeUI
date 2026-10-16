@@ -495,6 +495,35 @@ class BaseTextViewTests: XCTestCase {
     expect(shownStyle) == text.resolvingNaturalWritingDirections().attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
   }
 
+  func test_intrinsicContentSize_includesTheTextContainerInset() {
+    // the narrower width fits the text on one line, but not inside the inset, so the text wraps only where it's measured
+    // inside the inset
+    for width: CGFloat in [300, Self.makeText("Hello, world").size().width + 15] {
+      // given: a text view with a text container inset, and a text view without one, as wide as the other's bounds inside
+      // the inset, showing the same text
+      let insetTextView = BaseTextView(frame: CGRect(x: 0, y: 0, width: width, height: 100))
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: width - 20, height: 100))
+      #if canImport(AppKit)
+      insetTextView.textContainerInset = CGSize(width: 10, height: 4)
+      #endif
+      #if canImport(UIKit)
+      insetTextView.isScrollEnabled = false
+      textView.isScrollEnabled = false
+      insetTextView.textContainerInset = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
+      #endif
+      insetTextView.attributedString = Self.makeText("Hello, world")
+      textView.attributedString = Self.makeText("Hello, world")
+
+      // then: the intrinsic content size is the text's size in the width inside the inset, plus the inset on each side,
+      // up to floating-point rounding, since a UIKit text view rounds its size to pixels, which a 3x scale doesn't
+      // represent exactly
+      let textSize = textView.intrinsicContentSize
+      let size = insetTextView.intrinsicContentSize
+      expect(size.width, "width \(width)").to(beApproximatelyEqual(to: textSize.width + 20, within: 1e-9))
+      expect(size.height, "width \(width)").to(beApproximatelyEqual(to: textSize.height + 8, within: 1e-9))
+    }
+  }
+
   #if canImport(AppKit)
   func test_attributedString_equalText_leavesTheIntrinsicSize() {
     // given: a text view showing a text, with its intrinsic size invalidations counted from then
@@ -525,6 +554,30 @@ class BaseTextViewTests: XCTestCase {
     // then: the text container fits in the inset right away, which the text view itself doesn't do, since it only moves
     // the text container by the inset
     expect(textView.textContainer?.size.width) == 140
+  }
+
+  func test_intrinsicContentSize_fractionalTextContainerInset_roundsUpTheWholeSize() {
+    // given: a text view with a quarter point text container inset, which adds half a point to each dimension
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 300, height: 100))
+    textView.textContainerInset = CGSize(width: 0.25, height: 0.25)
+    textView.attributedString = Self.makeText("Hello, world")
+
+    // then: the intrinsic content size is the text's size plus the inset, rounded up to whole points after adding the inset
+    let textSize = Self.makeText("Hello, world").boundingRectSize(numberOfLines: 0, layoutWidth: 299.5)
+    expect(textView.intrinsicContentSize) == CGSize(width: (textSize.width + 0.5).rounded(.up), height: (textSize.height + 0.5).rounded(.up))
+  }
+
+  func test_textContainerInset_invalidatesTheIntrinsicSize() {
+    // given: a text view showing a text, with its intrinsic size invalidations counted from then
+    let textView = CountingTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello, world!")
+    textView.intrinsicSizeInvalidationCount = 0
+
+    // when: setting an inset
+    textView.textContainerInset = CGSize(width: 10, height: 4)
+
+    // then: the intrinsic size, which includes the inset, is invalidated
+    expect(textView.intrinsicSizeInvalidationCount) == 1
   }
 
   func test_setFrameSize_fitsTheTextContainerInTheBounds() {
