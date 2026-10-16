@@ -80,9 +80,26 @@ class RenderPerformanceTests: BenchmarkTestCase {
 
   func test_scroll_mixedLabelRows_10000() {
     // when: scrolling through 10000 rows of labels with different settings
-    // the labels of a row share a pool, so a scroll reuses each text view for the other kind of label, which changes
-    // the text view's number of lines.
+    // the labels of a row share a pool, so a scroll reuses each label view for the other kind of label, which changes
+    // the label view's number of lines.
     runScrollBenchmark(name: "scroll.mixedLabels.10000", rowCount: 10000) { i in
+      Self.makeMixedLabelRow(i)
+    }
+  }
+
+  func test_scroll_nestedRows_10000_drawn() {
+    // when: scrolling through 10000 nested rows in a window, which draws the labels that each step changes
+    // a text view lays out its text when the text is set, while a label view lays it out when it draws, so only the
+    // steps that draw count what both pay for a label.
+    runScrollBenchmark(name: "scroll.nested.10000.drawn", rowCount: 10000, draws: true) { i in
+      Self.makeNestedRow(i)
+    }
+  }
+
+  func test_scroll_mixedLabelRows_10000_drawn() {
+    // when: scrolling through 10000 rows of labels with different settings in a window, which draws the labels that each
+    // step changes
+    runScrollBenchmark(name: "scroll.mixedLabels.10000.drawn", rowCount: 10000, draws: true) { i in
       Self.makeMixedLabelRow(i)
     }
   }
@@ -577,6 +594,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
                                   rowHeight: CGFloat = Constants.rowHeight,
                                   scrollUp: Bool = false,
                                   poolingEnabled: Bool = true,
+                                  draws: Bool = false,
                                   makeRow: @escaping (Int) -> any ComposeNode)
   {
     let view = ComposeView {
@@ -591,6 +609,15 @@ class RenderPerformanceTests: BenchmarkTestCase {
 
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
 
+    // a view that draws does it in a window, which each step displays
+    let window: TestWindow? = draws ? TestWindow() : nil
+    if let window {
+      window.contentView().addSubview(view)
+      #if canImport(UIKit)
+      window.makeKeyAndVisible()
+      #endif
+    }
+
     let setupStart = DispatchTime.now()
     view.layoutIfNeeded() // initial render
     let setupDuration = durationInMilliseconds(from: setupStart, to: DispatchTime.now())
@@ -601,7 +628,15 @@ class RenderPerformanceTests: BenchmarkTestCase {
       offset += scrollUp ? -Constants.scrollStep : Constants.scrollStep
       view.contentOffset = CGPoint(x: 0, y: offset) // on AppKit, this triggers the render synchronously
       view.layoutIfNeeded() // on UIKit, this triggers the render
+      if let window {
+        // AppKit draws the views that need to draw when their window displays, and UIKit when the transaction commits
+        #if canImport(AppKit)
+        window.displayIfNeeded()
+        #endif
+        CATransaction.flush()
+      }
     }
+    withExtendedLifetime(window) {}
 
     // sample the rendered item count with one extra scroll step, outside of the measured loop,
     // since the debug event handler adds overhead to the render pass.

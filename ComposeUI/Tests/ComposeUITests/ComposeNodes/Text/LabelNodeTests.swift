@@ -77,22 +77,22 @@ class LabelNodeTests: XCTestCase {
 
   func test_boundsChange_keepsLabelConfigurationUntilRefresh() throws {
     // given: a label whose text and font depend on the container width
-    var renderedView: BaseTextView?
+    var renderedView: TextLabelView?
     let contentView = ComposeView { container in
       let isWide = container.frame.width >= 150
       LabelNode(isWide ? "Expanded" : "Compact")
         .font(.systemFont(ofSize: isWide ? 20 : 12))
         .onUpdate { item, _ in
-          renderedView = item.view as? BaseTextView
+          renderedView = item.view as? TextLabelView
         }
     }
     contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     contentView.refresh(animated: false)
-    let textView = try unwrap(renderedView)
+    let labelView = try unwrap(renderedView)
 
     // then: the narrow label is rendered
-    expect(textView.attributedString.string) == "Compact"
-    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
+    expect(labelView.attributedString.string) == "Compact"
+    expect(labelView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
 
     // when: the container crosses the width threshold
     contentView.frame.size.width = 200
@@ -100,26 +100,20 @@ class LabelNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: measurement and rendering keep the narrow configuration
-    expect(renderedView) === textView
-    expect(textView.attributedString.string) == "Compact"
-    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
+    expect(renderedView) === labelView
+    expect(labelView.attributedString.string) == "Compact"
+    expect(labelView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 12)
     var expectedNode = LabelNode("Compact").font(.systemFont(ofSize: 12))
     _ = expectedNode.layout(containerSize: CGSize(width: 200, height: 100), context: ComposeNodeLayoutContext(scaleFactor: contentView.windowScaleFactor))
-    expect(textView.bounds.size) == expectedNode.size
+    expect(labelView.bounds.size) == expectedNode.size
 
     // when: an explicit refresh reevaluates the label
     contentView.refresh(animated: false)
 
     // then: the reused label displays the new configuration
-    expect(renderedView) === textView
-    expect(textView.attributedString.string) == "Expanded"
-    expect(textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
-    #if canImport(AppKit)
-    expect(textView.string) == "Expanded"
-    #endif
-    #if canImport(UIKit)
-    expect(textView.attributedText.string) == "Expanded"
-    #endif
+    expect(renderedView) === labelView
+    expect(labelView.attributedString.string) == "Expanded"
+    expect(labelView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font) == Font.systemFont(ofSize: 20)
   }
 
   // MARK: - Single-line
@@ -127,12 +121,12 @@ class LabelNodeTests: XCTestCase {
   func test_singleLine_enoughWidth() throws {
     // given: a fixed size label
     do {
-      var textView: BaseTextView?
+      var labelView: TextLabelView?
       let view = ComposeView {
         try LabelNode("Hello World")
           .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
           .onInsert { renderable, _ in
-            textView = renderable.view as? BaseTextView
+            labelView = renderable.view as? TextLabelView
           }
       }
 
@@ -142,23 +136,23 @@ class LabelNodeTests: XCTestCase {
       view.refresh()
 
       // then: the label is a single line sized to the text
-      expect(textView?.attributedString.string) == "Hello World"
-      expect(textView?.bounds.size) == CGSize(width: 67, height: 16.0)
-      expect(textView?.numberOfLines) == 1
-      expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-      expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-      expect(textView?.lineBreakMode) == .byTruncatingTail
+      expect(labelView?.attributedString.string) == "Hello World"
+      expect(labelView?.bounds.size) == CGSize(width: 67, height: 16.0)
+      expect(labelView?.numberOfLines) == 1
+      expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+      expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+      expect(labelView?.lineBreakMode) == .byTruncatingTail
     }
 
     // given: a flexible width label
     do {
-      var textView: BaseTextView?
+      var labelView: TextLabelView?
       let view = ComposeView {
         try LabelNode("Hello World")
           .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
           .fixedSize(width: false, height: true)
           .onInsert { renderable, _ in
-            textView = renderable.view as? BaseTextView
+            labelView = renderable.view as? TextLabelView
           }
       }
 
@@ -168,24 +162,24 @@ class LabelNodeTests: XCTestCase {
       view.refresh()
 
       // then: the label width fills the container
-      expect(textView?.attributedString.string) == "Hello World"
-      expect(textView?.bounds.size) == CGSize(width: 100, height: 16.0)
-      expect(textView?.numberOfLines) == 1
-      expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-      expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-      expect(textView?.lineBreakMode) == .byTruncatingTail
+      expect(labelView?.attributedString.string) == "Hello World"
+      expect(labelView?.bounds.size) == CGSize(width: 100, height: 16.0)
+      expect(labelView?.numberOfLines) == 1
+      expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+      expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+      expect(labelView?.lineBreakMode) == .byTruncatingTail
     }
   }
 
   func test_singleLine_notEnoughWidth() throws {
     // given: a fixed size label in a small container
     do {
-      var textView: BaseTextView?
+      var labelView: TextLabelView?
       let view = ComposeView {
         try LabelNode("Hello World")
           .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
           .onInsert { renderable, _ in
-            textView = renderable.view as? BaseTextView
+            labelView = renderable.view as? TextLabelView
           }
       }
 
@@ -195,23 +189,23 @@ class LabelNodeTests: XCTestCase {
       view.refresh()
 
       // then: the label keeps its intrinsic single line size
-      expect(textView?.attributedString.string) == "Hello World"
-      expect(textView?.bounds.size) == CGSize(width: 67, height: 16)
-      expect(textView?.numberOfLines) == 1
-      expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-      expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-      expect(textView?.lineBreakMode) == .byTruncatingTail
+      expect(labelView?.attributedString.string) == "Hello World"
+      expect(labelView?.bounds.size) == CGSize(width: 67, height: 16)
+      expect(labelView?.numberOfLines) == 1
+      expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+      expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+      expect(labelView?.lineBreakMode) == .byTruncatingTail
     }
 
     // given: a flexible width label in a small container
     do {
-      var textView: BaseTextView?
+      var labelView: TextLabelView?
       let view = ComposeView {
         try LabelNode("Hello World")
           .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
           .fixedSize(width: false, height: true)
           .onInsert { renderable, _ in
-            textView = renderable.view as? BaseTextView
+            labelView = renderable.view as? TextLabelView
           }
       }
 
@@ -221,23 +215,23 @@ class LabelNodeTests: XCTestCase {
       view.refresh()
 
       // then: the label width is capped to the container
-      expect(textView?.attributedString.string) == "Hello World"
-      expect(textView?.bounds.size) == CGSize(width: 50, height: 16)
-      expect(textView?.numberOfLines) == 1
-      expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-      expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-      expect(textView?.lineBreakMode) == .byTruncatingTail
+      expect(labelView?.attributedString.string) == "Hello World"
+      expect(labelView?.bounds.size) == CGSize(width: 50, height: 16)
+      expect(labelView?.numberOfLines) == 1
+      expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+      expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+      expect(labelView?.lineBreakMode) == .byTruncatingTail
     }
   }
 
   func test_singleLineWithNewline_enoughWidth() throws {
     // given: a label with a newline in the text
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       try LabelNode("Hello\nWorld")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -247,22 +241,22 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     // then: the label renders as a single line
-    expect(textView?.attributedString.string) == "Hello\nWorld"
-    expect(textView?.bounds.size) == CGSize(width: 30, height: 16.0)
-    expect(textView?.numberOfLines) == 1
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-    expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-    expect(textView?.lineBreakMode) == .byTruncatingTail
+    expect(labelView?.attributedString.string) == "Hello\nWorld"
+    expect(labelView?.bounds.size) == CGSize(width: 30, height: 16.0)
+    expect(labelView?.numberOfLines) == 1
+    expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+    expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+    expect(labelView?.lineBreakMode) == .byTruncatingTail
   }
 
   func test_singleLineWithNewline_notEnoughWidth() throws {
     // given: a label with a newline in the text and a small container
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       try LabelNode("Hello\nWorld")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -272,23 +266,23 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     // then: the label renders as a single line
-    expect(textView?.attributedString.string) == "Hello\nWorld"
-    expect(textView?.bounds.size) == CGSize(width: 30, height: 16.0)
-    expect(textView?.numberOfLines) == 1
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-    expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-    expect(textView?.lineBreakMode) == .byTruncatingTail
+    expect(labelView?.attributedString.string) == "Hello\nWorld"
+    expect(labelView?.bounds.size) == CGSize(width: 30, height: 16.0)
+    expect(labelView?.numberOfLines) == 1
+    expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+    expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+    expect(labelView?.lineBreakMode) == .byTruncatingTail
   }
 
   func test_singleLine_lineBreakMode() throws {
     // given: a label with a custom line break mode
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       try LabelNode("Hello World")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
         .lineBreakMode(.byClipping)
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -297,26 +291,26 @@ class LabelNodeTests: XCTestCase {
     // when: the view is refreshed
     view.refresh()
 
-    // then: the custom line break mode is applied to the text view
-    expect(textView?.attributedString.string) == "Hello World"
-    expect(textView?.bounds.size) == CGSize(width: 67, height: 16.0)
-    expect(textView?.numberOfLines) == 1
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-    expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-    expect(textView?.lineBreakMode) == .byClipping
+    // then: the custom line break mode is applied to the label view
+    expect(labelView?.attributedString.string) == "Hello World"
+    expect(labelView?.bounds.size) == CGSize(width: 67, height: 16.0)
+    expect(labelView?.numberOfLines) == 1
+    expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+    expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+    expect(labelView?.lineBreakMode) == .byClipping
   }
 
   // MARK: - Multi-line
 
   func test_multiLine_lineBreakMode() {
     // given: a multi-line label with a custom line break mode
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       LabelNode("Hello World")
         .numberOfLines(0)
         .lineBreakMode(.byClipping)
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -325,19 +319,19 @@ class LabelNodeTests: XCTestCase {
     // when: the view is refreshed
     view.refresh()
 
-    // then: the custom line break mode is applied to the text view
-    expect(textView?.numberOfLines) == 0
-    expect(textView?.lineBreakMode) == .byClipping
+    // then: the custom line break mode is applied to the label view
+    expect(labelView?.numberOfLines) == 0
+    expect(labelView?.lineBreakMode) == .byClipping
   }
 
   func test_multiLine_userInteraction() {
     // given: a compose view with a multi-line label
-    var textView: BaseTextView?
+    var renderedView: View?
     let view = ComposeView {
       LabelNode("Hello World")
         .numberOfLines(0)
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          renderedView = renderable.view
         }
     }
 
@@ -346,8 +340,8 @@ class LabelNodeTests: XCTestCase {
     // when: the view is refreshed
     view.refresh()
 
-    // then: by default, the label is not selectable
-    expect(textView?.isSelectable) == false
+    // then: by default, the label is not selectable, so it shows in a label view
+    expect(renderedView is TextLabelView) == true
 
     // when: set to selectable
     view.setContent {
@@ -355,25 +349,25 @@ class LabelNodeTests: XCTestCase {
         .numberOfLines(0)
         .selectable()
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          renderedView = renderable.view
         }
     }
     view.refresh()
 
-    // then: the label is now selectable
-    expect(textView?.isSelectable) == true
+    // then: the label is now selectable, in a text view
+    expect((renderedView as? BaseTextView)?.isSelectable) == true
   }
 
   func test_multiLine_flexible() throws {
     // given: a multi-line label with flexible size
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
         .numberOfLines(0)
         .flexibleSize()
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -383,24 +377,24 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     // then: the label fills the container
-    expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-    expect(textView?.bounds.size) == CGSize(width: 98, height: 100)
-    expect(textView?.numberOfLines) == 0
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-    expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-    expect(textView?.lineBreakMode) == .byTruncatingTail
+    expect(labelView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+    expect(labelView?.bounds.size) == CGSize(width: 98, height: 100)
+    expect(labelView?.numberOfLines) == 0
+    expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+    expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+    expect(labelView?.lineBreakMode) == .byTruncatingTail
   }
 
   func test_multiLine_fixedWidth_flexibleHeight() throws {
     // given: a multi-line label with fixed width and flexible height
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
         .numberOfLines(0)
         .fixedSize(width: true, height: false)
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -410,24 +404,24 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     // then: the width is the text width and the height fills the container
-    expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-    expect(textView?.bounds.size) == CGSize(width: 97, height: 100)
-    expect(textView?.numberOfLines) == 0
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-    expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-    expect(textView?.lineBreakMode) == .byTruncatingTail
+    expect(labelView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+    expect(labelView?.bounds.size) == CGSize(width: 97, height: 100)
+    expect(labelView?.numberOfLines) == 0
+    expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+    expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+    expect(labelView?.lineBreakMode) == .byTruncatingTail
   }
 
   func test_multiLine_flexibleWidth_fixedHeight() throws {
     // given: a multi-line label with flexible width and fixed height
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
         .numberOfLines(0)
         .fixedSize(width: false, height: true)
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -437,28 +431,28 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     // then: the width fills the container and the height fits the text
-    expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+    expect(labelView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
     #if canImport(AppKit)
-    expect(textView?.bounds.size) == CGSize(width: 98, height: 139)
+    expect(labelView?.bounds.size) == CGSize(width: 98, height: 139)
     #endif
     #if canImport(UIKit)
-    expect(textView?.bounds.size) == CGSize(width: 98, height: 140)
+    expect(labelView?.bounds.size) == CGSize(width: 98, height: 140)
     #endif
-    expect(textView?.numberOfLines) == 0
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-    expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-    expect(textView?.lineBreakMode) == .byTruncatingTail
+    expect(labelView?.numberOfLines) == 0
+    expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+    expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+    expect(labelView?.lineBreakMode) == .byTruncatingTail
   }
 
   func test_multiLine_flexibleWidth_fixedHeight2() throws {
     // given: a multi-line label with flexible width and fixed height via numberOfLines
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
         .numberOfLines(0) // this sets the width to be flexible and the height to be fixed
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -468,29 +462,29 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     // then: the width fills the container and the height fits the text
-    expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+    expect(labelView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
     #if canImport(AppKit)
-    expect(textView?.bounds.size) == CGSize(width: 98, height: 139)
+    expect(labelView?.bounds.size) == CGSize(width: 98, height: 139)
     #endif
     #if canImport(UIKit)
-    expect(textView?.bounds.size) == CGSize(width: 98, height: 140)
+    expect(labelView?.bounds.size) == CGSize(width: 98, height: 140)
     #endif
-    expect(textView?.numberOfLines) == 0
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-    expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-    expect(textView?.lineBreakMode) == .byTruncatingTail
+    expect(labelView?.numberOfLines) == 0
+    expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+    expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+    expect(labelView?.lineBreakMode) == .byTruncatingTail
   }
 
   func test_multiLine_fixedSize() throws {
     // given: a multi-line label with fixed size
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       try LabelNode("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
         .font(unwrap(Font(name: "HelveticaNeue", size: 13)))
         .numberOfLines(0)
         .fixedSize()
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -500,28 +494,28 @@ class LabelNodeTests: XCTestCase {
     view.refresh()
 
     // then: the label is sized to fit the text
-    expect(textView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+    expect(labelView?.attributedString.string) == "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
     #if canImport(AppKit)
-    expect(textView?.bounds.size) == CGSize(width: 97, height: 139)
+    expect(labelView?.bounds.size) == CGSize(width: 97, height: 139)
     #endif
     #if canImport(UIKit)
-    expect(textView?.bounds.size) == CGSize(width: 97, height: 140)
+    expect(labelView?.bounds.size) == CGSize(width: 97, height: 140)
     #endif
-    expect(textView?.numberOfLines) == 0
-    expect(textView?.attributedString.paragraphStyle()?.alignment) == .center
-    expect(textView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
-    expect(textView?.lineBreakMode) == .byTruncatingTail
+    expect(labelView?.numberOfLines) == 0
+    expect(labelView?.attributedString.paragraphStyle()?.alignment) == .center
+    expect(labelView?.attributedString.paragraphStyle()?.lineBreakMode) == .byWordWrapping
+    expect(labelView?.lineBreakMode) == .byTruncatingTail
   }
 
   // MARK: - User Interaction
 
   func test_userInteraction() {
     // given: a compose view with a default label
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       LabelNode("Hello World")
         .onInsert { renderable, _ in
-          textView = renderable.view as? BaseTextView
+          labelView = renderable.view as? TextLabelView
         }
     }
 
@@ -530,16 +524,16 @@ class LabelNodeTests: XCTestCase {
     // when: the view is refreshed
     view.refresh()
 
-    // then: by default, the label is not interactive
-    expect(textView?.isSelectable) == false
+    // then: by default, the label shows in a label view, which isn't interactive
     #if canImport(AppKit)
-    expect(textView?.ignoreHitTest) == true
+    expect(try labelView.unwrap().hitTest(CGPoint(x: 1, y: 1))) == nil
     #endif
     #if canImport(UIKit)
-    expect(textView?.isUserInteractionEnabled) == false
+    expect(labelView?.isUserInteractionEnabled) == false
     #endif
 
     // when: set to selectable
+    var textView: BaseTextView?
     view.setContent {
       LabelNode("Hello World")
         .selectable()
@@ -549,7 +543,7 @@ class LabelNodeTests: XCTestCase {
     }
     view.refresh()
 
-    // then: the label is now interactive
+    // then: the label now shows in a text view, which is interactive
     expect(textView?.isSelectable) == true
     #if canImport(AppKit)
     expect(textView?.ignoreHitTest) == false
@@ -820,15 +814,15 @@ class LabelNodeTests: XCTestCase {
   // MARK: - View reuse
 
   func test_viewReuse_defaultReuseKey_usesFrameworkNamespace() {
-    // LabelNode renders through TextNode, so its renderable opts into TextNode's framework-internal pool bucket for text
-    // views with its interaction settings.
+    // LabelNode renders through TextNode, so its renderable opts into TextNode's framework-internal pool bucket for label
+    // views, which show a text that isn't selectable.
 
     // given: a renderable item of a label node, which isn't selectable
     let item = firstRenderableItem(of: LabelNode("Hello"))
 
-    // then: the reuse ids use the framework pool bucket of unselectable text views
-    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView.unselectable")
-    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView.unselectable")
+    // then: the reuse ids use the framework pool bucket of label views
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "TextLabelView")
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "TextLabelView")
   }
 
   func test_viewReuse_recycledView_resetsStateAndReuses() throws {
@@ -842,9 +836,9 @@ class LabelNodeTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    let textView = try firstBaseTextView(in: view).unwrap()
-    expect(textView.attributedString.string) == "First"
-    expect(textView.numberOfLines) == 2
+    let labelView = try firstTextLabelView(in: view).unwrap()
+    expect(labelView.attributedString.string) == "First"
+    expect(labelView.numberOfLines) == 2
 
     // when: removing the label
     view.setContent {
@@ -853,13 +847,12 @@ class LabelNodeTests: XCTestCase {
     view.refresh(animated: false)
 
     // then: the view is enqueued into the pool, which resets it (via TextNode's resetForReuse) for reuse, keeping what a
-    // text node sets on each reuse, such as its interaction settings and number of lines, since only a text node with
-    // the same interaction settings reuses it, and its text until the run loop turn ends
-    expect(firstBaseTextView(in: view)) == nil
-    expect(textView.numberOfLines) == 2
-    expect(textView.lineBreakMode) == .byTruncatingTail
-    expect(textView.isSelectable) == false
-    expect(textView.attributedString.string) == "First"
+    // text node sets on each reuse, such as its number of lines and line break mode, and its text until the run loop
+    // turn ends
+    expect(firstTextLabelView(in: view)) == nil
+    expect(labelView.numberOfLines) == 2
+    expect(labelView.lineBreakMode) == .byTruncatingTail
+    expect(labelView.attributedString.string) == "First"
 
     // when: the run loop turn ends with the view still in the pool
     let turnEnded = expectation(description: "the run loop turn ends")
@@ -869,7 +862,7 @@ class LabelNodeTests: XCTestCase {
     wait(for: [turnEnded], timeout: 1)
 
     // then: the pooled view removes its text
-    expect(textView.attributedString.string) == ""
+    expect(labelView.attributedString.string) == ""
 
     // when: rendering a new label
     view.setContent {
@@ -878,8 +871,8 @@ class LabelNodeTests: XCTestCase {
     view.refresh(animated: false)
 
     // then: the very same pooled view is reused, reconfigured for the new content (no stale state)
-    let reusedView = try firstBaseTextView(in: view).unwrap()
-    expect(reusedView) === textView
+    let reusedView = try firstTextLabelView(in: view).unwrap()
+    expect(reusedView) === labelView
     expect(reusedView.attributedString.string) == "Second"
     expect(reusedView.numberOfLines) == 1
   }
@@ -906,12 +899,12 @@ class LabelNodeTests: XCTestCase {
 
     // given: two copies of a shared label base, one made selectable
     let base = LabelNode("hi")
-    var defaultView: BaseTextView?
-    var selectableView: BaseTextView?
+    var defaultView: View?
+    var selectableView: View?
     let view = ComposeView {
       VStack {
-        base.onUpdate { item, _ in defaultView = item.view as? BaseTextView }
-        base.selectable(true).onUpdate { item, _ in selectableView = item.view as? BaseTextView }
+        base.onUpdate { item, _ in defaultView = item.view }
+        base.selectable(true).onUpdate { item, _ in selectableView = item.view }
       }
     }
     view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -920,8 +913,8 @@ class LabelNodeTests: XCTestCase {
     view.refresh(animated: false)
 
     // then: each copy renders its own configuration
-    expect(defaultView?.isSelectable) == false // LabelNode is not selectable by default
-    expect(selectableView?.isSelectable) == true
+    expect(defaultView is TextLabelView) == true // LabelNode is not selectable by default
+    expect((selectableView as? BaseTextView)?.isSelectable) == true
   }
 
   func test_refresh_labelsThatDifferInOneSetting_renderTheirOwnSetting() throws {
@@ -959,15 +952,15 @@ class LabelNodeTests: XCTestCase {
 
   /// Returns the text that the label renders, in a view of its own.
   private func renderedText(of label: LabelNode) -> NSAttributedString? {
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let view = ComposeView {
       label.onUpdate { item, _ in
-        textView = item.view as? BaseTextView
+        labelView = item.view as? TextLabelView
       }
     }
     view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
     view.refresh(animated: false)
-    return textView?.attributedString
+    return labelView?.attributedString
   }
 
   private func firstRenderableItem(of node: LabelNode) -> RenderableItem? {
@@ -977,8 +970,8 @@ class LabelNodeTests: XCTestCase {
     return node.renderableItems(in: CGRect(origin: .zero, size: size)).first
   }
 
-  private func firstBaseTextView(in view: ComposeView) -> BaseTextView? {
-    view.contentContainerView.subviews.compactMap { $0 as? BaseTextView }.first
+  private func firstTextLabelView(in view: ComposeView) -> TextLabelView? {
+    view.contentContainerView.subviews.compactMap { $0 as? TextLabelView }.first
   }
 }
 

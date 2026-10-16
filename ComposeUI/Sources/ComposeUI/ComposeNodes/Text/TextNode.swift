@@ -40,6 +40,9 @@ public typealias Text = TextNode
 
 /// A node that renders text.
 ///
+/// A text that the user can neither edit nor select shows in a `TextLabelView`, and an editable or selectable text
+/// shows in a `BaseTextView`.
+///
 /// Performance note: Using `fixedSize(width:height:)` will make the text node
 /// re-calculate the intrinsic text size on layout, which is expensive. So it is
 /// preferred to use flexible size and do the size calculation once on your side.
@@ -379,34 +382,67 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     let isEditable = isEditable
     let isSelectable = isSelectable
 
-    let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
-      ViewItem<BaseTextView>(
-        id: id,
-        frame: frame,
-        make: { BaseTextView(frame: $0.initialFrame ?? .zero) },
-        update: { view, context in
-          switch context.updateType {
-          case .insert,
-               .refresh:
-            break
-          case .boundsChange:
-            return
-          }
-          TextNode.updateTextView(
-            view,
-            theme: context.contentView.theme,
-            attributedString: attributedString,
-            numberOfLines: numberOfLines,
-            lineBreakMode: lineBreakMode,
-            textContainerInset: textContainerInset,
-            isEditable: isEditable,
-            isSelectable: isSelectable
-          )
-        },
-        reuseId: Self.reuseId(isEditable: isEditable, isSelectable: isSelectable),
-        resetForReuse: { $0.resetForReuse(keepsTextNodeSettings: true) }
-      )
-      .eraseToRenderableItem()
+    let item: RenderableItem
+    if isEditable || isSelectable {
+      item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
+        ViewItem<BaseTextView>(
+          id: id,
+          frame: frame,
+          make: { BaseTextView(frame: $0.initialFrame ?? .zero) },
+          update: { view, context in
+            switch context.updateType {
+            case .insert,
+                 .refresh:
+              break
+            case .boundsChange:
+              return
+            }
+            TextNode.updateTextView(
+              view,
+              theme: context.contentView.theme,
+              attributedString: attributedString,
+              numberOfLines: numberOfLines,
+              lineBreakMode: lineBreakMode,
+              textContainerInset: textContainerInset,
+              isEditable: isEditable,
+              isSelectable: isSelectable
+            )
+          },
+          reuseId: Self.textViewReuseId(isEditable: isEditable, isSelectable: isSelectable),
+          resetForReuse: { $0.resetForReuse(keepsTextNodeSettings: true) }
+        )
+        .eraseToRenderableItem()
+      }
+    } else {
+      // a text that the user can neither edit nor select is drawn by a label view, which costs far less than a text
+      // view, whose machinery for editing, selection and scrolling it doesn't use
+      item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
+        ViewItem<TextLabelView>(
+          id: id,
+          frame: frame,
+          make: { TextLabelView(frame: $0.initialFrame ?? .zero) },
+          update: { view, context in
+            switch context.updateType {
+            case .insert,
+                 .refresh:
+              break
+            case .boundsChange:
+              return
+            }
+            TextNode.updateLabelView(
+              view,
+              theme: context.contentView.theme,
+              attributedString: attributedString,
+              numberOfLines: numberOfLines,
+              lineBreakMode: lineBreakMode,
+              textContainerInset: textContainerInset
+            )
+          },
+          reuseId: ReuseId(namespace: .framework, id: "TextLabelView"),
+          resetForReuse: { $0.resetForReuse() }
+        )
+        .eraseToRenderableItem()
+      }
     }
 
     items.append(item)
@@ -417,13 +453,12 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   /// Returns the reuse identifier of a text view with the interaction settings.
   ///
   /// A text view is reused only by a node with the same interaction settings, and its reset keeps them, since changing
-  /// them costs work, such as hundreds of allocations each time a UIKit text view becomes selectable or not.
-  private static func reuseId(isEditable: Bool, isSelectable: Bool) -> ReuseId {
+  /// them costs work, such as hundreds of allocations each time a UIKit text view becomes selectable or not. A text
+  /// that isn't editable shows in a text view only when it's selectable.
+  private static func textViewReuseId(isEditable: Bool, isSelectable: Bool) -> ReuseId {
     switch (isEditable, isSelectable) {
-    case (false, true):
+    case (false, _):
       return ReuseId(namespace: .framework, id: "BaseTextView")
-    case (false, false):
-      return ReuseId(namespace: .framework, id: "BaseTextView.unselectable")
     case (true, true):
       return ReuseId(namespace: .framework, id: "BaseTextView.editable")
     case (true, false):
@@ -478,7 +513,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     #endif
 
     #if canImport(AppKit)
-    textView.attributedString = themedText(of: attributedString, theme: theme, in: textView)
+    textView.attributedString = themedText(of: attributedString, theme: theme, lastThemedText: &textView.lastThemedText)
     #endif
 
     if textView.numberOfLines != numberOfLines {
@@ -505,23 +540,53 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       textView.textContainerInset = insets
     }
 
-    textView.attributedString = themedText(of: attributedString, theme: theme, in: textView)
+    textView.attributedString = themedText(of: attributedString, theme: theme, lastThemedText: &textView.lastThemedText)
     #endif
   }
 
-  /// Returns the text with the theme applied, the text view's last themed text when it's of the same text and theme.
-  private static func themedText(of attributedString: NSAttributedString, theme: Theme, in textView: BaseTextView) -> NSAttributedString {
+  private static func updateLabelView(_ labelView: TextLabelView,
+                                      theme: Theme,
+                                      attributedString: NSAttributedString,
+                                      numberOfLines: Int,
+                                      lineBreakMode: NSLineBreakMode,
+                                      textContainerInset: CGSize)
+  {
+    // a setting is set only when it differs, since each change marks the view to draw again
+    if labelView.numberOfLines != numberOfLines {
+      labelView.numberOfLines = numberOfLines
+    }
+    if labelView.lineBreakMode != lineBreakMode {
+      labelView.lineBreakMode = lineBreakMode
+    }
+    if labelView.textContainerInset != textContainerInset {
+      labelView.textContainerInset = textContainerInset
+    }
+
+    labelView.attributedString = themedText(of: attributedString, theme: theme, lastThemedText: &labelView.lastThemedText)
+  }
+
+  /// Returns the text with the theme applied, the view's last themed text when it's of the same text and theme.
+  ///
+  /// - Parameters:
+  ///   - attributedString: The text to apply the theme to.
+  ///   - theme: The theme to apply.
+  ///   - lastThemedText: The view's last themed text, which the returned text replaces.
+  /// - Returns: The text with the theme applied.
+  private static func themedText(of attributedString: NSAttributedString,
+                                 theme: Theme,
+                                 lastThemedText: inout (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?) -> NSAttributedString
+  {
     // a refresh makes the nodes again, but a label's text is the same object while its settings are the same, so the
-    // themed text that the text view shows is reused instead of applying the theme to a new copy of the text
-    if let last = textView.lastThemedText, last.text === attributedString, last.theme == theme {
+    // themed text that the view shows is reused instead of applying the theme to a new copy of the text
+    if let last = lastThemedText, last.text === attributedString, last.theme == theme {
       return last.themedText
     }
 
-    // a text with nothing to apply a theme to is shown as it is, instead of as a copy, which the text view would copy again
-    // to compare a later text with, since the copy is mutable
+    // a text with nothing to apply a theme to is shown as it is, instead of as a copy, which the view would copy again to
+    // compare a later text with, since the copy is mutable
     let themedText = attributedString.hasThemedAttributes ? NSMutableAttributedString(attributedString: attributedString).apply(theme: theme) : attributedString
     // a mutable text can change and stay the same object, so it isn't kept, and its theme is applied on each update
-    textView.lastThemedText = attributedString is NSMutableAttributedString ? nil : (attributedString, theme, themedText)
+    lastThemedText = attributedString is NSMutableAttributedString ? nil : (attributedString, theme, themedText)
     return themedText
   }
 
