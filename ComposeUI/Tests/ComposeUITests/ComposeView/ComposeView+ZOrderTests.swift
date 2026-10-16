@@ -260,6 +260,140 @@ class ComposeView_ZOrderTests: XCTestCase {
     expect(recorder.sawItemIdsChange) == true // ensure rows actually churned
   }
 
+  func test_scrollDown_keepsTheZPositionOfTheItemsThatStay() {
+    // given: a scrollable view with rows of one item each and a render recorder, rendered initially
+    let (view, _) = makeSingleItemRowsView()
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+    view.refresh(animated: false)
+
+    var offset: CGFloat = 0
+    for step in 0 ..< 30 {
+      let zPositions = zPositionsById(recorder)
+
+      // when: scrolling down a step, which moves rows out at the top and in at the bottom
+      offset += 35
+      view.contentOffset = CGPoint(x: 0, y: offset)
+      view.layoutIfNeeded()
+
+      // then: the items that stay keep their layers' `zPosition`, and the hierarchy matches the items order
+      let stayingIds = recorder.renderableItemIds.filter { zPositions[$0] != nil }
+      expect(stayingIds.isEmpty, "step \(step)") == false
+      expect(stayingIds.map { recorder.renderableMap[$0]?.layer.zPosition }, "step \(step)") == stayingIds.map { zPositions[$0] }
+      expectHierarchyMatchesItemOrder(view, recorder)
+    }
+  }
+
+  func test_scrollUp_keepsTheZPositionOfTheItemsThatStay() {
+    // given: a scrollable view with rows of one item each and a render recorder, rendered scrolled down to new rows, so
+    // that its items' keys start at 1
+    let (view, _) = makeSingleItemRowsView()
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+    view.refresh(animated: false)
+    var offset: CGFloat = 1050
+    view.contentOffset = CGPoint(x: 0, y: offset)
+    view.layoutIfNeeded()
+
+    // when: scrolling up a step, which needs keys below 1 for the rows that move in at the top
+    offset -= 35
+    view.contentOffset = CGPoint(x: 0, y: offset)
+    view.layoutIfNeeded()
+
+    // then: the keys move to the middle of their range, so that each item's z-position fraction is about 0.5
+    let fractions = recorder.renderableItemIds.compactMap { recorder.renderableMap[$0]?.layer.zPosition }
+    expect(fractions.allSatisfy { abs($0 - 0.5) < 0.01 }) == true
+    expectHierarchyMatchesItemOrder(view, recorder)
+
+    for step in 0 ..< 30 {
+      let zPositions = zPositionsById(recorder)
+
+      // when: scrolling up another step, which moves rows out at the bottom and in at the top
+      offset -= 35
+      view.contentOffset = CGPoint(x: 0, y: offset)
+      view.layoutIfNeeded()
+
+      // then: the items that stay keep their layers' `zPosition`, and the hierarchy matches the items order
+      let stayingIds = recorder.renderableItemIds.filter { zPositions[$0] != nil }
+      expect(stayingIds.isEmpty, "step \(step)") == false
+      expect(stayingIds.map { recorder.renderableMap[$0]?.layer.zPosition }, "step \(step)") == stayingIds.map { zPositions[$0] }
+      expectHierarchyMatchesItemOrder(view, recorder)
+    }
+  }
+
+  func test_scrollDown_partlyShownRows_changesTheZPositionOfAtMostOneItemThatStaysAtEachEnd() {
+    // given: a scrollable view with mixed rows, whose items move in and out one by one at the ends, and a render
+    // recorder, rendered initially
+    let (view, _) = makeScrollableView()
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+    view.refresh(animated: false)
+
+    var offset: CGFloat = 0
+    for step in 0 ..< 30 {
+      let zPositions = zPositionsById(recorder)
+
+      // when: scrolling down a step, which can remove an item from the middle of the partly shown row at the top, and
+      // insert one in the middle of the partly shown row at the bottom
+      offset += 35
+      view.contentOffset = CGPoint(x: 0, y: offset)
+      view.layoutIfNeeded()
+
+      // then: only an item next to such a change can get another `zPosition`, and the hierarchy matches the items order
+      let stayingIds = recorder.renderableItemIds.filter { zPositions[$0] != nil }
+      let changedIds = stayingIds.filter { recorder.renderableMap[$0]?.layer.zPosition != zPositions[$0] }
+      expect(changedIds.count, "step \(step)") <= 2
+      expectHierarchyMatchesItemOrder(view, recorder)
+    }
+  }
+
+  func test_zPositionKeyOffset_keepsTheKeysInTheirRange() {
+    let max = ComposeView().test.maxZPositionKey
+
+    // then: the offset shifts while the keys, from the offset plus 1 to the offset plus the item count, stay in the
+    // range from 1 to the largest key
+    expect(ComposeView.zPositionKeyOffset(previous: 10, shift: 3, itemCount: 50)) == 13
+    expect(ComposeView.zPositionKeyOffset(previous: 10, shift: -10, itemCount: 50)) == 0
+    expect(ComposeView.zPositionKeyOffset(previous: max - 60, shift: 10, itemCount: 50)) == max - 50
+
+    // then: keys that would leave the range move to its middle
+    expect(ComposeView.zPositionKeyOffset(previous: 10, shift: -11, itemCount: 50)) == (max - 50) / 2
+    expect(ComposeView.zPositionKeyOffset(previous: max - 60, shift: 11, itemCount: 50)) == (max - 50) / 2
+
+    // then: more items than keys start at 1, leaving the items past the largest key to the z-position's assertion
+    expect(ComposeView.zPositionKeyOffset(previous: 10, shift: -11, itemCount: max + 1)) == 0
+  }
+
+  /// Makes a scrollable view with rows of one item each, alternating a layer item and a view item, hosted in a test
+  /// window, so that a scroll moves items in and out only at the ends of the items order.
+  private func makeSingleItemRowsView() -> (ComposeView, TestWindow) {
+    makeHostedView {
+      VStack {
+        for index in 0 ..< 100 {
+          if index.isMultiple(of: 2) {
+            ColorNode(.blue)
+              .frame(width: .flexible, height: 25)
+          } else {
+            ViewNode()
+              .frame(width: .flexible, height: 25)
+          }
+        }
+      }
+    }
+  }
+
+  /// Returns the `zPosition` of the latest render pass's renderable layers, by their item ids.
+  private func zPositionsById(_ recorder: RenderRecorder) -> [String: CGFloat] {
+    var zPositions: [String: CGFloat] = [:]
+    for id in recorder.renderableItemIds {
+      zPositions[id] = recorder.renderableMap[id]?.layer.zPosition
+    }
+    return zPositions
+  }
+
   // MARK: - Refresh
 
   func test_refresh_reorderedContent() {
