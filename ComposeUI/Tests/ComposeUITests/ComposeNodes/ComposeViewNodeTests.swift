@@ -362,7 +362,8 @@ class ComposeViewNodeTests: XCTestCase {
 
   func test_refresh_updatesMountedContentWithUnchangedSize() throws {
     for animated in [false, true] {
-      // given: nested color and text content with stable ids and fixed sizes
+      // given: nested color and editable text content with stable ids and fixed sizes, whose text view stays a text view
+      // when it becomes selectable
       var color = Color.red
       var text = "Before"
       var font = Font.systemFont(ofSize: 12)
@@ -379,6 +380,7 @@ class ComposeViewNodeTests: XCTestCase {
                 colorLayer = item.layer
               }
             TextNode(NSAttributedString(string: text, attributes: [.font: font]))
+              .editable()
               .selectable(selectable)
               .frame(width: 80, height: 30)
               .onUpdate { item, _ in
@@ -436,14 +438,14 @@ class ComposeViewNodeTests: XCTestCase {
     for nestingDepth in 1 ... 3 {
       // given: text nested under the given number of compose view nodes
       var text = "Before"
-      var textView: BaseTextView?
+      var labelView: TextLabelView?
       let contentView = ComposeView {
         var content: any ComposeNode = ComposeViewNode {
           LabelNode(text)
             .font(.systemFont(ofSize: 12))
             .frame(width: 80, height: 30)
             .onUpdate { item, _ in
-              textView = item.view as? BaseTextView
+              labelView = item.view as? TextLabelView
             }
         }
         for _ in 1 ..< nestingDepth {
@@ -454,16 +456,16 @@ class ComposeViewNodeTests: XCTestCase {
       }
       contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
       contentView.refresh(animated: false)
-      let originalTextView = try textView.unwrap()
-      expect(originalTextView.attributedString.string) == "Before"
+      let originalLabelView = try labelView.unwrap()
+      expect(originalLabelView.attributedString.string) == "Before"
 
       // when: the parent refreshes with changed data
       text = "After"
       contentView.refresh(animated: false)
 
       // then: the deepest content shows the new data before the refresh call returns
-      expect(textView) === originalTextView
-      expect(originalTextView.attributedString.string) == "After"
+      expect(labelView) === originalLabelView
+      expect(originalLabelView.attributedString.string) == "After"
     }
   }
 
@@ -537,14 +539,14 @@ class ComposeViewNodeTests: XCTestCase {
     let font = Font.systemFont(ofSize: 14)
     var text = originalText
     var nestedView: ComposeView?
-    var textView: BaseTextView?
+    var renderedView: TextLabelView?
     let contentView = ComposeView {
       ComposeViewNode {
         LabelNode(text)
           .font(font)
           .numberOfLines(0)
           .onUpdate { item, _ in
-            textView = item.view as? BaseTextView
+            renderedView = item.view as? TextLabelView
           }
       }
       .onUpdate { item, _ in
@@ -553,9 +555,9 @@ class ComposeViewNodeTests: XCTestCase {
     }
     contentView.frame = CGRect(x: 0, y: 0, width: 240, height: 300)
     contentView.refresh(animated: false)
-    expect(textView?.attributedString.string) == originalText
+    expect(renderedView?.attributedString.string) == originalText
     let child = try nestedView.unwrap()
-    let labelView = try textView.unwrap()
+    let labelView = try renderedView.unwrap()
     let wideHeight = labelView.frame.height
     text = "Fresh"
 
@@ -577,7 +579,7 @@ class ComposeViewNodeTests: XCTestCase {
       var originalLabel = LabelNode(originalText).font(font).numberOfLines(0)
       _ = originalLabel.layout(containerSize: CGSize(width: width, height: 300), context: context)
       expect(nestedView) === child
-      expect(textView) === labelView
+      expect(renderedView) === labelView
       expect(child.frame.size) == originalLabel.size
       expect(labelView.frame.size) == originalLabel.size
       expect(labelView.attributedString.string) == originalText
@@ -662,7 +664,7 @@ class ComposeViewNodeTests: XCTestCase {
     var text = "Reused"
     var nestedView: ComposeView?
     var colorLayer: CALayer?
-    var textView: BaseTextView?
+    var labelView: TextLabelView?
     let contentView = ComposeView {
       VStack {
         Spacer(height: 150)
@@ -677,7 +679,7 @@ class ComposeViewNodeTests: XCTestCase {
               .font(.systemFont(ofSize: 12))
               .frame(width: 80, height: 30)
               .onUpdate { item, _ in
-                textView = item.view as? BaseTextView
+                labelView = item.view as? TextLabelView
               }
           }
         }
@@ -699,7 +701,7 @@ class ComposeViewNodeTests: XCTestCase {
     contentView.layoutIfNeeded()
 
     // then: delayed insertion renders the reused content within the scroll pass
-    expect(textView?.attributedString.string) == "Reused"
+    expect(labelView?.attributedString.string) == "Reused"
     let firstChild = try nestedView.unwrap()
     expect(firstChild.frame.size) == CGSize(width: 80, height: 50)
     expect(colorLayer?.backgroundColor) == Color.red.cgColor
@@ -713,13 +715,13 @@ class ComposeViewNodeTests: XCTestCase {
 
     // when: the reused node is inserted again
     nestedView = nil
-    textView = nil
+    labelView = nil
     colorLayer = nil
     contentView.contentOffset = CGPoint(x: 0, y: 125)
     contentView.layoutIfNeeded()
 
     // then: reinsertion initializes the nested content without reevaluating application data
-    expect(textView?.attributedString.string) == "Reused"
+    expect(labelView?.attributedString.string) == "Reused"
     expect(nestedView?.superview) != nil
     expect(nestedView?.frame.size) == CGSize(width: 80, height: 50)
     expect(colorLayer?.backgroundColor) == Color.red.cgColor

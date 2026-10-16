@@ -105,6 +105,78 @@ class TextNodeTests: XCTestCase {
     expect(node.size) == CGSize(width: 751.0, height: 22)
   }
 
+  func test_unselectableText_showsInALabelViewWithTheNodesSettings() throws {
+    // given: a compose view in the light theme, with a text node that's neither editable nor selectable, with settings
+    // and a themed color
+    var renderedView: TextLabelView?
+    let contentView = ComposeView {
+      TextNode(NSAttributedString(string: "Hello", attributes: [.themedForegroundColor: ThemedColor(light: .red, dark: .blue)]))
+        .selectable(false)
+        .numberOfLines(2)
+        .lineBreakMode(.byTruncatingTail)
+        .textContainerInset(horizontal: 4, vertical: 2)
+        .onUpdate { item, _ in
+          renderedView = item.view as? TextLabelView
+        }
+    }
+    contentView.overrideTheme = .light
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+    // when: rendering it
+    contentView.refresh(animated: false)
+
+    // then: the text shows in a label view, with the node's settings and the theme's color
+    let labelView = try renderedView.unwrap()
+    expect(labelView.attributedString.string) == "Hello"
+    expect(labelView.attributedString.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color) == .red
+    expect(labelView.numberOfLines) == 2
+    expect(labelView.lineBreakMode) == .byTruncatingTail
+    expect(labelView.textContainerInset) == CGSize(width: 4, height: 2)
+
+    // when: the theme changes to dark, and the view refreshes
+    contentView.overrideTheme = .dark
+    contentView.refresh(animated: false)
+
+    // then: the label view shows the text in the dark theme's color
+    expect(renderedView) === labelView
+    expect(labelView.attributedString.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color) == .blue
+  }
+
+  func test_selectableChange_replacesTheLabelViewWithATextView() throws {
+    // given: a compose view with a text node that isn't selectable, shown in a label view
+    var isSelectable = false
+    var renderedView: View?
+    let contentView = ComposeView {
+      TextNode("Hello")
+        .selectable(isSelectable)
+        .onUpdate { item, _ in
+          renderedView = item.view
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh(animated: false)
+    let labelView = try (renderedView as? TextLabelView).unwrap()
+
+    // when: the text node becomes selectable
+    isSelectable = true
+    contentView.refresh(animated: false)
+
+    // then: a selectable text view showing the text replaces the label view
+    let textView = try (renderedView as? BaseTextView).unwrap()
+    expect(textView.isSelectable) == true
+    expect(textView.attributedString.string) == "Hello"
+    expect(textView.superview) != nil
+    expect(labelView.superview) == nil
+
+    // when: the text node isn't selectable again
+    isSelectable = false
+    contentView.refresh(animated: false)
+
+    // then: a label view replaces the text view
+    expect((renderedView as? TextLabelView)?.attributedString.string) == "Hello"
+    expect(textView.superview) == nil
+  }
+
   func test_view() {
     // given: a compose view with a default text node
     var textView: TextView?
@@ -133,27 +205,24 @@ class TextNodeTests: XCTestCase {
     #endif
 
     // when: the content is updated to a non-selectable, non-editable text node
+    var labelView: TextLabelView?
     contentView.setContent {
       TextNode("Hello, world!")
         .selectable(false)
         .editable(false)
         .onUpdate { item, _ in
-          textView = item.view as? TextView
+          labelView = item.view as? TextLabelView
         }
     }
     contentView.refresh()
 
-    // then: the text view is not selectable and not interactive
-    #if !os(tvOS)
-    expect(textView?.isEditable) == false
-    #endif
-    expect(textView?.isSelectable) == false
-
+    // then: the text shows in a label view instead of a text view, which isn't interactive
+    expect(labelView?.attributedString.string) == "Hello, world!"
     #if canImport(AppKit)
-    expect(textView?.ignoreHitTest) == true
+    expect(labelView?.hitTest(CGPoint(x: 1, y: 1))) == nil
     #endif
     #if canImport(UIKit)
-    expect(textView?.isUserInteractionEnabled) == false
+    expect(labelView?.isUserInteractionEnabled) == false
     #endif
 
     // when: the content is updated to a selectable, editable text node
@@ -561,11 +630,9 @@ class TextNodeTests: XCTestCase {
     var lineBreakMode = NSLineBreakMode.byWordWrapping
     var inset: CGFloat = 0
     var isEditable = true
-    var isSelectable = true
     let contentView = ComposeView {
       TextNode("Configured text")
         .editable(isEditable)
-        .selectable(isSelectable)
         .numberOfLines(numberOfLines)
         .lineBreakMode(lineBreakMode)
         .textContainerInset(horizontal: inset, vertical: inset * 2)
@@ -641,15 +708,13 @@ class TextNodeTests: XCTestCase {
     expect(textView.textContainerInset) == EdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
     #endif
 
-    // when: resizing changes interaction options without changing configured text
+    // when: resizing changes an interaction option without changing configured text
     isEditable = false
-    isSelectable = false
     contentView.frame.size.width = 250
     contentView.setNeedsLayout()
     contentView.layoutIfNeeded()
 
     // then: resizing keeps the interaction options
-    expect(textView.isSelectable) == true
     #if !os(tvOS)
     expect(textView.isEditable) == true
     #endif
@@ -657,17 +722,17 @@ class TextNodeTests: XCTestCase {
     // when: an explicit refresh applies the interaction options
     contentView.refresh(animated: false)
 
-    // then: the reused text view applies the new interaction options
+    // then: the reused text view applies the new interaction options, and stays interactive, since it's selectable
     expect(renderedView) === textView
-    expect(textView.isSelectable) == false
+    expect(textView.isSelectable) == true
     #if !os(tvOS)
     expect(textView.isEditable) == false
     #endif
     #if canImport(AppKit)
-    expect(textView.ignoreHitTest) == true
+    expect(textView.ignoreHitTest) == false
     #endif
     #if canImport(UIKit)
-    expect(textView.isUserInteractionEnabled) == false
+    expect(textView.isUserInteractionEnabled) == true
     #endif
   }
 
@@ -722,7 +787,7 @@ class TextNodeTests: XCTestCase {
   func test_renderableItems_reuseId_matchesTheInteractionSettings() throws {
     for (isEditable, isSelectable, expectedId) in [
       (false, true, "BaseTextView"),
-      (false, false, "BaseTextView.unselectable"),
+      (false, false, "TextLabelView"),
       (true, true, "BaseTextView.editable"),
       (true, false, "BaseTextView.editable.unselectable"),
     ] {
@@ -733,7 +798,7 @@ class TextNodeTests: XCTestCase {
       // when: making its renderable item
       let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
 
-      // then: the item's text view is pooled with the text views of the same interaction settings only
+      // then: the item's view is pooled with the views of the same interaction settings only
       expect(item.reuseId, expectedId) == ReuseId(namespace: .framework, id: expectedId)
     }
   }
@@ -754,13 +819,14 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_reuse_textViewsOfTheSameInteractionSettings() throws {
-    // given: a compose view with its own pool, showing an unselectable text node
+    // given: a compose view with its own pool, showing an editable, unselectable text node
     var showsText = true
     var isSelectable = false
     var renderedView: BaseTextView?
     let contentView = ComposeView {
       if showsText {
         TextNode("Hello", font: Font.systemFont(ofSize: 14))
+          .editable()
           .selectable(isSelectable)
           .onUpdate { item, _ in
             renderedView = item.view as? BaseTextView
@@ -779,7 +845,7 @@ class TextNodeTests: XCTestCase {
     // then: the pooled text view keeps its interaction settings
     expect(unselectableView.isSelectable) == false
 
-    // when: a selectable text node is shown
+    // when: an editable, selectable text node is shown
     showsText = true
     isSelectable = true
     contentView.refresh(animated: false)
@@ -789,7 +855,7 @@ class TextNodeTests: XCTestCase {
     expect(selectableView) !== unselectableView
     expect(selectableView.isSelectable) == true
 
-    // when: the text is removed, and an unselectable text node is shown
+    // when: the text is removed, and an editable, unselectable text node is shown
     showsText = false
     contentView.refresh(animated: false)
     showsText = true
@@ -841,13 +907,14 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_reuse_inTheSameRenderPass_resized_removesTheTextBeforeTheResize() throws {
-    // given: a compose view with its own pool, showing a label, and an observer that records its text view's size at
-    // each edit of its text storage
+    // given: a compose view with its own pool, showing a text node of its text's size, and an observer that records its
+    // text view's size at each edit of its text storage
     var id = "first"
     var text = "First"
     var renderedView: BaseTextView?
     let contentView = ComposeView {
-      LabelNode(text)
+      TextNode(text)
+        .fixedSize(width: true, height: true)
         .id(id)
         .onUpdate { item, _ in
           renderedView = item.view as? BaseTextView
@@ -866,8 +933,8 @@ class TextNodeTests: XCTestCase {
       NotificationCenter.default.removeObserver(observer)
     }
 
-    // when: a label of another size replaces it, so one render pass removes the text view to the pool and reuses it,
-    // resized, for the other label
+    // when: a text node of another size replaces it, so one render pass removes the text view to the pool and reuses
+    // it, resized, for the other text node
     id = "second"
     text = "Second, a longer text"
     contentView.refresh(animated: false)
@@ -881,14 +948,63 @@ class TextNodeTests: XCTestCase {
   }
   #endif
 
+  func test_reuse_labelView_inTheSameRenderPass_replacesTheTextInOneEdit() throws {
+    // given: a compose view with its own pool, showing a label, and an observer of its label view's text storage edits
+    var id = "first"
+    var text = "First"
+    var renderedView: TextLabelView?
+    let contentView = ComposeView {
+      LabelNode(text)
+        .id(id)
+        .onUpdate { item, _ in
+          renderedView = item.view as? TextLabelView
+        }
+    }
+    contentView.renderablePool = RenderablePool()
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.refresh(animated: false)
+    let labelView = try unwrap(renderedView)
+    var editCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: labelView.test.textStorage, queue: nil) { _ in
+      editCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: another label replaces it, so one render pass removes the label view to the pool and reuses it for the
+    // other label
+    id = "second"
+    text = "Second"
+    contentView.refresh(animated: false)
+
+    // then: the label view replaces its text in one edit, since the reset for the pool keeps the text until the end of
+    // the run loop turn, instead of removing it in an edit of its own
+    expect(renderedView) === labelView
+    expect(editCount) == 1
+    expect(labelView.test.textStorage.string) == "Second"
+
+    // when: the run loop turn ends
+    let turnEnded = expectation(description: "the run loop turn ends")
+    onNextRunLoop {
+      turnEnded.fulfill()
+    }
+    wait(for: [turnEnded], timeout: 1)
+
+    // then: the label view keeps the other label's text
+    expect(labelView.test.textStorage.string) == "Second"
+    expect(editCount) == 1
+  }
+
   #if canImport(AppKit)
   func test_reuse_inTheSameRenderPass_replacesTheTextInOneEdit() throws {
-    // given: a compose view with its own pool, showing a label, and an observer of its text view's text storage edits
+    // given: a compose view with its own pool, showing a text node, and an observer of its text view's text storage
+    // edits
     var id = "first"
     var text = "First"
     var renderedView: BaseTextView?
     let contentView = ComposeView {
-      LabelNode(text)
+      TextNode(text)
         .id(id)
         .onUpdate { item, _ in
           renderedView = item.view as? BaseTextView
@@ -907,8 +1023,8 @@ class TextNodeTests: XCTestCase {
       NotificationCenter.default.removeObserver(observer)
     }
 
-    // when: another label replaces it, so one render pass removes the text view to the pool and reuses it for the other
-    // label
+    // when: another text node replaces it, so one render pass removes the text view to the pool and reuses it for the
+    // other text node
     id = "second"
     text = "Second"
     contentView.refresh(animated: false)
@@ -926,7 +1042,7 @@ class TextNodeTests: XCTestCase {
     }
     wait(for: [turnEnded], timeout: 1)
 
-    // then: the text view keeps the other label's text
+    // then: the text view keeps the other text node's text
     expect(shownString(of: textView)) == "Second"
     expect(editCount) == 1
   }
@@ -1373,12 +1489,12 @@ class TextNodeTests: XCTestCase {
 
     // given: two copies of a base text node, one with selectable disabled
     let base = TextNode("hi").fixedSize(width: true, height: true)
-    var defaultView: BaseTextView?
-    var nonSelectableView: BaseTextView?
+    var defaultView: View?
+    var nonSelectableView: View?
     let view = ComposeView {
       VStack {
-        base.onUpdate { item, _ in defaultView = item.view as? BaseTextView }
-        base.selectable(false).onUpdate { item, _ in nonSelectableView = item.view as? BaseTextView }
+        base.onUpdate { item, _ in defaultView = item.view }
+        base.selectable(false).onUpdate { item, _ in nonSelectableView = item.view }
       }
     }
 
@@ -1387,8 +1503,8 @@ class TextNodeTests: XCTestCase {
     view.refresh(animated: false)
 
     // then: each copy renders with its own selectable state
-    expect(defaultView?.isSelectable) == true // TextNode is selectable by default
-    expect(nonSelectableView?.isSelectable) == false // would be true (stale) if the copies shared the base's slot
+    expect((defaultView as? BaseTextView)?.isSelectable) == true // TextNode is selectable by default
+    expect(nonSelectableView is TextLabelView) == true // would be a selectable text view (stale) if the copies shared the base's slot
   }
 
   func test_renderableItems_copyConfiguredAfterLayout_rendersItsOwnSetting() throws {
@@ -1403,7 +1519,7 @@ class TextNodeTests: XCTestCase {
     var copy = node.selectable(false)
     _ = copy.layout(containerSize: containerSize, context: context)
 
-    // when: rendering the copy's item into a text view
+    // when: rendering the copy's item
     let item = try copy.renderableItems(in: bounds).first.unwrap()
     let contentView = ComposeView()
     let renderable = item.make(RenderableMakeContext(initialFrame: nil, contentView: contentView))
@@ -1419,9 +1535,9 @@ class TextNodeTests: XCTestCase {
       animationDecision: ComposeView.AnimationDecision.disabled
     ))
 
-    // then: the text view isn't selectable, since the setter cleared the copy's slot, so the copy took its own slot
-    // instead of returning the node's cached (selectable) item
-    expect((renderable.view as? BaseTextView)?.isSelectable) == false
+    // then: the text shows in a label view, as a text that isn't selectable does, since the setter cleared the copy's slot,
+    // so the copy took its own slot instead of returning the node's cached (selectable) item
+    expect(renderable.view is TextLabelView) == true
   }
 
   // MARK: - Memory Layout

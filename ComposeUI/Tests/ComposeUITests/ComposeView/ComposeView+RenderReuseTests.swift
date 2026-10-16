@@ -222,7 +222,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
   }
 
   func test_textNode_recycledView_resetsTextViewStateFromPreviousUse() throws {
-    // given: a recording pool and a rendered text node, with the text view's state mutated by a previous use
+    // given: a recording pool and a rendered text node, which is selectable, so it shows in a text view, with the text
+    // view's state mutated by a previous use
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     view.renderablePool = pool
@@ -231,7 +232,6 @@ class ComposeView_RenderReuseTests: XCTestCase {
       TextNode("First")
         .numberOfLines(2)
         .lineBreakMode(.byTruncatingTail)
-        .selectable(false)
         .textContainerInset(horizontal: 10, vertical: 20)
         .frame(width: 100, height: 100)
     }
@@ -334,7 +334,6 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // when: a new text node with the same interaction settings reuses the pooled view
     view.setContent {
       TextNode("Second")
-        .selectable(false)
         .frame(width: 100, height: 100)
     }
     view.refresh(animated: false)
@@ -347,13 +346,13 @@ class ComposeView_RenderReuseTests: XCTestCase {
     #if !os(tvOS)
     expect(textView.isEditable) == false
     #endif
-    expect(textView.isSelectable) == false
+    expect(textView.isSelectable) == true
     #if canImport(AppKit)
-    expect(textView.ignoreHitTest) == true
+    expect(textView.ignoreHitTest) == false
     expect(textView.textContainerInset) == .zero
     #endif
     #if canImport(UIKit)
-    expect(textView.isUserInteractionEnabled) == false
+    expect(textView.isUserInteractionEnabled) == true
     expect(textView.textContainerInset) == .zero
     #endif
   }

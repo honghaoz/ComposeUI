@@ -165,10 +165,10 @@ class ComposeView_RenderWorkTests: XCTestCase {
         .frame(width: .flexible, height: Constants.rowHeight)
     }
     view.refresh(animated: false)
-    let textStorages = try view.contentContainerView.subviews
-      .compactMap { $0 as? BaseTextView }
+    let textStorages = view.contentContainerView.subviews
+      .compactMap { $0 as? TextLabelView }
       .sorted { $0.frame.minY < $1.frame.minY }
-      .map { try textStorage(of: $0).unwrap() }
+      .map(\.test.textStorage)
     expect(textStorages.count) == 2
     var editsPerRow = [0, 0]
     let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: nil, queue: nil) { notification in
@@ -183,7 +183,7 @@ class ComposeView_RenderWorkTests: XCTestCase {
     // when: refreshing with the same content
     view.refresh(animated: false)
 
-    // then: the text views of the 2 rows that show keep their text, so their text storages aren't edited
+    // then: the label views of the 2 rows that show keep their text, so their text storages aren't edited
     expect(editsPerRow) == [0, 0]
 
     // when: changing the first row's text, and refreshing
@@ -216,11 +216,6 @@ class ComposeView_RenderWorkTests: XCTestCase {
     view.renderablePool = pool // isolate from the shared pool, so earlier tests don't affect the reuse
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
     return view
-  }
-
-  /// Returns the text storage that shows the text view's text.
-  private func textStorage(of textView: BaseTextView) -> NSTextStorage? {
-    textView.textStorage
   }
 }
 

@@ -81,8 +81,8 @@ class ComposeNode_TransformTests: XCTestCase {
     item.update(renderable, updateContext)
 
     // then: the rendered text uses the mapped font and the node grows taller
-    let textView = try (renderable.view as? BaseTextView).unwrap()
-    let font = textView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font
+    let labelView = try (renderable.view as? TextLabelView).unwrap()
+    let font = labelView.attributedString.attribute(.font, at: 0, effectiveRange: nil) as? Font
     try expect(font) == unwrap(Font.systemFont(ofSize: 28))
     expect(updated.size.height) > baseSize.height
   }
