@@ -1649,12 +1649,13 @@ class NSAttributedString_SizingTests: XCTestCase {
       (NSAttributedString(string: "Two\nparagraphs", attributes: [.font: unwrap(Font(name: "HelveticaNeue", size: 16))]), 0, 200, .byWordWrapping),
     ]
     let sizesMeasured = expectation(description: "the sizes are measured off the main thread")
-    var expectedSizes: [CGSize] = []
+    var measuredSizes: [CGSize]?
     DispatchQueue.global().async {
-      expectedSizes = measurements.map { $0.text.computeBoundingRectSize(numberOfLines: $0.numberOfLines, layoutWidth: $0.layoutWidth, lineBreakMode: $0.lineBreakMode) }
+      measuredSizes = measurements.map { $0.text.computeBoundingRectSize(numberOfLines: $0.numberOfLines, layoutWidth: $0.layoutWidth, lineBreakMode: $0.lineBreakMode) }
       sizesMeasured.fulfill()
     }
     wait(for: [sizesMeasured], timeout: 10)
+    let expectedSizes = try unwrap(measuredSizes)
 
     for index in Array(measurements.indices) + measurements.indices.reversed() {
       // when: measuring the texts one after another on the main thread, in the text system that measures them there,
