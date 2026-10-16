@@ -92,6 +92,7 @@
 - Fixed a text node sized to fit its text's width, such as with `fixedSize()`, wrapping or cutting off its text when it has a horizontal text container inset: its width now includes the inset on each side, as its height does. On macOS, `BaseTextView`'s intrinsic content size now includes its text container inset, with its text measured in the width inside the inset, as on iOS, tvOS and visionOS.
 - When the view or layer type of a renderable item changes under the same id, such as a `ViewNode` of another view class, `ComposeView` replaces its renderable with one of the new type, without the item's transitions, instead of crashing when it updates the renderable of the old type.
 - A `ComposeView` that's released while its items animate out deallocates right away, instead of staying until their removal transitions complete. Like the view's other items, those items don't get their `onRemove` blocks called, and their views and layers don't go back to the reuse pool.
+- Scrolling is faster: a render pass keeps the `zPosition` of the layers whose items keep their places, instead of giving every shown layer a new one on each scroll step, which in a window made Core Animation copy each layer again. Scrolling rows of labels in a window takes 3% to 4% fewer instructions and 8% to 16% fewer allocations, and scrolling rows of colors takes 5% to 8% fewer instructions.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
