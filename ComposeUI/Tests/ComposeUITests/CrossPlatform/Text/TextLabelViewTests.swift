@@ -87,7 +87,7 @@ class TextLabelViewTests: XCTestCase {
   }
 
   #if canImport(UIKit)
-  func test_draw_link_showsInTheTintColorAsATextViewDoes() {
+  func test_draw_link_tintColor_showsAsATextViewDoes() {
     // given: a label view and a text view with a red tint color, set before their text, which has a link
     let testCase = Self.linkCase()
     let labelView = TextLabelView(frame: CGRect(origin: .zero, size: testCase.size))
@@ -97,15 +97,20 @@ class TextLabelViewTests: XCTestCase {
     textView.tintColor = .red
     Self.configure(textView, testCase)
 
-    // then: the link shows in the tint color in both, in the same pixels
+    // then: the link shows in the same pixels in both, in the tint color, except on visionOS, where a text view shows a
+    // link in the system link color, whatever the tint color
     expect(Self.differingPixelCount(Self.pixels(of: labelView), Self.pixels(of: textView))) == 0
+    #if os(visionOS)
+    expect(Self.differingPixelCount(Self.pixels(of: labelView), Self.pixels(of: Self.makeLabelView(testCase)))) == 0
+    #else
     expect(Self.differingPixelCount(Self.pixels(of: labelView), Self.pixels(of: Self.makeLabelView(testCase)))) > 0
+    #endif
 
     // when: the tint color changes after the text is set
     labelView.tintColor = .green
     textView.tintColor = .green
 
-    // then: the link follows the tint color in both
+    // then: the link still shows in the same pixels in both
     expect(Self.differingPixelCount(Self.pixels(of: labelView), Self.pixels(of: textView))) == 0
   }
 
@@ -120,6 +125,23 @@ class TextLabelViewTests: XCTestCase {
 
     // then: the view doesn't draw again, since no part of its text shows in the tint color
     expect(Self.needsDisplay(labelView)) == false
+  }
+
+  func test_tintColorChange_textWithALink_redrawsWhereTheLinkFollowsTheTintColor() {
+    // given: a label view showing a text with a link, drawn
+    let labelView = Self.makeLabelView(Self.linkCase())
+    Self.clearNeedsDisplay(labelView)
+
+    // when: the tint color changes
+    labelView.tintColor = .red
+
+    // then: the view draws again, since its link shows in the tint color, except on visionOS, where the link shows in
+    // the system link color
+    #if os(visionOS)
+    expect(Self.needsDisplay(labelView)) == false
+    #else
+    expect(Self.needsDisplay(labelView)) == true
+    #endif
   }
   #endif
 

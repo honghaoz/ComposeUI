@@ -105,7 +105,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   private var lastText = NSAttributedString()
 
   #if canImport(UIKit)
-  /// Whether the shown text has a link, which shows in the view's tint color.
+  /// Whether the shown text has a link, which shows in the link color.
   private var hasLink = false
   #endif
 
@@ -152,10 +152,10 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// shows it.
   ///
   /// TextKit 1 aligns a paragraph without a writing direction by the user's language instead of by its text, so each
-  /// paragraph is shown in the direction of its text, as ComposeUI measures it. A UIKit text view shows a link in its
-  /// tint color instead of in TextKit's link style, which adds an underline, so on UIKit, each link shows in the view's
-  /// tint color, and the view records whether the text has a link, to show it again when the tint color changes, while
-  /// an AppKit text view's link style is TextKit's.
+  /// paragraph is shown in the direction of its text, as ComposeUI measures it. A UIKit text view shows a link in a
+  /// color instead of in TextKit's link style, which adds an underline, so on UIKit, each link shows in the link color,
+  /// and the view records whether the text has a link, to show it again when the tint color changes, while an AppKit
+  /// text view's link style is TextKit's.
   ///
   /// - Parameter text: The text that the view is set to show.
   /// - Returns: The text that the text storage shows.
@@ -169,12 +169,24 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     #if canImport(UIKit)
     hasLink = shownText.hasLink
     if hasLink {
-      return shownText.showingLinks(in: tintColor)
+      return shownText.showingLinks(in: linkColor)
     } else {
       return shownText
     }
     #endif
   }
+
+  #if canImport(UIKit)
+  /// The color that a link shows in, as a UIKit text view shows a link by default: the tint color, except on visionOS,
+  /// where it's the system link color, whatever the tint color.
+  private var linkColor: UIColor {
+    #if os(visionOS)
+    return .link
+    #else
+    return tintColor
+    #endif
+  }
+  #endif
 
   // MARK: - Drawing
 
@@ -248,6 +260,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     drawText()
   }
 
+  #if !os(visionOS)
   override public func tintColorDidChange() {
     super.tintColorDidChange()
 
@@ -257,6 +270,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
       setNeedsDisplay()
     }
   }
+  #endif
 
   // MARK: - Accessibility
 
