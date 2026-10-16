@@ -40,138 +40,242 @@ import UIKit
 
 extension ComposeView {
 
-  /// The z-order maintenance strategy for a render pass.
+  /// The z-order bookkeeping of a render pass.
   ///
-  /// The plan maintains the view hierarchy (subview) order for view items, which drives the hit-testing order.
-  /// The visual z-order across all renderables (views and layers) is driven by the renderable layers' `zPosition`,
-  /// which is assigned per item in the render pass and needs no plan.
-  enum ZOrderPlan {
+  /// The renderables render in the items order, a later item above an earlier one, whatever their kind, which takes two
+  /// orders:
+  ///
+  /// - The visual order comes from the renderable layers' `zPosition`. The views' backing layers and the layer items'
+  ///   layers share the content view's sublayers, but AppKit stacks the backing layers above the other sublayers when it
+  ///   displays, so the sublayer order can't keep the two kinds interleaved. A layer's `zPosition` is its item's z-index
+  ///   band plus a fraction of its key, which increases in the items order (see `updateZPosition(of:zIndex:index:)`).
+  /// - The hit-testing order comes from the subview order, which the pass keeps in the items order among the view items.
+  ///   Layer items never hit-test.
+  ///
+  /// A render pass records each reused item, an item of the previous pass that it keeps, from the loop that walks the
+  /// previous items in order (`recordReuse(oldIndex:newIndex:)`), finishes recording, then places each renderable in
+  /// the items order.
+  ///
+  /// A renderable that's being removed with a transition isn't an item of the pass, so its layer keeps the key it last
+  /// got, which keeps it in its place while the reused items keep their keys. When the items' keys move to the middle
+  /// of their range, the pass moves the removing layers' keys by as much (`moveKeys(ofRemovingRenderables:)`).
+  struct ZOrderPass {
 
-    /// The reused items keep their relative order and need no moves.
-    /// New items at the front of the z-order are placed correctly by the natural insertion order, e.g. new items revealed by scrolling down.
-    /// If `needsNewItemPlacement` is true, some new items are below reused items in the z-order and need to be placed after the update pass.
-    case minimal(needsNewItemPlacement: Bool)
+    /// The offset of the items' keys from their indices: an item's key is its index plus 1 plus the offset.
+    ///
+    /// The pass shifts the previous pass's offset by how far the reused item nearest the middle moved, so that the
+    /// reused items keep their keys, and their layers their `zPosition`, when they keep their places relative to that
+    /// item. A scroll adds and removes items near the ends, so it changes the `zPosition` of no reused item, except one
+    /// next to an item that moves in or out of a partly shown row at an end. A change of `zPosition` in a window copies
+    /// the layer's properties and makes the commit copy the layer again.
+    private(set) var keyOffset = 0
 
-    /// Move every view item to the front in the items order.
-    case full
+    /// Whether the reused items changed their order, so that every view moves to the front in the items order.
+    ///
+    /// Moving a view to the front costs time in proportion to its siblings, so the pass moves the views only when the
+    /// reused items changed their order, such as in a refresh that reordered the content. Otherwise, the reused views
+    /// stay where they are, and each new view goes below the next reused view, see `insert(_:at:into:ids:reusedRenderables:)`.
+    private(set) var restacksViews = false
 
-    /// Whether every view item needs to be moved to the front in the items order.
-    var needsFullUpdate: Bool {
-      switch self {
-      case .minimal:
-        return false
-      case .full:
-        return true
+    /// The index of the reused item nearest the middle of the previous items.
+    private let oldMiddleIndex: Int
+
+    /// The key offset of the previous render pass, whose keys the layers of the items that this pass removes still have.
+    private let previousKeyOffset: Int
+
+    /// How far the index of the reused item nearest the middle of the previous items moved back.
+    private var keyShift: Int?
+
+    /// How far the keys moved further than the shift, when they moved to the middle of their range, or 0.
+    private var keyMove = 0
+
+    /// The new index of the last reused item recorded, or -1 before the first.
+    private var lastReusedNewIndex = -1
+
+    /// Where the search for the next reused view stopped: the index of the item with that view, or the item count when
+    /// no reused view comes after. -1 before the first search.
+    private var nextReusedViewIndex = -1
+
+    /// The next reused view, the view of the item at `nextReusedViewIndex`, or `nil` when no reused view comes after.
+    private var nextReusedView: View?
+
+    /// Creates the bookkeeping of a render pass.
+    ///
+    /// - Parameters:
+    ///   - oldItemCount: The number of items in the previous render pass.
+    ///   - previousKeyOffset: The key offset of the previous render pass.
+    init(oldItemCount: Int, previousKeyOffset: Int) {
+      oldMiddleIndex = oldItemCount / 2
+      self.previousKeyOffset = previousKeyOffset
+    }
+
+    /// Returns the key that the item at an index of the previous render pass got, which its layer keeps when the item
+    /// is removed with a transition.
+    ///
+    /// - Parameter oldIndex: The item's index in the previous render pass.
+    func previousKey(at oldIndex: Int) -> Int {
+      oldIndex + 1 + previousKeyOffset
+    }
+
+    /// Records a reused item, called in the order of the previous items.
+    ///
+    /// - Parameters:
+    ///   - oldIndex: The item's index in the previous render pass.
+    ///   - newIndex: The item's index in this render pass.
+    mutating func recordReuse(oldIndex: Int, newIndex: Int) {
+      // a scroll moves items in and out near the ends, so the items around the middle move together, while an end can
+      // lose or gain an item in the middle of a partly shown row
+      if keyShift == nil || oldIndex <= oldMiddleIndex {
+        keyShift = oldIndex - newIndex
       }
-    }
-  }
 
-  /// Computes the z-order maintenance plan for a render pass.
-  ///
-  /// - Parameters:
-  ///   - oldIds: The renderable item ids of the previous render pass, in z-order (back to front).
-  ///   - newIds: The renderable item ids of the current render pass, in z-order (back to front).
-  ///   - reusingIds: The ids of the reused renderables, which are in both `oldIds` and `newIds`.
-  /// - Returns: The z-order plan.
-  static func makeZOrderPlan(oldIds: [ComposeNodeId], newIds: [ComposeNodeId], reusingIds: Set<ComposeNodeId>) -> ZOrderPlan {
-    // when the content is unchanged and every renderable is reused, no z-order maintenance is needed. a renderable that
-    // replaces one of another type keeps its id, but it's new and inserted at the front, so it needs placing.
-    if reusingIds.count == newIds.count, newIds == oldIds {
-      return .minimal(needsNewItemPlacement: false)
+      // the reused items keep their order when their new indices increase in the order of their old indices
+      if newIndex <= lastReusedNewIndex {
+        restacksViews = true
+      }
+      lastReusedNewIndex = newIndex
     }
 
-    // `reusingIds` (items present in both the old and new render passes) are the reused items.
-    // In z-order terms they stay in the hierarchy and keep their existing positions, so we never move them.
-    //
-    // The update pass leaves reused renderables where they already are and inserts new renderables at
-    // the front (top) of the z-order. This function decides whether that is enough, or a full re-stack
-    // is needed.
-    //
-    // Reused items are never moved in the cheap plan, so their relative order stays locked to `oldIds`.
-    // Therefore:
-    // - If the reused items appear in a different relative order in `newIds`, the cheap plan cannot
-    //   reproduce it, so we re-stack everything -> `.full`.
-    // - Otherwise the reused items are already correct. New items were stacked at the front, which is
-    //   only correct for items that belong at the front. A new item that should sit *below* a reused
-    //   item got placed too high and must be nudged back down afterwards -> `needsNewItemPlacement = true`.
-    //
-    // To compare the relative order, we walk `newIds` and match each reused id against the next reused
-    // id in `oldIds` (skipping ids removed this pass). They must line up one-for-one.
+    /// Finishes recording the reused items.
+    ///
+    /// - Parameter itemCount: The number of items in this render pass.
+    mutating func finishRecording(itemCount: Int) {
+      let shift = keyShift ?? 0
+      keyOffset = Self.keyOffset(previous: previousKeyOffset, shift: shift, itemCount: itemCount)
+      keyMove = keyOffset - (previousKeyOffset + shift)
+    }
 
-    var oldIndex = 0 // cursor into `oldIds`, advanced in lockstep with the reused ids seen in `newIds`
-    let oldCount = oldIds.count
-    var seenNewItem = false // whether a new (not reused) item has been passed in `newIds` so far
-    var needsNewItemPlacement = false // whether a new item ended up above a reused item
-
-    for id in newIds {
-      if reusingIds.contains(id) {
-        // Case A: a reused item. It must match the next reused id in the old order.
-
-        // skip over old ids that were removed this pass (not reused) to reach the next reused id.
-        while oldIndex < oldCount, !reusingIds.contains(oldIds[oldIndex]) {
-          oldIndex += 1
-        }
-        guard oldIndex < oldCount, oldIds[oldIndex] == id else {
-          // mismatch: the reused items were reordered, which the cheap plan can't reproduce.
-          return .full
-        }
-        oldIndex += 1
-
-        if seenNewItem {
-          // this reused item sits above a new item in `newIds`, but the update pass placed new items at
-          // the very front, so that new item ended up too high and must be moved back down below this one.
-          needsNewItemPlacement = true
-        }
+    /// Returns the key offset of a render pass.
+    ///
+    /// - Parameters:
+    ///   - previous: The key offset of the previous render pass.
+    ///   - shift: How far the index of the reused item nearest the middle moved back since the previous render pass,
+    ///     or 0 without a reused item.
+    ///   - itemCount: The number of items in the render pass.
+    /// - Returns: The previous offset shifted, which keeps the reused items' keys, unless the keys, from the offset
+    ///   plus 1 to the offset plus the item count, would leave the range from 1 to `Constants.maxKey`. Then the keys
+    ///   move to the middle of the range, which leaves room for later items at either end.
+    static func keyOffset(previous: Int, shift: Int, itemCount: Int) -> Int {
+      let offset = previous + shift
+      if offset >= 0, offset <= Constants.maxKey - itemCount {
+        return offset
       } else {
-        // Case B: a brand-new item. Remember it so any reused item that comes after (above) it in
-        // `newIds` flags that this new item was placed too high.
-        seenNewItem = true
+        return max(0, (Constants.maxKey - itemCount) / 2)
       }
     }
 
-    // the reused items matched their previous relative order, so the cheap plan applies.
-    return .minimal(needsNewItemPlacement: needsNewItemPlacement)
-  }
+    /// Updates a renderable layer's `zPosition` to its item's z-index band plus a fraction of its key.
+    ///
+    /// The render pass owns the renderable layers' `zPosition`: it assigns it on every render pass and resets it when a
+    /// renderable goes to the reuse pool. Use `ComposeNode.zIndex(_:)` to control the stacking instead of setting
+    /// `zPosition` directly.
+    ///
+    /// - Parameters:
+    ///   - renderable: The renderable to update.
+    ///   - zIndex: The item's z-index, if any.
+    ///   - index: The item's index in the render pass.
+    func updateZPosition(of renderable: Renderable, zIndex: CGFloat?, index: Int) {
+      setZPosition(of: renderable, zIndex: zIndex, key: index + 1 + keyOffset)
+    }
 
-  /// Places the new view renderables that are not at the front of the subview order to their correct positions.
-  ///
-  /// The render update pass inserts new renderables at the front. For new view renderables that should be below reused
-  /// view renderables, this method moves them below their next view sibling, walking the items from the front to the
-  /// back so that each move's anchor is already placed correctly.
-  ///
-  /// Only view items are placed: the subview order drives the hit-testing order, so it is kept in sync with the items
-  /// order. The visual z-order across all renderables (views and layers) is driven by the renderable layers' `zPosition`,
-  /// so layer items need no placement.
-  ///
-  /// - Parameters:
-  ///   - reusingIds: The ids of the reused renderables.
-  ///   - renderableItemIds: The ids of the renderables being rendered, in z-order (back to front).
-  ///   - renderableMap: The map of the renderables being rendered, keyed by id.
-  func placeNewRenderables(reusingIds: Set<ComposeNodeId>, renderableItemIds: [ComposeNodeId], renderableMap: [ComposeNodeId: Renderable]) {
-    let parent = contentContainerView
-
-    // the next view sibling (already placed correctly), while walking from front to back
-    var nextViewSibling: View?
-
-    // whether a reused view item exists above the current position;
-    // new items with no reused item above are already placed correctly by the natural insertion order
-    var hasReusedViewAbove = false
-
-    for id in renderableItemIds.reversed() {
-      guard let view = renderableMap[id]?.view else {
-        continue
+    /// Moves the keys of the removing renderables' layers, and their `zPosition`, by as much as the pass moved the
+    /// items' keys to the middle of their range, so that each layer keeps its place among the items.
+    ///
+    /// - Parameter removingRenderables: The renderables being removed.
+    func moveKeys(ofRemovingRenderables removingRenderables: inout [RemovingRenderableKey: RemovingRenderable]) {
+      guard keyMove != 0 else {
+        return
       }
 
-      if reusingIds.contains(id) {
-        hasReusedViewAbove = true
-      } else if hasReusedViewAbove, let sibling = nextViewSibling {
-        // a positioned insertion for each move, instead of a single sort pass over the subviews, because the subview
-        // list can contain views that are not part of this render pass (e.g. views with an in-flight remove transition).
-        // a sort pass with a partial order can move those unmanaged views or miss moves when they interleave with the
-        // managed views, while a positioned insertion only touches the moved view.
+      for (key, removingRenderable) in removingRenderables {
+        let zPositionKey = Self.key(removingRenderable.zPositionKey, movedBy: keyMove)
+        removingRenderables[key]?.zPositionKey = zPositionKey
+        setZPosition(of: removingRenderable.renderable, zIndex: removingRenderable.zIndex, key: zPositionKey)
+      }
+    }
+
+    /// Returns a removing renderable's key moved by an offset.
+    ///
+    /// A removal that lasts while the keys drift by about half their range leaves its layer's key far from the items'
+    /// keys, where a move can take it past an end of the range. The key then stops at that end, which keeps the layer
+    /// in its z-index band, instead of moving it into the next band.
+    ///
+    /// - Parameters:
+    ///   - key: The key to move.
+    ///   - offset: How far the items' keys moved.
+    /// - Returns: The moved key, within the range from 1 to `Constants.maxKey`.
+    static func key(_ key: Int, movedBy offset: Int) -> Int {
+      min(max(key + offset, 1), Constants.maxKey)
+    }
+
+    /// Sets a renderable layer's `zPosition` to a z-index band plus a fraction of a key.
+    ///
+    /// Both the items and the removing renderables get their `zPosition` here, so that equal keys give equal values: a
+    /// removing layer that shares its key with an item then stacks by the sublayer order, as before the keys moved,
+    /// instead of by a rounding difference.
+    private func setZPosition(of renderable: Renderable, zIndex: CGFloat?, key: Int) {
+      let fraction = CGFloat(key) * Constants.zPositionStep
+      ComposeUI.assert(fraction < 1, "too many renderable items to maintain the items order within a z-index band")
+
+      let zPosition = (zIndex ?? 0) + fraction
+      let layer = renderable.layer
+      guard layer.zPosition != zPosition else {
+        return
+      }
+
+      layer.disableActions(for: "zPosition") {
+        layer.zPosition = zPosition
+      }
+    }
+
+    /// Adds a new renderable to the content view, in the subview order of the items if it's a view.
+    ///
+    /// A new view goes below the next reused view in the items order, or to the front when no reused view comes after
+    /// it. The reused views keep their order, so each view is in place once it's added, without another move. When
+    /// the reused views restack, every view goes to the front in the items order instead.
+    ///
+    /// - Parameters:
+    ///   - renderable: The new renderable.
+    ///   - index: The item's index in the render pass.
+    ///   - parent: The content view.
+    ///   - ids: The ids of the render pass's items, in order.
+    ///   - reusedRenderables: The reused renderables, by their items' ids.
+    mutating func insert(_ renderable: Renderable, at index: Int, into parent: View, ids: [ComposeNodeId], reusedRenderables: [ComposeNodeId: Renderable]) {
+      if !restacksViews, let view = renderable.view, let sibling = nextReusedView(after: index, ids: ids, reusedRenderables: reusedRenderables) {
         parent.insertSubview(view, belowSubview: sibling)
+      } else {
+        renderable.addToParent(parent)
       }
-      nextViewSibling = view
+    }
+
+    /// Returns the next reused view after an index in the items order, or `nil` when no reused view comes after it.
+    ///
+    /// The new views are added in the items order, so the search continues from the view it found for the previous new
+    /// view, which looks at each item at most once in a render pass.
+    private mutating func nextReusedView(after index: Int, ids: [ComposeNodeId], reusedRenderables: [ComposeNodeId: Renderable]) -> View? {
+      if nextReusedViewIndex <= index {
+        nextReusedViewIndex = index + 1
+        nextReusedView = nil
+        while nextReusedViewIndex < ids.count {
+          if let view = reusedRenderables[ids[nextReusedViewIndex]]?.view {
+            nextReusedView = view
+            break
+          }
+          nextReusedViewIndex += 1
+        }
+      }
+      return nextReusedView
+    }
+
+    // MARK: - Constants
+
+    enum Constants {
+
+      /// The `zPosition` step between two adjacent keys.
+      static let zPositionStep: CGFloat = 1e-6
+
+      /// The largest key, whose fraction, the key times `zPositionStep`, keeps an item within its z-index band.
+      static let maxKey = 999999
     }
   }
 }

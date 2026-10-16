@@ -168,13 +168,7 @@ open class ComposeView: BaseScrollView {
   /// The map of the renderables that are being rendered.
   private var renderableMap: [ComposeNodeId: Renderable] = [:]
 
-  /// The offset of the renderable items' z-position keys from their indices, see `updateZPosition(of:zIndex:key:)`.
-  ///
-  /// A render pass shifts it by how far the index of the reused item nearest the middle moved, so that the reused items
-  /// keep their keys, and their layers their `zPosition`, when they keep their places relative to that item. A scroll
-  /// adds and removes items near the ends, so it changes the `zPosition` of no reused item, except one next to an item
-  /// that moves in or out of a partly shown row at an end. A change of `zPosition` in a window copies the layer's
-  /// properties and makes the commit copy the layer again.
+  /// The offset of the renderable items' z-position keys from their indices in the last render pass, see `ZOrderPass.keyOffset`.
   private var zPositionKeyOffset = 0
 
   /// A renderable with an in-flight removal.
@@ -193,7 +187,8 @@ open class ComposeView: BaseScrollView {
     let zIndex: CGFloat?
 
     /// The z-position key of the renderable's layer, which a render pass moves along with the items' keys when it moves
-    /// them to the middle of their range, so that the layer keeps its place among the items.
+    /// them to the middle of their range, so that the layer keeps its place among the items, see
+    /// `ZOrderPass.moveKeys(ofRemovingRenderables:)`.
     var zPositionKey: Int
   }
 
@@ -1409,17 +1404,11 @@ open class ComposeView: BaseScrollView {
 
     // update the renderables
 
-    // the ids of the items whose renderable is still in the content and will be reused
-    var reusingIds: Set<ComposeNodeId> = []
-
     // the ids of the items whose renderable type changed, so their renderables are replaced
     var replacedIds: Set<ComposeNodeId> = []
 
-    // how far the index of the reused item nearest the middle of the old items moved back, which shifts the z-position
-    // keys (see `zPositionKeyOffset`). a scroll moves items in and out near the ends, so the items around the middle
-    // move together, while an end can lose or gain an item in the middle of a partly shown row
-    var zPositionKeyShift: Int?
-    let oldMiddleIndex = oldRenderableItemIds.count / 2
+    // the z-order bookkeeping, which records the reused items below
+    var zOrder = ZOrderPass(oldItemCount: oldRenderableItemIds.count, previousKeyOffset: zPositionKeyOffset)
 
     // the old and new items are read in place from their arrays, by index, since looking them up in a map of items
     // would copy each item, which retains and releases its references
@@ -1430,10 +1419,7 @@ open class ComposeView: BaseScrollView {
       if let newIndex = renderableItemIndexMap[oldId] {
         if oldRenderableItems[oldIndex].hasSameRenderableType(as: newRenderableItems[newIndex]) {
           // this renderable item is still in the content, plan to reuse it
-          reusingIds.insert(oldId)
-          if zPositionKeyShift == nil || oldIndex <= oldMiddleIndex {
-            zPositionKeyShift = oldIndex - newIndex
-          }
+          zOrder.recordReuse(oldIndex: oldIndex, newIndex: newIndex)
           continue
         } else {
           // an item can only update a renderable of its own type, so when its type changed, the old renderable is
@@ -1476,7 +1462,7 @@ open class ComposeView: BaseScrollView {
             // animations in sublayers should be cleared by the node's `resetForReuse` block.
             oldRenderable.layer.removeAllAnimations()
 
-            // the render pass owns the renderable layer's `zPosition` (see `updateZPosition(of:zIndex:key:)`),
+            // the render pass owns the renderable layer's `zPosition` (see `ZOrderPass.updateZPosition(of:zIndex:index:)`),
             // reset it so the pooled renderable is freshly-made-equivalent.
             if oldRenderable.layer.zPosition != 0 {
               oldRenderable.layer.disableActions(for: "zPosition") {
@@ -1520,7 +1506,7 @@ open class ComposeView: BaseScrollView {
             removeTransition: removeTransition,
             completion: completion,
             zIndex: oldRenderableItem.zIndex,
-            zPositionKey: oldIndex + 1 + self.zPositionKeyOffset
+            zPositionKey: zOrder.previousKey(at: oldIndex)
           )
 
           #if DEBUG
@@ -1553,31 +1539,9 @@ open class ComposeView: BaseScrollView {
       }
     }
 
-    // Determine the z-order maintenance plan.
-    //
-    // The visual z-order across all renderables (views and layers) is driven by the renderable layers' `zPosition` (see
-    // `updateZPosition(of:zIndex:key:)`), which is assigned per item in the update pass below.
-    //
-    // The plan here maintains the *view hierarchy* order for view items, which drives the hit-testing order, so the
-    // hit-testing order matches the visual order among view items.
-    //
-    // Each `moveToFront()` call costs O(N) work in the sibling list. With N reused items that compounds to O(N²) per
-    // render pass. The plan avoids the per-item `moveToFront()` calls when the hierarchy order can be maintained with cheaper moves:
-    // - When the content is unchanged, no z-order maintenance is needed.
-    // - When the reused items keep their relative order, which is the common case for scrolling, the reused items
-    //   need no moves at all:
-    //   - New items at the front of the z-order (e.g. revealed by scrolling down) are appended at the front naturally.
-    //   - Other new items (e.g. revealed by scrolling up) are placed below their next sibling after the update pass.
-    // - Otherwise (e.g. a refresh that reordered items), every view item is moved to the front in the items order.
-    let zOrderPlan = Self.makeZOrderPlan(oldIds: oldRenderableItemIds, newIds: renderableItemIds, reusingIds: reusingIds)
-    let zOrderNeedsFullUpdate = zOrderPlan.needsFullUpdate
-
-    let keyShift = zPositionKeyShift ?? 0
-    let zPositionKeyOffset = Self.zPositionKeyOffset(previous: self.zPositionKeyOffset, shift: keyShift, itemCount: newRenderableItemsCount)
-    // the removing renderables' layers hold their keys, so when the keys move further than the shift, to the middle of
-    // their range, the removing layers' keys move by as much, so that each layer keeps its place among the items
-    moveRemovingZPositionKeys(by: zPositionKeyOffset - (self.zPositionKeyOffset + keyShift))
-    self.zPositionKeyOffset = zPositionKeyOffset
+    zOrder.finishRecording(itemCount: newRenderableItemsCount)
+    zPositionKeyOffset = zOrder.keyOffset
+    zOrder.moveKeys(ofRemovingRenderables: &removingRenderableMap)
 
     for (itemIndex, renderableItem) in newRenderableItems.enumerated() {
       let id = renderableItem.id
@@ -1625,13 +1589,13 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
-        if zOrderNeedsFullUpdate, renderable.view != nil {
+        if zOrder.restacksViews, renderable.view != nil {
           // only view items need re-stacking: the subview order drives the hit-testing order.
           // the visual z-order is driven by the layers' `zPosition`, so layer items need no re-stacking.
           renderable.moveToFront()
         }
 
-        updateZPosition(of: renderable, zIndex: renderableItem.zIndex, key: itemIndex + 1 + zPositionKeyOffset)
+        zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
         renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
@@ -1710,11 +1674,11 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
-        renderable.addToParent(contentContainerView)
+        zOrder.insert(renderable, at: itemIndex, into: contentContainerView, ids: renderableItemIds, reusedRenderables: oldRenderableMap)
         renderable.assertIdentityTransform()
         renderable.setFrame(newFrame)
 
-        updateZPosition(of: renderable, zIndex: renderableItem.zIndex, key: itemIndex + 1 + zPositionKeyOffset)
+        zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
         renderableItem.performUpdate(renderable, renderableUpdateContext)
 
@@ -1764,20 +1728,6 @@ open class ComposeView: BaseScrollView {
       }
 
       renderableMap[id] = renderable
-    }
-
-    // the insertion pass above places new items at the front. for new view items that should be below reused view
-    // items (e.g. items revealed by scrolling up), move them below their next view sibling, so the subview order
-    // (which drives the hit-testing order) matches the items order.
-    switch zOrderPlan {
-    case .minimal(let needsNewItemPlacement):
-      if needsNewItemPlacement {
-        placeNewRenderables(reusingIds: reusingIds, renderableItemIds: renderableItemIds, renderableMap: renderableMap)
-      }
-    case .full:
-      // aka zOrderNeedsFullUpdate == true
-      // every view item was already moved to the front in items order, so no extra placement is needed.
-      break
     }
 
     #if DEBUG
@@ -2051,101 +2001,6 @@ open class ComposeView: BaseScrollView {
       lastRenderInsets?.isEqual(to: adjustedContentInset) == false
   }
 
-  /// Updates the renderable layer's `zPosition` so that renderables render in the items order, regardless of the
-  /// renderable's kind (view or layer).
-  ///
-  /// View items are rendered as subviews while layer items are rendered as standalone sublayers. Both kinds share the
-  /// sublayer list of `contentContainerView`'s layer, but keeping that list interleaved in the items order is not
-  /// possible on AppKit: AppKit re-stacks the subviews' backing layers above the standalone sublayers at display time.
-  /// `zPosition` drives the render order among sibling layers regardless of the sublayer list order (and survives
-  /// AppKit's re-stacking), so the render pass maintains the cross-kind z-order with `zPosition`.
-  ///
-  /// The effective z-position is the item's z-index band (see `ComposeNode.zIndex(_:)`, defaulting to 0) plus a small
-  /// fraction of the item's key, which increases in the items order, so that renderables stack in the items order
-  /// within the same z-index band. An item's key is its index plus 1 plus `zPositionKeyOffset`.
-  ///
-  /// The render pass owns the managed renderable layers' `zPosition`: it is assigned on every render pass and is reset
-  /// when a renderable is added to the reuse pool. Use `ComposeNode.zIndex(_:)` to control the stacking explicitly
-  /// instead of setting `zPosition` directly.
-  ///
-  /// - Parameters:
-  ///   - renderable: The renderable to update.
-  ///   - zIndex: The item's explicit z-index, if any.
-  ///   - key: The item's z-position key, from 1 to `Constants.maxZPositionKey`.
-  private func updateZPosition(of renderable: Renderable, zIndex: CGFloat?, key: Int) {
-    let fraction = CGFloat(key) * Constants.zPositionStep
-    ComposeUI.assert(fraction < 1, "too many renderable items to maintain the items order within a z-index band")
-
-    let zPosition = (zIndex ?? 0) + fraction
-    let layer = renderable.layer
-    guard layer.zPosition != zPosition else {
-      return
-    }
-
-    layer.disableActions(for: "zPosition") {
-      layer.zPosition = zPosition
-    }
-  }
-
-  /// Returns the offset of a render pass's z-position keys from the items' indices, see `zPositionKeyOffset`.
-  ///
-  /// - Parameters:
-  ///   - previous: The offset of the previous render pass.
-  ///   - shift: How far the index of the reused item nearest the middle moved back since the previous render pass, or 0
-  ///     without a reused item.
-  ///   - itemCount: The number of items in the render pass.
-  /// - Returns: The previous offset shifted, which keeps the reused items' keys, unless the keys, from the offset plus 1
-  ///   to the offset plus the item count, would leave the range from 1 to `Constants.maxZPositionKey`. Then the keys move
-  ///   to the middle of the range, which leaves room for later items at either end.
-  static func zPositionKeyOffset(previous: Int, shift: Int, itemCount: Int) -> Int {
-    let offset = previous + shift
-    if offset >= 0, offset <= Constants.maxZPositionKey - itemCount {
-      return offset
-    } else {
-      return max(0, (Constants.maxZPositionKey - itemCount) / 2)
-    }
-  }
-
-  /// Moves the z-position keys of the removing renderables' layers, and their `zPosition`, by an offset.
-  ///
-  /// - Parameter offset: How far the items' keys moved further than the shift of the render pass, or 0.
-  private func moveRemovingZPositionKeys(by offset: Int) {
-    guard offset != 0 else {
-      return
-    }
-
-    for (key, removingRenderable) in removingRenderableMap {
-      let zPositionKey = Self.zPositionKey(removingRenderable.zPositionKey, movedBy: offset)
-      removingRenderableMap[key]?.zPositionKey = zPositionKey
-      updateZPosition(of: removingRenderable.renderable, zIndex: removingRenderable.zIndex, key: zPositionKey)
-    }
-  }
-
-  /// Returns a removing renderable's z-position key moved by an offset.
-  ///
-  /// A removal that lasts while the keys drift by about half their range leaves its layer's key far from the items'
-  /// keys, where a move can take it past an end of the range. The key then stops at that end, which keeps the layer in
-  /// its z-index band, instead of moving it into the next band.
-  ///
-  /// - Parameters:
-  ///   - key: The key to move.
-  ///   - offset: How far the items' keys moved.
-  /// - Returns: The moved key, within the range from 1 to `Constants.maxZPositionKey`.
-  static func zPositionKey(_ key: Int, movedBy offset: Int) -> Int {
-    min(max(key + offset, 1), Constants.maxZPositionKey)
-  }
-
-  // MARK: - Constants
-
-  private enum Constants {
-
-    /// The z-position step between two adjacent renderable items within the same z-index band.
-    static let zPositionStep: CGFloat = 1e-6
-
-    /// The largest z-position key, whose fraction, the key times `zPositionStep`, keeps the item within its z-index band.
-    static let maxZPositionKey = 999999
-  }
-
   // MARK: - Testing
 
   #if DEBUG
@@ -2178,11 +2033,11 @@ open class ComposeView: BaseScrollView {
     }
 
     var zPositionStep: CGFloat {
-      Constants.zPositionStep
+      ZOrderPass.Constants.zPositionStep
     }
 
     var maxZPositionKey: Int {
-      Constants.maxZPositionKey
+      ZOrderPass.Constants.maxKey
     }
   }
 
