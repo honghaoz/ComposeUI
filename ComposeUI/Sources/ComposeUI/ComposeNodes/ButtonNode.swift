@@ -93,7 +93,7 @@ public struct ButtonNode: ComposeNode {
     buttonNode.layout(containerSize: containerSize, context: context)
   }
 
-  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
       return

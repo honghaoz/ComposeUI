@@ -70,19 +70,19 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the underlay's items, and then the child's, are appended to the pass's array, where they're changed in place
     let underlayFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
     let boundsInUnderlay = visibleBounds.translate(-underlayFrame.origin)
     let start = items.count
-    underlayNode.appendRenderableItems(in: boundsInUnderlay, to: &items)
+    underlayNode.render(visibleBounds: boundsInUnderlay, into: &items)
     for index in start ..< items.count {
       items[index].id = id.join(with: items[index].id, suffix: "U")
       items[index].frame = items[index].frame.translate(underlayFrame.origin)
     }
 
     let childStart = items.count
-    node.appendRenderableItems(in: visibleBounds, to: &items)
+    node.render(visibleBounds: visibleBounds, into: &items)
     for index in childStart ..< items.count {
       items[index].id = id.join(with: items[index].id)
     }

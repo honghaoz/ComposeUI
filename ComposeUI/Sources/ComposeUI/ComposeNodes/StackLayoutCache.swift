@@ -32,7 +32,7 @@ import CoreGraphics
 
 /// A cache of a stack node's children layout information.
 ///
-/// Stack nodes build this cache in `layout(containerSize:context:)` and use it in `appendRenderableItems(in:to:)`
+/// Stack nodes build this cache in `layout(containerSize:context:)` and use it in `render(visibleBounds:into:)`
 /// to skip querying child nodes that can't provide visible renderable items, so that getting renderable
 /// items is O(visible children) instead of O(all children).
 ///
@@ -231,7 +231,7 @@ struct StackLayoutCache {
   ///
   /// Children outside of the returned range are guaranteed to provide no visible renderable items.
   /// Children within the returned range may still provide no visible renderable items, the caller should
-  /// still query each child with `appendRenderableItems(in:to:)`.
+  /// still query each child with `render(visibleBounds:into:)`.
   ///
   /// The cache must be finished with a main axis (`finish(mainAxis:)` with a non-nil `mainAxis`), unless it's empty.
   ///

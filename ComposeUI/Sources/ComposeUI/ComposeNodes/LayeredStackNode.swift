@@ -56,7 +56,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     layoutCache.itemsBoundingRect
   }
 
-  /// The cached children layout information, used to cull invisible children in `appendRenderableItems(in:to:)`.
+  /// The cached children layout information, used to cull invisible children in `render(visibleBounds:into:)`.
   private var layoutCache = StackLayoutCache()
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
@@ -90,7 +90,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
     size = CGSize(width: maxWidth, height: maxHeight)
 
-    // cache the children layout information for appendRenderableItems(in:to:)
+    // cache the children layout information for render(visibleBounds:into:)
     layoutCache.reset(reservingCapacity: childCount)
 
     for node in childNodes {
@@ -99,17 +99,17 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
       layoutCache.appendChild(origin: childOrigin, itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
     }
 
-    // no main axis: children in a layered stack overlap each other, so `appendRenderableItems(in:to:)` checks each
+    // no main axis: children in a layered stack overlap each other, so `render(visibleBounds:into:)` checks each
     // child's bounding rect directly instead of binary searching a visible range.
     layoutCache.finish(mainAxis: nil)
 
     return ComposeNodeSizing(width: widthSizing, height: heightSizing)
   }
 
-  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     let childCount = childNodes.count
     guard layoutCache.childCount == childCount else {
-      ComposeUI.assertFailure("appendRenderableItems(in:to:) requires layout(containerSize:context:) to be called first")
+      ComposeUI.assertFailure("render(visibleBounds:into:) requires layout(containerSize:context:) to be called first")
       return
     }
 
@@ -124,7 +124,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
       let boundsInChild = visibleBounds.translate(-child.origin)
       let start = items.count
-      childNodes[i].appendRenderableItems(in: boundsInChild, to: &items)
+      childNodes[i].render(visibleBounds: boundsInChild, into: &items)
       for index in start ..< items.count {
         items[index].id = id.join(with: items[index].id, suffix: "\(i)")
         items[index].frame = items[index].frame.translate(child.origin)

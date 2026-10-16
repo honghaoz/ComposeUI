@@ -73,7 +73,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
     layoutCache.itemsBoundingRect
   }
 
-  /// The cached children layout information, used to cull invisible children in `appendRenderableItems(in:to:)`.
+  /// The cached children layout information, used to cull invisible children in `render(visibleBounds:into:)`.
   private var layoutCache = StackLayoutCache()
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
@@ -151,7 +151,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
     size = CGSize(width: maxWidth, height: totalChildNodesHeight + totalSpacing)
 
-    // cache the children layout information for appendRenderableItems(in:to:)
+    // cache the children layout information for render(visibleBounds:into:)
     layoutCache.reset(reservingCapacity: childCount)
 
     var y: CGFloat = 0
@@ -182,9 +182,9 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
     return sizing
   }
 
-  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     guard layoutCache.childCount == childNodes.count else {
-      ComposeUI.assertFailure("appendRenderableItems(in:to:) requires layout(containerSize:context:) to be called first")
+      ComposeUI.assertFailure("render(visibleBounds:into:) requires layout(containerSize:context:) to be called first")
       return
     }
 
@@ -195,7 +195,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
       let childOrigin = layoutCache.child(at: i).origin
       let boundsInChild = visibleBounds.translate(-childOrigin)
       let start = items.count
-      childNodes[i].appendRenderableItems(in: boundsInChild, to: &items)
+      childNodes[i].render(visibleBounds: boundsInChild, into: &items)
       for index in start ..< items.count {
         items[index].id = id.join(with: items[index].id, suffix: "\(i)")
         items[index].frame = items[index].frame.translate(childOrigin)

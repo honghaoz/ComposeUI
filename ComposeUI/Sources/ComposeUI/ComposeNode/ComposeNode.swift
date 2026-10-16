@@ -56,7 +56,7 @@ public protocol ComposeNode: ComposeContent {
   /// The bounding rect of all renderable items that the node can provide, in the node's coordinate space.
   ///
   /// Container nodes use this rect to skip querying child nodes that can't provide visible renderable items.
-  /// For visible bounds that don't intersect this rect, `appendRenderableItems(in:to:)` must append nothing.
+  /// For visible bounds that don't intersect this rect, `render(visibleBounds:into:)` must append nothing.
   ///
   /// The default implementation returns the node's bounds, i.e. `CGRect(origin: .zero, size: size)`.
   /// You only need to provide a custom implementation if the node can provide renderable items outside of the node's
@@ -78,7 +78,7 @@ public protocol ComposeNode: ComposeContent {
   @discardableResult
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing
 
-  /// Appends the renderable items that are visible in the given bounds to an array.
+  /// Renders the node by appending its renderable items that are visible in the given bounds to an array.
   ///
   /// A render pass collects the items of all its nodes in one array, which each node appends its items to in place,
   /// instead of making an array of its own. A node with child nodes passes the array on to them, and adjusts the items
@@ -92,7 +92,7 @@ public protocol ComposeNode: ComposeContent {
   /// - Parameters:
   ///   - visibleBounds: The visible bounds, in the node's coordinate space.
   ///   - items: The array to append the items to. The items already in it belong to other nodes, and must stay as they are.
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem])
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem])
 }
 
 // MARK: - Default Implementations
@@ -110,14 +110,14 @@ public extension ComposeNode {
 
   /// Returns the renderable items that are visible in the given bounds, in a new array.
   ///
-  /// A node with child nodes gets their items with `appendRenderableItems(in:to:)` instead, which appends them to its
-  /// own array without making one for each child.
+  /// A node with child nodes gets their items with `render(visibleBounds:into:)` instead, which appends them to its own
+  /// array without making one for each child.
   ///
   /// - Parameter visibleBounds: The visible bounds, in the node's coordinate space.
   /// - Returns: The renderable items that are visible in the given bounds.
   func renderableItems(in visibleBounds: CGRect) -> [RenderableItem] {
     var items: [RenderableItem] = []
-    appendRenderableItems(in: visibleBounds, to: &items)
+    render(visibleBounds: visibleBounds, into: &items)
     return items
   }
 }

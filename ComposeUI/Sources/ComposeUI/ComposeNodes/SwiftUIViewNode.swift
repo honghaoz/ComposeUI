@@ -111,9 +111,9 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
     }
   }
 
-  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     guard let renderState else {
-      ComposeUI.assertFailure("appendRenderableItems(in:to:) is called before layout(containerSize:context:).")
+      ComposeUI.assertFailure("render(visibleBounds:into:) is called before layout(containerSize:context:).")
       return
     }
 

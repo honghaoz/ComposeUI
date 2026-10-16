@@ -432,7 +432,7 @@ class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
 
     var assertionCount = 0
     Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      expect(message) == "appendRenderableItems(in:to:) is called before layout(containerSize:context:)."
+      expect(message) == "render(visibleBounds:into:) is called before layout(containerSize:context:)."
       assertionCount += 1
     }
 
@@ -711,7 +711,7 @@ private final class ReferenceNode: ComposeNode {
     child.layout(containerSize: containerSize, context: context)
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
-    child.appendRenderableItems(in: visibleBounds, to: &items)
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
+    child.render(visibleBounds: visibleBounds, into: &items)
   }
 }

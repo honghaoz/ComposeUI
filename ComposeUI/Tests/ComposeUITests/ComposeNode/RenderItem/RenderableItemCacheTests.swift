@@ -38,7 +38,7 @@ class RenderableItemCacheTests: XCTestCase {
     RenderableItem(id: id, frame: frame, make: { _ in .view(BaseView(frame: .zero)) }, update: { _, _ in })
   }
 
-  /// Returns the item for the slot while the cache is current, as a node's `appendRenderableItems(in:to:)` does when a
+  /// Returns the item for the slot while the cache is current, as a node's `render(visibleBounds:into:)` does when a
   /// content root collects the items.
   private func item(in slot: RenderableItemCache.Slot,
                     of cache: RenderableItemCache,
