@@ -514,9 +514,13 @@ class BaseTextViewTests: XCTestCase {
       insetTextView.attributedString = Self.makeText("Hello, world")
       textView.attributedString = Self.makeText("Hello, world")
 
-      // then: the intrinsic content size is the text's size in the width inside the inset, plus the inset on each side
+      // then: the intrinsic content size is the text's size in the width inside the inset, plus the inset on each side,
+      // up to floating-point rounding, since a UIKit text view rounds its size to pixels, which a 3x scale doesn't
+      // represent exactly
       let textSize = textView.intrinsicContentSize
-      expect(insetTextView.intrinsicContentSize, "width \(width)") == CGSize(width: textSize.width + 20, height: textSize.height + 8)
+      let size = insetTextView.intrinsicContentSize
+      expect(size.width, "width \(width)").to(beApproximatelyEqual(to: textSize.width + 20, within: 1e-9))
+      expect(size.height, "width \(width)").to(beApproximatelyEqual(to: textSize.height + 8, within: 1e-9))
     }
   }
 
