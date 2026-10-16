@@ -516,9 +516,9 @@ class HorizontalStackNodeTests: XCTestCase {
     // then: only the visible children should be queried
     for (i, state) in states.enumerated() {
       if (40 ... 44).contains(i) {
-        expect(state.renderableItemsCallCount, "child \(i)") == 1
+        expect(state.renderCallCount, "child \(i)") == 1
       } else {
-        expect(state.renderableItemsCallCount, "child \(i)") == 0
+        expect(state.renderCallCount, "child \(i)") == 0
       }
     }
   }
@@ -553,7 +553,7 @@ class HorizontalStackNodeTests: XCTestCase {
     // given: a test assertion failure handler
     var assertionCount = 0
     ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      expect(message) == "appendRenderableItems(in:to:) requires layout(containerSize:context:) to be called first"
+      expect(message) == "render(visibleBounds:into:) requires layout(containerSize:context:) to be called first"
       assertionCount += 1
     }
     defer {

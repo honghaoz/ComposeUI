@@ -67,10 +67,10 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the child's items, and then the overlay's, are appended to the pass's array, where they're changed in place
     let start = items.count
-    node.appendRenderableItems(in: visibleBounds, to: &items)
+    node.render(visibleBounds: visibleBounds, into: &items)
     for index in start ..< items.count {
       items[index].id = id.join(with: items[index].id)
     }
@@ -78,7 +78,7 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
     let boundsInOverlay = visibleBounds.translate(-overlayFrame.origin)
     let overlayStart = items.count
-    overlayNode.appendRenderableItems(in: boundsInOverlay, to: &items)
+    overlayNode.render(visibleBounds: boundsInOverlay, into: &items)
     for index in overlayStart ..< items.count {
       items[index].id = id.join(with: items[index].id, suffix: "O")
       items[index].frame = items[index].frame.translate(overlayFrame.origin)

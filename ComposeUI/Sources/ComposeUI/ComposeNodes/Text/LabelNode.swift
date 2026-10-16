@@ -147,12 +147,12 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
     return node!.layout(containerSize: containerSize, context: context) // swiftlint:disable:this force_unwrapping
   }
 
-  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     guard let node else {
-      ComposeUI.assertFailure("layout(containerSize:context:) should be called before calling appendRenderableItems(in:to:)")
+      ComposeUI.assertFailure("layout(containerSize:context:) should be called before calling render(visibleBounds:into:)")
       return
     }
-    node.appendRenderableItems(in: visibleBounds, to: &items)
+    node.render(visibleBounds: visibleBounds, into: &items)
   }
 
   // MARK: - Public

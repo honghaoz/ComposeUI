@@ -1283,7 +1283,7 @@ private struct WidthDependentNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {}
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
 }
 
 /// A scroller that makes legacy scroll bars thinner than regular ones.

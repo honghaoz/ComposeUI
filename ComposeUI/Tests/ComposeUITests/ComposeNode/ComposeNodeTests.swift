@@ -116,7 +116,7 @@ class ComposeNodeTests: XCTestCase {
     expect(items.map(\.frame)) == [CGRect(x: 0, y: 0, width: 10, height: 10)]
   }
 
-  func test_appendRenderableItems_builtInNodes_appendTheItemsOfRenderableItemsAfterTheExistingOnes() {
+  func test_render_builtInNodes_appendTheItemsOfRenderableItemsAfterTheExistingOnes() {
     // given: each built-in node, with children where it has them, and the number of items it makes
     let shadowPath: (CGSize) -> CGPath = { CGPath(rect: CGRect(origin: .zero, size: $0), transform: nil) }
     let nodes: [(String, any ComposeNode, Int)] = [
@@ -164,7 +164,7 @@ class ComposeNodeTests: XCTestCase {
 
       // when: appending the node's items to an array with another node's item
       var items = [existingItem]
-      node.appendRenderableItems(in: visibleBounds, to: &items)
+      node.render(visibleBounds: visibleBounds, into: &items)
 
       // then: the node's items follow the existing one, which stays as it was
       expect(items.first?.id, name) == existingItem.id
@@ -203,7 +203,7 @@ private struct ItemsKeepingNode: ComposeNode {
     return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     items.append(contentsOf: storage.items)
   }
 }
@@ -217,5 +217,5 @@ private class MockComposeNode: ComposeNode {
     ComposeNodeSizing(width: .fixed(100), height: .fixed(100))
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {}
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
 }

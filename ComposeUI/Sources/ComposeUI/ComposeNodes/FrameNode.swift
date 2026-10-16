@@ -136,7 +136,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
     return sizing
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the child node's frame in self's coordinates
     let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
 
@@ -145,7 +145,7 @@ private struct FrameNode<Node: ComposeNode>: ComposeNode {
 
     // the child appends its items to the pass's array, where they're changed in place
     let start = items.count
-    node.appendRenderableItems(in: boundsInChild, to: &items)
+    node.render(visibleBounds: boundsInChild, into: &items)
     for index in start ..< items.count {
       items[index].id = id.join(with: items[index].id)
       items[index].frame = items[index].frame.translate(childFrame.origin) // translate the frame back to the parent node's coordinates

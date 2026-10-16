@@ -58,10 +58,10 @@ private struct RotationNode<Node: ComposeNode>: ComposeNode {
     node.layout(containerSize: containerSize, context: context)
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the child appends its items, which are then replaced in place with items that rotate them
     let start = items.count
-    node.appendRenderableItems(in: visibleBounds, to: &items)
+    node.render(visibleBounds: visibleBounds, into: &items)
 
     for index in start ..< items.count {
       let item = items[index]

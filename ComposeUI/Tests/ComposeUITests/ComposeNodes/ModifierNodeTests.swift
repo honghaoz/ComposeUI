@@ -443,7 +443,7 @@ class ModifierNodeTests: XCTestCase {
 
   // MARK: - Opacity
 
-  func test_appendRenderableItems_afterAnotherChildsItems_modifiesOnlyItsChildsItems() {
+  func test_render_afterAnotherChildsItems_modifiesOnlyItsChildsItems() {
     // given: a stack of a layer, a layer with an opacity and an insert block, and a layer with only an update block,
     // whose modifiers apply to their children's items after the items of the children before them in the render pass's
     // array

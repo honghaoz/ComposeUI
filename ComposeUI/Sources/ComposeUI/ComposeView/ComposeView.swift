@@ -1215,7 +1215,7 @@ open class ComposeView: BaseScrollView {
         height: max(contentSize.height, sizeBetweenInsets.height)
       )
 
-      // logic copied from FrameNode.appendRenderableItems(in:to:) (part 1)
+      // logic copied from FrameNode.render(visibleBounds:into:) (part 1)
       centeredChildFrame = Layout.position(rect: contentSize, in: adjustedContentSize, alignment: .center)
       contentSize = adjustedContentSize
     }
@@ -1335,14 +1335,14 @@ open class ComposeView: BaseScrollView {
     var newRenderableItems: [RenderableItem] = []
     newRenderableItems.reserveCapacity(renderableItemIds.count)
     if let centeredChildFrame {
-      // logic copied from FrameNode.appendRenderableItems(in:to:) (part 2)
+      // logic copied from FrameNode.render(visibleBounds:into:) (part 2)
       let boundsInChild = visibleBounds.translate(-centeredChildFrame.origin)
 
       #if DEBUG
       debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: boundsInChild))
       #endif
 
-      contentNode.appendRenderableItems(in: boundsInChild, to: &newRenderableItems)
+      contentNode.render(visibleBounds: boundsInChild, into: &newRenderableItems)
       for index in newRenderableItems.indices {
         newRenderableItems[index].frame = newRenderableItems[index].frame.translate(centeredChildFrame.origin)
       }
@@ -1351,7 +1351,7 @@ open class ComposeView: BaseScrollView {
       debug?.onEvent(.renderWillRequestRenderableItems(visibleBounds: visibleBounds))
       #endif
 
-      contentNode.appendRenderableItems(in: visibleBounds, to: &newRenderableItems)
+      contentNode.render(visibleBounds: visibleBounds, into: &newRenderableItems)
     }
 
     #if DEBUG

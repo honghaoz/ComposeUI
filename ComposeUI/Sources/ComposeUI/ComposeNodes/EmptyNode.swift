@@ -55,5 +55,5 @@ public struct EmptyNode: ComposeNode {
     .null // the node provides no renderable items
   }
 
-  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {}
+  public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
 }

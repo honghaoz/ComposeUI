@@ -367,7 +367,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     return intrinsicSize.roundedUp(scaleFactor: 1)
   }
 
-  public func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     let frame = CGRect(origin: .zero, size: size)
     guard visibleBounds.intersects(frame) else {
       return

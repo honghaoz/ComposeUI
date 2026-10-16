@@ -68,10 +68,10 @@ private struct GestureRecognizerNode: ComposeNode {
     node.layout(containerSize: containerSize, context: context)
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the gesture overlay's item goes after the child's items, in the pass's array
     let start = items.count
-    node.appendRenderableItems(in: visibleBounds, to: &items)
+    node.render(visibleBounds: visibleBounds, into: &items)
 
     guard items.count > start else {
       return

@@ -316,7 +316,7 @@ private struct RenderableItemNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible)
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     let makeView = makeView
     let update = update
     items.append(

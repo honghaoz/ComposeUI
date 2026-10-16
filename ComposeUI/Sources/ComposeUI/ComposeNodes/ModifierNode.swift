@@ -157,10 +157,10 @@ private struct ModifierNode: ComposeNode {
     node.layout(containerSize: containerSize, context: context)
   }
 
-  func appendRenderableItems(in visibleBounds: CGRect, to items: inout [RenderableItem]) {
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the child appends its items to the pass's array, where they're changed in place
     let start = items.count
-    node.appendRenderableItems(in: visibleBounds, to: &items)
+    node.render(visibleBounds: visibleBounds, into: &items)
 
     // a modifier that only adds update blocks, as `onUpdate(_:)` does, adds them with `addUpdates(_:)`, which does what
     // `addingModifier(...)` does without passing the modifier's other blocks and values, which costs a few hundred

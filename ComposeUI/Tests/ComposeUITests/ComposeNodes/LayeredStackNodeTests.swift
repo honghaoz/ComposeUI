@@ -235,8 +235,8 @@ class LayeredStackNodeTests: XCTestCase {
 
     expect(items[0].frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
 
-    expect(bigChildState.renderableItemsCallCount) == 1
-    expect(smallChildState.renderableItemsCallCount) == 0
+    expect(bigChildState.renderCallCount) == 1
+    expect(smallChildState.renderCallCount) == 0
   }
 
   func test_renderableItems_emptyStack() {
@@ -251,7 +251,7 @@ class LayeredStackNodeTests: XCTestCase {
     // given: a test assertion failure handler
     var assertionCount = 0
     ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      expect(message) == "appendRenderableItems(in:to:) requires layout(containerSize:context:) to be called first"
+      expect(message) == "render(visibleBounds:into:) requires layout(containerSize:context:) to be called first"
       assertionCount += 1
     }
     defer {

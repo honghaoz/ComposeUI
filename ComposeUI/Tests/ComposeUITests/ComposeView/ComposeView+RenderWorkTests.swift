@@ -72,14 +72,14 @@ class ComposeView_RenderWorkTests: XCTestCase {
         RenderableItemsProbeNode(state: state, size: CGSize(width: 100, height: Constants.rowHeight))
       }
       view.refresh(animated: false)
-      let requestsBeforeScroll = state.renderableItemsCallCount
+      let requestsBeforeScroll = state.renderCallCount
 
       // when: scrolling by one row
       view.contentOffset = CGPoint(x: 0, y: Constants.rowHeight)
       view.layoutIfNeeded()
 
       // then: only the 2 rows that show are asked, however many rows there are
-      expect(state.renderableItemsCallCount - requestsBeforeScroll, "\(rowCount) rows") == 2
+      expect(state.renderCallCount - requestsBeforeScroll, "\(rowCount) rows") == 2
     }
   }
 
