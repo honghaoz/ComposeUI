@@ -283,6 +283,17 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     }
   }
 
+  override public var accessibilityAttributedLabel: NSAttributedString? {
+    get {
+      // an assistive technology reads the attributes of the attributed label, such as a language to speak a part of
+      // the text in, so the text labels the view as it is, unless the app sets its own label
+      super.accessibilityAttributedLabel ?? lastText
+    }
+    set {
+      super.accessibilityAttributedLabel = newValue
+    }
+  }
+
   #endif
 
   // MARK: - ScheduledTextRemovable

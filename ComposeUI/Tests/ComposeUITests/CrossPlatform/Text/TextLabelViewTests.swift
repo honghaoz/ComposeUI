@@ -379,6 +379,39 @@ class TextLabelViewTests: XCTestCase {
     // then: the text labels the view again
     expect(labelView.accessibilityLabel) == "Hello"
   }
+
+  func test_accessibilityAttributedLabel_isTheTextWithItsAttributes() {
+    // given: a label view showing a text with a part to speak in French
+    let text = NSMutableAttributedString(string: "Bonjour, world")
+    text.addAttribute(.accessibilitySpeechLanguage, value: "fr-FR", range: NSRange(location: 0, length: 7))
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+    labelView.attributedString = text
+
+    // then: the attributed label is the text, with the language to speak the part in
+    expect(labelView.accessibilityAttributedLabel?.string) == "Bonjour, world"
+    expect(labelView.accessibilityAttributedLabel?.attribute(.accessibilitySpeechLanguage, at: 0, effectiveRange: nil) as? String) == "fr-FR"
+
+    // when: an app sets its own label
+    labelView.accessibilityLabel = "Greeting"
+
+    // then: the app's label wins, as an attributed label too
+    expect(labelView.accessibilityAttributedLabel) == NSAttributedString(string: "Greeting")
+
+    // when: an app sets its own attributed label
+    let appLabel = NSAttributedString(string: "Salut", attributes: [.accessibilitySpeechLanguage: "fr-CA"])
+    labelView.accessibilityAttributedLabel = appLabel
+
+    // then: the app's attributed label wins, as a label too
+    expect(labelView.accessibilityAttributedLabel) == appLabel
+    expect(labelView.accessibilityLabel) == "Salut"
+
+    // when: the app removes its label
+    labelView.accessibilityAttributedLabel = nil
+
+    // then: the text labels the view again, with its attributes
+    expect(labelView.accessibilityAttributedLabel) == text
+    expect(labelView.accessibilityLabel) == "Bonjour, world"
+  }
   #endif
 
   // MARK: - Hit Testing
