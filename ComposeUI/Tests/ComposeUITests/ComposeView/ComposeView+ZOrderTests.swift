@@ -367,6 +367,18 @@ class ComposeView_ZOrderTests: XCTestCase {
     expect(ComposeView.zPositionKeyOffset(previous: 10, shift: -11, itemCount: max + 1)) == 0
   }
 
+  func test_zPositionKey_movedBy_keepsTheKeyInItsRange() {
+    let max = ComposeView().test.maxZPositionKey
+
+    // then: a key moves by the offset
+    expect(ComposeView.zPositionKey(2, movedBy: 499999)) == 500001
+    expect(ComposeView.zPositionKey(max, movedBy: -(max - 1))) == 1
+
+    // then: a key that would move past an end of the range stops at that end
+    expect(ComposeView.zPositionKey(2, movedBy: -2)) == 1
+    expect(ComposeView.zPositionKey(max - 1, movedBy: 2)) == max
+  }
+
   /// Makes a scrollable view with rows of one item each, alternating a layer item and a view item, hosted in a test
   /// window, so that a scroll moves items in and out only at the ends of the items order.
   private func makeSingleItemRowsView() -> (ComposeView, TestWindow) {
@@ -597,8 +609,9 @@ class ComposeView_ZOrderTests: XCTestCase {
   }
 
   func test_removingRenderable_keepsZPosition() {
-    // a renderable with an in-flight remove transition is not part of the new render pass, so its `zPosition` is not
-    // reassigned: it holds its last assigned value and stays visually in place during the removal.
+    // a renderable with an in-flight remove transition is not part of the new render pass, so while the items keep their
+    // keys, its `zPosition` is not reassigned: it holds its last assigned value and stays visually in place during the
+    // removal.
 
     // given: a hosted view with a render recorder, rendered with a removing-capable item between two others
     let neverCompletingRemove = RenderableTransition(
@@ -638,6 +651,67 @@ class ComposeView_ZOrderTests: XCTestCase {
     // then: the removing renderable holds its last assigned zPosition
     expect(view.test.removingRenderableMap.count) == 1
     expect(removingLayer.zPosition) == zPositionBeforeRemoval
+  }
+
+  func test_removingRenderable_keysMoveToTheMiddleOfTheirRange_keepsItsPlace() {
+    // a render pass that moves the items' keys to the middle of their range moves the keys of the layers being removed by
+    // as much, so that each keeps its place among the items until its removal completes.
+
+    // given: a hosted view with a render recorder, rendered with a removing-capable item between two others, whose keys
+    // start at 1
+    let neverCompletingRemove = RenderableTransition(
+      insert: nil,
+      remove: RenderableTransition.RemoveTransition { _, _, _ in
+        // intentionally never completes, keeps the removing renderable in the hierarchy
+      }
+    )
+
+    var showsFirst = false
+    var showsRemoving = true
+    let (view, _) = makeHostedView {
+      ZStack {
+        if showsFirst {
+          ColorNode(.yellow).fixedId("first")
+        }
+        ColorNode(.red).fixedId("a")
+        if showsRemoving {
+          ColorNode(.blue).transition(neverCompletingRemove).fixedId("removing")
+        }
+        ColorNode(.green).fixedId("b")
+      }
+    }
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+
+    guard let layerA = recorder.renderableMap["a"]?.layer,
+          let removingLayer = recorder.renderableMap["removing"]?.layer,
+          let layerB = recorder.renderableMap["b"]?.layer
+    else {
+      fail("missing renderables")
+      return
+    }
+    let zPositionOfA = layerA.zPosition
+
+    // when: inserting an item before the others while removing the middle one, which would move the keys below 1, so
+    // that they move to the middle of their range instead
+    showsFirst = true
+    showsRemoving = false
+    view.refresh(animated: true)
+
+    // then: the items' keys moved
+    expect(view.test.removingRenderableMap.count) == 1
+    expect(layerA.zPosition) != zPositionOfA
+
+    // then: the removing layer's key stays one above the key of the item before it, as before the keys moved
+    expect(removingLayer.zPosition).to(beApproximatelyEqual(to: layerA.zPosition + view.test.zPositionStep, within: 1e-9))
+
+    // then: the removing layer still renders between the items it was between
+    let layers = [layerA, removingLayer, layerB].map { ObjectIdentifier($0) }
+    let renderOrder = Self.effectiveRenderOrder(of: view.contentContainerView.layer()).map { ObjectIdentifier($0) }
+    expect(renderOrder.filter { layers.contains($0) }) == layers
   }
 
   func test_refresh_readdDuringRemoveTransition() {

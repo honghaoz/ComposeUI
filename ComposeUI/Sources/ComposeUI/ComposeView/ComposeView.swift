@@ -188,6 +188,13 @@ open class ComposeView: BaseScrollView {
 
     /// The removal completion. Executing it finalizes the removal, cancelling it revives the renderable.
     let completion: CancellableBlock
+
+    /// The z-index of the renderable's item.
+    let zIndex: CGFloat?
+
+    /// The z-position key of the renderable's layer, which a render pass moves along with the items' keys when it moves
+    /// them to the middle of their range, so that the layer keeps its place among the items.
+    var zPositionKey: Int
   }
 
   /// The key of a renderable with an in-flight removal: its item's id and renderable type, since only an item with the
@@ -1511,7 +1518,9 @@ open class ComposeView: BaseScrollView {
           removingRenderableMap[removingKey] = RemovingRenderable(
             renderable: oldRenderable,
             removeTransition: removeTransition,
-            completion: completion
+            completion: completion,
+            zIndex: oldRenderableItem.zIndex,
+            zPositionKey: oldIndex + 1 + self.zPositionKeyOffset
           )
 
           #if DEBUG
@@ -1563,7 +1572,11 @@ open class ComposeView: BaseScrollView {
     let zOrderPlan = Self.makeZOrderPlan(oldIds: oldRenderableItemIds, newIds: renderableItemIds, reusingIds: reusingIds)
     let zOrderNeedsFullUpdate = zOrderPlan.needsFullUpdate
 
-    let zPositionKeyOffset = Self.zPositionKeyOffset(previous: self.zPositionKeyOffset, shift: zPositionKeyShift ?? 0, itemCount: newRenderableItemsCount)
+    let keyShift = zPositionKeyShift ?? 0
+    let zPositionKeyOffset = Self.zPositionKeyOffset(previous: self.zPositionKeyOffset, shift: keyShift, itemCount: newRenderableItemsCount)
+    // the removing renderables' layers hold their keys, so when the keys move further than the shift, to the middle of
+    // their range, the removing layers' keys move by as much, so that each layer keeps its place among the items
+    moveRemovingZPositionKeys(by: zPositionKeyOffset - (self.zPositionKeyOffset + keyShift))
     self.zPositionKeyOffset = zPositionKeyOffset
 
     for (itemIndex, renderableItem) in newRenderableItems.enumerated() {
@@ -2091,6 +2104,35 @@ open class ComposeView: BaseScrollView {
     } else {
       return max(0, (Constants.maxZPositionKey - itemCount) / 2)
     }
+  }
+
+  /// Moves the z-position keys of the removing renderables' layers, and their `zPosition`, by an offset.
+  ///
+  /// - Parameter offset: How far the items' keys moved further than the shift of the render pass, or 0.
+  private func moveRemovingZPositionKeys(by offset: Int) {
+    guard offset != 0 else {
+      return
+    }
+
+    for (key, removingRenderable) in removingRenderableMap {
+      let zPositionKey = Self.zPositionKey(removingRenderable.zPositionKey, movedBy: offset)
+      removingRenderableMap[key]?.zPositionKey = zPositionKey
+      updateZPosition(of: removingRenderable.renderable, zIndex: removingRenderable.zIndex, key: zPositionKey)
+    }
+  }
+
+  /// Returns a removing renderable's z-position key moved by an offset.
+  ///
+  /// A removal that lasts while the keys drift by about half their range leaves its layer's key far from the items'
+  /// keys, where a move can take it past an end of the range. The key then stops at that end, which keeps the layer in
+  /// its z-index band, instead of moving it into the next band.
+  ///
+  /// - Parameters:
+  ///   - key: The key to move.
+  ///   - offset: How far the items' keys moved.
+  /// - Returns: The moved key, within the range from 1 to `Constants.maxZPositionKey`.
+  static func zPositionKey(_ key: Int, movedBy offset: Int) -> Int {
+    min(max(key + offset, 1), Constants.maxZPositionKey)
   }
 
   // MARK: - Constants
