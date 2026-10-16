@@ -201,8 +201,10 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     #endif
   }
 
-  /// Draws the text, laid out in the bounds inside the inset.
-  private func drawText() {
+  /// Sizes the text container to the bounds inside the inset, where the text lays out.
+  ///
+  /// - Returns: Whether the container has room to show the text.
+  private func fitTextContainer() -> Bool {
     let containerSize = CGSize(
       width: max(0, bounds.width - textContainerInset.width * 2),
       height: max(0, bounds.height - textContainerInset.height * 2)
@@ -214,7 +216,12 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     }
 
     // a text container without room still lays out a glyph, which an inset as large as the bounds leaves no room to show
-    guard containerSize.width > 0, containerSize.height > 0 else {
+    return containerSize.width > 0 && containerSize.height > 0
+  }
+
+  /// Draws the text, laid out in the bounds inside the inset.
+  private func drawText() {
+    guard fitTextContainer() else {
       return
     }
 
@@ -250,6 +257,143 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
   override public func accessibilityValue() -> Any? {
     super.accessibilityValue() ?? lastText.string
+  }
+
+  // An assistive technology reads a static text's characters, lines and attributes through the queries below, as a
+  // native label answers them. They describe the text, so an app's own value, which replaces the text, leaves them to
+  // `NSView`, instead of describing a string that isn't the value.
+
+  /// The text that the view describes to assistive technologies, or `nil` when an app sets its own value.
+  private var describedText: NSAttributedString? {
+    super.accessibilityValue() == nil ? lastText : nil
+  }
+
+  override public func accessibilityNumberOfCharacters() -> Int {
+    guard let text = describedText else {
+      return super.accessibilityNumberOfCharacters()
+    }
+    return text.length
+  }
+
+  override public func accessibilityVisibleCharacterRange() -> NSRange {
+    guard describedText != nil else {
+      return super.accessibilityVisibleCharacterRange()
+    }
+    guard fitTextContainer() else {
+      return NSRange(location: 0, length: 0)
+    }
+    return layoutManager.characterRange(forGlyphRange: layoutManager.glyphRange(for: textContainer), actualGlyphRange: nil)
+  }
+
+  override public func accessibilityString(for range: NSRange) -> String? {
+    guard let text = describedText else {
+      return super.accessibilityString(for: range)
+    }
+    guard text.containsRange(range) else {
+      return nil
+    }
+    return (text.string as NSString).substring(with: range)
+  }
+
+  override public func accessibilityAttributedString(for range: NSRange) -> NSAttributedString? {
+    guard let text = describedText else {
+      return super.accessibilityAttributedString(for: range)
+    }
+    guard text.containsRange(range) else {
+      return nil
+    }
+
+    // a text field cell converts the text's attributes to the ones that assistive technologies read, such as a font's
+    // name and size instead of a font, as a native label's cell does
+    let cell = NSTextFieldCell(textCell: "")
+    cell.attributedStringValue = text
+    return cell.accessibilityAttributedString(for: range)
+  }
+
+  override public func accessibilityRTF(for range: NSRange) -> Data? {
+    guard let text = describedText else {
+      return super.accessibilityRTF(for: range)
+    }
+    guard text.containsRange(range) else {
+      return nil
+    }
+    return text.rtf(from: range)
+  }
+
+  override public func accessibilityRange(for index: Int) -> NSRange {
+    guard let text = describedText else {
+      return super.accessibilityRange(for: index)
+    }
+    guard index >= 0, index < text.length else {
+      return Constants.notFoundRange
+    }
+    return (text.string as NSString).rangeOfComposedCharacterSequence(at: index)
+  }
+
+  override public func accessibilityStyleRange(for index: Int) -> NSRange {
+    guard let text = describedText else {
+      return super.accessibilityStyleRange(for: index)
+    }
+    guard index >= 0, index < text.length else {
+      return Constants.notFoundRange
+    }
+    var range = NSRange(location: 0, length: 0)
+    _ = text.attributes(at: index, longestEffectiveRange: &range, in: NSRange(location: 0, length: text.length))
+    return range
+  }
+
+  override public func accessibilityLine(for index: Int) -> Int {
+    guard describedText != nil else {
+      return super.accessibilityLine(for: index)
+    }
+    // an index past the laid-out lines, such as the end of the text, is on the last line
+    let lineRanges = lineCharacterRanges()
+    return lineRanges.firstIndex(where: { NSLocationInRange(index, $0) }) ?? max(lineRanges.count - 1, 0)
+  }
+
+  override public func accessibilityRange(forLine line: Int) -> NSRange {
+    guard describedText != nil else {
+      return super.accessibilityRange(forLine: line)
+    }
+    let lineRanges = lineCharacterRanges()
+    return lineRanges.indices.contains(line) ? lineRanges[line] : Constants.notFoundRange
+  }
+
+  override public func accessibilityFrame(for range: NSRange) -> NSRect {
+    guard let text = describedText else {
+      return super.accessibilityFrame(for: range)
+    }
+    guard text.containsRange(range), fitTextContainer() else {
+      return .zero
+    }
+    let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+    let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+    return NSAccessibility.screenRect(fromView: self, rect: rect.offsetBy(dx: textContainerInset.width, dy: textContainerInset.height))
+  }
+
+  override public func accessibilityRange(for point: NSPoint) -> NSRange {
+    guard let text = describedText else {
+      return super.accessibilityRange(for: point)
+    }
+    guard text.length > 0, let window, fitTextContainer() else {
+      return Constants.notFoundRange
+    }
+    let viewPoint = convert(window.convertPoint(fromScreen: point), from: nil)
+    let containerPoint = CGPoint(x: viewPoint.x - textContainerInset.width, y: viewPoint.y - textContainerInset.height)
+    let index = layoutManager.characterIndex(for: containerPoint, in: textContainer, fractionOfDistanceBetweenInsertionPoints: nil)
+    return (text.string as NSString).rangeOfComposedCharacterSequence(at: min(index, text.length - 1))
+  }
+
+  /// Returns the character ranges of the text's laid-out lines, from the first line.
+  private func lineCharacterRanges() -> [NSRange] {
+    guard fitTextContainer() else {
+      return []
+    }
+    var lineRanges: [NSRange] = []
+    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, _, _, glyphRange, _ in
+      lineRanges.append(self.layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil))
+    }
+    return lineRanges
   }
 
   #endif
@@ -334,7 +478,33 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   }
 
   #endif
+
+  // MARK: - Constants
+
+  #if canImport(AppKit)
+  private enum Constants {
+
+    /// The range that a text query returns for an index, a line or a point that the text doesn't have.
+    static let notFoundRange = NSRange(location: NSNotFound, length: 0)
+  }
+  #endif
 }
+
+// MARK: - Ranges
+
+#if canImport(AppKit)
+private extension NSAttributedString {
+
+  /// Whether a range is within the text, checked without adding its location and length, which can overflow, such as
+  /// for a location of `NSNotFound`.
+  ///
+  /// - Parameter range: The range to check.
+  /// - Returns: Whether the range is within the text.
+  func containsRange(_ range: NSRange) -> Bool {
+    range.location >= 0 && range.length >= 0 && range.location <= length && range.length <= length - range.location
+  }
+}
+#endif
 
 // MARK: - Links
 

@@ -354,6 +354,164 @@ class TextLabelViewTests: XCTestCase {
     // then: the app's value wins
     expect(labelView.accessibilityValue() as? String) == "Greeting"
   }
+
+  func test_accessibility_characters_describeTheText() throws {
+    // given: a label view showing a text with an emoji, which takes two UTF-16 units, and a bold run before it
+    let text = NSMutableAttributedString(string: "Hi ", attributes: [.font: NSFont.boldSystemFont(ofSize: 13)])
+    text.append(NSAttributedString(string: "😀 there", attributes: [.font: NSFont.systemFont(ofSize: 13)]))
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
+    labelView.attributedString = text
+
+    // then: the queries describe the text's characters, the emoji as one character, and its style runs
+    expect(labelView.accessibilityNumberOfCharacters()) == 11
+    expect(labelView.accessibilityString(for: NSRange(location: 3, length: 2))) == "😀"
+    expect(labelView.accessibilityString(for: NSRange(location: 11, length: 0))) == ""
+    expect(labelView.accessibilityRange(for: 4)) == NSRange(location: 3, length: 2)
+    expect(labelView.accessibilityRange(for: 0)) == NSRange(location: 0, length: 1)
+    expect(labelView.accessibilityStyleRange(for: 1)) == NSRange(location: 0, length: 3)
+    expect(labelView.accessibilityStyleRange(for: 6)) == NSRange(location: 3, length: 8)
+    let rtf = try labelView.accessibilityRTF(for: NSRange(location: 6, length: 5)).unwrap()
+    expect(try NSAttributedString(rtf: rtf, documentAttributes: nil).unwrap().string) == "there"
+
+    // then: a range or an index outside the text describes nothing, including a range that would overflow
+    let notFound = NSRange(location: NSNotFound, length: 0)
+    for range in [NSRange(location: 10, length: 2), NSRange(location: 12, length: 0), NSRange(location: NSNotFound, length: 1), NSRange(location: -1, length: 1)] {
+      expect(labelView.accessibilityString(for: range), "\(range)") == nil
+      expect(labelView.accessibilityAttributedString(for: range), "\(range)") == nil
+      expect(labelView.accessibilityRTF(for: range), "\(range)") == nil
+      expect(labelView.accessibilityFrame(for: range), "\(range)") == .zero
+    }
+    for index in [-1, 11] {
+      expect(labelView.accessibilityRange(for: index), "\(index)") == notFound
+      expect(labelView.accessibilityStyleRange(for: index), "\(index)") == notFound
+    }
+  }
+
+  func test_accessibilityAttributedString_hasTheAttributesOfANativeLabel() throws {
+    // given: a label view and a native label showing a text with a font, a color and a language for a part
+    let text = NSMutableAttributedString(string: "Bonjour, world", attributes: [.font: NSFont.systemFont(ofSize: 15), .foregroundColor: NSColor.red])
+    text.addAttribute(.accessibilityLanguage, value: "fr-FR", range: NSRange(location: 0, length: 7))
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
+    labelView.attributedString = text
+    let nativeLabel = NSTextField(labelWithAttributedString: text)
+    let nativeCell = try nativeLabel.cell.unwrap()
+
+    for range in [NSRange(location: 0, length: 14), NSRange(location: 3, length: 8)] {
+      // then: the attributed string is in the attributes that assistive technologies read, as a native label's
+      let attributedString = try labelView.accessibilityAttributedString(for: range).unwrap()
+      expect(attributedString, "\(range)") == nativeCell.accessibilityAttributedString(for: range)
+      expect(attributedString.attribute(.accessibilityFont, at: 0, effectiveRange: nil), "\(range)") != nil
+    }
+  }
+
+  func test_accessibility_lines_followTheLayout() throws {
+    // given: a label view showing three paragraphs
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+    labelView.attributedString = NSAttributedString(string: "One\nTwo\nThree", attributes: [.font: NSFont.systemFont(ofSize: 13)])
+
+    // then: each paragraph is a line, and an index past the text is on the last line
+    expect(labelView.accessibilityRange(forLine: 0)) == NSRange(location: 0, length: 4)
+    expect(labelView.accessibilityRange(forLine: 1)) == NSRange(location: 4, length: 4)
+    expect(labelView.accessibilityRange(forLine: 2)) == NSRange(location: 8, length: 5)
+    expect(labelView.accessibilityRange(forLine: 3)) == NSRange(location: NSNotFound, length: 0)
+    expect([0, 3, 4, 7, 8, 12, 13].map { labelView.accessibilityLine(for: $0) }) == [0, 0, 1, 1, 2, 2, 2]
+    expect(labelView.accessibilityVisibleCharacterRange()) == NSRange(location: 0, length: 13)
+
+    // when: the view shows one line
+    labelView.numberOfLines = 1
+
+    // then: only the first line is laid out and visible, and an index past it is on that line
+    expect(labelView.accessibilityVisibleCharacterRange()) == NSRange(location: 0, length: 4)
+    expect(labelView.accessibilityRange(forLine: 1)) == NSRange(location: NSNotFound, length: 0)
+    expect(labelView.accessibilityLine(for: 10)) == 0
+
+    // when: the view shows a text that wraps in its width, which fits each word but not both
+    let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13)]
+    let wordWidth = max(NSAttributedString(string: "Hello", attributes: attributes).size().width, NSAttributedString(string: "world", attributes: attributes).size().width)
+    labelView.frame.size.width = ceil(wordWidth) + 2
+    labelView.numberOfLines = 0
+    labelView.attributedString = NSAttributedString(string: "Hello world", attributes: attributes)
+
+    // then: each line that the text wraps into is a line
+    expect(labelView.accessibilityRange(forLine: 0)) == NSRange(location: 0, length: 6)
+    expect(labelView.accessibilityRange(forLine: 1)) == NSRange(location: 6, length: 5)
+    expect(labelView.accessibilityLine(for: 7)) == 1
+
+    // when: the inset leaves no room for the text
+    labelView.textContainerInset = CGSize(width: 0, height: 60)
+
+    // then: no line is laid out or visible
+    expect(labelView.accessibilityVisibleCharacterRange()) == NSRange(location: 0, length: 0)
+    expect(labelView.accessibilityRange(forLine: 0)) == NSRange(location: NSNotFound, length: 0)
+    expect(labelView.accessibilityLine(for: 0)) == 0
+    expect(labelView.accessibilityFrame(for: NSRange(location: 0, length: 1))) == .zero
+  }
+
+  func test_accessibility_geometry_isOnTheScreen() throws {
+    // given: a label view with an inset in a window, showing a text with an emoji
+    let window = TestWindow()
+    let labelView = TextLabelView(frame: CGRect(x: 30, y: 40, width: 200, height: 40))
+    labelView.textContainerInset = CGSize(width: 6, height: 4)
+    labelView.attributedString = NSAttributedString(string: "Hi 😀 there", attributes: [.font: NSFont.systemFont(ofSize: 13)])
+    try window.contentView.unwrap().addSubview(labelView)
+    let viewFrameOnScreen = window.convertToScreen(labelView.convert(labelView.bounds, to: nil))
+
+    // then: a range's frame is where its glyphs are laid out inside the inset, on the screen, so the first character
+    // starts at the inset from the view's top left corner
+    let firstFrame = labelView.accessibilityFrame(for: NSRange(location: 0, length: 1))
+    expect(firstFrame.minX) == viewFrameOnScreen.minX + 6
+    expect(firstFrame.maxY) == viewFrameOnScreen.maxY - 4
+    let glyphRange = labelView.test.layoutManager.glyphRange(forCharacterRange: NSRange(location: 6, length: 5), actualCharacterRange: nil)
+    let wordRect = labelView.test.layoutManager.boundingRect(forGlyphRange: glyphRange, in: labelView.test.textContainer).offsetBy(dx: 6, dy: 4)
+    expect(labelView.accessibilityFrame(for: NSRange(location: 6, length: 5))) == window.convertToScreen(labelView.convert(wordRect, to: nil))
+
+    // then: the range at a point on the screen is the character there, the emoji as one character
+    let emojiFrame = labelView.accessibilityFrame(for: NSRange(location: 3, length: 2))
+    expect(labelView.accessibilityRange(for: NSPoint(x: emojiFrame.midX, y: emojiFrame.midY))) == NSRange(location: 3, length: 2)
+    let wordFrame = labelView.accessibilityFrame(for: NSRange(location: 6, length: 5))
+    expect(labelView.accessibilityRange(for: NSPoint(x: wordFrame.minX + 1, y: wordFrame.midY))) == NSRange(location: 6, length: 1)
+
+    // when: the inset leaves no room for the text
+    labelView.textContainerInset = CGSize(width: 0, height: 20)
+
+    // then: no point is on a character
+    expect(labelView.accessibilityRange(for: NSPoint(x: emojiFrame.midX, y: emojiFrame.midY))) == NSRange(location: NSNotFound, length: 0)
+
+    // when: the view has no text, or isn't in a window
+    labelView.textContainerInset = .zero
+    labelView.attributedString = NSAttributedString()
+    let emptyRange = labelView.accessibilityRange(for: NSPoint(x: emojiFrame.midX, y: emojiFrame.midY))
+    labelView.attributedString = NSAttributedString(string: "Hi")
+    labelView.removeFromSuperview()
+
+    // then: no point is on a character
+    expect(emptyRange) == NSRange(location: NSNotFound, length: 0)
+    expect(labelView.accessibilityRange(for: NSPoint(x: emojiFrame.midX, y: emojiFrame.midY))) == NSRange(location: NSNotFound, length: 0)
+  }
+
+  func test_accessibility_appValue_leavesTheTextQueriesToTheView() {
+    // given: a label view showing a text, with an app's own value, and a plain view with the same value
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 200, height: 40))
+    labelView.attributedString = NSAttributedString(string: "One\nTwo")
+    labelView.setAccessibilityValue("Greeting")
+    let plainView = NSView(frame: CGRect(x: 0, y: 0, width: 200, height: 40))
+    plainView.setAccessibilityValue("Greeting")
+
+    // then: the text queries answer as a view's do, instead of describing the text, which isn't the value
+    let range = NSRange(location: 0, length: 3)
+    expect(labelView.accessibilityNumberOfCharacters()) == plainView.accessibilityNumberOfCharacters()
+    expect(labelView.accessibilityVisibleCharacterRange()) == plainView.accessibilityVisibleCharacterRange()
+    expect(labelView.accessibilityString(for: range)) == plainView.accessibilityString(for: range)
+    expect(labelView.accessibilityAttributedString(for: range)) == plainView.accessibilityAttributedString(for: range)
+    expect(labelView.accessibilityRTF(for: range)) == plainView.accessibilityRTF(for: range)
+    expect(labelView.accessibilityRange(for: 1)) == plainView.accessibilityRange(for: 1)
+    expect(labelView.accessibilityStyleRange(for: 1)) == plainView.accessibilityStyleRange(for: 1)
+    expect(labelView.accessibilityLine(for: 5)) == plainView.accessibilityLine(for: 5)
+    expect(labelView.accessibilityRange(forLine: 1)) == plainView.accessibilityRange(forLine: 1)
+    expect(labelView.accessibilityFrame(for: range)) == plainView.accessibilityFrame(for: range)
+    expect(labelView.accessibilityRange(for: NSPoint(x: 5, y: 5))) == plainView.accessibilityRange(for: NSPoint(x: 5, y: 5))
+    expect(labelView.accessibilityNumberOfCharacters()) != 7
+  }
   #endif
 
   #if canImport(UIKit)
