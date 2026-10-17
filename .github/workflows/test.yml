@@ -10,6 +10,18 @@ on:
       - ci
   pull_request: # any pull request against any branch
   workflow_dispatch: # manual trigger
+    inputs:
+      runner:
+        description: "The label of the runner to run on. Empty uses the MACOS variable."
+        required: false
+      xcode-version:
+        description: "The Xcode version on the runner, at /Applications/Xcode_<version>.app. Empty uses the XCODE_VERSION variable."
+        required: false
+      platform:
+        description: "The platform to test."
+        type: choice
+        options: [all, macOS, iOS, tvOS, visionOS]
+        default: all
   schedule:
     # ┌───────────── minute (0 - 59)
     # │ ┌───────────── hour (0 - 23)
@@ -29,12 +41,13 @@ concurrency:
 
 env:
   TERM: xterm-256color
-  DEVELOPER_DIR: /Applications/Xcode_${{ vars.XCODE_VERSION }}.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_${{ inputs.xcode-version || vars.XCODE_VERSION }}.app/Contents/Developer
 
 jobs:
   test-codecov:
     name: Test (macOS)
-    runs-on: ${{ vars.MACOS }}
+    if: ${{ contains(fromJSON('["all", "macOS"]'), inputs.platform || 'all') }}
+    runs-on: ${{ inputs.runner || vars.MACOS }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -42,12 +55,14 @@ jobs:
         uses: ./.github/actions/cache
         with:
           kind: test-macOS
-          xcode-version: ${{ vars.XCODE_VERSION }}
+          xcode-version: ${{ inputs.xcode-version || vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
       - name: Test with Codecov
         run: make test-codecov -C ComposeUI
       - name: Upload code coverage
+        # coverage comes from the regular runs, not from a manual run on another runner
+        if: ${{ !inputs.runner }}
         uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -59,12 +74,14 @@ jobs:
 
   test:
     name: Test
+    if: ${{ (inputs.platform || 'all') != 'macOS' }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [iOS, tvOS, visionOS]
+        # a manual run of one simulator platform tests only that platform
+        platform: ${{ fromJSON(contains(fromJSON('["iOS", "tvOS", "visionOS"]'), inputs.platform) && format('["{0}"]', inputs.platform) || '["iOS", "tvOS", "visionOS"]') }}
     timeout-minutes: 30
-    runs-on: ${{ vars.MACOS }}
+    runs-on: ${{ inputs.runner || vars.MACOS }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -72,7 +89,7 @@ jobs:
         uses: ./.github/actions/cache
         with:
           kind: test-${{ matrix.platform }}
-          xcode-version: ${{ vars.XCODE_VERSION }}
+          xcode-version: ${{ inputs.xcode-version || vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
 
