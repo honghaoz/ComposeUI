@@ -270,6 +270,10 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     if layer?.contents != nil {
       layer?.contents = nil
     }
+
+    // AppKit displays the view again whenever its drawing may have changed, including for changes that the label isn't
+    // told of, so the drawing layer draws again whenever AppKit would draw the view
+    drawingLayer?.setNeedsDisplay()
   }
 
   override public func draw(_ dirtyRect: NSRect) {

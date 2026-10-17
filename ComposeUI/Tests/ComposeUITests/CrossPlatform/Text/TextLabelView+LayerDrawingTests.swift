@@ -208,6 +208,27 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(try Self.differingPixelCountFromAppKit(labelView, renderer)) == 0
   }
 
+  func test_displayRequest_drawsTheTextAgain_inTheSamePixelsAsAppKit() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label in a window, drawing a text in its layer, in a color that changes without a new appearance, as a
+    // system color does when the user picks another one
+    var systemColor = NSColor.systemRed
+    let color = NSColor(name: nil) { _ in systemColor }
+    let (renderer, labelView) = try Self.makeLabel(Case(name: "system color", text: Self.text("System colored text", [.foregroundColor: color])))
+    let redPixels = try renderer.render()
+    expect(labelView.test.drawsInLayer) == true
+
+    // when: the color changes, which AppKit answers by displaying the views again
+    systemColor = .systemBlue
+    labelView.needsDisplay = true
+
+    // then: the layer draws the text in the new color, in the same pixels as AppKit
+    let pixels = try renderer.render()
+    expect(pixels.differingPixelCount(from: redPixels)) > 0
+    expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: pixels)) == 0
+  }
+
   func test_appearanceChange_throughAppKit_leavesTheDrawingLayer() throws {
     // given: a label in a window, drawing a text with an emoji through AppKit
     let text = Self.text("Party 🎉", [.foregroundColor: NSColor.labelColor])
