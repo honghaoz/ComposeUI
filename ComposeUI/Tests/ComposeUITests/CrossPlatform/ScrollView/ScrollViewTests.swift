@@ -120,7 +120,7 @@ class ScrollViewTests: XCTestCase {
     // when: the scroll view gets a one-line mouse wheel scroll
     scrollView.scrollWheel(with: event)
 
-    // then: the offset comes back to the end of the scrollable range, once AppKit applies the scroll on the run loop
+    // then: the offset comes back to the end of the scrollable range
     expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 300)))
 
     // when: the offset is before the start, and the scroll view gets the scroll again
@@ -1276,7 +1276,7 @@ class ScrollViewTests: XCTestCase {
     try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaX: 10))
     wait(timeout: 0.1)
 
-    // then: the offset is outside the range, so the event keeps its delta, and AppKit brings the document back
+    // then: the offset is outside the range, so the scroll view brings the document back
     expect(scrollView.contentOffset.x) == 0
 
     // when: the scroll view is scrolled in code 50 pt before the start of its horizontal range, and gets the same mouse
@@ -1285,7 +1285,7 @@ class ScrollViewTests: XCTestCase {
     try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaX: 10))
     wait(timeout: 0.1)
 
-    // then: AppKit brings the document back from that side too
+    // then: the scroll view brings the document back from that side too
     expect(scrollView.contentOffset.x) == 0
   }
 
@@ -1303,7 +1303,7 @@ class ScrollViewTests: XCTestCase {
     try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaY: 10))
     wait(timeout: 0.1)
 
-    // then: the offset is outside the range, so the event keeps its delta, and AppKit brings the document back
+    // then: the offset is outside the range, so the scroll view brings the document back
     expect(scrollView.contentOffset.y) == 0
 
     // when: the scroll view is scrolled in code 50 pt before the start of its vertical range, and gets the same mouse
@@ -1312,8 +1312,62 @@ class ScrollViewTests: XCTestCase {
     try scrollView.scrollWheel(with: Self.makeMouseWheelEvent(deltaY: 10))
     wait(timeout: 0.1)
 
-    // then: AppKit brings the document back from that side too
+    // then: the scroll view brings the document back from that side too
     expect(scrollView.contentOffset.y) == 0
+  }
+
+  func test_scrollGesture_sideways_offsetOutsideTheRange_bringsItBack() throws {
+    // given: a 100 × 100 scroll view in a window, showing a document as wide as the scroll view and taller, scrolled in
+    // code 50 pt past the end of its horizontal range
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 400)
+    window.contentView().addSubview(scrollView)
+    window.layoutIfNeeded()
+    scrollView.contentOffset = CGPoint(x: 50, y: 0)
+
+    // when: a trackpad swipe scrolls toward the left
+    try beginTrackpadSwipe(on: scrollView, deltaX: 10)
+    try endTrackpadSwipe(on: scrollView)
+
+    // then: the offset is outside the range, so the swipe keeps its delta, and AppKit springs the document back
+    expect(scrollView.contentOffset.x).toEventually(beApproximatelyEqual(to: 0, within: 1e-9))
+
+    // when: the scroll view is scrolled in code 50 pt before the start of its horizontal range, and gets the same
+    // trackpad swipe, which now points away from the range
+    scrollView.contentOffset = CGPoint(x: -50, y: 0)
+    try beginTrackpadSwipe(on: scrollView, deltaX: 10)
+    try endTrackpadSwipe(on: scrollView)
+
+    // then: AppKit springs the document back from that side too
+    expect(scrollView.contentOffset.x).toEventually(beApproximatelyEqual(to: 0, within: 1e-9))
+  }
+
+  func test_scrollGesture_vertical_offsetOutsideTheRange_bringsItBack() throws {
+    // given: a 100 × 100 scroll view in a window, showing a document as tall as the scroll view and wider, scrolled in
+    // code 50 pt past the end of its vertical range
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 400, height: 100)
+    window.contentView().addSubview(scrollView)
+    window.layoutIfNeeded()
+    scrollView.contentOffset = CGPoint(x: 0, y: 50)
+
+    // when: a trackpad swipe scrolls toward the top
+    try beginTrackpadSwipe(on: scrollView, deltaY: 10)
+    try endTrackpadSwipe(on: scrollView)
+
+    // then: the offset is outside the range, so the swipe keeps its delta, and AppKit springs the document back
+    expect(scrollView.contentOffset.y).toEventually(beApproximatelyEqual(to: 0, within: 1e-9))
+
+    // when: the scroll view is scrolled in code 50 pt before the start of its vertical range, and gets the same
+    // trackpad swipe, which now points away from the range
+    scrollView.contentOffset = CGPoint(x: 0, y: -50)
+    try beginTrackpadSwipe(on: scrollView, deltaY: 10)
+    try endTrackpadSwipe(on: scrollView)
+
+    // then: AppKit springs the document back from that side too
+    expect(scrollView.contentOffset.y).toEventually(beApproximatelyEqual(to: 0, within: 1e-9))
   }
 
   func test_scrollWheel_nested_atTheEnd_passesToTheParent() throws {

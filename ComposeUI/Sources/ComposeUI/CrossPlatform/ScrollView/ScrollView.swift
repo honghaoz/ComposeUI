@@ -253,7 +253,8 @@ open class ScrollView: NSScrollView {
     }
 
     if handles(event) {
-      super.scrollWheel(with: droppingDeltasAlongFixedAxes(of: event))
+      let remainingEvent = bringContentOffsetIntoScrollableRange(for: event)
+      super.scrollWheel(with: droppingDeltasAlongFixedAxes(of: remainingEvent))
     } else {
       nextResponder?.scrollWheel(with: event)
     }
@@ -335,8 +336,8 @@ open class ScrollView: NSScrollView {
   ///   - canBounce: Whether the scroll can bounce past the ends of the scrollable range, which a mouse wheel scroll can't.
   private func takesScroll(deltaX: CGFloat, deltaY: CGFloat, canBounce: Bool) -> Bool {
     // the scroll view takes the scroll if any of these is true, and otherwise passes it to a parent scroll view:
-    // 1. its offset is outside the scrollable range, for example set in code or still bouncing back. AppKit brings the
-    //    offset back into the range only for the scroll view that handles the scroll.
+    // 1. its offset is outside the scrollable range, for example set in code or still bouncing back. the offset comes
+    //    back into the range only in the scroll view that handles the scroll.
     // 2. it always bounces in the scroll's direction, and the scroll can bounce.
     // 3. it can scroll in the scroll's direction.
     // 4. no parent scroll view can scroll in the scroll's direction either, so it keeps the scroll and can bounce.
@@ -350,6 +351,34 @@ open class ScrollView: NSScrollView {
       (deltaX < 0 && (bouncesHorizontally || canScrollToRight || !hasParentScrollView { $0.canScrollToRight }))
   }
 
+  /// Brings the content offset back into the scrollable range along each axis where it's outside, for a mouse wheel
+  /// event.
+  ///
+  /// AppKit doesn't bring it back itself: since macOS 27, a scroll view that opts out of responsive scrolling, as
+  /// overriding `scrollWheel(with:)` does, leaves the offset outside the range on a mouse wheel event, while it still
+  /// springs the offset back after a trackpad gesture.
+  ///
+  /// - Parameter event: The scroll wheel event.
+  /// - Returns: The event without its scroll delta along the axes where the offset came back.
+  private func bringContentOffsetIntoScrollableRange(for event: NSEvent) -> NSEvent {
+    let isOutsideHorizontalRange = isContentOffsetOutsideHorizontalScrollableRange
+    let isOutsideVerticalRange = isContentOffsetOutsideVerticalScrollableRange
+    guard event.phase.isEmpty, event.momentumPhase.isEmpty, isOutsideHorizontalRange || isOutsideVerticalRange else {
+      return event
+    }
+
+    // an axis outside the range comes back to where AppKit's own scrolling would rest
+    let restingContentOffset = contentView.constrainBoundsRect(CGRect(origin: contentOffset, size: contentView.bounds.size)).origin
+    setContentOffsetExactly(
+      CGPoint(
+        x: isOutsideHorizontalRange ? restingContentOffset.x : contentOffset.x,
+        y: isOutsideVerticalRange ? restingContentOffset.y : contentOffset.y
+      )
+    )
+
+    return droppingDeltas(of: event, horizontally: isOutsideHorizontalRange, vertically: isOutsideVerticalRange)
+  }
+
   /// Returns the event without its scroll delta along an axis the scroll view has no room to scroll along, while the
   /// content offset is inside the scrollable range.
   ///
@@ -357,8 +386,8 @@ open class ScrollView: NSScrollView {
   /// visible size can look a fraction of a point larger, and AppKit would scroll it by a pixel.
   private func droppingDeltasAlongFixedAxes(of event: NSEvent) -> NSEvent {
     // a mouse wheel event has no phase and can't spring back, so along an axis without room, it would only move the
-    // content by that pixel, even when the axis bounces. an offset outside the range, for example set in code, keeps
-    // the delta, since AppKit then moves the content to bring it back into the range, not by the rounding
+    // content by that pixel, even when the axis bounces. an offset outside the range, for example set in code, keeps a
+    // gesture's delta, since AppKit then moves the content to bring it back into the range, not by the rounding
     let isMouseWheel = event.phase.isEmpty && event.momentumPhase.isEmpty
 
     let dropsHorizontalDelta = event.scrollingDeltaX != 0 &&
@@ -371,16 +400,26 @@ open class ScrollView: NSScrollView {
       !hasVerticalScrollRange &&
       !isContentOffsetOutsideVerticalScrollableRange
 
-    guard dropsHorizontalDelta || dropsVerticalDelta, let cgEvent = event.cgEvent?.copy() else {
+    return droppingDeltas(of: event, horizontally: dropsHorizontalDelta, vertically: dropsVerticalDelta)
+  }
+
+  /// Returns the event without its scroll deltas along the axes.
+  ///
+  /// - Parameters:
+  ///   - event: The scroll wheel event.
+  ///   - horizontally: Whether to drop the horizontal delta.
+  ///   - vertically: Whether to drop the vertical delta.
+  private func droppingDeltas(of event: NSEvent, horizontally: Bool, vertically: Bool) -> NSEvent {
+    guard horizontally || vertically, let cgEvent = event.cgEvent?.copy() else {
       return event
     }
 
-    if dropsHorizontalDelta {
+    if horizontally {
       cgEvent.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: 0)
       cgEvent.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: 0)
       cgEvent.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: 0)
     }
-    if dropsVerticalDelta {
+    if vertically {
       cgEvent.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 0)
       cgEvent.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: 0)
       cgEvent.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: 0)
