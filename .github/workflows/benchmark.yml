@@ -2,9 +2,14 @@
 # an iOS simulator, since AppKit and UIKit implement the same work separately, so a cost measured on one tells nothing
 # about the other.
 #
-# It fails on what the comparison fails on: more allocations than the base made in any round, a benchmark that a side
-# doesn't report once in every round, and a skipped test. Instructions aren't available on GitHub's virtual machines,
-# and times only warn, since they depend on the runner's load.
+# It fails on what the comparison fails on: more allocations than the base made in any round, more than 1% more
+# instructions where the runner counts them, a benchmark that a side doesn't report once in every round, and a skipped
+# test. A real Mac counts instructions, but GitHub's virtual machines don't. Times only warn, since they depend on the
+# runner's load.
+#
+# The BENCHMARK_MACOS and BENCHMARK_XCODE_VERSION repository variables move the job to a runner of its own, such as a
+# self-hosted Mac, which counts instructions, and to the Xcode installed there. Without them, the job runs where the
+# other workflows run.
 #
 # It isn't a required check: the path filter keeps it from reporting on pull requests outside its paths, which a
 # required check would block.
@@ -38,9 +43,9 @@ permissions:
 
 env:
   TERM: xterm-256color
-  DEVELOPER_DIR: /Applications/Xcode_${{ vars.XCODE_VERSION }}.app/Contents/Developer
-  # the slowdown past which a time warns. the times of the same code differed by up to 31% between the sides on the
-  # runner, which the 20% used locally reported as slowdowns
+  DEVELOPER_DIR: /Applications/Xcode_${{ vars.BENCHMARK_XCODE_VERSION || vars.XCODE_VERSION }}.app/Contents/Developer
+  # the slowdown past which a time warns. the times of the same code differed by up to 31% between the sides on
+  # GitHub's runners, which the 20% used locally reported as slowdowns
   TIME_THRESHOLD: 50
 
 jobs:
@@ -50,9 +55,9 @@ jobs:
       fail-fast: false
       matrix:
         platform: [macOS, iOS]
-    # two release builds and 5 rounds of each side take about 26 minutes on macOS on the runner's 3 virtual cores
+    # two release builds and 5 rounds of each side take about 26 minutes on macOS on a GitHub runner's 3 virtual cores
     timeout-minutes: 60
-    runs-on: ${{ vars.MACOS }}
+    runs-on: ${{ vars.BENCHMARK_MACOS || vars.MACOS }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -64,7 +69,7 @@ jobs:
         uses: ./.github/actions/cache
         with:
           kind: benchmark-${{ matrix.platform }}
-          xcode-version: ${{ vars.XCODE_VERSION }}
+          xcode-version: ${{ vars.BENCHMARK_XCODE_VERSION || vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
       - name: Compare against the base
