@@ -64,6 +64,12 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
       lastText = newValue is NSMutableAttributedString ? NSAttributedString(attributedString: newValue) : newValue
 
       textStorage.setAttributedString(shownText(of: newValue))
+
+      #if canImport(AppKit)
+      textDrawsTheSameInALayer = nil
+      updateDrawingMode()
+      #endif
+
       setNeedsDisplayForText()
     }
   }
@@ -194,6 +200,9 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   private func setNeedsDisplayForText() {
     #if canImport(AppKit)
     needsDisplay = true
+    if drawsInLayer {
+      drawingLayer?.setNeedsDisplay()
+    }
     #endif
 
     #if canImport(UIKit)
@@ -220,7 +229,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   }
 
   /// Draws the text, laid out in the bounds inside the inset.
-  private func drawText() {
+  func drawText() {
     guard fitTextContainer() else {
       return
     }
@@ -233,15 +242,153 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
   #if canImport(AppKit)
 
-  // `BaseView` updates its layer instead of drawing
-  override public var wantsUpdateLayer: Bool { false }
+  // MARK: - Layer Drawing
+
+  /// Whether the drawing layer draws the text, instead of AppKit drawing the view.
+  ///
+  /// AppKit draws a layer-backed view through a recording of its drawing, which takes more work than a layer that draws
+  /// itself, but the two draw the same pixels only for the texts, sizes and systems that the label drawing parity tests
+  /// verify, so the label draws in the layer only for those, and leaves anything else to AppKit.
+  private var drawsInLayer = false
+
+  /// The layer that draws the text when the label draws in a layer, made the first time it does.
+  private var drawingLayer: DrawingLayer?
+
+  /// Whether the text draws the same pixels in the drawing layer as through AppKit, see
+  /// `NSAttributedString.drawsTheSameInALayer`, or `nil` before the label checks the text.
+  private var textDrawsTheSameInALayer: Bool?
+
+  #if DEBUG
+  /// Whether tests force the label to draw in its drawing layer, `true`, or through AppKit, `false`, instead of choosing.
+  private var forcedDrawsInLayer: Bool?
+  #endif
+
+  override public var wantsUpdateLayer: Bool { drawsInLayer }
+
+  override public func updateLayer() {
+    // the drawing layer shows the text, so the view's own layer shows nothing, instead of what AppKit drew before
+    if layer?.contents != nil {
+      layer?.contents = nil
+    }
+  }
 
   override public func draw(_ dirtyRect: NSRect) {
     drawText()
   }
 
-  // the view doesn't take clicks, as a text view that's neither editable nor selectable doesn't
+  override public func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+
+    drawingLayer?.frame = bounds
+    updateDrawingMode()
+  }
+
+  override public func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+
+    updateDrawingMode()
+  }
+
+  override public func viewDidChangeBackingProperties() {
+    super.viewDidChangeBackingProperties()
+
+    updateDrawingMode()
+  }
+
+  override public func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+
+    // AppKit draws the view again, while the drawing layer draws again for the dynamic colors of the new appearance
+    if drawsInLayer {
+      drawingLayer?.setNeedsDisplay()
+    }
+  }
+
+  /// Chooses whether the drawing layer or AppKit draws the text, for the text, the size and the window.
+  private func updateDrawingMode() {
+    // out of a window, the label keeps how it draws, which saves switching for a reused label that leaves its window
+    guard let window, let layer else {
+      return
+    }
+
+    // the text comes last, since checking it reads each of its styles
+    let scale = window.backingScaleFactor
+    var drawsInLayer = Self.isLayerDrawingVerified && isSizeInWholePixels(scale: scale) && textDrawsTheSame()
+    #if DEBUG
+    if let forcedDrawsInLayer {
+      drawsInLayer = forcedDrawsInLayer
+    }
+    #endif
+
+    if drawsInLayer {
+      let drawingLayer = self.drawingLayer ?? makeDrawingLayer()
+      if drawingLayer.superlayer !== layer {
+        layer.addSublayer(drawingLayer)
+      }
+      // AppKit gives the view's own layer the window's scale, while a layer that the view doesn't own keeps its scale
+      if drawingLayer.contentsScale != scale {
+        drawingLayer.contentsScale = scale
+        drawingLayer.setNeedsDisplay()
+      }
+    }
+
+    guard drawsInLayer != self.drawsInLayer else {
+      return
+    }
+
+    self.drawsInLayer = drawsInLayer
+    if drawsInLayer {
+      drawingLayer?.isHidden = false
+      drawingLayer?.setNeedsDisplay()
+    } else {
+      // AppKit draws the text, so the drawing layer hides, and lets its drawing go
+      drawingLayer?.isHidden = true
+      drawingLayer?.contents = nil
+    }
+
+    // AppKit draws the view, or with the drawing layer drawing, clears what it drew
+    needsDisplay = true
+  }
+
+  /// Returns whether the text draws the same pixels in the drawing layer as through AppKit, checked once for each text.
+  private func textDrawsTheSame() -> Bool {
+    if let textDrawsTheSameInALayer {
+      return textDrawsTheSameInALayer
+    }
+
+    // the text storage gives a substitute font to the characters that their font doesn't have, so the drawing is checked
+    // on the text that the storage shows
+    let drawsTheSame = textStorage.drawsTheSameInALayer
+    textDrawsTheSameInALayer = drawsTheSame
+    return drawsTheSame
+  }
+
+  private func makeDrawingLayer() -> DrawingLayer {
+    let drawingLayer = DrawingLayer()
+    drawingLayer.labelView = self
+    drawingLayer.frame = bounds
+    drawingLayer.needsDisplayOnBoundsChange = true
+    // in the label's flipped layer, a sublayer's contents are flipped, which flips the space where Core Graphics offsets
+    // shadows, and offsets them differently from AppKit, so the drawing layer flips back, and its drawing flips the
+    // context instead
+    drawingLayer.isGeometryFlipped = true
+    self.drawingLayer = drawingLayer
+    return drawingLayer
+  }
+
+  /// Returns whether the size is in whole pixels at a scale, which a layer draws in the same pixels as AppKit, while a
+  /// size between pixels places the drawing differently in each.
+  ///
+  /// - Parameter scale: The scale of the window's backing store.
+  /// - Returns: Whether the width and the height are whole numbers of pixels.
+  private func isSizeInWholePixels(scale: CGFloat) -> Bool {
+    let width = bounds.width * scale
+    let height = bounds.height * scale
+    return width == width.rounded() && height == height.rounded()
+  }
+
   override public func hitTest(_ point: NSPoint) -> NSView? {
+    // the view doesn't take clicks, as a text view that's neither editable nor selectable doesn't
     nil
   }
 
@@ -475,6 +622,29 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     var textContainer: NSTextContainer {
       host.textContainer
     }
+
+    #if canImport(AppKit)
+    /// Whether the label draws its text in its drawing layer, instead of through AppKit.
+    var drawsInLayer: Bool {
+      host.drawsInLayer
+    }
+
+    /// The layer that draws the text when the label draws in a layer.
+    var drawingLayer: CALayer? {
+      host.drawingLayer
+    }
+
+    /// Forces the label to draw in its drawing layer, `true`, or through AppKit, `false`, or lets it choose, `nil`.
+    var forcedDrawsInLayer: Bool? {
+      get {
+        host.forcedDrawsInLayer
+      }
+      set {
+        host.forcedDrawsInLayer = newValue
+        host.updateDrawingMode()
+      }
+    }
+    #endif
   }
 
   #endif

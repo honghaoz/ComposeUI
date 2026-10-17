@@ -39,6 +39,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   private var additivePathLabWindow: AdditivePathLabWindow?
   private var shadowLabWindow: ShadowLabWindow?
   private var nestedScrollLabWindow: NestedScrollLabWindow?
+  private var labelDrawingLabWindow: LabelDrawingLabWindow?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
 
@@ -88,6 +89,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     nestedScrollLabItem.target = self
     demosMenu.addItem(nestedScrollLabItem)
 
+    let labelDrawingLabItem = NSMenuItem(title: "Label Drawing Lab", action: #selector(showLabelDrawingLab), keyEquivalent: "")
+    labelDrawingLabItem.target = self
+    demosMenu.addItem(labelDrawingLabItem)
+
     let demosMenuItem = NSMenuItem()
     demosMenuItem.submenu = demosMenu
     NSApp.mainMenu?.addItem(demosMenuItem)
@@ -126,6 +131,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       nestedScrollLabWindow = NestedScrollLabWindow()
     }
     nestedScrollLabWindow?.window?.makeKeyAndOrderFront(nil)
+  }
+
+  @objc private func showLabelDrawingLab() {
+    if labelDrawingLabWindow == nil {
+      labelDrawingLabWindow = LabelDrawingLabWindow()
+    }
+    labelDrawingLabWindow?.window?.makeKeyAndOrderFront(nil)
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {
