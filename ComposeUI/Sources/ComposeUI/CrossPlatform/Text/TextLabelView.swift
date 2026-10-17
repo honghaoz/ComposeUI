@@ -64,6 +64,12 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
       lastText = newValue is NSMutableAttributedString ? NSAttributedString(attributedString: newValue) : newValue
 
       textStorage.setAttributedString(shownText(of: newValue))
+
+      #if canImport(AppKit)
+      textDrawsTheSameInALayer = nil
+      updateDrawingMode()
+      #endif
+
       setNeedsDisplayForText()
     }
   }
@@ -220,7 +226,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   }
 
   /// Draws the text, laid out in the bounds inside the inset.
-  private func drawText() {
+  func drawText() {
     guard fitTextContainer() else {
       return
     }
@@ -233,15 +239,184 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
   #if canImport(AppKit)
 
-  // `BaseView` updates its layer instead of drawing
-  override public var wantsUpdateLayer: Bool { false }
+  // MARK: - Layer Drawing
+
+  /// Whether the drawing layer draws the text, instead of AppKit drawing the view.
+  ///
+  /// AppKit draws a layer-backed view through a recording of its drawing, which takes more work than a layer that draws
+  /// itself, but the two draw the same pixels only for the texts, sizes, coordinates and systems that the label drawing
+  /// parity tests verify, so the label draws in the layer only for those, and leaves anything else to AppKit.
+  ///
+  /// The drawing layer stands in for the view's own drawing, so it follows what AppKit does with that drawing: it covers
+  /// the bounds at the window's scale, sits below the layer's other sublayers, and draws again whenever AppKit would draw
+  /// the view, which AppKit tells through `updateLayer()`. It relies on code outside the label leaving the label's layer
+  /// alone, as AppKit asks of a layer-backed view, since the layer's sublayers and transforms apply to a sublayer
+  /// differently than to the layer's own contents.
+  private var drawsInLayer = false
+
+  /// The layer that draws the text when the label draws in a layer, made the first time it does.
+  private var drawingLayer: DrawingLayer?
+
+  /// Whether the text draws the same pixels in the drawing layer as through AppKit, see
+  /// `NSAttributedString.drawsTheSameInALayer`, or `nil` before the label checks the text.
+  private var textDrawsTheSameInALayer: Bool?
+
+  #if DEBUG
+  /// Whether tests force the label to draw in its drawing layer, `true`, or through AppKit, `false`, instead of choosing.
+  private var forcedDrawsInLayer: Bool?
+  #endif
+
+  override public var wantsUpdateLayer: Bool { drawsInLayer }
+
+  override public func updateLayer() {
+    // the drawing layer shows the text, so the view's own layer shows nothing, instead of what AppKit drew before
+    if layer?.contents != nil {
+      layer?.contents = nil
+    }
+
+    // AppKit calls this instead of `draw(_:)` whenever the view needs drawing, for any reason, so the drawing layer draws
+    // again here, whenever AppKit would draw the view
+    drawingLayer?.setNeedsDisplay()
+  }
 
   override public func draw(_ dirtyRect: NSRect) {
     drawText()
   }
 
-  // the view doesn't take clicks, as a text view that's neither editable nor selectable doesn't
+  override public func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+
+    boundsDidChange()
+  }
+
+  override public func setBoundsOrigin(_ newOrigin: NSPoint) {
+    super.setBoundsOrigin(newOrigin)
+
+    // AppKit tells the label of a moved bounds origin only here and in `translateOrigin(to:)`, unlike a scale or a
+    // rotation of its coordinates, which changes its backing properties
+    boundsDidChange()
+  }
+
+  override public func translateOrigin(to translation: NSPoint) {
+    super.translateOrigin(to: translation)
+
+    // translating the origin moves the bounds origin without going through `setBoundsOrigin(_:)`
+    boundsDidChange()
+  }
+
+  override public func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+
+    updateDrawingMode()
+  }
+
+  override public func viewDidChangeBackingProperties() {
+    super.viewDidChangeBackingProperties()
+
+    // AppKit calls this for a new scale or color space of the window, and for a scale or a rotation of the label's
+    // coordinates or an ancestor's
+    boundsDidChange()
+  }
+
+  /// Moves the drawing layer to the bounds, and chooses again how the label draws, after a change of its bounds.
+  private func boundsDidChange() {
+    drawingLayer?.frame = bounds
+    updateDrawingMode()
+  }
+
+  /// Chooses whether the drawing layer or AppKit draws the text, for the text, the size, the coordinates and the window.
+  private func updateDrawingMode() {
+    // out of a window, the label keeps how it draws, which saves switching for a reused label that leaves its window
+    guard let window, let layer else {
+      return
+    }
+
+    // the text comes last, since checking it reads each of its styles
+    let scale = window.backingScaleFactor
+    var drawsInLayer = Self.isLayerDrawingVerified && isSizeInWholePixels(scale: scale) && hasUnchangedCoordinates && textDrawsTheSame()
+    #if DEBUG
+    if let forcedDrawsInLayer {
+      drawsInLayer = forcedDrawsInLayer
+    }
+    #endif
+
+    if drawsInLayer {
+      let drawingLayer = self.drawingLayer ?? makeDrawingLayer()
+      if drawingLayer.superlayer !== layer {
+        // AppKit draws the view into the layer's contents, below its sublayers, so the drawing layer goes below them too
+        layer.insertSublayer(drawingLayer, at: 0)
+      }
+      // AppKit gives the view's own layer the window's scale, while a layer that the view doesn't own keeps its scale
+      if drawingLayer.contentsScale != scale {
+        drawingLayer.contentsScale = scale
+        drawingLayer.setNeedsDisplay()
+      }
+    }
+
+    guard drawsInLayer != self.drawsInLayer else {
+      return
+    }
+
+    self.drawsInLayer = drawsInLayer
+    if drawsInLayer {
+      drawingLayer?.isHidden = false
+    } else {
+      // AppKit draws the text, so the drawing layer hides, and lets its drawing go
+      drawingLayer?.isHidden = true
+      drawingLayer?.contents = nil
+    }
+
+    // AppKit draws the view again, through `draw(_:)`, or through `updateLayer()`, which clears what AppKit drew and
+    // draws the drawing layer
+    needsDisplay = true
+  }
+
+  /// Returns whether the text draws the same pixels in the drawing layer as through AppKit, checked once for each text.
+  private func textDrawsTheSame() -> Bool {
+    if let textDrawsTheSameInALayer {
+      return textDrawsTheSameInALayer
+    }
+
+    // the text storage gives a substitute font to the characters that their font doesn't have, so the drawing is checked
+    // on the text that the storage shows
+    let drawsTheSame = textStorage.drawsTheSameInALayer
+    textDrawsTheSameInALayer = drawsTheSame
+    return drawsTheSame
+  }
+
+  private func makeDrawingLayer() -> DrawingLayer {
+    let drawingLayer = DrawingLayer()
+    drawingLayer.labelView = self
+    drawingLayer.frame = bounds
+    drawingLayer.needsDisplayOnBoundsChange = true
+    // in the label's flipped layer, a sublayer's contents are flipped, which flips the space where Core Graphics offsets
+    // shadows, and offsets them differently from AppKit, so the drawing layer flips back, and its drawing flips the
+    // context instead
+    drawingLayer.isGeometryFlipped = true
+    self.drawingLayer = drawingLayer
+    return drawingLayer
+  }
+
+  /// Returns whether the size is in whole pixels at a scale, which a layer draws in the same pixels as AppKit, while a
+  /// size between pixels places the drawing differently in each.
+  ///
+  /// - Parameter scale: The scale of the window's backing store.
+  /// - Returns: Whether the width and the height are whole numbers of pixels.
+  private func isSizeInWholePixels(scale: CGFloat) -> Bool {
+    let width = bounds.width * scale
+    let height = bounds.height * scale
+    return width == width.rounded() && height == height.rounded()
+  }
+
+  /// Whether the label's coordinates are the window's, only moved to the label's place, which a layer draws in as AppKit
+  /// does, while AppKit also draws a moved bounds origin, or a scale or a rotation of the label or of an ancestor, into
+  /// the view's drawing.
+  private var hasUnchangedCoordinates: Bool {
+    bounds.origin == .zero && !isRotatedOrScaledFromBase
+  }
+
   override public func hitTest(_ point: NSPoint) -> NSView? {
+    // the view doesn't take clicks, as a text view that's neither editable nor selectable doesn't
     nil
   }
 
@@ -475,6 +650,29 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     var textContainer: NSTextContainer {
       host.textContainer
     }
+
+    #if canImport(AppKit)
+    /// Whether the label draws its text in its drawing layer, instead of through AppKit.
+    var drawsInLayer: Bool {
+      host.drawsInLayer
+    }
+
+    /// The layer that draws the text when the label draws in a layer.
+    var drawingLayer: CALayer? {
+      host.drawingLayer
+    }
+
+    /// Forces the label to draw in its drawing layer, `true`, or through AppKit, `false`, or lets it choose, `nil`.
+    var forcedDrawsInLayer: Bool? {
+      get {
+        host.forcedDrawsInLayer
+      }
+      set {
+        host.forcedDrawsInLayer = newValue
+        host.updateDrawingMode()
+      }
+    }
+    #endif
   }
 
   #endif
