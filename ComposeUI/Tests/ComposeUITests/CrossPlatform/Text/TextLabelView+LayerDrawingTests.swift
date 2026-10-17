@@ -222,6 +222,97 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(labelView.test.drawingLayer?.needsDisplay() ?? false) == false
   }
 
+  func test_changedCoordinates_drawThroughAppKit_untilChangedBack() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // the changes of the label's coordinates, or of an ancestor's, that AppKit draws into the view's drawing, with the
+    // changes that put them back exactly
+    typealias Change = (TextLabelView, NSView) -> Void
+    let changes: [(name: String, change: Change, undo: Change?)] = [
+      ("bounds origin", { label, _ in label.setBoundsOrigin(NSPoint(x: 10, y: 0)) }, { label, _ in label.setBoundsOrigin(.zero) }),
+      ("translated origin", { label, _ in label.translateOrigin(to: NSPoint(x: 3, y: 0)) }, { label, _ in label.translateOrigin(to: NSPoint(x: -3, y: 0)) }),
+      ("bounds origin across a resize", { label, _ in
+        label.setBoundsOrigin(NSPoint(x: 10, y: 0))
+        label.setFrameSize(NSSize(width: 190, height: 64))
+      }, { label, _ in label.setBoundsOrigin(.zero) }),
+      ("bounds size", { label, _ in label.setBoundsSize(NSSize(width: 100, height: 32)) }, { label, _ in label.setBoundsSize(label.frame.size) }),
+      ("unit square", { label, _ in label.scaleUnitSquare(to: NSSize(width: 2, height: 2)) }, { label, _ in label.scaleUnitSquare(to: NSSize(width: 0.5, height: 0.5)) }),
+      ("unit square across a resize", { label, _ in
+        label.scaleUnitSquare(to: NSSize(width: 2, height: 2))
+        label.setFrameSize(NSSize(width: 190, height: 64))
+      }, { label, _ in label.scaleUnitSquare(to: NSSize(width: 0.5, height: 0.5)) }),
+      ("bounds rotation", { label, _ in label.rotate(byDegrees: 5) }, nil),
+      ("frame rotation", { label, _ in label.frameRotation = 5 }, nil),
+      ("ancestor's unit square", { _, ancestor in ancestor.scaleUnitSquare(to: NSSize(width: 2, height: 2)) }, { _, ancestor in ancestor.scaleUnitSquare(to: NSSize(width: 0.5, height: 0.5)) }),
+      ("ancestor's rotation", { _, ancestor in ancestor.rotate(byDegrees: 5) }, nil),
+    ]
+    for (name, change, undo) in changes {
+      // given: a label away from the edges of a view in a window, which shows any drawing past the label's bounds,
+      // drawing a text in its layer that's wider than half the label, which a drawing layer left at a scaled size cuts
+      let renderer = try WindowRenderer(size: CGSize(width: 240, height: 64))
+      let ancestor = NSView(frame: renderer.view.bounds)
+      renderer.view.addSubview(ancestor)
+      let labelView = TextLabelView(frame: CGRect(x: 20, y: 0, width: 200, height: 64))
+      labelView.attributedString = Self.text("Row 12 title in the label")
+      ancestor.addSubview(labelView)
+      _ = try renderer.render()
+      expect(labelView.test.drawsInLayer, name) == true
+
+      // when: changing the coordinates
+      change(labelView, ancestor)
+
+      // then: AppKit draws the text from the next drawing on
+      let shownPixels = try renderer.render()
+      expect(labelView.test.drawsInLayer, name) == false
+      expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: shownPixels), name) == 0
+
+      guard let undo else {
+        continue
+      }
+
+      // when: changing them back
+      undo(labelView, ancestor)
+
+      // then: the label draws in its layer again, in the same pixels as AppKit
+      let pixelsAfterUndo = try renderer.render()
+      expect(labelView.test.drawsInLayer, name) == true
+      expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: pixelsAfterUndo), name) == 0
+    }
+  }
+
+  func test_magnification_drawsThroughAppKit_untilMagnifiedBack() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label in a scroll view in a window, drawing a text in its layer
+    let renderer = try WindowRenderer(size: CGSize(width: 200, height: 64))
+    let scrollView = NSScrollView(frame: renderer.view.bounds)
+    scrollView.allowsMagnification = true
+    scrollView.maxMagnification = 4
+    scrollView.documentView = NSView(frame: renderer.view.bounds)
+    renderer.view.addSubview(scrollView)
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 200, height: 64))
+    labelView.attributedString = Self.text("Row 12 title")
+    scrollView.documentView?.addSubview(labelView)
+    _ = try renderer.render()
+    expect(labelView.test.drawsInLayer) == true
+
+    // when: the scroll view magnifies its content, which AppKit draws at the magnified scale
+    scrollView.magnification = 2
+
+    // then: AppKit draws the text from the next drawing on
+    let magnifiedPixels = try renderer.render()
+    expect(labelView.test.drawsInLayer) == false
+    expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: magnifiedPixels)) == 0
+
+    // when: the scroll view stops magnifying
+    scrollView.magnification = 1
+
+    // then: the label draws in its layer again, in the same pixels as AppKit
+    let pixels = try renderer.render()
+    expect(labelView.test.drawsInLayer) == true
+    expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: pixels)) == 0
+  }
+
   func test_backingScaleChange_drawsAtTheNewScale() throws {
     try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
@@ -317,6 +408,26 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(drawingLayer.action(forKey: "contents") == nil) == true
   }
 
+  func test_drawingLayer_drawsBelowTheLabelsSublayers_inTheSamePixelsAsAppKit() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label in a window, drawing a text with an emoji through AppKit, with an opaque sublayer over part of it
+    let (renderer, labelView) = try Self.makeLabel(Case(name: "emoji", text: Self.text("Party \u{1F389}")))
+    let overlay = CALayer()
+    overlay.backgroundColor = NSColor.red.cgColor
+    overlay.frame = CGRect(x: 0, y: 0, width: 40, height: 64)
+    labelView.layer?.addSublayer(overlay)
+    expect(labelView.test.drawsInLayer) == false
+
+    // when: showing a text that the label draws in its layer
+    labelView.attributedString = Self.text("Row 12 title")
+
+    // then: the drawing layer goes below the sublayer, which covers the text as it covers AppKit's drawing
+    expect(labelView.test.drawsInLayer) == true
+    expect(labelView.layer?.sublayers?.first) === labelView.test.drawingLayer
+    expect(try Self.differingPixelCountFromAppKit(labelView, renderer)) == 0
+  }
+
   func test_drawingLayer_withoutALabel_drawsNothing() {
     // given: a drawing layer without a label
     let drawingLayer = TextLabelView.DrawingLayer()
@@ -403,11 +514,16 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   /// Returns the number of pixels that differ between what the label shows and what AppKit draws for it.
   private static func differingPixelCountFromAppKit(_ labelView: TextLabelView, _ renderer: WindowRenderer) throws -> Int {
     let pixels = try renderer.render()
+    return try appKitPixels(labelView, renderer).differingPixelCount(from: pixels)
+  }
+
+  /// Returns the pixels that AppKit draws for the label, which the test forces, before letting the label choose again.
+  private static func appKitPixels(_ labelView: TextLabelView, _ renderer: WindowRenderer) throws -> RenderedPixels {
     labelView.test.forcedDrawsInLayer = false
     defer {
       labelView.test.forcedDrawsInLayer = nil
     }
-    return try renderer.render().differingPixelCount(from: pixels)
+    return try renderer.render()
   }
 
   private static func text(_ string: String, _ attributes: [NSAttributedString.Key: Any] = [:]) -> NSAttributedString {

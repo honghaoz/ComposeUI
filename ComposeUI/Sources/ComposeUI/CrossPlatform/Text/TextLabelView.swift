@@ -247,8 +247,8 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// Whether the drawing layer draws the text, instead of AppKit drawing the view.
   ///
   /// AppKit draws a layer-backed view through a recording of its drawing, which takes more work than a layer that draws
-  /// itself, but the two draw the same pixels only for the texts, sizes and systems that the label drawing parity tests
-  /// verify, so the label draws in the layer only for those, and leaves anything else to AppKit.
+  /// itself, but the two draw the same pixels only for the texts, sizes, coordinates and systems that the label drawing
+  /// parity tests verify, so the label draws in the layer only for those, and leaves anything else to AppKit.
   private var drawsInLayer = false
 
   /// The layer that draws the text when the label draws in a layer, made the first time it does.
@@ -279,8 +279,22 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   override public func setFrameSize(_ newSize: NSSize) {
     super.setFrameSize(newSize)
 
-    drawingLayer?.frame = bounds
-    updateDrawingMode()
+    boundsDidChange()
+  }
+
+  override public func setBoundsOrigin(_ newOrigin: NSPoint) {
+    super.setBoundsOrigin(newOrigin)
+
+    // AppKit tells the label of a moved bounds origin only here and in `translateOrigin(to:)`, unlike a scale or a
+    // rotation of its coordinates, which changes its backing properties
+    boundsDidChange()
+  }
+
+  override public func translateOrigin(to translation: NSPoint) {
+    super.translateOrigin(to: translation)
+
+    // translating the origin moves the bounds origin without going through `setBoundsOrigin(_:)`
+    boundsDidChange()
   }
 
   override public func viewDidMoveToWindow() {
@@ -292,7 +306,9 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   override public func viewDidChangeBackingProperties() {
     super.viewDidChangeBackingProperties()
 
-    updateDrawingMode()
+    // AppKit calls this for a new scale or color space of the window, and for a scale or a rotation of the label's
+    // coordinates or an ancestor's
+    boundsDidChange()
   }
 
   override public func viewDidChangeEffectiveAppearance() {
@@ -304,7 +320,13 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     }
   }
 
-  /// Chooses whether the drawing layer or AppKit draws the text, for the text, the size and the window.
+  /// Moves the drawing layer to the bounds, and chooses again how the label draws, after a change of its bounds.
+  private func boundsDidChange() {
+    drawingLayer?.frame = bounds
+    updateDrawingMode()
+  }
+
+  /// Chooses whether the drawing layer or AppKit draws the text, for the text, the size, the coordinates and the window.
   private func updateDrawingMode() {
     // out of a window, the label keeps how it draws, which saves switching for a reused label that leaves its window
     guard let window, let layer else {
@@ -313,7 +335,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
     // the text comes last, since checking it reads each of its styles
     let scale = window.backingScaleFactor
-    var drawsInLayer = Self.isLayerDrawingVerified && isSizeInWholePixels(scale: scale) && textDrawsTheSame()
+    var drawsInLayer = Self.isLayerDrawingVerified && isSizeInWholePixels(scale: scale) && hasUnchangedCoordinates && textDrawsTheSame()
     #if DEBUG
     if let forcedDrawsInLayer {
       drawsInLayer = forcedDrawsInLayer
@@ -323,7 +345,8 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     if drawsInLayer {
       let drawingLayer = self.drawingLayer ?? makeDrawingLayer()
       if drawingLayer.superlayer !== layer {
-        layer.addSublayer(drawingLayer)
+        // AppKit draws the view into the layer's contents, below its sublayers, so the drawing layer goes below them too
+        layer.insertSublayer(drawingLayer, at: 0)
       }
       // AppKit gives the view's own layer the window's scale, while a layer that the view doesn't own keeps its scale
       if drawingLayer.contentsScale != scale {
@@ -385,6 +408,13 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     let width = bounds.width * scale
     let height = bounds.height * scale
     return width == width.rounded() && height == height.rounded()
+  }
+
+  /// Whether the label's coordinates are the window's, only moved to the label's place, which a layer draws in as AppKit
+  /// does, while AppKit also draws a moved bounds origin, or a scale or a rotation of the label or of an ancestor, into
+  /// the view's drawing.
+  private var hasUnchangedCoordinates: Bool {
+    bounds.origin == .zero && !isRotatedOrScaledFromBase
   }
 
   override public func hitTest(_ point: NSPoint) -> NSView? {
