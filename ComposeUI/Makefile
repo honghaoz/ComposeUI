@@ -58,8 +58,8 @@ benchmark: # Run the benchmarks in release configuration. Usage: make benchmark 
 	@"$(REPO_ROOT)/scripts/benchmark/benchmark-run.sh" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",)
 
 .PHONY: benchmark-compare
-benchmark-compare: # Compare the benchmarks against a base revision on this machine. Usage: make benchmark-compare [BASE=origin/master] [PLATFORM=iOS] [FILTER=AdditivePathPerformanceTests] [ROUNDS=5] [TIME_THRESHOLD=20] [SUMMARY=report.md].
-	@"$(REPO_ROOT)/scripts/benchmark/benchmark-compare.sh" --base "$(or $(BASE),origin/master)" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",) --rounds "$(or $(ROUNDS),5)" --time-threshold "$(or $(TIME_THRESHOLD),20)" $(if $(SUMMARY),--summary "$(SUMMARY)",)
+benchmark-compare: # Compare the benchmarks against a base revision on this machine. Usage: make benchmark-compare [BASE=origin/master] [PLATFORM=iOS] [FILTER=AdditivePathPerformanceTests] [ROUNDS=5] [TIME_THRESHOLD=20] [INSTRUCTIONS_THRESHOLD=1] [SUMMARY=report.md].
+	@"$(REPO_ROOT)/scripts/benchmark/benchmark-compare.sh" --base "$(or $(BASE),origin/master)" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",) --rounds "$(or $(ROUNDS),5)" --time-threshold "$(or $(TIME_THRESHOLD),20)" --instructions-threshold "$(or $(INSTRUCTIONS_THRESHOLD),1)" $(if $(SUMMARY),--summary "$(SUMMARY)",)
 
 .PHONY: test-codecov
 test-codecov: # Run tests with code coverage.

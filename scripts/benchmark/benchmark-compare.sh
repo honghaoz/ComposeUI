@@ -19,23 +19,24 @@ RESET=$( [ -n "${TERM:-}" ] && [ "$TERM" != "dumb" ] && tput sgr0 || echo "")
 print_help() {
   echo "${BOLD}OVERVIEW:${RESET} Compare the benchmarks of the working tree against a base revision, on this machine."
   echo ""
-  echo "${BOLD}USAGE:${RESET} $0 [--base <revision>] [--platform <macOS|iOS|tvOS>] [--filter <regex>] [--rounds <count>] [--time-threshold <percent>] [--summary <file>]"
+  echo "${BOLD}USAGE:${RESET} $0 [--base <revision>] [--platform <macOS|iOS|tvOS>] [--filter <regex>] [--rounds <count>] [--time-threshold <percent>] [--instructions-threshold <percent>] [--summary <file>]"
   echo ""
   echo "${BOLD}OPTIONS:${RESET}"
-  echo "  --base <revision>           The revision to compare against. Default is origin/master."
-  echo "  --platform <macOS|iOS|tvOS> The platform to run on, macOS or the newest available simulator of iOS or tvOS. Default is macOS."
-  echo "  --filter <regex>            The benchmarks to run, as a swift test filter. Default is the benchmark suites, all of them."
-  echo "  --rounds <count>            The number of rounds to run each side. Default is 5."
-  echo "  --time-threshold <percent>  The slowdown past which a time warns. Default is 20."
-  echo "  --summary <file>            A markdown file to append the report to, such as GitHub's step summary. Optional."
-  echo "  --help, -h                  Show this help message."
+  echo "  --base <revision>                  The revision to compare against. Default is origin/master."
+  echo "  --platform <macOS|iOS|tvOS>        The platform to run on, macOS or the newest available simulator of iOS or tvOS. Default is macOS."
+  echo "  --filter <regex>                   The benchmarks to run, as a swift test filter. Default is the benchmark suites, all of them."
+  echo "  --rounds <count>                   The number of rounds to run each side. Default is 5."
+  echo "  --time-threshold <percent>         The slowdown past which a time warns. Default is 20."
+  echo "  --instructions-threshold <percent> The increase past which instructions regress. Default is 1."
+  echo "  --summary <file>                   A markdown file to append the report to, such as GitHub's step summary. Optional."
+  echo "  --help, -h                         Show this help message."
   echo ""
-  echo "Exits with 1 when a benchmark makes more allocations than the base made in any round, or retires more than 1%"
-  echo "more instructions, when a side doesn't report a benchmark exactly once in every round, when a round skips a test,"
-  echo "and as inconclusive when no benchmark has allocations or instructions on both sides. A slower time is a warning,"
-  echo "since time depends on the machine's load. Both sides run the working tree's benchmark files, so the comparison"
-  echo "stops when they don't build against the base. Tests named test_profile_ are left out, since they only run for a"
-  echo "profiler."
+  echo "Exits with 1 when a benchmark makes more allocations than the base made in any round, or retires more"
+  echo "instructions than the instructions threshold allows, when a side doesn't report a benchmark exactly once in"
+  echo "every round, when a round skips a test, and as inconclusive when no benchmark has allocations or instructions"
+  echo "on both sides. A slower time is a warning, since time depends on the machine's load. Both sides run the working"
+  echo "tree's benchmark files, so the comparison stops when they don't build against the base. Tests named"
+  echo "test_profile_ are left out, since they only run for a profiler."
 }
 
 BASE="origin/master"
@@ -68,6 +69,10 @@ while [[ $# -gt 0 ]]; do
     TIME_THRESHOLD="$2"
     shift 2
     ;;
+  --instructions-threshold)
+    INSTRUCTIONS_THRESHOLD="$2"
+    shift 2
+    ;;
   --summary)
     SUMMARY="$2"
     shift 2
@@ -92,6 +97,10 @@ if ! [[ "$ROUNDS" =~ ^[1-9][0-9]*$ ]]; then
 fi
 if ! [[ "$TIME_THRESHOLD" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   echo "🛑 --time-threshold must be a non-negative number: $TIME_THRESHOLD" >&2
+  exit 1
+fi
+if ! [[ "$INSTRUCTIONS_THRESHOLD" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "🛑 --instructions-threshold must be a non-negative number: $INSTRUCTIONS_THRESHOLD" >&2
   exit 1
 fi
 case "$PLATFORM" in
@@ -167,7 +176,7 @@ fi
 echo "${BOLD}Base:${RESET} $BASE, $(git -C "$REPO_ROOT" log --oneline -1 "$BASE_COMMIT")"
 echo "${BOLD}Head:${RESET} the working tree, $HEAD_DESCRIPTION"
 echo "${BOLD}Platform:${RESET} $PLATFORM_DESCRIPTION"
-echo "${BOLD}Benchmarks:${RESET} $FILTER, $ROUNDS rounds, times warn past $TIME_THRESHOLD%"
+echo "${BOLD}Benchmarks:${RESET} $FILTER, $ROUNDS rounds, instructions regress past $INSTRUCTIONS_THRESHOLD%, times warn past $TIME_THRESHOLD%"
 echo ""
 
 # the temporary checkout has none of the downloaded scripts, so the repository's hooks would fail in it
@@ -251,7 +260,7 @@ if [ -n "$SUMMARY" ]; then
     echo "- Base: $BASE, $(git -C "$REPO_ROOT" log --oneline -1 "$BASE_COMMIT")"
     echo "- Head: $HEAD_DESCRIPTION"
     echo "- Platform: $PLATFORM_DESCRIPTION"
-    echo "- Benchmarks: \`$FILTER\`, $ROUNDS rounds, times warn past $TIME_THRESHOLD%"
+    echo "- Benchmarks: \`$FILTER\`, $ROUNDS rounds, instructions regress past $INSTRUCTIONS_THRESHOLD%, times warn past $TIME_THRESHOLD%"
     echo ""
     echo "$report"
   } >> "$SUMMARY"
