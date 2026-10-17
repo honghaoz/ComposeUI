@@ -350,33 +350,62 @@ class ComposeView_ZOrderTests: XCTestCase {
     }
   }
 
-  func test_zPositionKeyOffset_keepsTheKeysInTheirRange() {
+  func test_keyOffset_keepsTheKeysInTheirRange() {
     let max = ComposeView().test.maxZPositionKey
 
     // then: the offset shifts while the keys, from the offset plus 1 to the offset plus the item count, stay in the
     // range from 1 to the largest key
-    expect(ComposeView.zPositionKeyOffset(previous: 10, shift: 3, itemCount: 50)) == 13
-    expect(ComposeView.zPositionKeyOffset(previous: 10, shift: -10, itemCount: 50)) == 0
-    expect(ComposeView.zPositionKeyOffset(previous: max - 60, shift: 10, itemCount: 50)) == max - 50
+    expect(ComposeView.ZOrderPass.keyOffset(previous: 10, shift: 3, itemCount: 50)) == 13
+    expect(ComposeView.ZOrderPass.keyOffset(previous: 10, shift: -10, itemCount: 50)) == 0
+    expect(ComposeView.ZOrderPass.keyOffset(previous: max - 60, shift: 10, itemCount: 50)) == max - 50
 
     // then: keys that would leave the range move to its middle
-    expect(ComposeView.zPositionKeyOffset(previous: 10, shift: -11, itemCount: 50)) == (max - 50) / 2
-    expect(ComposeView.zPositionKeyOffset(previous: max - 60, shift: 11, itemCount: 50)) == (max - 50) / 2
+    expect(ComposeView.ZOrderPass.keyOffset(previous: 10, shift: -11, itemCount: 50)) == (max - 50) / 2
+    expect(ComposeView.ZOrderPass.keyOffset(previous: max - 60, shift: 11, itemCount: 50)) == (max - 50) / 2
 
     // then: more items than keys start at 1, leaving the items past the largest key to the z-position's assertion
-    expect(ComposeView.zPositionKeyOffset(previous: 10, shift: -11, itemCount: max + 1)) == 0
+    expect(ComposeView.ZOrderPass.keyOffset(previous: 10, shift: -11, itemCount: max + 1)) == 0
   }
 
-  func test_zPositionKey_movedBy_keepsTheKeyInItsRange() {
+  func test_key_movedBy_keepsTheKeyInItsRange() {
     let max = ComposeView().test.maxZPositionKey
 
     // then: a key moves by the offset
-    expect(ComposeView.zPositionKey(2, movedBy: 499999)) == 500001
-    expect(ComposeView.zPositionKey(max, movedBy: -(max - 1))) == 1
+    expect(ComposeView.ZOrderPass.key(2, movedBy: 499999)) == 500001
+    expect(ComposeView.ZOrderPass.key(max, movedBy: -(max - 1))) == 1
 
     // then: a key that would move past an end of the range stops at that end
-    expect(ComposeView.zPositionKey(2, movedBy: -2)) == 1
-    expect(ComposeView.zPositionKey(max - 1, movedBy: 2)) == max
+    expect(ComposeView.ZOrderPass.key(2, movedBy: -2)) == 1
+    expect(ComposeView.ZOrderPass.key(max - 1, movedBy: 2)) == max
+  }
+
+  func test_updateZPosition_keyPastTheLargestKey_asserts() {
+    // given: a z-order pass without a key offset, and a test assertion handler expecting the z-position's assertion
+    let zOrder = ComposeView.ZOrderPass(oldItemCount: 0, previousKeyOffset: 0)
+    let max = ComposeView().test.maxZPositionKey
+    let layer = CALayer()
+
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      expect(message) == "too many renderable items to maintain the items order within a z-index band"
+      assertionCount += 1
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: updating the z-position of the item with the largest key
+    zOrder.updateZPosition(of: .layer(layer), zIndex: nil, index: max - 1)
+
+    // then: the item stays within its z-index band without an assertion
+    expect(layer.zPosition) < 1
+    expect(assertionCount) == 0
+
+    // when: updating the z-position of the item past the largest key
+    zOrder.updateZPosition(of: .layer(layer), zIndex: nil, index: max)
+
+    // then: the assertion fires
+    expect(assertionCount) == 1
   }
 
   /// Makes a scrollable view with rows of one item each, alternating a layer item and a view item, hosted in a test
@@ -445,6 +474,31 @@ class ComposeView_ZOrderTests: XCTestCase {
 
     // then: the hierarchy matches the new order
     expect(recorder.renderableItemIds) == ["b", "a", "c"]
+    expectHierarchyMatchesItemOrder(view, recorder)
+  }
+
+  func test_refresh_reorderedViews_restacksTheViews() {
+    // given: a hosted view of three view items with fixed ids, rendered, so that reordering the content keeps the same
+    // item ids
+    var order: [String] = ["a", "b", "c"]
+    let (view, _) = makeHostedView {
+      ZStack {
+        for key in order {
+          ViewNode().fixedId(key)
+        }
+      }
+    }
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+
+    // when: reordering the views
+    order = ["c", "a", "b"]
+    view.refresh(animated: false)
+
+    // then: the views move into the new order, which the subview order, and with it the hit-testing order, follows
+    expect(recorder.renderableItemIds) == ["c", "a", "b"]
     expectHierarchyMatchesItemOrder(view, recorder)
   }
 
