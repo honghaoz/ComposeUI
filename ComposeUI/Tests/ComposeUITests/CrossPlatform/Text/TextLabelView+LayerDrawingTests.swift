@@ -202,7 +202,6 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
 
     // then: the layer draws the text in the dark appearance's label color, in the same pixels as AppKit
     expect(labelView.test.drawsInLayer) == true
-    expect(labelView.test.drawingLayer?.needsDisplay()) == true
     let darkPixels = try renderer.render()
     expect(darkPixels.differingPixelCount(from: lightPixels)) > 0
     expect(try Self.differingPixelCountFromAppKit(labelView, renderer)) == 0
@@ -227,20 +226,6 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     let pixels = try renderer.render()
     expect(pixels.differingPixelCount(from: redPixels)) > 0
     expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: pixels)) == 0
-  }
-
-  func test_appearanceChange_throughAppKit_leavesTheDrawingLayer() throws {
-    // given: a label in a window, drawing a text with an emoji through AppKit
-    let text = Self.text("Party 🎉", [.foregroundColor: NSColor.labelColor])
-    let (renderer, labelView) = try Self.makeLabel(Case(name: "emoji", text: text))
-    expect(labelView.test.drawsInLayer) == false
-
-    // when: the window changes to the dark appearance
-    renderer.window.appearance = NSAppearance(named: .darkAqua)
-
-    // then: AppKit draws the view again, without a drawing layer to draw
-    expect(labelView.layer?.needsDisplay()) == true
-    expect(labelView.test.drawingLayer?.needsDisplay() ?? false) == false
   }
 
   func test_changedCoordinates_drawThroughAppKit_untilChangedBack() throws {

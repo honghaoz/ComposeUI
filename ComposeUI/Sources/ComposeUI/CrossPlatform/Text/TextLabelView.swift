@@ -200,9 +200,6 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   private func setNeedsDisplayForText() {
     #if canImport(AppKit)
     needsDisplay = true
-    if drawsInLayer {
-      drawingLayer?.setNeedsDisplay()
-    }
     #endif
 
     #if canImport(UIKit)
@@ -249,6 +246,12 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// AppKit draws a layer-backed view through a recording of its drawing, which takes more work than a layer that draws
   /// itself, but the two draw the same pixels only for the texts, sizes, coordinates and systems that the label drawing
   /// parity tests verify, so the label draws in the layer only for those, and leaves anything else to AppKit.
+  ///
+  /// The drawing layer stands in for the view's own drawing, so it follows what AppKit does with that drawing: it covers
+  /// the bounds at the window's scale, sits below the layer's other sublayers, and draws again whenever AppKit would draw
+  /// the view, which AppKit tells through `updateLayer()`. It relies on code outside the label leaving the label's layer
+  /// alone, as AppKit asks of a layer-backed view, since the layer's sublayers and transforms apply to a sublayer
+  /// differently than to the layer's own contents.
   private var drawsInLayer = false
 
   /// The layer that draws the text when the label draws in a layer, made the first time it does.
@@ -271,8 +274,8 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
       layer?.contents = nil
     }
 
-    // AppKit displays the view again whenever its drawing may have changed, including for changes that the label isn't
-    // told of, so the drawing layer draws again whenever AppKit would draw the view
+    // AppKit calls this instead of `draw(_:)` whenever the view needs drawing, for any reason, so the drawing layer draws
+    // again here, whenever AppKit would draw the view
     drawingLayer?.setNeedsDisplay()
   }
 
@@ -313,15 +316,6 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     // AppKit calls this for a new scale or color space of the window, and for a scale or a rotation of the label's
     // coordinates or an ancestor's
     boundsDidChange()
-  }
-
-  override public func viewDidChangeEffectiveAppearance() {
-    super.viewDidChangeEffectiveAppearance()
-
-    // AppKit draws the view again, while the drawing layer draws again for the dynamic colors of the new appearance
-    if drawsInLayer {
-      drawingLayer?.setNeedsDisplay()
-    }
   }
 
   /// Moves the drawing layer to the bounds, and chooses again how the label draws, after a change of its bounds.
@@ -366,14 +360,14 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     self.drawsInLayer = drawsInLayer
     if drawsInLayer {
       drawingLayer?.isHidden = false
-      drawingLayer?.setNeedsDisplay()
     } else {
       // AppKit draws the text, so the drawing layer hides, and lets its drawing go
       drawingLayer?.isHidden = true
       drawingLayer?.contents = nil
     }
 
-    // AppKit draws the view, or with the drawing layer drawing, clears what it drew
+    // AppKit draws the view again, through `draw(_:)`, or through `updateLayer()`, which clears what AppKit drew and
+    // draws the drawing layer
     needsDisplay = true
   }
 
