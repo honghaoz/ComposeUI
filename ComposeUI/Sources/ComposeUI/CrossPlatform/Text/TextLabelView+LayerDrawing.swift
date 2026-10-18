@@ -50,7 +50,7 @@ extension TextLabelView {
   /// - Parameter majorVersion: The major version of macOS.
   /// - Returns: Whether the tests verify the version.
   static func isLayerDrawingVerified(onMajorVersion majorVersion: Int) -> Bool {
-    majorVersion == 26
+    majorVersion == 26 || majorVersion == 27
   }
 
   /// A layer that draws a label's text, into a backing store that Core Animation makes.

@@ -476,11 +476,17 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_isLayerDrawingVerified_onlyOnTheSystemsThatTheTestsVerify() {
-    // then: a label draws in a layer on macOS 26, which the tests verify, and keeps AppKit's drawing on an earlier or a
+    // then: a label draws in a layer on the systems that the tests verify, and keeps AppKit's drawing on an earlier or a
     // later system, until the tests pass on it
-    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 26)) == true
+    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 10)) == false
+    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 11)) == false
+    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 12)) == false
+    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 13)) == false
+    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 14)) == false
     expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 15)) == false
-    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 27)) == false
+    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 26)) == true
+    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 27)) == true
+    expect(TextLabelView.isLayerDrawingVerified(onMajorVersion: 28)) == false
 
     // then: the running system's major version decides
     let majorVersion = ProcessInfo.processInfo.operatingSystemVersion.majorVersion

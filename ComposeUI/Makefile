@@ -51,8 +51,6 @@ test-visionOS: # Run tests on visionOS.
 test-ci: # Run tests with CI-optimized caching path. Usage: make test-ci OS=iOS [PHASE=pick|boot|build|test].
 	@$(REPO_ROOT)/scripts/swift-package/test-package-xcodebuild.sh --package "$(MAKEFILE_DIR)" --os "$(OS)" --derived-data-path "$(CURDIR)/.derived-data" $(if $(PHASE),--phase $(PHASE),)
 
-# Without a FILTER, both run the benchmark suites, and without a PLATFORM, on macOS, see the root scripts/benchmark
-# folder.
 .PHONY: benchmark
 benchmark: # Run the benchmarks in release configuration. Usage: make benchmark [PLATFORM=iOS] [FILTER=RenderPerformanceTests].
 	@"$(REPO_ROOT)/scripts/benchmark/benchmark-run.sh" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",)
@@ -64,7 +62,9 @@ benchmark-compare: # Compare the benchmarks against a base revision on this mach
 .PHONY: test-codecov
 test-codecov: # Run tests with code coverage.
 	@$(REPO_ROOT)/scripts/swift-package/test-package.sh --package "$(MAKEFILE_DIR)" --max-attempts 3 --delay 3 --summary "$${GITHUB_STEP_SUMMARY:-}" --enable-code-coverage -Xswiftc -DTEST
-	xcrun llvm-cov export -format="lcov" .build/debug/ComposeUIPackageTests.xctest/Contents/MacOS/ComposeUIPackageTests -instr-profile .build/debug/codecov/default.profdata > .build/debug/codecov/coverage.lcov
+	@TEST_BINARY=.build/debug/ComposeUIPackageTests.xctest/Contents/MacOS/ComposeUIPackageTests; \
+	if [ ! -f "$$TEST_BINARY" ]; then TEST_BINARY=.build/debug/ComposeUITests.xctest/Contents/MacOS/ComposeUITests; fi; \
+	xcrun llvm-cov export -format="lcov" "$$TEST_BINARY" -instr-profile .build/debug/codecov/default.profdata > .build/debug/codecov/coverage.lcov
 	$(REPO_ROOT)/scripts/filter-lcov.sh .build/debug/codecov/coverage.lcov --keep-pattern '.+Sources/.+'
 
 .PHONY: clean
