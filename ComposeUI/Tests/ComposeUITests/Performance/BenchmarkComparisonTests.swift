@@ -99,6 +99,14 @@ class BenchmarkComparisonTests: XCTestCase {
     expect(BenchmarkComparison.median([])) == nil
   }
 
+  func test_range() {
+    // then: the range runs from the lowest value to the highest, holds the one value of a single value, and is missing
+    // for none
+    expect(BenchmarkComparison.range([3, 1, 2])) == 1 ... 3
+    expect(BenchmarkComparison.range([5])) == 5 ... 5
+    expect(BenchmarkComparison.range([])) == nil
+  }
+
   func test_percentChange() {
     // then: the change is relative to the base, and missing for a base of zero
     expect(BenchmarkComparison.percentChange(from: 200, to: 250)) == 25
@@ -201,17 +209,26 @@ class BenchmarkComparisonTests: XCTestCase {
   }
 
   func test_samples_costCountsOnlyWhenEveryRoundReportedIt() {
-    // given: a benchmark that reported every cost in one round, and only its time in the other
+    // given: a benchmark that reported every cost in one round, and only its time in the other, and one that reported
+    // every cost in one round, and all but its time in the other
     var samples = BenchmarkComparison.Samples()
     samples.append(BenchmarkComparison.Sample(time: 10, instructions: 100, allocations: 5))
     samples.append(BenchmarkComparison.Sample(time: 12, instructions: nil, allocations: nil))
+    var untimedSamples = BenchmarkComparison.Samples()
+    untimedSamples.append(BenchmarkComparison.Sample(time: 10, instructions: 100, allocations: 5))
+    untimedSamples.append(BenchmarkComparison.Sample(time: nil, instructions: 110, allocations: 5))
 
-    // then: only the time counts, since a decision from some rounds wouldn't mean what it says
+    // then: only the costs that every round reported count, since a decision from some rounds wouldn't mean what it says
     expect(samples.medianTime) == 11
     expect(samples.timeRange) == 10 ... 12
     expect(samples.medianInstructions) == nil
     expect(samples.instructionRange) == nil
     expect(samples.allocationRange) == nil
+    expect(untimedSamples.medianTime) == nil
+    expect(untimedSamples.timeRange) == nil
+    expect(untimedSamples.medianInstructions) == 105
+    expect(untimedSamples.instructionRange) == 100 ... 110
+    expect(untimedSamples.allocationRange) == 5 ... 5
   }
 
   // MARK: - Compare
