@@ -61,11 +61,8 @@ benchmark-compare: # Compare the benchmarks against a base revision on this mach
 
 .PHONY: test-codecov
 test-codecov: # Run tests with code coverage.
-	@$(REPO_ROOT)/scripts/swift-package/test-package.sh --package "$(MAKEFILE_DIR)" --max-attempts 3 --delay 3 --summary "$${GITHUB_STEP_SUMMARY:-}" --enable-code-coverage -Xswiftc -DTEST
-	@TEST_BINARY=.build/debug/ComposeUIPackageTests.xctest/Contents/MacOS/ComposeUIPackageTests; \
-	if [ ! -f "$$TEST_BINARY" ]; then TEST_BINARY=.build/debug/ComposeUITests.xctest/Contents/MacOS/ComposeUITests; fi; \
-	xcrun llvm-cov export -format="lcov" "$$TEST_BINARY" -instr-profile .build/debug/codecov/default.profdata > .build/debug/codecov/coverage.lcov
-	$(REPO_ROOT)/scripts/filter-lcov.sh .build/debug/codecov/coverage.lcov --keep-pattern '.+Sources/.+'
+	@$(REPO_ROOT)/scripts/swift-package/test-package.sh --package "$(MAKEFILE_DIR)" --max-attempts 3 --delay 3 --summary "$${GITHUB_STEP_SUMMARY:-}" --coverage-lcov .build/debug/codecov/coverage.lcov -Xswiftc -DTEST
+	$(REPO_ROOT)/scripts/filter-lcov.sh .build/debug/codecov/coverage.lcov --keep-pattern '.+/ComposeUI/Sources/.+'
 
 .PHONY: clean
 clean: # Clean build data.
