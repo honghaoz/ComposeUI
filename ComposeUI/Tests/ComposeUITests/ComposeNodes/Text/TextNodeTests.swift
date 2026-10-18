@@ -818,6 +818,277 @@ class TextNodeTests: XCTestCase {
     expect(items.map(\.frame)) == [existingItem.frame]
   }
 
+  // MARK: - Drawing Ahead of Time
+
+  func test_textViewItem_hasNoPrefetch() throws {
+    // given: the item of a text that the user can select, which a text view shows
+    var node = TextNode("Hello").selectable(true)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
+
+    // then: it has no prefetch block, since only labels draw ahead of time
+    expect(item.prefetch == nil) == true
+  }
+
+  #if canImport(AppKit)
+  func test_labelItem_prefetch_drawsTheLabelAheadOfTime() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a compose view in a window at a scale of 2, with the workers paused, and the item of a label with a themed
+    // text and settings
+    let renderer = try WindowRenderer(size: CGSize(width: 200, height: 300))
+    let contentView = ComposeView()
+    contentView.frame = renderer.view.bounds
+    renderer.view.addSubview(contentView)
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    defer {
+      TextLabelImageCache.Test.resumeDrawings()
+    }
+    let text = NSAttributedString(string: "Hello", attributes: [.themedForegroundColor: ThemedColor(light: .red, dark: .blue)])
+    var node = TextNode(text)
+      .selectable(false)
+      .numberOfLines(2)
+      .lineBreakMode(.byTruncatingHead)
+      .textContainerInset(horizontal: 2, vertical: 1)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
+
+    // when: the item prefetches at a frame, in a region
+    let region = CGRect(x: 0, y: -300, width: 200, height: 900)
+    item.prefetch?(RenderablePrefetchContext(frame: CGRect(x: 10, y: 20, width: 80, height: 40), region: region, contentView: contentView))
+
+    // then: the view's cache draws the label's text with the view's theme, at the frame's size, with the label's
+    // settings, for the view's window and appearance, and keeps the images that fill the region, 4 bytes for each pixel
+    let imageCache = try unwrap(contentView.prefetchCache(of: TextLabelImageCache.self))
+    let window = try unwrap(contentView.window)
+    let key = try TextLabelImageCache.Key(
+      text: text.apply(theme: contentView.theme),
+      size: CGSize(width: 80, height: 40),
+      numberOfLines: 2,
+      lineBreakMode: .byTruncatingHead,
+      inset: CGSize(width: 2, height: 1),
+      environment: unwrap(TextLabelImageCache.Environment.of(window: window, appearance: contentView.effectiveAppearance))
+    )
+    expect(imageCache.test.isPending(key)) == true
+    expect(imageCache.maximumBytes) == 400 * 1800 * 4
+  }
+
+  func test_labelItem_prefetch_viewOutOfAWindow_drawsNothing() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a compose view out of a window, and a label's item
+    let contentView = ComposeView()
+    var node = TextNode("Hello").selectable(false)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
+
+    // when: the item prefetches
+    let prefetch = try unwrap(item.prefetch)
+    let frame = CGRect(x: 0, y: 0, width: 80, height: 40)
+    prefetch(RenderablePrefetchContext(frame: frame, region: frame, contentView: contentView))
+
+    // then: nothing is drawn, since a label's image is drawn for the window that shows it
+    expect(contentView.prefetchCache(of: TextLabelImageCache.self)) == nil
+  }
+
+  func test_labelItem_drawingAheadTurnedOff_hasNoPrefetch() throws {
+    // given: drawing ahead of time turned off, as on a system that doesn't support it
+    try TextLabelImageCache.Test.withDrawingAheadTurnedOff {
+      // when: making a label's item
+      var node = TextNode("Hello").selectable(false)
+      _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+      let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
+
+      // then: it has no prefetch block, so its compose view doesn't look ahead for it
+      expect(item.prefetch == nil) == true
+    }
+
+    // then: drawing ahead of time is on again afterward
+    expect(TextLabelImageCache.isSupported) == TextLabelView.isLayerDrawingVerified
+  }
+
+  func test_labelItem_update_givesTheLabelTheViewsImageCache() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a compose view in a window, showing rows of labels
+    let (renderer, contentView) = try makeLabelRowsView()
+
+    // when: the view renders
+    contentView.refresh(animated: false)
+
+    // then: each label takes its image from the view's cache
+    let imageCache = try unwrap(contentView.prefetchCache(of: TextLabelImageCache.self))
+    let labelViews = Self.labelViews(of: contentView, in: CGRect(x: 0, y: 0, width: 200, height: 300))
+    expect(labelViews.count) == 10
+    for labelView in labelViews {
+      expect(labelView.imageCache) === imageCache
+    }
+    withExtendedLifetime(renderer) {}
+  }
+
+  func test_scroll_labelsThatScrollIn_showTheirImages() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a rendered compose view in a window, showing rows of labels, which drew the labels below ahead of time
+    let (renderer, contentView) = try makeLabelRowsView()
+    contentView.refresh(animated: false)
+    TextLabelImageCache.Test.waitForDrawings()
+
+    // when: scrolling down by a view height
+    contentView.contentOffset = CGPoint(x: 0, y: 300)
+    let shownPixels = try renderer.render()
+
+    // then: each label that scrolled in shows its image, without its text storage, in the same pixels as AppKit
+    let shownLabelViews = Self.labelViews(of: contentView, in: CGRect(x: 0, y: 300, width: 200, height: 300))
+    expect(shownLabelViews.count) == 10
+    for labelView in shownLabelViews {
+      expect(labelView.test.textStorageNeedsText) == true
+      expect(labelView.test.drawingLayer?.contents.map { CFGetTypeID($0 as CFTypeRef) }) == CGImage.typeID
+    }
+    for labelView in shownLabelViews {
+      labelView.test.forcedDrawsInLayer = false
+    }
+    let appKitPixels = try renderer.render()
+    expect(appKitPixels.differingPixelCount(from: shownPixels)) == 0
+  }
+
+  func test_scroll_labelsOfTheSameTextThatScrollIn_showTheImageOfTheText() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a rendered compose view in a window, which makes a label for each row that scrolls in instead of reusing one,
+    // showing rows of labels of the same text, which drew the labels below ahead of time
+    let (renderer, contentView) = try makeLabelRowsView { _ in "Row" }
+    contentView.renderablePool = nil
+    contentView.refresh(animated: false)
+    TextLabelImageCache.Test.waitForDrawings()
+
+    // when: scrolling down by a view height
+    contentView.contentOffset = CGPoint(x: 0, y: 300)
+    let shownPixels = try renderer.render()
+
+    // then: each label that scrolled in shows the one image drawn for the text, without its text storage, in the same
+    // pixels as AppKit
+    let shownLabelViews = Self.labelViews(of: contentView, in: CGRect(x: 0, y: 300, width: 200, height: 300))
+    expect(shownLabelViews.count) == 10
+    for labelView in shownLabelViews {
+      expect(labelView.test.textStorageNeedsText) == true
+    }
+    let images = try shownLabelViews.map { try unwrap($0.test.drawingLayer?.contents as AnyObject?) }
+    expect(Set(images.map { ObjectIdentifier($0) }).count) == 1
+    expect(CFGetTypeID(images[0] as CFTypeRef)) == CGImage.typeID
+    for labelView in shownLabelViews {
+      labelView.test.forcedDrawsInLayer = false
+    }
+    let appKitPixels = try renderer.render()
+    expect(appKitPixels.differingPixelCount(from: shownPixels)) == 0
+  }
+
+  func test_scroll_reusedLabelsOfTheSameText_showTheImageOfTheText() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a rendered compose view in a window, showing rows of labels of the same text, which drew the labels below
+    // ahead of time
+    let (renderer, contentView) = try makeLabelRowsView { _ in "Row" }
+    contentView.refresh(animated: false)
+    TextLabelImageCache.Test.waitForDrawings()
+    let labelViews = Set(Self.labelViews(of: contentView, in: CGRect(x: 0, y: 0, width: 200, height: 300)).map { ObjectIdentifier($0) })
+
+    // when: scrolling down by a view height, which reuses the labels of the rows that scroll out for the rows that scroll
+    // in, with the same text
+    contentView.contentOffset = CGPoint(x: 0, y: 300)
+    let shownPixels = try renderer.render()
+
+    // then: each reused label shows the image drawn for the text, instead of drawing the text again, in the same pixels
+    // as AppKit
+    let shownLabelViews = Self.labelViews(of: contentView, in: CGRect(x: 0, y: 300, width: 200, height: 300))
+    expect(shownLabelViews.count) == 10
+    expect(Set(shownLabelViews.map { ObjectIdentifier($0) })) == labelViews
+    for labelView in shownLabelViews {
+      expect(labelView.test.drawingLayer?.contents.map { CFGetTypeID($0 as CFTypeRef) }) == CGImage.typeID
+    }
+    for labelView in shownLabelViews {
+      labelView.test.forcedDrawsInLayer = false
+    }
+    let appKitPixels = try renderer.render()
+    expect(appKitPixels.differingPixelCount(from: shownPixels)) == 0
+  }
+
+  func test_refresh_labelsThatChangeInTheRegion_drawTheirTextsThemselves() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a rendered compose view in a window, showing rows of labels with a text in a variable, which drew the labels
+    // below ahead of time
+    var textPrefix = "Row"
+    let (renderer, contentView) = try makeLabelRowsView { "\(textPrefix) \($0)" }
+    contentView.refresh(animated: false)
+    TextLabelImageCache.Test.waitForDrawings()
+    let finishedCount = TextLabelImageCache.Test.finishedDrawingCount
+
+    // when: refreshing with other texts
+    textPrefix = "Line"
+    contentView.refresh(animated: false)
+    TextLabelImageCache.Test.waitForDrawings()
+
+    // then: no label is drawn again, since the region doesn't move, and the drawings of the old texts stay
+    expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount
+    expect(contentView.prefetchCache(of: TextLabelImageCache.self)?.test.entryCount) == 10
+
+    // when: scrolling down by a view height
+    contentView.contentOffset = CGPoint(x: 0, y: 300)
+    TextLabelImageCache.Test.waitForDrawings()
+    let shownPixels = try renderer.render()
+
+    // then: the labels that enter the region are drawn with their new texts, and the labels that scrolled in draw their
+    // new texts themselves, in the same pixels as AppKit
+    expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount + 10
+    let shownLabelViews = Self.labelViews(of: contentView, in: CGRect(x: 0, y: 300, width: 200, height: 300))
+    expect(shownLabelViews.count) == 10
+    for labelView in shownLabelViews {
+      expect(labelView.test.textStorageNeedsText) == false
+      expect(labelView.test.textStorage.string.hasPrefix("Line")) == true
+    }
+    for labelView in shownLabelViews {
+      labelView.test.forcedDrawsInLayer = false
+    }
+    let appKitPixels = try renderer.render()
+    expect(appKitPixels.differingPixelCount(from: shownPixels)) == 0
+  }
+
+  /// Returns a compose view in a window, 200 by 300 points, showing 100 rows of labels, 30 points each.
+  private func makeLabelRowsView(text: @escaping (Int) -> String = { "Row \($0)" }) throws -> (WindowRenderer, ComposeView) {
+    let renderer = try WindowRenderer(size: CGSize(width: 200, height: 300))
+    let contentView = ComposeView {
+      VStack {
+        for i in 0 ..< 100 {
+          LabelNode(text(i))
+            .frame(width: .flexible, height: 30)
+        }
+      }
+    }
+    contentView.renderablePool = RenderablePool()
+    contentView.frame = renderer.view.bounds
+    renderer.view.addSubview(contentView)
+    return (renderer, contentView)
+  }
+
+  /// Returns the label views of a compose view whose frames intersect a rectangle.
+  private static func labelViews(of contentView: ComposeView, in rect: CGRect) -> [TextLabelView] {
+    contentView.contentContainerView.subviews.compactMap { $0 as? TextLabelView }.filter { $0.frame.intersects(rect) }
+  }
+  #endif
+
+  #if canImport(UIKit)
+  func test_labelItem_hasNoPrefetch() throws {
+    // given: a label's item
+    var node = TextNode("Hello").selectable(false)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
+
+    // then: it has no prefetch block, since labels draw ahead of time only on macOS
+    expect(item.prefetch == nil) == true
+  }
+  #endif
+
   func test_reuse_textViewsOfTheSameInteractionSettings() throws {
     // given: a compose view with its own pool, showing an editable, unselectable text node
     var showsText = true

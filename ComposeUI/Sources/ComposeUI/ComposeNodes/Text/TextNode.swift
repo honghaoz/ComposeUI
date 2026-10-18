@@ -417,10 +417,19 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       // a text that the user can neither edit nor select is drawn by a label view, which costs far less than a text
       // view, whose machinery for editing, selection and scrolling it doesn't use
       item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
-        ViewItem<TextLabelView>(
+        // the blocks capture one object with the label's text and settings, which becomes their context, so the prefetch
+        // block allocates no context of its own
+        let labelInputs = LabelInputs(
+          attributedString: attributedString,
+          numberOfLines: numberOfLines,
+          lineBreakMode: lineBreakMode,
+          textContainerInset: textContainerInset
+        )
+        return ViewItem<TextLabelView>(
           id: id,
           frame: frame,
           make: { TextLabelView(frame: $0.initialFrame ?? .zero) },
+          prefetch: TextNode.labelPrefetch(labelInputs),
           update: { view, context in
             switch context.updateType {
             case .insert,
@@ -429,14 +438,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
             case .boundsChange:
               return
             }
-            TextNode.updateLabelView(
-              view,
-              theme: context.contentView.theme,
-              attributedString: attributedString,
-              numberOfLines: numberOfLines,
-              lineBreakMode: lineBreakMode,
-              textContainerInset: textContainerInset
-            )
+            TextNode.updateLabelView(view, labelInputs: labelInputs, contentView: context.contentView)
           },
           reuseId: ReuseId(namespace: .framework, id: "TextLabelView"),
           resetForReuse: { $0.resetForReuse() }
@@ -544,25 +546,64 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     #endif
   }
 
-  private static func updateLabelView(_ labelView: TextLabelView,
-                                      theme: Theme,
-                                      attributedString: NSAttributedString,
-                                      numberOfLines: Int,
-                                      lineBreakMode: NSLineBreakMode,
-                                      textContainerInset: CGSize)
-  {
+  private static func updateLabelView(_ labelView: TextLabelView, labelInputs: LabelInputs, contentView: ComposeView) {
+    #if canImport(AppKit)
+    // the label takes the image that its compose view drew ahead of time for the text, if any, when it gets the text
+    labelView.imageCache = contentView.prefetchCache(of: TextLabelImageCache.self)
+    #endif
+
     // a setting is set only when it differs, since each change marks the view to draw again
-    if labelView.numberOfLines != numberOfLines {
-      labelView.numberOfLines = numberOfLines
+    if labelView.numberOfLines != labelInputs.numberOfLines {
+      labelView.numberOfLines = labelInputs.numberOfLines
     }
-    if labelView.lineBreakMode != lineBreakMode {
-      labelView.lineBreakMode = lineBreakMode
+    if labelView.lineBreakMode != labelInputs.lineBreakMode {
+      labelView.lineBreakMode = labelInputs.lineBreakMode
     }
-    if labelView.textContainerInset != textContainerInset {
-      labelView.textContainerInset = textContainerInset
+    if labelView.textContainerInset != labelInputs.textContainerInset {
+      labelView.textContainerInset = labelInputs.textContainerInset
     }
 
-    labelView.attributedString = themedText(of: attributedString, theme: theme, lastThemedText: &labelView.lastThemedText)
+    labelView.attributedString = themedText(of: labelInputs.attributedString, theme: contentView.theme, lastThemedText: &labelView.lastThemedText)
+  }
+
+  /// Returns the block that draws a label's text ahead of time, before the label scrolls in, `nil` on the systems whose
+  /// labels don't draw ahead of time.
+  ///
+  /// The images go in a cache among the compose view's prefetch caches, which the view's labels take them from.
+  ///
+  /// - Parameter labelInputs: The label's text and settings.
+  /// - Returns: The block.
+  private static func labelPrefetch(_ labelInputs: LabelInputs) -> ((RenderablePrefetchContext) -> Void)? {
+    #if canImport(AppKit)
+    guard TextLabelImageCache.isSupported else {
+      return nil
+    }
+    return { context in
+      let contentView = context.contentView
+      guard let window = contentView.window,
+            let environment = TextLabelImageCache.Environment.of(window: window, appearance: contentView.effectiveAppearance)
+      else {
+        return
+      }
+      let imageCache = contentView.prefetchCache { TextLabelImageCache() }
+      // the images of the labels that fill the region, which the labels about to scroll in can't take more than
+      imageCache.maximumBytes = TextLabelImageCache.bytes(of: context.region.size, scale: environment.scale)
+      imageCache.prefetch(
+        TextLabelImageCache.Key(
+          text: themedText(of: labelInputs.attributedString, theme: contentView.theme),
+          size: context.frame.size,
+          numberOfLines: labelInputs.numberOfLines,
+          lineBreakMode: labelInputs.lineBreakMode,
+          inset: labelInputs.textContainerInset,
+          environment: environment
+        )
+      )
+    }
+    #endif
+
+    #if canImport(UIKit)
+    return nil
+    #endif
   }
 
   /// Returns the text with the theme applied, the view's last themed text when it's of the same text and theme.
@@ -582,12 +623,38 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       return last.themedText
     }
 
-    // a text with nothing to apply a theme to is shown as it is, instead of as a copy, which the view would copy again to
-    // compare a later text with, since the copy is mutable
-    let themedText = attributedString.hasThemedAttributes ? NSMutableAttributedString(attributedString: attributedString).apply(theme: theme) : attributedString
+    let themedText = themedText(of: attributedString, theme: theme)
     // a mutable text can change and stay the same object, so it isn't kept, and its theme is applied on each update
     lastThemedText = attributedString is NSMutableAttributedString ? nil : (attributedString, theme, themedText)
     return themedText
+  }
+
+  /// Returns the text with the theme applied.
+  ///
+  /// - Parameters:
+  ///   - attributedString: The text to apply the theme to.
+  ///   - theme: The theme to apply.
+  /// - Returns: The text with the theme applied.
+  private static func themedText(of attributedString: NSAttributedString, theme: Theme) -> NSAttributedString {
+    // a text with nothing to apply a theme to is shown as it is, instead of as a copy, which the view would copy again
+    // to compare a later text with, since the copy is mutable
+    attributedString.hasThemedAttributes ? NSMutableAttributedString(attributedString: attributedString).apply(theme: theme) : attributedString
+  }
+
+  /// A label's text and settings, which the blocks of its render item share.
+  private final class LabelInputs {
+
+    let attributedString: NSAttributedString
+    let numberOfLines: Int
+    let lineBreakMode: NSLineBreakMode
+    let textContainerInset: CGSize
+
+    init(attributedString: NSAttributedString, numberOfLines: Int, lineBreakMode: NSLineBreakMode, textContainerInset: CGSize) {
+      self.attributedString = attributedString
+      self.numberOfLines = numberOfLines
+      self.lineBreakMode = lineBreakMode
+      self.textContainerInset = textContainerInset
+    }
   }
 
   // MARK: - Public

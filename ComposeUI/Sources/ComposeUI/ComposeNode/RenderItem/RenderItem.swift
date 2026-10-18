@@ -281,6 +281,22 @@ public struct RenderItem<T> {
   /// small items-order fraction, so that items stack in the items order within the same z-index band.
   public var zIndex: CGFloat? { storage.zIndex }
 
+  /// The block that prepares the renderable's content before the renderable scrolls in.
+  ///
+  /// A `ComposeView` calls it for the items that enter the region past its visible bounds that it prefetches.
+  var prefetch: ((RenderablePrefetchContext) -> Void)? { storage.prefetch }
+
+  /// Whether the item has a block that prepares the renderable's content before the renderable scrolls in.
+  var prefetchesContent: Bool {
+    // a switch reads the block in place, instead of copying it to compare it with nil
+    switch storage.prefetch {
+    case .none:
+      return false
+    case .some:
+      return true
+    }
+  }
+
   /// Makes a renderable with the `make` block.
   ///
   /// The render pass calls this and the `perform` methods instead of reading the blocks, since reading a block of an
@@ -539,6 +555,7 @@ public struct RenderItem<T> {
     /// blocks added after erasing, see `Source.typedItem`.
     let source: Source
 
+    let prefetch: ((RenderablePrefetchContext) -> Void)?
     let willInsert: ((T, RenderableInsertContext) -> Void)?
     let didInsert: ((T, RenderableInsertContext) -> Void)?
     let willUpdate: ((T, RenderableUpdateContext) -> Void)?
@@ -557,6 +574,7 @@ public struct RenderItem<T> {
     let zIndex: CGFloat?
 
     init(source: Storage.Source,
+         prefetch: ((RenderablePrefetchContext) -> Void)?,
          willInsert: ((T, RenderableInsertContext) -> Void)?,
          didInsert: ((T, RenderableInsertContext) -> Void)?,
          willUpdate: ((T, RenderableUpdateContext) -> Void)?,
@@ -572,6 +590,7 @@ public struct RenderItem<T> {
          zIndex: CGFloat?)
     {
       self.source = source
+      self.prefetch = prefetch
       self.willInsert = willInsert
       self.didInsert = didInsert
       self.willUpdate = willUpdate
@@ -678,6 +697,7 @@ public struct RenderItem<T> {
     self.frame = frame
     self.storage = Storage(
       source: .make(make),
+      prefetch: nil,
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
@@ -699,6 +719,7 @@ public struct RenderItem<T> {
   init(id: ComposeNodeId,
        frame: CGRect,
        make: @escaping (RenderableMakeContext) -> T,
+       prefetch: ((RenderablePrefetchContext) -> Void)? = nil,
        willInsert: ((T, RenderableInsertContext) -> Void)? = nil,
        didInsert: ((T, RenderableInsertContext) -> Void)? = nil,
        willUpdate: ((T, RenderableUpdateContext) -> Void)? = nil,
@@ -717,6 +738,7 @@ public struct RenderItem<T> {
     self.frame = frame
     self.storage = Storage(
       source: .make(make),
+      prefetch: prefetch,
       willInsert: willInsert,
       didInsert: didInsert,
       willUpdate: willUpdate,
@@ -947,6 +969,7 @@ public struct RenderItem<T> {
       frame: frame,
       storage: Storage(
         source: storage.source,
+        prefetch: storage.prefetch,
         willInsert: willInsert,
         didInsert: didInsert,
         willUpdate: willUpdate,
@@ -1116,6 +1139,7 @@ private extension RenderItem {
       frame: frame,
       storage: Storage(
         source: storage.source,
+        prefetch: storage.prefetch,
         willInsert: newWillInsert,
         didInsert: newDidInsert,
         willUpdate: newWillUpdate,
@@ -1171,6 +1195,7 @@ private extension RenderItem where T == Renderable {
       frame: item.frame,
       storage: Storage(
         source: .typedItem(typedStorage, blocks: typedStorage.blocks),
+        prefetch: item.prefetch,
         willInsert: nil,
         didInsert: nil,
         willUpdate: nil,
