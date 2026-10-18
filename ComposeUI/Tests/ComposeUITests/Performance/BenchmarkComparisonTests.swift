@@ -206,7 +206,9 @@ class BenchmarkComparisonTests: XCTestCase {
 
     // then: only the time counts, since a decision from some rounds wouldn't mean what it says
     expect(samples.medianTime) == 11
+    expect(samples.timeRange) == 10 ... 12
     expect(samples.medianInstructions) == nil
+    expect(samples.instructionRange) == nil
     expect(samples.allocationRange) == nil
   }
 
@@ -292,6 +294,59 @@ class BenchmarkComparisonTests: XCTestCase {
     expect(report.passes) == false
   }
 
+  func test_compare_instructions_changeOnlyWhenEveryRoundIsPastTheBases() {
+    // given: three rounds of benchmarks whose median instructions change by 5%, both ways, with the head's rounds all
+    // past the base's, or overlapping them, as the rounds of identical code do from one process to the next
+    let base = [
+      [
+        "[BENCHMARK] up.separated | instructions: 1000",
+        "[BENCHMARK] up.overlapping | instructions: 1000",
+        "[BENCHMARK] down.separated | instructions: 1000",
+        "[BENCHMARK] down.overlapping | instructions: 1000",
+      ],
+      [
+        "[BENCHMARK] up.separated | instructions: 1010",
+        "[BENCHMARK] up.overlapping | instructions: 1060",
+        "[BENCHMARK] down.separated | instructions: 1010",
+        "[BENCHMARK] down.overlapping | instructions: 1010",
+      ],
+      [
+        "[BENCHMARK] up.separated | instructions: 990",
+        "[BENCHMARK] up.overlapping | instructions: 990",
+        "[BENCHMARK] down.separated | instructions: 990",
+        "[BENCHMARK] down.overlapping | instructions: 940",
+      ],
+    ]
+    let head = [
+      [
+        "[BENCHMARK] up.separated | instructions: 1050",
+        "[BENCHMARK] up.overlapping | instructions: 1050",
+        "[BENCHMARK] down.separated | instructions: 950",
+        "[BENCHMARK] down.overlapping | instructions: 950",
+      ],
+      [
+        "[BENCHMARK] up.separated | instructions: 1060",
+        "[BENCHMARK] up.overlapping | instructions: 1055",
+        "[BENCHMARK] down.separated | instructions: 960",
+        "[BENCHMARK] down.overlapping | instructions: 960",
+      ],
+      [
+        "[BENCHMARK] up.separated | instructions: 1040",
+        "[BENCHMARK] up.overlapping | instructions: 1040",
+        "[BENCHMARK] down.separated | instructions: 940",
+        "[BENCHMARK] down.overlapping | instructions: 945",
+      ],
+    ]
+
+    // when: comparing them with a threshold of 1%
+    let report = compare(base: base, head: head)
+
+    // then: only the changes that every round shows count, so the overlapping ones are noise
+    expect(report.rows.map(\.findings)) == [[.moreInstructions], [], [.fewerInstructions], []]
+    expect(report.regressionCount) == 1
+    expect(report.passes) == false
+  }
+
   func test_compare_time_atAndPastTheThreshold_onlyWarns() {
     // given: benchmarks whose times change by exactly 20%, and by 25%, both ways, with the same allocations
     let base = [
@@ -311,6 +366,59 @@ class BenchmarkComparisonTests: XCTestCase {
     // then: only a change past the threshold counts, and a slower time warns without failing, as time depends on the
     // machine's load
     expect(report.rows.map(\.findings)) == [[], [.slower], [.faster]]
+    expect(report.warningCount) == 1
+    expect(report.passes) == true
+  }
+
+  func test_compare_time_changesOnlyWhenEveryRoundIsPastTheBases() {
+    // given: three rounds of benchmarks whose median times change by about 30%, both ways, with the head's rounds all
+    // past the base's, or overlapping them, and the same allocations
+    let base = [
+      [
+        "[BENCHMARK] slower.separated | median: 100.00 us | allocations: 10.00",
+        "[BENCHMARK] slower.overlapping | median: 100.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.separated | median: 100.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.overlapping | median: 100.00 us | allocations: 10.00",
+      ],
+      [
+        "[BENCHMARK] slower.separated | median: 110.00 us | allocations: 10.00",
+        "[BENCHMARK] slower.overlapping | median: 130.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.separated | median: 110.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.overlapping | median: 110.00 us | allocations: 10.00",
+      ],
+      [
+        "[BENCHMARK] slower.separated | median: 90.00 us | allocations: 10.00",
+        "[BENCHMARK] slower.overlapping | median: 90.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.separated | median: 90.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.overlapping | median: 60.00 us | allocations: 10.00",
+      ],
+    ]
+    let head = [
+      [
+        "[BENCHMARK] slower.separated | median: 130.00 us | allocations: 10.00",
+        "[BENCHMARK] slower.overlapping | median: 128.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.separated | median: 70.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.overlapping | median: 70.00 us | allocations: 10.00",
+      ],
+      [
+        "[BENCHMARK] slower.separated | median: 135.00 us | allocations: 10.00",
+        "[BENCHMARK] slower.overlapping | median: 135.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.separated | median: 75.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.overlapping | median: 75.00 us | allocations: 10.00",
+      ],
+      [
+        "[BENCHMARK] slower.separated | median: 125.00 us | allocations: 10.00",
+        "[BENCHMARK] slower.overlapping | median: 125.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.separated | median: 65.00 us | allocations: 10.00",
+        "[BENCHMARK] faster.overlapping | median: 65.00 us | allocations: 10.00",
+      ],
+    ]
+
+    // when: comparing them with a threshold of 20%
+    let report = compare(base: base, head: head)
+
+    // then: only the changes that every round shows count, so the overlapping ones are noise
+    expect(report.rows.map(\.findings)) == [[.slower], [], [.faster], []]
     expect(report.warningCount) == 1
     expect(report.passes) == true
   }

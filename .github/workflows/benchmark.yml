@@ -1,10 +1,10 @@
 # This workflow compares the benchmarks of a change against its base, both built and run on one runner, on macOS and on
 # an iOS simulator.
 #
-# It fails on what the comparison fails on: more allocations than the base made in any round, more instructions than
-# the platform's threshold allows where the runner counts them, a benchmark that a side doesn't report once in every
-# round, and a skipped test. A real Mac counts instructions, but GitHub's virtual machines don't. Times only warn, since
-# they depend on the runner's load.
+# It fails on what the comparison fails on: more allocations in every round than the base made in any, more instructions
+# in every round than the base retired in any and more than the platform's threshold allows, where the runner counts
+# them, a benchmark that a side doesn't report once in every round, and a skipped test. A real Mac counts instructions,
+# but GitHub's virtual machines don't. Times only warn, since they depend on the runner's load.
 #
 # The BENCHMARK_MACOS and BENCHMARK_XCODE_VERSION repository variables move the job to a runner of its own, such as a
 # self-hosted Mac, which counts instructions, and to the Xcode installed there. Without them, the job runs where the
