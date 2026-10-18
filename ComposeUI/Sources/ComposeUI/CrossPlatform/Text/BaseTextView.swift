@@ -358,7 +358,12 @@ open class BaseTextView: TextView {
 
     ensureClipsToBounds()
 
-    typingAttributes = [:]
+    // setting the typing attributes costs work and posts a change notification even when they're already empty, which
+    // they usually are here, since the last reset emptied them and a text set through the text storage doesn't fill
+    // them, so they're set only when they aren't, while reading them costs much less
+    if !typingAttributes.isEmpty {
+      typingAttributes = [:]
+    }
   }
 }
 
@@ -683,6 +688,8 @@ open class BaseTextView: UITextView {
     }
     setContentOffset(.zero, animated: false)
 
+    // unlike on AppKit, reading the typing attributes costs about as much as setting them when they're empty, and more
+    // when they aren't, so checking them first wouldn't save work
     typingAttributes = [:]
   }
 }
