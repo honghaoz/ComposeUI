@@ -74,6 +74,69 @@ class BenchmarkTestCaseTests: XCTestCase {
     expect(result.allocationsPerIteration) == nil
   }
 
+  func test_measure_beforeEach_runsBeforeEachIteration() {
+    // given: a benchmark harness, and a block to run before each iteration
+    let harness = BenchmarkTestCase()
+    var events: [String] = []
+    let beforeEach = {
+      events.append("before")
+    }
+
+    // when: measuring a block with a warm-up
+    _ = harness.measure(warmup: 4, iterations: 2, beforeEach: beforeEach) { index in
+      events.append("\(index)")
+    }
+
+    // then: the block runs once before each iteration, of the warm-up and measured
+    expect(events) == ["before", "0", "before", "1", "before", "2", "before", "3", "before", "4", "before", "5"]
+  }
+
+  func test_measure_beforeEach_isNotCounted() {
+    // given: a benchmark harness, a counter that counts 100 instructions for each of its reads, and a block to run before
+    // each iteration that retires 5,000 instructions and allocates an object
+    let harness = BenchmarkTestCase()
+    let counted = CountedInstructions()
+    let counter = { () -> UInt64? in
+      counted.retired += 100
+      return counted.retired
+    }
+    var objects: [NSObject] = []
+    let beforeEach = {
+      counted.retired += 5000
+      objects.append(NSObject())
+    }
+
+    // when: measuring a block that retires 1,000 instructions
+    let result = harness.measure(warmup: 4, iterations: 3, instructionCounter: counter, beforeEach: beforeEach) { _ in
+      counted.retired += 1000
+    }
+
+    // then: the iterations count only the measured block's instructions and allocations
+    expect(objects.count) == 7
+    expect(result.instructions) == [1000, 1000, 1000]
+    expect(result.allocationsPerIteration) == 0
+  }
+
+  func test_measure_beforeEach_releasesWhatItAutoreleasesBeforeTheIteration() {
+    // given: a benchmark harness, and a block to run before each iteration that autoreleases an object
+    let harness = BenchmarkTestCase()
+    weak var autoreleasedObject: NSObject?
+    let beforeEach = {
+      let object = NSObject()
+      autoreleasedObject = object
+      _ = Unmanaged.passRetained(object).autorelease()
+    }
+    var objectsAliveInIterations: [Bool] = []
+
+    // when: measuring a block that checks whether the object is alive
+    _ = harness.measure(warmup: 2, iterations: 2, beforeEach: beforeEach) { _ in
+      objectsAliveInIterations.append(autoreleasedObject != nil)
+    }
+
+    // then: each object went away before its iteration, of the warm-up and measured
+    expect(objectsAliveInIterations) == [false, false, false, false]
+  }
+
   func test_measure_takesTheCounterReadsOutOfEachIteration() {
     // given: a benchmark harness, and a counter that counts 100 instructions for each of its reads
     let harness = BenchmarkTestCase()
