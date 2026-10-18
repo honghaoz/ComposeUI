@@ -52,17 +52,19 @@ class BenchmarkComparisonTests: XCTestCase {
   }
 
   func test_parse_unreadableCosts_areMissing() throws {
-    // when: parsing a line without costs, a time in an unknown unit, a field without a value, a time without a unit, and
-    // allocations that aren't a number
+    // when: parsing a line without costs, a time in an unknown unit, a field without a value, a time without a unit,
+    // allocations that aren't a number, and costs that aren't finite, which `Double` reads
     let withoutCosts = try BenchmarkComparison.parse("[BENCHMARK] scroll.text.alloc | textViewCreations: 74 | reuses: 60").unwrap()
     let unknownUnit = try BenchmarkComparison.parse("[BENCHMARK] odd | median: 5 s | instructions | allocations: twelve").unwrap()
     let withoutUnit = try BenchmarkComparison.parse("[BENCHMARK] odd | median: 5").unwrap()
+    let notFinite = try BenchmarkComparison.parse("[BENCHMARK] odd | median: nan us | instructions: nan | allocations: inf").unwrap()
 
     // then: the costs are missing
     let missing = BenchmarkComparison.Sample(time: nil, instructions: nil, allocations: nil)
     expect(withoutCosts.sample) == missing
     expect(unknownUnit.sample) == missing
     expect(withoutUnit.sample) == missing
+    expect(notFinite.sample) == missing
   }
 
   func test_parse_otherLines_areNotResults() {

@@ -105,14 +105,19 @@ enum BenchmarkComparison {
     return "\(className).\(parts[1])"
   }
 
-  /// Reads a number, `nil` for `n/a` or a missing value.
+  /// Reads a number, `nil` for `n/a`, a missing value, or a number that isn't finite, such as `nan`, which `Double`
+  /// reads too.
   private static func number(_ value: String?) -> Double? {
-    value.flatMap { Double($0) }
+    guard let value, let number = Double(value), number.isFinite else {
+      return nil
+    }
+    return number
   }
 
-  /// Reads a time such as `12.34 us` or `1.234 ms`, in microseconds, `nil` for anything else.
+  /// Reads a time such as `12.34 us` or `1.234 ms`, in microseconds, `nil` for anything else, such as an amount that
+  /// isn't finite.
   private static func microseconds(_ value: String?) -> Double? {
-    guard let parts = value?.split(separator: " "), parts.count == 2, let amount = Double(parts[0]) else {
+    guard let parts = value?.split(separator: " "), parts.count == 2, let amount = Double(parts[0]), amount.isFinite else {
       return nil
     }
     switch parts[1] {
