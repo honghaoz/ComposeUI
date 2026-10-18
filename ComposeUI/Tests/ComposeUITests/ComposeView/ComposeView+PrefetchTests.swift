@@ -295,6 +295,58 @@ class ComposeView_PrefetchTests: XCTestCase {
     expect(recorder.rows) == Array(10 ..< 20)
     withExtendedLifetime(window) {}
   }
+
+  func test_windowColorSpaceChange_prefetchesTheWholeRegionAgain() {
+    // given: a rendered compose view in a window, showing rows of items that prefetch, with a prefetch cache
+    let (window, view, recorder) = makeRowsView()
+    view.refresh(animated: false)
+    _ = view.prefetchCache { NSObject() }
+    recorder.removeAll()
+
+    // when: the app sets another color space for the window, which AppKit posts no backing properties change for, and the
+    // view renders
+    window.colorSpace = window.colorSpace == .displayP3 ? .sRGB : .displayP3
+    view.refresh(animated: false)
+
+    // then: the view releases its prefetch caches, and prefetches the whole region again, since the items prepare their
+    // content in the window's color space
+    expect(view.prefetchCache(of: NSObject.self)) == nil
+    expect(recorder.rows) == Array(10 ..< 20)
+    withExtendedLifetime(window) {}
+  }
+
+  func test_windowColorSpaceSetToTheSame_keepsThePrefetchedContent() {
+    // given: a rendered compose view in a window, showing rows of items that prefetch, with a prefetch cache
+    let (window, view, recorder) = makeRowsView()
+    view.refresh(animated: false)
+    let cache = view.prefetchCache { NSObject() }
+    recorder.removeAll()
+
+    // when: the app sets the color space that the window has, and the view renders
+    window.colorSpace = window.colorSpace
+    view.refresh(animated: false)
+
+    // then: the view keeps its prefetch caches, and prefetches no item again, since the items' content is prepared for
+    // the color space
+    expect(view.prefetchCache(of: NSObject.self)) === cache
+    expect(recorder.rows) == []
+    withExtendedLifetime(window) {}
+  }
+
+  func test_windowColorSpaceChange_afterTheViewLeftTheWindow_keepsThePrefetchCaches() {
+    // given: a compose view that left its window, with a prefetch cache made after it left
+    let (window, view, _) = makeRowsView()
+    view.refresh(animated: false)
+    view.removeFromSuperview()
+    let cache = view.prefetchCache { NSObject() }
+
+    // when: the app sets another color space for the window that the view left
+    window.colorSpace = window.colorSpace == .displayP3 ? .sRGB : .displayP3
+
+    // then: the view keeps its prefetch cache, since it stopped observing the window
+    expect(view.prefetchCache(of: NSObject.self)) === cache
+    withExtendedLifetime(window) {}
+  }
   #endif
 
   #if canImport(UIKit) && !os(visionOS)

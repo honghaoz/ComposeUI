@@ -669,6 +669,7 @@ open class ComposeView: BaseScrollView {
   private var observingDidResignKeyToken: Any?
   private var observingDidBecomeActiveToken: Any?
   private var observingWindowBackingPropertiesToken: Any?
+  private var windowColorSpaceObservation: NSKeyValueObservation?
 
   private func startObservingWindow() {
     guard let window else {
@@ -723,6 +724,15 @@ open class ComposeView: BaseScrollView {
       }
     )
 
+    // AppKit posts the backing properties notification when the window takes a color space from its screen, but not when
+    // the app sets one, so the view observes the color space too. key-value observing reports every set, even of the
+    // color space that the window has, so only a different color space makes the view prefetch again
+    windowColorSpaceObservation = window.observe(\.colorSpace, options: [.old, .new]) { [weak self] _, change in
+      if change.oldValue != change.newValue {
+        self?.restartPrefetching()
+      }
+    }
+
     observingWindow = window
   }
 
@@ -746,6 +756,9 @@ open class ComposeView: BaseScrollView {
       NotificationCenter.default.removeObserver(observingWindowBackingPropertiesToken, name: NSWindow.didChangeBackingPropertiesNotification, object: observingWindow)
       self.observingWindowBackingPropertiesToken = nil
     }
+
+    windowColorSpaceObservation?.invalidate()
+    windowColorSpaceObservation = nil
 
     observingWindow = nil
     oldIsKeyWindow = false
