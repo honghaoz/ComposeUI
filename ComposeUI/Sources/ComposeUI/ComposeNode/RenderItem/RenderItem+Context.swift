@@ -157,6 +157,21 @@ public struct RenderableUpdateContext: Equatable {
   }
 }
 
+// MARK: - Prefetch
+
+/// The context for preparing a renderable's content before the renderable scrolls in, see `RenderItem.prefetch`.
+struct RenderablePrefetchContext {
+
+  /// The frame that the renderable will have, rounded to pixels as the `ComposeView` sets it.
+  let frame: CGRect
+
+  /// The region past the visible bounds that the `ComposeView` prefetches, in the coordinates of the frame.
+  let region: CGRect
+
+  /// The `ComposeView` that prefetches the item.
+  let contentView: ComposeView
+}
+
 // MARK: - Remove
 
 /// The context for removing a renderable from a renderable hierarchy.

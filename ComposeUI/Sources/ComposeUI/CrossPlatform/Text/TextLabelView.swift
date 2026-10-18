@@ -63,11 +63,20 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
       // a mutable text can change after it's set, so it's compared later through a copy
       lastText = newValue is NSMutableAttributedString ? NSAttributedString(attributedString: newValue) : newValue
 
-      textStorage.setAttributedString(shownText(of: newValue))
-
       #if canImport(AppKit)
-      textDrawsTheSameInALayer = nil
+      // a text that a worker drew ahead of time shows the image, and goes to the text storage only when the view lays
+      // out the text itself, see `updateTextStorageIfNeeded()`
+      takeResultDrawnAhead()
+      if readyImage == nil {
+        updateTextStorage()
+      } else {
+        textStorageNeedsText = true
+      }
       updateDrawingMode()
+      #endif
+
+      #if canImport(UIKit)
+      updateTextStorage()
       #endif
 
       setNeedsDisplayForText()
@@ -77,7 +86,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// The maximum number of lines that the view shows, 0 for no limit.
   public internal(set) var numberOfLines: Int = 0 {
     didSet {
-      textContainer.maximumNumberOfLines = max(numberOfLines, 0)
+      drawer.numberOfLines = numberOfLines
       setNeedsDisplayForText()
     }
   }
@@ -85,7 +94,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// The line break mode of the text's last line.
   public internal(set) var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
-      textContainer.lineBreakMode = lineBreakMode
+      drawer.lineBreakMode = lineBreakMode
       setNeedsDisplayForText()
     }
   }
@@ -115,16 +124,15 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   private var hasLink = false
   #endif
 
-  private let textStorage = NSTextStorage()
-  private let layoutManager = NSLayoutManager()
-  private let textContainer = NSTextContainer(size: .zero)
+  /// The TextKit objects that lay out and draw the text.
+  private let drawer = TextLabelDrawer()
+
+  /// Whether the text storage still needs the text that the view was last set to, which an image drawn ahead of time
+  /// shows instead.
+  private var textStorageNeedsText = false
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
-
-    layoutManager.addTextContainer(textContainer)
-    textStorage.addLayoutManager(layoutManager)
-    textContainer.lineFragmentPadding = 0
 
     // a truncated line, such as with `.byTruncatingTail`, can lay out past the bounds
     clipsToBounds = true
@@ -157,16 +165,15 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// Returns the text that the text storage shows for a text, as a text view that's neither editable nor selectable
   /// shows it.
   ///
-  /// TextKit 1 aligns a paragraph without a writing direction by the user's language instead of by its text, so each
-  /// paragraph is shown in the direction of its text, as ComposeUI measures it. A UIKit text view shows a link in a
-  /// color instead of in TextKit's link style, which adds an underline, so on UIKit, each link shows in the link color,
-  /// and the view records whether the text has a link, to show it again when the tint color changes, while an AppKit
-  /// text view's link style is TextKit's.
+  /// Each paragraph is shown in the direction of its text, see `TextLabelDrawer.shownText(of:)`. A UIKit text view
+  /// shows a link in a color instead of in TextKit's link style, which adds an underline, so on UIKit, each link shows
+  /// in the link color, and the view records whether the text has a link, to show it again when the tint color changes,
+  /// while an AppKit text view's link style is TextKit's.
   ///
   /// - Parameter text: The text that the view is set to show.
   /// - Returns: The text that the text storage shows.
   private func shownText(of text: NSAttributedString) -> NSAttributedString {
-    let shownText = text.resolvingNaturalWritingDirections()
+    let shownText = TextLabelDrawer.shownText(of: text)
 
     #if canImport(AppKit)
     return shownText
@@ -207,34 +214,32 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     #endif
   }
 
+  /// Gives the text storage the text that the view was last set to.
+  private func updateTextStorage() {
+    textStorageNeedsText = false
+    drawer.textStorage.setAttributedString(shownText(of: lastText))
+  }
+
+  /// Gives the text storage the text that the view was last set to, if the storage doesn't have it, before the text is
+  /// laid out.
+  private func updateTextStorageIfNeeded() {
+    if textStorageNeedsText {
+      updateTextStorage()
+    }
+  }
+
   /// Sizes the text container to the bounds inside the inset, where the text lays out.
   ///
   /// - Returns: Whether the container has room to show the text.
   private func fitTextContainer() -> Bool {
-    let containerSize = CGSize(
-      width: max(0, bounds.width - textContainerInset.width * 2),
-      height: max(0, bounds.height - textContainerInset.height * 2)
-    )
-
-    // the container is resized only when its size changes, since a resize lays the text out again
-    if textContainer.size != containerSize {
-      textContainer.size = containerSize
-    }
-
-    // a text container without room still lays out a glyph, which an inset as large as the bounds leaves no room to show
-    return containerSize.width > 0 && containerSize.height > 0
+    updateTextStorageIfNeeded()
+    return drawer.fitTextContainer(size: bounds.size, inset: textContainerInset)
   }
 
   /// Draws the text, laid out in the bounds inside the inset.
   func drawText() {
-    guard fitTextContainer() else {
-      return
-    }
-
-    let glyphRange = layoutManager.glyphRange(for: textContainer)
-    let origin = CGPoint(x: textContainerInset.width, y: textContainerInset.height)
-    layoutManager.drawBackground(forGlyphRange: glyphRange, at: origin)
-    layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: origin)
+    updateTextStorageIfNeeded()
+    drawer.drawText(size: bounds.size, inset: textContainerInset)
   }
 
   #if canImport(AppKit)
@@ -260,6 +265,14 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// Whether the text draws the same pixels in the drawing layer as through AppKit, see
   /// `NSAttributedString.drawsTheSameInALayer`, or `nil` before the label checks the text.
   private var textDrawsTheSameInALayer: Bool?
+
+  /// The images that the compose view showing the label draws ahead of time for its labels, `nil` when no compose view
+  /// shows the label, or its compose view doesn't draw ahead of time.
+  weak var imageCache: TextLabelImageCache?
+
+  /// The image that a worker drew ahead of time for the label's text, with the key that it was drawn for, which the
+  /// drawing layer shows the next time it displays, instead of drawing the text.
+  private var readyImage: (image: CGImage, key: TextLabelImageCache.Key)?
 
   #if DEBUG
   /// Whether tests force the label to draw in its drawing layer, `true`, or through AppKit, `false`, instead of choosing.
@@ -379,9 +392,65 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
     // the text storage gives a substitute font to the characters that their font doesn't have, so the drawing is checked
     // on the text that the storage shows
-    let drawsTheSame = textStorage.drawsTheSameInALayer
+    updateTextStorageIfNeeded()
+    let drawsTheSame = drawer.textStorage.drawsTheSameInALayer
     textDrawsTheSameInALayer = drawsTheSame
     return drawsTheSame
+  }
+
+  // MARK: - Drawing Ahead of Time
+
+  /// Takes the result of a worker's drawing of the label's text, settings, size and window, if the image cache has it.
+  ///
+  /// A worker checks the text's styles as the label does, so the result also tells whether the text draws the same in
+  /// the drawing layer.
+  private func takeResultDrawnAhead() {
+    readyImage = nil
+    textDrawsTheSameInALayer = nil
+
+    guard let imageCache, let key = imageKey(), let result = imageCache.takeResult(for: key) else {
+      return
+    }
+
+    switch result {
+    case .image(let image):
+      textDrawsTheSameInALayer = true
+      if let image {
+        readyImage = (image, key)
+      }
+    case .drawnByAppKit:
+      textDrawsTheSameInALayer = false
+    }
+  }
+
+  /// Returns the image drawn ahead of time for the label's text, and forgets it, `nil` if there's none, or if the
+  /// label's settings, size or window changed since the label got the text.
+  func takeReadyImage() -> CGImage? {
+    guard let readyImage else {
+      return nil
+    }
+    self.readyImage = nil
+
+    guard readyImage.key == imageKey() else {
+      return nil
+    }
+    return readyImage.image
+  }
+
+  /// Returns the key of the image of the label's text, with its current settings, size and window, `nil` out of a
+  /// window, or in a window without a color space.
+  private func imageKey() -> TextLabelImageCache.Key? {
+    guard let window, let environment = TextLabelImageCache.Environment.of(window: window, appearance: effectiveAppearance) else {
+      return nil
+    }
+    return TextLabelImageCache.Key(
+      text: lastText,
+      size: bounds.size,
+      numberOfLines: numberOfLines,
+      lineBreakMode: lineBreakMode,
+      inset: textContainerInset,
+      environment: environment
+    )
   }
 
   private func makeDrawingLayer() -> DrawingLayer {
@@ -457,7 +526,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     guard fitTextContainer() else {
       return NSRange(location: 0, length: 0)
     }
-    return layoutManager.characterRange(forGlyphRange: layoutManager.glyphRange(for: textContainer), actualGlyphRange: nil)
+    return drawer.layoutManager.characterRange(forGlyphRange: drawer.layoutManager.glyphRange(for: drawer.textContainer), actualGlyphRange: nil)
   }
 
   override public func accessibilityString(for range: NSRange) -> String? {
@@ -541,8 +610,8 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     guard text.containsRange(range), fitTextContainer() else {
       return .zero
     }
-    let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-    let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+    let glyphRange = drawer.layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+    let rect = drawer.layoutManager.boundingRect(forGlyphRange: glyphRange, in: drawer.textContainer)
     return NSAccessibility.screenRect(fromView: self, rect: rect.offsetBy(dx: textContainerInset.width, dy: textContainerInset.height))
   }
 
@@ -555,7 +624,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     }
     let viewPoint = convert(window.convertPoint(fromScreen: point), from: nil)
     let containerPoint = CGPoint(x: viewPoint.x - textContainerInset.width, y: viewPoint.y - textContainerInset.height)
-    let index = layoutManager.characterIndex(for: containerPoint, in: textContainer, fractionOfDistanceBetweenInsertionPoints: nil)
+    let index = drawer.layoutManager.characterIndex(for: containerPoint, in: drawer.textContainer, fractionOfDistanceBetweenInsertionPoints: nil)
     return (text.string as NSString).rangeOfComposedCharacterSequence(at: min(index, text.length - 1))
   }
 
@@ -565,8 +634,9 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
       return []
     }
     var lineRanges: [NSRange] = []
-    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: textContainer)) { _, _, _, glyphRange, _ in
-      lineRanges.append(self.layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil))
+    let layoutManager = drawer.layoutManager
+    layoutManager.enumerateLineFragments(forGlyphRange: layoutManager.glyphRange(for: drawer.textContainer)) { _, _, _, glyphRange, _ in
+      lineRanges.append(layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil))
     }
     return lineRanges
   }
@@ -585,7 +655,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
     // a link shows in the tint color, as a text view's link follows its tint color, such as when an alert dims it
     if hasLink {
-      textStorage.setAttributedString(shownText(of: lastText))
+      updateTextStorage()
       setNeedsDisplay()
     }
   }
@@ -638,20 +708,30 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
     /// The text storage that the view shows.
     var textStorage: NSTextStorage {
-      host.textStorage
+      host.drawer.textStorage
     }
 
     /// The layout manager that lays out the text.
     var layoutManager: NSLayoutManager {
-      host.layoutManager
+      host.drawer.layoutManager
     }
 
     /// The text container that the text is laid out in.
     var textContainer: NSTextContainer {
-      host.textContainer
+      host.drawer.textContainer
+    }
+
+    /// Whether the text storage still needs the text that the view was last set to.
+    var textStorageNeedsText: Bool {
+      host.textStorageNeedsText
     }
 
     #if canImport(AppKit)
+    /// The image drawn ahead of time that the drawing layer shows the next time it displays.
+    var readyImage: CGImage? {
+      host.readyImage?.image
+    }
+
     /// Whether the label draws its text in its drawing layer, instead of through AppKit.
     var drawsInLayer: Bool {
       host.drawsInLayer

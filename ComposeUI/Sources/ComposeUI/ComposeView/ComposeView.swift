@@ -644,6 +644,13 @@ open class ComposeView: BaseScrollView {
   private func _didMoveToWindow() {
     contentScaleFactor = windowScaleFactor
 
+    // the items prepare their content for the window that shows it, so the view prepares it again in another window, and
+    // keeps none out of a window
+    if previousWindow != window {
+      prefetchCaches.removeAll()
+      prefetchedBounds = nil
+    }
+
     if window != nil, previousWindow != window {
       setNeedsRefresh(animated: false) // schedule to refresh when the window is changed
     }
@@ -1365,6 +1372,17 @@ open class ComposeView: BaseScrollView {
       contentNode.render(visibleBounds: visibleBounds, into: &newRenderableItems)
     }
 
+    // prefetched before the renderables update, so that the work that the items start on other threads goes on while
+    // the pass does
+    prefetch(
+      visibleItems: newRenderableItems,
+      visibleBounds: visibleBounds,
+      contentOrigin: centeredChildFrame?.origin ?? .zero,
+      horizontally: overflowsHorizontally,
+      vertically: overflowsVertically,
+      contentNode: contentNode
+    )
+
     #if DEBUG
     debug?.onEvent(.renderDidReceiveRenderableItems(renderableItems: newRenderableItems, contentSize: contentSize))
     #endif
@@ -2001,6 +2019,101 @@ open class ComposeView: BaseScrollView {
       lastRenderInsets?.isEqual(to: adjustedContentInset) == false
   }
 
+  // MARK: - Prefetching
+
+  /// Whether the view has shown an item that prepares its content ahead of time, before which it doesn't look ahead, so
+  /// that content without such items doesn't pay for looking ahead.
+  private var showsItemsThatPrefetch = false
+
+  /// The region that the last render pass prefetched, `nil` when the last pass didn't prefetch.
+  private var prefetchedBounds: CGRect?
+
+  /// The items of the part of the content that a render pass prefetches, kept to reuse the array's memory.
+  private var prefetchItems: [RenderableItem] = []
+
+  /// The caches that the view's items keep the content that they prepare ahead of time in, by their types.
+  private var prefetchCaches: [ObjectIdentifier: AnyObject] = [:]
+
+  /// Returns the cache of a type that the view's items keep the content that they prepare ahead of time in.
+  ///
+  /// The view releases its caches when it moves to another window, since the items prepare their content for the window
+  /// that shows it.
+  ///
+  /// - Parameter type: The type of the cache.
+  /// - Returns: The cache, `nil` until an item makes one.
+  func prefetchCache<Cache: AnyObject>(of type: Cache.Type) -> Cache? {
+    // the cache is stored under its type's identifier, so it's of the type
+    prefetchCaches[ObjectIdentifier(type)].map { unsafeDowncast($0, to: Cache.self) }
+  }
+
+  /// Returns the cache of a type that the view's items keep the content that they prepare ahead of time in, made the
+  /// first time an item asks for it, see `prefetchCache(of:)`.
+  ///
+  /// - Parameter make: The block that makes the cache.
+  /// - Returns: The cache.
+  func prefetchCache<Cache: AnyObject>(make: () -> Cache) -> Cache {
+    if let cache = prefetchCache(of: Cache.self) {
+      return cache
+    } else {
+      let cache = make()
+      prefetchCaches[ObjectIdentifier(Cache.self)] = cache
+      return cache
+    }
+  }
+
+  /// Prefetches the items in the part of the region past the visible bounds that the last render pass didn't prefetch,
+  /// so that the items about to scroll in prepare their content ahead of time.
+  ///
+  /// The region extends the visible bounds by their size past each edge along each axis that the content scrolls on.
+  /// Each pass prefetches the part of the region that moved since the last pass, a refresh too, instead of the items of
+  /// the whole region again, so an item that a refresh changes in the region scrolls in without its content prepared. A
+  /// pass without a previous region, or with one that the region doesn't overlap, prefetches the whole region but the
+  /// visible bounds, which the pass renders.
+  ///
+  /// - Parameters:
+  ///   - visibleItems: The items in the visible bounds.
+  ///   - visibleBounds: The visible bounds.
+  ///   - contentOrigin: The origin of the content in the view, which centers content smaller than the view.
+  ///   - horizontally: Whether the content scrolls horizontally.
+  ///   - vertically: Whether the content scrolls vertically.
+  ///   - contentNode: The content node.
+  private func prefetch(visibleItems: [RenderableItem], visibleBounds: CGRect, contentOrigin: CGPoint, horizontally: Bool, vertically: Bool, contentNode: LayoutCacheNode) {
+    guard horizontally || vertically, window != nil else {
+      prefetchedBounds = nil
+      return
+    }
+    if !showsItemsThatPrefetch {
+      showsItemsThatPrefetch = visibleItems.contains { $0.prefetchesContent }
+    }
+    guard showsItemsThatPrefetch else {
+      return
+    }
+
+    let region = visibleBounds.insetBy(dx: horizontally ? -visibleBounds.width : 0, dy: vertically ? -visibleBounds.height : 0)
+    var excludedBounds = visibleBounds
+    if let prefetchedBounds, prefetchedBounds.intersects(region) {
+      excludedBounds = prefetchedBounds
+    }
+    prefetchedBounds = region
+
+    let scale = contentScaleFactor
+    region.forEachPart(outside: excludedBounds) { part in
+      contentNode.render(visibleBounds: part.translate(-contentOrigin), into: &prefetchItems)
+      for item in prefetchItems {
+        if let prefetch = item.prefetch {
+          prefetch(
+            RenderablePrefetchContext(
+              frame: item.frame.translate(contentOrigin).rounded(scaleFactor: scale),
+              region: region,
+              contentView: self
+            )
+          )
+        }
+      }
+      prefetchItems.removeAll(keepingCapacity: true)
+    }
+  }
+
   // MARK: - Testing
 
   #if DEBUG
@@ -2038,6 +2151,11 @@ open class ComposeView: BaseScrollView {
 
     var maxZPositionKey: Int {
       ZOrderPass.Constants.maxKey
+    }
+
+    /// The region that the last render pass prefetched.
+    var prefetchedBounds: CGRect? {
+      host.prefetchedBounds
     }
   }
 

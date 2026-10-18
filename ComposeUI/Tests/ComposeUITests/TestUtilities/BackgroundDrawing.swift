@@ -28,6 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
+@testable import ComposeUI
+
 /// The drawing that compose views do ahead of time on other threads, which benchmarks finish outside of their measured
 /// iterations.
 ///
@@ -38,11 +40,15 @@ enum BackgroundDrawing {
   /// Waits for the drawing in progress and queued to finish, and keeps the drawing queued after it from starting until
   /// the next call to this method or to `finish()`.
   static func finishAndPause() {
-    // compose views draw only on the main thread, so there's no drawing to wait for
+    #if canImport(AppKit)
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    #endif
   }
 
   /// Waits for the drawing in progress and queued to finish, and lets the drawing queued after it start.
   static func finish() {
-    // compose views draw only on the main thread, so there's no drawing to wait for
+    #if canImport(AppKit)
+    TextLabelImageCache.Test.waitForDrawings()
+    #endif
   }
 }

@@ -64,6 +64,16 @@ extension TextLabelView {
       nil
     }
 
+    override func display() {
+      // the label shows the image that a worker drew ahead of time for its text, in the pixels that the layer draws,
+      // instead of drawing the text
+      if let image = labelView?.takeReadyImage() {
+        contents = image
+        return
+      }
+      super.display()
+    }
+
     override func draw(in ctx: CGContext) {
       // the appearance's drawing scope is on macOS 11 and later, and a label draws in a layer only on later systems
       guard #available(macOS 11.0, *), let labelView else {

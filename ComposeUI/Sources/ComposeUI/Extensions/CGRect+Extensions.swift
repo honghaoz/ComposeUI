@@ -73,6 +73,36 @@ extension CGRect {
     return CGRect(x: x, y: y, width: width, height: height)
   }
 
+  /// Calls a block with each part of the rectangle outside another rectangle, as up to four rectangles that don't
+  /// overlap: the parts before and after the other rectangle along the y axis, across the whole width, then the parts
+  /// before and after it along the x axis, between them.
+  ///
+  /// - Parameters:
+  ///   - other: The rectangle whose area the parts leave out.
+  ///   - body: The block to call with each part, none of which is empty.
+  func forEachPart(outside other: CGRect, _ body: (CGRect) -> Void) {
+    let overlap = intersection(other)
+    guard !overlap.isEmpty else {
+      if !isEmpty {
+        body(self)
+      }
+      return
+    }
+
+    if overlap.minY > minY {
+      body(CGRect(x: minX, y: minY, width: width, height: overlap.minY - minY))
+    }
+    if maxY > overlap.maxY {
+      body(CGRect(x: minX, y: overlap.maxY, width: width, height: maxY - overlap.maxY))
+    }
+    if overlap.minX > minX {
+      body(CGRect(x: minX, y: overlap.minY, width: overlap.minX - minX, height: overlap.height))
+    }
+    if maxX > overlap.maxX {
+      body(CGRect(x: overlap.maxX, y: overlap.minY, width: maxX - overlap.maxX, height: overlap.height))
+    }
+  }
+
   #if canImport(AppKit)
   func inset(by insets: EdgeInsets) -> CGRect {
     guard insets.top != 0 || insets.left != 0 || insets.bottom != 0 || insets.right != 0 else {

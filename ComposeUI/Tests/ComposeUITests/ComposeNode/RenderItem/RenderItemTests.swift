@@ -509,6 +509,65 @@ class RenderItemTests: XCTestCase {
     expect(view.layer().name) == "update"
   }
 
+  // MARK: - Prefetch
+
+  func test_prefetch_publicInit_hasNone() {
+    // given: a view item made with the public initializer, which takes a reuse id as a string
+    let item = ViewItem<BaseView>(id: .custom("view"), frame: .zero, make: { _ in Self.makeView() }, update: { _, _ in }, reuseId: "reuse")
+
+    // then: the item, and the item erased, have no prefetch block
+    expect(item.prefetch == nil) == true
+    expect(item.prefetchesContent) == false
+    expect(item.eraseToRenderableItem().prefetch == nil) == true
+    expect(item.eraseToRenderableItem().prefetchesContent) == false
+  }
+
+  func test_prefetch_isKeptByTheBuildersErasingAndModifiers() {
+    // given: a view item with a prefetch block, which records the frames that it prefetches
+    var prefetchedFrames: [CGRect] = []
+    let item = ViewItem<BaseView>(
+      id: .custom("view"),
+      frame: .zero,
+      make: { _ in Self.makeView() },
+      prefetch: { prefetchedFrames.append($0.frame) },
+      update: { _, _ in }
+    )
+
+    // when: adding blocks and values with the builders, before and after erasing the item, and adding a modifier, then
+    // prefetching each item
+    let erasedItem = item.addWillInsert { _, _ in }.reuseId("reuse").eraseToRenderableItem()
+    let items = [
+      erasedItem,
+      erasedItem.addUpdate { _, _ in }.transition(.opacity()).animation(.easeInEaseOut(duration: 1)).zIndex(1),
+      erasedItem.addingModifier(
+        willInsert: nil,
+        didInsert: nil,
+        willUpdate: nil,
+        updates: .none,
+        willRemove: nil,
+        didRemove: nil,
+        reuseId: "modifier",
+        resetForReuse: nil,
+        transition: nil,
+        animationTiming: nil,
+        zIndex: 2
+      ),
+    ]
+    let contentView = ComposeView()
+    for (index, item) in items.enumerated() {
+      let frame = CGRect(x: 0, y: CGFloat(index), width: 10, height: 10)
+      item.prefetch?(RenderablePrefetchContext(frame: frame, region: frame, contentView: contentView))
+    }
+
+    // then: each item prefetches with the view item's block
+    expect(items.map(\.prefetchesContent)) == [true, true, true]
+    expect(prefetchedFrames) == [
+      CGRect(x: 0, y: 0, width: 10, height: 10),
+      CGRect(x: 0, y: 1, width: 10, height: 10),
+      CGRect(x: 0, y: 2, width: 10, height: 10),
+    ]
+  }
+
   // MARK: - Adding a Modifier
 
   func test_addingModifier_runsTheModifiersBlocksAfterTheItemsBlocks() {

@@ -54,6 +54,15 @@ class RenderPerformanceTests: BenchmarkTestCase {
     }
   }
 
+  func test_scroll_flatRows_10000_drawn() {
+    // when: scrolling through 10000 flat color rows in a window
+    // the rows have no labels to draw ahead of time, so the steps count what looking for them costs
+    runScrollBenchmark(name: "scroll.flat.10000.drawn", rowCount: 10000, draws: true) { _ in
+      ColorNode(.red)
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+  }
+
   func test_scroll_flatRows_1000() {
     // when: scrolling through 1000 flat color rows
     runScrollBenchmark(name: "scroll.flat.1000", rowCount: 1000) { _ in
@@ -409,6 +418,40 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.nested.200", result: result)
   }
 
+  func test_refresh_nestedRows_200_drawn() {
+    // given: a compose view with 200 nested rows laid out in a window, which draws the labels past its visible bounds
+    // ahead of time
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeNestedRow(i)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    let window = TestWindow()
+    window.contentView().addSubview(view)
+    #if canImport(UIKit)
+    window.makeKeyAndVisible()
+    #endif
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes of the same texts, each of which looks for the labels past the
+    // visible bounds to draw ahead of time again, with the drawing finished before each refresh
+    let result = measure(warmup: 3, iterations: 30, beforeEach: BackgroundDrawing.finishAndPause) { _ in
+      view.refresh(animated: false)
+      #if canImport(AppKit)
+      window.displayIfNeeded()
+      #endif
+      CATransaction.flush()
+    }
+    BackgroundDrawing.finish()
+    withExtendedLifetime(window) {}
+
+    // then: report the timings
+    report(name: "refresh.nested.200.drawn", result: result)
+  }
+
   // MARK: - Layout (node-level, a built tree laid out again, without content building or rendering)
 
   func test_layout_nestedRows_200() {
@@ -624,7 +667,9 @@ class RenderPerformanceTests: BenchmarkTestCase {
 
     let maxOffset = CGFloat(rowCount) * rowHeight - Constants.viewSize.height
     var offset: CGFloat = scrollUp ? maxOffset : 0
-    let result = measure(warmup: 20, iterations: 120) { _ in
+    // a view in a window draws the labels about to scroll in ahead of time on other threads, which finish before each
+    // step and wait during it, so that a step counts the main thread's work, with the labels that scroll in drawn
+    let result = measure(warmup: 20, iterations: 120, beforeEach: draws ? BackgroundDrawing.finishAndPause : nil) { _ in
       offset += scrollUp ? -Constants.scrollStep : Constants.scrollStep
       view.contentOffset = CGPoint(x: 0, y: offset) // on AppKit, this triggers the render synchronously
       view.layoutIfNeeded() // on UIKit, this triggers the render
@@ -635,6 +680,10 @@ class RenderPerformanceTests: BenchmarkTestCase {
         #endif
         CATransaction.flush()
       }
+    }
+    if draws {
+      // the drawing queued in the last step finishes here, instead of during the benchmarks that run after this one
+      BackgroundDrawing.finish()
     }
     withExtendedLifetime(window) {}
 

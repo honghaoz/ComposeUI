@@ -64,18 +64,25 @@ final class WindowRenderer {
 
   private let commandQueue: MTLCommandQueue
 
+  /// The color space that the window shows its pixels in, which Core Animation draws the layers' backing stores in.
+  let colorSpace: NSColorSpace
+
   /// Creates a window with a view of a size to render. Throws `XCTSkip` without a Metal device.
   ///
   /// - Parameters:
   ///   - size: The size of the view to render.
   ///   - scale: The scale of the window's backing store. The default is 2, the scale of a Retina screen.
-  init(size: CGSize, scale: CGFloat = 2) throws {
+  ///   - colorSpace: The window's color space, which the pixels are rendered in. The default is sRGB, instead of the
+  ///     screen's, so the pixels are the same on each machine.
+  init(size: CGSize, scale: CGFloat = 2, colorSpace: NSColorSpace = .sRGB) throws {
     guard let device = MTLCreateSystemDefaultDevice(), let commandQueue = device.makeCommandQueue() else {
       throw XCTSkip("rendering through CARenderer requires a Metal device")
     }
     self.commandQueue = commandQueue
+    self.colorSpace = colorSpace
 
     window = Window(scale: scale)
+    window.colorSpace = colorSpace
     window.appearance = NSAppearance(named: .aqua)
     view = NSView(frame: CGRect(origin: .zero, size: size))
     view.wantsLayer = true
@@ -105,7 +112,12 @@ final class WindowRenderer {
     layer.sublayerTransform = CATransform3DMakeScale(scale, scale, 1)
     CATransaction.commit()
 
-    let renderer = CARenderer(mtlTexture: texture, options: [kCARendererMetalCommandQueue: commandQueue])
+    // the renderer draws the backing stores in its color space, as a window draws them in its own
+    var options: [AnyHashable: Any] = [kCARendererMetalCommandQueue: commandQueue]
+    if let cgColorSpace = colorSpace.cgColorSpace {
+      options[kCARendererColorSpace] = cgColorSpace
+    }
+    let renderer = CARenderer(mtlTexture: texture, options: options)
     renderer.layer = layer
     renderer.bounds = CGRect(x: 0, y: 0, width: width, height: height)
     // the renderer takes the layer tree when the transaction commits
