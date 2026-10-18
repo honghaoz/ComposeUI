@@ -98,22 +98,37 @@ class BenchmarkTestCase: XCTestCase {
   ///   - warmup: The number of iterations to run before measuring.
   ///   - iterations: The number of iterations to measure. Must be positive.
   ///   - instructionCounter: Returns the instructions the process has retired, `nil` if they can't be counted.
+  ///   - beforeEach: The block to run before each iteration, outside of its costs.
   ///   - block: The block to measure, given the index of the iteration, counting the warm-up iterations first.
   /// - Returns: The costs of the measured iterations.
-  func measure(warmup: Int, iterations: Int, instructionCounter: () -> UInt64? = InstructionCounter.current, _ block: (Int) -> Void) -> BenchmarkResult {
+  func measure(warmup: Int,
+               iterations: Int,
+               instructionCounter: () -> UInt64? = InstructionCounter.current,
+               beforeEach: (() -> Void)? = nil,
+               _ block: (Int) -> Void) -> BenchmarkResult
+  {
     precondition(iterations > 0, "a benchmark measures at least one iteration")
 
     let countedWarmupStart = warmup / 2
     for index in 0 ..< countedWarmupStart {
+      beforeEach?()
       autoreleasepool {
         block(index)
       }
     }
-    let allocations = AllocationCounter.count {
-      for index in countedWarmupStart ..< warmup {
+    // each iteration's allocations are counted on their own, so that the block run before it isn't counted
+    var allocations: Int? = 0
+    for index in countedWarmupStart ..< warmup {
+      beforeEach?()
+      let iterationAllocations = AllocationCounter.count {
         autoreleasepool {
           block(index)
         }
+      }
+      if let countedAllocations = allocations, let iterationAllocations {
+        allocations = countedAllocations + iterationAllocations
+      } else {
+        allocations = nil
       }
     }
 
@@ -127,6 +142,7 @@ class BenchmarkTestCase: XCTestCase {
     var instructions: [UInt64] = []
     instructions.reserveCapacity(iterations)
     for index in warmup ..< warmup + iterations {
+      beforeEach?()
       autoreleasepool {
         // read the instruction counter outside of the timed span, since the read is a system call
         let startInstructions = instructionCounter()
