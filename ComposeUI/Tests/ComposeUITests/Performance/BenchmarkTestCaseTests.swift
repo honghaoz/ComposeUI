@@ -199,6 +199,43 @@ class BenchmarkTestCaseTests: XCTestCase {
     expect(instructions) < 1000
   }
 
+  func test_measure_threadsStartedInTheMeasuredIterations_countAlmostNoInstructions() throws {
+    // given: a benchmark harness on a machine that counts instructions
+    try XCTSkipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
+    let harness = BenchmarkTestCase()
+    var threadEnds: [DispatchSemaphore] = []
+    defer {
+      threadEnds.forEach { $0.signal() }
+    }
+
+    // when: measuring a block that starts 16 threads that wait, in the first measured iteration after 10 warm-up
+    // iterations, and does nothing in the others
+    let result = harness.measure(warmup: 10, iterations: 201) { index in
+      guard index == 10 else {
+        return
+      }
+      for _ in 0 ..< 16 {
+        let started = DispatchSemaphore(value: 0)
+        let end = DispatchSemaphore(value: 0)
+        let thread = Thread {
+          started.signal()
+          end.wait()
+        }
+        // Xcode's thread performance checker reports a wait on a thread of a lower quality of service with work on the
+        // waiting thread, so the threads run at this thread's
+        thread.qualityOfService = Thread.current.qualityOfService
+        thread.start()
+        started.wait()
+        threadEnds.append(end)
+      }
+    }
+
+    // then: the iterations after it count almost no instructions, though the counter reads that each iteration leaves
+    // out were measured before the threads started
+    let instructions = try result.medianInstructions.unwrap()
+    expect(instructions) < 1000
+  }
+
   // MARK: - Report
 
   func test_reportLine_parsesBackIntoTheSameCosts() throws {
@@ -295,6 +332,67 @@ class BenchmarkTestCaseTests: XCTestCase {
 
     // then: a run passes
     harness.failIfUnreported(wasSkipped: false)
+  }
+
+  // MARK: - InstructionCounter
+
+  func test_instructionCounter_returnsTheInstructionsOfTheCounts() {
+    // given: a function that writes 42 instructions and then 99 cycles, when it's asked for both in a buffer of their
+    // size, as `thread_selfcounts` does
+    let threadSelfCounts: InstructionCounter.ThreadSelfCounts = { kind, buffer, size in
+      guard kind == 1, size == 16, let buffer else {
+        return -1
+      }
+      buffer.storeBytes(of: UInt64(42), as: UInt64.self)
+      buffer.storeBytes(of: UInt64(99), toByteOffset: 8, as: UInt64.self)
+      return 0
+    }
+
+    // when: reading the instructions through it
+    let instructions = InstructionCounter.current(threadSelfCounts: threadSelfCounts)
+
+    // then: the counter returns the instructions
+    expect(instructions) == 42
+  }
+
+  func test_instructionCounter_uncountable_returnsNil() {
+    // then: the instructions can't be counted where the system has no function to read them, where the function fails,
+    // whatever it wrote, and where it counts none, as in a virtual machine that doesn't expose the CPU's counters
+    expect(InstructionCounter.current(threadSelfCounts: nil)) == nil
+    expect(InstructionCounter.current(threadSelfCounts: { _, buffer, _ in
+      buffer?.storeBytes(of: UInt64(42), as: UInt64.self)
+      return -1
+    })) == nil
+    expect(InstructionCounter.current(threadSelfCounts: { _, _, _ in 0 })) == nil
+  }
+
+  func test_instructionCounter_skipsTheInstructionsOfOtherThreads() throws {
+    // given: another thread that allocates 100,000 objects when it's told to, which retires millions of instructions, on
+    // a machine that counts instructions
+    try XCTSkipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
+    let start = DispatchSemaphore(value: 0)
+    let done = DispatchSemaphore(value: 0)
+    let thread = Thread {
+      start.wait()
+      for _ in 0 ..< 100000 {
+        _ = NSObject()
+      }
+      done.signal()
+    }
+    // Xcode's thread performance checker reports a wait on a thread of a lower quality of service with work on the
+    // waiting thread, which its count would include, so the other thread runs at this thread's, which differs between
+    // platforms
+    thread.qualityOfService = Thread.current.qualityOfService
+    thread.start()
+
+    // when: counting this thread's instructions while it tells the other thread to allocate and waits for it
+    let startInstructions = try InstructionCounter.current().unwrap()
+    start.signal()
+    done.wait()
+    let endInstructions = try InstructionCounter.current().unwrap()
+
+    // then: the count leaves out the other thread's instructions
+    expect(endInstructions - startInstructions) < 1000000
   }
 
   // MARK: - AllocationCounter

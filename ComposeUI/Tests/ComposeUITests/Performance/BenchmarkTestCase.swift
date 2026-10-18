@@ -55,7 +55,7 @@ import ChouTiTest
 /// - Time depends on the machine and its load. Compare times only between builds measured on the same machine at the
 ///   same time, interleaved.
 /// - Instructions retired don't depend on the machine's speed or load, only on the CPU architecture, the compiler and the
-///   OS. A change of about 1% shows in a few runs. The count covers the whole process, without the counter reads around
+///   OS. A change of about 1% shows in a few runs. The count covers the calling thread, without the counter reads around
 ///   each iteration, and is unavailable in virtual machines, such as GitHub's macOS runners, which don't expose the CPU's
 ///   counters.
 /// - Allocations on the calling thread are exact for a given build, but differ between debug and release builds, and
@@ -97,7 +97,7 @@ class BenchmarkTestCase: XCTestCase {
   /// - Parameters:
   ///   - warmup: The number of iterations to run before measuring.
   ///   - iterations: The number of iterations to measure. Must be positive.
-  ///   - instructionCounter: Returns the instructions the process has retired, `nil` if they can't be counted.
+  ///   - instructionCounter: Returns the instructions the calling thread has retired, `nil` if they can't be counted.
   ///   - beforeEach: The block to run before each iteration, outside of its costs, in an autorelease pool that drains
   ///     before the iteration.
   ///   - block: The block to measure, given the index of the iteration, counting the warm-up iterations first.
@@ -133,9 +133,9 @@ class BenchmarkTestCase: XCTestCase {
       }
     }
 
-    // each iteration's instructions include part of the two counter reads around it, thousands of instructions whose
-    // count differs between test processes, by about 300 on a simulator, so the instructions of an empty iteration,
-    // measured in the same process just before the measured iterations, are taken out of each
+    // each iteration's instructions include part of the two counter reads around it, whose count differs between builds
+    // and systems, so the instructions of an empty iteration, measured just before the measured iterations, are taken
+    // out of each
     let readInstructions = Self.readInstructions(instructionCounter: instructionCounter)
 
     var durations: [Double] = []
@@ -182,7 +182,8 @@ class BenchmarkTestCase: XCTestCase {
   /// Returns the median instructions of a measured iteration with nothing in it, the part of the counter reads around
   /// each iteration that its count includes.
   ///
-  /// - Parameter instructionCounter: Returns the instructions the process has retired, `nil` if they can't be counted.
+  /// - Parameter instructionCounter: Returns the instructions the calling thread has retired, `nil` if they can't be
+  ///   counted.
   /// - Returns: The median instructions, `nil` if they can't be counted.
   private static func readInstructions(instructionCounter: () -> UInt64?) -> UInt64? {
     var spans: [UInt64] = []
@@ -267,8 +268,8 @@ struct BenchmarkResult {
   /// The wall-clock time of each measured iteration, in microseconds, sorted ascending.
   let durations: [Double]
 
-  /// The instructions the process retired in each measured iteration, without the counter reads around it, sorted
-  /// ascending, `nil` if they can't be counted.
+  /// The instructions the calling thread retired in each measured iteration, without the counter reads around it,
+  /// sorted ascending, `nil` if they can't be counted.
   let instructions: [UInt64]?
 
   /// The allocations on the calling thread per iteration, `nil` if they can't be counted.
@@ -292,31 +293,43 @@ struct BenchmarkResult {
 
 // MARK: - Counters
 
-/// Reads the instructions the process has retired, through `proc_pid_rusage`.
+/// Reads the instructions the calling thread has retired, in user and kernel mode, through `thread_selfcounts`.
+///
+/// The process's count, which `proc_pid_rusage` reads, would include the other threads' work, and reading it costs more
+/// for each thread in the process, so threads that start between two reads would count as work done between them.
 enum InstructionCounter {
 
-  private typealias ProcPidRUsage = @convention(c) (_ pid: Int32, _ flavor: Int32, _ buffer: UnsafeMutableRawPointer) -> Int32
+  typealias ThreadSelfCounts = @convention(c) (_ kind: Int32, _ buffer: UnsafeMutableRawPointer?, _ size: Int) -> Int32
 
-  /// `proc_pid_rusage`, looked up at run time, since only the macOS SDK declares it.
-  private static let procPidRUsage: ProcPidRUsage? = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "proc_pid_rusage") // RTLD_DEFAULT
-    .map { unsafeBitCast($0, to: ProcPidRUsage.self) }
+  /// `thread_selfcounts`, looked up at run time, since no SDK declares it and older systems don't have it.
+  private static let threadSelfCounts: ThreadSelfCounts? = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "thread_selfcounts") // RTLD_DEFAULT
+    .map { unsafeBitCast($0, to: ThreadSelfCounts.self) }
 
-  /// Returns the instructions the process has retired, `nil` if they can't be counted.
+  /// Returns the instructions the calling thread has retired, `nil` if they can't be counted.
   static func current() -> UInt64? {
-    guard let procPidRUsage else {
+    current(threadSelfCounts: threadSelfCounts)
+  }
+
+  /// Returns the instructions the calling thread has retired, read through a `thread_selfcounts` function.
+  ///
+  /// - Parameter threadSelfCounts: The function to read the counts through, `nil` if the system doesn't have it.
+  /// - Returns: The instructions, `nil` if they can't be counted.
+  static func current(threadSelfCounts: ThreadSelfCounts?) -> UInt64? {
+    guard let threadSelfCounts else {
       return nil
     }
 
-    var info = rusage_info_v4()
-    let result = withUnsafeMutableBytes(of: &info) { buffer in
-      buffer.baseAddress.map { procPidRUsage(getpid(), RUSAGE_INFO_V4, $0) } ?? -1
+    let instructionsAndCycles: Int32 = 1 // THSC_CPI
+    var counts: (instructions: UInt64, cycles: UInt64) = (0, 0)
+    let result = withUnsafeMutableBytes(of: &counts) { buffer in
+      threadSelfCounts(instructionsAndCycles, buffer.baseAddress, buffer.count)
     }
 
     // the count stays 0 where the CPU's counters aren't exposed
-    guard result == 0, info.ri_instructions > 0 else {
+    guard result == 0, counts.instructions > 0 else {
       return nil
     }
-    return info.ri_instructions
+    return counts.instructions
   }
 }
 
