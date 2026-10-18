@@ -36,7 +36,7 @@ import Foundation
 /// `scripts/benchmark/benchmark-compare.swift`, so it uses Foundation only.
 enum BenchmarkComparison {
 
-  /// The changes, in percent, past which a comparison reports a cost.
+  /// The changes between the medians of the rounds, in percent, past which a comparison reports a cost.
   struct Thresholds {
 
     /// The slowdown past which the time warns.
@@ -105,14 +105,19 @@ enum BenchmarkComparison {
     return "\(className).\(parts[1])"
   }
 
-  /// Reads a number, `nil` for `n/a` or a missing value.
+  /// Reads a number, `nil` for `n/a`, a missing value, or a number that isn't finite, such as `nan`, which `Double`
+  /// reads too.
   private static func number(_ value: String?) -> Double? {
-    value.flatMap { Double($0) }
+    guard let value, let number = Double(value), number.isFinite else {
+      return nil
+    }
+    return number
   }
 
-  /// Reads a time such as `12.34 us` or `1.234 ms`, in microseconds, `nil` for anything else.
+  /// Reads a time such as `12.34 us` or `1.234 ms`, in microseconds, `nil` for anything else, such as an amount that
+  /// isn't finite.
   private static func microseconds(_ value: String?) -> Double? {
-    guard let parts = value?.split(separator: " "), parts.count == 2, let amount = Double(parts[0]) else {
+    guard let parts = value?.split(separator: " "), parts.count == 2, let amount = Double(parts[0]), amount.isFinite else {
       return nil
     }
     switch parts[1] {
@@ -133,6 +138,14 @@ enum BenchmarkComparison {
     let sorted = values.sorted()
     let middle = sorted.count / 2
     return sorted.count.isMultiple(of: 2) ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle]
+  }
+
+  /// Returns the lowest and the highest of the values, `nil` for no values.
+  static func range(_ values: [Double]) -> ClosedRange<Double>? {
+    guard let lowest = values.min(), let highest = values.max() else {
+      return nil
+    }
+    return lowest ... highest
   }
 
   /// The change from the base to the head, in percent, `nil` for a base of zero.
@@ -166,17 +179,24 @@ enum BenchmarkComparison {
       times.count == count ? BenchmarkComparison.median(times) : nil
     }
 
+    /// The shortest and the longest time of a round, `nil` unless every round reported one.
+    var timeRange: ClosedRange<Double>? {
+      times.count == count ? BenchmarkComparison.range(times) : nil
+    }
+
     /// The median instructions, `nil` unless every round counted them.
     var medianInstructions: Double? {
       instructions.count == count ? BenchmarkComparison.median(instructions) : nil
     }
 
+    /// The fewest and the most instructions of a round, `nil` unless every round counted them.
+    var instructionRange: ClosedRange<Double>? {
+      instructions.count == count ? BenchmarkComparison.range(instructions) : nil
+    }
+
     /// The fewest and the most allocations of a round, `nil` unless every round counted them.
     var allocationRange: ClosedRange<Double>? {
-      guard allocations.count == count, let lowest = allocations.min(), let highest = allocations.max() else {
-        return nil
-      }
-      return lowest ... highest
+      allocations.count == count ? BenchmarkComparison.range(allocations) : nil
     }
   }
 
@@ -247,16 +267,17 @@ enum BenchmarkComparison {
     /// The head allocates less in every round than the base did in any.
     case fewerAllocations
 
-    /// The head retires more instructions than the threshold allows.
+    /// The head retires more instructions than the threshold allows, and more in every round than the base did in any.
     case moreInstructions
 
-    /// The head retires fewer instructions, by more than the threshold.
+    /// The head retires fewer instructions, by more than the threshold, and fewer in every round than the base did in
+    /// any.
     case fewerInstructions
 
-    /// The head is slower than the threshold allows.
+    /// The head is slower than the threshold allows, and slower in every round than the base was in any.
     case slower
 
-    /// The head is faster, by more than the threshold.
+    /// The head is faster, by more than the threshold, and faster in every round than the base was in any.
     case faster
 
     /// Whether the finding fails the comparison. Time only warns, since it depends on the machine's load.
@@ -472,20 +493,27 @@ enum BenchmarkComparison {
       return []
     }
 
+    // each round runs in a process of its own, and code through the system frameworks takes a few percent more or less
+    // time and instructions from one process to the next, so the medians of identical code can differ past the
+    // threshold, while their rounds interleave. a time or an instruction count changes only when every round of the
+    // head is past every round of the base too.
     var findings: [Finding] = []
-    if let baseTime = base.medianTime, let headTime = head.medianTime, let change = percentChange(from: baseTime, to: headTime) {
-      if change > thresholds.time {
+    if let baseTime = base.medianTime, let headTime = head.medianTime, let change = percentChange(from: baseTime, to: headTime),
+       let baseRange = base.timeRange, let headRange = head.timeRange
+    {
+      if change > thresholds.time, headRange.lowerBound > baseRange.upperBound {
         findings.append(.slower)
-      } else if change < -thresholds.time {
+      } else if change < -thresholds.time, headRange.upperBound < baseRange.lowerBound {
         findings.append(.faster)
       }
     }
     if let baseInstructions = base.medianInstructions, let headInstructions = head.medianInstructions,
-       let change = percentChange(from: baseInstructions, to: headInstructions)
+       let change = percentChange(from: baseInstructions, to: headInstructions),
+       let baseRange = base.instructionRange, let headRange = head.instructionRange
     {
-      if change > thresholds.instructions {
+      if change > thresholds.instructions, headRange.lowerBound > baseRange.upperBound {
         findings.append(.moreInstructions)
-      } else if change < -thresholds.instructions {
+      } else if change < -thresholds.instructions, headRange.upperBound < baseRange.lowerBound {
         findings.append(.fewerInstructions)
       }
     }

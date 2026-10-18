@@ -3,9 +3,10 @@
 # Compares the benchmarks of the working tree against a base revision, measured on this machine.
 #
 # Builds the base in a temporary worktree and the working tree, both in release, runs the benchmarks of both in turns
-# for a few rounds, and compares each benchmark's time, instructions and allocations. Both sides run the working tree's
-# benchmark files, so a change to a benchmark doesn't show as a change in the code it measures, and the comparison stops
-# when those files don't build against the base.
+# for a few rounds, and compares each benchmark's time, instructions and allocations, which change only when every round
+# of one side is past every round of the other. Both sides run the working tree's benchmark files, so a change to a
+# benchmark doesn't show as a change in the code it measures, and the comparison stops when those files don't build
+# against the base.
 #
 # On an iOS or tvOS simulator, the benchmarks build and run with xcodebuild, see benchmark-xcodebuild.sh, and the
 # working tree's build is kept in the package's build directory, so that the next comparison builds only what changed,
@@ -31,10 +32,11 @@ print_help() {
   echo "  --summary <file>                   A markdown file to append the report to, such as GitHub's step summary. Optional."
   echo "  --help, -h                         Show this help message."
   echo ""
-  echo "Exits with 1 when a benchmark makes more allocations than the base made in any round, or retires more"
-  echo "instructions than the instructions threshold allows, when a side doesn't report a benchmark exactly once in"
-  echo "every round, when a round skips a test, and as inconclusive when no benchmark has allocations or instructions"
-  echo "on both sides. A slower time is a warning, since time depends on the machine's load. Both sides run the working"
+  echo "Exits with 1 when a benchmark makes more allocations in every round than the base made in any, or retires more"
+  echo "instructions in every round than the base did in any and more than the instructions threshold allows, when a"
+  echo "side doesn't report a benchmark exactly once in every round, when a round skips a test, and as inconclusive when"
+  echo "no benchmark has allocations or instructions on both sides. A time slower in every round, and slower than the"
+  echo "time threshold allows, is a warning, since time depends on the machine's load. Both sides run the working"
   echo "tree's benchmark files, so the comparison stops when they don't build against the base. Tests named"
   echo "test_profile_ are left out, since they only run for a profiler."
 }
@@ -176,7 +178,7 @@ fi
 echo "${BOLD}Base:${RESET} $BASE, $(git -C "$REPO_ROOT" log --oneline -1 "$BASE_COMMIT")"
 echo "${BOLD}Head:${RESET} the working tree, $HEAD_DESCRIPTION"
 echo "${BOLD}Platform:${RESET} $PLATFORM_DESCRIPTION"
-echo "${BOLD}Benchmarks:${RESET} $FILTER, $ROUNDS rounds, instructions regress past $INSTRUCTIONS_THRESHOLD%, times warn past $TIME_THRESHOLD%"
+echo "${BOLD}Benchmarks:${RESET} $FILTER, $ROUNDS rounds, instructions regress past $INSTRUCTIONS_THRESHOLD%, times warn past $TIME_THRESHOLD%, and a change counts only when every round shows it"
 echo ""
 
 # the temporary checkout has none of the downloaded scripts, so the repository's hooks would fail in it
@@ -260,7 +262,7 @@ if [ -n "$SUMMARY" ]; then
     echo "- Base: $BASE, $(git -C "$REPO_ROOT" log --oneline -1 "$BASE_COMMIT")"
     echo "- Head: $HEAD_DESCRIPTION"
     echo "- Platform: $PLATFORM_DESCRIPTION"
-    echo "- Benchmarks: \`$FILTER\`, $ROUNDS rounds, instructions regress past $INSTRUCTIONS_THRESHOLD%, times warn past $TIME_THRESHOLD%"
+    echo "- Benchmarks: \`$FILTER\`, $ROUNDS rounds, instructions regress past $INSTRUCTIONS_THRESHOLD%, times warn past $TIME_THRESHOLD%, and a change counts only when every round shows it"
     echo ""
     echo "$report"
   } >> "$SUMMARY"
