@@ -562,6 +562,27 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: shownPixels)) == 0
   }
 
+  func test_imageDrawnAhead_systemColorsChangeBeforeTheLabelShowsIt_drawsTheTextItself() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a label that took an image drawn ahead of time for its text in a system color
+    let testCase = Case(name: "system blue", text: Self.text("System blue", [.foregroundColor: NSColor.systemBlue]))
+    let (renderer, labelView, cache) = try Self.makeLabelWithImageDrawnAhead(testCase)
+    labelView.imageCache = cache
+    labelView.attributedString = testCase.text
+    let image = try unwrap(labelView.test.readyImage)
+
+    // when: the system colors change before the label shows the image
+    NotificationCenter.default.post(name: NSColor.systemColorsDidChangeNotification, object: nil)
+    let shownPixels = try renderer.render()
+
+    // then: the label draws its text itself, in the colors after the change, instead of showing the image of the colors
+    // before it, in the same pixels as AppKit
+    expect(labelView.test.drawingLayer?.contents as AnyObject?) !== image
+    expect(labelView.test.drawingLayer?.contents.map { CFGetTypeID($0 as CFTypeRef) }) != CGImage.typeID
+    expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: shownPixels)) == 0
+  }
+
   func test_imageDrawnAhead_labelThatDisplaysAgainWithItsText_showsTheImageFromTheCache() throws {
     try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 

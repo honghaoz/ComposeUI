@@ -63,7 +63,7 @@ final class TextLabelImageCache {
 
   // MARK: - Key
 
-  /// The window and the appearance that a label shows in, which its image is drawn for.
+  /// The window, the appearance and the system colors that a label shows in, which its image is drawn for.
   struct Environment {
 
     /// The scale of the window's backing store.
@@ -75,6 +75,10 @@ final class TextLabelImageCache {
     /// The label's appearance, which resolves the text's dynamic colors.
     let appearance: NSAppearance
 
+    /// The generation of the system colors, which the text's dynamic colors resolve to, and which change without a
+    /// change of the appearance.
+    let systemColorsGeneration: Int
+
     /// Returns the environment of a label.
     ///
     /// - Parameters:
@@ -83,7 +87,9 @@ final class TextLabelImageCache {
     /// - Returns: The environment, `nil` for a window without a color space, since the color space that Core Animation
     ///   draws the label's drawing layer in isn't known then.
     static func of(window: NSWindow, appearance: NSAppearance) -> Environment? {
-      window.colorSpace?.cgColorSpace.map { Environment(scale: window.backingScaleFactor, colorSpace: $0, appearance: appearance) }
+      window.colorSpace?.cgColorSpace.map {
+        Environment(scale: window.backingScaleFactor, colorSpace: $0, appearance: appearance, systemColorsGeneration: TextLabelImageCache.systemColorsGeneration)
+      }
     }
   }
 
@@ -137,7 +143,8 @@ final class TextLabelImageCache {
         lhs.inset == rhs.inset &&
         lhs.environment.scale == rhs.environment.scale &&
         lhs.environment.colorSpace == rhs.environment.colorSpace &&
-        lhs.environment.appearance.name == rhs.environment.appearance.name
+        lhs.environment.appearance.name == rhs.environment.appearance.name &&
+        lhs.environment.systemColorsGeneration == rhs.environment.systemColorsGeneration
     }
 
     func hash(into hasher: inout Hasher) {
@@ -221,8 +228,9 @@ final class TextLabelImageCache {
   /// Returns the result of a label's drawing ahead of time, and forgets the drawing once every label that it was
   /// requested for took it, since a label keeps its image.
   ///
-  /// The last label to take a drawing that isn't finished cancels it, since the label draws its text itself, while a
-  /// label before it leaves the drawing to the labels after it.
+  /// A label that finds the drawing unfinished takes no share of it, since a label takes again when it displays, and
+  /// leaves it to the labels of its key, unless it's the drawing's last request, which cancels it, since no other label
+  /// is left to take it.
   ///
   /// - Parameter key: The key of the label's image.
   /// - Returns: The result, `nil` if the drawing isn't finished, or there's none.
@@ -232,8 +240,11 @@ final class TextLabelImageCache {
     }
 
     if entries.values[index].requestCount > 1 {
+      guard let result = entries.values[index].drawing.result else {
+        return nil
+      }
       entries.values[index].requestCount -= 1
-      return entries.values[index].drawing.result
+      return result
     } else {
       let entry = entries.remove(at: index).value
       bytes -= entry.bytes
@@ -298,8 +309,12 @@ final class TextLabelImageCache {
   /// Whether the caches are emptied on a memory warning and on a change of the system colors.
   private static var isObserving = false
 
-  /// Starts emptying the caches on a memory warning, and on a change of the system colors, which a key doesn't include,
-  /// with one observer of each for every cache.
+  /// The number of times that the system colors changed, which a key includes, so that an image drawn before a change,
+  /// including one that a label took, doesn't match a label after it. Main thread only.
+  private static var systemColorsGeneration = 0
+
+  /// Starts emptying the caches on a memory warning, and on a change of the system colors, with one observer of each
+  /// for every cache.
   private static func startObservingIfNeeded() {
     guard !isObserving else {
       return
@@ -310,6 +325,7 @@ final class TextLabelImageCache {
       removeAllInEveryCache()
     }
     NotificationCenter.default.addObserver(forName: NSColor.systemColorsDidChangeNotification, object: nil, queue: .main) { _ in
+      systemColorsGeneration += 1
       removeAllInEveryCache()
     }
   }

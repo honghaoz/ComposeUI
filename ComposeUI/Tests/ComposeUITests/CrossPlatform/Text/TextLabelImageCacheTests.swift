@@ -177,24 +177,25 @@ class TextLabelImageCacheTests: XCTestCase {
     cache.prefetch(key)
     cache.prefetch(otherKey)
 
-    // when: the first label takes the result before a worker draws it
-    let firstResult = cache.takeResult(for: key)
+    // when: the first label takes the result twice before a worker draws it, as when it gets its text and when it
+    // displays
+    let firstResults = [cache.takeResult(for: key), cache.takeResult(for: key)]
 
     // then: there's no result, and the drawing stays for the other label
-    expect(firstResult == nil) == true
+    expect(firstResults.map { $0 == nil }) == [true, true]
     expect(cache.test.isPending(key)) == true
 
     // when: a worker draws it, and the other label takes the result
     TextLabelImageCache.Test.waitForDrawings()
     let secondResult = cache.takeResult(for: otherKey)
 
-    // then: the other label takes the image
+    // then: the other label takes the image, and the drawing stays for the first label's request, which no take used
     expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount + 1
     expect(Self.image(of: secondResult)?.width) == 200
-    expect(cache.test.entryCount) == 0
+    expect(cache.test.entryCount) == 1
   }
 
-  func test_takeResult_bothLabelsOfTheKeyBeforeTheDrawingFinishes_cancelsIt() throws {
+  func test_takeResult_bothLabelsOfTheKeyBeforeTheDrawingFinishes_leaveItForTheirNextTakes() throws {
     // given: a cache that requested the drawing of two labels of the same key, with its workers paused
     let cache = Self.makeCache()
     let key = try Self.key("Row 12 title", size: CGSize(width: 100, height: 20))
@@ -205,16 +206,20 @@ class TextLabelImageCacheTests: XCTestCase {
     cache.prefetch(otherKey)
 
     // when: both labels take the result before a worker draws it
-    let firstResult = cache.takeResult(for: key)
-    let secondResult = cache.takeResult(for: otherKey)
+    let firstResults = [cache.takeResult(for: key), cache.takeResult(for: otherKey)]
 
-    // then: there's no result, and the worker skips the drawing, since both labels draw their texts themselves
-    expect(firstResult == nil) == true
-    expect(secondResult == nil) == true
-    expect(cache.test.isPending(key)) == nil
-    expect(cache.test.bytes) == 0
+    // then: there's no result, and the drawing stays, since a label takes again when it displays
+    expect(firstResults.map { $0 == nil }) == [true, true]
+    expect(cache.test.isPending(key)) == true
+
+    // when: a worker draws it, and both labels take the result again, as when they display
     TextLabelImageCache.Test.waitForDrawings()
-    expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount
+    let images = [Self.image(of: cache.takeResult(for: key)), Self.image(of: cache.takeResult(for: otherKey))]
+
+    // then: both labels take the image, and the cache forgets the drawing
+    expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount + 1
+    expect(images.map { $0?.width }) == [200, 200]
+    expect(cache.test.entryCount) == 0
   }
 
   // MARK: - Eviction
@@ -328,12 +333,32 @@ class TextLabelImageCacheTests: XCTestCase {
     try firstCache.prefetch(Self.key("First", size: CGSize(width: 100, height: 20)))
     try secondCache.prefetch(Self.key("Second", size: CGSize(width: 100, height: 20)))
 
-    // when: the system colors change, which a key doesn't include
+    // when: the system colors change
     NotificationCenter.default.post(name: NSColor.systemColorsDidChangeNotification, object: nil)
 
     // then: both caches are empty
     expect(firstCache.test.entryCount) == 0
     expect(secondCache.test.entryCount) == 0
+  }
+
+  func test_systemColorsChange_givesTheLabelsOtherKeys() throws {
+    // given: a cache, and the key of a label in a window
+    let cache = Self.makeCache()
+    let renderer = try WindowRenderer(size: CGSize(width: 100, height: 20))
+    let appearance = try unwrap(NSAppearance(named: .aqua))
+    let text = NSAttributedString(string: "Hello")
+    let makeKey = {
+      try TextLabelImageCache.Key(text: text, size: CGSize(width: 100, height: 20), numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: unwrap(TextLabelImageCache.Environment.of(window: renderer.window, appearance: appearance)))
+    }
+    let key = try makeKey()
+
+    // when: the system colors change, which the text's dynamic colors resolve to without a change of the appearance
+    NotificationCenter.default.post(name: NSColor.systemColorsDidChangeNotification, object: nil)
+
+    // then: the label's key differs, so that an image drawn before the change, even one that a label took, doesn't
+    // match the label after it
+    expect(try makeKey()) != key
+    withExtendedLifetime(cache) {}
   }
 
   // MARK: - Drawing
@@ -412,9 +437,10 @@ class TextLabelImageCacheTests: XCTestCase {
       TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 2, lineBreakMode: .byTruncatingTail, inset: .zero, environment: environment),
       TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byWordWrapping, inset: .zero, environment: environment),
       TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: CGSize(width: 1, height: 0), environment: environment),
-      TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: TextLabelImageCache.Environment(scale: 1, colorSpace: environment.colorSpace, appearance: environment.appearance)),
-      TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: TextLabelImageCache.Environment(scale: 2, colorSpace: displayP3, appearance: environment.appearance)),
-      TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: TextLabelImageCache.Environment(scale: 2, colorSpace: environment.colorSpace, appearance: darkAppearance)),
+      TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: TextLabelImageCache.Environment(scale: 1, colorSpace: environment.colorSpace, appearance: environment.appearance, systemColorsGeneration: 0)),
+      TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: TextLabelImageCache.Environment(scale: 2, colorSpace: displayP3, appearance: environment.appearance, systemColorsGeneration: 0)),
+      TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: TextLabelImageCache.Environment(scale: 2, colorSpace: environment.colorSpace, appearance: darkAppearance, systemColorsGeneration: 0)),
+      TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: TextLabelImageCache.Environment(scale: 2, colorSpace: environment.colorSpace, appearance: environment.appearance, systemColorsGeneration: 1)),
     ]
     for otherKey in otherKeys {
       expect(otherKey) != key
@@ -444,7 +470,7 @@ class TextLabelImageCacheTests: XCTestCase {
   }
 
   private static func environment() throws -> TextLabelImageCache.Environment {
-    try TextLabelImageCache.Environment(scale: 2, colorSpace: unwrap(CGColorSpace(name: CGColorSpace.sRGB)), appearance: unwrap(NSAppearance(named: .aqua)))
+    try TextLabelImageCache.Environment(scale: 2, colorSpace: unwrap(CGColorSpace(name: CGColorSpace.sRGB)), appearance: unwrap(NSAppearance(named: .aqua)), systemColorsGeneration: 0)
   }
 
   private static func key(_ string: String, size: CGSize) throws -> TextLabelImageCache.Key {
