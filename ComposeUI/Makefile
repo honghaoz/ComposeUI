@@ -51,8 +51,6 @@ test-visionOS: # Run tests on visionOS.
 test-ci: # Run tests with CI-optimized caching path. Usage: make test-ci OS=iOS [PHASE=pick|boot|build|test].
 	@$(REPO_ROOT)/scripts/swift-package/test-package-xcodebuild.sh --package "$(MAKEFILE_DIR)" --os "$(OS)" --derived-data-path "$(CURDIR)/.derived-data" $(if $(PHASE),--phase $(PHASE),)
 
-# Without a FILTER, both run the benchmark suites, and without a PLATFORM, on macOS, see the root scripts/benchmark
-# folder.
 .PHONY: benchmark
 benchmark: # Run the benchmarks in release configuration. Usage: make benchmark [PLATFORM=iOS] [FILTER=RenderPerformanceTests].
 	@"$(REPO_ROOT)/scripts/benchmark/benchmark-run.sh" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",)
@@ -61,8 +59,6 @@ benchmark: # Run the benchmarks in release configuration. Usage: make benchmark 
 benchmark-compare: # Compare the benchmarks against a base revision on this machine. Usage: make benchmark-compare [BASE=origin/master] [PLATFORM=iOS] [FILTER=AdditivePathPerformanceTests] [ROUNDS=5] [TIME_THRESHOLD=20] [INSTRUCTIONS_THRESHOLD=1] [SUMMARY=report.md].
 	@"$(REPO_ROOT)/scripts/benchmark/benchmark-compare.sh" --base "$(or $(BASE),origin/master)" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",) --rounds "$(or $(ROUNDS),5)" --time-threshold "$(or $(TIME_THRESHOLD),20)" --instructions-threshold "$(or $(INSTRUCTIONS_THRESHOLD),1)" $(if $(SUMMARY),--summary "$(SUMMARY)",)
 
-# SwiftPM names the test bundle after its build system, ComposeUIPackageTests.xctest with the native build system and
-# ComposeUITests.xctest with Swift Build, which Xcode 27 uses, while both link .build/debug to their products folder.
 .PHONY: test-codecov
 test-codecov: # Run tests with code coverage.
 	@$(REPO_ROOT)/scripts/swift-package/test-package.sh --package "$(MAKEFILE_DIR)" --max-attempts 3 --delay 3 --summary "$${GITHUB_STEP_SUMMARY:-}" --enable-code-coverage -Xswiftc -DTEST
