@@ -36,8 +36,9 @@ import AppKit
 ///
 /// A compose view keeps a cache among its prefetch caches. A text node's label item asks the cache to draw its text
 /// when the item enters the view's prefetch region, and a label takes the result for its text, settings, size and
-/// window when it gets its text. A label without a result draws its text itself, in the same pixels, so the cache only
-/// decides how much of the drawing is done ahead of time, never what a label shows.
+/// window when it gets its text, or when it displays without an image for them. A label without a result draws its text
+/// itself, in the same pixels, so the cache only decides how much of the drawing is done ahead of time, never what a
+/// label shows.
 ///
 /// It's used on the main thread, while its workers draw on their own threads.
 final class TextLabelImageCache {
@@ -195,39 +196,49 @@ final class TextLabelImageCache {
 
   /// Draws a label ahead of time, unless it's drawn or being drawn.
   ///
-  /// An image that takes more than `maximumBytes` isn't drawn.
+  /// The labels of a key share its drawing, which each of them takes, see `takeResult(for:)`. An image that takes more
+  /// than `maximumBytes` isn't drawn.
   ///
   /// - Parameter key: The key of the label's image.
   func prefetch(_ key: Key) {
-    guard entries[key] == nil else {
-      return
-    }
+    if let index = entries.index(forKey: key) {
+      entries.values[index].requestCount += 1
+    } else {
+      let entryBytes = Self.bytes(of: key)
+      guard entryBytes <= maximumBytes else {
+        return
+      }
 
-    let entryBytes = Self.bytes(of: key)
-    guard entryBytes <= maximumBytes else {
-      return
+      let drawing = Drawing()
+      entries[key] = Entry(drawing: drawing, bytes: entryBytes, sequence: nextSequence, requestCount: 1)
+      nextSequence += 1
+      bytes += entryBytes
+      evictIfNeeded()
+      Self.workers.next().draw(key, into: drawing)
     }
-
-    let drawing = Drawing()
-    entries[key] = Entry(drawing: drawing, bytes: entryBytes, sequence: nextSequence)
-    nextSequence += 1
-    bytes += entryBytes
-    evictIfNeeded()
-    Self.workers.next().draw(key, into: drawing)
   }
 
-  /// Returns the result of a label's drawing ahead of time, and forgets the drawing, since the label keeps its image.
+  /// Returns the result of a label's drawing ahead of time, and forgets the drawing once every label that it was
+  /// requested for took it, since a label keeps its image.
   ///
-  /// A drawing that isn't finished is cancelled, since the label draws its text itself.
+  /// The last label to take a drawing that isn't finished cancels it, since the label draws its text itself, while a
+  /// label before it leaves the drawing to the labels after it.
   ///
   /// - Parameter key: The key of the label's image.
   /// - Returns: The result, `nil` if the drawing isn't finished, or there's none.
   func takeResult(for key: Key) -> Result? {
-    guard let entry = entries.removeValue(forKey: key) else {
+    guard let index = entries.index(forKey: key) else {
       return nil
     }
-    bytes -= entry.bytes
-    return entry.drawing.takeResultOrCancel()
+
+    if entries.values[index].requestCount > 1 {
+      entries.values[index].requestCount -= 1
+      return entries.values[index].drawing.result
+    } else {
+      let entry = entries.remove(at: index).value
+      bytes -= entry.bytes
+      return entry.drawing.takeResultOrCancel()
+    }
   }
 
   /// Forgets every drawing, and cancels the ones that aren't finished.
@@ -272,8 +283,11 @@ final class TextLabelImageCache {
     /// The bytes that the drawing's image takes at most.
     let bytes: Int
 
-    /// The order of the entry's request, which eviction follows.
+    /// The order of the entry's first request, which eviction follows.
     let sequence: Int
+
+    /// The number of labels about to scroll in that the drawing was requested for, and that haven't taken it.
+    var requestCount: Int
   }
 
   // MARK: - Invalidation
@@ -354,6 +368,19 @@ final class TextLabelImageCache {
         case .cancelled,
              .finished:
           return false
+        }
+      }
+    }
+
+    /// The result, `nil` if the drawing isn't finished.
+    var result: Result? {
+      Self.withLock {
+        switch state {
+        case .pending,
+             .cancelled:
+          return nil
+        case .finished(let result):
+          return result
         }
       }
     }

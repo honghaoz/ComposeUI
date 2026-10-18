@@ -952,6 +952,67 @@ class TextNodeTests: XCTestCase {
     expect(appKitPixels.differingPixelCount(from: shownPixels)) == 0
   }
 
+  func test_scroll_labelsOfTheSameTextThatScrollIn_showTheImageOfTheText() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a rendered compose view in a window, which makes a label for each row that scrolls in instead of reusing one,
+    // showing rows of labels of the same text, which drew the labels below ahead of time
+    let (renderer, contentView) = try makeLabelRowsView { _ in "Row" }
+    contentView.renderablePool = nil
+    contentView.refresh(animated: false)
+    TextLabelImageCache.Test.waitForDrawings()
+
+    // when: scrolling down by a view height
+    contentView.contentOffset = CGPoint(x: 0, y: 300)
+    let shownPixels = try renderer.render()
+
+    // then: each label that scrolled in shows the one image drawn for the text, without its text storage, in the same
+    // pixels as AppKit
+    let shownLabelViews = Self.labelViews(of: contentView, in: CGRect(x: 0, y: 300, width: 200, height: 300))
+    expect(shownLabelViews.count) == 10
+    for labelView in shownLabelViews {
+      expect(labelView.test.textStorageNeedsText) == true
+    }
+    let images = try shownLabelViews.map { try unwrap($0.test.drawingLayer?.contents as AnyObject?) }
+    expect(Set(images.map { ObjectIdentifier($0) }).count) == 1
+    expect(CFGetTypeID(images[0] as CFTypeRef)) == CGImage.typeID
+    for labelView in shownLabelViews {
+      labelView.test.forcedDrawsInLayer = false
+    }
+    let appKitPixels = try renderer.render()
+    expect(appKitPixels.differingPixelCount(from: shownPixels)) == 0
+  }
+
+  func test_scroll_reusedLabelsOfTheSameText_showTheImageOfTheText() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a rendered compose view in a window, showing rows of labels of the same text, which drew the labels below
+    // ahead of time
+    let (renderer, contentView) = try makeLabelRowsView { _ in "Row" }
+    contentView.refresh(animated: false)
+    TextLabelImageCache.Test.waitForDrawings()
+    let labelViews = Set(Self.labelViews(of: contentView, in: CGRect(x: 0, y: 0, width: 200, height: 300)).map { ObjectIdentifier($0) })
+
+    // when: scrolling down by a view height, which reuses the labels of the rows that scroll out for the rows that scroll
+    // in, with the same text
+    contentView.contentOffset = CGPoint(x: 0, y: 300)
+    let shownPixels = try renderer.render()
+
+    // then: each reused label shows the image drawn for the text, instead of drawing the text again, in the same pixels
+    // as AppKit
+    let shownLabelViews = Self.labelViews(of: contentView, in: CGRect(x: 0, y: 300, width: 200, height: 300))
+    expect(shownLabelViews.count) == 10
+    expect(Set(shownLabelViews.map { ObjectIdentifier($0) })) == labelViews
+    for labelView in shownLabelViews {
+      expect(labelView.test.drawingLayer?.contents.map { CFGetTypeID($0 as CFTypeRef) }) == CGImage.typeID
+    }
+    for labelView in shownLabelViews {
+      labelView.test.forcedDrawsInLayer = false
+    }
+    let appKitPixels = try renderer.render()
+    expect(appKitPixels.differingPixelCount(from: shownPixels)) == 0
+  }
+
   func test_refresh_labelsThatChangeInTheRegion_drawTheirTextsThemselves() throws {
     try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 

@@ -66,7 +66,7 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
       #if canImport(AppKit)
       // a text that a worker drew ahead of time shows the image, and goes to the text storage only when the view lays
       // out the text itself, see `updateTextStorageIfNeeded()`
-      takeResultDrawnAhead()
+      takeResultForText()
       if readyImage == nil {
         updateTextStorage()
       } else {
@@ -400,41 +400,59 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
   // MARK: - Drawing Ahead of Time
 
-  /// Takes the result of a worker's drawing of the label's text, settings, size and window, if the image cache has it.
+  /// Takes the result of a worker's drawing for the label's new text, and keeps its image for the next display.
   ///
   /// A worker checks the text's styles as the label does, so the result also tells whether the text draws the same in
   /// the drawing layer.
-  private func takeResultDrawnAhead() {
+  private func takeResultForText() {
     readyImage = nil
     textDrawsTheSameInALayer = nil
 
-    guard let imageCache, let key = imageKey(), let result = imageCache.takeResult(for: key) else {
+    guard let drawn = takeResultDrawnAhead() else {
       return
     }
 
-    switch result {
+    switch drawn.result {
     case .image(let image):
       textDrawsTheSameInALayer = true
       if let image {
-        readyImage = (image, key)
+        readyImage = (image, drawn.key)
       }
     case .drawnByAppKit:
       textDrawsTheSameInALayer = false
     }
   }
 
-  /// Returns the image drawn ahead of time for the label's text, and forgets it, `nil` if there's none, or if the
-  /// label's settings, size or window changed since the label got the text.
-  func takeReadyImage() -> CGImage? {
-    guard let readyImage else {
-      return nil
-    }
+  /// Returns the image drawn ahead of time for the label's text, settings, size and window, which the drawing layer
+  /// displays instead of drawing the text, and forgets it, `nil` if there's none.
+  ///
+  /// It's the image that the label took with its text, if it's still for them, or else the one that the image cache
+  /// has for them, since AppKit has the label display again for reasons other than a new text, such as when a compose
+  /// view reuses the label and moves it to another superview, or after its settings or size change.
+  func takeImageToDisplay() -> CGImage? {
+    let readyImage = self.readyImage
     self.readyImage = nil
 
-    guard readyImage.key == imageKey() else {
+    if let readyImage, readyImage.key == imageKey() {
+      return readyImage.image
+    } else {
+      switch takeResultDrawnAhead()?.result {
+      case .image(let image):
+        return image
+      case .drawnByAppKit,
+           .none:
+        return nil
+      }
+    }
+  }
+
+  /// Takes the result of a worker's drawing of the label's text, settings, size and window from the image cache, with
+  /// the key that it was drawn for, `nil` if the cache has none.
+  private func takeResultDrawnAhead() -> (result: TextLabelImageCache.Result, key: TextLabelImageCache.Key)? {
+    guard let imageCache, let key = imageKey(), let result = imageCache.takeResult(for: key) else {
       return nil
     }
-    return readyImage.image
+    return (result, key)
   }
 
   /// Returns the key of the image of the label's text, with its current settings, size and window, `nil` out of a

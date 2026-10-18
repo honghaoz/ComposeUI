@@ -67,11 +67,11 @@ extension TextLabelView {
     override func display() {
       // the label shows the image that a worker drew ahead of time for its text, in the pixels that the layer draws,
       // instead of drawing the text
-      if let image = labelView?.takeReadyImage() {
+      if let image = labelView?.takeImageToDisplay() {
         contents = image
-        return
+      } else {
+        super.display()
       }
-      super.display()
     }
 
     override func draw(in ctx: CGContext) {

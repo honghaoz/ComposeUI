@@ -436,8 +436,9 @@ class RenderPerformanceTests: BenchmarkTestCase {
     #endif
     view.layoutIfNeeded()
 
-    // when: measuring repeated non-animated refreshes of the same texts, each of which looks for the labels past the
-    // visible bounds to draw ahead of time again, with the drawing finished before each refresh
+    // when: measuring repeated non-animated refreshes of the same texts, which leave the region past the visible bounds
+    // where it is, so that the steps count what drawing ahead adds to a refresh with nothing new to draw, with the
+    // drawing that the first render started finished before them
     let result = measure(warmup: 3, iterations: 30, beforeEach: BackgroundDrawing.finishAndPause) { _ in
       view.refresh(animated: false)
       #if canImport(AppKit)

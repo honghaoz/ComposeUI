@@ -141,6 +141,82 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(cache.test.isPending(key)) == nil
   }
 
+  func test_takeResult_labelsOfTheSameKey_eachTakeTheImage() throws {
+    // given: a cache that drew the image of two labels of the same key
+    let cache = Self.makeCache()
+    let key = try Self.key("Row 12 title", size: CGSize(width: 100, height: 20))
+    let otherKey = Self.otherLabelsKey(of: key)
+    cache.prefetch(key)
+    cache.prefetch(otherKey)
+    TextLabelImageCache.Test.waitForDrawings()
+
+    // when: the first label takes the result
+    let firstImage = try unwrap(Self.image(of: cache.takeResult(for: key)))
+
+    // then: the cache keeps the drawing for the other label, with the bytes of its image counted once
+    expect(cache.test.entryCount) == 1
+    expect(cache.test.bytes) == 200 * 40 * 4
+
+    // when: the other label takes the result
+    let secondImage = try unwrap(Self.image(of: cache.takeResult(for: otherKey)))
+
+    // then: the other label takes the same image, and the cache forgets the drawing
+    expect(secondImage) === firstImage
+    expect(cache.test.entryCount) == 0
+    expect(cache.test.bytes) == 0
+    expect(cache.takeResult(for: key) == nil) == true
+  }
+
+  func test_takeResult_beforeTheDrawingFinishes_leavesItToTheOtherLabelOfTheKey() throws {
+    // given: a cache that requested the drawing of two labels of the same key, with its workers paused
+    let cache = Self.makeCache()
+    let key = try Self.key("Row 12 title", size: CGSize(width: 100, height: 20))
+    let otherKey = Self.otherLabelsKey(of: key)
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    let finishedCount = TextLabelImageCache.Test.finishedDrawingCount
+    cache.prefetch(key)
+    cache.prefetch(otherKey)
+
+    // when: the first label takes the result before a worker draws it
+    let firstResult = cache.takeResult(for: key)
+
+    // then: there's no result, and the drawing stays for the other label
+    expect(firstResult == nil) == true
+    expect(cache.test.isPending(key)) == true
+
+    // when: a worker draws it, and the other label takes the result
+    TextLabelImageCache.Test.waitForDrawings()
+    let secondResult = cache.takeResult(for: otherKey)
+
+    // then: the other label takes the image
+    expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount + 1
+    expect(Self.image(of: secondResult)?.width) == 200
+    expect(cache.test.entryCount) == 0
+  }
+
+  func test_takeResult_bothLabelsOfTheKeyBeforeTheDrawingFinishes_cancelsIt() throws {
+    // given: a cache that requested the drawing of two labels of the same key, with its workers paused
+    let cache = Self.makeCache()
+    let key = try Self.key("Row 12 title", size: CGSize(width: 100, height: 20))
+    let otherKey = Self.otherLabelsKey(of: key)
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    let finishedCount = TextLabelImageCache.Test.finishedDrawingCount
+    cache.prefetch(key)
+    cache.prefetch(otherKey)
+
+    // when: both labels take the result before a worker draws it
+    let firstResult = cache.takeResult(for: key)
+    let secondResult = cache.takeResult(for: otherKey)
+
+    // then: there's no result, and the worker skips the drawing, since both labels draw their texts themselves
+    expect(firstResult == nil) == true
+    expect(secondResult == nil) == true
+    expect(cache.test.isPending(key)) == nil
+    expect(cache.test.bytes) == 0
+    TextLabelImageCache.Test.waitForDrawings()
+    expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount
+  }
+
   // MARK: - Eviction
 
   func test_prefetch_overMaximumBytes_evictsTheFirstRequests() throws {
@@ -275,6 +351,30 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(drawing.takeResultOrCancel() == nil) == true
   }
 
+  func test_drawing_result_isTheResultOnceFinished() {
+    // given: a pending drawing, and a cancelled one
+    let drawing = TextLabelImageCache.Drawing()
+    let cancelledDrawing = TextLabelImageCache.Drawing()
+    cancelledDrawing.cancel()
+
+    // then: neither has a result
+    expect(drawing.result == nil) == true
+    expect(cancelledDrawing.result == nil) == true
+
+    // when: a worker finishes the drawing
+    drawing.finish(.drawnByAppKit)
+
+    // then: the drawing has the result, and reading it leaves it for the next label
+    switch drawing.result {
+    case .drawnByAppKit:
+      break
+    case .image,
+         .none:
+      fail("the drawing found that AppKit draws the text")
+    }
+    expect(drawing.takeResultOrCancel() == nil) == false
+  }
+
   // MARK: - Key
 
   func test_key_mutableText_keepsACopy() throws {
@@ -353,6 +453,29 @@ class TextLabelImageCacheTests: XCTestCase {
 
   private static func key(_ text: NSAttributedString, size: CGSize) throws -> TextLabelImageCache.Key {
     try TextLabelImageCache.Key(text: text, size: size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: environment())
+  }
+
+  /// Returns the key of another label with an equal text and the same settings, size and window as a key's label.
+  private static func otherLabelsKey(of key: TextLabelImageCache.Key) -> TextLabelImageCache.Key {
+    TextLabelImageCache.Key(
+      text: NSAttributedString(attributedString: key.text),
+      size: key.size,
+      numberOfLines: key.numberOfLines,
+      lineBreakMode: key.lineBreakMode,
+      inset: key.inset,
+      environment: key.environment
+    )
+  }
+
+  /// Returns the image of a result, `nil` for a result without an image, or no result.
+  private static func image(of result: TextLabelImageCache.Result?) -> CGImage? {
+    switch result {
+    case .image(let image):
+      return image
+    case .drawnByAppKit,
+         .none:
+      return nil
+    }
   }
 }
 

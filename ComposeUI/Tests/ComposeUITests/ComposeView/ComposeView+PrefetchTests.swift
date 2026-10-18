@@ -276,6 +276,69 @@ class ComposeView_PrefetchTests: XCTestCase {
     withExtendedLifetime(window) {}
   }
 
+  #if canImport(AppKit)
+  func test_windowBackingPropertiesChange_prefetchesTheWholeRegionAgain() {
+    // given: a rendered compose view in a window, showing rows of items that prefetch, with a prefetch cache
+    let (window, view, recorder) = makeRowsView()
+    view.refresh(animated: false)
+    _ = view.prefetchCache { NSObject() }
+    recorder.removeAll()
+
+    // when: the window's backing properties change, which AppKit posts when the window moves to a display with another
+    // scale or color space, and the view renders
+    NotificationCenter.default.post(name: NSWindow.didChangeBackingPropertiesNotification, object: window)
+    view.refresh(animated: false)
+
+    // then: the view releases its prefetch caches, and prefetches the whole region again, since the items prepare their
+    // content at the window's scale and in its color space
+    expect(view.prefetchCache(of: NSObject.self)) == nil
+    expect(recorder.rows) == Array(10 ..< 20)
+    withExtendedLifetime(window) {}
+  }
+  #endif
+
+  #if canImport(UIKit) && !os(visionOS)
+  func test_displayScaleChange_prefetchesTheWholeRegionAgain() {
+    // given: a rendered compose view in a window, showing rows of items that prefetch, with a prefetch cache
+    let (window, view, recorder) = makeRowsView()
+    view.refresh(animated: false)
+    _ = view.prefetchCache { NSObject() }
+    recorder.removeAll()
+
+    // when: the view's scale is stale, as when the window moved to a screen with another scale, and a trait change is
+    // delivered, and the view renders
+    view.contentScaleFactor = view.traitCollection.displayScale == 1 ? 2 : 1
+    view.traitCollectionDidChange(nil)
+    view.refresh(animated: false)
+
+    // then: the view releases its prefetch caches, and prefetches the whole region again, since the items prepare their
+    // content at the scale of the window's screen
+    expect(view.prefetchCache(of: NSObject.self)) == nil
+    expect(recorder.rows) == Array(10 ..< 20)
+    withExtendedLifetime(window) {}
+  }
+  #endif
+
+  // MARK: - Theme
+
+  func test_themeChange_prefetchesTheWholeRegionAgain() {
+    // given: a rendered compose view in a window, showing rows of items that prefetch, with a prefetch cache
+    let (window, view, recorder) = makeRowsView()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // settle the initial environment refresh
+    view.refresh(animated: false)
+    _ = view.prefetchCache { NSObject() }
+    recorder.removeAll()
+
+    // when: the view's theme changes
+    view.overrideTheme = view.theme.isLight ? .dark : .light
+
+    // then: the view releases its prefetch caches, and prefetches the whole region again in the refresh that the change
+    // schedules, since the items prepare their content in the view's theme
+    expect(recorder.rows).toEventually(beEqual(to: Array(10 ..< 20)))
+    expect(view.prefetchCache(of: NSObject.self)) == nil
+    withExtendedLifetime(window) {}
+  }
+
   // MARK: - Prefetch Caches
 
   func test_prefetchCache_makesTheCacheOfATypeOnce() {

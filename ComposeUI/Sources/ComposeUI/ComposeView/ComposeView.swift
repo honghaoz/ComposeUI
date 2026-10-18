@@ -616,8 +616,13 @@ open class ComposeView: BaseScrollView {
 
   private func observeTheme() {
     themeObservation = themePublisher.dropFirst().sink { [weak self] _ in
-      self?.setNeedsRefresh(animated: true)
+      self?.themeDidChange()
     }
+  }
+
+  private func themeDidChange() {
+    restartPrefetching()
+    setNeedsRefresh(animated: true)
   }
 
   // MARK: - Window
@@ -647,8 +652,7 @@ open class ComposeView: BaseScrollView {
     // the items prepare their content for the window that shows it, so the view prepares it again in another window, and
     // keeps none out of a window
     if previousWindow != window {
-      prefetchCaches.removeAll()
-      prefetchedBounds = nil
+      restartPrefetching()
     }
 
     if window != nil, previousWindow != window {
@@ -762,6 +766,9 @@ open class ComposeView: BaseScrollView {
   }
 
   private func windowBackingPropertiesDidChange() {
+    // the window's scale or color space changed
+    restartPrefetching()
+
     let oldContentScaleFactor = contentScaleFactor
     contentScaleFactor = windowScaleFactor
 
@@ -777,8 +784,8 @@ open class ComposeView: BaseScrollView {
 
     // UIKit delivers display scale changes as trait changes (for example, when the window moves to a screen with a
     // different scale) and has no counterpart of AppKit's backing properties notification, so mirror
-    // `windowBackingPropertiesDidChange()`: adopt the new scale and re-render non-animated, so rasterized contents
-    // and pixel rounding use the new scale instead of a stale one.
+    // `windowBackingPropertiesDidChange()`: adopt the new scale, prefetch again, and re-render non-animated, so
+    // rasterized contents and pixel rounding use the new scale instead of a stale one.
     //
     // visionOS is excluded because the content scale is pinned to the default scale factor there (see `windowScaleFactor`).
 
@@ -788,6 +795,7 @@ open class ComposeView: BaseScrollView {
 
     if oldContentScaleFactor != newContentScaleFactor {
       contentScaleFactor = newContentScaleFactor
+      restartPrefetching()
       setNeedsRefresh(animated: false)
     }
   }
@@ -2025,7 +2033,8 @@ open class ComposeView: BaseScrollView {
   /// that content without such items doesn't pay for looking ahead.
   private var showsItemsThatPrefetch = false
 
-  /// The region that the last render pass prefetched, `nil` when the last pass didn't prefetch.
+  /// The region that the last render pass prefetched, `nil` when the last pass didn't prefetch, or when the view starts
+  /// prefetching over, see `restartPrefetching()`.
   private var prefetchedBounds: CGRect?
 
   /// The items of the part of the content that a render pass prefetches, kept to reuse the array's memory.
@@ -2036,8 +2045,7 @@ open class ComposeView: BaseScrollView {
 
   /// Returns the cache of a type that the view's items keep the content that they prepare ahead of time in.
   ///
-  /// The view releases its caches when it moves to another window, since the items prepare their content for the window
-  /// that shows it.
+  /// The view releases its caches when it starts prefetching over, see `restartPrefetching()`.
   ///
   /// - Parameter type: The type of the cache.
   /// - Returns: The cache, `nil` until an item makes one.
@@ -2059,6 +2067,16 @@ open class ComposeView: BaseScrollView {
       prefetchCaches[ObjectIdentifier(Cache.self)] = cache
       return cache
     }
+  }
+
+  /// Releases the prefetch caches, and forgets the prefetched region, so that the next render pass prefetches the whole
+  /// region again.
+  ///
+  /// The items prepare their content for how the view shows it: in its window, at the window's scale, in the window's
+  /// color space, and in the view's theme. So the view starts over when any of them changes.
+  private func restartPrefetching() {
+    prefetchCaches.removeAll()
+    prefetchedBounds = nil
   }
 
   /// Prefetches the items in the part of the region past the visible bounds that the last render pass didn't prefetch,

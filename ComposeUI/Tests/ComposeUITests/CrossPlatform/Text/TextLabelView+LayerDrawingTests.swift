@@ -535,6 +535,56 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     }
   }
 
+  func test_imageDrawnAhead_afterTheLabelsSizeChanges_showsTheImageOfTheNewSize() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a label that took an image drawn ahead of time for its text, and a cache that also drew the text at another
+    // size
+    let testCase = Case(name: "plain", text: Self.text("Row 12 title in the label"))
+    let (renderer, labelView, cache) = try Self.makeLabelWithImageDrawnAhead(testCase)
+    let newSize = CGSize(width: 150, height: 64)
+    let environment = try unwrap(TextLabelImageCache.Environment.of(window: renderer.window, appearance: labelView.effectiveAppearance))
+    cache.prefetch(TextLabelImageCache.Key(text: testCase.text, size: newSize, numberOfLines: testCase.lines, lineBreakMode: testCase.lineBreakMode, inset: testCase.inset, environment: environment))
+    TextLabelImageCache.Test.waitForDrawings()
+    labelView.imageCache = cache
+    labelView.attributedString = testCase.text
+    let image = try unwrap(labelView.test.readyImage)
+
+    // when: the label's size changes before it shows the image
+    labelView.setFrameSize(newSize)
+    let shownPixels = try renderer.render()
+
+    // then: the label shows the image of its new size from the cache, in the same pixels as AppKit
+    let contents = try unwrap(labelView.test.drawingLayer?.contents as AnyObject?)
+    expect(contents) !== image
+    expect(CFGetTypeID(contents as CFTypeRef)) == CGImage.typeID
+    expect(cache.test.entryCount) == 0
+    expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: shownPixels)) == 0
+  }
+
+  func test_imageDrawnAhead_labelThatDisplaysAgainWithItsText_showsTheImageFromTheCache() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a label in a window that drew its text itself, and a cache that drew the label's text ahead of time, as for
+    // another label of the same text
+    let testCase = Case(name: "plain", text: Self.text("Row 12 title"))
+    let (renderer, labelView, cache) = try Self.makeLabelWithImageDrawnAhead(testCase)
+    labelView.attributedString = testCase.text
+    _ = try renderer.render()
+    expect(labelView.test.drawingLayer?.contents.map { CFGetTypeID($0 as CFTypeRef) }) != CGImage.typeID
+    labelView.imageCache = cache
+
+    // when: the label displays again without a new text, as AppKit has it do when a compose view reuses the label and
+    // moves it to another superview
+    labelView.needsDisplay = true
+    let shownPixels = try renderer.render()
+
+    // then: the label shows the image from the cache instead of drawing its text again, in the same pixels as AppKit
+    expect(labelView.test.drawingLayer?.contents.map { CFGetTypeID($0 as CFTypeRef) }) == CGImage.typeID
+    expect(cache.test.entryCount) == 0
+    expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: shownPixels)) == 0
+  }
+
   func test_resultDrawnAhead_textThatAppKitDraws_drawsThroughAppKit() throws {
     try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
