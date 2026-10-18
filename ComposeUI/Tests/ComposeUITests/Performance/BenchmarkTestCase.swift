@@ -98,7 +98,8 @@ class BenchmarkTestCase: XCTestCase {
   ///   - warmup: The number of iterations to run before measuring.
   ///   - iterations: The number of iterations to measure. Must be positive.
   ///   - instructionCounter: Returns the instructions the process has retired, `nil` if they can't be counted.
-  ///   - beforeEach: The block to run before each iteration, outside of its costs.
+  ///   - beforeEach: The block to run before each iteration, outside of its costs, in an autorelease pool that drains
+  ///     before the iteration.
   ///   - block: The block to measure, given the index of the iteration, counting the warm-up iterations first.
   /// - Returns: The costs of the measured iterations.
   func measure(warmup: Int,
@@ -111,7 +112,7 @@ class BenchmarkTestCase: XCTestCase {
 
     let countedWarmupStart = warmup / 2
     for index in 0 ..< countedWarmupStart {
-      beforeEach?()
+      Self.runBeforeEach(beforeEach)
       autoreleasepool {
         block(index)
       }
@@ -119,7 +120,7 @@ class BenchmarkTestCase: XCTestCase {
     // each iteration's allocations are counted on their own, so that the block run before it isn't counted
     var allocations: Int? = 0
     for index in countedWarmupStart ..< warmup {
-      beforeEach?()
+      Self.runBeforeEach(beforeEach)
       let iterationAllocations = AllocationCounter.count {
         autoreleasepool {
           block(index)
@@ -142,7 +143,7 @@ class BenchmarkTestCase: XCTestCase {
     var instructions: [UInt64] = []
     instructions.reserveCapacity(iterations)
     for index in warmup ..< warmup + iterations {
-      beforeEach?()
+      Self.runBeforeEach(beforeEach)
       autoreleasepool {
         // read the instruction counter outside of the timed span, since the read is a system call
         let startInstructions = instructionCounter()
@@ -166,6 +167,16 @@ class BenchmarkTestCase: XCTestCase {
       instructions: instructions.count == iterations ? instructions.sorted() : nil,
       allocationsPerIteration: countedWarmup > 0 ? allocations.map { Double($0) / Double(countedWarmup) } : nil
     )
+  }
+
+  /// Runs the block that runs before an iteration, in an autorelease pool of its own, so that the objects that the block
+  /// autoreleases go away before the iteration, instead of piling up in the test's pool until the benchmark finishes.
+  ///
+  /// - Parameter beforeEach: The block to run, if any.
+  private static func runBeforeEach(_ beforeEach: (() -> Void)?) {
+    if let beforeEach {
+      autoreleasepool(invoking: beforeEach)
+    }
   }
 
   /// Returns the median instructions of a measured iteration with nothing in it, the part of the counter reads around

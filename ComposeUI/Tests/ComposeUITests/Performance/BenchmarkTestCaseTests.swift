@@ -117,6 +117,26 @@ class BenchmarkTestCaseTests: XCTestCase {
     expect(result.allocationsPerIteration) == 0
   }
 
+  func test_measure_beforeEach_releasesWhatItAutoreleasesBeforeTheIteration() {
+    // given: a benchmark harness, and a block to run before each iteration that autoreleases an object
+    let harness = BenchmarkTestCase()
+    weak var autoreleasedObject: NSObject?
+    let beforeEach = {
+      let object = NSObject()
+      autoreleasedObject = object
+      _ = Unmanaged.passRetained(object).autorelease()
+    }
+    var objectsAliveInIterations: [Bool] = []
+
+    // when: measuring a block that checks whether the object is alive
+    _ = harness.measure(warmup: 2, iterations: 2, beforeEach: beforeEach) { _ in
+      objectsAliveInIterations.append(autoreleasedObject != nil)
+    }
+
+    // then: each object went away before its iteration, of the warm-up and measured
+    expect(objectsAliveInIterations) == [false, false, false, false]
+  }
+
   func test_measure_takesTheCounterReadsOutOfEachIteration() {
     // given: a benchmark harness, and a counter that counts 100 instructions for each of its reads
     let harness = BenchmarkTestCase()
