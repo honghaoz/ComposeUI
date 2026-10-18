@@ -2575,6 +2575,51 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.typingAttributes.isEmpty) == true
   }
 
+  func test_resetForReuse_keepingTextNodeSettings_clearsTypingAttributes() {
+    // given: an editable text view with a text and typing attributes
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    #if !os(tvOS)
+    textView.isEditable = true
+    #endif
+    textView.attributedString = Self.makeText("Hello, world!")
+    textView.typingAttributes = [NSAttributedString.Key.font: Font.systemFont(ofSize: 30)]
+    expect(textView.typingAttributes.isEmpty) == false
+
+    // when: resetting it for a reuse by a text node
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: the typing attributes are cleared, so the text that the user types after the next text doesn't take them
+    expect(textView.typingAttributes.isEmpty) == true
+  }
+
+  func test_resetForReuse_keepingTextNodeSettings_emptyTypingAttributes_stayEmpty() {
+    // given: a text view whose typing attributes a reset for a text node cleared, with the next text of the same
+    // length, which leaves the selection and the typing attributes as they are
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+    textView.attributedString = Self.makeText("Hello, world!")
+    textView.resetForReuse(keepsTextNodeSettings: true)
+    textView.attributedString = Self.makeText("Hello, again!")
+    expect(textView.typingAttributes.isEmpty) == true
+    #if canImport(AppKit)
+    var typingAttributesChangeCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSTextView.didChangeTypingAttributesNotification, object: textView, queue: nil) { _ in
+      typingAttributesChangeCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    #endif
+
+    // when: resetting it for a reuse by a text node again
+    textView.resetForReuse(keepsTextNodeSettings: true)
+
+    // then: the typing attributes stay empty, and on AppKit, the text view doesn't post that they changed
+    expect(textView.typingAttributes.isEmpty) == true
+    #if canImport(AppKit)
+    expect(typingAttributesChangeCount) == 0
+    #endif
+  }
+
   // MARK: - Helpers
 
   /// Returns a text with a font and a color, as a label's text has.
