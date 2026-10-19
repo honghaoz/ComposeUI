@@ -133,6 +133,55 @@ class SimpleTextCacheTests: XCTestCase {
     expect(Self.key(text: bridged).hashValue) == Self.key(text: text).hashValue
   }
 
+  func test_key_textsOfOtherCodeUnits_areNotEqual() throws {
+    // given: texts that differ in one character of the same UTF-8 length, native and bridged from `NSString`, which
+    // doesn't store contiguous UTF-8
+    let text = "Subtitle for a row with longer text, caf\u{E9}"
+    let otherText = "Subtitle for a row with longer text, caf\u{E8}"
+    let bridged = try unwrap(NSMutableString(string: text).copy() as? String)
+    let otherBridged = try unwrap(NSMutableString(string: otherText).copy() as? String)
+    expect(otherBridged.utf8.withContiguousStorageIfAvailable { _ in true }) == nil
+    let cases: [(name: String, lhs: String, rhs: String)] = [
+      ("another length", "Text", "Texts"),
+      ("the same length", "Text", "Next"),
+      ("a native and a bridged text", text, otherBridged),
+      ("bridged texts", bridged, otherBridged),
+    ]
+
+    for testCase in cases {
+      // then: the keys of the texts aren't equal
+      expect(Self.key(text: testCase.lhs), testCase.name) != Self.key(text: testCase.rhs)
+    }
+  }
+
+  func test_key_otherAlignment_isNotEqual() {
+    // then: the keys of two alignments aren't equal
+    expect(Self.key(textAlignment: .right)) != Self.key(textAlignment: .center)
+  }
+
+  func test_key_emptyTexts_areEqual() {
+    // then: the keys of two empty texts are equal and hash the same
+    expect(Self.key(text: "")) == Self.key(text: String())
+    expect(Self.key(text: "").hashValue) == Self.key(text: String()).hashValue
+  }
+
+  func test_key_otherObjects_hashLikeTheKeyAndAreNotEqual() {
+    // given: a key, and keys that differ from it in the font, a color or the shadow
+    let key = Self.key()
+    let variants = [
+      Self.key(font: .systemFont(ofSize: 20)),
+      Self.key(textColor: ThemedColor(.blue)),
+      Self.key(textBackgroundColor: ThemedColor(.green)),
+      Self.key(textShadow: Self.shadow),
+    ]
+
+    for variant in variants {
+      // then: each hashes like the key, since the hash leaves the objects to `==`, which tells them apart
+      expect(variant.hashValue) == key.hashValue
+      expect(variant) != key
+    }
+  }
+
   func test_attributedString_pastTheGenerationLimit_keepsTheGenerationBefore() {
     // given: the strings of a full generation, and of one more text, which starts the next generation
     let keys = (0 ... SimpleTextCache.generationLimit).map { Self.key(text: "\($0)") }

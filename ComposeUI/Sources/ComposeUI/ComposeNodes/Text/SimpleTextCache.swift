@@ -56,14 +56,13 @@ enum SimpleTextCache {
     let textAlignment: NSTextAlignment
 
     static func == (lhs: Key, rhs: Key) -> Bool {
-      // `String ==` matches canonically equivalent text, such as a precomposed "é" and an "e" with a combining accent,
-      // while a text node shows its text's exact characters, so the text is compared by its UTF-8 code units instead
-      lhs.text.utf8.elementsEqual(rhs.text.utf8)
+      // the objects come last, since each compares through Objective-C
+      lhs.textAlignment == rhs.textAlignment
+        && hasSameCodeUnits(lhs.text, rhs.text)
         && lhs.font == rhs.font
         && lhs.textColor == rhs.textColor
         && lhs.textBackgroundColor == rhs.textBackgroundColor
         && lhs.textShadow == rhs.textShadow
-        && lhs.textAlignment == rhs.textAlignment
     }
 
     func hash(into hasher: inout Hasher) {
@@ -81,11 +80,36 @@ enum SimpleTextCache {
       }
       // 0xFF never occurs in UTF-8, so it ends the text unambiguously
       hasher.combine(UInt8(0xFF))
-      hasher.combine(font)
-      hasher.combine(textColor)
-      hasher.combine(textBackgroundColor)
-      hasher.combine(textShadow)
+      // the font and the colors are left to `==`, since the labels of a view mostly share them, and hashing them calls
+      // into each object
       hasher.combine(textAlignment)
+    }
+
+    /// Returns whether two texts have the same UTF-8 code units.
+    ///
+    /// `String`'s `==` matches canonically equivalent text, such as a precomposed "é" and an "e" with a combining accent,
+    /// while a text node shows its text's exact characters, so the texts are compared by their code units, in place
+    /// where both texts store them contiguously.
+    private static func hasSameCodeUnits(_ lhs: String, _ rhs: String) -> Bool {
+      let lhsCodeUnits = lhs.utf8
+      let rhsCodeUnits = rhs.utf8
+      let count = lhsCodeUnits.count
+      guard count == rhsCodeUnits.count else {
+        return false
+      }
+
+      let isSame: Bool?? = lhsCodeUnits.withContiguousStorageIfAvailable { lhsBuffer in
+        rhsCodeUnits.withContiguousStorageIfAvailable { rhsBuffer in
+          // `memcmp` requires valid pointers even for no bytes, while an empty buffer's base address can be nil
+          count == 0 || memcmp(lhsBuffer.baseAddress, rhsBuffer.baseAddress, count) == 0
+        }
+      }
+      if let isSame = isSame ?? nil {
+        return isSame
+      } else {
+        // a string bridged from `NSString` doesn't store contiguous UTF-8
+        return lhsCodeUnits.elementsEqual(rhsCodeUnits)
+      }
     }
 
     /// Returns the key with copies of its shadows, which no caller can change.
