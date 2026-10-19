@@ -968,31 +968,33 @@ class LabelNodeTests: XCTestCase {
   }
 
   #if canImport(UIKit)
-  func test_defaults_font_madeAgainOnlyForAnotherBoldTextSetting() {
-    // given: the default font, made for the current Bold Text setting
-    let isBoldTextEnabled = UIAccessibility.isBoldTextEnabled
-    let font = LabelNode.Defaults.font(isBoldTextEnabled: isBoldTextEnabled)
+  func test_defaults_fontCache_keepsTheFontOfEachBoldTextSetting() {
+    // given: a font cache, and a regular and a semibold font, as the system font is with Bold Text off and on
+    let cache = LabelNode.Defaults.FontCache()
+    let regular = Font.systemFont(ofSize: 17, weight: .regular)
+    let semibold = Font.systemFont(ofSize: 17, weight: .semibold)
 
-    // when: making labels without a font
-    let labelCounts = WorkCounter.counting {
-      for index in 0 ..< 10 {
-        _ = LabelNode("Label \(index)")
-      }
-    }
+    // when: getting the font with Bold Text off
+    let font = cache.font(isBoldTextEnabled: false) { regular }
 
-    // then: they take the font made before
-    expect(labelCounts.labelDefaultFonts) == 0
+    // then: it's the font made for the setting
+    expect(font) == regular
 
-    // when: getting the default font for the other Bold Text setting, and for the current one again
-    var fonts: [Font] = []
-    let changeCounts = WorkCounter.counting {
-      fonts.append(LabelNode.Defaults.font(isBoldTextEnabled: !isBoldTextEnabled))
-      fonts.append(LabelNode.Defaults.font(isBoldTextEnabled: isBoldTextEnabled))
-    }
+    // when: getting the font with Bold Text still off, from a block that makes another font
+    let sameSettingFont = cache.font(isBoldTextEnabled: false) { semibold }
 
-    // then: each change of the setting makes the font again, the system font of the process's own setting
-    expect(changeCounts.labelDefaultFonts) == 2
-    expect(fonts) == [font, font]
+    // then: it's the font made before
+    expect(sameSettingFont) == regular
+
+    // when: Bold Text turns on, stays on, and turns off again
+    let boldTextFont = cache.font(isBoldTextEnabled: true) { semibold }
+    let stillBoldTextFont = cache.font(isBoldTextEnabled: true) { regular }
+    let offAgainFont = cache.font(isBoldTextEnabled: false) { regular }
+
+    // then: each change of the setting makes the font for it, which the cache keeps while the setting stays
+    expect(boldTextFont) == semibold
+    expect(stillBoldTextFont) == semibold
+    expect(offAgainFont) == regular
   }
   #endif
 

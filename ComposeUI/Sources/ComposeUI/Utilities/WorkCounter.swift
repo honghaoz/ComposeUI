@@ -58,9 +58,6 @@ enum WorkCounter {
 
     /// A step of evicting the images that labels drew ahead of time, which evicts one image.
     case imageEvictionStep
-
-    /// A system font made for the labels that the app doesn't set a font for.
-    case labelDefaultFont
   }
 
   /// Counts work done on the main thread while a block is counted.
@@ -88,8 +85,6 @@ enum WorkCounter {
       counts.bezierSolverSteps += amount
     case .imageEvictionStep:
       counts.imageEvictionSteps += amount
-    case .labelDefaultFont:
-      counts.labelDefaultFonts += amount
     }
   }
 
@@ -108,9 +103,6 @@ enum WorkCounter {
     /// The steps taken to evict the images that labels drew ahead of time.
     fileprivate(set) var imageEvictionSteps = 0
 
-    /// The system fonts made for the labels that the app doesn't set a font for.
-    fileprivate(set) var labelDefaultFonts = 0
-
     /// Returns the sum of these counts and the other counts.
     fileprivate func adding(_ other: Counts) -> Counts {
       var sum = self
@@ -118,7 +110,6 @@ enum WorkCounter {
       sum.animations += other.animations
       sum.bezierSolverSteps += other.bezierSolverSteps
       sum.imageEvictionSteps += other.imageEvictionSteps
-      sum.labelDefaultFonts += other.labelDefaultFonts
       return sum
     }
   }

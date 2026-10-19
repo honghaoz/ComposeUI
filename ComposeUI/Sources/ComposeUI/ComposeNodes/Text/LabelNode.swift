@@ -161,33 +161,47 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
     /// The system font of a label's size, which is semibold while Bold Text is on.
     static var font: Font {
-      font(isBoldTextEnabled: UIAccessibility.isBoldTextEnabled)
+      fontCache.font(isBoldTextEnabled: UIAccessibility.isBoldTextEnabled) {
+        Font.systemFont(ofSize: fontSize)
+      }
     }
 
-    /// The font made last, with the Bold Text setting that it was made with.
-    private static var lastFont: (font: Font, isBoldTextEnabled: Bool)?
+    #if os(tvOS)
+    /// The size of a label's system font.
+    private static let fontSize: CGFloat = 20
+    #else
+    /// The size of a label's system font.
+    private static let fontSize = Font.labelFontSize
+    #endif
 
-    /// Returns the system font of a label's size, made again when Bold Text, which the system font follows, differs
-    /// from the setting that the last font was made with.
+    /// The default font made last.
+    private static let fontCache = FontCache()
+
+    /// A font kept with the Bold Text setting that it was made with, since the system font follows the setting.
     ///
-    /// - Parameter isBoldTextEnabled: Whether Bold Text is on.
-    /// - Returns: The font.
-    static func font(isBoldTextEnabled: Bool) -> Font {
-      if let lastFont, lastFont.isBoldTextEnabled == isBoldTextEnabled {
-        return lastFont.font
+    /// A class, so that the cache can be a static constant: a mutating lookup of a struct in a static variable is
+    /// checked for exclusive access at run time, as the access lasts through the call to the block.
+    final class FontCache {
+
+      /// The font made last, with the Bold Text setting that it was made with.
+      private var lastFont: (font: Font, isBoldTextEnabled: Bool)?
+
+      /// Returns the font for a Bold Text setting, made again with a block when the setting differs from the one that
+      /// the last font was made with.
+      ///
+      /// - Parameters:
+      ///   - isBoldTextEnabled: Whether Bold Text is on.
+      ///   - make: The block that makes the font.
+      /// - Returns: The font.
+      func font(isBoldTextEnabled: Bool, make: () -> Font) -> Font {
+        if let lastFont, lastFont.isBoldTextEnabled == isBoldTextEnabled {
+          return lastFont.font
+        } else {
+          let font = make()
+          lastFont = (font, isBoldTextEnabled)
+          return font
+        }
       }
-
-      #if DEBUG
-      WorkCounter.count(.labelDefaultFont)
-      #endif
-
-      #if os(tvOS)
-      let font = Font.systemFont(ofSize: 20)
-      #else
-      let font = Font.systemFont(ofSize: Font.labelFontSize)
-      #endif
-      lastFont = (font, isBoldTextEnabled)
-      return font
     }
     #endif
   }

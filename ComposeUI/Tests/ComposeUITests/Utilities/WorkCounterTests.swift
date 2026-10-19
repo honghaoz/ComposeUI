@@ -42,14 +42,12 @@ class WorkCounterTests: XCTestCase {
       WorkCounter.count(.textMeasurement)
       WorkCounter.count(.animation, 2)
       WorkCounter.count(.bezierSolverStep, 3)
-      WorkCounter.count(.labelDefaultFont, 4)
     }
 
     // then: each kind of work is counted by its amount, which is 1 by default
     expect(counts.textMeasurements) == 1
     expect(counts.animations) == 2
     expect(counts.bezierSolverSteps) == 3
-    expect(counts.labelDefaultFonts) == 4
   }
 
   func test_count_outsideCounting_countsNothing() {
