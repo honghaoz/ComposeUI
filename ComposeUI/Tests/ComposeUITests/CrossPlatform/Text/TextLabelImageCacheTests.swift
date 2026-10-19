@@ -402,6 +402,39 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(cache.test.linkCount) == 0
   }
 
+  func test_maximumBytesLowered_afterALabelTookTheNewestDrawing_evictsInRequestOrder() throws {
+    // given: a cache with room for three images, with its workers paused, that requested three labels, the last of which
+    // a label took, and then requested a fourth
+    let cache = TextLabelImageCache()
+    let keys = try ["First", "Second", "Third", "Fourth"].map { try Self.key($0, size: CGSize(width: 100, height: 20)) }
+    let imageBytes = 200 * 40 * 4
+    cache.maximumBytes = imageBytes * 3
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    for key in keys.prefix(3) {
+      cache.prefetch(key)
+    }
+    _ = cache.takeResult(for: keys[2])
+    cache.prefetch(keys[3])
+
+    // when: lowering the room to one image
+    cache.maximumBytes = imageBytes
+
+    // then: the first and the second requests are evicted, and the fourth, which came after them, is left
+    expect(cache.test.isPending(keys[0])) == nil
+    expect(cache.test.isPending(keys[1])) == nil
+    expect(cache.test.isPending(keys[3])) == true
+    expect(cache.test.evictionKeyCount) == 1
+    expect(cache.test.linkCount) == 1
+
+    // when: lowering the room to none
+    cache.maximumBytes = 0
+
+    // then: the fourth request is evicted too, and no entry is left in the order
+    expect(cache.test.isPending(keys[3])) == nil
+    expect(cache.test.evictionKeyCount) == 0
+    expect(cache.test.linkCount) == 0
+  }
+
   func test_prefetch_imageLargerThanMaximumBytes_isntDrawn() throws {
     // given: a cache with room for less than an image
     let cache = TextLabelImageCache()
