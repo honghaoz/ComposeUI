@@ -328,6 +328,23 @@ class RenderableTests: XCTestCase {
     expect(parentView.subviews.last) === firstView
   }
 
+  func test_view_case_moveToFront_alreadyAtFront() {
+    // given: three subviews with the last at the front
+    let parentView = BaseView()
+    let firstView = BaseView()
+    let secondView = BaseView()
+    let thirdView = BaseView()
+    parentView.addSubview(firstView)
+    parentView.addSubview(secondView)
+    parentView.addSubview(thirdView)
+
+    // when: moving the last view's renderable to the front
+    Renderable.view(thirdView).moveToFront()
+
+    // then: the subviews keep their order
+    expect(parentView.subviews) == [firstView, secondView, thirdView]
+  }
+
   // MARK: - Layer Case Tests
 
   func test_layer_case_view_property() {
@@ -592,5 +609,22 @@ class RenderableTests: XCTestCase {
 
     // then: the first layer is now the last (front-most) sublayer
     expect(parentView.layer().sublayers?.last) === firstLayer
+  }
+
+  func test_layer_case_moveToFront_alreadyAtFront() {
+    // given: three sublayers with the last at the front
+    let parentView = BaseView()
+    let firstLayer = CALayer()
+    let secondLayer = CALayer()
+    let thirdLayer = CALayer()
+    parentView.layer().addSublayer(firstLayer)
+    parentView.layer().addSublayer(secondLayer)
+    parentView.layer().addSublayer(thirdLayer)
+
+    // when: moving the last layer's renderable to the front
+    Renderable.layer(thirdLayer).moveToFront()
+
+    // then: the sublayers keep their order
+    expect(parentView.layer().sublayers) == [firstLayer, secondLayer, thirdLayer]
   }
 }

@@ -453,6 +453,47 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.nested.200.drawn", result: result)
   }
 
+  // MARK: - Reorder (view-level, a refresh that reverses the shown rows)
+
+  func test_reorder_nestedRows_drawn() {
+    // when: reversing rows of an icon and two labels on each refresh
+    runReorderBenchmark(name: "reorder.nested.drawn") { rows in
+      VStack {
+        for row in rows {
+          Self.makeNestedRow(row)
+            .fixedId("row\(row)")
+        }
+      }
+    }
+  }
+
+  func test_reorder_viewRowsWithSubviews_drawn() {
+    // when: reversing rows of views with subviews on each refresh
+    runReorderBenchmark(name: "reorder.viewsWithSubviews.drawn") { rows in
+      VStack {
+        for row in rows {
+          Self.makeViewRowWithSubviews()
+            .fixedId("row\(row)")
+        }
+      }
+    }
+  }
+
+  func test_reorder_colorRowsBelowALabel_drawn() {
+    // when: reversing color rows below a label on each refresh, which moves the label though it's at the front already
+    runReorderBenchmark(name: "reorder.colorsBelowALabel.drawn") { rows in
+      VStack {
+        LabelNode("Title")
+          .fixedId("title")
+        for row in rows {
+          ColorNode(.red)
+            .frame(width: .flexible, height: Constants.rowHeight)
+            .fixedId("row\(row)")
+        }
+      }
+    }
+  }
+
   // MARK: - Layout (node-level, a built tree laid out again, without content building or rendering)
 
   func test_layout_nestedRows_200() {
@@ -546,6 +587,8 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let smallRowHeight: CGFloat = 8
     static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
+    static let reorderRowCount = 16 // rows that all show, so that reversing them keeps the same items
+    static let subviewsPerRow = 30
   }
 
   /// A plain view-backed row, optionally opted into the recycle pool via `reuseId`.
@@ -564,6 +607,21 @@ class RenderPerformanceTests: BenchmarkTestCase {
     } else {
       return node
     }
+  }
+
+  /// A row of a view with subviews, which UIKit's `addSubview` walks.
+  private static func makeViewRowWithSubviews() -> some ComposeNode {
+    ViewNode<View>(make: { context in
+      let view = View(frame: context.initialFrame ?? .zero)
+      #if canImport(AppKit)
+      view.wantsLayer = true
+      #endif
+      for index in 0 ..< Constants.subviewsPerRow {
+        view.addSubview(View(frame: CGRect(x: CGFloat(index) * 10, y: 0, width: 10, height: 10)))
+      }
+      return view
+    })
+    .frame(width: .flexible, height: Constants.rowHeight)
   }
 
   /// A drop-shadow row. The `DropShadowLayer` is non-trivial to create (mask shape layer + content scaling setup),
@@ -706,6 +764,42 @@ class RenderPerformanceTests: BenchmarkTestCase {
     #endif
 
     report(name: name, result: result, extra: "initialRender: \(format(setupDuration)) ms | renderedItems: \(renderedItemsCount)")
+  }
+
+  /// Measures refreshes that reverse the order of rows that all show, in a window.
+  ///
+  /// - Parameters:
+  ///   - name: The benchmark's name.
+  ///   - content: Makes the rows in an order, each with a fixed id, so that a reversal reuses their renderables.
+  private func runReorderBenchmark(name: String, @ComposeContentBuilder content: @escaping (_ rows: [Int]) -> ComposeContent) {
+    // given: the rows in a window, rendered
+    let rows = Array(0 ..< Constants.reorderRowCount)
+    var isReversed = false
+    let view = ComposeView {
+      content(isReversed ? rows.reversed() : rows)
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    let window = TestWindow()
+    window.contentView().addSubview(view)
+    #if canImport(UIKit)
+    window.makeKeyAndVisible()
+    #endif
+    view.layoutIfNeeded()
+
+    // when: measuring refreshes that each reverse the rows, after the previous refresh's background drawing finishes
+    let result = measure(warmup: 3, iterations: 30, beforeEach: BackgroundDrawing.finishAndPause) { _ in
+      isReversed.toggle()
+      view.refresh(animated: false)
+      #if canImport(AppKit)
+      window.displayIfNeeded()
+      #endif
+      CATransaction.flush()
+    }
+    BackgroundDrawing.finish()
+    withExtendedLifetime(window) {}
+
+    // then: report the timings
+    report(name: name, result: result)
   }
 
   /// The state a frame update benchmark updates the renderable in.

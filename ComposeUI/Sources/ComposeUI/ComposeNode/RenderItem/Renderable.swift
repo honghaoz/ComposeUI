@@ -197,6 +197,7 @@ public enum Renderable {
       if layer.superlayer !== parentLayer {
         parentLayer.addSublayer(layer)
       } else if parentLayer.sublayers?.last !== layer {
+        // moving a layer that's at the front already costs the next commit more than reading `sublayers`
         parentLayer.bringSublayerToFront(layer)
       }
     }
@@ -220,6 +221,7 @@ public enum Renderable {
         superview.bringSubviewToFront(view)
       }
     case .layer(let layer):
+      // moving a layer that's at the front already costs the next commit more than reading `sublayers`
       if let superlayer = layer.superlayer, superlayer.sublayers?.last !== layer {
         superlayer.bringSublayerToFront(layer)
       }

@@ -1650,10 +1650,12 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
-        if zOrder.restacksViews, renderable.view != nil {
+        if zOrder.restacksViews, let view = renderable.view {
           // only view items need re-stacking: the subview order drives the hit-testing order.
           // the visual z-order is driven by the layers' `zPosition`, so layer items need no re-stacking.
-          renderable.moveToFront()
+          // skips `moveToFront()`'s `subviews.last` check, which copies the array, since only the first view of a
+          // restack can be at the front already. `addSubview` would walk the view's subviews
+          view.superview?.bringSubviewToFront(view)
         }
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
