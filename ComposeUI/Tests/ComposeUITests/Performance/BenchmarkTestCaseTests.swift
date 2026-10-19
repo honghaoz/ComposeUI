@@ -429,6 +429,9 @@ class BenchmarkTestCaseTests: XCTestCase {
         done.signal()
       }
     }
+    // Xcode's thread performance checker reports a wait on a thread of a lower quality of service with work on the
+    // waiting thread, so the other thread runs at this thread's
+    thread.qualityOfService = Thread.current.qualityOfService
     thread.start()
     let body = {
       start.signal()
