@@ -47,7 +47,9 @@ final class TextLayoutRecorder: NSObject, NSLayoutManagerDelegate {
     let width: CGFloat
   }
 
-  /// The layouts of a text with characters, in order. An empty text has nothing to draw, so its layouts aren't recorded.
+  /// The layouts of a text with characters in a container, in order. An empty text has nothing to draw, and a call
+  /// without a container only tells that the text goes past the containers, after the call for the filled container, so
+  /// neither is recorded.
   private(set) var layouts: [Layout] = []
 
   /// The number of edits to the text storage.
@@ -73,9 +75,9 @@ final class TextLayoutRecorder: NSObject, NSLayoutManagerDelegate {
   }
 
   func layoutManager(_ layoutManager: NSLayoutManager, didCompleteLayoutFor textContainer: NSTextContainer?, atEnd layoutFinishedFlag: Bool) {
-    guard let text = layoutManager.textStorage?.string, !text.isEmpty else {
+    guard let textContainer, let text = layoutManager.textStorage?.string, !text.isEmpty else {
       return
     }
-    layouts.append(Layout(text: text, width: textContainer?.size.width ?? 0))
+    layouts.append(Layout(text: text, width: textContainer.size.width))
   }
 }

@@ -186,6 +186,20 @@ class TextLabelDrawerTests: XCTestCase {
     expect(recorder.editCount) == 1
   }
 
+  func test_update_newText_pastTheBottomOfTheSize_laysOutTheTextOnce() {
+    // given: a drawer that laid out a text, and a recorder of its layouts
+    let drawer = TextLabelDrawer()
+    Self.layOut(drawer, text: Self.text("Hello"), size: CGSize(width: 100, height: 20))
+    let recorder = TextLayoutRecorder(drawer.layoutManager)
+
+    // when: updating it with a text that wraps past the bottom of the size, and laying it out
+    let text = "Hello, world, and a text that wraps past the bottom"
+    Self.layOut(drawer, text: Self.text(text), size: CGSize(width: 100, height: 20))
+
+    // then: the text lays out once, in the container that it fills
+    expect(recorder.layouts) == [TextLayoutRecorder.Layout(text: text, width: 100)]
+  }
+
   func test_update_newText_withoutAText_givesTheTextInOneEdit() {
     // given: a drawer without a text, in a size, and a recorder of its layouts and edits
     let drawer = TextLabelDrawer()
