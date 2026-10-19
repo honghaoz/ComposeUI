@@ -219,6 +219,39 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(window.contentView().subviews.contains(view)) == true
   }
 
+  func test_removeTransition_finishingInTheRenderHandler_poolsTheView() throws {
+    // given: a reusable view with a remove transition that finishes later, rendered for item a, and a render handler
+    // that finishes the removal, which runs after the pass's insertions
+    let pool = RecordingPool()
+    var finishRemoval: (() -> Void)?
+    let transition = RenderableTransition(
+      insert: nil,
+      remove: RenderableTransition.RemoveTransition { _, _, completion in
+        finishRemoval = completion
+      }
+    )
+    var id = "a"
+    let (window, view) = makeView(pool: pool) {
+      Self.makeRow(0).id(id).transition(transition)
+    }
+    view.refresh(animated: false)
+    let itemAView = try rowView(showing: 0, in: view).unwrap()
+    view.onDidRender { _, _ in
+      finishRemoval?()
+      finishRemoval = nil
+    }
+
+    // when: an animated refresh replaces item a with item b, of the same kind
+    id = "b"
+    view.refresh(animated: true)
+
+    // then: the view of item a left the content view, for the pool, since no insertion could take it anymore
+    expect(itemAView.superview) == nil
+    expect(pool.enqueued.count) == 1
+    expect(pool.enqueued.first?.renderable.view) === itemAView
+    expect(window.contentView().subviews.contains(view)) == true
+  }
+
   func test_insertTransition_ofAViewReusedInPlace_startsAtTheFinalFrame() throws {
     // given: a reusable view with an insert transition and no remove transition, rendered for item a, where the
     // transition records the view and its frame when it starts
@@ -303,6 +336,29 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(pool.enqueued.count) == 0
     expect(window.contentView().subviews.contains(view)) == true
   }
+
+  func test_scroll_viewWithATouchInProgress_leavesAsBefore() throws {
+    // given: rows of reusable views in a window, rendered at the top, with a control that tracks a touch in the view of
+    // row 0
+    let pool = RecordingPool()
+    let (window, view) = makeRowsView(pool: pool)
+    view.refresh(animated: false)
+    let rowZeroView = try rowView(showing: 0, in: view).unwrap()
+    let control = TrackingControl()
+    control.tracks = true
+    rowZeroView.addSubview(control)
+    let moveCount = rowZeroView.moveCount
+
+    // when: scrolling by one row, which moves row 0 out and row 2 in
+    scroll(view, to: Constants.rowHeight)
+
+    // then: the view of row 0 left the window, which cancels the touch, and came back from the pool for row 2
+    expect(rowView(showing: 2, in: view)) === rowZeroView
+    expect(rowZeroView.moveCount) > moveCount
+    expect(pool.enqueued.count) == 1
+    expect(pool.enqueued.first?.renderable.view) === rowZeroView
+    expect(window.contentView().subviews.contains(view)) == true
+  }
   #endif
 
   // MARK: - InPlaceReuse
@@ -341,9 +397,10 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(reuse.take(Constants.keyB)?.view) === viewB
   }
 
-  func test_removeAll_removesTheViewsFromTheirParentForThePool() {
+  func test_stopKeeping_removesTheViewsFromTheirParentForThePool() {
     // given: kept views of two kinds, in a parent
     let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
     let parent = View()
     let viewA = View()
     let viewB = View()
@@ -358,8 +415,8 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
       return pool
     }
 
-    // when: removing all
-    reuse.removeAll(addingTo: readPool())
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: readPool())
 
     // then: the views left their parent for the pool, read once, under their keys, and none is left to take
     expect(viewA.superview) == nil
@@ -371,8 +428,8 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(reuse.take(Constants.keyA)?.view) == nil
     expect(reuse.take(Constants.keyB)?.view) == nil
 
-    // when: removing all again, with no view kept
-    reuse.removeAll(addingTo: readPool())
+    // when: stopping again, with no view kept
+    reuse.stopKeeping(addingTo: readPool())
 
     // then: the pool isn't read again
     expect(poolReadCount) == 1
@@ -384,9 +441,10 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(reuse.take(Constants.keyA)?.view) === viewA
   }
 
-  func test_removeAll_withoutAPool_releasesTheViews() {
+  func test_stopKeeping_withoutAPool_releasesTheViews() {
     // given: a kept view in a parent, which nothing else keeps
     let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
     let parent = View()
     weak var weakView: View?
     autoreleasepool {
@@ -397,9 +455,9 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     }
     expect(weakView) != nil
 
-    // when: removing all without a pool
+    // when: stopping keeping views, without a pool
     autoreleasepool {
-      reuse.removeAll(addingTo: nil)
+      reuse.stopKeeping(addingTo: nil)
     }
 
     // then: the view left its parent, and was released
@@ -408,9 +466,10 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(reuse.take(Constants.keyA)?.view) == nil
   }
 
-  func test_removeAll_withoutKeptViews_leavesThePoolAlone() {
+  func test_stopKeeping_withoutKeptViews_leavesThePoolAlone() {
     // given: a view that was kept and taken, in a parent
     let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
     let parent = View()
     let viewA = View()
     parent.addSubview(viewA)
@@ -423,8 +482,8 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
       return pool
     }
 
-    // when: removing all
-    reuse.removeAll(addingTo: readPool())
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: readPool())
 
     // then: the taken view stays in its parent, and the pool isn't read
     expect(viewA.superview) === parent
@@ -432,15 +491,59 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(pool.enqueued.count) == 0
   }
 
+  func test_stopKeeping_dropsTheEmptiedArrays_onlyPastTheMostReuseKeys() {
+    // given: views kept and taken under 64 reuse keys
+    let reuse = ComposeView.InPlaceReuse()
+    func keepAndTake(keyCount: Int) {
+      reuse.startKeeping()
+      for index in 0 ..< keyCount {
+        let key = ReuseKey(reuseId: ReuseId(namespace: .user, id: "\(index)"), type: ObjectIdentifier(View.self))
+        reuse.keep(.view(View()), key: key)
+        _ = reuse.take(key)
+      }
+    }
+    keepAndTake(keyCount: 64)
+
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: nil)
+
+    // then: the emptied arrays stay for the next pass
+    expect(reuse.keyCount) == 64
+
+    // when: keeping and taking views under one more reuse key, then stopping
+    keepAndTake(keyCount: 65)
+    reuse.stopKeeping(addingTo: nil)
+
+    // then: the emptied arrays are dropped, so that reuse identifiers made for each item don't add up
+    expect(reuse.keyCount) == 0
+  }
+
   func test_canKeep() {
+    // given: views in place
+    let reuse = ComposeView.InPlaceReuse()
+
+    // then: before keeping starts, no view can stay
+    expect(reuse.canKeep(.view(View()))) == false
+
+    // when: starting keeping views
+    reuse.startKeeping()
+
     // then: a view can stay in place, a layer can't
-    expect(ComposeView.InPlaceReuse.canKeep(.view(View()))) == true
-    expect(ComposeView.InPlaceReuse.canKeep(.layer(CALayer()))) == false
+    expect(reuse.canKeep(.view(View()))) == true
+    expect(reuse.canKeep(.layer(CALayer()))) == false
+
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: nil)
+
+    // then: no view can stay
+    expect(reuse.canKeep(.view(View()))) == false
   }
 
   #if canImport(AppKit)
   func test_canKeep_viewWithTheFirstResponderInside_returnsFalse() {
     // given: a view in a window, with the first responder in it
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
     let window = TestWindow()
     let view = RowView(frame: CGRect(x: 0, y: 0, width: 100, height: 50))
     view.addSubview(view.focusTarget)
@@ -451,21 +554,52 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(window.makeFirstResponder(view.focusTarget)) == true
 
     // then: the view can't stay in place, the other view can, and the first responder stays
-    expect(ComposeView.InPlaceReuse.canKeep(.view(view))) == false
-    expect(ComposeView.InPlaceReuse.canKeep(.view(otherView))) == true
+    expect(reuse.canKeep(.view(view))) == false
+    expect(reuse.canKeep(.view(otherView))) == true
     expect(window.firstResponder) === view.focusTarget
 
     // when: the window is the first responder
     expect(window.makeFirstResponder(nil)) == true
 
     // then: the view can stay in place
-    expect(ComposeView.InPlaceReuse.canKeep(.view(view))) == true
+    expect(reuse.canKeep(.view(view))) == true
+  }
+
+  func test_canKeep_mouseButtonPressed_returnsFalse() {
+    // given: a mouse button state that a test sets, which counts its reads
+    var isMouseButtonPressed = true
+    var readCount = 0
+    let reuse = ComposeView.InPlaceReuse(isMouseButtonPressed: {
+      readCount += 1
+      return isMouseButtonPressed
+    })
+
+    // when: a pass starts keeping views while a mouse button is pressed
+    reuse.startKeeping()
+
+    // then: a layer can't stay without reading the button state, and no view can stay, with the state read once
+    expect(reuse.canKeep(.layer(CALayer()))) == false
+    expect(readCount) == 0
+    expect(reuse.canKeep(.view(View()))) == false
+    expect(reuse.canKeep(.view(View()))) == false
+    expect(readCount) == 1
+
+    // when: the next pass starts keeping views after the button is released
+    isMouseButtonPressed = false
+    reuse.stopKeeping(addingTo: nil)
+    reuse.startKeeping()
+
+    // then: a view can stay, with the state read again
+    expect(reuse.canKeep(.view(View()))) == true
+    expect(readCount) == 2
   }
   #endif
 
   #if canImport(UIKit)
   func test_canKeep_viewWithTheFirstResponderInside_givesItUp() {
     // given: a view in a window, with the first responder in it
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
     let window = TestWindow()
     let view = RowView(frame: CGRect(x: 0, y: 0, width: 100, height: 50))
     view.addSubview(view.focusTarget)
@@ -473,8 +607,37 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(view.focusTarget.becomeFirstResponder()) == true
 
     // then: the view can stay in place, after giving up the first responder
-    expect(ComposeView.InPlaceReuse.canKeep(.view(view))) == true
+    expect(reuse.canKeep(.view(view))) == true
     expect(view.focusTarget.isFirstResponder) == false
+  }
+
+  func test_canKeep_viewWithATouchInProgress_returnsFalse() {
+    // given: a view with a control and a gesture recognizer that track no touch, in a subview
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
+    let view = View(frame: CGRect(x: 0, y: 0, width: 100, height: 50))
+    let subview = View(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
+    let control = TrackingControl()
+    let recognizer = TouchedGestureRecognizer()
+    subview.addSubview(control)
+    subview.addGestureRecognizer(recognizer)
+    view.addSubview(subview)
+
+    // then: the view can stay in place
+    expect(reuse.canKeep(.view(view))) == true
+
+    // when: the control tracks a touch
+    control.tracks = true
+
+    // then: the view can't stay in place
+    expect(reuse.canKeep(.view(view))) == false
+
+    // when: the gesture recognizer tracks a touch instead
+    control.tracks = false
+    recognizer.touchCount = 1
+
+    // then: the view can't stay in place
+    expect(reuse.canKeep(.view(view))) == false
   }
   #endif
 
@@ -611,6 +774,28 @@ private final class FocusTarget: NSView {
 #if canImport(UIKit)
 /// A view that can be the first responder.
 private typealias FocusTarget = UITextField
+
+/// A control whose tracking of a touch a test sets.
+private final class TrackingControl: UIControl {
+
+  /// Whether the control tracks a touch.
+  var tracks = false
+
+  override var isTracking: Bool {
+    tracks
+  }
+}
+
+/// A gesture recognizer whose number of touches a test sets.
+private final class TouchedGestureRecognizer: UIGestureRecognizer {
+
+  /// The number of touches that the recognizer tracks.
+  var touchCount = 0
+
+  override var numberOfTouches: Int {
+    touchCount
+  }
+}
 #endif
 
 // MARK: - RecordingPool

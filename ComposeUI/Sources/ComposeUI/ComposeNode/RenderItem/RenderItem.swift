@@ -233,8 +233,9 @@ public struct RenderItem<T> {
   /// The block to be called when the renderable is just removed from the renderable hierarchy.
   ///
   /// At this point, the renderable's transition animation is completed, and the renderable is removed from the
-  /// renderable hierarchy, except for a reusable view whose removal finishes during a render pass, which stays in place
-  /// until the pass ends, for a new item of its kind that the pass inserts, and leaves then if no item takes it.
+  /// renderable hierarchy, except for a reusable view whose removal finishes while a render pass updates the
+  /// renderables, which stays in place for a new item of its kind that the pass inserts, and leaves before the pass ends
+  /// if no item takes it.
   ///
   /// Note that it is possible that a removing renderable, during its removal transition animation, is re-inserted into
   /// the renderable hierarchy. In this case, the `didRemove` block won't be called.
@@ -250,8 +251,9 @@ public struct RenderItem<T> {
   ///
   /// When set, a renderable that is removed from the renderable hierarchy is added to a pool (keyed by this identifier
   /// and the renderable's concrete type) instead of being deallocated, and is handed back when a new item with the same
-  /// reuse identifier and type is inserted, avoiding a `make` call. A view whose removal finishes during a render pass
-  /// serves a new item of its kind that the same pass inserts in place instead, without leaving the renderable hierarchy.
+  /// reuse identifier and type is inserted, avoiding a `make` call. A view whose removal finishes while a render pass
+  /// updates the renderables serves a new item of its kind that the pass inserts in place instead, without leaving the
+  /// renderable hierarchy.
   ///
   /// To ensure a reused renderable is in the same state a freshly made one would have, use the `resetForReuse` block to
   /// reset the renderable's modified properties.

@@ -1452,6 +1452,9 @@ open class ComposeView: BaseScrollView {
     // the z-order bookkeeping, which records the reused items below
     var zOrder = ZOrderPass(oldItemCount: oldRenderableItemIds.count, previousKeyOffset: zPositionKeyOffset)
 
+    // the removals below keep their reusable views in place, for the insertions after them
+    inPlaceReuse.startKeeping()
+
     // the old and new items are read in place from their arrays, by index, since looking them up in a map of items
     // would copy each item, which retains and releases its references
     for oldIndex in oldRenderableItemIds.indices {
@@ -1491,10 +1494,11 @@ open class ComposeView: BaseScrollView {
         // and mustn't keep the view alive, as an insert transition doesn't
         let removeBlock = { (contentView: ComposeView) in
           // the reuse is decided before the item's callbacks, so that they can't change it midway. a reusable view that
-          // leaves during a render pass stays in place, for an insertion of its kind in the pass, see `InPlaceReuse`
+          // leaves while a render pass keeps views stays in place, for an insertion of its kind in the pass, see
+          // `InPlaceReuse`
           let reuseKey = oldRenderableItem.reuseKey
           let renderablePool = reuseKey == nil ? nil : contentView.renderablePool
-          let keepsInPlace = contentView.isRendering && renderablePool != nil && InPlaceReuse.canKeep(oldRenderable)
+          let keepsInPlace = renderablePool != nil && contentView.inPlaceReuse.canKeep(oldRenderable)
           if !keepsInPlace {
             oldRenderable.removeFromParent()
           }
@@ -1784,8 +1788,9 @@ open class ComposeView: BaseScrollView {
       renderableMap[id] = renderable
     }
 
-    // the views that the removals left in place and no insertion took leave now, for the pool
-    inPlaceReuse.removeAll(addingTo: renderablePool)
+    // the pass stops keeping views, so that a removal that finishes later leaves at once, and the views that the removals
+    // left in place and no insertion took leave now, for the pool
+    inPlaceReuse.stopKeeping(addingTo: renderablePool)
 
     #if DEBUG
     // sanity check for renderable item ids and maps after rendering

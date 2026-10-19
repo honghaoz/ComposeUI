@@ -580,8 +580,8 @@ public extension ComposeNode {
   ///
   /// When a renderable is removed from the renderable hierarchy, it is added to a pool instead of being
   /// deallocated, and is handed back when a new item with the same reuse identifier and concrete type is inserted.
-  /// A view removed during a render pass serves a new item of its kind that the same pass inserts in place instead,
-  /// without leaving the renderable hierarchy.
+  /// A view that a render pass removes can serve a new item of its kind that the same pass inserts in place instead,
+  /// without leaving the renderable hierarchy, see `RenderItem.didRemove`.
   ///
   /// For renderables that are expensive to create, this can avoid the cost of creating and speed up the rendering.
   ///
