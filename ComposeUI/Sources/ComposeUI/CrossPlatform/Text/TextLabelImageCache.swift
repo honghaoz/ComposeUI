@@ -186,11 +186,11 @@ final class TextLabelImageCache {
   /// The drawings that labels haven't taken yet, by their keys.
   private var entries: [Key: Entry] = [:]
 
+  /// The entries' keys in the order of their requests, which eviction follows.
+  private var order = RequestOrder()
+
   /// The bytes that the entries' images take at most.
   private var bytes = 0
-
-  /// The sequence number of the next request.
-  private var nextSequence = 0
 
   init() {
     Self.startObservingIfNeeded()
@@ -217,8 +217,7 @@ final class TextLabelImageCache {
       }
 
       let drawing = Drawing()
-      entries[key] = Entry(drawing: drawing, bytes: entryBytes, sequence: nextSequence, requestCount: 1)
-      nextSequence += 1
+      entries[key] = Entry(drawing: drawing, bytes: entryBytes, sequence: order.append(key), requestCount: 1)
       bytes += entryBytes
       evictIfNeeded()
       Self.workers.next().draw(key, into: drawing)
@@ -247,6 +246,7 @@ final class TextLabelImageCache {
       return result
     } else {
       let entry = entries.remove(at: index).value
+      order.remove(entry.sequence)
       bytes -= entry.bytes
       return entry.drawing.takeResultOrCancel()
     }
@@ -258,15 +258,20 @@ final class TextLabelImageCache {
       entry.drawing.cancel()
     }
     entries.removeAll()
+    order.removeAll()
     bytes = 0
   }
 
   /// Evicts the entries requested first, until the entries' images fit `maximumBytes`.
   private func evictIfNeeded() {
-    while bytes > maximumBytes, let oldest = entries.min(by: { $0.value.sequence < $1.value.sequence }) {
-      entries.removeValue(forKey: oldest.key)
-      bytes -= oldest.value.bytes
-      oldest.value.drawing.cancel()
+    while bytes > maximumBytes, let sequence = order.oldest, let key = order.remove(sequence) {
+      #if DEBUG
+      WorkCounter.count(.imageEvictionStep)
+      #endif
+      if let entry = entries.removeValue(forKey: key) {
+        bytes -= entry.bytes
+        entry.drawing.cancel()
+      }
     }
   }
 
@@ -294,11 +299,107 @@ final class TextLabelImageCache {
     /// The bytes that the drawing's image takes at most.
     let bytes: Int
 
-    /// The order of the entry's first request, which eviction follows.
+    /// The entry's sequence number in the order of the requests.
     let sequence: Int
 
     /// The number of labels about to scroll in that the drawing was requested for, and that haven't taken it.
     var requestCount: Int
+  }
+
+  /// The keys of the entries in the order of their requests, linked by their sequence numbers, so that eviction takes
+  /// the oldest without searching the entries or going past the ones that labels took.
+  ///
+  /// A link is read and written back, instead of changed in place through `links[sequence]?.newer`, which allocates,
+  /// and the keys are kept apart from the links, so that writing a link back doesn't copy a key.
+  private struct RequestOrder {
+
+    /// The keys by their sequence numbers.
+    private(set) var keys: [Int: Key] = [:]
+
+    /// The links by their sequence numbers.
+    private(set) var links: [Int: Link] = [:]
+
+    /// The sequence number of the oldest key, `nil` if there's none.
+    private(set) var oldest: Int?
+
+    /// The sequence number of the newest key, `nil` if there's none.
+    private var newest: Int?
+
+    /// The sequence number of the next key.
+    private var next = 0
+
+    /// Adds a key as the newest.
+    ///
+    /// - Parameter key: The key.
+    /// - Returns: The key's sequence number.
+    mutating func append(_ key: Key) -> Int {
+      let sequence = next
+      next += 1
+      keys[sequence] = key
+      links[sequence] = Link(older: newest, newer: nil)
+      if let newest {
+        if var newestLink = links[newest] {
+          newestLink.newer = sequence
+          links[newest] = newestLink
+        }
+      } else {
+        oldest = sequence
+      }
+      newest = sequence
+      return sequence
+    }
+
+    /// Removes a key.
+    ///
+    /// - Parameter sequence: The key's sequence number.
+    /// - Returns: The key, `nil` if there's none with the sequence number.
+    @discardableResult
+    mutating func remove(_ sequence: Int) -> Key? {
+      if let link = links.removeValue(forKey: sequence) {
+        unlink(link)
+      }
+      return keys.removeValue(forKey: sequence)
+    }
+
+    /// Removes every key.
+    mutating func removeAll() {
+      keys.removeAll()
+      links.removeAll()
+      oldest = nil
+      newest = nil
+    }
+
+    /// Joins the keys before and after a key that left the order.
+    ///
+    /// - Parameter link: The link of the key that left.
+    private mutating func unlink(_ link: Link) {
+      if let older = link.older {
+        if var olderLink = links[older] {
+          olderLink.newer = link.newer
+          links[older] = olderLink
+        }
+      } else {
+        oldest = link.newer
+      }
+      if let newer = link.newer {
+        if var newerLink = links[newer] {
+          newerLink.older = link.older
+          links[newer] = newerLink
+        }
+      } else {
+        newest = link.older
+      }
+    }
+
+    /// A key's place in the order.
+    struct Link {
+
+      /// The sequence number of the key before it, `nil` for the oldest.
+      var older: Int?
+
+      /// The sequence number of the key after it, `nil` for the newest.
+      var newer: Int?
+    }
   }
 
   // MARK: - Invalidation
@@ -594,6 +695,16 @@ final class TextLabelImageCache {
     /// The bytes that the entries' images take at most.
     var bytes: Int {
       host.bytes
+    }
+
+    /// The number of keys in the order that eviction follows.
+    var evictionKeyCount: Int {
+      host.order.keys.count
+    }
+
+    /// The number of links in the order that eviction follows.
+    var linkCount: Int {
+      host.order.links.count
     }
 
     /// Whether the drawing of a key is pending, which `nil` means there's no drawing for.

@@ -257,6 +257,184 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(cache.test.bytes) == imageBytes
   }
 
+  func test_prefetch_overMaximumBytes_skipsTheEntriesThatLabelsTook() throws {
+    // given: a cache with room for two images, with its workers paused, that requested two labels, the first of which
+    // a label took
+    let cache = TextLabelImageCache()
+    let first = try Self.key("First", size: CGSize(width: 100, height: 20))
+    let second = try Self.key("Second", size: CGSize(width: 100, height: 20))
+    let third = try Self.key("Third", size: CGSize(width: 100, height: 20))
+    let fourth = try Self.key("Fourth", size: CGSize(width: 100, height: 20))
+    let imageBytes = 200 * 40 * 4
+    cache.maximumBytes = imageBytes * 2
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    cache.prefetch(first)
+    cache.prefetch(second)
+    _ = cache.takeResult(for: first)
+
+    // when: prefetching two more labels
+    cache.prefetch(third)
+    cache.prefetch(fourth)
+
+    // then: the second request, the oldest one left, is evicted
+    expect(cache.test.isPending(second)) == nil
+    expect(cache.test.isPending(third)) == true
+    expect(cache.test.isPending(fourth)) == true
+    expect(cache.test.bytes) == imageBytes * 2
+    expect(cache.test.evictionKeyCount) == 2
+    expect(cache.test.linkCount) == 2
+  }
+
+  func test_prefetch_overMaximumBytes_evictsALabelRequestedAgainAfterTheEarlierRequests() throws {
+    // given: a cache with room for two images, with its workers paused, that requested two labels, the first of which
+    // a label took and requested again
+    let cache = TextLabelImageCache()
+    let first = try Self.key("First", size: CGSize(width: 100, height: 20))
+    let second = try Self.key("Second", size: CGSize(width: 100, height: 20))
+    let third = try Self.key("Third", size: CGSize(width: 100, height: 20))
+    cache.maximumBytes = 200 * 40 * 4 * 2
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    cache.prefetch(first)
+    cache.prefetch(second)
+    _ = cache.takeResult(for: first)
+    cache.prefetch(first)
+
+    // when: prefetching a third label
+    cache.prefetch(third)
+
+    // then: the second request is evicted, since the first label's new request came after it
+    expect(cache.test.isPending(second)) == nil
+    expect(cache.test.isPending(first)) == true
+    expect(cache.test.isPending(third)) == true
+    expect(cache.test.evictionKeyCount) == 2
+    expect(cache.test.linkCount) == 2
+  }
+
+  func test_prefetch_overMaximumBytesAfterRemoveAll_evictsTheFirstRequestAfterItInOneStep() throws {
+    // given: a cache, with its workers paused, that removed all its drawings after requesting 100 labels, and then
+    // requested two labels with room for two images
+    let cache = TextLabelImageCache()
+    let first = try Self.key("First", size: CGSize(width: 100, height: 20))
+    let second = try Self.key("Second", size: CGSize(width: 100, height: 20))
+    let third = try Self.key("Third", size: CGSize(width: 100, height: 20))
+    let imageBytes = 200 * 40 * 4
+    cache.maximumBytes = imageBytes * 100
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    for row in 0 ..< 100 {
+      try cache.prefetch(Self.key("Row \(row)", size: CGSize(width: 100, height: 20)))
+    }
+    cache.removeAll()
+    cache.maximumBytes = imageBytes * 2
+    cache.prefetch(first)
+    cache.prefetch(second)
+
+    // when: prefetching a third label
+    let counts = WorkCounter.counting {
+      cache.prefetch(third)
+    }
+
+    // then: the first request after the removal is evicted, in one step, instead of one for each request before it
+    expect(counts.imageEvictionSteps) == 1
+    expect(cache.test.isPending(first)) == nil
+    expect(cache.test.isPending(second)) == true
+    expect(cache.test.isPending(third)) == true
+    expect(cache.test.evictionKeyCount) == 2
+    expect(cache.test.linkCount) == 2
+  }
+
+  func test_prefetch_overMaximumBytesAfterManyTakes_evictsInOneStep() throws {
+    // given: a cache with room for two images, with its workers paused, whose labels took the drawings of 1,000 labels
+    // before it requested two more
+    let cache = TextLabelImageCache()
+    let first = try Self.key("First", size: CGSize(width: 100, height: 20))
+    let second = try Self.key("Second", size: CGSize(width: 100, height: 20))
+    let third = try Self.key("Third", size: CGSize(width: 100, height: 20))
+    cache.maximumBytes = 200 * 40 * 4 * 2
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    for row in 0 ..< 1000 {
+      let key = try Self.key("Row \(row)", size: CGSize(width: 100, height: 20))
+      cache.prefetch(key)
+      _ = cache.takeResult(for: key)
+    }
+    cache.prefetch(first)
+    cache.prefetch(second)
+
+    // when: prefetching a third label
+    let counts = WorkCounter.counting {
+      cache.prefetch(third)
+    }
+
+    // then: the first of the two is evicted, in one step, instead of one for each label that took its drawing before
+    expect(counts.imageEvictionSteps) == 1
+    expect(cache.test.isPending(first)) == nil
+    expect(cache.test.isPending(second)) == true
+    expect(cache.test.isPending(third)) == true
+  }
+
+  func test_maximumBytesLowered_afterALabelTookADrawingBetweenTwoOthers_evictsInRequestOrder() throws {
+    // given: a cache with room for four images, with its workers paused, that requested four labels, the second of which
+    // a label took
+    let cache = TextLabelImageCache()
+    let keys = try ["First", "Second", "Third", "Fourth"].map { try Self.key($0, size: CGSize(width: 100, height: 20)) }
+    let imageBytes = 200 * 40 * 4
+    cache.maximumBytes = imageBytes * 4
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    for key in keys {
+      cache.prefetch(key)
+    }
+    _ = cache.takeResult(for: keys[1])
+
+    // when: lowering the room to one image
+    cache.maximumBytes = imageBytes
+
+    // then: the first and the third requests are evicted
+    expect(cache.test.isPending(keys[0])) == nil
+    expect(cache.test.isPending(keys[2])) == nil
+    expect(cache.test.isPending(keys[3])) == true
+
+    // when: lowering the room to none
+    cache.maximumBytes = 0
+
+    // then: the last request is evicted too, and no entry is left in the order
+    expect(cache.test.isPending(keys[3])) == nil
+    expect(cache.test.entryCount) == 0
+    expect(cache.test.evictionKeyCount) == 0
+    expect(cache.test.linkCount) == 0
+  }
+
+  func test_maximumBytesLowered_afterALabelTookTheNewestDrawing_evictsInRequestOrder() throws {
+    // given: a cache with room for three images, with its workers paused, that requested three labels, the last of which
+    // a label took, and then requested a fourth
+    let cache = TextLabelImageCache()
+    let keys = try ["First", "Second", "Third", "Fourth"].map { try Self.key($0, size: CGSize(width: 100, height: 20)) }
+    let imageBytes = 200 * 40 * 4
+    cache.maximumBytes = imageBytes * 3
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    for key in keys.prefix(3) {
+      cache.prefetch(key)
+    }
+    _ = cache.takeResult(for: keys[2])
+    cache.prefetch(keys[3])
+
+    // when: lowering the room to one image
+    cache.maximumBytes = imageBytes
+
+    // then: the first and the second requests are evicted, and the fourth, which came after them, is left
+    expect(cache.test.isPending(keys[0])) == nil
+    expect(cache.test.isPending(keys[1])) == nil
+    expect(cache.test.isPending(keys[3])) == true
+    expect(cache.test.evictionKeyCount) == 1
+    expect(cache.test.linkCount) == 1
+
+    // when: lowering the room to none
+    cache.maximumBytes = 0
+
+    // then: the fourth request is evicted too, and no entry is left in the order
+    expect(cache.test.isPending(keys[3])) == nil
+    expect(cache.test.evictionKeyCount) == 0
+    expect(cache.test.linkCount) == 0
+  }
+
   func test_prefetch_imageLargerThanMaximumBytes_isntDrawn() throws {
     // given: a cache with room for less than an image
     let cache = TextLabelImageCache()
@@ -286,6 +464,8 @@ class TextLabelImageCacheTests: XCTestCase {
 
     // then: the cache forgets the drawing, and the worker skips it
     expect(cache.test.entryCount) == 0
+    expect(cache.test.evictionKeyCount) == 0
+    expect(cache.test.linkCount) == 0
     expect(cache.test.bytes) == 0
     TextLabelImageCache.Test.waitForDrawings()
     expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount

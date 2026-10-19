@@ -494,6 +494,36 @@ class RenderPerformanceTests: BenchmarkTestCase {
     }
   }
 
+  #if canImport(AppKit)
+
+  // MARK: - Label Image Cache (macOS, prefetches that each evict an image)
+
+  func test_labelImageCache_prefetchIntoAFullCache() throws {
+    // given: a cache full of images that no label took, with its workers paused, and the keys of new labels
+    let environment = try TextLabelImageCache.Environment(scale: 2, colorSpace: unwrap(CGColorSpace(name: CGColorSpace.sRGB)), appearance: unwrap(NSAppearance(named: .aqua)), systemColorsGeneration: 0)
+    let size = CGSize(width: 200, height: 17)
+    let keys = (0 ..< Constants.labelImageCacheEntryCount + Constants.labelImageCachePrefetchCount).map { row in
+      TextLabelImageCache.Key(text: NSAttributedString(string: "Row \(row) title"), size: size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: environment)
+    }
+    let cache = TextLabelImageCache()
+    cache.maximumBytes = TextLabelImageCache.bytes(of: size, scale: environment.scale) * Constants.labelImageCacheEntryCount
+    BackgroundDrawing.finishAndPause()
+    for key in keys.prefix(Constants.labelImageCacheEntryCount) {
+      cache.prefetch(key)
+    }
+
+    // when: measuring prefetches of new labels, each of which evicts the oldest image
+    let result = measure(warmup: 20, iterations: Constants.labelImageCachePrefetchCount - 20) { index in
+      cache.prefetch(keys[Constants.labelImageCacheEntryCount + index])
+    }
+    cache.removeAll()
+    BackgroundDrawing.finish()
+
+    // then: report the timings
+    report(name: "labelImageCache.prefetch.full.200", result: result)
+  }
+  #endif
+
   // MARK: - Layout (node-level, a built tree laid out again, without content building or rendering)
 
   func test_layout_nestedRows_200() {
@@ -589,6 +619,8 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
     static let reorderRowCount = 16 // rows that all show, so that reversing them keeps the same items
     static let subviewsPerRow = 30
+    static let labelImageCacheEntryCount = 200
+    static let labelImageCachePrefetchCount = 220 // the warm-up and the measured prefetches, each with a new label
   }
 
   /// A plain view-backed row, optionally opted into the recycle pool via `reuseId`.
