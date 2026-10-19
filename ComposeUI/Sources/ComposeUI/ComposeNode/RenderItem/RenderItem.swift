@@ -142,8 +142,8 @@ public struct RenderItem<T> {
   /// The block to be called when the renderable is just made and is about to be inserted into the renderable hierarchy.
   ///
   /// At this point, the renderable's frame is not set yet, and the renderable is not in the renderable hierarchy yet,
-  /// except for a renderable that the item takes back from its removal transition, and a reusable view that a removal
-  /// in the same render pass left in place, which are still where they were.
+  /// unless it's still where it was: a renderable that the item takes back from its removal transition, or a view that
+  /// a removal in the same render pass left in place for the item, see `didRemove`.
   ///
   /// The passed in context contains the old frame before the insertion and the new frame that the renderable should be
   /// set to after the insertion.
@@ -233,9 +233,9 @@ public struct RenderItem<T> {
   /// The block to be called when the renderable is just removed from the renderable hierarchy.
   ///
   /// At this point, the renderable's transition animation is completed, and the renderable is removed from the
-  /// renderable hierarchy, except for a reusable view whose removal finishes while a render pass updates the
-  /// renderables, which stays in place for a new item of its kind that the pass inserts, and leaves before the pass ends
-  /// if no item takes it.
+  /// renderable hierarchy. The exception is a view whose reuse identifier the framework sets, instead of the app with
+  /// `reuseId(_:)`: when its removal finishes while a render pass updates the renderables, the view can stay in place
+  /// for a new item of its kind that the pass inserts, and leaves before the pass ends if none takes it.
   ///
   /// Note that it is possible that a removing renderable, during its removal transition animation, is re-inserted into
   /// the renderable hierarchy. In this case, the `didRemove` block won't be called.
@@ -251,9 +251,9 @@ public struct RenderItem<T> {
   ///
   /// When set, a renderable that is removed from the renderable hierarchy is added to a pool (keyed by this identifier
   /// and the renderable's concrete type) instead of being deallocated, and is handed back when a new item with the same
-  /// reuse identifier and type is inserted, avoiding a `make` call. A view whose removal finishes while a render pass
-  /// updates the renderables serves a new item of its kind that the pass inserts in place instead, without leaving the
-  /// renderable hierarchy.
+  /// reuse identifier and type is inserted, avoiding a `make` call. A view with a framework reuse identifier can serve a
+  /// new item of its kind that the same render pass inserts in place instead, without leaving the renderable hierarchy,
+  /// see `ComposeView.InPlaceReuse`.
   ///
   /// To ensure a reused renderable is in the same state a freshly made one would have, use the `resetForReuse` block to
   /// reset the renderable's modified properties.
@@ -273,8 +273,8 @@ public struct RenderItem<T> {
   }
 
   /// The block to be called when the renderable is about to be reused, after its removal, to reset any modified state
-  /// so the reused renderable is clean (freshly-made-equivalent) for its next use. A reusable view can still be in the
-  /// renderable hierarchy at this point, see `didRemove`.
+  /// so the reused renderable is clean (freshly-made-equivalent) for its next use. A view that stays in place for a new
+  /// item is still in the renderable hierarchy at this point, see `didRemove`.
   public var resetForReuse: ((T) -> Void)? {
     let storage = storage
     guard storage.typedItem(with: .resetForReuse) != nil || storage.additionalUpdates.hasKeyedBlocks else {

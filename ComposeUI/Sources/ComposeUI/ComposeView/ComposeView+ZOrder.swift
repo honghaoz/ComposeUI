@@ -235,8 +235,8 @@ extension ComposeView {
     /// the reused views restack, every view goes to the front in the items order instead.
     ///
     /// - Parameters:
-    ///   - renderable: The new item's renderable, which can be in the content view already, as a view that a removal in
-    ///     the pass left in place is, see `InPlaceReuse`.
+    ///   - renderable: The new item's renderable. A view that a removal in the pass left in place is in the content view
+    ///     already, see `InPlaceReuse`.
     ///   - index: The item's index in the render pass.
     ///   - parent: The content view.
     ///   - ids: The ids of the render pass's items, in order.

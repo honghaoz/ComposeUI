@@ -545,7 +545,7 @@ public extension ComposeNode {
   /// Execute a block when the renderables provided by the node are removed from the renderable hierarchy.
   ///
   /// - Note: All renderables provided by the node will have the block executed.
-  /// - Note: A reusable view can stay in the renderable hierarchy until the end of the render pass that removes it, see
+  /// - Note: A view that stays in place for a new item is still in the renderable hierarchy when the block runs, see
   ///   `RenderItem.didRemove`.
   ///
   /// - Parameter didRemove: The block to execute.
@@ -580,8 +580,6 @@ public extension ComposeNode {
   ///
   /// When a renderable is removed from the renderable hierarchy, it is added to a pool instead of being
   /// deallocated, and is handed back when a new item with the same reuse identifier and concrete type is inserted.
-  /// A view that a render pass removes can serve a new item of its kind that the same pass inserts in place instead,
-  /// without leaving the renderable hierarchy, see `RenderItem.didRemove`.
   ///
   /// For renderables that are expensive to create, this can avoid the cost of creating and speed up the rendering.
   ///
@@ -603,7 +601,8 @@ public extension ComposeNode {
   /// the reused renderable is clean for its next use.
   ///
   /// - Note: All renderables provided by the node will have the block executed before they are reused.
-  /// - Note: A reusable view can still be in the renderable hierarchy when it's reset, see `RenderItem.didRemove`.
+  /// - Note: A view that stays in place for a new item is still in the renderable hierarchy when it's reset, see
+  ///   `RenderItem.didRemove`.
   ///
   /// - Parameter resetForReuse: The block to execute.
   /// - Returns: A new node with the block added.

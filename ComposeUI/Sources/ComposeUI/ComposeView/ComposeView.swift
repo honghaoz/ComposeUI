@@ -1452,7 +1452,7 @@ open class ComposeView: BaseScrollView {
     // the z-order bookkeeping, which records the reused items below
     var zOrder = ZOrderPass(oldItemCount: oldRenderableItemIds.count, previousKeyOffset: zPositionKeyOffset)
 
-    // the removals below keep their reusable views in place, for the insertions after them
+    // the removals below can keep their reusable views in place, for the insertions after them
     inPlaceReuse.startKeeping()
 
     // the old and new items are read in place from their arrays, by index, since looking them up in a map of items
@@ -1494,11 +1494,15 @@ open class ComposeView: BaseScrollView {
         // and mustn't keep the view alive, as an insert transition doesn't
         let removeBlock = { (contentView: ComposeView) in
           // the reuse is decided before the item's callbacks, so that they can't change it midway. a reusable view that
-          // leaves while a render pass keeps views stays in place, for an insertion of its kind in the pass, see
-          // `InPlaceReuse`
+          // can stay in place does, for an insertion of its kind in the pass, see `InPlaceReuse`
           let reuseKey = oldRenderableItem.reuseKey
           let renderablePool = reuseKey == nil ? nil : contentView.renderablePool
-          let keepsInPlace = renderablePool != nil && contentView.inPlaceReuse.canKeep(oldRenderable)
+          let keepsInPlace: Bool
+          if let reuseKey, renderablePool != nil {
+            keepsInPlace = contentView.inPlaceReuse.canKeep(oldRenderable, key: reuseKey)
+          } else {
+            keepsInPlace = false
+          }
           if !keepsInPlace {
             oldRenderable.removeFromParent()
           }

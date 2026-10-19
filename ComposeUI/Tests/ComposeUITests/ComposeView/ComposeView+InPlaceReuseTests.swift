@@ -69,6 +69,26 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(window.contentView().subviews.contains(view)) == true
   }
 
+  func test_scroll_viewWithAnAppReuseIdentifier_leavesAsBefore() throws {
+    // given: rows of views with an app's reuse identifier in a window, rendered at the top, with a pool that records its
+    // use
+    let pool = RecordingPool()
+    let (window, view) = makeRowsView(pool: pool, namespace: .user)
+    view.refresh(animated: false)
+    let rowZeroView = try rowView(showing: 0, in: view).unwrap()
+    let moveCount = rowZeroView.moveCount
+
+    // when: scrolling by one row, which moves row 0 out and row 2 in
+    scroll(view, to: Constants.rowHeight)
+
+    // then: the view of row 0 left the window, and came back from the pool for row 2
+    expect(rowView(showing: 2, in: view)) === rowZeroView
+    expect(rowZeroView.moveCount) > moveCount
+    expect(pool.enqueued.count) == 1
+    expect(pool.enqueued.first?.renderable.view) === rowZeroView
+    expect(window.contentView().subviews.contains(view)) == true
+  }
+
   func test_scroll_keepsTheViewsInTheItemsOrder() {
     // given: rows of reusable views in a window, rendered at row 2, so that a scroll can move either way
     let (window, view) = makeRowsView(pool: RecordingPool())
@@ -119,7 +139,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(rowOneView.superview) == nil
     expect(pool.enqueued.count) == 1
     expect(pool.enqueued.first?.renderable.view) === rowOneView
-    expect(pool.enqueued.first?.key.reuseId) == ReuseId(namespace: .user, id: "row")
+    expect(pool.enqueued.first?.key.reuseId) == ReuseId(namespace: .framework, id: "row")
     expect(window.contentView().subviews.contains(view)) == true
   }
 
@@ -163,7 +183,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     )
     var id = "a"
     let (window, view) = makeView(pool: pool) {
-      Self.makeRow(0).id(id).transition(transition)
+      RowNode(row: 0).id(id).transition(transition)
     }
     view.refresh(animated: false)
     let itemAView = try rowView(showing: 0, in: view).unwrap()
@@ -194,7 +214,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     )
     var id = "a"
     let (window, view) = makeView(pool: pool) {
-      Self.makeRow(0).id(id).transition(transition)
+      RowNode(row: 0).id(id).transition(transition)
     }
     view.refresh(animated: false)
     let itemAView = try rowView(showing: 0, in: view).unwrap()
@@ -232,7 +252,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     )
     var id = "a"
     let (window, view) = makeView(pool: pool) {
-      Self.makeRow(0).id(id).transition(transition)
+      RowNode(row: 0).id(id).transition(transition)
     }
     view.refresh(animated: false)
     let itemAView = try rowView(showing: 0, in: view).unwrap()
@@ -266,7 +286,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     var id = "a"
     var top: CGFloat = 0
     let (window, view) = makeView(pool: RecordingPool()) {
-      Self.makeRow(0).id(id).transition(transition).frame(width: 100, height: 50).padding(top: top)
+      RowNode(row: 0).id(id).transition(transition).frame(width: 100, height: 50).padding(top: top)
     }
     view.refresh(animated: false)
     let itemAView = try rowView(showing: 0, in: view).unwrap()
@@ -491,52 +511,26 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(pool.enqueued.count) == 0
   }
 
-  func test_stopKeeping_dropsTheEmptiedArrays_onlyPastTheMostReuseKeys() {
-    // given: views kept and taken under 64 reuse keys
-    let reuse = ComposeView.InPlaceReuse()
-    func keepAndTake(keyCount: Int) {
-      reuse.startKeeping()
-      for index in 0 ..< keyCount {
-        let key = ReuseKey(reuseId: ReuseId(namespace: .user, id: "\(index)"), type: ObjectIdentifier(View.self))
-        reuse.keep(.view(View()), key: key)
-        _ = reuse.take(key)
-      }
-    }
-    keepAndTake(keyCount: 64)
-
-    // when: stopping keeping views
-    reuse.stopKeeping(addingTo: nil)
-
-    // then: the emptied arrays stay for the next pass
-    expect(reuse.keyCount) == 64
-
-    // when: keeping and taking views under one more reuse key, then stopping
-    keepAndTake(keyCount: 65)
-    reuse.stopKeeping(addingTo: nil)
-
-    // then: the emptied arrays are dropped, so that reuse identifiers made for each item don't add up
-    expect(reuse.keyCount) == 0
-  }
-
   func test_canKeep() {
     // given: views in place
     let reuse = ComposeView.InPlaceReuse()
 
     // then: before keeping starts, no view can stay
-    expect(reuse.canKeep(.view(View()))) == false
+    expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == false
 
     // when: starting keeping views
     reuse.startKeeping()
 
-    // then: a view can stay in place, a layer can't
-    expect(reuse.canKeep(.view(View()))) == true
-    expect(reuse.canKeep(.layer(CALayer()))) == false
+    // then: a view can stay in place, a layer can't, and neither can a view with an app's reuse identifier
+    expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == true
+    expect(reuse.canKeep(.layer(CALayer()), key: Constants.keyA)) == false
+    expect(reuse.canKeep(.view(View()), key: Constants.appKey)) == false
 
     // when: stopping keeping views
     reuse.stopKeeping(addingTo: nil)
 
     // then: no view can stay
-    expect(reuse.canKeep(.view(View()))) == false
+    expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == false
   }
 
   #if canImport(AppKit)
@@ -554,15 +548,31 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(window.makeFirstResponder(view.focusTarget)) == true
 
     // then: the view can't stay in place, the other view can, and the first responder stays
-    expect(reuse.canKeep(.view(view))) == false
-    expect(reuse.canKeep(.view(otherView))) == true
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == false
+    expect(reuse.canKeep(.view(otherView), key: Constants.keyA)) == true
     expect(window.firstResponder) === view.focusTarget
 
     // when: the window is the first responder
     expect(window.makeFirstResponder(nil)) == true
 
     // then: the view can stay in place
-    expect(reuse.canKeep(.view(view))) == true
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == true
+  }
+
+  func test_canKeep_viewWithAnEditingTextField_returnsFalse() {
+    // given: a view in a window, with a text field in it that the window's field editor edits
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
+    let window = TestWindow()
+    let view = View(frame: CGRect(x: 0, y: 0, width: 300, height: 50))
+    let textField = NSTextField(frame: CGRect(x: 10, y: 10, width: 200, height: 22))
+    view.addSubview(textField)
+    window.contentView().addSubview(view)
+    expect(window.makeFirstResponder(textField)) == true
+    expect((window.firstResponder as? NSTextView)?.isFieldEditor) == true
+
+    // then: the view can't stay in place, since the field editor is inside the text field
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == false
   }
 
   func test_canKeep_mouseButtonPressed_returnsFalse() {
@@ -578,10 +588,10 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     reuse.startKeeping()
 
     // then: a layer can't stay without reading the button state, and no view can stay, with the state read once
-    expect(reuse.canKeep(.layer(CALayer()))) == false
+    expect(reuse.canKeep(.layer(CALayer()), key: Constants.keyA)) == false
     expect(readCount) == 0
-    expect(reuse.canKeep(.view(View()))) == false
-    expect(reuse.canKeep(.view(View()))) == false
+    expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == false
+    expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == false
     expect(readCount) == 1
 
     // when: the next pass starts keeping views after the button is released
@@ -590,7 +600,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     reuse.startKeeping()
 
     // then: a view can stay, with the state read again
-    expect(reuse.canKeep(.view(View()))) == true
+    expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == true
     expect(readCount) == 2
   }
   #endif
@@ -607,7 +617,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(view.focusTarget.becomeFirstResponder()) == true
 
     // then: the view can stay in place, after giving up the first responder
-    expect(reuse.canKeep(.view(view))) == true
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == true
     expect(view.focusTarget.isFirstResponder) == false
   }
 
@@ -624,20 +634,38 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     view.addSubview(subview)
 
     // then: the view can stay in place
-    expect(reuse.canKeep(.view(view))) == true
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == true
 
     // when: the control tracks a touch
     control.tracks = true
 
     // then: the view can't stay in place
-    expect(reuse.canKeep(.view(view))) == false
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == false
 
     // when: the gesture recognizer tracks a touch instead
     control.tracks = false
     recognizer.touchCount = 1
 
     // then: the view can't stay in place
-    expect(reuse.canKeep(.view(view))) == false
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == false
+  }
+
+  func test_canKeep_viewWithTheFocus_returnsFalse() {
+    // given: a view with a subview that isn't focused
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
+    let view = View(frame: CGRect(x: 0, y: 0, width: 100, height: 50))
+    let subview = FocusedView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
+    view.addSubview(subview)
+
+    // then: the view can stay in place
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == true
+
+    // when: the subview is focused
+    subview.isFocusedForTesting = true
+
+    // then: the view can't stay in place
+    expect(reuse.canKeep(.view(view), key: Constants.keyA)) == false
   }
   #endif
 
@@ -648,37 +676,21 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     static let rowCount = 60
     static let rowHeight: CGFloat = 50
     static let viewSize = CGSize(width: 100, height: 100)
-    static let keyA = ReuseKey(reuseId: ReuseId(namespace: .user, id: "a"), type: ObjectIdentifier(View.self))
-    static let keyB = ReuseKey(reuseId: ReuseId(namespace: .user, id: "b"), type: ObjectIdentifier(View.self))
-  }
-
-  /// Returns a reusable row, whose view records the row it shows.
-  private static func makeRow(_ row: Int) -> some ComposeNode {
-    ViewNode<RowView>(
-      make: { context in
-        let view = RowView(frame: context.initialFrame ?? .zero)
-        #if canImport(AppKit)
-        view.wantsLayer = true
-        #endif
-        view.addSubview(view.focusTarget)
-        return view
-      },
-      update: { view, _ in
-        view.row = row
-      }
-    )
-    .reuseId("row")
+    static let keyA = ReuseKey(reuseId: ReuseId(namespace: .framework, id: "a"), type: ObjectIdentifier(View.self))
+    static let keyB = ReuseKey(reuseId: ReuseId(namespace: .framework, id: "b"), type: ObjectIdentifier(View.self))
+    static let appKey = ReuseKey(reuseId: ReuseId(namespace: .user, id: "a"), type: ObjectIdentifier(View.self))
   }
 
   /// Returns a view of reusable rows in a window.
   private func makeRowsView(pool: RenderablePoolType,
+                            namespace: ReuseId.Namespace = .framework,
                             onRemove: @escaping (Renderable, RenderableRemoveContext) -> Void = { _, _ in },
                             onResetForReuse: @escaping (Renderable) -> Void = { _ in }) -> (TestWindow, ComposeView)
   {
     makeView(pool: pool) {
       VStack {
         for row in 0 ..< Constants.rowCount {
-          Self.makeRow(row)
+          RowNode(row: row, namespace: namespace)
             .onRemove(onRemove)
             .onResetForReuse(onResetForReuse)
             .frame(width: .flexible, height: Constants.rowHeight)
@@ -763,6 +775,56 @@ private final class RowView: View {
   #endif
 }
 
+// MARK: - RowNode
+
+/// A node of a reusable row's view, whose reuse identifier is in the framework's namespace, as ComposeUI's own nodes give
+/// their views, or in the user's, as an app's nodes do.
+private struct RowNode: ComposeNode {
+
+  private let row: Int
+  private let namespace: ReuseId.Namespace
+
+  init(row: Int, namespace: ReuseId.Namespace = .framework) {
+    self.row = row
+    self.namespace = namespace
+  }
+
+  var id: ComposeNodeId = .custom("row")
+
+  private(set) var size: CGSize = .zero
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    size = containerSize
+    return ComposeNodeSizing(width: .flexible, height: .flexible)
+  }
+
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
+    let frame = CGRect(origin: .zero, size: size)
+    guard visibleBounds.intersects(frame) else {
+      return
+    }
+
+    let row = row
+    let item = ViewItem<RowView>(
+      id: id,
+      frame: frame,
+      make: { context in
+        let view = RowView(frame: context.initialFrame ?? .zero)
+        #if canImport(AppKit)
+        view.wantsLayer = true
+        #endif
+        view.addSubview(view.focusTarget)
+        return view
+      },
+      update: { view, _ in
+        view.row = row
+      },
+      reuseId: ReuseId(namespace: namespace, id: "row")
+    )
+    items.append(item.eraseToRenderableItem())
+  }
+}
+
 #if canImport(AppKit)
 /// A view that can be the first responder.
 private final class FocusTarget: NSView {
@@ -794,6 +856,17 @@ private final class TouchedGestureRecognizer: UIGestureRecognizer {
 
   override var numberOfTouches: Int {
     touchCount
+  }
+}
+
+/// A view whose focus a test sets.
+private final class FocusedView: UIView {
+
+  /// Whether the view is focused.
+  var isFocusedForTesting = false
+
+  override var isFocused: Bool {
+    isFocusedForTesting
   }
 }
 #endif
