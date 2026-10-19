@@ -148,6 +148,28 @@ class ComposeView_ZOrderTests: XCTestCase {
       .map(\.element)
   }
 
+  /// The ids of the latest render pass's view items, in the content view's subview order.
+  private func idsInSubviewOrder(of view: ComposeView, _ recorder: RenderRecorder) -> [String] {
+    var idsByView: [ObjectIdentifier: String] = [:]
+    for id in recorder.renderableItemIds {
+      if let renderableView = recorder.renderableMap[id]?.view {
+        idsByView[ObjectIdentifier(renderableView)] = id
+      }
+    }
+    return view.contentContainerView.subviews.compactMap { idsByView[ObjectIdentifier($0)] }
+  }
+
+  /// The ids of the latest render pass's items, in the content view's sublayer order, which `zPosition` doesn't sort.
+  private func idsInSublayerOrder(of view: ComposeView, _ recorder: RenderRecorder) -> [String] {
+    var idsByLayer: [ObjectIdentifier: String] = [:]
+    for id in recorder.renderableItemIds {
+      if let renderableLayer = recorder.renderableMap[id]?.layer {
+        idsByLayer[ObjectIdentifier(renderableLayer)] = id
+      }
+    }
+    return (view.contentContainerView.layer().sublayers ?? []).compactMap { idsByLayer[ObjectIdentifier($0)] }
+  }
+
   /// Makes a `ComposeView` hosted in a test window so that view items' backing layers are attached
   /// to the content view's layer, like in a real app.
   private func makeHostedView(@ComposeContentBuilder content: @escaping () -> ComposeContent) -> (ComposeView, TestWindow) {
@@ -502,6 +524,42 @@ class ComposeView_ZOrderTests: XCTestCase {
     expectHierarchyMatchesItemOrder(view, recorder)
   }
 
+  func test_refresh_reorderedViews_keepsTheirLayersInTheSubviewOrder() {
+    // given: a hosted view of three view items with fixed ids, rendered
+    var order: [String] = ["a", "b", "c"]
+    let (view, _) = makeHostedView {
+      ZStack {
+        for key in order {
+          ViewNode().fixedId(key)
+        }
+      }
+    }
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+    #if canImport(AppKit)
+    // AppKit sorts the layers into the subview order when it displays, so the test displays only before the moves
+    hostWindow?.displayIfNeeded()
+    #endif
+
+    // when: reordering the views so that the view at the front comes first, which moves it to the front again
+    order = ["c", "a", "b"]
+    view.refresh(animated: false)
+
+    // then: the views and their layers are in the new order
+    expect(idsInSubviewOrder(of: view, recorder)) == ["c", "a", "b"]
+    expect(idsInSublayerOrder(of: view, recorder)) == ["c", "a", "b"]
+
+    // when: reordering the views so that a view behind the front one comes first
+    order = ["a", "b", "c"]
+    view.refresh(animated: false)
+
+    // then: the views and their layers are in the new order
+    expect(idsInSubviewOrder(of: view, recorder)) == ["a", "b", "c"]
+    expect(idsInSublayerOrder(of: view, recorder)) == ["a", "b", "c"]
+  }
+
   func test_refresh_insertionsAndRemovals() {
     // given: a hosted view with a render recorder, rendered with two fixed-id items
     var order: [String] = ["a", "c"]
@@ -806,5 +864,41 @@ class ComposeView_ZOrderTests: XCTestCase {
     // then: the renderable is recovered and placed back between "a" and "c"
     expect(recorder.renderableItemIds) == ["a", "b", "c"]
     expectHierarchyMatchesItemOrder(view, recorder)
+  }
+
+  func test_refresh_readdDuringRemoveTransition_movesTheLayerToTheFront() {
+    // given: a hosted view of three layer items with opacity transitions and fixed ids, rendered
+    var order: [String] = ["a", "b", "c"]
+    let (view, _) = makeHostedView {
+      ZStack {
+        for key in order {
+          ColorNode(.red)
+            .transition(.opacity(timing: .easeInEaseOut(duration: 1)))
+            .fixedId(key)
+        }
+      }
+    }
+    let recorder = RenderRecorder()
+    recorder.attach(to: view)
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    view.refresh(animated: false)
+
+    // when: removing "b" with an in-flight remove transition, which leaves its layer in place, then re-adding it
+    order = ["a", "c"]
+    view.refresh(animated: true)
+    order = ["a", "b", "c"]
+    view.refresh(animated: true)
+
+    // then: the layer moves from behind "c" to the front, as a new layer goes
+    expect(idsInSublayerOrder(of: view, recorder)) == ["a", "c", "b"]
+
+    // when: removing and re-adding "b" again, with its layer at the front already
+    order = ["a", "c"]
+    view.refresh(animated: true)
+    order = ["a", "b", "c"]
+    view.refresh(animated: true)
+
+    // then: the layer stays at the front
+    expect(idsInSublayerOrder(of: view, recorder)) == ["a", "c", "b"]
   }
 }
