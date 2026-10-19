@@ -106,9 +106,9 @@ class ComposeView_RenderWorkTests: XCTestCase {
     }
 
     // then: text views are made only for the 2 rows shown first, and each of the 10 rows moving in reuses the text view
-    // of the row moving out
+    // of the row moving out in place, without the pool
     expect(pool.missCount) == 2
-    expect(pool.hitCount) == 10
+    expect(pool.hitCount) == 0
   }
 
   #if canImport(AppKit)

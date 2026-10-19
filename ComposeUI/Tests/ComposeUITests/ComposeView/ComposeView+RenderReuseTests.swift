@@ -44,8 +44,8 @@ import ChouTiTest
 ///
 /// The row height and viewport are chosen so that exactly one row leaves and one row enters per scroll step (rows are 50pt tall in
 /// a 100pt viewport with no visible-bounds insets, scrolling by one row height). This makes the number of created
-/// renderables deterministic: with pooling, the leaving row is enqueued and immediately reused by the entering row, so no
-/// new renderable is created after the initial fill.
+/// renderables deterministic: with reuse, the entering row reuses the leaving row's renderable, a view in place and a
+/// layer through the pool, so no new renderable is created after the initial fill.
 class ComposeView_RenderReuseTests: XCTestCase {
 
   private enum Constants {
@@ -195,7 +195,10 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "CALayer" }) == true
   }
 
-  func test_textNode_poolsByDefault_acrossScroll() {
+  func test_textNode_poolsByDefault_acrossResize() {
+    // a scroll reuses the view of a row moving out for a row moving in, in place, without the pool, so the view
+    // resizes to move a row out in one render pass and in in another
+
     // given: a recording pool and a list of text rows, rendered for the initial fill
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(origin: .zero, size: Constants.viewSize))
@@ -210,14 +213,18 @@ class ComposeView_RenderReuseTests: XCTestCase {
       }
     }
     view.refresh(animated: false)
+    let dequeueCount = pool.dequeueCount
 
-    // when: the view scrolls through the whole list
-    scrollDown(view)
+    // when: the view shrinks to one row, then grows back
+    resize(view, height: Constants.rowHeight)
+    resize(view, height: Constants.viewSize.height)
 
-    // then: TextNode added leaving views to the pool and reused them for entering rows, all under a framework-internal
-    // bucket
-    expect(pool.enqueueCount) > 0
-    expect(pool.dequeueCount) > 0
+    // then: TextNode added the leaving view to the pool and reused it for the row shown again, all under a
+    // framework-internal bucket
+    expect(pool.enqueueCount) == 1
+    expect(pool.dequeueCount) == dequeueCount + 1
+    expect(pool.lastDequeuedRenderable?.view) === pool.lastEnqueuedRenderable?.view
+    expect(pool.lastDequeuedRenderable?.view) != nil
     expect(pool.keys.allSatisfy { $0.reuseId.namespace == .framework && $0.reuseId.id == "BaseTextView" }) == true
   }
 
@@ -628,19 +635,26 @@ class ComposeView_RenderReuseTests: XCTestCase {
   }
 
   func test_renderablePool_customPool_isUsedForReuse() {
+    // a scroll reuses the view of a row moving out for a row moving in, in place, without the pool, so the view
+    // resizes to move a row out in one render pass and in in another
+
     // given: a rows view using a custom pool, rendered for the initial fill
     let counter = MakeCounter()
     let pool = MockRenderablePool()
     let view = makeRowsView(reuseId: "row", counter: counter, update: nil)
     view.renderablePool = pool
     view.refresh(animated: false)
+    let madeCount = counter.madeCount
+    let dequeueCount = pool.dequeueCount
 
-    // when: the view scrolls through the whole list
-    scrollDown(view)
+    // when: the view shrinks to one row, then grows back
+    resize(view, height: Constants.rowHeight)
+    resize(view, height: Constants.viewSize.height)
 
-    // then: the custom pool received enqueued renderables and handed them back for reuse
-    expect(pool.enqueueCount) > 0
-    expect(pool.dequeueCount) > 0
+    // then: the custom pool received the leaving renderable and handed it back for the row shown again
+    expect(pool.enqueueCount) == 1
+    expect(pool.dequeueCount) == dequeueCount + 1
+    expect(counter.madeCount) == madeCount
   }
 
   // MARK: - Reconfiguration (dirty-state contract)
@@ -1246,6 +1260,11 @@ class ComposeView_RenderReuseTests: XCTestCase {
       view.layoutIfNeeded()
       offset += Constants.rowHeight
     }
+  }
+
+  private func resize(_ view: ComposeView, height: CGFloat) {
+    view.frame.size.height = height
+    view.layoutIfNeeded()
   }
 
   private func visibleRowViews(in view: ComposeView) -> [ReuseTrackingView] {

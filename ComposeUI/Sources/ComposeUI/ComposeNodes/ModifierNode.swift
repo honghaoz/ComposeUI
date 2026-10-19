@@ -408,7 +408,7 @@ extension RenderablePropertyUpdate {
 extension RenderableUpdateKey {
 
   /// Resets the property that the key's update sets to the value of a freshly made renderable, before the renderable is
-  /// added to the reuse pool.
+  /// reused.
   ///
   /// A built-in modifier's reset follows from its update's key instead of being a block of the modifier, so that
   /// stacked modifiers don't combine their reset blocks into new closures, see `RenderItem.performResetForReuse(_:)`.
@@ -545,6 +545,8 @@ public extension ComposeNode {
   /// Execute a block when the renderables provided by the node are removed from the renderable hierarchy.
   ///
   /// - Note: All renderables provided by the node will have the block executed.
+  /// - Note: A reusable view can stay in the renderable hierarchy until the end of the render pass that removes it, see
+  ///   `RenderItem.didRemove`.
   ///
   /// - Parameter didRemove: The block to execute.
   /// - Returns: A new node with the block added.
@@ -578,6 +580,8 @@ public extension ComposeNode {
   ///
   /// When a renderable is removed from the renderable hierarchy, it is added to a pool instead of being
   /// deallocated, and is handed back when a new item with the same reuse identifier and concrete type is inserted.
+  /// A view removed during a render pass serves a new item of its kind that the same pass inserts in place instead,
+  /// without leaving the renderable hierarchy.
   ///
   /// For renderables that are expensive to create, this can avoid the cost of creating and speed up the rendering.
   ///
@@ -595,10 +599,11 @@ public extension ComposeNode {
     ModifierNode(node: self, reuseId: reuseId)
   }
 
-  /// Execute a block when the node's renderable is about to be added to the reuse pool, to reset any modified state so the
-  /// pooled renderable is clean for its next use.
+  /// Execute a block when the node's renderable is about to be reused, after its removal, to reset any modified state so
+  /// the reused renderable is clean for its next use.
   ///
-  /// - Note: All renderables provided by the node will have the block executed when they are added to the reuse pool.
+  /// - Note: All renderables provided by the node will have the block executed before they are reused.
+  /// - Note: A reusable view can still be in the renderable hierarchy when it's reset, see `RenderItem.didRemove`.
   ///
   /// - Parameter resetForReuse: The block to execute.
   /// - Returns: A new node with the block added.

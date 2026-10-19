@@ -105,6 +105,8 @@ extension CALayer {
       return
     }
 
-    insertSublayer(sublayer, at: UInt32(sublayers?.count ?? 0))
+    // `addSublayer` moves a sublayer that's in the layer already to the end, as `insertSublayer(_:at:)` at the sublayer
+    // count does, without reading `sublayers` for the count, which copies the array
+    addSublayer(sublayer)
   }
 }

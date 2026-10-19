@@ -53,8 +53,8 @@ public typealias RenderableItem = RenderItem<Renderable>
 /// one property, for example `.opacity(0.3).opacity(1)`, then apply only the outermost value, since applying each value
 /// in turn would animate the layer through the overridden values.
 ///
-/// Before the renderable is added to the reuse pool, the property of each of the item's keys is reset, after the
-/// item's `resetForReuse` blocks, see `resetForReuse(_:)`.
+/// Before the renderable is reused, the property of each of the item's keys is reset, after the item's `resetForReuse`
+/// blocks, see `resetForReuse(_:)`.
 ///
 /// - Note: A raw value is the key's bit index in a `UInt64`, so there can be at most 64 keys.
 enum RenderableUpdateKey: UInt64 {
@@ -141,9 +141,12 @@ public struct RenderItem<T> {
 
   /// The block to be called when the renderable is just made and is about to be inserted into the renderable hierarchy.
   ///
-  /// At this point, the renderable is not inserted into the renderable hierarchy yet, and the renderable's frame is not set yet.
-  /// The passed in context contains the old frame before the insertion and the new frame that the renderable should be set to
-  /// after the insertion.
+  /// At this point, the renderable's frame is not set yet, and the renderable is not in the renderable hierarchy yet,
+  /// except for a renderable that the item takes back from its removal transition, and a reusable view that a removal
+  /// in the same render pass left in place, which are still where they were.
+  ///
+  /// The passed in context contains the old frame before the insertion and the new frame that the renderable should be
+  /// set to after the insertion.
   ///
   /// The block must not change the renderable's transform, the frame is applied right after it and requires an identity
   /// transform, see `Renderable`. Set a transform in `update` instead.
@@ -159,10 +162,13 @@ public struct RenderItem<T> {
 
   /// The block to be called when the renderable is just inserted into the renderable hierarchy.
   ///
-  /// At the point, the renderable is already inserted into the renderable hierarchy with its transition animation completed.
+  /// At the point, the renderable is already inserted into the renderable hierarchy with its transition animation
+  /// completed.
+  ///
   /// The passed in context contains the old frame that is set just after the willInsert block is called, and the new
-  /// frame that the renderable should be set to after the insertion. However, at this point, the renderable's frame may not be the
-  /// same as the new frame, because during the transition animation, the renderable maybe updated for additional changes.
+  /// frame that the renderable should be set to after the insertion. However, at this point, the renderable's frame may
+  /// not be the same as the new frame, because during the transition animation, the renderable maybe updated for
+  /// additional changes.
   ///
   /// This is not guaranteed to be called before the `update` block is called.
   public var didInsert: ((T, RenderableInsertContext) -> Void)? {
@@ -175,9 +181,10 @@ public struct RenderItem<T> {
 
   /// The block to be called when the renderable is about to be updated.
   ///
-  /// At this point, the renderable might be not inserted into the renderable hierarchy yet. The renderable's properties, including its
-  /// frame, are not updated yet. You can use this block to get the properties of the renderable before the update and use the
-  /// information to help renderable content update. For example, to get the old properties for animating the renderable's changes.
+  /// At this point, the renderable might be not inserted into the renderable hierarchy yet. The renderable's properties,
+  /// including its frame, are not updated yet. You can use this block to get the properties of the renderable before
+  /// the update and use the information to help renderable content update. For example, to get the old properties for
+  /// animating the renderable's changes.
   ///
   /// The block must not change the renderable's transform, the frame is applied right after it and requires an identity
   /// transform, see `Renderable`. Set a transform in `update` instead.
@@ -191,15 +198,16 @@ public struct RenderItem<T> {
 
   /// The block to be called when the renderable's frame is just updated and is ready to be updated for additional changes.
   ///
-  /// This block is called when a renderable just finishes its insertion (after the transition animation) or when the renderable is
-  /// reused because of refresh, scroll, etc.
+  /// This block is called when a renderable just finishes its insertion (after the transition animation) or when the
+  /// renderable is reused because of refresh, scroll, etc.
   ///
-  /// In the block, the renderable should be updated to reflect its intended content. For example, if the renderable is for a
-  /// `ColorNode`, the renderable should render the specified color.
+  /// In the block, the renderable should be updated to reflect its intended content. For example, if the renderable is
+  /// for a `ColorNode`, the renderable should render the specified color.
   ///
-  /// Note that it is possible that when a renderable is being inserted into the renderable hierarchy with a transition animation, a
-  /// new update, which is triggered by a `refresh()`, is called on the renderable. In this case, an update call with
-  /// `RenderableUpdateType.refresh` type will be called before the update call with `RenderableUpdateType.insert` type.
+  /// Note that it is possible that when a renderable is being inserted into the renderable hierarchy with a transition
+  /// animation, a new update, which is triggered by a `refresh()`, is called on the renderable. In this case, an update
+  /// call with `RenderableUpdateType.refresh` type will be called before the update call with
+  /// `RenderableUpdateType.insert` type.
   public var update: (T, RenderableUpdateContext) -> Void {
     let storage = storage
     guard !storage.additionalUpdates.isEmpty else {
@@ -212,8 +220,8 @@ public struct RenderItem<T> {
 
   /// The block to be called when the renderable is about to be removed from the renderable hierarchy.
   ///
-  /// At this point, the renderable is still in the renderable hierarchy, but it is about to be removed, before the transition
-  /// animation if has one.
+  /// At this point, the renderable is still in the renderable hierarchy, but it is about to be removed, before the
+  /// transition animation if has one.
   public var willRemove: ((T, RenderableRemoveContext) -> Void)? {
     let storage = storage
     guard storage.typedItem(with: .willRemove) != nil else {
@@ -224,10 +232,12 @@ public struct RenderItem<T> {
 
   /// The block to be called when the renderable is just removed from the renderable hierarchy.
   ///
-  /// At this point, the renderable is already removed from the renderable hierarchy with its transition animation completed.
+  /// At this point, the renderable's transition animation is completed, and the renderable is removed from the
+  /// renderable hierarchy, except for a reusable view whose removal finishes during a render pass, which stays in place
+  /// until the pass ends, for a new item of its kind that the pass inserts, and leaves then if no item takes it.
   ///
-  /// Note that it is possible that a removing renderable, during its removal transition animation, is re-inserted into the
-  /// renderable hierarchy. In this case, the `didRemove` block won't be called.
+  /// Note that it is possible that a removing renderable, during its removal transition animation, is re-inserted into
+  /// the renderable hierarchy. In this case, the `didRemove` block won't be called.
   public var didRemove: ((T, RenderableRemoveContext) -> Void)? {
     let storage = storage
     guard storage.typedItem(with: .didRemove) != nil else {
@@ -240,7 +250,8 @@ public struct RenderItem<T> {
   ///
   /// When set, a renderable that is removed from the renderable hierarchy is added to a pool (keyed by this identifier
   /// and the renderable's concrete type) instead of being deallocated, and is handed back when a new item with the same
-  /// reuse identifier and type is inserted, avoiding a `make` call.
+  /// reuse identifier and type is inserted, avoiding a `make` call. A view whose removal finishes during a render pass
+  /// serves a new item of its kind that the same pass inserts in place instead, without leaving the renderable hierarchy.
   ///
   /// To ensure a reused renderable is in the same state a freshly made one would have, use the `resetForReuse` block to
   /// reset the renderable's modified properties.
@@ -259,8 +270,9 @@ public struct RenderItem<T> {
     storage === other.storage || storage.renderableType == other.storage.renderableType
   }
 
-  /// The block to be called when the renderable is about to be added to the reuse pool, to reset any modified state so
-  /// the reused renderable is clean (freshly-made-equivalent) for its next use.
+  /// The block to be called when the renderable is about to be reused, after its removal, to reset any modified state
+  /// so the reused renderable is clean (freshly-made-equivalent) for its next use. A reusable view can still be in the
+  /// renderable hierarchy at this point, see `didRemove`.
   public var resetForReuse: ((T) -> Void)? {
     let storage = storage
     guard storage.typedItem(with: .resetForReuse) != nil || storage.additionalUpdates.hasKeyedBlocks else {

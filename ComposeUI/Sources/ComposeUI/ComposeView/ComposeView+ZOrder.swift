@@ -228,14 +228,15 @@ extension ComposeView {
       }
     }
 
-    /// Adds a new renderable to the content view, in the subview order of the items if it's a view.
+    /// Places a new item's renderable in the content view, in the subview order of the items if it's a view.
     ///
     /// A new view goes below the next reused view in the items order, or to the front when no reused view comes after
     /// it. The reused views keep their order, so each view is in place once it's added, without another move. When
     /// the reused views restack, every view goes to the front in the items order instead.
     ///
     /// - Parameters:
-    ///   - renderable: The new renderable.
+    ///   - renderable: The new item's renderable, which can be in the content view already, as a view that a removal in
+    ///     the pass left in place is, see `InPlaceReuse`.
     ///   - index: The item's index in the render pass.
     ///   - parent: The content view.
     ///   - ids: The ids of the render pass's items, in order.

@@ -52,7 +52,8 @@ struct ReuseId: Hashable {
 /// same kind, avoiding the cost of creating (and tearing down) a renderable on every render pass.
 ///
 /// `ComposeView` enqueues a renderable when a renderable is removed from the renderable hierarchy. And it requests a
-/// renderable when a new item of the same kind is inserted into the renderable hierarchy.
+/// renderable when a new item of the same kind is inserted into the renderable hierarchy. A view that a render pass
+/// removes and reuses for a new item that the same pass inserts doesn't go through the pool.
 ///
 /// - Important: A pool is accessed on the main thread during rendering, ensure the implementation is thread-safe on main thread.
 public protocol RenderablePoolType: AnyObject {

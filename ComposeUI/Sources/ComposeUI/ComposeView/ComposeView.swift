@@ -211,6 +211,9 @@ open class ComposeView: BaseScrollView {
   /// The map of the inserting renderable transition completion blocks.
   private var insertingRenderableTransitionCompletionMap: [ComposeNodeId: CancellableBlock] = [:]
 
+  /// The reusable views that the render pass's removals left in place, for its insertions.
+  private let inPlaceReuse = InPlaceReuse()
+
   /// The pool that recycles renderables across render passes.
   ///
   /// By default, all `ComposeView`s share a single process-wide pool (`RenderablePool.shared`) so reuse is amortized
@@ -1487,13 +1490,20 @@ open class ComposeView: BaseScrollView {
         // the view is an argument instead of a capture, since a removal transition keeps this block until it completes,
         // and mustn't keep the view alive, as an insert transition doesn't
         let removeBlock = { (contentView: ComposeView) in
-          oldRenderable.removeFromParent()
+          // the reuse is decided before the item's callbacks, so that they can't change it midway. a reusable view that
+          // leaves during a render pass stays in place, for an insertion of its kind in the pass, see `InPlaceReuse`
+          let reuseKey = oldRenderableItem.reuseKey
+          let renderablePool = reuseKey == nil ? nil : contentView.renderablePool
+          let keepsInPlace = contentView.isRendering && renderablePool != nil && InPlaceReuse.canKeep(oldRenderable)
+          if !keepsInPlace {
+            oldRenderable.removeFromParent()
+          }
           oldRenderableItem.performDidRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: contentView))
 
-          // if the item opts into reuse, park the now-detached renderable in the pool so a future insertion of the
-          // same kind can reuse it instead of creating a new renderable.
+          // if the item opts into reuse, reset the renderable so that a future insertion of the same kind can reuse it
+          // instead of creating a new renderable.
           // the cancel path (re-insertion during a remove transition) does not run this block, so a revived renderable is never pooled.
-          if let reuseKey = oldRenderableItem.reuseKey, let renderablePool = contentView.renderablePool {
+          if let reuseKey, let renderablePool {
             removeTransition?.resetForReuse(renderable: oldRenderable)
             oldRenderableItem.performResetForReuse(oldRenderable)
 
@@ -1509,7 +1519,11 @@ open class ComposeView: BaseScrollView {
               }
             }
 
-            renderablePool.enqueue(oldRenderable, key: reuseKey)
+            if keepsInPlace {
+              contentView.inPlaceReuse.keep(oldRenderable, key: reuseKey)
+            } else {
+              renderablePool.enqueue(oldRenderable, key: reuseKey)
+            }
           }
         }
 
@@ -1682,9 +1696,10 @@ open class ComposeView: BaseScrollView {
           }
 
           renderable = removingRenderable.renderable
-        } else if let reuseKey = renderableItem.reuseKey, let pooledRenderable = renderablePool?.dequeue(reuseKey) {
-          // reuse a pooled renderable of the same kind instead of creating a new one
-          renderable = pooledRenderable
+        } else if let reuseKey = renderableItem.reuseKey, let reusableRenderable = inPlaceReuse.take(reuseKey) ?? renderablePool?.dequeue(reuseKey) {
+          // reuse a renderable of the same kind instead of creating a new one: a view that a removal in this pass left
+          // in place, or a pooled one
+          renderable = reusableRenderable
         } else {
           renderable = renderableItem.makeRenderable(RenderableMakeContext(initialFrame: newFrame, contentView: self))
         }
@@ -1768,6 +1783,9 @@ open class ComposeView: BaseScrollView {
 
       renderableMap[id] = renderable
     }
+
+    // the views that the removals left in place and no insertion took leave now, for the pool
+    inPlaceReuse.removeAll(addingTo: renderablePool)
 
     #if DEBUG
     // sanity check for renderable item ids and maps after rendering
