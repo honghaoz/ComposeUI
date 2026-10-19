@@ -1220,12 +1220,14 @@ class TextNodeTests: XCTestCase {
   #endif
 
   func test_reuse_labelView_inTheSameRenderPass_replacesTheTextInOneEdit() throws {
-    // given: a compose view with its own pool, showing a label, and an observer of its label view's text storage edits
+    // given: a compose view with its own pool, showing a label that fills the view, so that another label keeps its
+    // size, drawn, and an observer of its label view's text storage edits
     var id = "first"
     var text = "First"
     var renderedView: TextLabelView?
     let contentView = ComposeView {
       LabelNode(text)
+        .fixedSize(width: false, height: false)
         .id(id)
         .onUpdate { item, _ in
           renderedView = item.view as? TextLabelView
@@ -1235,6 +1237,7 @@ class TextNodeTests: XCTestCase {
     contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
     contentView.refresh(animated: false)
     let labelView = try unwrap(renderedView)
+    labelView.layer().displayIfNeeded()
     var editCount = 0
     let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: labelView.test.textStorage, queue: nil) { _ in
       editCount += 1
@@ -1244,10 +1247,11 @@ class TextNodeTests: XCTestCase {
     }
 
     // when: another label replaces it, so one render pass removes the label view to the pool and reuses it for the
-    // other label
+    // other label, and the label view draws
     id = "second"
     text = "Second"
     contentView.refresh(animated: false)
+    labelView.layer().displayIfNeeded()
 
     // then: the label view replaces its text in one edit, since the reset for the pool keeps the text until the end of
     // the run loop turn, instead of removing it in an edit of its own

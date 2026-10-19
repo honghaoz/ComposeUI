@@ -106,6 +106,36 @@ final class TextLabelDrawer {
     }
   }
 
+  /// Gives the drawer a label's text, settings and size, which lays out the text once.
+  ///
+  /// A UIKit layout manager lays out its text as soon as the text or the text container changes, instead of when the
+  /// text is drawn, so when both change, the old text leaves before the container changes, and the new text comes
+  /// after, instead of laying out the old text in the new container and the new text in the old one.
+  ///
+  /// - Parameters:
+  ///   - text: The text to lay out, or `nil` to keep the drawer's text.
+  ///   - numberOfLines: The maximum number of lines that the text lays out in, 0 for no limit.
+  ///   - lineBreakMode: The line break mode of the text's last line.
+  ///   - size: The size that the text lays out in, with the inset.
+  ///   - inset: The inset of the text, the width from the left and right edges and the height from the top and bottom.
+  /// - Returns: Whether the container has room to show the text.
+  func update(text: NSAttributedString?, numberOfLines: Int, lineBreakMode: NSLineBreakMode, size: CGSize, inset: CGSize) -> Bool {
+    if text != nil,
+       textStorage.length > 0,
+       textContainer.size != Self.containerSize(size: size, inset: inset) || self.numberOfLines != max(numberOfLines, 0) || self.lineBreakMode != lineBreakMode
+    {
+      textStorage.setAttributedString(NSAttributedString())
+    }
+
+    self.numberOfLines = numberOfLines
+    self.lineBreakMode = lineBreakMode
+    let hasRoom = fitTextContainer(size: size, inset: inset)
+    if let text {
+      textStorage.setAttributedString(text)
+    }
+    return hasRoom
+  }
+
   /// Sizes the text container to a size inside an inset, where the text lays out.
   ///
   /// - Parameters:
@@ -113,10 +143,7 @@ final class TextLabelDrawer {
   ///   - inset: The inset of the text, the width from the left and right edges and the height from the top and bottom.
   /// - Returns: Whether the container has room to show the text.
   func fitTextContainer(size: CGSize, inset: CGSize) -> Bool {
-    let containerSize = CGSize(
-      width: max(0, size.width - inset.width * 2),
-      height: max(0, size.height - inset.height * 2)
-    )
+    let containerSize = Self.containerSize(size: size, inset: inset)
 
     // the container is resized only when its size changes, since a resize lays the text out again
     if textContainer.size != containerSize {
@@ -125,6 +152,16 @@ final class TextLabelDrawer {
 
     // a text container without room still lays out a glyph, which an inset as large as the size leaves no room to show
     return containerSize.width > 0 && containerSize.height > 0
+  }
+
+  /// Returns the size of the text container that fits a size inside an inset.
+  ///
+  /// - Parameters:
+  ///   - size: The size that the text lays out in, with the inset.
+  ///   - inset: The inset of the text, the width from the left and right edges and the height from the top and bottom.
+  /// - Returns: The size of the text container.
+  private static func containerSize(size: CGSize, inset: CGSize) -> CGSize {
+    CGSize(width: max(0, size.width - inset.width * 2), height: max(0, size.height - inset.height * 2))
   }
 
   /// Draws the text in the current graphics context, laid out in a size inside an inset.

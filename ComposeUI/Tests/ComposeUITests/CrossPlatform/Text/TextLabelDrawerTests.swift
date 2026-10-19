@@ -110,6 +110,110 @@ class TextLabelDrawerTests: XCTestCase {
     expect(drawer.textContainer.lineBreakMode) == .byTruncatingMiddle
   }
 
+  // MARK: - Update
+
+  func test_update_givesTheTextTheSettingsAndTheSize() {
+    // given: a drawer
+    let drawer = TextLabelDrawer()
+
+    // when: updating it with a text, settings and a size inside an inset
+    let hasRoom = drawer.update(text: Self.text("Hello"), numberOfLines: 2, lineBreakMode: .byTruncatingTail, size: CGSize(width: 100, height: 40), inset: CGSize(width: 4, height: 2))
+
+    // then: the storage has the text, and the container has the settings and the size inside the inset, with room
+    expect(drawer.textStorage.string) == "Hello"
+    expect(drawer.textContainer.maximumNumberOfLines) == 2
+    expect(drawer.textContainer.lineBreakMode) == .byTruncatingTail
+    expect(drawer.textContainer.size) == CGSize(width: 92, height: 36)
+    expect(hasRoom) == true
+
+    // when: updating it without a text, inside an inset as large as the size
+    let hasRoomInsideALargeInset = drawer.update(text: nil, numberOfLines: 2, lineBreakMode: .byTruncatingTail, size: CGSize(width: 10, height: 10), inset: CGSize(width: 6, height: 6))
+
+    // then: the storage keeps the text, and the container has no room
+    expect(drawer.textStorage.string) == "Hello"
+    expect(drawer.textContainer.size) == .zero
+    expect(hasRoomInsideALargeInset) == false
+  }
+
+  func test_update_newText_newSize_laysOutOnlyTheNewText() {
+    // given: a drawer that laid out a text, and a recorder of its layouts and edits
+    let drawer = TextLabelDrawer()
+    Self.layOut(drawer, text: Self.text("Hello"), size: CGSize(width: 100, height: 20))
+    let recorder = TextLayoutRecorder(drawer.layoutManager)
+
+    // when: updating it with another text in another size, and laying it out
+    Self.layOut(drawer, text: Self.text("Hello, world"), size: CGSize(width: 160, height: 20))
+
+    // then: the old text leaves before the container changes, so the container's change doesn't lay it out, and the
+    // new text lays out once, in the new size
+    expect(recorder.layouts) == [TextLayoutRecorder.Layout(text: "Hello, world", width: 160)]
+    expect(recorder.editCount) == 2
+  }
+
+  func test_update_newText_newSettings_laysOutOnlyTheNewText() {
+    let cases: [(name: String, numberOfLines: Int, lineBreakMode: NSLineBreakMode)] = [
+      ("number of lines", 2, .byWordWrapping),
+      ("line break mode", 1, .byTruncatingTail),
+    ]
+    for testCase in cases {
+      // given: a drawer that laid out a text in one line, and a recorder of its layouts and edits
+      let drawer = TextLabelDrawer()
+      Self.layOut(drawer, text: Self.text("Hello"), numberOfLines: 1, size: CGSize(width: 100, height: 40))
+      let recorder = TextLayoutRecorder(drawer.layoutManager)
+
+      // when: updating it with another text and another setting, in the same size, and laying it out
+      Self.layOut(drawer, text: Self.text("Hello, world"), numberOfLines: testCase.numberOfLines, lineBreakMode: testCase.lineBreakMode, size: CGSize(width: 100, height: 40))
+
+      // then: the old text leaves before the setting changes, and the new text lays out once
+      expect(recorder.layouts, testCase.name) == [TextLayoutRecorder.Layout(text: "Hello, world", width: 100)]
+      expect(recorder.editCount, testCase.name) == 2
+      expect(drawer.textContainer.maximumNumberOfLines, testCase.name) == testCase.numberOfLines
+      expect(drawer.textContainer.lineBreakMode, testCase.name) == testCase.lineBreakMode
+    }
+  }
+
+  func test_update_newText_sameContainer_replacesTheTextInOneEdit() {
+    // given: a drawer that laid out a text, and a recorder of its layouts and edits
+    let drawer = TextLabelDrawer()
+    Self.layOut(drawer, text: Self.text("Hello"), size: CGSize(width: 100, height: 20))
+    let recorder = TextLayoutRecorder(drawer.layoutManager)
+
+    // when: updating it with another text in the same size and settings, and laying it out
+    Self.layOut(drawer, text: Self.text("Jello"), size: CGSize(width: 100, height: 20))
+
+    // then: the new text replaces the old one in one edit, and lays out once
+    expect(recorder.layouts) == [TextLayoutRecorder.Layout(text: "Jello", width: 100)]
+    expect(recorder.editCount) == 1
+  }
+
+  func test_update_newText_withoutAText_givesTheTextInOneEdit() {
+    // given: a drawer without a text, in a size, and a recorder of its layouts and edits
+    let drawer = TextLabelDrawer()
+    Self.layOut(drawer, text: nil, size: CGSize(width: 100, height: 20))
+    let recorder = TextLayoutRecorder(drawer.layoutManager)
+
+    // when: updating it with a text in another size, and laying it out
+    Self.layOut(drawer, text: Self.text("Hello"), size: CGSize(width: 160, height: 20))
+
+    // then: the storage gets the text in one edit, and the text lays out once, in the new size
+    expect(recorder.layouts) == [TextLayoutRecorder.Layout(text: "Hello", width: 160)]
+    expect(recorder.editCount) == 1
+  }
+
+  func test_update_newSize_laysOutTheTextAgainInTheNewSize() {
+    // given: a drawer that laid out a text, and a recorder of its layouts and edits
+    let drawer = TextLabelDrawer()
+    Self.layOut(drawer, text: Self.text("Hello"), size: CGSize(width: 100, height: 20))
+    let recorder = TextLayoutRecorder(drawer.layoutManager)
+
+    // when: updating it without a text, in another size, and laying it out
+    Self.layOut(drawer, text: nil, size: CGSize(width: 160, height: 20))
+
+    // then: the storage keeps the text, which lays out once, in the new size
+    expect(recorder.layouts) == [TextLayoutRecorder.Layout(text: "Hello", width: 160)]
+    expect(recorder.editCount) == 0
+  }
+
   func test_fitTextContainer() {
     // given: a drawer
     let drawer = TextLabelDrawer()
@@ -234,6 +338,17 @@ class TextLabelDrawerTests: XCTestCase {
   #endif
 
   // MARK: - Helpers
+
+  /// Returns a text in a label's font.
+  private static func text(_ string: String) -> NSAttributedString {
+    NSAttributedString(string: string, attributes: [.font: Font.systemFont(ofSize: 15)])
+  }
+
+  /// Updates a drawer with a text, settings and a size, and lays out the text, as a label does before it draws.
+  private static func layOut(_ drawer: TextLabelDrawer, text: NSAttributedString?, numberOfLines: Int = 0, lineBreakMode: NSLineBreakMode = .byWordWrapping, size: CGSize) {
+    _ = drawer.update(text: text, numberOfLines: numberOfLines, lineBreakMode: lineBreakMode, size: size, inset: .zero)
+    _ = drawer.layoutManager.glyphRange(for: drawer.textContainer)
+  }
 
   /// Returns the pixels that a block draws into a bitmap, in flipped coordinates, as a label's drawing does.
   private static func drawnPixels(width: Int, height: Int, draw: () -> Void) throws -> [UInt8] {

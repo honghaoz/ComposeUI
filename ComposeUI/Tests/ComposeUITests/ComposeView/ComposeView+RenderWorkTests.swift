@@ -157,18 +157,21 @@ class ComposeView_RenderWorkTests: XCTestCase {
   }
 
   func test_refresh_editsOnlyTheTextThatChanged() throws {
-    // given: label rows rendered at the top, with the first row's text in a variable, and an observer of the edits to
-    // the text storages of the 2 rows that show
+    // given: label rows rendered at the top and drawn, with labels that fill their rows, so that a new text keeps a
+    // label's size, the first row's text in a variable, and an observer of the edits to the text storages of the 2 rows
+    // that show
     var firstRowText = "Row 0"
     let view = makeRowsView { index in
       LabelNode(index == 0 ? firstRowText : "Row \(index)")
+        .fixedSize(width: false, height: false)
         .frame(width: .flexible, height: Constants.rowHeight)
     }
     view.refresh(animated: false)
-    let textStorages = view.contentContainerView.subviews
+    let labelViews = view.contentContainerView.subviews
       .compactMap { $0 as? TextLabelView }
       .sorted { $0.frame.minY < $1.frame.minY }
-      .map(\.test.textStorage)
+    labelViews.forEach { $0.layer().displayIfNeeded() }
+    let textStorages = labelViews.map(\.test.textStorage)
     expect(textStorages.count) == 2
     var editsPerRow = [0, 0]
     let observer = NotificationCenter.default.addObserver(forName: NSTextStorage.didProcessEditingNotification, object: nil, queue: nil) { notification in
@@ -180,15 +183,17 @@ class ComposeView_RenderWorkTests: XCTestCase {
       NotificationCenter.default.removeObserver(observer)
     }
 
-    // when: refreshing with the same content
+    // when: refreshing with the same content, and drawing
     view.refresh(animated: false)
+    labelViews.forEach { $0.layer().displayIfNeeded() }
 
     // then: the label views of the 2 rows that show keep their text, so their text storages aren't edited
     expect(editsPerRow) == [0, 0]
 
-    // when: changing the first row's text, and refreshing
+    // when: changing the first row's text, refreshing, and drawing
     firstRowText = "Changed"
     view.refresh(animated: false)
+    labelViews.forEach { $0.layer().displayIfNeeded() }
 
     // then: only the first row's text storage is edited, to show the new text
     expect(editsPerRow) == [1, 0]
