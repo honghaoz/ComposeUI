@@ -5,7 +5,8 @@
 #
 # `swift test` runs tests only on the Mac, so the benchmarks run on a simulator through xcodebuild, with the settings of
 # the macOS runs: a release build with testability and DEBUG, since the tests use debug-only hooks, and the benchmark and
-# deterministic hashing variables, which xcodebuild passes to the tests without their TEST_RUNNER_ prefix.
+# deterministic hashing variables, which xcodebuild passes to the tests without their TEST_RUNNER_ prefix. Each call
+# turns off code coverage, which the scheme turns on, since its counters add instructions that apps don't run.
 #
 # Needs REPO_ROOT, and SCHEME, the package's scheme.
 
@@ -71,7 +72,8 @@ benchmark_pick_simulator() { # <platform>
 # Builds a package's tests for the simulator in release, into a derived data directory.
 benchmark_build_for_simulator() { # <package dir> <derived data dir>
   (cd "$1" && xcodebuild build-for-testing -scheme "$SCHEME" -destination "$DESTINATION" -derivedDataPath "$2" \
-    -configuration Release ENABLE_TESTABILITY=YES SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG COMPILER_INDEX_STORE_ENABLE=NO)
+    -configuration Release -enableCodeCoverage NO ENABLE_TESTABILITY=YES SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
+    COMPILER_INDEX_STORE_ENABLE=NO)
 }
 
 # Boots the simulator, or waits for its boot to finish.
@@ -89,8 +91,8 @@ benchmark_select_tests() { # <package dir> <derived data dir> <filter> <output f
   local log="$4.log"
   local list="$4.json"
   if ! (cd "$1" && xcodebuild test-without-building -scheme "$SCHEME" -destination "$DESTINATION" -derivedDataPath "$2" \
-    -configuration Release -enumerate-tests -test-enumeration-style flat -test-enumeration-format json \
-    -test-enumeration-output-path "$list") > "$log" 2>&1; then
+    -configuration Release -enableCodeCoverage NO -enumerate-tests -test-enumeration-style flat \
+    -test-enumeration-format json -test-enumeration-output-path "$list") > "$log" 2>&1; then
     tail -20 "$log" >&2
     return 1
   fi
@@ -116,6 +118,6 @@ benchmark_run_on_simulator() { # <package dir> <derived data dir> <selected test
     only_testing+=("$test")
   done < "$3"
   (cd "$1" && TEST_RUNNER_BENCHMARK=1 TEST_RUNNER_SWIFT_DETERMINISTIC_HASHING=1 xcodebuild test-without-building \
-    -scheme "$SCHEME" -destination "$DESTINATION" -derivedDataPath "$2" -configuration Release \
+    -scheme "$SCHEME" -destination "$DESTINATION" -derivedDataPath "$2" -configuration Release -enableCodeCoverage NO \
     -parallel-testing-enabled NO ${only_testing[@]+"${only_testing[@]}"})
 }
