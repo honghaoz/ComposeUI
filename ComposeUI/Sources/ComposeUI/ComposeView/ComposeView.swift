@@ -2160,15 +2160,16 @@ open class ComposeView: BaseScrollView {
     region.forEachPart(outside: excludedBounds) { part in
       contentNode.render(visibleBounds: part.translate(-contentOrigin), into: &prefetchItems)
       for item in prefetchItems {
-        if let prefetch = item.prefetch {
-          prefetch(
-            RenderablePrefetchContext(
-              frame: item.frame.translate(contentOrigin).rounded(scaleFactor: scale),
-              region: region,
-              contentView: self
-            )
-          )
+        guard let prefetch = item.prefetch else {
+          continue
         }
+        let frame = item.frame.translate(contentOrigin)
+        // an item that reaches into the excluded bounds was prefetched or shown already, and an item in two parts is
+        // prefetched by the one with its top left corner in the region
+        guard !frame.intersects(excludedBounds), part.contains(CGPoint(x: max(frame.minX, region.minX), y: max(frame.minY, region.minY))) else {
+          continue
+        }
+        prefetch(RenderablePrefetchContext(frame: frame.rounded(scaleFactor: scale), region: region, contentView: self))
       }
       prefetchItems.removeAll(keepingCapacity: true)
     }

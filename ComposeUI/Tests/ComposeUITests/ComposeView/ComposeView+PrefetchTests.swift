@@ -76,6 +76,62 @@ class ComposeView_PrefetchTests: XCTestCase {
     withExtendedLifetime(window) {}
   }
 
+  func test_scroll_byPartOfARow_prefetchesTheRowAtTheRegionsEdgeOnce() {
+    // given: a rendered compose view in a window, showing rows of items that prefetch, 30 points each, scrolled down by
+    // two view heights
+    let (window, view, recorder) = makeRowsView()
+    view.refresh(animated: false)
+    scroll(view, to: 600)
+    recorder.removeAll()
+
+    // when: scrolling down by half a row twice, which moves the region's bottom edge into row 40, then to its end
+    scroll(view, to: 615)
+    scroll(view, to: 630)
+
+    // then: row 40 is prefetched once, when it enters the region
+    expect(recorder.rows) == [40]
+
+    // when: scrolling back up by half a row twice, which moves the region's top edge into row 10, then to its start
+    recorder.removeAll()
+    scroll(view, to: 615)
+    scroll(view, to: 600)
+
+    // then: row 10 is prefetched once, when it enters the region
+    expect(recorder.rows) == [10]
+    withExtendedLifetime(window) {}
+  }
+
+  func test_scroll_bothWays_prefetchesAnItemInTwoPartsOnce() {
+    // given: a rendered compose view in a window, 200 by 300 points, showing a grid of items that prefetch, 40 by 30
+    // points each, scrolled down by half a row
+    let recorder = PrefetchRecorder()
+    let (window, view) = makeView(size: CGSize(width: 200, height: 300)) {
+      VStack {
+        for row in 0 ..< 50 {
+          HStack {
+            for column in 0 ..< 50 {
+              PrefetchingNode(row: row * 100 + column, recorder: recorder)
+                .frame(width: 40, height: 30)
+            }
+          }
+        }
+      }
+    }
+    view.refresh(animated: false)
+    scroll(view, to: CGPoint(x: 0, y: 15))
+    recorder.removeAll()
+
+    // when: scrolling right by half an item and down by half a row, which puts the item at row 20 and column 10 in the
+    // parts below and to the right of the region before, and leaves the item before it reaching into that region
+    scroll(view, to: CGPoint(x: 20, y: 30))
+
+    // then: each item that enters the region is prefetched once
+    expect(recorder.rows.filter { $0 == 2010 }.count) == 1
+    expect(recorder.rows.contains(2009)) == false
+    expect(Set(recorder.rows).count) == recorder.rows.count
+    withExtendedLifetime(window) {}
+  }
+
   func test_scroll_pastTheRegion_prefetchesTheWholeRegionButTheVisibleBounds() {
     // given: a rendered compose view in a window, showing rows of items that prefetch
     let (window, view, recorder) = makeRowsView()
@@ -458,7 +514,12 @@ class ComposeView_PrefetchTests: XCTestCase {
 
   /// Scrolls a view vertically, and renders it.
   private func scroll(_ view: ComposeView, to offset: CGFloat) {
-    view.contentOffset = CGPoint(x: 0, y: offset)
+    scroll(view, to: CGPoint(x: 0, y: offset))
+  }
+
+  /// Scrolls a view, and renders it.
+  private func scroll(_ view: ComposeView, to offset: CGPoint) {
+    view.contentOffset = offset
     view.layoutIfNeeded()
   }
 }
