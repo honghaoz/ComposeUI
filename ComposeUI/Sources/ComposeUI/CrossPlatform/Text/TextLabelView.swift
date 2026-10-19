@@ -76,7 +76,9 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
       #endif
 
       #if canImport(UIKit)
-      updateTextStorage()
+      // a UIKit layout manager lays out its text again at each change, so the text goes to the text storage with the
+      // view's settings and size when the view lays it out
+      textStorageNeedsText = true
       #endif
 
       setNeedsDisplayForText()
@@ -86,7 +88,6 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// The maximum number of lines that the view shows, 0 for no limit.
   public internal(set) var numberOfLines: Int = 0 {
     didSet {
-      drawer.numberOfLines = numberOfLines
       setNeedsDisplayForText()
     }
   }
@@ -94,7 +95,6 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// The line break mode of the text's last line.
   public internal(set) var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
-      drawer.lineBreakMode = lineBreakMode
       setNeedsDisplayForText()
     }
   }
@@ -127,8 +127,8 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   /// The TextKit objects that lay out and draw the text.
   private let drawer = TextLabelDrawer()
 
-  /// Whether the text storage still needs the text that the view was last set to, which an image drawn ahead of time
-  /// shows instead.
+  /// Whether the text storage still needs the text that the view was last set to, which it gets when the view lays out
+  /// the text, see `fitTextContainer()`.
   private var textStorageNeedsText = false
 
   override public init(frame: CGRect) {
@@ -228,17 +228,20 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     }
   }
 
-  /// Sizes the text container to the bounds inside the inset, where the text lays out.
+  /// Gives the drawer the text that the view was last set to, if the text storage doesn't have it, with the view's
+  /// settings, and sizes the text container to the bounds inside the inset, where the text lays out.
   ///
   /// - Returns: Whether the container has room to show the text.
+  @discardableResult
   private func fitTextContainer() -> Bool {
-    updateTextStorageIfNeeded()
-    return drawer.fitTextContainer(size: bounds.size, inset: textContainerInset)
+    let text = textStorageNeedsText ? shownText(of: lastText) : nil
+    textStorageNeedsText = false
+    return drawer.update(text: text, numberOfLines: numberOfLines, lineBreakMode: lineBreakMode, size: bounds.size, inset: textContainerInset)
   }
 
   /// Draws the text, laid out in the bounds inside the inset.
   func drawText() {
-    updateTextStorageIfNeeded()
+    fitTextContainer()
     drawer.drawText(size: bounds.size, inset: textContainerInset)
   }
 
@@ -707,6 +710,8 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
   func removeTextForReuse() {
     attributedString = NSAttributedString()
+    // a view in the reuse pool doesn't lay out its text, so the text storage lets the old text go now
+    updateTextStorageIfNeeded()
   }
 
   // MARK: - Testing

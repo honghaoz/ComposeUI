@@ -162,10 +162,11 @@ class TextLabelViewTests: XCTestCase {
     // when: setting another text
     labelView.attributedString = NSAttributedString(string: "Hi", attributes: [.foregroundColor: Color.black])
 
-    // then: the view shows the new text, and draws again
+    // then: the view draws again, which lays out the new text
     expect(labelView.attributedString.string) == "Hi"
-    expect(labelView.test.textStorage.string) == "Hi"
     expect(Self.needsDisplay(labelView)) == true
+    Self.clearNeedsDisplay(labelView)
+    expect(labelView.test.textStorage.string) == "Hi"
   }
 
   func test_attributedString_mutableText_keepsACopy() {
@@ -177,14 +178,16 @@ class TextLabelViewTests: XCTestCase {
     // when: the text changes after it's set
     text.mutableString.append(", world")
 
-    // then: the view keeps the text as it was set
+    // then: the view keeps the text as it was set, which it lays out when it draws
     expect(labelView.attributedString.string) == "Hello"
+    Self.clearNeedsDisplay(labelView)
     expect(labelView.test.textStorage.string) == "Hello"
 
     // when: setting the changed text again
     labelView.attributedString = text
 
     // then: the view shows the changed text, since it compares the text with its copy of the last one
+    Self.clearNeedsDisplay(labelView)
     expect(labelView.test.textStorage.string) == "Hello, world"
   }
 
@@ -199,20 +202,20 @@ class TextLabelViewTests: XCTestCase {
     // when: changing the number of lines
     labelView.numberOfLines = 1
 
-    // then: the text container takes it, and the view draws again
-    expect(labelView.test.textContainer.maximumNumberOfLines) == 1
+    // then: the view draws again, which gives the text container the number of lines
     expect(Self.needsDisplay(labelView)) == true
+    Self.clearNeedsDisplay(labelView)
+    expect(labelView.test.textContainer.maximumNumberOfLines) == 1
 
     // when: changing the line break mode
-    Self.clearNeedsDisplay(labelView)
     labelView.lineBreakMode = .byTruncatingTail
 
-    // then: the text container takes it, and the view draws again
-    expect(labelView.test.textContainer.lineBreakMode) == .byTruncatingTail
+    // then: the view draws again, which gives the text container the line break mode
     expect(Self.needsDisplay(labelView)) == true
+    Self.clearNeedsDisplay(labelView)
+    expect(labelView.test.textContainer.lineBreakMode) == .byTruncatingTail
 
     // when: changing the inset
-    Self.clearNeedsDisplay(labelView)
     labelView.textContainerInset = CGSize(width: 4, height: 2)
 
     // then: the view draws again, which fits the text container in the bounds inside the inset
@@ -222,11 +225,19 @@ class TextLabelViewTests: XCTestCase {
   }
 
   func test_numberOfLines_negative_hasNoLimit() {
-    // given: a label view
+    // given: a label view with a line limit
     let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
+    labelView.numberOfLines = 2
 
-    // when: setting a negative number of lines
+    // when: drawing it
+    Self.clearNeedsDisplay(labelView)
+
+    // then: the text container has the line limit
+    expect(labelView.test.textContainer.maximumNumberOfLines) == 2
+
+    // when: setting a negative number of lines, and drawing
     labelView.numberOfLines = -1
+    Self.clearNeedsDisplay(labelView)
 
     // then: the text container has no line limit
     expect(labelView.test.textContainer.maximumNumberOfLines) == 0
@@ -244,6 +255,22 @@ class TextLabelViewTests: XCTestCase {
     // then: the text container is empty, and the view draws nothing
     expect(labelView.test.textContainer.size) == .zero
     expect(Self.inkedPixelCount(pixels)) == 0
+  }
+
+  func test_draw_newSize_laysOutTheTextAgainWithoutEditingIt() {
+    // given: a label view showing a text, drawn, and a recorder of its text layouts and edits
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+    labelView.attributedString = NSAttributedString(string: "Hello", attributes: [.font: Font.systemFont(ofSize: 15), .foregroundColor: Color.black])
+    Self.clearNeedsDisplay(labelView)
+    let recorder = TextLayoutRecorder(labelView.test.layoutManager)
+
+    // when: resizing it, and drawing
+    labelView.frame = CGRect(x: 0, y: 0, width: 160, height: 20)
+    Self.clearNeedsDisplay(labelView)
+
+    // then: the text lays out once, in the new size, without an edit
+    expect(recorder.layouts) == [TextLayoutRecorder.Layout(text: "Hello", width: 160)]
+    expect(recorder.editCount) == 0
   }
 
   #if canImport(AppKit)
@@ -592,13 +619,15 @@ class TextLabelViewTests: XCTestCase {
   // MARK: - Reuse
 
   func test_resetForReuse_keepsTheSettingsAndTheTextUntilTheEndOfTheRunLoopTurn() {
-    // given: a label view with settings, a text, and the record of the text that a text node applied a theme to
+    // given: a label view with settings and a text, drawn, and the record of the text that a text node applied a theme
+    // to
     let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
     let text = NSAttributedString(string: "Hello")
     labelView.numberOfLines = 2
     labelView.lineBreakMode = .byTruncatingTail
     labelView.textContainerInset = CGSize(width: 4, height: 2)
     labelView.attributedString = text
+    Self.clearNeedsDisplay(labelView)
     labelView.lastThemedText = (text, .light, text)
     let countBefore = BaseTextView.scheduledTextRemovalCount
 
@@ -634,9 +663,51 @@ class TextLabelViewTests: XCTestCase {
     labelView.attributedString = NSAttributedString(string: "Hi")
     Self.waitForTheEndOfTheRunLoopTurn(self)
 
-    // then: the view keeps the new text
+    // then: the view keeps the new text, which it lays out when it draws
     expect(labelView.attributedString.string) == "Hi"
+    Self.clearNeedsDisplay(labelView)
     expect(labelView.test.textStorage.string) == "Hi"
+  }
+
+  func test_reuse_newSizeAndText_laysOutTheTextOnce() {
+    // given: a label view showing a text, drawn, and a recorder of its text layouts
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+    labelView.attributedString = NSAttributedString(string: "Hello", attributes: [.font: Font.systemFont(ofSize: 15), .foregroundColor: Color.black])
+    Self.clearNeedsDisplay(labelView)
+    let recorder = TextLayoutRecorder(labelView.test.layoutManager)
+
+    // when: a render pass reuses it for another label, which gives it the label's size and then its text, and it draws
+    let text = NSAttributedString(string: "Hello, world", attributes: [.font: Font.systemFont(ofSize: 15), .foregroundColor: Color.black])
+    labelView.frame = CGRect(x: 0, y: 0, width: 160, height: 20)
+    labelView.attributedString = text
+    let pixels = Self.pixels(of: labelView)
+
+    // then: it lays out the new text once, in the new size, and draws it as a new label view does
+    expect(recorder.layouts) == [TextLayoutRecorder.Layout(text: "Hello, world", width: 160)]
+    let newLabelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 160, height: 20))
+    newLabelView.attributedString = text
+    expect(Self.differingPixelCount(pixels, Self.pixels(of: newLabelView))) == 0
+  }
+
+  func test_reuse_newSettingsAndText_laysOutTheTextOnce() {
+    // given: a label view showing a text in one line, drawn, and a recorder of its text layouts
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
+    labelView.numberOfLines = 1
+    labelView.attributedString = NSAttributedString(string: "Hello", attributes: [.font: Font.systemFont(ofSize: 15), .foregroundColor: Color.black])
+    Self.clearNeedsDisplay(labelView)
+    let recorder = TextLayoutRecorder(labelView.test.layoutManager)
+
+    // when: a text node reuses it for another kind of label, which gives it the label's settings and then its text, and
+    // it draws
+    labelView.numberOfLines = 2
+    labelView.lineBreakMode = .byTruncatingTail
+    labelView.attributedString = NSAttributedString(string: "Hello, world", attributes: [.font: Font.systemFont(ofSize: 15), .foregroundColor: Color.black])
+    Self.clearNeedsDisplay(labelView)
+
+    // then: it lays out the new text once, with the new settings
+    expect(recorder.layouts) == [TextLayoutRecorder.Layout(text: "Hello, world", width: 100)]
+    expect(labelView.test.textContainer.maximumNumberOfLines) == 2
+    expect(labelView.test.textContainer.lineBreakMode) == .byTruncatingTail
   }
 
   // MARK: - Measurement
