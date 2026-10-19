@@ -69,6 +69,7 @@
 - On macOS, refreshing and scrolling text is faster: `BaseTextView` fits its text container when its size or inset changes, instead of laying itself out after each change of its text, number of lines or line break mode, and `TextNode` sets only the text view settings that changed.
 - Building content with `@ComposeContentBuilder` is faster.
 - Refreshing labels is faster: a label reuses the attributed string made for the same text and text settings in an earlier refresh.
+- Refreshing labels is faster on iOS, tvOS and visionOS: a label without a font of its own takes the system font made for the current Bold Text setting, instead of making it again for each label.
 - Refreshing a text node whose attributed string is the same object as in the last refresh, as a label's is, is faster: its text view reuses the text with the theme applied instead of applying the theme to a new copy.
 - Laying out text is faster: a text's measured size is looked up without allocating.
 - Refreshing themed content is faster on macOS: the renderables' updates read the view's appearance once per render pass.

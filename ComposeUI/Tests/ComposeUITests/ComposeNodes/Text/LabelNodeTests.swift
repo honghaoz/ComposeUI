@@ -948,6 +948,54 @@ class LabelNodeTests: XCTestCase {
     }
   }
 
+  func test_defaults_systemFontAndLabelColor() throws {
+    // when: rendering a label without a font or a text color
+    let text = try unwrap(renderedText(of: LabelNode("Hello")))
+
+    // then: it shows in the system font of a label's size, in the label color
+    #if canImport(AppKit)
+    expect(text.font()) == Font.systemFont(ofSize: NSFont.systemFontSize)
+    expect(text.foregroundColor()) == .labelColor
+    #endif
+    #if os(tvOS)
+    expect(text.font()) == Font.systemFont(ofSize: 20)
+    #elseif canImport(UIKit)
+    expect(text.font()) == Font.systemFont(ofSize: Font.labelFontSize)
+    #endif
+    #if canImport(UIKit)
+    expect(text.foregroundColor()) == .label
+    #endif
+  }
+
+  #if canImport(UIKit)
+  func test_defaults_font_madeAgainOnlyForAnotherBoldTextSetting() {
+    // given: the default font, made for the current Bold Text setting
+    let isBoldTextEnabled = UIAccessibility.isBoldTextEnabled
+    let font = LabelNode.Defaults.font(isBoldTextEnabled: isBoldTextEnabled)
+
+    // when: making labels without a font
+    let labelCounts = WorkCounter.counting {
+      for index in 0 ..< 10 {
+        _ = LabelNode("Label \(index)")
+      }
+    }
+
+    // then: they take the font made before
+    expect(labelCounts.labelDefaultFonts) == 0
+
+    // when: getting the default font for the other Bold Text setting, and for the current one again
+    var fonts: [Font] = []
+    let changeCounts = WorkCounter.counting {
+      fonts.append(LabelNode.Defaults.font(isBoldTextEnabled: !isBoldTextEnabled))
+      fonts.append(LabelNode.Defaults.font(isBoldTextEnabled: isBoldTextEnabled))
+    }
+
+    // then: each change of the setting makes the font again, the system font of the process's own setting
+    expect(changeCounts.labelDefaultFonts) == 2
+    expect(fonts) == [font, font]
+  }
+  #endif
+
   // MARK: - Helpers
 
   /// Returns the text that the label renders, in a view of its own.

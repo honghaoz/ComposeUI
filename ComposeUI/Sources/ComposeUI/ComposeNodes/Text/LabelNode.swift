@@ -71,19 +71,8 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
   public init(_ text: String) {
     self.text = text
 
-    #if canImport(AppKit)
-    font = .systemFont(ofSize: NSFont.systemFontSize)
-    textColor = ThemedColor(light: .labelColor, dark: .labelColor)
-    #endif
-
-    #if canImport(UIKit)
-    #if os(iOS) || os(visionOS)
-    font = .systemFont(ofSize: Font.labelFontSize)
-    #elseif os(tvOS)
-    font = .systemFont(ofSize: 20)
-    #endif
-    textColor = ThemedColor(light: .label, dark: .label)
-    #endif
+    font = Defaults.font
+    textColor = Defaults.textColor
 
     textBackgroundColor = nil
     textShadow = nil
@@ -153,6 +142,54 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
       return
     }
     node.render(visibleBounds: visibleBounds, into: &items)
+  }
+
+  // MARK: - Defaults
+
+  /// The font and the text color of a label that the app doesn't set them for, made once instead of for each label,
+  /// since making a system font looks it up in the system's font cache with a new key each time.
+  enum Defaults {
+
+    #if canImport(AppKit)
+    static let font = Font.systemFont(ofSize: NSFont.systemFontSize)
+
+    static let textColor = ThemedColor(light: .labelColor, dark: .labelColor)
+    #endif
+
+    #if canImport(UIKit)
+    static let textColor = ThemedColor(light: .label, dark: .label)
+
+    /// The system font of a label's size, which is semibold while Bold Text is on.
+    static var font: Font {
+      font(isBoldTextEnabled: UIAccessibility.isBoldTextEnabled)
+    }
+
+    /// The font made last, with the Bold Text setting that it was made with.
+    private static var lastFont: (font: Font, isBoldTextEnabled: Bool)?
+
+    /// Returns the system font of a label's size, made again when Bold Text, which the system font follows, differs
+    /// from the setting that the last font was made with.
+    ///
+    /// - Parameter isBoldTextEnabled: Whether Bold Text is on.
+    /// - Returns: The font.
+    static func font(isBoldTextEnabled: Bool) -> Font {
+      if let lastFont, lastFont.isBoldTextEnabled == isBoldTextEnabled {
+        return lastFont.font
+      }
+
+      #if DEBUG
+      WorkCounter.count(.labelDefaultFont)
+      #endif
+
+      #if os(tvOS)
+      let font = Font.systemFont(ofSize: 20)
+      #else
+      let font = Font.systemFont(ofSize: Font.labelFontSize)
+      #endif
+      lastFont = (font, isBoldTextEnabled)
+      return font
+    }
+    #endif
   }
 
   // MARK: - Public
