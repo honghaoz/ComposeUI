@@ -55,6 +55,9 @@ enum WorkCounter {
 
     /// A step of solving a cubic bezier timing function for the progress at a fraction.
     case bezierSolverStep
+
+    /// A step of evicting the images that labels drew ahead of time, which evicts one image.
+    case imageEvictionStep
   }
 
   /// Counts work done on the main thread while a block is counted.
@@ -80,6 +83,8 @@ enum WorkCounter {
       counts.animations += amount
     case .bezierSolverStep:
       counts.bezierSolverSteps += amount
+    case .imageEvictionStep:
+      counts.imageEvictionSteps += amount
     }
   }
 
@@ -95,12 +100,16 @@ enum WorkCounter {
     /// The steps taken to solve cubic bezier timing functions.
     fileprivate(set) var bezierSolverSteps = 0
 
+    /// The steps taken to evict the images that labels drew ahead of time.
+    fileprivate(set) var imageEvictionSteps = 0
+
     /// Returns the sum of these counts and the other counts.
     fileprivate func adding(_ other: Counts) -> Counts {
       var sum = self
       sum.textMeasurements += other.textMeasurements
       sum.animations += other.animations
       sum.bezierSolverSteps += other.bezierSolverSteps
+      sum.imageEvictionSteps += other.imageEvictionSteps
       return sum
     }
   }
