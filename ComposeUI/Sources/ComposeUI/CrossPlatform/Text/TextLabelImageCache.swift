@@ -186,6 +186,13 @@ final class TextLabelImageCache {
   /// The drawings that labels haven't taken yet, by their keys.
   private var entries: [Key: Entry] = [:]
 
+  /// The entries' keys by their sequence numbers, which eviction goes through from the oldest, instead of looking for
+  /// the oldest among all the entries.
+  private var keysBySequence: [Int: Key] = [:]
+
+  /// The sequence number that eviction looks at first, which no entry is older than.
+  private var oldestSequence = 0
+
   /// The bytes that the entries' images take at most.
   private var bytes = 0
 
@@ -218,6 +225,7 @@ final class TextLabelImageCache {
 
       let drawing = Drawing()
       entries[key] = Entry(drawing: drawing, bytes: entryBytes, sequence: nextSequence, requestCount: 1)
+      keysBySequence[nextSequence] = key
       nextSequence += 1
       bytes += entryBytes
       evictIfNeeded()
@@ -247,6 +255,7 @@ final class TextLabelImageCache {
       return result
     } else {
       let entry = entries.remove(at: index).value
+      keysBySequence.removeValue(forKey: entry.sequence)
       bytes -= entry.bytes
       return entry.drawing.takeResultOrCancel()
     }
@@ -258,15 +267,20 @@ final class TextLabelImageCache {
       entry.drawing.cancel()
     }
     entries.removeAll()
+    keysBySequence.removeAll()
     bytes = 0
   }
 
   /// Evicts the entries requested first, until the entries' images fit `maximumBytes`.
   private func evictIfNeeded() {
-    while bytes > maximumBytes, let oldest = entries.min(by: { $0.value.sequence < $1.value.sequence }) {
-      entries.removeValue(forKey: oldest.key)
-      bytes -= oldest.value.bytes
-      oldest.value.drawing.cancel()
+    while bytes > maximumBytes, oldestSequence < nextSequence {
+      // a sequence number without a key is of an entry that labels took
+      let key = keysBySequence.removeValue(forKey: oldestSequence)
+      oldestSequence += 1
+      if let key, let entry = entries.removeValue(forKey: key) {
+        bytes -= entry.bytes
+        entry.drawing.cancel()
+      }
     }
   }
 
@@ -594,6 +608,11 @@ final class TextLabelImageCache {
     /// The bytes that the entries' images take at most.
     var bytes: Int {
       host.bytes
+    }
+
+    /// The number of keys that eviction goes through.
+    var evictionKeyCount: Int {
+      host.keysBySequence.count
     }
 
     /// Whether the drawing of a key is pending, which `nil` means there's no drawing for.
