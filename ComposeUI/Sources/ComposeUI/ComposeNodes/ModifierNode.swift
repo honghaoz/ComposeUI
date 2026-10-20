@@ -37,35 +37,53 @@ import UIKit
 #endif
 
 /// A node that applies a modifier to a child node.
-///
-/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
-/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
 @usableFromInline
 struct ModifierNode: ComposeNode {
 
-  private var node: ComposeNode
+  @usableFromInline
+  var node: ComposeNode
 
-  private let willInsert: ((Renderable, RenderableInsertContext) -> Void)?
-  private let didInsert: ((Renderable, RenderableInsertContext) -> Void)?
-  private let willUpdate: ((Renderable, RenderableUpdateContext) -> Void)?
+  @usableFromInline
+  let willInsert: ((Renderable, RenderableInsertContext) -> Void)?
+
+  @usableFromInline
+  let didInsert: ((Renderable, RenderableInsertContext) -> Void)?
+
+  @usableFromInline
+  let willUpdate: ((Renderable, RenderableUpdateContext) -> Void)?
 
   /// The update blocks, kept as a list instead of combined like the other blocks, so that an outer keyed block overrides
   /// an inner one, see `RenderableUpdateKey`.
-  private let updates: RenderableItem.AdditionalUpdates
+  @usableFromInline
+  let updates: RenderableItem.AdditionalUpdates
 
-  private let willRemove: ((Renderable, RenderableRemoveContext) -> Void)?
-  private let didRemove: ((Renderable, RenderableRemoveContext) -> Void)?
-  private let reuseId: String?
-  private let resetForReuse: ((Renderable) -> Void)?
-  private let transition: RenderableTransition?
-  private let animationTiming: AnimationTiming?
-  private let zIndex: CGFloat?
+  @usableFromInline
+  let willRemove: ((Renderable, RenderableRemoveContext) -> Void)?
+
+  @usableFromInline
+  let didRemove: ((Renderable, RenderableRemoveContext) -> Void)?
+
+  @usableFromInline
+  let reuseId: String?
+
+  @usableFromInline
+  let resetForReuse: ((Renderable) -> Void)?
+
+  @usableFromInline
+  let transition: RenderableTransition?
+
+  @usableFromInline
+  let animationTiming: AnimationTiming?
+
+  @usableFromInline
+  let zIndex: CGFloat?
 
   /// Whether the views of `reuseId` are reused in place. It's declared last, where it fits in the padding after
   /// `zIndex`, instead of making each node larger.
-  private let reusesInPlace: Bool
-
   @usableFromInline
+  let reusesInPlace: Bool
+
+  @inlinable
   init(node: some ComposeNode,
        willInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
        didInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
@@ -117,7 +135,8 @@ struct ModifierNode: ComposeNode {
     }
   }
 
-  private static func combineBlocks(_ first: ((Renderable) -> Void)?, _ second: ((Renderable) -> Void)?) -> ((Renderable) -> Void)? {
+  @inlinable
+  static func combineBlocks(_ first: ((Renderable) -> Void)?, _ second: ((Renderable) -> Void)?) -> ((Renderable) -> Void)? {
     switch (first, second) {
     case (nil, nil):
       return nil
@@ -133,14 +152,16 @@ struct ModifierNode: ComposeNode {
     }
   }
 
-  private static func combineUpdates(_ updates: RenderableItem.AdditionalUpdates, _ update: RenderableItem.AdditionalUpdate?) -> RenderableItem.AdditionalUpdates {
+  @inlinable
+  static func combineUpdates(_ updates: RenderableItem.AdditionalUpdates, _ update: RenderableItem.AdditionalUpdate?) -> RenderableItem.AdditionalUpdates {
     guard let update else {
       return updates
     }
     return updates.adding(update)
   }
 
-  private static func combineBlocks<T>(_ first: ((Renderable, T) -> Void)?, _ second: ((Renderable, T) -> Void)?) -> ((Renderable, T) -> Void)? {
+  @inlinable
+  static func combineBlocks<T>(_ first: ((Renderable, T) -> Void)?, _ second: ((Renderable, T) -> Void)?) -> ((Renderable, T) -> Void)? {
     switch (first, second) {
     case (nil, nil):
       return nil

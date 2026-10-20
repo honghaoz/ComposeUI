@@ -31,16 +31,16 @@
 import CoreGraphics
 
 /// A node that offsets the child node's
-///
-/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
-/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
 @usableFromInline
 struct OffsetNode<Node: ComposeNode>: ComposeNode {
 
-  private var node: Node
-  private let offset: CGPoint
+  @usableFromInline
+  var node: Node
 
   @usableFromInline
+  let offset: CGPoint
+
+  @inlinable
   init(node: Node, offset: CGPoint) {
     self.node = node
     self.offset = offset

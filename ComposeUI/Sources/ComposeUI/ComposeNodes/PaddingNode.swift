@@ -39,16 +39,16 @@ import UIKit
 import CoreGraphics
 
 /// A node that pads the child node.
-///
-/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
-/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
 @usableFromInline
 struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
-  private var node: Node
-  private let insets: EdgeInsets
+  @usableFromInline
+  var node: Node
 
   @usableFromInline
+  let insets: EdgeInsets
+
+  @inlinable
   init(node: Node, insets: EdgeInsets) {
     self.node = node
     self.insets = insets
