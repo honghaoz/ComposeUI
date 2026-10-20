@@ -31,6 +31,7 @@
 import CoreGraphics
 
 /// A node that offsets the child node's
+@frozen
 @usableFromInline
 struct OffsetNode<Node: ComposeNode>: ComposeNode {
 

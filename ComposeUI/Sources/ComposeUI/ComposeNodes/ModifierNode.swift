@@ -37,6 +37,7 @@ import UIKit
 #endif
 
 /// A node that applies a modifier to a child node.
+@frozen
 @usableFromInline
 struct ModifierNode: ComposeNode {
 

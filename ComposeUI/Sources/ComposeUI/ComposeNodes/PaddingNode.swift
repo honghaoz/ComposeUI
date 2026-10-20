@@ -39,6 +39,7 @@ import UIKit
 import CoreGraphics
 
 /// A node that pads the child node.
+@frozen
 @usableFromInline
 struct PaddingNode<Node: ComposeNode>: ComposeNode {
 

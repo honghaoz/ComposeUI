@@ -50,6 +50,7 @@ public enum FrameSize: Hashable {
 }
 
 /// A node that sets the frame of another node.
+@frozen
 @usableFromInline
 struct FrameNode<Node: ComposeNode>: ComposeNode {
 

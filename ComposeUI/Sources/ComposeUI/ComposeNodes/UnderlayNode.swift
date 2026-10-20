@@ -31,6 +31,7 @@
 import CoreGraphics
 
 /// A node that renders a node with an underlay node.
+@frozen
 @usableFromInline
 struct UnderlayNode<Node: ComposeNode>: ComposeNode {
 
