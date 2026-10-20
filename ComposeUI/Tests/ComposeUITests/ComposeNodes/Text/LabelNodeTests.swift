@@ -996,6 +996,27 @@ class LabelNodeTests: XCTestCase {
     expect(stillBoldTextFont) == semibold
     expect(offAgainFont) == regular
   }
+
+  func test_defaults_fontCache_offTheMainThread_makesTheFontWithoutKeepingIt() {
+    // given: a font cache, and a regular and a semibold font
+    let cache = LabelNode.Defaults.FontCache()
+    let regular = Font.systemFont(ofSize: 17, weight: .regular)
+    let semibold = Font.systemFont(ofSize: 17, weight: .semibold)
+
+    // when: getting the font off the main thread
+    var font: Font?
+    let didGet = expectation(description: "got the font off the main thread")
+    DispatchQueue.global().async {
+      expect(Thread.isMainThread) == false
+      font = cache.font(isBoldTextEnabled: false) { regular }
+      didGet.fulfill()
+    }
+    wait(for: [didGet], timeout: 5)
+
+    // then: it's the font made for the lookup, which the cache didn't keep for the main thread
+    expect(font) == regular
+    expect(cache.font(isBoldTextEnabled: false) { semibold }) == semibold
+  }
   #endif
 
   // MARK: - Helpers

@@ -174,26 +174,34 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
     private static let fontSize = Font.labelFontSize
     #endif
 
-    /// The default font made last.
+    /// The default font made last on the main thread.
     private static let fontCache = FontCache()
 
     /// A font kept with the Bold Text setting that it was made with, since the system font follows the setting.
+    ///
+    /// It keeps the font on the main thread, where a refresh makes its labels, and makes it for each lookup on another
+    /// thread, instead of taking a lock for each lookup.
     ///
     /// A class, so that the cache can be a static constant: a mutating lookup of a struct in a static variable is
     /// checked for exclusive access at run time, as the access lasts through the call to the block.
     final class FontCache {
 
-      /// The font made last, with the Bold Text setting that it was made with.
+      /// The font made last on the main thread, with the Bold Text setting that it was made with.
       private var lastFont: (font: Font, isBoldTextEnabled: Bool)?
 
-      /// Returns the font for a Bold Text setting, made again with a block when the setting differs from the one that
-      /// the last font was made with.
+      /// Returns the font for a Bold Text setting, made with a block when the setting differs from the one that the last
+      /// font was made with, and for each lookup off the main thread.
       ///
       /// - Parameters:
       ///   - isBoldTextEnabled: Whether Bold Text is on.
       ///   - make: The block that makes the font.
       /// - Returns: The font.
       func font(isBoldTextEnabled: Bool, make: () -> Font) -> Font {
+        // `pthread_main_np()` instead of `Thread.isMainThread`, which sends an Objective-C message, since this runs for
+        // each label
+        guard pthread_main_np() != 0 else {
+          return make()
+        }
         if let lastFont, lastFont.isBoldTextEnabled == isBoldTextEnabled {
           return lastFont.font
         } else {
