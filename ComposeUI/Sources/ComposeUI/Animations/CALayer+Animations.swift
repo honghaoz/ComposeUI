@@ -432,32 +432,47 @@ struct KeyPathAnimationSequence: Sequence, IteratorProtocol {
   private let layer: CALayer
   private let keyPath: String
   private let keys: AnimationKeys
-  private var index = 0
+  private var index: Int
 
   /// The first animation, found when the sequence is created, which `next()` returns first.
-  private var first: (key: String, animation: KeyPathAnimation)?
+  private let first: (key: String, animation: KeyPathAnimation)
+
+  /// Whether `next()` returned `first`.
+  private var hasReturnedFirst: Bool
 
   /// Creates the sequence, or returns `nil` when no animation changes the key path.
   fileprivate init?(layer: CALayer, keyPath: String, keys: AnimationKeys) {
+    // the first animation is found before the properties are set, which a lookup through the sequence would need, and
+    // each property is set once, without a default value, since setting one again, or a default value in a failable
+    // initializer, makes the compiler copy the sequence when the initializer returns
+    var index = 0
+    guard let first = Self.nextAnimation(of: layer, keyPath: keyPath, keys: keys, index: &index) else {
+      return nil
+    }
     self.layer = layer
     self.keyPath = keyPath
     self.keys = keys
-    guard let first = lookUpNext() else {
-      return nil
-    }
+    self.index = index
     self.first = first
+    hasReturnedFirst = false
   }
 
   mutating func next() -> (key: String, animation: KeyPathAnimation)? {
-    if let first {
-      self.first = nil
+    if hasReturnedFirst {
+      return Self.nextAnimation(of: layer, keyPath: keyPath, keys: keys, index: &index)
+    } else {
+      hasReturnedFirst = true
       return first
     }
-    return lookUpNext()
   }
 
-  /// Looks up the next animation that changes the key path, after the keys looked up so far.
-  private mutating func lookUpNext() -> (key: String, animation: KeyPathAnimation)? {
+  /// Returns the next animation of the layer that changes the key path, from the key at the index, and moves the index
+  /// past the keys that it looks up.
+  private static func nextAnimation(of layer: CALayer,
+                                    keyPath: String,
+                                    keys: AnimationKeys,
+                                    index: inout Int) -> (key: String, animation: KeyPathAnimation)?
+  {
     while index < keys.endIndex {
       let key = keys[index]
       index += 1
