@@ -1024,6 +1024,50 @@ class LabelNodeTests: XCTestCase {
     expect(didReadTheSetting) == false
     expect(cache.font(isBoldTextEnabled: false) { semibold }) == semibold
   }
+
+  func test_defaults_font_readsTheBoldTextSettingOncePerContent() {
+    // given: a view of three labels without a font
+    let view = ComposeView {
+      LabelNode("A")
+      LabelNode("B")
+      LabelNode("C")
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+
+    // when: refreshing the view
+    var counts = WorkCounter.counting {
+      view.refresh(animated: false)
+    }
+
+    // then: the labels share one read of the Bold Text setting
+    expect(counts.boldTextSettingReads) == 1
+
+    // when: refreshing the view again
+    counts = WorkCounter.counting {
+      view.refresh(animated: false)
+    }
+
+    // then: the new content reads the setting again
+    expect(counts.boldTextSettingReads) == 1
+  }
+
+  func test_defaults_font_labelsWithTheirOwnFont_readNothing() {
+    // given: a view of labels that set their font
+    let font = Font.systemFont(ofSize: 15)
+    let view = ComposeView {
+      LabelNode("A").font(font)
+      LabelNode("B").font(font)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+
+    // when: refreshing the view
+    let counts = WorkCounter.counting {
+      view.refresh(animated: false)
+    }
+
+    // then: the content doesn't read the Bold Text setting, which none of its labels needs
+    expect(counts.boldTextSettingReads) == 0
+  }
   #endif
 
   // MARK: - Helpers

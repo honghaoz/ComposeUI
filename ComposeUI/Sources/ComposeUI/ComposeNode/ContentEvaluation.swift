@@ -28,6 +28,10 @@
 //  IN THE SOFTWARE.
 //
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 // TODO: can expose this as a public API so third-party node with closure-built content defer the content evaluation
 // until the node is laid out, and share the same content evaluation in layouts and rendering.
 
@@ -72,6 +76,12 @@ final class ContentEvaluation {
   /// The map of the lazy values by the provider's identifier.
   private var values: [ObjectIdentifier: AnyObject] = [:]
 
+  #if canImport(UIKit)
+  /// Whether Bold Text is on, read when the content first needs it and kept for the evaluation, so that the nodes of
+  /// one content, such as its labels without a font of their own, share one read and agree.
+  private(set) lazy var isBoldTextEnabled = Self.readIsBoldTextEnabled()
+  #endif
+
   init() {}
 
   /// Returns the lazy value for the provider's content.
@@ -88,4 +98,14 @@ final class ContentEvaluation {
       return value
     }
   }
+
+  #if canImport(UIKit)
+  /// Returns whether Bold Text is on.
+  private static func readIsBoldTextEnabled() -> Bool {
+    #if DEBUG
+    WorkCounter.count(.boldTextSettingRead)
+    #endif
+    return UIAccessibility.isBoldTextEnabled
+  }
+  #endif
 }

@@ -48,7 +48,9 @@ public typealias Label = LabelNode
 public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
   private let text: String
-  private var font: Font
+
+  /// The font that the app sets, or `nil` for the default font, which the label takes when it lays out.
+  private var font: Font?
 
   private var textColor: ThemedColor
   private var textBackgroundColor: ThemedColor?
@@ -71,11 +73,10 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
   public init(_ text: String) {
     self.text = text
 
-    font = Defaults.font
     textColor = Defaults.textColor
 
-    // `textBackgroundColor` and `textShadow` start as `nil`, and assigning them again would make the compiler copy
-    // the node when the initializer returns
+    // `font`, `textBackgroundColor` and `textShadow` start as `nil`, and assigning them again would make the compiler
+    // copy the node when the initializer returns
 
     textAlignment = .center
     numberOfLines = 1
@@ -101,6 +102,10 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     if node == nil {
+      // the default font is taken here, with the content's one read of the Bold Text setting, instead of in the
+      // initializer, where each label would read the setting
+      let font = font ?? Defaults.font(in: context)
+
       // the text node is made in place, since one made in a local variable and then stored is copied
       if numberOfLines == 1 {
         node = TextNode.singleLineText(
@@ -149,17 +154,30 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
   enum Defaults {
 
     #if canImport(AppKit)
-    static let font = Font.systemFont(ofSize: NSFont.systemFontSize)
+    /// Returns the system font of a label's size.
+    ///
+    /// - Parameter context: The layout context of the label.
+    /// - Returns: The font.
+    static func font(in context: ComposeNodeLayoutContext) -> Font {
+      systemFont
+    }
 
     static let textColor = ThemedColor(light: .labelColor, dark: .labelColor)
+
+    /// The system font of a label's size.
+    private static let systemFont = Font.systemFont(ofSize: NSFont.systemFontSize)
     #endif
 
     #if canImport(UIKit)
     static let textColor = ThemedColor(light: .label, dark: .label)
 
-    /// The system font of a label's size, which is semibold while Bold Text is on.
-    static var font: Font {
-      fontCache.font(isBoldTextEnabled: UIAccessibility.isBoldTextEnabled) {
+    /// Returns the system font of a label's size, which is semibold while Bold Text is on.
+    ///
+    /// - Parameter context: The layout context of the label, whose content evaluation reads the Bold Text setting once
+    ///   for the content.
+    /// - Returns: The font.
+    static func font(in context: ComposeNodeLayoutContext) -> Font {
+      fontCache.font(isBoldTextEnabled: context.contentEvaluation.isBoldTextEnabled) {
         Font.systemFont(ofSize: fontSize)
       }
     }
@@ -177,8 +195,8 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
     /// A font kept with the Bold Text setting that it was made with, since the system font follows the setting.
     ///
-    /// It keeps the font on the main thread, where a refresh makes its labels, and makes it for each lookup on another
-    /// thread, instead of taking a lock for each lookup.
+    /// It keeps the font on the main thread, where labels lay out, and makes it for each lookup on another thread,
+    /// instead of taking a lock for each lookup.
     ///
     /// A class, so that the cache can be a static constant: a mutating lookup of a struct in a static variable is
     /// checked for exclusive access at run time, as the access lasts through the call to the block.

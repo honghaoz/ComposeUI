@@ -70,7 +70,7 @@
 - On macOS, refreshing and scrolling text is faster: `BaseTextView` fits its text container when its size or inset changes, instead of laying itself out after each change of its text, number of lines or line break mode, and `TextNode` sets only the text view settings that changed.
 - Building content with `@ComposeContentBuilder` is faster.
 - Refreshing labels is faster: a label reuses the attributed string made for the same text and text settings in an earlier refresh, with the size of its single line.
-- Refreshing labels is faster on iOS, tvOS and visionOS: a label without a font of its own takes the system font made for the current Bold Text setting, instead of making it again for each label.
+- Refreshing labels is faster on iOS, tvOS and visionOS: a label without a font of its own takes the system font made for the Bold Text setting, which a view reads once for each refresh, instead of reading the setting and making the font for each label.
 - Building content with modifiers is faster: the modifiers that return `some ComposeNode` are inlinable, so an app's module knows the types of the nodes they return, instead of looking up each node's conformance to `ComposeNode` at run time.
 - Building and refreshing labels is faster, as is building text, view and layer nodes: their initializers no longer copy the node, and a label makes its text node in place when it lays out, instead of copying it.
 - Styling labels, text nodes and spacers, and setting a node's id or fixed size, is faster: methods such as `font(_:)`, `numberOfLines(_:)` and `fixedSize(width:height:)` consume the node that they're called on and return it changed, instead of copying it.
