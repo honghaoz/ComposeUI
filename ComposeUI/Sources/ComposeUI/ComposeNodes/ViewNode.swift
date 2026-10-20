@@ -166,6 +166,9 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     self.didRemove = didRemove
     self.isFixedWidth = false
     self.isFixedHeight = false
+    // set here instead of as the default value of `id`, which the initializer that takes a view would assign again,
+    // making the compiler copy the node when the initializer returns
+    id = .standard(.view)
   }
 
   /// Makes a view with its frame set to the context's initial frame, the default `make`.
@@ -214,7 +217,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .standard(.view)
+  public var id: ComposeNodeId
 
   public private(set) var size: CGSize = .zero
 
