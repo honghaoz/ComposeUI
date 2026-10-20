@@ -42,6 +42,54 @@ class ComposeNodeIdTests: XCTestCase {
     expect(id.id) == "C"
   }
 
+  func test_standard_allCases() {
+    // when: making the standard id of each case
+    let ids = StandardComposeNodeId.allCases.map { ComposeNodeId.standard($0) }
+
+    // then: each id has its case's string
+    expect(ids.map(\.id)) == ["E", "C", "TL", "TV", "B", "V", "L", "SUI", "G", "DS", "IS", "S", "F", "P", "O", "OV", "UL", "VS", "HS", "ZS", "CV"]
+  }
+
+  func test_standard_joinedHashMatchesDirectId() {
+    for standardId in StandardComposeNodeId.allCases {
+      // given: a standard id joined with a child, which hashes on from the standard id's hash
+      let joinedId = ComposeNodeId.standard(standardId).join(with: .custom("child"))
+
+      // when: making a custom id of the joined string
+      let directId = ComposeNodeId.custom(joinedId.id)
+
+      // then: the ids are equal and hash the same
+      expect(joinedId) == directId
+      expect(joinedId.hashValue) == directId.hashValue
+    }
+  }
+
+  func test_custom_standardIdString() {
+    // given: an assertion handler that records the messages
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: making a custom id with a standard id's string
+    let id = ComposeNodeId.custom("TL")
+
+    // then: it asserts, and the id gets a unique string instead
+    expect(assertionMessages) == ["[ComposeUI] Custom id conflict with standard id: TL, please use a unique id."]
+    expect(id.id.hasPrefix("TL-")) == true
+    expect(id) != ComposeNodeId.standard(.label)
+
+    // when: making a custom id with a string that no standard id has
+    let otherId = ComposeNodeId.custom("T")
+
+    // then: it doesn't assert, and the id keeps its string
+    expect(assertionMessages.count) == 1
+    expect(otherId.id) == "T"
+  }
+
   func test_identity_ignoresIsFixed() {
     // given: two custom ids with the same string but different isFixed flags
     let nonFixed = ComposeNodeId.custom("x", isFixed: false)

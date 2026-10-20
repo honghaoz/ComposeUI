@@ -160,6 +160,7 @@ Hard-won rules from past corrections, grouped by theme.
 - Resetting a reused object's setting to its default, when the next user always sets its own value, pays for the change twice. When a setting is expensive to change, such as a UIKit text view's selectability, which rebuilds its interactions, pool the objects by that setting and keep it through the reset, as `TextNode` does with its text views' reuse identifiers.
 - Before skipping work for an unchanged input, list everything the skipped code does, not only what it's for. Work that looks redundant can carry side effects that other changes rely on, such as a scheduled layout that also applies a new inset. Measure each part, skip only the part that is both redundant and costly, keep the rest, and test each kept side effect.
 - Before attributing a measured difference to a factor, vary that factor alone and repeat. A cost that changes from run to run for another reason can make a few runs agree by chance, such as an instruction count that two comparisons of one build agreed on, which actually varied between the test processes of any build.
+- A string literal needs no retain, but a string copied out of memory, such as from a table, takes a call to `swift_bridgeObjectRetain`, even a small string that holds no object, since the compiler can't tell what it holds. To compute part of a value once, keep its literals and put only the computed part in the table, as `ComposeNodeId.standard(_:)` does with the hashes of its id strings.
 
 ## CI
 
