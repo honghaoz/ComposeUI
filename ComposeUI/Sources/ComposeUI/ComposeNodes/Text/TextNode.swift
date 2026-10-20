@@ -268,7 +268,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
                              lineBreakMode: NSLineBreakMode = .byTruncatingTail,
                              isSelectable: Bool = true) -> Self
   {
-    let key = SimpleTextCache.Key(
+    let settings = SimpleTextCache.Settings(
       text: string,
       font: font,
       textColor: foregroundColor,
@@ -276,7 +276,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       textShadow: shadow,
       textAlignment: textAlignment
     )
-    var node = TextNode(SimpleTextCache.attributedString(for: key))
+    var node = TextNode(SimpleTextCache.attributedString(for: settings))
 
     node.numberOfLines = 1
     node.lineBreakMode = lineBreakMode
@@ -313,7 +313,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
                             lineBreakMode: NSLineBreakMode = .byTruncatingTail,
                             isSelectable: Bool = true) -> Self
   {
-    let key = SimpleTextCache.Key(
+    let settings = SimpleTextCache.Settings(
       text: string,
       font: font,
       textColor: foregroundColor,
@@ -321,7 +321,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       textShadow: shadow,
       textAlignment: textAlignment
     )
-    var node = TextNode(SimpleTextCache.attributedString(for: key))
+    var node = TextNode(SimpleTextCache.attributedString(for: settings))
 
     node.numberOfLines = numberOfLines
     node.lineBreakMode = lineBreakMode

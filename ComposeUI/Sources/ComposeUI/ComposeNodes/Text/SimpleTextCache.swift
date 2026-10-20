@@ -37,7 +37,7 @@ import UIKit
 #endif
 
 /// The attributed strings of simple text that `TextNode.singleLineText` and `TextNode.multiLineText` make, kept across
-/// refreshes and keyed by the settings that make them.
+/// refreshes and found by the settings that make them.
 ///
 /// The cache keeps two generations of strings, each of up to `generationLimit` strings and `generationByteLimit` bytes of
 /// text, and empties itself when the system is low on memory.
@@ -46,7 +46,7 @@ import UIKit
 enum SimpleTextCache {
 
   /// The settings that make the attributed string of simple text.
-  struct Key: Hashable {
+  struct Settings {
 
     let text: String
     let font: Font
@@ -55,14 +55,33 @@ enum SimpleTextCache {
     let textShadow: Themed<NSShadow>?
     let textAlignment: NSTextAlignment
 
+    /// Returns the settings with copies of their shadows, which no caller can change.
+    func copyingShadows() -> Settings {
+      guard let textShadow else {
+        return self
+      }
+      return Settings(
+        text: text,
+        font: font,
+        textColor: textColor,
+        textBackgroundColor: textBackgroundColor,
+        textShadow: Themed(
+          light: textShadow.light.copy() as! NSShadow, // swiftlint:disable:this force_cast
+          dark: textShadow.dark.copy() as! NSShadow // swiftlint:disable:this force_cast
+        ),
+        textAlignment: textAlignment
+      )
+    }
+  }
+
+  /// A text and its alignment, which key the strings.
+  struct Key: Hashable {
+
+    let text: String
+    let textAlignment: NSTextAlignment
+
     static func == (lhs: Key, rhs: Key) -> Bool {
-      // the objects come last, since each compares through Objective-C
-      lhs.textAlignment == rhs.textAlignment
-        && hasSameCodeUnits(lhs.text, rhs.text)
-        && lhs.font == rhs.font
-        && lhs.textColor == rhs.textColor
-        && lhs.textBackgroundColor == rhs.textBackgroundColor
-        && lhs.textShadow == rhs.textShadow
+      lhs.textAlignment == rhs.textAlignment && hasSameCodeUnits(lhs.text, rhs.text)
     }
 
     func hash(into hasher: inout Hasher) {
@@ -80,8 +99,6 @@ enum SimpleTextCache {
       }
       // 0xFF never occurs in UTF-8, so it ends the text unambiguously
       hasher.combine(UInt8(0xFF))
-      // the font and the colors are left to `==`, since the labels of a view mostly share them, and hashing them calls
-      // into each object
       hasher.combine(textAlignment)
     }
 
@@ -111,23 +128,64 @@ enum SimpleTextCache {
         return lhsCodeUnits.elementsEqual(rhsCodeUnits)
       }
     }
+  }
 
-    /// Returns the key with copies of its shadows, which no caller can change.
-    func copyingShadows() -> Key {
-      guard let textShadow else {
-        return self
+  /// A string with its settings other than the text and the alignment, and the next entry of the same key.
+  private final class Entry {
+
+    let font: Font
+    let textColor: ThemedColor
+    let textBackgroundColor: ThemedColor?
+    let textShadow: Themed<NSShadow>?
+    let string: NSAttributedString
+    var next: Entry?
+
+    init(settings: Settings, string: NSAttributedString) {
+      font = settings.font
+      textColor = settings.textColor
+      textBackgroundColor = settings.textBackgroundColor
+      textShadow = settings.textShadow
+      self.string = string
+    }
+
+    /// Returns the entry of the settings in the list from this entry, if any.
+    func entry(of settings: Settings) -> Entry? {
+      var entry: Entry? = self
+      while let candidate = entry {
+        if candidate.hasSettings(settings) {
+          return candidate
+        }
+        entry = candidate.next
       }
-      return Key(
-        text: text,
-        font: font,
-        textColor: textColor,
-        textBackgroundColor: textBackgroundColor,
-        textShadow: Themed(
-          light: textShadow.light.copy() as! NSShadow, // swiftlint:disable:this force_cast
-          dark: textShadow.dark.copy() as! NSShadow // swiftlint:disable:this force_cast
-        ),
-        textAlignment: textAlignment
-      )
+      return nil
+    }
+
+    private func hasSettings(_ settings: Settings) -> Bool {
+      Self.isSame(font, settings.font)
+        && Self.isSame(textColor, settings.textColor)
+        && Self.isSame(textBackgroundColor, settings.textBackgroundColor)
+        && textShadow == settings.textShadow
+    }
+
+    private static func isSame(_ lhs: NSObject, _ rhs: NSObject) -> Bool {
+      // by identity first, since a view's labels mostly share the objects, and comparing them calls into each object
+      lhs === rhs || lhs.isEqual(rhs)
+    }
+
+    private static func isSame(_ lhs: ThemedColor, _ rhs: ThemedColor) -> Bool {
+      isSame(lhs.light, rhs.light) && isSame(lhs.dark, rhs.dark)
+    }
+
+    private static func isSame(_ lhs: ThemedColor?, _ rhs: ThemedColor?) -> Bool {
+      switch (lhs, rhs) {
+      case (nil, nil):
+        return true
+      case (let lhs?, let rhs?):
+        return isSame(lhs, rhs)
+      case (nil, .some),
+           (.some, nil):
+        return false
+      }
     }
   }
 
@@ -137,31 +195,44 @@ enum SimpleTextCache {
   /// The most text, in UTF-8 bytes, that one generation holds.
   static let generationByteLimit = 256 * 1024
 
-  /// The strings looked up since the generations last rotated.
-  private static var current: [Key: NSAttributedString] = [:]
+  /// The strings looked up since the generations last rotated, with the strings of other settings of each key in the
+  /// list of its entries.
+  private static var current: [Key: Entry] = [:]
+
+  /// The number of strings in `current`.
+  private static var currentCount = 0
 
   /// The UTF-8 bytes of the text in `current`.
   private static var currentByteCount = 0
 
   /// The strings of the generation before, which a lookup moves back to `current`.
-  private static var previous: [Key: NSAttributedString] = [:]
+  private static var previous: [Key: Entry] = [:]
 
   /// Whether the cache empties itself when the system is low on memory.
   private static var isHandlingMemoryWarnings = false
 
   /// Returns the attributed string for the settings, made once and then reused.
   ///
-  /// - Parameter key: The settings that make the string.
+  /// - Parameter settings: The settings that make the string.
   /// - Returns: The attributed string.
-  static func attributedString(for key: Key) -> NSAttributedString {
-    if let string = current[key] {
-      return string
+  static func attributedString(for settings: Settings) -> NSAttributedString {
+    // the key leaves the font, the colors and the shadow to the strings' entries, since a dictionary lookup retains
+    // the objects of each key that it compares with, while an entry compares them in place
+    let key = Key(text: settings.text, textAlignment: settings.textAlignment)
+    if let entry = current[key]?.entry(of: settings) {
+      return entry.string
+    } else {
+      return moveOrMakeString(for: settings, key: key)
     }
+  }
 
-    let byteCount = key.text.utf8.count
-    if byteCount > generationByteLimit {
+  /// Returns the string of settings that `current` doesn't have, moved from `previous` or made, and keeps it in
+  /// `current`.
+  private static func moveOrMakeString(for settings: Settings, key: Key) -> NSAttributedString {
+    let byteCount = settings.text.utf8.count
+    guard byteCount <= generationByteLimit else {
       // a text over the byte limit isn't kept, so the limit bounds each generation however long one text is
-      return makeString(for: key)
+      return makeString(for: settings)
     }
 
     if !isHandlingMemoryWarnings {
@@ -169,41 +240,55 @@ enum SimpleTextCache {
       MemoryWarning.addHandler(removeAll)
     }
 
-    let storedKey: Key
-    let string: NSAttributedString
-    if let index = previous.index(forKey: key) {
-      let entry = previous.remove(at: index)
-      storedKey = entry.key
-      string = entry.value
+    let entry: Entry
+    if let head = previous[key], let found = head.entry(of: settings) {
+      removeFromPrevious(found, head: head, key: key)
+      entry = found
     } else {
-      // the stored key holds copies of the shadows, since `NSShadow` is mutable, and a caller's change to a shadow
-      // would otherwise change the key in place, which a dictionary doesn't allow, and the string made of it
-      storedKey = key.copyingShadows()
-      string = makeString(for: storedKey)
+      // the entry holds copies of the shadows, since `NSShadow` is mutable, and a caller's change to a shadow would
+      // otherwise change the entry's settings, and the string made of them
+      let storedSettings = settings.copyingShadows()
+      entry = Entry(settings: storedSettings, string: makeString(for: storedSettings))
     }
 
-    if current.count >= generationLimit || currentByteCount + byteCount > generationByteLimit {
+    if currentCount >= generationLimit || currentByteCount + byteCount > generationByteLimit {
       // two generations keep the strings used since the generation before, where one dictionary emptied when full
       // would drop the strings that a refresh is about to make again. the byte limit bounds long texts' memory, which
       // the count limit alone doesn't
       previous = current
       current.removeAll(keepingCapacity: true)
+      currentCount = 0
       currentByteCount = 0
     }
-    current[storedKey] = string
+    entry.next = current[key]
+    current[key] = entry
+    currentCount += 1
     currentByteCount += byteCount
-    return string
+    return entry.string
+  }
+
+  /// Removes an entry from the list of its key in `previous`, which starts with the head.
+  private static func removeFromPrevious(_ entry: Entry, head: Entry, key: Key) {
+    if head === entry {
+      previous[key] = entry.next
+    } else {
+      var node = head
+      while let next = node.next, next !== entry {
+        node = next
+      }
+      node.next = entry.next
+    }
   }
 
   /// Returns a new attributed string made of the settings.
-  private static func makeString(for key: Key) -> NSAttributedString {
+  private static func makeString(for settings: Settings) -> NSAttributedString {
     TextNode.attributedString(
-      key.text,
-      font: key.font,
-      foregroundColor: key.textColor,
-      backgroundColor: key.textBackgroundColor,
-      shadow: key.textShadow,
-      textAlignment: key.textAlignment,
+      settings.text,
+      font: settings.font,
+      foregroundColor: settings.textColor,
+      backgroundColor: settings.textBackgroundColor,
+      shadow: settings.textShadow,
+      textAlignment: settings.textAlignment,
       lineBreakMode: .byWordWrapping
     )
   }
@@ -211,6 +296,7 @@ enum SimpleTextCache {
   /// Removes all strings.
   static func removeAll() {
     current = [:]
+    currentCount = 0
     currentByteCount = 0
     previous = [:]
   }

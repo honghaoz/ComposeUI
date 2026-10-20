@@ -54,22 +54,25 @@ class SimpleTextCacheTests: XCTestCase {
 
   func test_attributedString_makesTheTextOfTheSettings() {
     // given: settings with every attribute
-    let key = Self.key(textBackgroundColor: ThemedColor(.green), textShadow: Self.shadow)
+    let settings = Self.settings(textBackgroundColor: ThemedColor(.green), textShadow: Self.shadow)
 
     // when: looking up the string
-    let string = SimpleTextCache.attributedString(for: key)
+    let string = SimpleTextCache.attributedString(for: settings)
 
     // then: it's the string a text node makes of the settings, with a word-wrapping paragraph style
-    expect(string.isEqual(to: Self.expectedString(for: key))) == true
+    expect(string.isEqual(to: Self.expectedString(for: settings))) == true
     expect((string.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.lineBreakMode) == .byWordWrapping
   }
 
   func test_attributedString_sameSettings_reusesTheString() {
-    // given: the string of some settings
-    let string = SimpleTextCache.attributedString(for: Self.key())
+    // given: the string of some settings, and equal settings made separately, with color and shadow objects of their own
+    let settings = Self.equalSettings()
+    let string = SimpleTextCache.attributedString(for: settings)
+    let equalSettings = Self.equalSettings()
+    expect(equalSettings.textColor.light) !== settings.textColor.light
 
-    // when: looking up the string of equal settings, made separately
-    let again = SimpleTextCache.attributedString(for: Self.key())
+    // when: looking up the string of the equal settings
+    let again = SimpleTextCache.attributedString(for: equalSettings)
 
     // then: it's the same string
     expect(again) === string
@@ -77,14 +80,14 @@ class SimpleTextCacheTests: XCTestCase {
 
   func test_attributedString_eachSetting_makesItsOwnString() {
     // given: the string of some settings, and settings that each differ from them in one setting
-    let base = SimpleTextCache.attributedString(for: Self.key())
+    let base = SimpleTextCache.attributedString(for: Self.settings())
     let variants = [
-      Self.key(text: "Other"),
-      Self.key(font: .systemFont(ofSize: 20)),
-      Self.key(textColor: ThemedColor(.blue)),
-      Self.key(textBackgroundColor: ThemedColor(.green)),
-      Self.key(textShadow: Self.shadow),
-      Self.key(textAlignment: .right),
+      Self.settings(text: "Other"),
+      Self.settings(font: .systemFont(ofSize: 20)),
+      Self.settings(textColor: ThemedColor(.blue)),
+      Self.settings(textBackgroundColor: ThemedColor(.green)),
+      Self.settings(textShadow: Self.shadow),
+      Self.settings(textAlignment: .right),
     ]
 
     for variant in variants {
@@ -104,8 +107,8 @@ class SimpleTextCacheTests: XCTestCase {
     expect(precomposed == decomposed) == true
 
     // when: looking up the strings of the two texts
-    let precomposedString = SimpleTextCache.attributedString(for: Self.key(text: precomposed))
-    let decomposedString = SimpleTextCache.attributedString(for: Self.key(text: decomposed))
+    let precomposedString = SimpleTextCache.attributedString(for: Self.settings(text: precomposed))
+    let decomposedString = SimpleTextCache.attributedString(for: Self.settings(text: decomposed))
 
     // then: each string has its own text's characters
     expect(Array(precomposedString.string.utf16)) == Array(precomposed.utf16)
@@ -165,40 +168,71 @@ class SimpleTextCacheTests: XCTestCase {
     expect(Self.key(text: "").hashValue) == Self.key(text: String()).hashValue
   }
 
-  func test_key_otherObjects_hashLikeTheKeyAndAreNotEqual() {
-    // given: a key, and keys that differ from it in the font, a color or the shadow
-    let key = Self.key()
-    let variants = [
-      Self.key(font: .systemFont(ofSize: 20)),
-      Self.key(textColor: ThemedColor(.blue)),
-      Self.key(textBackgroundColor: ThemedColor(.green)),
-      Self.key(textShadow: Self.shadow),
-    ]
+  func test_attributedString_sameTextOtherSettings_keepsTheStringOfEach() {
+    // given: the strings of a text in two fonts, which share a key
+    let first = SimpleTextCache.attributedString(for: Self.settings(font: .systemFont(ofSize: 12)))
+    let second = SimpleTextCache.attributedString(for: Self.settings(font: .systemFont(ofSize: 20)))
 
-    for variant in variants {
-      // then: each hashes like the key, since the hash leaves the objects to `==`, which tells them apart
-      expect(variant.hashValue) == key.hashValue
-      expect(variant) != key
+    // when: looking up both strings again
+    let firstAgain = SimpleTextCache.attributedString(for: Self.settings(font: .systemFont(ofSize: 12)))
+    let secondAgain = SimpleTextCache.attributedString(for: Self.settings(font: .systemFont(ofSize: 20)))
+
+    // then: each lookup finds its own string
+    expect(second) !== first
+    expect(firstAgain) === first
+    expect(secondAgain) === second
+  }
+
+  func test_attributedString_sameTextInTheGenerationBefore_movesBackEachStringLookedUp() {
+    // given: the strings of a text in four fonts, which a full generation of other strings moves to the generation
+    // before, where the string made last leads the list of the text's strings
+    let fonts = [12, 16, 20, 26].map { Font.systemFont(ofSize: CGFloat($0)) }
+    let strings = fonts.map { SimpleTextCache.attributedString(for: Self.settings(font: $0)) }
+    for index in 0 ..< SimpleTextCache.generationLimit {
+      _ = SimpleTextCache.attributedString(for: Self.settings(text: "\(index)"))
+    }
+
+    // when: looking up the string of the second font, the third in the list, then of the first font, the last in the
+    // list, then of the last font, which leads the list, then of the third font
+    let second = SimpleTextCache.attributedString(for: Self.settings(font: fonts[1]))
+    let first = SimpleTextCache.attributedString(for: Self.settings(font: fonts[0]))
+    let last = SimpleTextCache.attributedString(for: Self.settings(font: fonts[3]))
+    let third = SimpleTextCache.attributedString(for: Self.settings(font: fonts[2]))
+
+    // then: each lookup finds its string, since moving one string back leaves the others in the list
+    expect(second) === strings[1]
+    expect(first) === strings[0]
+    expect(last) === strings[3]
+    expect(third) === strings[2]
+
+    // when: filling another generation, which drops the generation before
+    for index in 0 ..< SimpleTextCache.generationLimit - fonts.count {
+      _ = SimpleTextCache.attributedString(for: Self.settings(text: "next\(index)"))
+    }
+
+    // then: the strings that moved back are kept
+    for (font, string) in zip(fonts, strings) {
+      expect(SimpleTextCache.attributedString(for: Self.settings(font: font))) === string
     }
   }
 
   func test_attributedString_pastTheGenerationLimit_keepsTheGenerationBefore() {
     // given: the strings of a full generation, and of one more text, which starts the next generation
-    let keys = (0 ... SimpleTextCache.generationLimit).map { Self.key(text: "\($0)") }
-    let strings = keys.map { SimpleTextCache.attributedString(for: $0) }
+    let allSettings = (0 ... SimpleTextCache.generationLimit).map { Self.settings(text: "\($0)") }
+    let strings = allSettings.map { SimpleTextCache.attributedString(for: $0) }
 
     // when: looking up the first string, which the full generation holds
-    let first = SimpleTextCache.attributedString(for: keys[0])
+    let first = SimpleTextCache.attributedString(for: allSettings[0])
 
     // then: it's the same string
     expect(first) === strings[0]
 
     // when: filling the next generation and starting a third one, which drops the full generation
     for index in 0 ..< SimpleTextCache.generationLimit - 1 {
-      _ = SimpleTextCache.attributedString(for: Self.key(text: "next\(index)"))
+      _ = SimpleTextCache.attributedString(for: Self.settings(text: "next\(index)"))
     }
-    let firstAgain = SimpleTextCache.attributedString(for: keys[0])
-    let second = SimpleTextCache.attributedString(for: keys[1])
+    let firstAgain = SimpleTextCache.attributedString(for: allSettings[0])
+    let second = SimpleTextCache.attributedString(for: allSettings[1])
 
     // then: the first string, which the lookup moved to the next generation, is kept, and the second string, which the
     // dropped generation held, is made again
@@ -210,19 +244,19 @@ class SimpleTextCacheTests: XCTestCase {
   func test_attributedString_pastTheByteLimit_keepsTheGenerationBefore() {
     // given: the strings of two texts that fill a generation's bytes, and of a third, which starts the next generation
     let half = String(repeating: "a", count: SimpleTextCache.generationByteLimit / 2 - 1)
-    let keys = (0 ..< 3).map { Self.key(text: "\(half)\($0)") }
-    let strings = keys.map { SimpleTextCache.attributedString(for: $0) }
+    let allSettings = (0 ..< 3).map { Self.settings(text: "\(half)\($0)") }
+    let strings = allSettings.map { SimpleTextCache.attributedString(for: $0) }
 
     // when: looking up the first string, which the full generation holds
-    let first = SimpleTextCache.attributedString(for: keys[0])
+    let first = SimpleTextCache.attributedString(for: allSettings[0])
 
     // then: it's the same string
     expect(first) === strings[0]
 
     // when: making one more string, which starts a third generation and drops the full one
-    _ = SimpleTextCache.attributedString(for: Self.key(text: "\(half)3"))
-    let firstAgain = SimpleTextCache.attributedString(for: keys[0])
-    let second = SimpleTextCache.attributedString(for: keys[1])
+    _ = SimpleTextCache.attributedString(for: Self.settings(text: "\(half)3"))
+    let firstAgain = SimpleTextCache.attributedString(for: allSettings[0])
+    let second = SimpleTextCache.attributedString(for: allSettings[1])
 
     // then: the first string, which the lookup moved to the next generation, is kept, and the second string, which the
     // dropped generation held, is made again
@@ -234,12 +268,12 @@ class SimpleTextCacheTests: XCTestCase {
     // given: the strings of three texts that pass a generation's bytes, which starts the next generation
     let half = String(repeating: "a", count: SimpleTextCache.generationByteLimit / 2 - 1)
     for index in 0 ..< 3 {
-      _ = SimpleTextCache.attributedString(for: Self.key(text: "\(half)\(index)"))
+      _ = SimpleTextCache.attributedString(for: Self.settings(text: "\(half)\(index)"))
     }
 
     // when: making the strings of a few short texts, and looking up the first one again
-    let strings = (0 ..< 3).map { SimpleTextCache.attributedString(for: Self.key(text: "short\($0)")) }
-    let first = SimpleTextCache.attributedString(for: Self.key(text: "short0"))
+    let strings = (0 ..< 3).map { SimpleTextCache.attributedString(for: Self.settings(text: "short\($0)")) }
+    let first = SimpleTextCache.attributedString(for: Self.settings(text: "short0"))
 
     // then: it's the same string, since the next generation counts only its own bytes, so the short texts all fit
     expect(first) === strings[0]
@@ -247,11 +281,11 @@ class SimpleTextCacheTests: XCTestCase {
 
   func test_attributedString_textOfTheByteLimit_isKept() {
     // given: a text of exactly the byte limit
-    let key = Self.key(text: String(repeating: "a", count: SimpleTextCache.generationByteLimit))
+    let settings = Self.settings(text: String(repeating: "a", count: SimpleTextCache.generationByteLimit))
 
     // when: looking up its string twice
-    let string = SimpleTextCache.attributedString(for: key)
-    let again = SimpleTextCache.attributedString(for: key)
+    let string = SimpleTextCache.attributedString(for: settings)
+    let again = SimpleTextCache.attributedString(for: settings)
 
     // then: it's the same string, since the text fits in a generation by itself
     expect(again) === string
@@ -260,16 +294,16 @@ class SimpleTextCacheTests: XCTestCase {
   func test_attributedString_textOverTheByteLimit_isNotKept() {
     // given: the strings of two texts that fill a generation's bytes, and a text over the byte limit
     let half = String(repeating: "a", count: SimpleTextCache.generationByteLimit / 2 - 1)
-    let first = SimpleTextCache.attributedString(for: Self.key(text: "\(half)0"))
-    _ = SimpleTextCache.attributedString(for: Self.key(text: "\(half)1"))
-    let long = Self.key(text: String(repeating: "b", count: SimpleTextCache.generationByteLimit + 1))
+    let first = SimpleTextCache.attributedString(for: Self.settings(text: "\(half)0"))
+    _ = SimpleTextCache.attributedString(for: Self.settings(text: "\(half)1"))
+    let long = Self.settings(text: String(repeating: "b", count: SimpleTextCache.generationByteLimit + 1))
 
     // when: looking up the long text's string twice, then making the string of a short text, which starts the next
     // generation, and looking up the first string again
     let longString = SimpleTextCache.attributedString(for: long)
     let longAgain = SimpleTextCache.attributedString(for: long)
-    _ = SimpleTextCache.attributedString(for: Self.key(text: "short"))
-    let firstAgain = SimpleTextCache.attributedString(for: Self.key(text: "\(half)0"))
+    _ = SimpleTextCache.attributedString(for: Self.settings(text: "short"))
+    let firstAgain = SimpleTextCache.attributedString(for: Self.settings(text: "\(half)0"))
 
     // then: the long text's string is made each time, without being kept or starting a generation, so the full
     // generation, with the first string, became the generation before
@@ -280,12 +314,12 @@ class SimpleTextCacheTests: XCTestCase {
   func test_attributedString_shadowChangedLater_keepsTheStringOfTheEarlierValues() {
     // given: the string of settings with a shadow, which the caller then changes
     let shadow = Self.makeShadow(height: 1)
-    let string = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(shadow)))
+    let string = SimpleTextCache.attributedString(for: Self.settings(textShadow: Themed(shadow)))
     shadow.shadowOffset = CGSize(width: 0, height: 2)
 
     // when: looking up the strings of the changed shadow, and of a new shadow with the earlier values
-    let changed = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(shadow)))
-    let again = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(Self.makeShadow(height: 1))))
+    let changed = SimpleTextCache.attributedString(for: Self.settings(textShadow: Themed(shadow)))
+    let again = SimpleTextCache.attributedString(for: Self.settings(textShadow: Themed(Self.makeShadow(height: 1))))
 
     // then: the changed shadow makes a string of its own values, and the earlier values still find the first string,
     // whose shadow kept them
@@ -298,17 +332,17 @@ class SimpleTextCacheTests: XCTestCase {
   func test_attributedString_shadowChangedAfterMovingBack_keepsTheString() {
     // given: the string of settings with a shadow, which a full generation of other strings moves to the generation
     // before
-    let string = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(Self.makeShadow(height: 1))))
+    let string = SimpleTextCache.attributedString(for: Self.settings(textShadow: Themed(Self.makeShadow(height: 1))))
     for index in 0 ..< SimpleTextCache.generationLimit {
-      _ = SimpleTextCache.attributedString(for: Self.key(text: "\(index)"))
+      _ = SimpleTextCache.attributedString(for: Self.settings(text: "\(index)"))
     }
 
     // when: looking up the string with a new shadow of the same values, which moves it back, then changing that shadow
     // and looking up the string with another new shadow of the same values
     let shadow = Self.makeShadow(height: 1)
-    let movedBack = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(shadow)))
+    let movedBack = SimpleTextCache.attributedString(for: Self.settings(textShadow: Themed(shadow)))
     shadow.shadowOffset = CGSize(width: 0, height: 2)
-    let again = SimpleTextCache.attributedString(for: Self.key(textShadow: Themed(Self.makeShadow(height: 1))))
+    let again = SimpleTextCache.attributedString(for: Self.settings(textShadow: Themed(Self.makeShadow(height: 1))))
 
     // then: both lookups find the string, since moving it back kept the key's own copy of the shadow
     expect(movedBack) === string
@@ -317,23 +351,43 @@ class SimpleTextCacheTests: XCTestCase {
 
   func test_memoryWarning_removesAllStrings() {
     // given: the string of some settings
-    let string = SimpleTextCache.attributedString(for: Self.key())
+    let string = SimpleTextCache.attributedString(for: Self.settings())
 
     // when: the system is low on memory, and looking up the string again
     MemoryWarning.handleMemoryWarning()
-    let again = SimpleTextCache.attributedString(for: Self.key())
+    let again = SimpleTextCache.attributedString(for: Self.settings())
 
     // then: the string is made again
     expect(again) !== string
   }
 
+  func test_removeAll_countsTheNextGenerationFromZero() {
+    // given: the string of a text, then of a text as long as a generation's bytes, which starts a generation of one
+    // string, and all strings removed
+    _ = SimpleTextCache.attributedString(for: Self.settings(text: "short"))
+    _ = SimpleTextCache.attributedString(for: Self.settings(text: String(repeating: "a", count: SimpleTextCache.generationByteLimit)))
+    SimpleTextCache.removeAll()
+
+    // when: making the string of a text, then the strings of twice as many texts as a generation holds, less one, and
+    // looking up the first string again
+    let first = SimpleTextCache.attributedString(for: Self.settings(text: "first"))
+    for index in 0 ..< 2 * SimpleTextCache.generationLimit - 1 {
+      _ = SimpleTextCache.attributedString(for: Self.settings(text: "\(index)"))
+    }
+    let again = SimpleTextCache.attributedString(for: Self.settings(text: "first"))
+
+    // then: it's the same string, since the generation that holds it counted from zero, so the other strings filled it
+    // and a second generation, which holds all but the last one, and the generation before still holds it
+    expect(again) === first
+  }
+
   func test_removeAll_makesTheStringsAgain() {
     // given: the string of some settings
-    let string = SimpleTextCache.attributedString(for: Self.key())
+    let string = SimpleTextCache.attributedString(for: Self.settings())
 
     // when: removing all strings, and looking up the string again
     SimpleTextCache.removeAll()
-    let again = SimpleTextCache.attributedString(for: Self.key())
+    let again = SimpleTextCache.attributedString(for: Self.settings())
 
     // then: the string is made again, with the same contents
     expect(again) !== string
@@ -348,14 +402,14 @@ class SimpleTextCacheTests: XCTestCase {
     return shadow
   }())
 
-  private static func key(text: String = "Text",
-                          font: Font = .systemFont(ofSize: 12),
-                          textColor: ThemedColor = ThemedColor(.red),
-                          textBackgroundColor: ThemedColor? = nil,
-                          textShadow: Themed<NSShadow>? = nil,
-                          textAlignment: NSTextAlignment = .center) -> SimpleTextCache.Key
+  private static func settings(text: String = "Text",
+                               font: Font = .systemFont(ofSize: 12),
+                               textColor: ThemedColor = ThemedColor(.red),
+                               textBackgroundColor: ThemedColor? = nil,
+                               textShadow: Themed<NSShadow>? = nil,
+                               textAlignment: NSTextAlignment = .center) -> SimpleTextCache.Settings
   {
-    SimpleTextCache.Key(
+    SimpleTextCache.Settings(
       text: text,
       font: font,
       textColor: textColor,
@@ -378,15 +432,30 @@ class SimpleTextCacheTests: XCTestCase {
   }
 
   /// Returns the string that a text node makes of the settings.
-  private static func expectedString(for key: SimpleTextCache.Key) -> NSAttributedString {
+  private static func expectedString(for settings: SimpleTextCache.Settings) -> NSAttributedString {
     TextNode.attributedString(
-      key.text,
-      font: key.font,
-      foregroundColor: key.textColor,
-      backgroundColor: key.textBackgroundColor,
-      shadow: key.textShadow,
-      textAlignment: key.textAlignment,
+      settings.text,
+      font: settings.font,
+      foregroundColor: settings.textColor,
+      backgroundColor: settings.textBackgroundColor,
+      shadow: settings.textShadow,
+      textAlignment: settings.textAlignment,
       lineBreakMode: .byWordWrapping
     )
+  }
+
+  /// Returns settings with every attribute, made of new color and shadow objects each time, of components that the
+  /// system doesn't keep a shared color of.
+  private static func equalSettings() -> SimpleTextCache.Settings {
+    settings(
+      textColor: ThemedColor(Color(red: 0.25, green: 0.5, blue: 0.75, alpha: 1)),
+      textBackgroundColor: ThemedColor(Color(red: 0.75, green: 0.5, blue: 0.25, alpha: 1)),
+      textShadow: Themed(makeShadow(height: 1))
+    )
+  }
+
+  /// Returns the key of a text and an alignment.
+  private static func key(text: String = "Text", textAlignment: NSTextAlignment = .center) -> SimpleTextCache.Key {
+    SimpleTextCache.Key(text: text, textAlignment: textAlignment)
   }
 }
