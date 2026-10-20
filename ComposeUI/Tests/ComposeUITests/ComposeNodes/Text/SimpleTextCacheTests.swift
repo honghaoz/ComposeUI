@@ -370,6 +370,50 @@ class SimpleTextCacheTests: XCTestCase {
     expect(afterClearing) == CGSize(width: 30, height: 40)
   }
 
+  func test_attributedString_droppedGeneration_releasesTheOtherStringsOfAKeptEntrysText() {
+    // given: the entries of a text in two fonts, the one made last kept outside the cache, as a text node keeps it, and
+    // a weak reference to the other's string
+    weak var otherString: NSAttributedString?
+    var kept: SimpleTextCache.Entry?
+    autoreleasepool {
+      otherString = SimpleTextCache.entry(for: Self.settings(font: .systemFont(ofSize: 12))).string
+      kept = SimpleTextCache.entry(for: Self.settings(font: .systemFont(ofSize: 20)))
+    }
+    expect(otherString) != nil
+
+    // when: filling two generations of other strings, which drop the generation that holds both entries
+    autoreleasepool {
+      for index in 0 ..< 2 * SimpleTextCache.generationLimit {
+        _ = SimpleTextCache.entry(for: Self.settings(text: "\(index)"))
+      }
+    }
+
+    // then: the other string is released, since the kept entry no longer links to its entry, and the kept entry still
+    // has its own string
+    expect(otherString) == nil
+    expect(kept?.string.string) == "Text"
+  }
+
+  func test_removeAll_releasesTheOtherStringsOfAKeptEntrysText() {
+    // given: the entries of a text in two fonts, the one made last kept outside the cache, as a text node keeps it, and
+    // a weak reference to the other's string
+    weak var otherString: NSAttributedString?
+    var kept: SimpleTextCache.Entry?
+    autoreleasepool {
+      otherString = SimpleTextCache.entry(for: Self.settings(font: .systemFont(ofSize: 12))).string
+      kept = SimpleTextCache.entry(for: Self.settings(font: .systemFont(ofSize: 20)))
+    }
+    expect(otherString) != nil
+
+    // when: removing all strings
+    SimpleTextCache.removeAll()
+
+    // then: the other string is released, since the kept entry no longer links to its entry, and the kept entry still
+    // has its own string
+    expect(otherString) == nil
+    expect(kept?.string.string) == "Text"
+  }
+
   func test_memoryWarning_removesAllStrings() {
     // given: the string of some settings
     let string = SimpleTextCache.entry(for: Self.settings()).string

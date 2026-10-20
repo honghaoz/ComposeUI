@@ -275,6 +275,7 @@ enum SimpleTextCache {
       // two generations keep the strings used since the generation before, where one dictionary emptied when full
       // would drop the strings that a refresh is about to make again. the byte limit bounds long texts' memory, which
       // the count limit alone doesn't
+      unlink(previous)
       previous = current
       current.removeAll(keepingCapacity: true)
       currentCount = 0
@@ -300,6 +301,18 @@ enum SimpleTextCache {
     }
   }
 
+  /// Clears the links between the entries of a generation that the cache drops, so that a text node that keeps one of
+  /// them doesn't keep the others of its key.
+  private static func unlink(_ generation: [Key: Entry]) {
+    for head in generation.values {
+      var entry: Entry? = head
+      while let node = entry {
+        entry = node.next
+        node.next = nil
+      }
+    }
+  }
+
   /// Returns a new attributed string made of the settings.
   private static func makeString(for settings: Settings) -> NSAttributedString {
     TextNode.attributedString(
@@ -315,6 +328,8 @@ enum SimpleTextCache {
 
   /// Removes all strings.
   static func removeAll() {
+    unlink(current)
+    unlink(previous)
     current = [:]
     currentCount = 0
     currentByteCount = 0
