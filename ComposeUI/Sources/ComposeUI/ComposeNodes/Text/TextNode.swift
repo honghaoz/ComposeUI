@@ -199,16 +199,16 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - string: The string to display.
-  ///   - font: The font to use for the text. The default value is `Font.systemFont(ofSize: 17)`.
-  ///   - foregroundColor: The themed foreground color to use for the text. Default value is foreground text color.
+  ///   - font: The font to use for the text. The default value is the system font of a label's size, as in a label.
+  ///   - foregroundColor: The themed foreground color to use for the text. The default value is the label color, as in a label.
   ///   - backgroundColor: The themed background color to use for the text. Default value is `nil`.
   ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
   ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
   ///   - lineBreakMode: The line break mode to use for the text. The default value is `.byWordWrapping`. This line break mode is used in the attributed string's paragraph style. It is unrelated to the text node's line break mode.
   ///                    For multiline text, use `.byWordWrapping` or `.byCharWrapping` to render the text as multiple lines. Use other line break modes will make the text render as a single line.
   public init(_ string: String,
-              font: Font = Font.systemFont(ofSize: 17),
-              foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
+              font: Font = TextDefaults.font,
+              foregroundColor: ThemedColor = TextDefaults.textColor,
               backgroundColor: ThemedColor? = nil,
               shadow: Themed<NSShadow>? = nil,
               textAlignment: NSTextAlignment = .natural,
@@ -273,16 +273,16 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - string: The string to display.
-  ///   - font: The font to use for the text. The default value is `Font.systemFont(ofSize: 17)`.
-  ///   - foregroundColor: The themed foreground color to use for the text. Default value is foreground text color.
+  ///   - font: The font to use for the text. The default value is the system font of a label's size, as in a label.
+  ///   - foregroundColor: The themed foreground color to use for the text. The default value is the label color, as in a label.
   ///   - backgroundColor: The themed background color to use for the text. Default value is `nil`.
   ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
   ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
   ///   - lineBreakMode: The node's line break mode, which truncates the text. The default value is `.byTruncatingTail`, which truncates the text with tail ellipsis.
   ///   - isSelectable: Whether the text is selectable. The default value is `true`.
   static func singleLineText(_ string: String,
-                             font: Font = Font.systemFont(ofSize: 17),
-                             foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
+                             font: Font = TextDefaults.font,
+                             foregroundColor: ThemedColor = TextDefaults.textColor,
                              backgroundColor: ThemedColor? = nil,
                              shadow: Themed<NSShadow>? = nil,
                              textAlignment: NSTextAlignment = .natural,
@@ -316,8 +316,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameters:
   ///   - string: The string to display.
-  ///   - font: The font to use for the text. The default value is `Font.systemFont(ofSize: 17)`.
-  ///   - foregroundColor: The themed foreground color to use for the text. Default value is foreground text color.
+  ///   - font: The font to use for the text. The default value is the system font of a label's size, as in a label.
+  ///   - foregroundColor: The themed foreground color to use for the text. The default value is the label color, as in a label.
   ///   - backgroundColor: The themed background color to use for the text. Default value is `nil`.
   ///   - shadow: The themed shadow to use for the text. Default value is `nil`.
   ///   - textAlignment: The text alignment to use for the text. The default value is `.natural`.
@@ -325,8 +325,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///   - lineBreakMode: The node's line break mode, which truncates the last line. The default value is `.byTruncatingTail`, which truncates the last line with tail ellipsis.
   ///   - isSelectable: Whether the text is selectable. The default value is `true`.
   static func multiLineText(_ string: String,
-                            font: Font = Font.systemFont(ofSize: 17),
-                            foregroundColor: ThemedColor = ThemedColor(light: .black, dark: .white),
+                            font: Font = TextDefaults.font,
+                            foregroundColor: ThemedColor = TextDefaults.textColor,
                             backgroundColor: ThemedColor? = nil,
                             shadow: Themed<NSShadow>? = nil,
                             textAlignment: NSTextAlignment = .natural,

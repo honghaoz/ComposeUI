@@ -59,7 +59,7 @@ enum WorkCounter {
     /// A step of evicting the images that labels drew ahead of time, which evicts one image.
     case imageEvictionStep
 
-    /// A read of the Bold Text setting, which the labels laid out in one pass share.
+    /// A read of the Bold Text setting for a default font.
     case boldTextSettingRead
   }
 
