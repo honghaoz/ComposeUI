@@ -31,13 +31,18 @@
 import CoreGraphics
 
 /// A node that overlays a node with another node.
-private struct OverlayNode<Node: ComposeNode>: ComposeNode {
+///
+/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
+/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
+@usableFromInline
+struct OverlayNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
   private var overlayNode: any ComposeNode
   private let alignment: Layout.Alignment
 
-  fileprivate init(node: Node, overlayNode: any ComposeNode, alignment: Layout.Alignment) {
+  @usableFromInline
+  init(node: Node, overlayNode: any ComposeNode, alignment: Layout.Alignment) {
     self.node = node
     self.overlayNode = overlayNode
     self.alignment = alignment
@@ -45,10 +50,13 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
+  @usableFromInline
   var id: ComposeNodeId = .standard(.overlay)
 
+  @usableFromInline
   var size: CGSize { node.size }
 
+  @usableFromInline
   var renderableItemsBoundingRect: CGRect {
     let childRect = node.renderableItemsBoundingRect
 
@@ -61,12 +69,14 @@ private struct OverlayNode<Node: ComposeNode>: ComposeNode {
     return childRect.union(overlayRect.translate(overlayFrame.origin))
   }
 
+  @usableFromInline
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let sizing = node.layout(containerSize: containerSize, context: context)
     _ = overlayNode.layout(containerSize: node.size, context: context)
     return sizing
   }
 
+  @usableFromInline
   func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the child's items, and then the overlay's, are appended to the pass's array, where they're changed in place
     let start = items.count
@@ -96,6 +106,7 @@ public extension ComposeNode {
   ///   - alignment: The alignment of the overlay content.
   ///   - content: The content to overlay.
   /// - Returns: A new node with the overlay applied.
+  @inlinable
   func overlay(alignment: Layout.Alignment = .center,
                @ComposeContentBuilder content: () -> ComposeContent) -> some ComposeNode
   {

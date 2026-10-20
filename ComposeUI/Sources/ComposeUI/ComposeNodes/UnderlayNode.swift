@@ -31,15 +31,20 @@
 import CoreGraphics
 
 /// A node that renders a node with an underlay node.
-private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
+///
+/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
+/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
+@usableFromInline
+struct UnderlayNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
   private var underlayNode: any ComposeNode
   private let alignment: Layout.Alignment
 
-  fileprivate init(node: Node,
-                   underlayNode: any ComposeNode,
-                   alignment: Layout.Alignment)
+  @usableFromInline
+  init(node: Node,
+       underlayNode: any ComposeNode,
+       alignment: Layout.Alignment)
   {
     self.node = node
     self.underlayNode = underlayNode
@@ -48,10 +53,13 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
 
   // MARK: - ComposeNode
 
+  @usableFromInline
   var id: ComposeNodeId = .standard(.underlay)
 
+  @usableFromInline
   var size: CGSize { node.size }
 
+  @usableFromInline
   var renderableItemsBoundingRect: CGRect {
     let childRect = node.renderableItemsBoundingRect
 
@@ -64,12 +72,14 @@ private struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     return childRect.union(underlayRect.translate(underlayFrame.origin))
   }
 
+  @usableFromInline
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let sizing = node.layout(containerSize: containerSize, context: context)
     _ = underlayNode.layout(containerSize: node.size, context: context)
     return sizing
   }
 
+  @usableFromInline
   func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the underlay's items, and then the child's, are appended to the pass's array, where they're changed in place
     let underlayFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
@@ -99,6 +109,7 @@ public extension ComposeNode {
   ///   - alignment: The alignment of the underlay content.
   ///   - content: The content to render beneath the node.
   /// - Returns: A new node with the underlay applied.
+  @inlinable
   func underlay(alignment: Layout.Alignment = .center,
                 @ComposeContentBuilder content: () -> ComposeContent) -> some ComposeNode
   {

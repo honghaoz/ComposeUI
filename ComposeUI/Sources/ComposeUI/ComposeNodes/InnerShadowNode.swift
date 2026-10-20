@@ -187,6 +187,7 @@ public extension ComposeNode {
   ///   - offset: The themed offset of the inner shadow.
   ///   - path: The path of the inner shadow. The block is given the size of the shadow, the node's size.
   /// - Returns: A new node with the inner shadow overlay set.
+  @inlinable
   func innerShadow(color: ThemedColor,
                    opacity: Themed<CGFloat>,
                    radius: Themed<CGFloat>,
@@ -206,6 +207,7 @@ public extension ComposeNode {
   ///   - offset: The offset of the inner shadow.
   ///   - path: The path of the inner shadow. The block is given the size of the shadow, the node's size.
   /// - Returns: A new node with the inner shadow overlay set.
+  @inlinable
   func innerShadow(color: Color,
                    opacity: CGFloat,
                    radius: CGFloat,
@@ -224,6 +226,7 @@ public extension ComposeNode {
   ///   - radius: The themed radius of the inner shadow.
   ///   - offset: The themed offset of the inner shadow.
   ///   - paths: The paths of the inner shadow. The block is given the size of the shadow, the node's size.
+  @inlinable
   func innerShadow(color: ThemedColor,
                    opacity: Themed<CGFloat>,
                    radius: Themed<CGFloat>,
@@ -242,6 +245,7 @@ public extension ComposeNode {
   ///   - radius: The radius of the inner shadow.
   ///   - offset: The offset of the inner shadow.
   ///   - paths: The paths of the inner shadow. The block is given the size of the shadow, the node's size.
+  @inlinable
   func innerShadow(color: Color,
                    opacity: CGFloat,
                    radius: CGFloat,

@@ -37,11 +37,16 @@ import UIKit
 #endif
 
 /// A node that can add gesture recognizers to a view.
-private struct GestureRecognizerNode: ComposeNode {
+///
+/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
+/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
+@usableFromInline
+struct GestureRecognizerNode: ComposeNode {
 
   private var node: any ComposeNode
   private let handlers: [GestureRecognizerHandler]
 
+  @usableFromInline
   init(node: any ComposeNode, handler: GestureRecognizerHandler) {
     if let gestureRecognizerNode = node as? GestureRecognizerNode { // coalesce gesture recognizer nodes
       self.node = gestureRecognizerNode.node
@@ -54,20 +59,25 @@ private struct GestureRecognizerNode: ComposeNode {
 
   // MARK: - ComposeNode
 
+  @usableFromInline
   var id: ComposeNodeId = .standard(.gesture)
 
+  @usableFromInline
   var size: CGSize { node.size }
 
+  @usableFromInline
   var renderableItemsBoundingRect: CGRect {
     // the node provides the child node's items plus a gesture overlay item covering the node's bounds
     let childRect = node.renderableItemsBoundingRect
     return childRect.isNull ? childRect : childRect.union(CGRect(origin: .zero, size: size))
   }
 
+  @usableFromInline
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     node.layout(containerSize: containerSize, context: context)
   }
 
+  @usableFromInline
   func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the gesture overlay's item goes after the child's items, in the pass's array
     let start = items.count
@@ -100,10 +110,12 @@ private struct GestureRecognizerNode: ComposeNode {
 
 // MARK: - GestureRecognizerHandler
 
-private struct GestureRecognizerHandler: Hashable {
+@usableFromInline
+struct GestureRecognizerHandler: Hashable {
 
   let handlerId = UUID()
 
+  @usableFromInline
   enum GestureRecognizerType: Hashable {
     case tap(count: Int)
     case press(duration: TimeInterval)
@@ -113,10 +125,18 @@ private struct GestureRecognizerHandler: Hashable {
   let type: GestureRecognizerType
   let handler: (GestureRecognizer) -> Void
 
+  @usableFromInline
+  init(type: GestureRecognizerType, handler: @escaping (GestureRecognizer) -> Void) {
+    self.type = type
+    self.handler = handler
+  }
+
+  @usableFromInline
   func hash(into hasher: inout Hasher) {
     hasher.combine(handlerId)
   }
 
+  @usableFromInline
   static func == (lhs: GestureRecognizerHandler, rhs: GestureRecognizerHandler) -> Bool {
     lhs.handlerId == rhs.handlerId
   }
@@ -204,6 +224,7 @@ public extension ComposeNode {
   ///   - count: The number of taps required to recognize the gesture.
   ///   - handler: The handler to call when the gesture is recognized.
   /// - Returns: A new node with the tap gesture added.
+  @inlinable
   func onTap(count: Int = 1, handler: @escaping (GestureRecognizer) -> Void) -> some ComposeNode {
     GestureRecognizerNode(node: self, handler: GestureRecognizerHandler(type: .tap(count: count), handler: handler))
   }
@@ -216,6 +237,7 @@ public extension ComposeNode {
   ///   - duration: The minimum duration of the press to recognize the gesture. On macOS, this is the double-click interval. On UIKit devices, this is 0.5 seconds.
   ///   - handler: The handler to call when the gesture is recognized.
   /// - Returns: A new node with the press gesture added.
+  @inlinable
   func onPress(duration: TimeInterval = Constants.defaultPressDuration, handler: @escaping (GestureRecognizer) -> Void) -> some ComposeNode {
     GestureRecognizerNode(node: self, handler: GestureRecognizerHandler(type: .press(duration: duration), handler: handler))
   }
@@ -227,6 +249,7 @@ public extension ComposeNode {
   /// - Parameters:
   ///   - handler: The handler to call when the gesture is recognized.
   /// - Returns: A new node with the pan gesture added.
+  @inlinable
   func onPan(handler: @escaping (GestureRecognizer) -> Void) -> some ComposeNode {
     GestureRecognizerNode(node: self, handler: GestureRecognizerHandler(type: .pan, handler: handler))
   }
