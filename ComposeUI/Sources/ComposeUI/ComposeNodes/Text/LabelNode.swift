@@ -71,19 +71,8 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
   public init(_ text: String) {
     self.text = text
 
-    #if canImport(AppKit)
-    font = .systemFont(ofSize: NSFont.systemFontSize)
-    textColor = ThemedColor(light: .labelColor, dark: .labelColor)
-    #endif
-
-    #if canImport(UIKit)
-    #if os(iOS) || os(visionOS)
-    font = .systemFont(ofSize: Font.labelFontSize)
-    #elseif os(tvOS)
-    font = .systemFont(ofSize: 20)
-    #endif
-    textColor = ThemedColor(light: .label, dark: .label)
-    #endif
+    font = Defaults.font
+    textColor = Defaults.textColor
 
     textBackgroundColor = nil
     textShadow = nil
@@ -153,6 +142,78 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
       return
     }
     node.render(visibleBounds: visibleBounds, into: &items)
+  }
+
+  // MARK: - Defaults
+
+  /// The font and the text color of a label that the app doesn't set them for, made once instead of for each label,
+  /// since making a system font looks it up in the system's font cache with a new key each time.
+  enum Defaults {
+
+    #if canImport(AppKit)
+    static let font = Font.systemFont(ofSize: NSFont.systemFontSize)
+
+    static let textColor = ThemedColor(light: .labelColor, dark: .labelColor)
+    #endif
+
+    #if canImport(UIKit)
+    static let textColor = ThemedColor(light: .label, dark: .label)
+
+    /// The system font of a label's size, which is semibold while Bold Text is on.
+    static var font: Font {
+      fontCache.font(isBoldTextEnabled: UIAccessibility.isBoldTextEnabled) {
+        Font.systemFont(ofSize: fontSize)
+      }
+    }
+
+    #if os(tvOS)
+    /// The size of a label's system font.
+    private static let fontSize: CGFloat = 20
+    #else
+    /// The size of a label's system font.
+    private static let fontSize = Font.labelFontSize
+    #endif
+
+    /// The default font made last on the main thread.
+    private static let fontCache = FontCache()
+
+    /// A font kept with the Bold Text setting that it was made with, since the system font follows the setting.
+    ///
+    /// It keeps the font on the main thread, where a refresh makes its labels, and makes it for each lookup on another
+    /// thread, instead of taking a lock for each lookup.
+    ///
+    /// A class, so that the cache can be a static constant: a mutating lookup of a struct in a static variable is
+    /// checked for exclusive access at run time, as the access lasts through the call to the block.
+    final class FontCache {
+
+      /// The font made last on the main thread, with the Bold Text setting that it was made with.
+      private var lastFont: (font: Font, isBoldTextEnabled: Bool)?
+
+      /// Returns the font for a Bold Text setting, made with a block when the setting differs from the one that the last
+      /// font was made with, and for each lookup off the main thread.
+      ///
+      /// - Parameters:
+      ///   - isBoldTextEnabled: Whether Bold Text is on, read only on the main thread, since UIKit isolates the setting
+      ///     to the main actor.
+      ///   - make: The block that makes the font.
+      /// - Returns: The font.
+      func font(isBoldTextEnabled: @autoclosure () -> Bool, make: () -> Font) -> Font {
+        // `pthread_main_np()` instead of `Thread.isMainThread`, which sends an Objective-C message, since this runs for
+        // each label
+        guard pthread_main_np() != 0 else {
+          return make()
+        }
+        let isBoldTextEnabled = isBoldTextEnabled()
+        if let lastFont, lastFont.isBoldTextEnabled == isBoldTextEnabled {
+          return lastFont.font
+        } else {
+          let font = make()
+          lastFont = (font, isBoldTextEnabled)
+          return font
+        }
+      }
+    }
+    #endif
   }
 
   // MARK: - Public

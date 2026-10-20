@@ -948,6 +948,84 @@ class LabelNodeTests: XCTestCase {
     }
   }
 
+  func test_defaults_systemFontAndLabelColor() throws {
+    // when: rendering a label without a font or a text color
+    let text = try unwrap(renderedText(of: LabelNode("Hello")))
+
+    // then: it shows in the system font of a label's size, in the label color
+    #if canImport(AppKit)
+    expect(text.font()) == Font.systemFont(ofSize: NSFont.systemFontSize)
+    expect(text.foregroundColor()) == .labelColor
+    #endif
+    #if os(tvOS)
+    expect(text.font()) == Font.systemFont(ofSize: 20)
+    #elseif canImport(UIKit)
+    expect(text.font()) == Font.systemFont(ofSize: Font.labelFontSize)
+    #endif
+    #if canImport(UIKit)
+    expect(text.foregroundColor()) == .label
+    #endif
+  }
+
+  #if canImport(UIKit)
+  func test_defaults_fontCache_keepsTheFontOfEachBoldTextSetting() {
+    // given: a font cache, and a regular and a semibold font, as the system font is with Bold Text off and on
+    let cache = LabelNode.Defaults.FontCache()
+    let regular = Font.systemFont(ofSize: 17, weight: .regular)
+    let semibold = Font.systemFont(ofSize: 17, weight: .semibold)
+
+    // when: getting the font with Bold Text off
+    let font = cache.font(isBoldTextEnabled: false) { regular }
+
+    // then: it's the font made for the setting
+    expect(font) == regular
+
+    // when: getting the font with Bold Text still off, from a block that makes another font
+    let sameSettingFont = cache.font(isBoldTextEnabled: false) { semibold }
+
+    // then: it's the font made before
+    expect(sameSettingFont) == regular
+
+    // when: Bold Text turns on, stays on, and turns off again
+    let boldTextFont = cache.font(isBoldTextEnabled: true) { semibold }
+    let stillBoldTextFont = cache.font(isBoldTextEnabled: true) { regular }
+    let offAgainFont = cache.font(isBoldTextEnabled: false) { regular }
+
+    // then: each change of the setting makes the font for it, which the cache keeps while the setting stays
+    expect(boldTextFont) == semibold
+    expect(stillBoldTextFont) == semibold
+    expect(offAgainFont) == regular
+  }
+
+  func test_defaults_fontCache_offTheMainThread_makesTheFontWithoutKeepingIt() {
+    // given: a font cache, a regular and a semibold font, and a Bold Text setting that records its reads
+    let cache = LabelNode.Defaults.FontCache()
+    let regular = Font.systemFont(ofSize: 17, weight: .regular)
+    let semibold = Font.systemFont(ofSize: 17, weight: .semibold)
+    var didReadTheSetting = false
+    func readTheSetting() -> Bool {
+      didReadTheSetting = true
+      return false
+    }
+
+    // when: getting the font off the main thread
+    var font: Font?
+    let didGet = expectation(description: "got the font off the main thread")
+    DispatchQueue.global().async {
+      expect(Thread.isMainThread) == false
+      font = cache.font(isBoldTextEnabled: readTheSetting()) { regular }
+      didGet.fulfill()
+    }
+    wait(for: [didGet], timeout: 5)
+
+    // then: it's the font made for the lookup, without reading the setting, which UIKit isolates to the main actor, and
+    // the cache didn't keep it for the main thread
+    expect(font) == regular
+    expect(didReadTheSetting) == false
+    expect(cache.font(isBoldTextEnabled: false) { semibold }) == semibold
+  }
+  #endif
+
   // MARK: - Helpers
 
   /// Returns the text that the label renders, in a view of its own.
