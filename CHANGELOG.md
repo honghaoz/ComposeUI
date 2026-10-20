@@ -68,7 +68,7 @@
 - `VStack`, `HStack` and `ZStack` lay out faster.
 - On macOS, refreshing and scrolling text is faster: `BaseTextView` fits its text container when its size or inset changes, instead of laying itself out after each change of its text, number of lines or line break mode, and `TextNode` sets only the text view settings that changed.
 - Building content with `@ComposeContentBuilder` is faster.
-- Refreshing labels is faster: a label reuses the attributed string made for the same text and text settings in an earlier refresh.
+- Refreshing labels is faster: a label reuses the attributed string made for the same text and text settings in an earlier refresh, with the size of its single line.
 - Refreshing labels is faster on iOS, tvOS and visionOS: a label without a font of its own takes the system font made for the current Bold Text setting, instead of making it again for each label.
 - Building content with modifiers is faster: the modifiers that return `some ComposeNode` are inlinable, so an app's module knows the types of the nodes they return, instead of looking up each node's conformance to `ComposeNode` at run time.
 - Building and refreshing labels is faster, as is building text, view and layer nodes: their initializers no longer copy the node, and a label makes its text node in place when it lays out, instead of copying it.

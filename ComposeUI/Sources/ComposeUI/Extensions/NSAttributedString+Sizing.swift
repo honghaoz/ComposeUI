@@ -518,7 +518,11 @@ enum TextSizeCache {
   static func removeAll() {
     current = [:]
     previous = [:]
+    clearCount += 1
   }
+
+  /// The number of times the cache was emptied, so that a size kept outside the cache is measured again after it.
+  private(set) static var clearCount = 0
 }
 
 // Notes on CoreText API:

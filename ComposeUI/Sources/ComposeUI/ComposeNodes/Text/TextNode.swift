@@ -50,7 +50,24 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
   // MARK: - Text storage
 
-  private let attributedString: NSAttributedString
+  /// The attributed string, or the cache entry of a simple text's attributed string, which also keeps the size of its
+  /// single line.
+  private let text: Text
+
+  /// An attributed string, or the cache entry of a simple text.
+  private enum Text {
+    case attributedString(NSAttributedString)
+    case simpleText(SimpleTextCache.Entry)
+  }
+
+  private var attributedString: NSAttributedString {
+    switch text {
+    case .attributedString(let attributedString):
+      return attributedString
+    case .simpleText(let entry):
+      return entry.string
+    }
+  }
 
   // MARK: - Text layout
 
@@ -128,7 +145,11 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameter attributedString: The attributed text to display.
   public init(_ attributedString: NSAttributedString) {
-    self.attributedString = attributedString
+    self.init(text: .attributedString(attributedString))
+  }
+
+  private init(text: Text) {
+    self.text = text
 
     numberOfLines = 0
     lineBreakMode = .byWordWrapping
@@ -276,7 +297,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       textShadow: shadow,
       textAlignment: textAlignment
     )
-    var node = TextNode(SimpleTextCache.attributedString(for: settings))
+    var node = TextNode(text: .simpleText(SimpleTextCache.entry(for: settings)))
 
     node.numberOfLines = 1
     node.lineBreakMode = lineBreakMode
@@ -321,7 +342,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       textShadow: shadow,
       textAlignment: textAlignment
     )
-    var node = TextNode(SimpleTextCache.attributedString(for: settings))
+    var node = TextNode(text: .simpleText(SimpleTextCache.entry(for: settings)))
 
     node.numberOfLines = numberOfLines
     node.lineBreakMode = lineBreakMode
@@ -359,7 +380,17 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   }
 
   private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
-    let rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: containerSize.width - textContainerInset.width * 2)
+    let layoutWidth = containerSize.width - textContainerInset.width * 2
+    let rawIntrinsicSize: CGSize
+    switch text {
+    case .simpleText(let entry) where numberOfLines == 1:
+      // a single line's size doesn't depend on the width, so the entry keeps it for every node of the same text, without
+      // hashing and comparing the text's attributed string in the text size cache
+      rawIntrinsicSize = entry.singleLineSize { entry.string.boundingRectSize(numberOfLines: 1, layoutWidth: layoutWidth) }
+    case .attributedString,
+         .simpleText:
+      rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: layoutWidth)
+    }
     let sizeAdjustment = adjustIntrinsicTextSize?(rawIntrinsicSize) ?? .zero
     let intrinsicSize = CGSize(
       width: rawIntrinsicSize.width + textContainerInset.width * 2 + sizeAdjustment.width,
