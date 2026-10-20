@@ -439,33 +439,68 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(reuse.take(Constants.keyB)?.view) === viewB
   }
 
-  func test_keep_newKeyAtTheKeyLimit_removesTheEmptiedArrays() {
-    // given: a kept view, and views kept and taken under other keys, up to the key limit
+  func test_stopKeeping_afterAPassPastTheKeyLimit_removesTheArrays() {
+    // given: views kept under one key more than the key limit, in a parent
     let reuse = ComposeView.InPlaceReuse()
-    let keptView = View()
-    reuse.keep(.view(keptView), key: Constants.keyA)
-    for number in 1 ..< ComposeView.InPlaceReuse.maxKeyCount {
+    reuse.startKeeping()
+    let parent = View()
+    for number in 0 ... ComposeView.InPlaceReuse.maxKeyCount {
+      let view = View()
+      parent.addSubview(view)
+      reuse.keep(.view(view), key: Self.appInPlaceKey(number))
+    }
+
+    // then: each view stays under its key until the pass ends
+    expect(reuse.keyCount) == ComposeView.InPlaceReuse.maxKeyCount + 1
+
+    // when: stopping keeping views
+    let pool = RecordingPool()
+    reuse.stopKeeping(addingTo: pool)
+
+    // then: the views left their parent for the pool, and the arrays are gone
+    expect(parent.subviews.isEmpty) == true
+    expect(pool.enqueued.count) == ComposeView.InPlaceReuse.maxKeyCount + 1
+    expect(reuse.keyCount) == 0
+
+    // when: keeping and taking a view in a pass within the key limit
+    reuse.startKeeping()
+    reuse.keep(.view(View()), key: Constants.keyA)
+    _ = reuse.take(Constants.keyA)
+    reuse.stopKeeping(addingTo: pool)
+
+    // then: its emptied array stays for the next pass
+    expect(reuse.keyCount) == 1
+  }
+
+  func test_stopKeeping_afterAPassPastTheKeyLimitWhoseViewsWereTaken_removesTheArrays() {
+    // given: views kept and taken under one key more than the key limit
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
+    for number in 0 ... ComposeView.InPlaceReuse.maxKeyCount {
       reuse.keep(.view(View()), key: Self.appInPlaceKey(number))
       _ = reuse.take(Self.appInPlaceKey(number))
     }
+
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: nil)
+
+    // then: the arrays are gone
+    expect(reuse.keyCount) == 0
+  }
+
+  func test_stopKeeping_afterAPassAtTheKeyLimit_keepsTheEmptiedArrays() {
+    // given: views kept under as many keys as the key limit
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
+    for number in 0 ..< ComposeView.InPlaceReuse.maxKeyCount {
+      reuse.keep(.view(View()), key: Self.appInPlaceKey(number))
+    }
+
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: nil)
+
+    // then: the emptied arrays stay for the next pass
     expect(reuse.keyCount) == ComposeView.InPlaceReuse.maxKeyCount
-
-    // when: keeping a view under a key that a view was kept under
-    let sameKeyView = View()
-    reuse.keep(.view(sameKeyView), key: Self.appInPlaceKey(1))
-
-    // then: the emptied arrays stay
-    expect(reuse.keyCount) == ComposeView.InPlaceReuse.maxKeyCount
-
-    // when: keeping a view under a new key
-    let newKeyView = View()
-    reuse.keep(.view(newKeyView), key: Constants.keyB)
-
-    // then: the emptied arrays are gone, and the kept views stay to take
-    expect(reuse.keyCount) == 3
-    expect(reuse.take(Constants.keyA)?.view) === keptView
-    expect(reuse.take(Self.appInPlaceKey(1))?.view) === sameKeyView
-    expect(reuse.take(Constants.keyB)?.view) === newKeyView
   }
 
   func test_stopKeeping_removesTheViewsFromTheirParentForThePool() {

@@ -73,6 +73,9 @@ extension ComposeView {
     /// The number of kept views, which lets a pass that keeps none skip the lookups.
     private var count = 0
 
+    /// Whether a key that the pass added took `renderables` past `maxKeyCount`.
+    private var isOverKeyLimit = false
+
     /// Whether the removals keep their views, between `startKeeping()` and `stopKeeping(addingTo:)`.
     private var isKeeping = false
 
@@ -111,25 +114,30 @@ extension ComposeView {
     func stopKeeping(addingTo pool: @autoclosure () -> RenderablePoolType?) {
       isKeeping = false
 
-      guard count > 0 else {
-        return
-      }
+      if count > 0 {
+        let pool = pool()
 
-      let pool = pool()
-
-      // the index advances by hand, instead of iterating `renderables.indices`, which holds the dictionary's storage,
-      // so emptying an array in the loop would copy the whole dictionary
-      var index = renderables.startIndex
-      while index != renderables.endIndex {
-        let key = renderables.keys[index]
-        for renderable in renderables.values[index] {
-          renderable.removeFromParent()
-          pool?.enqueue(renderable, key: key)
+        // the index advances by hand, instead of iterating `renderables.indices`, which holds the dictionary's storage,
+        // so emptying an array in the loop would copy the whole dictionary
+        var index = renderables.startIndex
+        while index != renderables.endIndex {
+          let key = renderables.keys[index]
+          for renderable in renderables.values[index] {
+            renderable.removeFromParent()
+            pool?.enqueue(renderable, key: key)
+          }
+          renderables.values[index].removeAll(keepingCapacity: true)
+          renderables.formIndex(after: &index)
         }
-        renderables.values[index].removeAll(keepingCapacity: true)
-        renderables.formIndex(after: &index)
+        count = 0
       }
-      count = 0
+
+      // an app can give each item a reuse identifier of its own, so the emptied arrays would add up without a limit.
+      // they go at the end of the pass, when they're all empty, since the views stay in them until then
+      if isOverKeyLimit {
+        isOverKeyLimit = false
+        renderables.removeAll()
+      }
     }
 
     // MARK: - Views
@@ -165,12 +173,10 @@ extension ComposeView {
       if let index = renderables.index(forKey: key) {
         renderables.values[index].append(renderable)
       } else {
-        // an app can give each item a reuse identifier of its own, so the emptied arrays would add up without a limit.
-        // only they go, since the other arrays hold views that the pass can still take
-        if renderables.count >= Self.maxKeyCount {
-          renderables = renderables.filter { !$0.value.isEmpty }
-        }
         renderables[key] = [renderable]
+        if renderables.count > Self.maxKeyCount {
+          isOverKeyLimit = true
+        }
       }
       count += 1
     }
