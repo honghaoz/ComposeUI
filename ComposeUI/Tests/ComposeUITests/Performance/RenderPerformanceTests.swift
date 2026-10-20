@@ -425,6 +425,27 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.nested.200", result: result)
   }
 
+  func test_refresh_styledRows_200() {
+    // given: a compose view with 200 rows of labels that set their own font, color and number of lines, laid out
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeStyledRow(i)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes, which make the labels and set their styles again
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.styled.200", result: result)
+  }
+
   func test_refresh_nestedRows_200_drawn() {
     // given: a compose view with 200 nested rows laid out in a window, which draws the labels past its visible bounds
     // ahead of time
@@ -628,6 +649,9 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let subviewsPerRow = 30
     static let labelImageCacheEntryCount = 200
     static let labelImageCachePrefetchCount = 220 // the warm-up and the measured prefetches, each with a new label
+    static let titleFont = Font.boldSystemFont(ofSize: 15)
+    static let subtitleFont = Font.systemFont(ofSize: 13)
+    static let subtitleColor = Color.gray
   }
 
   /// A plain view-backed row, optionally opted into the recycle pool via `reuseId`.
@@ -709,6 +733,25 @@ class RenderPerformanceTests: BenchmarkTestCase {
       VStack(alignment: .left, spacing: 2) {
         LabelNode("Row \(i) title")
         LabelNode("Subtitle for row \(i) with longer text")
+      }
+      Spacer()
+    }
+    .padding(8)
+  }
+
+  /// A list row like the nested row, with labels that set their own font, color and number of lines, as an app's labels
+  /// do.
+  private static func makeStyledRow(_ i: Int) -> some ComposeNode {
+    HStack(spacing: 8) {
+      ColorNode(.blue)
+        .frame(width: 32, height: 32)
+      VStack(alignment: .left, spacing: 2) {
+        LabelNode("Row \(i) title")
+          .font(Constants.titleFont)
+        LabelNode("Subtitle for row \(i) with longer text")
+          .font(Constants.subtitleFont)
+          .textColor(Constants.subtitleColor)
+          .numberOfLines(2)
       }
       Spacer()
     }

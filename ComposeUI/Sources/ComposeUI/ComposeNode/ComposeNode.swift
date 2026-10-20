@@ -137,24 +137,23 @@ public extension ComposeNode {
 public extension ComposeNode {
 
   /// Set the id of the node.
-  func id(_ id: String) -> Self {
+  consuming func id(_ id: String) -> Self {
     self.id(.custom(id, isFixed: false))
   }
 
   /// Set a fixed id of the node.
   ///
   /// The renderable items provided by this node should have the fixed id.
-  func fixedId(_ id: String) -> Self {
+  consuming func fixedId(_ id: String) -> Self {
     self.id(.custom(id, isFixed: true))
   }
 
-  private func id(_ id: ComposeNodeId) -> Self {
+  private consuming func id(_ id: ComposeNodeId) -> Self {
     guard !self.id.isSameConfiguration(as: id) else {
-      return self
+      return consume self
     }
 
-    var node = self
-    node.id = id
-    return node
+    self.id = id
+    return consume self
   }
 }

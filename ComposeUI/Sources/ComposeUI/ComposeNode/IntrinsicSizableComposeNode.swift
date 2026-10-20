@@ -57,11 +57,10 @@ public extension IntrinsicSizableComposeNode {
   ///   - width: When `true`, use the content's intrinsic width. When `false`, adapt to container width.
   ///   - height: When `true`, use the content's intrinsic height. When `false`, adapt to container height.
   /// - Returns: A new node with the specified sizing behavior.
-  func fixedSize(width: Bool = true, height: Bool = true) -> Self {
-    var node = self
-    node.isFixedWidth = width
-    node.isFixedHeight = height
-    return node
+  consuming func fixedSize(width: Bool = true, height: Bool = true) -> Self {
+    isFixedWidth = width
+    isFixedHeight = height
+    return consume self
   }
 
   /// Configure the node to adapt to the container size for both width and height.
@@ -69,10 +68,9 @@ public extension IntrinsicSizableComposeNode {
   /// This is equivalent to calling `fixedSize(width: false, height: false)`.
   ///
   /// - Returns: A new node with flexible width and height.
-  func flexibleSize() -> Self {
-    var node = self
-    node.isFixedWidth = false
-    node.isFixedHeight = false
-    return node
+  consuming func flexibleSize() -> Self {
+    isFixedWidth = false
+    isFixedHeight = false
+    return consume self
   }
 }

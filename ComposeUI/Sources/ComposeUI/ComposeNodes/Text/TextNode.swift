@@ -695,61 +695,57 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameter value: The number of lines to set.
   /// - Returns: A new text node with the updated number of lines.
-  public func numberOfLines(_ value: Int) -> Self {
+  public consuming func numberOfLines(_ value: Int) -> Self {
     let value = max(value, 0)
     guard numberOfLines != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.numberOfLines = value
-    copy.itemSlot = .unassigned // config changed: the copy takes its own slot, so it rebuilds
-    return copy
+    numberOfLines = value
+    itemSlot = .unassigned // config changed: the returned node takes its own slot, so it rebuilds
+    return consume self
   }
 
   /// Set the line break mode of the text.
   ///
   /// - Parameter value: The line break mode to set.
   /// - Returns: A new text node with the updated line break mode.
-  public func lineBreakMode(_ value: NSLineBreakMode) -> Self {
+  public consuming func lineBreakMode(_ value: NSLineBreakMode) -> Self {
     guard lineBreakMode != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.lineBreakMode = value
-    copy.itemSlot = .unassigned // config changed: the copy takes its own slot, so it rebuilds
-    return copy
+    lineBreakMode = value
+    itemSlot = .unassigned // config changed: the returned node takes its own slot, so it rebuilds
+    return consume self
   }
 
   /// Set whether the text is editable.
   ///
   /// - Parameter value: A boolean indicating whether the text is editable.
   /// - Returns: A new text node with the updated editable state.
-  public func editable(_ value: Bool = true) -> Self {
+  public consuming func editable(_ value: Bool = true) -> Self {
     guard isEditable != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.isEditable = value
-    copy.itemSlot = .unassigned // config changed: the copy takes its own slot, so it rebuilds
-    return copy
+    isEditable = value
+    itemSlot = .unassigned // config changed: the returned node takes its own slot, so it rebuilds
+    return consume self
   }
 
   /// Set whether the text is selectable.
   ///
   /// - Parameter value: A boolean indicating whether the text is selectable.
   /// - Returns: A new text node with the updated selectable state.
-  public func selectable(_ value: Bool = true) -> Self {
+  public consuming func selectable(_ value: Bool = true) -> Self {
     guard isSelectable != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.isSelectable = value
-    copy.itemSlot = .unassigned // config changed: the copy takes its own slot, so it rebuilds
-    return copy
+    isSelectable = value
+    itemSlot = .unassigned // config changed: the returned node takes its own slot, so it rebuilds
+    return consume self
   }
 
   /// Set the text container inset of the underlying text view.
@@ -759,15 +755,14 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   /// - Parameter horizontal: The horizontal inset to set.
   /// - Parameter vertical: The vertical inset to set.
   /// - Returns: A new text node with the updated text container inset.
-  public func textContainerInset(horizontal: CGFloat, vertical: CGFloat) -> Self {
+  public consuming func textContainerInset(horizontal: CGFloat, vertical: CGFloat) -> Self {
     guard textContainerInset != CGSize(width: horizontal, height: vertical) else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.textContainerInset = CGSize(width: horizontal, height: vertical)
-    copy.itemSlot = .unassigned // config changed: the copy takes its own slot, so it rebuilds
-    return copy
+    textContainerInset = CGSize(width: horizontal, height: vertical)
+    itemSlot = .unassigned // config changed: the returned node takes its own slot, so it rebuilds
+    return consume self
   }
 
   /// Apply an additional size adjustment to the intrinsic text size.
@@ -778,10 +773,9 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameter adjustment: The adjustment to apply to the intrinsic text size. The block will be called with the original intrinsic text size.
   /// - Returns: A new text node with the updated intrinsic text size adjustment.
-  public func intrinsicTextSizeAdjustment(_ adjustment: ((_ original: CGSize) -> CGSize)?) -> Self {
-    var copy = self
-    copy.adjustIntrinsicTextSize = adjustment
-    copy.itemSlot = .unassigned // config changed: the copy takes its own slot, so it rebuilds
-    return copy
+  public consuming func intrinsicTextSizeAdjustment(_ adjustment: ((_ original: CGSize) -> CGSize)?) -> Self {
+    adjustIntrinsicTextSize = adjustment
+    itemSlot = .unassigned // config changed: the returned node takes its own slot, so it rebuilds
+    return consume self
   }
 }

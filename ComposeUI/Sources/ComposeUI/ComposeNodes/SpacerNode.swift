@@ -102,28 +102,26 @@ public struct SpacerNode: ComposeNode {
 
   /// Set the width of the spacer.
   /// - Parameter width: The width to set. Pass `nil` to make the spacer flexible in width.
-  public func width(_ width: CGFloat?) -> SpacerNode {
+  public consuming func width(_ width: CGFloat?) -> SpacerNode {
     guard self.width != width else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.width = width
+    self.width = width
 
-    return copy
+    return consume self
   }
 
   /// Set the height of the spacer.
   /// - Parameter height: The height to set. Pass `nil` to make the spacer flexible in height.
-  public func height(_ height: CGFloat?) -> SpacerNode {
+  public consuming func height(_ height: CGFloat?) -> SpacerNode {
     guard self.height != height else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.height = height
+    self.height = height
 
-    return copy
+    return consume self
   }
 }
 

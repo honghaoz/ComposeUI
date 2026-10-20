@@ -220,37 +220,35 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameter value: The font to set.
   /// - Returns: A new label node with the updated font.
-  public func font(_ value: Font) -> Self {
+  public consuming func font(_ value: Font) -> Self {
     guard font != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.font = value
-    copy.node = nil // invalidate the node so that it will be recreated with the new font
-    return copy
+    font = value
+    node = nil // invalidate the node so that it will be recreated with the new font
+    return consume self
   }
 
   /// Set the text color of the label.
   ///
   /// - Parameter value: The text color to set.
   /// - Returns: A new label node with the updated text color.
-  public func textColor(_ value: ThemedColor) -> Self {
+  public consuming func textColor(_ value: ThemedColor) -> Self {
     guard textColor != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.textColor = value
-    copy.node = nil // invalidate the node so that it will be recreated with the new text color
-    return copy
+    textColor = value
+    node = nil // invalidate the node so that it will be recreated with the new text color
+    return consume self
   }
 
   /// Set the text color of the label.
   ///
   /// - Parameter value: The text color to set.
   /// - Returns: A new label node with the updated text color.
-  public func textColor(_ value: Color) -> Self {
+  public consuming func textColor(_ value: Color) -> Self {
     textColor(ThemedColor(light: value, dark: value))
   }
 
@@ -258,45 +256,42 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameter value: The background color to set.
   /// - Returns: A new label node with the updated background color.
-  public func textBackgroundColor(_ value: ThemedColor?) -> Self {
+  public consuming func textBackgroundColor(_ value: ThemedColor?) -> Self {
     guard textBackgroundColor != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.textBackgroundColor = value
-    copy.node = nil // invalidate the node so that it will be recreated with the new background color
-    return copy
+    textBackgroundColor = value
+    node = nil // invalidate the node so that it will be recreated with the new background color
+    return consume self
   }
 
   /// Set the shadow of the label text.
 
   /// - Parameter value: The shadow to set.
   /// - Returns: A new label node with the updated shadow.
-  public func textShadow(_ value: Themed<NSShadow>?) -> Self {
+  public consuming func textShadow(_ value: Themed<NSShadow>?) -> Self {
     guard textShadow != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.textShadow = value
-    copy.node = nil // invalidate the node so that it will be recreated with the new shadow
-    return copy
+    textShadow = value
+    node = nil // invalidate the node so that it will be recreated with the new shadow
+    return consume self
   }
 
   /// Set the text alignment of the label.
   ///
   /// - Parameter value: The text alignment to set.
   /// - Returns: A new label node with the updated text alignment.
-  public func textAlignment(_ value: NSTextAlignment) -> Self {
+  public consuming func textAlignment(_ value: NSTextAlignment) -> Self {
     guard textAlignment != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.textAlignment = value
-    copy.node = nil // invalidate the node so that it will be recreated with the new text alignment
-    return copy
+    textAlignment = value
+    node = nil // invalidate the node so that it will be recreated with the new text alignment
+    return consume self
   }
 
   /// Set the number of lines of the label.
@@ -307,7 +302,7 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// - Parameter value: The number of lines to set.
   /// - Returns: A new label node with the updated number of lines.
-  public func numberOfLines(_ value: Int) -> Self {
+  public consuming func numberOfLines(_ value: Int) -> Self {
     let value = max(value, 0)
     let isMultiLine = value != 1
 
@@ -316,49 +311,46 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
     let targetIsFixedHeight: Bool? = isMultiLine ? isMultiLine : nil
 
     guard numberOfLines != value || (targetIsFixedWidth != nil && isFixedWidth != targetIsFixedWidth) || (targetIsFixedHeight != nil && isFixedHeight != targetIsFixedHeight) else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.numberOfLines = value
+    numberOfLines = value
 
     if isMultiLine {
-      copy.isFixedWidth = false
-      copy.isFixedHeight = true
+      isFixedWidth = false
+      isFixedHeight = true
     }
 
-    copy.node = nil // invalidate the node so that it will be recreated with the new number of lines
+    node = nil // invalidate the node so that it will be recreated with the new number of lines
 
-    return copy
+    return consume self
   }
 
   /// Set the line break mode of the label.
   ///
   /// - Parameter value: The line break mode to set.
   /// - Returns: A new label node with the updated line break mode.
-  public func lineBreakMode(_ value: NSLineBreakMode) -> Self {
+  public consuming func lineBreakMode(_ value: NSLineBreakMode) -> Self {
     guard lineBreakMode != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.lineBreakMode = value
-    copy.node = nil // invalidate the node so that it will be recreated with the new line break mode
-    return copy
+    lineBreakMode = value
+    node = nil // invalidate the node so that it will be recreated with the new line break mode
+    return consume self
   }
 
   /// Set whether the label is selectable.
   ///
   /// - Parameter value: A boolean indicating whether the label is selectable. The default value is `true`.
   /// - Returns: A new label node with the updated selectable state.
-  public func selectable(_ value: Bool = true) -> Self {
+  public consuming func selectable(_ value: Bool = true) -> Self {
     guard isSelectable != value else {
-      return self
+      return consume self
     }
 
-    var copy = self
-    copy.isSelectable = value
-    copy.node = nil // invalidate the node so that it will be recreated with the new selectable state
-    return copy
+    isSelectable = value
+    node = nil // invalidate the node so that it will be recreated with the new selectable state
+    return consume self
   }
 }
