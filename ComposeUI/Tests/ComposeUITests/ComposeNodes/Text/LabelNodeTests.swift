@@ -998,23 +998,30 @@ class LabelNodeTests: XCTestCase {
   }
 
   func test_defaults_fontCache_offTheMainThread_makesTheFontWithoutKeepingIt() {
-    // given: a font cache, and a regular and a semibold font
+    // given: a font cache, a regular and a semibold font, and a Bold Text setting that records its reads
     let cache = LabelNode.Defaults.FontCache()
     let regular = Font.systemFont(ofSize: 17, weight: .regular)
     let semibold = Font.systemFont(ofSize: 17, weight: .semibold)
+    var didReadTheSetting = false
+    func readTheSetting() -> Bool {
+      didReadTheSetting = true
+      return false
+    }
 
     // when: getting the font off the main thread
     var font: Font?
     let didGet = expectation(description: "got the font off the main thread")
     DispatchQueue.global().async {
       expect(Thread.isMainThread) == false
-      font = cache.font(isBoldTextEnabled: false) { regular }
+      font = cache.font(isBoldTextEnabled: readTheSetting()) { regular }
       didGet.fulfill()
     }
     wait(for: [didGet], timeout: 5)
 
-    // then: it's the font made for the lookup, which the cache didn't keep for the main thread
+    // then: it's the font made for the lookup, without reading the setting, which UIKit isolates to the main actor, and
+    // the cache didn't keep it for the main thread
     expect(font) == regular
+    expect(didReadTheSetting) == false
     expect(cache.font(isBoldTextEnabled: false) { semibold }) == semibold
   }
   #endif

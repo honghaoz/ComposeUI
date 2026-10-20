@@ -193,15 +193,17 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
       /// font was made with, and for each lookup off the main thread.
       ///
       /// - Parameters:
-      ///   - isBoldTextEnabled: Whether Bold Text is on.
+      ///   - isBoldTextEnabled: Whether Bold Text is on, read only on the main thread, since UIKit isolates the setting
+      ///     to the main actor.
       ///   - make: The block that makes the font.
       /// - Returns: The font.
-      func font(isBoldTextEnabled: Bool, make: () -> Font) -> Font {
+      func font(isBoldTextEnabled: @autoclosure () -> Bool, make: () -> Font) -> Font {
         // `pthread_main_np()` instead of `Thread.isMainThread`, which sends an Objective-C message, since this runs for
         // each label
         guard pthread_main_np() != 0 else {
           return make()
         }
+        let isBoldTextEnabled = isBoldTextEnabled()
         if let lastFont, lastFont.isBoldTextEnabled == isBoldTextEnabled {
           return lastFont.font
         } else {
