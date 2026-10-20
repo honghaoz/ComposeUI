@@ -37,7 +37,7 @@ import UIKit
 #endif
 
 /// The attributed strings of simple text that `TextNode.singleLineText` and `TextNode.multiLineText` make, kept across
-/// refreshes and found by the settings that make them.
+/// refreshes and found by the settings that make them, with the size of each string's single line once measured.
 ///
 /// The cache keeps two generations of strings, each of up to `generationLimit` strings and `generationByteLimit` bytes of
 /// text, and empties itself when the system is low on memory.
@@ -130,8 +130,9 @@ enum SimpleTextCache {
     }
   }
 
-  /// A string with its settings other than the text and the alignment, and the next entry of the same key.
-  private final class Entry {
+  /// A string with its settings other than the text and the alignment, the size of its single line once measured, and
+  /// the next entry of the same key.
+  final class Entry {
 
     let font: Font
     let textColor: ThemedColor
@@ -140,12 +141,31 @@ enum SimpleTextCache {
     let string: NSAttributedString
     var next: Entry?
 
+    /// The size of the string's single line, measured once after each clearing of the text size cache.
+    private var singleLineSize: CGSize?
+
+    /// The text size cache's clear count when `singleLineSize` was measured.
+    private var singleLineSizeClearCount = 0
+
     init(settings: Settings, string: NSAttributedString) {
       font = settings.font
       textColor = settings.textColor
       textBackgroundColor = settings.textBackgroundColor
       textShadow = settings.textShadow
       self.string = string
+    }
+
+    /// Returns the size of the string's single line, measured with a block the first time and after each clearing of
+    /// the text size cache.
+    func singleLineSize(measure: () -> CGSize) -> CGSize {
+      if let singleLineSize, singleLineSizeClearCount == TextSizeCache.clearCount {
+        return singleLineSize
+      } else {
+        let size = measure()
+        singleLineSize = size
+        singleLineSizeClearCount = TextSizeCache.clearCount
+        return size
+      }
     }
 
     /// Returns the entry of the settings in the list from this entry, if any.
@@ -211,28 +231,28 @@ enum SimpleTextCache {
   /// Whether the cache empties itself when the system is low on memory.
   private static var isHandlingMemoryWarnings = false
 
-  /// Returns the attributed string for the settings, made once and then reused.
+  /// Returns the entry of the settings, with the attributed string made once and then reused.
   ///
   /// - Parameter settings: The settings that make the string.
-  /// - Returns: The attributed string.
-  static func attributedString(for settings: Settings) -> NSAttributedString {
+  /// - Returns: The entry of the attributed string.
+  static func entry(for settings: Settings) -> Entry {
     // the key leaves the font, the colors and the shadow to the strings' entries, since a dictionary lookup retains
     // the objects of each key that it compares with, while an entry compares them in place
     let key = Key(text: settings.text, textAlignment: settings.textAlignment)
     if let entry = current[key]?.entry(of: settings) {
-      return entry.string
+      return entry
     } else {
-      return moveOrMakeString(for: settings, key: key)
+      return moveOrMakeEntry(for: settings, key: key)
     }
   }
 
-  /// Returns the string of settings that `current` doesn't have, moved from `previous` or made, and keeps it in
+  /// Returns the entry of settings that `current` doesn't have, moved from `previous` or made, and keeps it in
   /// `current`.
-  private static func moveOrMakeString(for settings: Settings, key: Key) -> NSAttributedString {
+  private static func moveOrMakeEntry(for settings: Settings, key: Key) -> Entry {
     let byteCount = settings.text.utf8.count
     guard byteCount <= generationByteLimit else {
       // a text over the byte limit isn't kept, so the limit bounds each generation however long one text is
-      return makeString(for: settings)
+      return Entry(settings: settings, string: makeString(for: settings))
     }
 
     if !isHandlingMemoryWarnings {
@@ -264,7 +284,7 @@ enum SimpleTextCache {
     current[key] = entry
     currentCount += 1
     currentByteCount += byteCount
-    return entry.string
+    return entry
   }
 
   /// Removes an entry from the list of its key in `previous`, which starts with the head.

@@ -1877,12 +1877,36 @@ class TextNodeTests: XCTestCase {
     expect(renderable.view is TextLabelView) == true
   }
 
+  func test_singleLineText_keepsTheSizeOfItsTextThroughTheTextSizeCachesEvictions() {
+    // given: a single-line text node, laid out once, and two generations of other texts measured, which evict every
+    // size that the text size cache held
+    NSAttributedString.clearTextSizeCache()
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    var node = TextNode.singleLineText("Kept through evictions")
+    _ = node.layout(containerSize: CGSize(width: 500, height: 50), context: context)
+    for index in 0 ..< 2 * TextSizeCache.generationLimit {
+      _ = NSAttributedString(string: "\(index)").boundingRectSize(numberOfLines: 1, layoutWidth: 100)
+    }
+
+    // when: laying out a new node of the same text
+    var again = TextNode.singleLineText("Kept through evictions")
+    let counts = WorkCounter.counting {
+      _ = again.layout(containerSize: CGSize(width: 500, height: 50), context: context)
+    }
+
+    // then: the text isn't measured again, since the text's cache entry keeps the size of its single line, and the new
+    // node has the same size
+    expect(counts.textMeasurements) == 0
+    expect(again.size) == node.size
+  }
+
   // MARK: - Memory Layout
 
-  func test_memoryLayout_takesAtMost120Bytes() {
-    // then: a text node takes at most 120 bytes, since at 128 the compiler checks an optional text node out of line,
-    // which makes each layout of a label, which holds an optional text node, about 100 instructions slower
-    expect(MemoryLayout<TextNode>.stride) <= 120
+  func test_memoryLayout_takesAtMost128Bytes() {
+    // then: a text node takes at most 128 bytes, where the compiler checks an optional text node out of line, which makes
+    // each layout of a label, which holds an optional text node, slower, less than the size kept in a simple text's
+    // cache entry saves it
+    expect(MemoryLayout<TextNode>.stride) <= 128
   }
 
   // MARK: - Helpers
