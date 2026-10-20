@@ -31,33 +31,81 @@
 import Foundation
 
 @usableFromInline
-enum StandardComposeNodeId: String {
+enum StandardComposeNodeId: Int, CaseIterable {
 
-  case empty = "E"
+  case empty
 
-  case color = "C"
-  case label = "TL" // text label
-  case textView = "TV" // text view
-  case button = "B"
-  case view = "V"
-  case layer = "L"
-  case swiftui = "SUI"
-  case gesture = "G"
+  case color
+  case label
+  case textView
+  case button
+  case view
+  case layer
+  case swiftui
+  case gesture
 
-  case dropShadow = "DS"
-  case innerShadow = "IS"
+  case dropShadow
+  case innerShadow
 
-  case spacer = "S"
-  case frame = "F"
-  case padding = "P"
-  case offset = "O"
+  case spacer
+  case frame
+  case padding
+  case offset
 
-  case overlay = "OV"
-  case underlay = "UL"
-  case vStack = "VS"
-  case hStack = "HS"
-  case zStack = "ZS"
-  case composeView = "CV"
+  case overlay
+  case underlay
+  case vStack
+  case hStack
+  case zStack
+  case composeView
+
+  /// The id string.
+  var string: String {
+    switch self {
+    case .empty:
+      return "E"
+    case .color:
+      return "C"
+    case .label:
+      return "TL" // text label
+    case .textView:
+      return "TV" // text view
+    case .button:
+      return "B"
+    case .view:
+      return "V"
+    case .layer:
+      return "L"
+    case .swiftui:
+      return "SUI"
+    case .gesture:
+      return "G"
+    case .dropShadow:
+      return "DS"
+    case .innerShadow:
+      return "IS"
+    case .spacer:
+      return "S"
+    case .frame:
+      return "F"
+    case .padding:
+      return "P"
+    case .offset:
+      return "O"
+    case .overlay:
+      return "OV"
+    case .underlay:
+      return "UL"
+    case .vStack:
+      return "VS"
+    case .hStack:
+      return "HS"
+    case .zStack:
+      return "ZS"
+    case .composeView:
+      return "CV"
+    }
+  }
 }
 
 public struct ComposeNodeId: Hashable {
@@ -69,7 +117,7 @@ public struct ComposeNodeId: Hashable {
   ///   - isFixed: If the id is fixed.
   /// - Returns: A `ComposeNodeId`.
   public static func custom(_ id: String, isFixed: Bool = false) -> ComposeNodeId {
-    guard StandardComposeNodeId(rawValue: id) == nil else {
+    guard !standardIdStrings.contains(id) else {
       ComposeUI.assertFailure("[ComposeUI] Custom id conflict with standard id: \(id), please use a unique id.")
       return ComposeNodeId(id: "\(id)-\(UUID().uuidString)", isFixed: isFixed)
     }
@@ -79,8 +127,16 @@ public struct ComposeNodeId: Hashable {
   /// Create a standard id for a node.
   @usableFromInline
   static func standard(_ id: StandardComposeNodeId) -> ComposeNodeId {
-    ComposeNodeId(id: id.rawValue, isFixed: false)
+    // the hashes are computed once instead of for each node, and the strings stay literals, which need no retain, unlike
+    // strings read from a table of ids
+    ComposeNodeId(id: id.string, isFixed: false, cachedHash: standardHashes[id.rawValue])
   }
+
+  /// The hashes of the standard ids' strings, each at its case's raw value.
+  private static let standardHashes = StandardComposeNodeId.allCases.map { fnv1a($0.string) }
+
+  /// The strings of the standard ids, which custom ids can't use.
+  private static let standardIdStrings = Set(StandardComposeNodeId.allCases.map(\.string))
 
   /// The id of the node.
   public let id: String
