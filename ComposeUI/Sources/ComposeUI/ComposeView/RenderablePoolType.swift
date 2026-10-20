@@ -45,7 +45,18 @@ struct ReuseId: Hashable {
 
   let namespace: ReuseId.Namespace
 
+  /// Whether a view with the identifier can serve a new item of its kind in the render pass that removes it, in place,
+  /// see `ComposeView.InPlaceReuse`. It's part of the identifier, so that a view reused in place only serves an item
+  /// that allows it.
+  let reusesInPlace: Bool
+
   let id: String
+
+  init(namespace: ReuseId.Namespace, id: String, reusesInPlace: Bool = false) {
+    self.namespace = namespace
+    self.reusesInPlace = reusesInPlace
+    self.id = id
+  }
 }
 
 /// A pool that recycles renderables removed from the renderable hierarchy so they can be reused for new items of the

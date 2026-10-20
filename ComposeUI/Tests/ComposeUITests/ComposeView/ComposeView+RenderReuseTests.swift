@@ -746,6 +746,32 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(item?.reuseId) == ReuseId(namespace: .user, id: "inner")
   }
 
+  func test_reuseIdModifier_inPlace_setsAReuseIdReusedInPlace() {
+    // given: a color node with a user reuse id reused in place, and one with the same reuse id reused through the pool
+    let inPlaceItem = firstRenderableItem(of: ColorNode(.red).reuseId("x", inPlace: true).frame(width: 100, height: 100))
+    let pooledItem = firstRenderableItem(of: ColorNode(.red).reuseId("x").frame(width: 100, height: 100))
+
+    // then: only the first reuse id is reused in place, and the keys differ, so that a renderable of either serves only
+    // the items of its own
+    expect(inPlaceItem?.reuseId) == ReuseId(namespace: .user, id: "x", reusesInPlace: true)
+    expect(pooledItem?.reuseId) == ReuseId(namespace: .user, id: "x")
+    expect(inPlaceItem?.reuseKey) != pooledItem?.reuseKey
+  }
+
+  func test_reuseIdModifier_innerWins_withItsInPlace() {
+    // given: inner reuse identifiers under outer ones with the other `inPlace`, coalesced into one modifier node and
+    // across a frame boundary, and a reuse identifier coalesced onto a modifier without one
+    let coalescedItem = firstRenderableItem(of: ColorNode(.red).reuseId("inner").reuseId("outer", inPlace: true).frame(width: 100, height: 100))
+    let acrossBoundaryItem = firstRenderableItem(of: ColorNode(.red).reuseId("inner", inPlace: true).frame(width: 100, height: 100).reuseId("outer"))
+    let ontoAnotherModifierItem = firstRenderableItem(of: ColorNode(.red).zIndex(1).reuseId("outer", inPlace: true).frame(width: 100, height: 100))
+
+    // then: each inner identifier wins together with its own `inPlace`, and an outer one keeps its own where there's
+    // no inner one
+    expect(coalescedItem?.reuseId) == ReuseId(namespace: .user, id: "inner")
+    expect(acrossBoundaryItem?.reuseId) == ReuseId(namespace: .user, id: "inner", reusesInPlace: true)
+    expect(ontoAnotherModifierItem?.reuseId) == ReuseId(namespace: .user, id: "outer", reusesInPlace: true)
+  }
+
   func test_nonPoolingNode_withoutReuseId_resolvesNilKey() {
     // given: a node that does not pool by default (here a `LayerNode`) and is not given a reuse id
     let item = firstRenderableItem(of: LayerNode<CALayer>().frame(width: 100, height: 100))
@@ -770,9 +796,9 @@ class ComposeView_RenderReuseTests: XCTestCase {
     // given: a plain text node
     let item = firstRenderableItem(of: TextNode("Hello").frame(width: 100, height: 100))
 
-    // then: TextNode opts into pooling by default with a framework-internal reuse id
-    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
-    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView")
+    // then: TextNode opts into pooling by default with a framework-internal reuse id, and into reuse in place
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView", reusesInPlace: true)
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "BaseTextView", reusesInPlace: true)
   }
 
   func test_colorNode_userReuseId_overridesInternalReuseId_andUsesUserNamespace() {
@@ -815,6 +841,21 @@ class ComposeView_RenderReuseTests: XCTestCase {
 
     // then: the first internal reuse id wins, a second assignment is a no-op
     expect(item.reuseId) == ReuseId(namespace: .framework, id: "first")
+  }
+
+  func test_itemReuseId_inPlace_replacesTheFrameworkReuseId() {
+    // given: an item with a framework reuse id
+    let item = LayerItem<CALayer>(id: .custom("l"), frame: .zero, make: { _ in CALayer() }, update: { _, _ in })
+      .eraseToRenderableItem()
+      .reuseId(ReuseId(namespace: .framework, id: "framework"))
+
+    // when: setting a user reuse id reused in place, and then another one
+    let inPlaceItem = item.reuseId("x", inPlace: true)
+    let laterItem = inPlaceItem.reuseId("y")
+
+    // then: the user reuse id replaced the framework one with its `inPlace`, and the later one didn't replace it
+    expect(inPlaceItem.reuseId) == ReuseId(namespace: .user, id: "x", reusesInPlace: true)
+    expect(laterItem.reuseId) == ReuseId(namespace: .user, id: "x", reusesInPlace: true)
   }
 
   func test_publicInit_withReuseId_setsUserIdentity() {

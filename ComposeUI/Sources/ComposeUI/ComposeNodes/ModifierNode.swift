@@ -57,6 +57,10 @@ private struct ModifierNode: ComposeNode {
   private let animationTiming: AnimationTiming?
   private let zIndex: CGFloat?
 
+  /// Whether the views of `reuseId` are reused in place. It's declared last, where it fits in the padding after
+  /// `zIndex`, instead of making each node larger.
+  private let reusesInPlace: Bool
+
   fileprivate init(node: some ComposeNode,
                    willInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
                    didInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
@@ -65,6 +69,7 @@ private struct ModifierNode: ComposeNode {
                    willRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    didRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
                    reuseId: String? = nil,
+                   reusesInPlace: Bool = false,
                    resetForReuse: ((Renderable) -> Void)? = nil,
                    transition: RenderableTransition? = nil,
                    animationTiming: AnimationTiming? = nil,
@@ -78,7 +83,14 @@ private struct ModifierNode: ComposeNode {
       self.updates = Self.combineUpdates(modifierNode.updates, update)
       self.willRemove = Self.combineBlocks(modifierNode.willRemove, willRemove)
       self.didRemove = Self.combineBlocks(modifierNode.didRemove, didRemove)
-      self.reuseId = modifierNode.reuseId ?? reuseId
+      switch modifierNode.reuseId {
+      case .some(let innerReuseId):
+        self.reuseId = innerReuseId
+        self.reusesInPlace = modifierNode.reusesInPlace
+      case .none:
+        self.reuseId = reuseId
+        self.reusesInPlace = reusesInPlace
+      }
       self.resetForReuse = Self.combineBlocks(modifierNode.resetForReuse, resetForReuse)
       self.transition = modifierNode.transition ?? transition
       self.animationTiming = modifierNode.animationTiming ?? animationTiming
@@ -96,6 +108,7 @@ private struct ModifierNode: ComposeNode {
       self.transition = transition
       self.animationTiming = animationTiming
       self.zIndex = zIndex
+      self.reusesInPlace = reusesInPlace
     }
   }
 
@@ -179,6 +192,7 @@ private struct ModifierNode: ComposeNode {
           willRemove: willRemove,
           didRemove: didRemove,
           reuseId: reuseId,
+          reusesInPlace: reusesInPlace,
           resetForReuse: resetForReuse,
           transition: transition,
           animationTiming: animationTiming,
@@ -583,18 +597,26 @@ public extension ComposeNode {
   ///
   /// For renderables that are expensive to create, this can avoid the cost of creating and speed up the rendering.
   ///
+  /// When a render pass removes a view reused in place and inserts a new item of its kind, the view serves the new item
+  /// without being removed from its superview, instead of going through the pool, so the superview and window callbacks
+  /// of the view and its subviews don't run. Reuse a view in place only when it doesn't rely on being removed between
+  /// items, since ComposeUI ends only the interactions that it can see: the first responder, a touch that a control or
+  /// a gesture recognizer tracks, the focus, and on macOS, a pressed mouse button.
+  ///
   /// - Note: This is intended for leaf nodes that produce a single renderable. For nodes that produce multiple renderables,
   ///   calling this method on the node will make every matching concrete type share a pool bucket, so only do that when
   ///   those renderables are interchangeable and reset/configured by the same contract.
   ///   Prefer calling this method on the innermost node that produces a single renderable to avoid accidentally sharing.
   /// - Note: Reused renderables can carry states from their previous usage, either ensure the same set of properties
   ///   are set on the reused renderable, or use ``onResetForReuse(_:)`` to reset the renderable's modified properties.
-  /// - Note: The inner node's reuse identifier (closer to the leaf) has higher priority.
+  /// - Note: The inner node's reuse identifier (closer to the leaf) has higher priority, together with its `inPlace`.
   ///
-  /// - Parameter reuseId: The reuse identifier to set.
+  /// - Parameters:
+  ///   - reuseId: The reuse identifier to set.
+  ///   - inPlace: Whether to reuse a view in place. Default is `false`.
   /// - Returns: A new node with the reuse identifier set.
-  func reuseId(_ reuseId: String) -> some ComposeNode {
-    ModifierNode(node: self, reuseId: reuseId)
+  func reuseId(_ reuseId: String, inPlace: Bool = false) -> some ComposeNode {
+    ModifierNode(node: self, reuseId: reuseId, reusesInPlace: inPlace)
   }
 
   /// Execute a block when the node's renderable is about to be reused, after its removal, to reset any modified state so

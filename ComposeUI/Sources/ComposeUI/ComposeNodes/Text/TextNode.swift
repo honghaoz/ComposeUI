@@ -440,7 +440,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
             }
             TextNode.updateLabelView(view, labelInputs: labelInputs, contentView: context.contentView)
           },
-          reuseId: ReuseId(namespace: .framework, id: "TextLabelView"),
+          reuseId: ReuseId(namespace: .framework, id: "TextLabelView", reusesInPlace: true),
           resetForReuse: { $0.resetForReuse() }
         )
         .eraseToRenderableItem()
@@ -460,11 +460,11 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   private static func textViewReuseId(isEditable: Bool, isSelectable: Bool) -> ReuseId {
     switch (isEditable, isSelectable) {
     case (false, _):
-      return ReuseId(namespace: .framework, id: "BaseTextView")
+      return ReuseId(namespace: .framework, id: "BaseTextView", reusesInPlace: true)
     case (true, true):
-      return ReuseId(namespace: .framework, id: "BaseTextView.editable")
+      return ReuseId(namespace: .framework, id: "BaseTextView.editable", reusesInPlace: true)
     case (true, false):
-      return ReuseId(namespace: .framework, id: "BaseTextView.editable.unselectable")
+      return ReuseId(namespace: .framework, id: "BaseTextView.editable.unselectable", reusesInPlace: true)
     }
   }
 
