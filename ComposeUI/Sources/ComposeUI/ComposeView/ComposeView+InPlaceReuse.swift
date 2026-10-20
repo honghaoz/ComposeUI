@@ -41,23 +41,34 @@ extension ComposeView {
   /// The reusable views that the removals of a render pass leave in place, for the insertions of their kinds in the pass.
   ///
   /// A render pass removes the items that left before it inserts the new ones, so the views of the rows that a scroll
-  /// moves out serve the rows that it moves in where they are, instead of leaving their window and coming back from the
-  /// pool. Removing a view from its window and adding it back calls the window callbacks of every view in its subtree,
-  /// and makes AppKit display it again, while moving it among its siblings does neither. The pass keeps views from the
-  /// start of its removals to the end of its insertions, see `startKeeping()` and `stopKeeping(addingTo:)`, and the
-  /// views that no insertion takes leave then, for the pool.
+  /// moves out serve the rows that it moves in where they are, instead of being removed from their superview and added
+  /// back from the pool. Removing a view and adding it back calls the superview and window callbacks of the view and
+  /// its subviews, and on macOS, makes AppKit display it again, while moving it among its siblings does neither. The
+  /// pass keeps views from the start of its removals to the end of its insertions, see `startKeeping()` and
+  /// `stopKeeping(addingTo:)`, and the views that no insertion takes are removed then, for the pool.
   ///
-  /// Only ComposeUI's own views stay in place, which ComposeUI makes and resets itself, see `canKeep(_:key:)`.
+  /// Only the views whose reuse identifier allows it stay in place, see `canKeep(_:key:)`. ComposeUI's own views allow
+  /// it, since ComposeUI makes and resets them itself. An app's view can rely on being removed in ways that ComposeUI
+  /// can't check, so its identifier allows it only when the app passes `inPlace: true` to `reuseId(_:inPlace:)`.
   ///
   /// It's a class that the view keeps in a constant, instead of a structure in a variable, since each call on a
   /// structure in a variable of the view checks at run time that no other access to the variable overlaps it, which
   /// costs more than the call itself in a pass that keeps no view.
   final class InPlaceReuse {
 
-    /// The kept views, by their reuse keys. An emptied array stays with its capacity, instead of being removed, so that
-    /// a steady scroll keeps and takes views without allocating. The keys are ComposeUI's own few, so the arrays don't
-    /// add up.
+    /// The kept views, by their reuse keys. The emptied arrays of up to `maxKeyCount` keys stay with their capacity,
+    /// instead of being removed, so that a steady scroll keeps and takes views without allocating.
     private var renderables: [ReuseKey: [Renderable]] = [:]
+
+    /// The number of keys up to which `renderables` keeps the emptied arrays, as many as the pool keeps by default.
+    static let maxKeyCount = 64
+
+    #if DEBUG
+    /// The number of keys in `renderables`, for tests.
+    var keyCount: Int {
+      renderables.count
+    }
+    #endif
 
     /// The number of kept views, which lets a pass that keeps none skip the lookups.
     private var count = 0
@@ -125,23 +136,14 @@ extension ComposeView {
 
     /// Returns whether a reusable renderable that leaves can stay in place, for an insertion of its kind in the pass.
     ///
-    /// Only a view with a framework reuse identifier stays, and only while the pass keeps views.
+    /// Only a view whose reuse identifier allows it stays, and only while the pass keeps views.
     ///
     /// - Parameters:
     ///   - renderable: The renderable that leaves.
     ///   - key: The renderable's reuse key.
     /// - Returns: Whether the renderable can stay in place.
     func canKeep(_ renderable: Renderable, key: ReuseKey) -> Bool {
-      guard isKeeping else {
-        return false
-      }
-
-      switch key.reuseId.namespace {
-      case .framework:
-        break
-      case .user:
-        // an app's view can rely on what leaving its window does in ways that ComposeUI can't check, so it leaves as
-        // before, while ComposeUI makes its own views and resets what leaving the window would
+      guard isKeeping, key.reuseId.reusesInPlace else {
         return false
       }
 
@@ -149,7 +151,7 @@ extension ComposeView {
       case .view(let view):
         return canKeep(view: view)
       case .layer:
-        // a layer leaves and comes back without callbacks, so the pool serves it as well
+        // a layer is removed and added back without callbacks, so the pool serves it as well
         return false
       }
     }
@@ -160,7 +162,16 @@ extension ComposeView {
     ///   - renderable: The view, reset for its reuse.
     ///   - key: The view's reuse key.
     func keep(_ renderable: Renderable, key: ReuseKey) {
-      renderables[key, default: []].append(renderable)
+      if let index = renderables.index(forKey: key) {
+        renderables.values[index].append(renderable)
+      } else {
+        // an app can give each item a reuse identifier of its own, so the emptied arrays would add up without a limit.
+        // only they go, since the other arrays hold views that the pass can still take
+        if renderables.count >= Self.maxKeyCount {
+          renderables = renderables.filter { !$0.value.isEmpty }
+        }
+        renderables[key] = [renderable]
+      }
       count += 1
     }
 
@@ -181,21 +192,21 @@ extension ComposeView {
 
     /// Returns whether a view can stay in place.
     ///
-    /// A view that stays keeps its window, so it gives up the first responder in it, as leaving the window would, and a
-    /// view with an interaction in progress, which leaving the window would end, leaves as before.
+    /// A view that stays isn't removed from its window, so it gives up the first responder in it, as a removal would, and
+    /// a view with an interaction in progress, which a removal would end, is removed as before.
     ///
     /// - Parameter view: The view.
     /// - Returns: Whether the view can stay in place.
     private func canKeep(view: View) -> Bool {
       #if canImport(AppKit)
-      // AppKit takes the first responder away from a view that leaves its window, while `makeFirstResponder(nil)` only
-      // asks it to resign, which it can refuse, so a view with the first responder inside leaves as before. this covers
-      // an editing text field too, since AppKit puts the field editor that edits it inside it
+      // AppKit takes the first responder away from a view that's removed from its window, while `makeFirstResponder(nil)`
+      // only asks it to resign, which it can refuse, so a view with the first responder inside is removed as before. this
+      // covers an editing text field too, since AppKit puts the field editor that edits it inside it
       if let firstResponder = view.window?.firstResponder as? NSView, firstResponder.isDescendant(of: view) {
         return false
       }
 
-      // a pressed mouse button can be tracking in the view, which leaving the window would end, and AppKit doesn't tell
+      // a pressed mouse button can be tracking in the view, which a removal would end, and AppKit doesn't tell
       // which view tracks, so no view stays while a button is pressed. the button state is read once per pass, when a
       // view first needs it, since reading it costs more than the rest of the check
       let isMouseButtonPressed = isMouseButtonPressedInPass ?? isMouseButtonPressed()
@@ -204,8 +215,8 @@ extension ComposeView {
       #endif
 
       #if canImport(UIKit)
-      // a touch that the view tracks, which leaving the window would cancel, or the focus, which leaving the window
-      // would move, would go on with the view's next item, so a view with either leaves as before
+      // a touch that the view tracks, which a removal would cancel, or the focus, which a removal would move, would go on
+      // with the view's next item, so a view with either is removed as before
       if Self.hasInteractionInProgress(view) {
         return false
       }

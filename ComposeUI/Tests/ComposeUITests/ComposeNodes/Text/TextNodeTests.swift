@@ -798,8 +798,8 @@ class TextNodeTests: XCTestCase {
       // when: making its renderable item
       let item = try node.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).first.unwrap()
 
-      // then: the item's view is pooled with the views of the same interaction settings only
-      expect(item.reuseId, expectedId) == ReuseId(namespace: .framework, id: expectedId)
+      // then: the item's view is pooled with the views of the same interaction settings only, and reused in place
+      expect(item.reuseId, expectedId) == ReuseId(namespace: .framework, id: expectedId, reusesInPlace: true)
     }
   }
 

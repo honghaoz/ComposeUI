@@ -233,9 +233,10 @@ public struct RenderItem<T> {
   /// The block to be called when the renderable is just removed from the renderable hierarchy.
   ///
   /// At this point, the renderable's transition animation is completed, and the renderable is removed from the
-  /// renderable hierarchy. The exception is a view whose reuse identifier the framework sets, instead of the app with
-  /// `reuseId(_:)`: when its removal finishes while a render pass updates the renderables, the view can stay in place
-  /// for a new item of its kind that the pass inserts, and leaves before the pass ends if none takes it.
+  /// renderable hierarchy. The exception is a view reused in place, see `ComposeNode.reuseId(_:inPlace:)`, which
+  /// ComposeUI's label and text views are by default: when its removal finishes while a render pass updates the
+  /// renderables, the view can stay in place for a new item of its kind that the pass inserts, and is removed before
+  /// the pass ends if none takes it.
   ///
   /// Note that it is possible that a removing renderable, during its removal transition animation, is re-inserted into
   /// the renderable hierarchy. In this case, the `didRemove` block won't be called.
@@ -251,7 +252,7 @@ public struct RenderItem<T> {
   ///
   /// When set, a renderable that is removed from the renderable hierarchy is added to a pool (keyed by this identifier
   /// and the renderable's concrete type) instead of being deallocated, and is handed back when a new item with the same
-  /// reuse identifier and type is inserted, avoiding a `make` call. A view with a framework reuse identifier can serve a
+  /// reuse identifier and type is inserted, avoiding a `make` call. A view whose reuse identifier allows it can serve a
   /// new item of its kind that the same render pass inserts in place instead, without leaving the renderable hierarchy,
   /// see `ComposeView.InPlaceReuse`.
   ///
@@ -851,15 +852,17 @@ public struct RenderItem<T> {
   ///
   /// If the renderable item already has a reuse identifier, this call has no effect.
   ///
-  /// - Parameter reuseId: The new reuse identifier.
+  /// - Parameters:
+  ///   - reuseId: The new reuse identifier.
+  ///   - inPlace: Whether to reuse a view in place, see `ComposeNode.reuseId(_:inPlace:)`. Default is `false`.
   /// - Returns: The renderable item with the new reuse identifier.
-  public func reuseId(_ reuseId: String) -> Self {
+  public func reuseId(_ reuseId: String, inPlace: Bool = false) -> Self {
     if self.reuseId?.namespace == .user {
-      // an inner reuseId(_:) (closer to the leaf) already set a user identifier, so it wins.
+      // an inner reuseId(_:inPlace:) (closer to the leaf) already set a user identifier, so it wins.
       return self
     } else {
       // fills an empty identifier or overrides a framework-internal one, so a user-provided id always takes precedence.
-      return with(reuseId: ReuseId(namespace: .user, id: reuseId))
+      return with(reuseId: ReuseId(namespace: .user, id: reuseId, reusesInPlace: inPlace))
     }
   }
 
@@ -1037,7 +1040,8 @@ extension RenderItem where T == Renderable {
   ///   - willRemove: The block to run after the item's `willRemove` block.
   ///   - didRemove: The block to run after the item's `didRemove` block.
   ///   - reuseId: The reuse identifier to set, unless the item has a reuse identifier that isn't the framework's, see
-  ///     `reuseId(_:)`.
+  ///     `reuseId(_:inPlace:)`.
+  ///   - reusesInPlace: Whether the views of `reuseId` are reused in place.
   ///   - resetForReuse: The block to run after the item's `resetForReuse` block.
   ///   - transition: The transition to set, unless the item has one.
   ///   - animationTiming: The animation to set, unless the item has one.
@@ -1050,6 +1054,7 @@ extension RenderItem where T == Renderable {
                       willRemove: ((Renderable, RenderableRemoveContext) -> Void)?,
                       didRemove: ((Renderable, RenderableRemoveContext) -> Void)?,
                       reuseId: String?,
+                      reusesInPlace: Bool,
                       resetForReuse: ((Renderable) -> Void)?,
                       transition: RenderableTransition?,
                       animationTiming: AnimationTiming?,
@@ -1063,6 +1068,7 @@ extension RenderItem where T == Renderable {
       willRemove: willRemove,
       didRemove: didRemove,
       reuseId: reuseId,
+      reusesInPlace: reusesInPlace,
       resetForReuse: resetForReuse,
       transition: transition,
       animationTiming: animationTiming,
@@ -1073,7 +1079,7 @@ extension RenderItem where T == Renderable {
 
 private extension RenderItem {
 
-  /// Adds a modifier's blocks and values, see `addingModifier(willInsert:didInsert:willUpdate:updates:willRemove:didRemove:reuseId:resetForReuse:transition:animationTiming:zIndex:)`.
+  /// Adds a modifier's blocks and values, see `addingModifier(willInsert:didInsert:willUpdate:updates:willRemove:didRemove:reuseId:reusesInPlace:resetForReuse:transition:animationTiming:zIndex:)`.
   ///
   /// This is generic code, where a block that takes `T` has the representation the storage keeps its blocks in, so the
   /// blocks made here are stored as they are, while a block made where `T` is `Renderable` is converted through a
@@ -1085,6 +1091,7 @@ private extension RenderItem {
                             willRemove: ((Renderable, RenderableRemoveContext) -> Void)?,
                             didRemove: ((Renderable, RenderableRemoveContext) -> Void)?,
                             reuseId: String?,
+                            reusesInPlace: Bool,
                             resetForReuse: ((Renderable) -> Void)?,
                             transition: RenderableTransition?,
                             animationTiming: AnimationTiming?,
@@ -1145,7 +1152,7 @@ private extension RenderItem {
 
     var newReuseId = storage.reuseId
     if let reuseId, newReuseId?.namespace != .user {
-      newReuseId = ReuseId(namespace: .user, id: reuseId)
+      newReuseId = ReuseId(namespace: .user, id: reuseId, reusesInPlace: reusesInPlace)
     }
 
     return Self(

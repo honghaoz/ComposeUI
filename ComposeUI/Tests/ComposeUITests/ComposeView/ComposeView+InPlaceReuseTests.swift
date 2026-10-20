@@ -73,7 +73,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     // given: rows of views with an app's reuse identifier in a window, rendered at the top, with a pool that records its
     // use
     let pool = RecordingPool()
-    let (window, view) = makeRowsView(pool: pool, namespace: .user)
+    let (window, view) = makeAppRowsView(pool: pool, inPlace: false)
     view.refresh(animated: false)
     let rowZeroView = try rowView(showing: 0, in: view).unwrap()
     let moveCount = rowZeroView.moveCount
@@ -81,11 +81,34 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     // when: scrolling by one row, which moves row 0 out and row 2 in
     scroll(view, to: Constants.rowHeight)
 
-    // then: the view of row 0 left the window, and came back from the pool for row 2
+    // then: the view of row 0 was removed, and came back from the pool for row 2
     expect(rowView(showing: 2, in: view)) === rowZeroView
     expect(rowZeroView.moveCount) > moveCount
     expect(pool.enqueued.count) == 1
     expect(pool.enqueued.first?.renderable.view) === rowZeroView
+    expect(pool.enqueued.first?.key.reuseId) == ReuseId(namespace: .user, id: "row")
+    expect(window.contentView().subviews.contains(view)) == true
+  }
+
+  func test_scroll_viewThatTheAppReusesInPlace_staysInPlace() throws {
+    // given: rows of views that the app reuses in place, in a window, rendered at the top, with a pool that records its
+    // use
+    let pool = RecordingPool()
+    let (window, view) = makeAppRowsView(pool: pool, inPlace: true)
+    view.refresh(animated: false)
+    let rowZeroView = try rowView(showing: 0, in: view).unwrap()
+    let moveCount = rowZeroView.moveCount
+    let dequeueCount = pool.dequeueCount
+
+    // when: scrolling by one row, which moves row 0 out and row 2 in
+    scroll(view, to: Constants.rowHeight)
+
+    // then: row 2 shows in the view of row 0, which stayed in the window, without going through the pool
+    expect(rowView(showing: 2, in: view)) === rowZeroView
+    expect(rowZeroView.frame) == CGRect(x: 0, y: 2 * Constants.rowHeight, width: Constants.viewSize.width, height: Constants.rowHeight)
+    expect(rowZeroView.moveCount) == moveCount
+    expect(pool.enqueued.count) == 0
+    expect(pool.dequeueCount) == dequeueCount
     expect(window.contentView().subviews.contains(view)) == true
   }
 
@@ -139,7 +162,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(rowOneView.superview) == nil
     expect(pool.enqueued.count) == 1
     expect(pool.enqueued.first?.renderable.view) === rowOneView
-    expect(pool.enqueued.first?.key.reuseId) == ReuseId(namespace: .framework, id: "row")
+    expect(pool.enqueued.first?.key.reuseId) == Constants.rowReuseId
     expect(window.contentView().subviews.contains(view)) == true
   }
 
@@ -183,7 +206,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     )
     var id = "a"
     let (window, view) = makeView(pool: pool) {
-      RowNode(row: 0).id(id).transition(transition)
+      RowNode(row: 0, reuseId: Constants.rowReuseId).id(id).transition(transition)
     }
     view.refresh(animated: false)
     let itemAView = try rowView(showing: 0, in: view).unwrap()
@@ -214,7 +237,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     )
     var id = "a"
     let (window, view) = makeView(pool: pool) {
-      RowNode(row: 0).id(id).transition(transition)
+      RowNode(row: 0, reuseId: Constants.rowReuseId).id(id).transition(transition)
     }
     view.refresh(animated: false)
     let itemAView = try rowView(showing: 0, in: view).unwrap()
@@ -252,7 +275,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     )
     var id = "a"
     let (window, view) = makeView(pool: pool) {
-      RowNode(row: 0).id(id).transition(transition)
+      RowNode(row: 0, reuseId: Constants.rowReuseId).id(id).transition(transition)
     }
     view.refresh(animated: false)
     let itemAView = try rowView(showing: 0, in: view).unwrap()
@@ -286,7 +309,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     var id = "a"
     var top: CGFloat = 0
     let (window, view) = makeView(pool: RecordingPool()) {
-      RowNode(row: 0).id(id).transition(transition).frame(width: 100, height: 50).padding(top: top)
+      RowNode(row: 0, reuseId: Constants.rowReuseId).id(id).transition(transition).frame(width: 100, height: 50).padding(top: top)
     }
     view.refresh(animated: false)
     let itemAView = try rowView(showing: 0, in: view).unwrap()
@@ -326,8 +349,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     // when: scrolling by one row, which moves row 0 out and row 2 in
     scroll(view, to: Constants.rowHeight)
 
-    // then: the view of row 0 left the window, which took the first responder away, and came back from the pool for
-    // row 2
+    // then: the view of row 0 was removed, which took the first responder away, and came back from the pool for row 2
     expect(window.firstResponder) === window
     expect(rowView(showing: 2, in: view)) === rowZeroView
     expect(rowZeroView.moveCount) > moveCount
@@ -372,7 +394,7 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     // when: scrolling by one row, which moves row 0 out and row 2 in
     scroll(view, to: Constants.rowHeight)
 
-    // then: the view of row 0 left the window, which cancels the touch, and came back from the pool for row 2
+    // then: the view of row 0 was removed, which cancels the touch, and came back from the pool for row 2
     expect(rowView(showing: 2, in: view)) === rowZeroView
     expect(rowZeroView.moveCount) > moveCount
     expect(pool.enqueued.count) == 1
@@ -415,6 +437,35 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     // then: a take of the kind returns nil, and the view of the other kind stays
     expect(reuse.take(Constants.keyA)?.view) == nil
     expect(reuse.take(Constants.keyB)?.view) === viewB
+  }
+
+  func test_keep_newKeyAtTheKeyLimit_removesTheEmptiedArrays() {
+    // given: a kept view, and views kept and taken under other keys, up to the key limit
+    let reuse = ComposeView.InPlaceReuse()
+    let keptView = View()
+    reuse.keep(.view(keptView), key: Constants.keyA)
+    for number in 1 ..< ComposeView.InPlaceReuse.maxKeyCount {
+      reuse.keep(.view(View()), key: Self.appInPlaceKey(number))
+      _ = reuse.take(Self.appInPlaceKey(number))
+    }
+    expect(reuse.keyCount) == ComposeView.InPlaceReuse.maxKeyCount
+
+    // when: keeping a view under a key that a view was kept under
+    let sameKeyView = View()
+    reuse.keep(.view(sameKeyView), key: Self.appInPlaceKey(1))
+
+    // then: the emptied arrays stay
+    expect(reuse.keyCount) == ComposeView.InPlaceReuse.maxKeyCount
+
+    // when: keeping a view under a new key
+    let newKeyView = View()
+    reuse.keep(.view(newKeyView), key: Constants.keyB)
+
+    // then: the emptied arrays are gone, and the kept views stay to take
+    expect(reuse.keyCount) == 3
+    expect(reuse.take(Constants.keyA)?.view) === keptView
+    expect(reuse.take(Self.appInPlaceKey(1))?.view) === sameKeyView
+    expect(reuse.take(Constants.keyB)?.view) === newKeyView
   }
 
   func test_stopKeeping_removesTheViewsFromTheirParentForThePool() {
@@ -521,8 +572,10 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     // when: starting keeping views
     reuse.startKeeping()
 
-    // then: a view can stay in place, a layer can't, and neither can a view with an app's reuse identifier
+    // then: a view whose reuse identifier allows it can stay in place, an app's view too, but a layer can't, and neither
+    // can a view whose reuse identifier doesn't allow it
     expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == true
+    expect(reuse.canKeep(.view(View()), key: Constants.appInPlaceKey)) == true
     expect(reuse.canKeep(.layer(CALayer()), key: Constants.keyA)) == false
     expect(reuse.canKeep(.view(View()), key: Constants.appKey)) == false
 
@@ -676,23 +729,44 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     static let rowCount = 60
     static let rowHeight: CGFloat = 50
     static let viewSize = CGSize(width: 100, height: 100)
-    static let keyA = ReuseKey(reuseId: ReuseId(namespace: .framework, id: "a"), type: ObjectIdentifier(View.self))
-    static let keyB = ReuseKey(reuseId: ReuseId(namespace: .framework, id: "b"), type: ObjectIdentifier(View.self))
+    static let keyA = ReuseKey(reuseId: ReuseId(namespace: .framework, id: "a", reusesInPlace: true), type: ObjectIdentifier(View.self))
+    static let keyB = ReuseKey(reuseId: ReuseId(namespace: .framework, id: "b", reusesInPlace: true), type: ObjectIdentifier(View.self))
     static let appKey = ReuseKey(reuseId: ReuseId(namespace: .user, id: "a"), type: ObjectIdentifier(View.self))
+    static let appInPlaceKey = ReuseKey(reuseId: ReuseId(namespace: .user, id: "a", reusesInPlace: true), type: ObjectIdentifier(View.self))
+
+    /// The reuse identifier of the rows' views, as ComposeUI's own nodes give their views.
+    static let rowReuseId = ReuseId(namespace: .framework, id: "row", reusesInPlace: true)
+  }
+
+  /// Returns a key that an app's view reused in place has, of a reuse identifier made from a number.
+  private static func appInPlaceKey(_ number: Int) -> ReuseKey {
+    ReuseKey(reuseId: ReuseId(namespace: .user, id: "\(number)", reusesInPlace: true), type: ObjectIdentifier(View.self))
   }
 
   /// Returns a view of reusable rows in a window.
   private func makeRowsView(pool: RenderablePoolType,
-                            namespace: ReuseId.Namespace = .framework,
                             onRemove: @escaping (Renderable, RenderableRemoveContext) -> Void = { _, _ in },
                             onResetForReuse: @escaping (Renderable) -> Void = { _ in }) -> (TestWindow, ComposeView)
   {
     makeView(pool: pool) {
       VStack {
         for row in 0 ..< Constants.rowCount {
-          RowNode(row: row, namespace: namespace)
+          RowNode(row: row, reuseId: Constants.rowReuseId)
             .onRemove(onRemove)
             .onResetForReuse(onResetForReuse)
+            .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+  }
+
+  /// Returns a view of rows in a window, whose views the app reuses with `reuseId(_:inPlace:)`.
+  private func makeAppRowsView(pool: RenderablePoolType, inPlace: Bool) -> (TestWindow, ComposeView) {
+    makeView(pool: pool) {
+      VStack {
+        for row in 0 ..< Constants.rowCount {
+          RowNode(row: row, reuseId: nil)
+            .reuseId("row", inPlace: inPlace)
             .frame(width: .flexible, height: Constants.rowHeight)
         }
       }
@@ -777,16 +851,16 @@ private final class RowView: View {
 
 // MARK: - RowNode
 
-/// A node of a reusable row's view, whose reuse identifier is in the framework's namespace, as ComposeUI's own nodes give
-/// their views, or in the user's, as an app's nodes do.
+/// A node of a row's view, with the reuse identifier that its item sets, as ComposeUI's own nodes do, or without one,
+/// for an app to set.
 private struct RowNode: ComposeNode {
 
   private let row: Int
-  private let namespace: ReuseId.Namespace
+  private let reuseId: ReuseId?
 
-  init(row: Int, namespace: ReuseId.Namespace = .framework) {
+  init(row: Int, reuseId: ReuseId?) {
     self.row = row
-    self.namespace = namespace
+    self.reuseId = reuseId
   }
 
   var id: ComposeNodeId = .custom("row")
@@ -819,7 +893,7 @@ private struct RowNode: ComposeNode {
       update: { view, _ in
         view.row = row
       },
-      reuseId: ReuseId(namespace: namespace, id: "row")
+      reuseId: reuseId
     )
     items.append(item.eraseToRenderableItem())
   }

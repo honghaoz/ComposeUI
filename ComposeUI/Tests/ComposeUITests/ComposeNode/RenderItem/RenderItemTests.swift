@@ -547,6 +547,7 @@ class RenderItemTests: XCTestCase {
         willRemove: nil,
         didRemove: nil,
         reuseId: "modifier",
+        reusesInPlace: false,
         resetForReuse: nil,
         transition: nil,
         animationTiming: nil,
@@ -588,6 +589,7 @@ class RenderItemTests: XCTestCase {
       willRemove: { renderable, _ in Self.appendToken("modifier willRemove", to: renderable) },
       didRemove: { renderable, _ in Self.appendToken("modifier didRemove", to: renderable) },
       reuseId: nil,
+      reusesInPlace: false,
       resetForReuse: { renderable in Self.appendToken("modifier resetForReuse", to: renderable) },
       transition: nil,
       animationTiming: nil,
@@ -625,14 +627,14 @@ class RenderItemTests: XCTestCase {
       (
         "an item with the framework's reuse id, which the modifier's replaces",
         makeItem().reuseId(ReuseId(namespace: .framework, id: "framework")),
-        ReuseId(namespace: .user, id: "modifier"),
+        ReuseId(namespace: .user, id: "modifier", reusesInPlace: true),
         false,
         .linear(duration: 2)
       ),
       (
         "an item without values, which takes the modifier's",
         makeItem(),
-        ReuseId(namespace: .user, id: "modifier"),
+        ReuseId(namespace: .user, id: "modifier", reusesInPlace: true),
         false,
         .linear(duration: 2)
       ),
@@ -648,13 +650,14 @@ class RenderItemTests: XCTestCase {
         willRemove: nil,
         didRemove: nil,
         reuseId: "modifier",
+        reusesInPlace: true,
         resetForReuse: nil,
         transition: RenderableTransition(insert: nil, remove: nil),
         animationTiming: .linear(duration: 2),
         zIndex: 3
       )
       let builtItem = testCase.item
-        .reuseId("modifier")
+        .reuseId("modifier", inPlace: true)
         .transition(RenderableTransition(insert: nil, remove: nil))
         .animation(.linear(duration: 2))
         .zIndex(3)
@@ -689,6 +692,7 @@ class RenderItemTests: XCTestCase {
       willRemove: nil,
       didRemove: nil,
       reuseId: nil,
+      reusesInPlace: false,
       resetForReuse: nil,
       transition: nil,
       animationTiming: nil,

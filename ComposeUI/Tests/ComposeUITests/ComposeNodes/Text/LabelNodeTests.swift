@@ -820,9 +820,9 @@ class LabelNodeTests: XCTestCase {
     // given: a renderable item of a label node, which isn't selectable
     let item = firstRenderableItem(of: LabelNode("Hello"))
 
-    // then: the reuse ids use the framework pool bucket of label views
-    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "TextLabelView")
-    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "TextLabelView")
+    // then: the reuse ids use the framework pool bucket of label views, which are reused in place
+    expect(item?.reuseId) == ReuseId(namespace: .framework, id: "TextLabelView", reusesInPlace: true)
+    expect(item?.reuseKey?.reuseId) == ReuseId(namespace: .framework, id: "TextLabelView", reusesInPlace: true)
   }
 
   func test_viewReuse_recycledView_resetsStateAndReuses() throws {
