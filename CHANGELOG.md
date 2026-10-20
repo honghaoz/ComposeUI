@@ -72,6 +72,7 @@
 - Refreshing labels is faster on iOS, tvOS and visionOS: a label without a font of its own takes the system font made for the current Bold Text setting, instead of making it again for each label.
 - Building content with modifiers is faster: the modifiers that return `some ComposeNode` are inlinable, so an app's module knows the types of the nodes they return, instead of looking up each node's conformance to `ComposeNode` at run time.
 - Building and refreshing labels is faster, as is building text, view and layer nodes: their initializers no longer copy the node, and a label makes its text node in place when it lays out, instead of copying it.
+- Styling labels, text nodes and spacers, and setting a node's id or fixed size, is faster: methods such as `font(_:)`, `numberOfLines(_:)` and `fixedSize(width:height:)` consume the node that they're called on and return it changed, instead of copying it.
 - Refreshing a text node whose attributed string is the same object as in the last refresh, as a label's is, is faster: its text view reuses the text with the theme applied instead of applying the theme to a new copy.
 - Laying out text is faster: a text's measured size is looked up without allocating.
 - Refreshing themed content is faster on macOS: the renderables' updates read the view's appearance once per render pass.

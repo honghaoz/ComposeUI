@@ -48,9 +48,8 @@ protocol ContainerNodeInternal: ContainerNode {
 
 extension ContainerNodeInternal {
 
-  public func mapChildren(_ modifier: (any ComposeNode) -> any ComposeNode) -> Self {
-    var node = self
-    node.childNodes = node.childNodes.map { modifier($0) }
-    return node
+  public consuming func mapChildren(_ modifier: (any ComposeNode) -> any ComposeNode) -> Self {
+    childNodes = childNodes.map { modifier($0) }
+    return consume self
   }
 }

@@ -131,20 +131,18 @@ public struct ButtonNode: ComposeNode {
   /// Set the action to perform when the button is double tapped.
   ///
   /// - Parameter block: The action to perform when the button is double tapped.
-  public func onDoubleTap(block: @escaping () -> Void) -> Self {
-    var copy = self
-    copy.onDoubleTap = block
-    return copy
+  public consuming func onDoubleTap(block: @escaping () -> Void) -> Self {
+    onDoubleTap = block
+    return consume self
   }
 
   #if canImport(UIKit) && !os(tvOS) && !os(visionOS)
   /// Set the style of haptic feedback to be used when the button is pressed.
   ///
   /// - Parameter style: The style of haptic feedback to be used when the button is pressed.
-  public func hapticFeedbackStyle(_ style: UIImpactFeedbackGenerator.FeedbackStyle?) -> Self {
-    var copy = self
-    copy.hapticFeedbackStyle = style
-    return copy
+  public consuming func hapticFeedbackStyle(_ style: UIImpactFeedbackGenerator.FeedbackStyle?) -> Self {
+    hapticFeedbackStyle = style
+    return consume self
   }
   #endif
 
@@ -152,10 +150,9 @@ public struct ButtonNode: ComposeNode {
   /// Set the closure that determines whether the button should perform a key equivalent.
   ///
   /// - Parameter block: The closure that determines whether the button should perform a key equivalent.
-  public func shouldPerformKeyEquivalent(_ block: @escaping (NSEvent) -> Bool) -> Self {
-    var copy = self
-    copy.shouldPerformKeyEquivalent = block
-    return copy
+  public consuming func shouldPerformKeyEquivalent(_ block: @escaping (NSEvent) -> Bool) -> Self {
+    shouldPerformKeyEquivalent = block
+    return consume self
   }
   #endif
 }
