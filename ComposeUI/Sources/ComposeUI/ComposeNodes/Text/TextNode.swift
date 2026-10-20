@@ -134,7 +134,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     lineBreakMode = .byWordWrapping
 
     textContainerInset = .zero
-    adjustIntrinsicTextSize = nil
+    // `adjustIntrinsicTextSize` starts as `nil`, and assigning it again would make the compiler copy the node when the
+    // initializer returns
 
     isEditable = false
     isSelectable = true

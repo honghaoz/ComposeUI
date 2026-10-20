@@ -138,6 +138,9 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
     self.didRemove = didRemove
     self.isFixedWidth = false
     self.isFixedHeight = false
+    // set here instead of as the default value of `id`, which the initializer that takes a layer would assign again,
+    // making the compiler copy the node when the initializer returns
+    id = .standard(.layer)
   }
 
   /// Makes a layer with its frame set to the context's initial frame, the default `make`.
@@ -169,7 +172,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .standard(.layer)
+  public var id: ComposeNodeId
 
   public private(set) var size: CGSize = .zero
 

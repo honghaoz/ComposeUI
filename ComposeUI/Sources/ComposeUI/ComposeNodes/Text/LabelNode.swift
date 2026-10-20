@@ -74,8 +74,8 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
     font = Defaults.font
     textColor = Defaults.textColor
 
-    textBackgroundColor = nil
-    textShadow = nil
+    // `textBackgroundColor` and `textShadow` start as `nil`, and assigning them again would make the compiler copy
+    // the node when the initializer returns
 
     textAlignment = .center
     numberOfLines = 1
@@ -101,9 +101,9 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     if node == nil {
-      var textNode: TextNode
+      // the text node is made in place, since one made in a local variable and then stored is copied
       if numberOfLines == 1 {
-        textNode = TextNode.singleLineText(
+        node = TextNode.singleLineText(
           text,
           font: font,
           foregroundColor: textColor,
@@ -114,7 +114,7 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
           isSelectable: isSelectable
         )
       } else {
-        textNode = TextNode.multiLineText(
+        node = TextNode.multiLineText(
           text,
           font: font,
           foregroundColor: textColor,
@@ -126,11 +126,9 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
           isSelectable: isSelectable
         )
       }
-      textNode.isFixedWidth = isFixedWidth
-      textNode.isFixedHeight = isFixedHeight
-      textNode.id = id
-
-      node = textNode
+      node!.isFixedWidth = isFixedWidth // swiftlint:disable:this force_unwrapping
+      node!.isFixedHeight = isFixedHeight // swiftlint:disable:this force_unwrapping
+      node!.id = id // swiftlint:disable:this force_unwrapping
     }
 
     return node!.layout(containerSize: containerSize, context: context) // swiftlint:disable:this force_unwrapping
