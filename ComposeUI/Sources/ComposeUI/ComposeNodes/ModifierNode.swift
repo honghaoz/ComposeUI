@@ -37,7 +37,11 @@ import UIKit
 #endif
 
 /// A node that applies a modifier to a child node.
-private struct ModifierNode: ComposeNode {
+///
+/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
+/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
+@usableFromInline
+struct ModifierNode: ComposeNode {
 
   private var node: ComposeNode
 
@@ -61,19 +65,20 @@ private struct ModifierNode: ComposeNode {
   /// `zIndex`, instead of making each node larger.
   private let reusesInPlace: Bool
 
-  fileprivate init(node: some ComposeNode,
-                   willInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
-                   didInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
-                   willUpdate: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
-                   update: RenderableItem.AdditionalUpdate? = nil,
-                   willRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
-                   didRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
-                   reuseId: String? = nil,
-                   reusesInPlace: Bool = false,
-                   resetForReuse: ((Renderable) -> Void)? = nil,
-                   transition: RenderableTransition? = nil,
-                   animationTiming: AnimationTiming? = nil,
-                   zIndex: CGFloat? = nil)
+  @usableFromInline
+  init(node: some ComposeNode,
+       willInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
+       didInsert: ((Renderable, RenderableInsertContext) -> Void)? = nil,
+       willUpdate: ((Renderable, RenderableUpdateContext) -> Void)? = nil,
+       update: RenderableItem.AdditionalUpdate? = nil,
+       willRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
+       didRemove: ((Renderable, RenderableRemoveContext) -> Void)? = nil,
+       reuseId: String? = nil,
+       reusesInPlace: Bool = false,
+       resetForReuse: ((Renderable) -> Void)? = nil,
+       transition: RenderableTransition? = nil,
+       animationTiming: AnimationTiming? = nil,
+       zIndex: CGFloat? = nil)
   {
     if let modifierNode = node as? ModifierNode { // coalescing modifiers
       self.node = modifierNode.node
@@ -153,23 +158,28 @@ private struct ModifierNode: ComposeNode {
 
   // MARK: - ComposeNode
 
+  @usableFromInline
   var id: ComposeNodeId {
     get { node.id }
     set { node.id = newValue }
   }
 
+  @usableFromInline
   var size: CGSize {
     node.size
   }
 
+  @usableFromInline
   var renderableItemsBoundingRect: CGRect {
     node.renderableItemsBoundingRect
   }
 
+  @usableFromInline
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     node.layout(containerSize: containerSize, context: context)
   }
 
+  @usableFromInline
   func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     // the child appends its items to the pass's array, where they're changed in place
     let start = items.count
@@ -511,6 +521,7 @@ public extension ComposeNode {
   /// - Note: The block must not change the renderable's transform, see `Renderable`.
   /// - Parameter willInsert: The block to execute.
   /// - Returns: A new node with the block added.
+  @inlinable
   func willInsert(_ willInsert: @escaping (_ renderable: Renderable, _ context: RenderableInsertContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willInsert: willInsert)
   }
@@ -521,6 +532,7 @@ public extension ComposeNode {
   ///
   /// - Parameter didInsert: The block to execute.
   /// - Returns: A new node with the block added.
+  @inlinable
   func onInsert(_ didInsert: @escaping (_ renderable: Renderable, _ context: RenderableInsertContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, didInsert: didInsert)
   }
@@ -532,6 +544,7 @@ public extension ComposeNode {
   ///
   /// - Parameter willUpdate: The block to execute.
   /// - Returns: A new node with the block added.
+  @inlinable
   func willUpdate(_ willUpdate: @escaping (_ renderable: Renderable, _ context: RenderableUpdateContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willUpdate: willUpdate)
   }
@@ -542,6 +555,7 @@ public extension ComposeNode {
   ///
   /// - Parameter update: The block to execute.
   /// - Returns: A new node with the block added.
+  @inlinable
   func onUpdate(_ update: @escaping (_ renderable: Renderable, _ context: RenderableUpdateContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, update: RenderableItem.AdditionalUpdate(key: nil, block: update))
   }
@@ -552,6 +566,7 @@ public extension ComposeNode {
   ///
   /// - Parameter willRemove: The block to execute.
   /// - Returns: A new node with the block added.
+  @inlinable
   func willRemove(_ willRemove: @escaping (_ renderable: Renderable, _ context: RenderableRemoveContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, willRemove: willRemove)
   }
@@ -564,6 +579,7 @@ public extension ComposeNode {
   ///
   /// - Parameter didRemove: The block to execute.
   /// - Returns: A new node with the block added.
+  @inlinable
   func onRemove(_ didRemove: @escaping (_ renderable: Renderable, _ context: RenderableRemoveContext) -> Void) -> some ComposeNode {
     ModifierNode(node: self, didRemove: didRemove)
   }
@@ -575,6 +591,7 @@ public extension ComposeNode {
   ///
   /// - Parameter transition: The transition to set.
   /// - Returns: A new node with the transition set.
+  @inlinable
   func transition(_ transition: RenderableTransition) -> some ComposeNode {
     ModifierNode(node: self, transition: transition)
   }
@@ -586,6 +603,7 @@ public extension ComposeNode {
   ///
   /// - Parameter animationTiming: The animation timing to set.
   /// - Returns: A new node with the animation set.
+  @inlinable
   func animation(_ animationTiming: AnimationTiming) -> some ComposeNode {
     ModifierNode(node: self, animationTiming: animationTiming)
   }
@@ -615,6 +633,7 @@ public extension ComposeNode {
   ///   - reuseId: The reuse identifier to set.
   ///   - inPlace: Whether to reuse a view in place. Default is `false`.
   /// - Returns: A new node with the reuse identifier set.
+  @inlinable
   func reuseId(_ reuseId: String, inPlace: Bool = false) -> some ComposeNode {
     ModifierNode(node: self, reuseId: reuseId, reusesInPlace: inPlace)
   }
@@ -628,6 +647,7 @@ public extension ComposeNode {
   ///
   /// - Parameter resetForReuse: The block to execute.
   /// - Returns: A new node with the block added.
+  @inlinable
   func onResetForReuse(_ resetForReuse: @escaping (_ renderable: Renderable) -> Void) -> some ComposeNode {
     ModifierNode(node: self, resetForReuse: resetForReuse)
   }
@@ -639,6 +659,7 @@ public extension ComposeNode {
   ///
   /// - Parameter color: The background color to set.
   /// - Returns: A new node with the background color set.
+  @inlinable
   func backgroundColor(_ color: Color) -> some ComposeNode {
     backgroundColor(ThemedColor(color))
   }
@@ -650,6 +671,7 @@ public extension ComposeNode {
   ///
   /// - Parameter color: The themed background color to set.
   /// - Returns: A new node with the background color set.
+  @inlinable
   func backgroundColor(_ color: ThemedColor) -> some ComposeNode {
     ModifierNode(
       node: self,
@@ -665,6 +687,7 @@ public extension ComposeNode {
   ///
   /// - Parameter opacity: The opacity to set.
   /// - Returns: A new node with the opacity set.
+  @inlinable
   func opacity(_ opacity: CGFloat) -> some ComposeNode {
     self.opacity(Themed<CGFloat>(opacity))
   }
@@ -677,6 +700,7 @@ public extension ComposeNode {
   ///
   /// - Parameter opacity: The themed opacity to set.
   /// - Returns: A new node with the opacity set.
+  @inlinable
   func opacity(_ opacity: Themed<CGFloat>) -> some ComposeNode {
     ModifierNode(
       node: self,
@@ -693,6 +717,7 @@ public extension ComposeNode {
   ///   - color: The color of the border.
   ///   - width: The width of the border.
   /// - Returns: A new node with the border set.
+  @inlinable
   func border(color: Color, width: CGFloat) -> some ComposeNode {
     border(color: ThemedColor(color), width: Themed<CGFloat>(width))
   }
@@ -706,6 +731,7 @@ public extension ComposeNode {
   ///   - color: The themed color of the border.
   ///   - width: The themed width of the border.
   /// - Returns: A new node with the border set.
+  @inlinable
   func border(color: ThemedColor, width: Themed<CGFloat>) -> some ComposeNode {
     ModifierNode(
       node: self,
@@ -722,6 +748,7 @@ public extension ComposeNode {
   ///   - radius: The corner radius to set.
   ///   - cornerCurve: The corner curve to set. The default is `.continuous`.
   /// - Returns: A new node with the corner radius set.
+  @inlinable
   func cornerRadius(_ radius: CGFloat, cornerCurve: CALayerCornerCurve = .continuous) -> some ComposeNode {
     ModifierNode(
       node: self,
@@ -736,6 +763,7 @@ public extension ComposeNode {
   ///
   /// - Parameter masksToBounds: Whether the renderable is masked to bounds. The default is `true`.
   /// - Returns: A new node with the `masksToBounds` set.
+  @inlinable
   func masksToBounds(_ masksToBounds: Bool = true) -> some ComposeNode {
     ModifierNode(
       node: self,
@@ -759,6 +787,7 @@ public extension ComposeNode {
   ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
   ///     It runs when the renderable is inserted, refreshed, or changes size. Request a refresh when other inputs of the path change.
   /// - Returns: A new node with the shadow set.
+  @inlinable
   func shadow(color: Color, opacity: CGFloat, radius: CGFloat, offset: CGSize, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     shadow(color: ThemedColor(color), opacity: Themed<CGFloat>(opacity), radius: Themed<CGFloat>(radius), offset: Themed<CGSize>(offset), path: path)
   }
@@ -779,6 +808,7 @@ public extension ComposeNode {
   ///   - path: The block to provide the path of the shadow. The block provides the renderable that the shadow is applied to.
   ///     It runs when the renderable is inserted, refreshed, or changes size. Request a refresh when other inputs of the path change.
   /// - Returns: A new node with the shadow set.
+  @inlinable
   func shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?) -> some ComposeNode {
     ModifierNode(
       node: self,
@@ -799,6 +829,7 @@ public extension ComposeNode {
   ///
   /// - Parameter zIndex: The z-index to set.
   /// - Returns: A new node with the z-index set.
+  @inlinable
   func zIndex(_ zIndex: CGFloat) -> some ComposeNode {
     ModifierNode(node: self, zIndex: zIndex)
   }
@@ -810,6 +841,7 @@ public extension ComposeNode {
   ///
   /// - Parameter isEnabled: Whether the renderable is interactive.
   /// - Returns: A new node with the `isUserInteractionEnabled` set.
+  @inlinable
   func interactive(_ isEnabled: Bool = true) -> some ComposeNode {
     ModifierNode(
       node: self,
@@ -824,6 +856,7 @@ public extension ComposeNode {
   ///
   /// - Parameter scale: The scale of the rasterized content. Specify `nil` to disable rasterization.
   /// - Returns: A new node with the rasterization set.
+  @inlinable
   func rasterize(_ scale: CGFloat?) -> some ComposeNode {
     ModifierNode(
       node: self,

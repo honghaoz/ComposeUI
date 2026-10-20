@@ -31,31 +31,41 @@
 import CoreGraphics
 
 /// A node that offsets the child node's
-private struct OffsetNode<Node: ComposeNode>: ComposeNode {
+///
+/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
+/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
+@usableFromInline
+struct OffsetNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
   private let offset: CGPoint
 
-  fileprivate init(node: Node, offset: CGPoint) {
+  @usableFromInline
+  init(node: Node, offset: CGPoint) {
     self.node = node
     self.offset = offset
   }
 
   // MARK: - ComposeNode
 
+  @usableFromInline
   var id: ComposeNodeId = .standard(.offset)
 
+  @usableFromInline
   var size: CGSize { node.size }
 
+  @usableFromInline
   var renderableItemsBoundingRect: CGRect {
     let childRect = node.renderableItemsBoundingRect
     return childRect.isNull ? childRect : childRect.translate(offset)
   }
 
+  @usableFromInline
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     node.layout(containerSize: containerSize, context: context)
   }
 
+  @usableFromInline
   func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     let boundsInChild = visibleBounds.translate(-offset)
 
@@ -77,6 +87,7 @@ public extension ComposeNode {
   ///
   /// - Parameter offset: The amount to offset the node by.
   /// - Returns: A new node with the offset applied.
+  @inlinable
   func offset(_ offset: CGPoint) -> some ComposeNode {
     OffsetNode(node: self, offset: offset)
   }

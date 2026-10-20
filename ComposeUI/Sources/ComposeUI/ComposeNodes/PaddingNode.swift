@@ -39,27 +39,36 @@ import UIKit
 import CoreGraphics
 
 /// A node that pads the child node.
-private struct PaddingNode<Node: ComposeNode>: ComposeNode {
+///
+/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
+/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
+@usableFromInline
+struct PaddingNode<Node: ComposeNode>: ComposeNode {
 
   private var node: Node
   private let insets: EdgeInsets
 
-  fileprivate init(node: Node, insets: EdgeInsets) {
+  @usableFromInline
+  init(node: Node, insets: EdgeInsets) {
     self.node = node
     self.insets = insets
   }
 
   // MARK: - ComposeNode
 
+  @usableFromInline
   var id: ComposeNodeId = .standard(.padding)
 
+  @usableFromInline
   private(set) var size: CGSize = .zero
 
+  @usableFromInline
   var renderableItemsBoundingRect: CGRect {
     let childRect = node.renderableItemsBoundingRect
     return childRect.isNull ? childRect : childRect.translate(CGPoint(x: insets.left, y: insets.top))
   }
 
+  @usableFromInline
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let containerSize = CGSize(
       width: max(0, containerSize.width - insets.horizontal),
@@ -86,6 +95,7 @@ private struct PaddingNode<Node: ComposeNode>: ComposeNode {
     )
   }
 
+  @usableFromInline
   func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
     let childOrigin = CGPoint(x: insets.left, y: insets.top)
     let boundsInChild = visibleBounds.translate(-childOrigin)
@@ -108,6 +118,7 @@ public extension ComposeNode {
   ///
   /// - Parameter insets: The insets to add.
   /// - Returns: A new node with the padding applied.
+  @inlinable
   func padding(_ insets: EdgeInsets) -> some ComposeNode {
     PaddingNode(node: self, insets: insets)
   }

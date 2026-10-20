@@ -57,6 +57,7 @@ public typealias RenderableItem = RenderItem<Renderable>
 /// blocks, see `resetForReuse(_:)`.
 ///
 /// - Note: A raw value is the key's bit index in a `UInt64`, so there can be at most 64 keys.
+@usableFromInline
 enum RenderableUpdateKey: UInt64 {
   case backgroundColor
   case opacity
@@ -75,6 +76,7 @@ enum RenderableUpdateKey: UInt64 {
 /// A built-in modifier's update is a value instead of a block, so that making the modifier doesn't allocate a context
 /// for a block that captures the value. A value of up to 16 bytes, the size of a block, is stored inline, so that an
 /// update with a value is no larger than one with a block, and a bigger value is boxed, as a block's context would be.
+@usableFromInline
 enum RenderablePropertyUpdate {
 
   case backgroundColor(ThemedColor)
@@ -362,6 +364,7 @@ public struct RenderItem<T> {
 
   /// A built-in modifier's property update or an update block added to a render item, optionally keyed by the
   /// renderable property it sets.
+  @usableFromInline
   struct AdditionalUpdate {
 
     /// What an update runs: a built-in modifier's property update, or a block stored with the renderable type it takes.
@@ -1010,6 +1013,7 @@ extension RenderItem.AdditionalUpdate where T == Renderable {
   /// Makes a `RenderableItem`'s update of a built-in modifier's property, keyed by the property.
   ///
   /// - Parameter update: The property update.
+  @usableFromInline
   init(_ update: RenderablePropertyUpdate) {
     self.init(kind: .property(update), key: update.key)
   }
@@ -1019,6 +1023,7 @@ extension RenderItem.AdditionalUpdate where T == Renderable {
   /// - Parameters:
   ///   - key: The renderable property the block sets, see `RenderableUpdateKey`. `nil` for a block that is never replaced.
   ///   - block: The update block.
+  @usableFromInline
   init(key: RenderableUpdateKey?, block: @escaping (Renderable, RenderableUpdateContext) -> Void) {
     self.init(kind: .renderable(block), key: key)
   }

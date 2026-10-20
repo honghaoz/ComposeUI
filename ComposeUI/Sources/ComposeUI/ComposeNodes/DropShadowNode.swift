@@ -190,6 +190,7 @@ public extension ComposeNode {
   ///   - offset: The themed offset of the drop shadow.
   ///   - path: The path of the drop shadow. The block is given the size of the shadow, the node's size.
   /// - Returns: A new node with the drop shadow underlay set.
+  @inlinable
   func dropShadow(color: ThemedColor,
                   opacity: Themed<CGFloat>,
                   radius: Themed<CGFloat>,
@@ -213,6 +214,7 @@ public extension ComposeNode {
   ///   - offset: The offset of the drop shadow.
   ///   - path: The path of the drop shadow. The block is given the size of the shadow, the node's size.
   /// - Returns: A new node with the drop shadow underlay set.
+  @inlinable
   func dropShadow(color: Color,
                   opacity: CGFloat,
                   radius: CGFloat,
@@ -236,6 +238,7 @@ public extension ComposeNode {
   ///   - offset: The themed offset of the drop shadow.
   ///   - paths: The paths of the drop shadow. The block is given the size of the shadow, the node's size. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
   /// - Returns: A new node with the drop shadow underlay set.
+  @inlinable
   func dropShadow(color: ThemedColor,
                   opacity: Themed<CGFloat>,
                   radius: Themed<CGFloat>,
@@ -259,6 +262,7 @@ public extension ComposeNode {
   ///   - offset: The offset of the drop shadow.
   ///   - paths: The paths of the drop shadow. The block is given the size of the shadow, the node's size. In addition to the shadow path, you can also provide a cutout path, which will be used to clip the shadow.
   /// - Returns: A new node with the drop shadow underlay set.
+  @inlinable
   func dropShadow(color: Color,
                   opacity: CGFloat,
                   radius: CGFloat,
