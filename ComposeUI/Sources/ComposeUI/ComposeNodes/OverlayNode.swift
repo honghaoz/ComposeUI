@@ -31,17 +31,20 @@
 import CoreGraphics
 
 /// A node that overlays a node with another node.
-///
-/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
-/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
+@frozen
 @usableFromInline
 struct OverlayNode<Node: ComposeNode>: ComposeNode {
 
-  private var node: Node
-  private var overlayNode: any ComposeNode
-  private let alignment: Layout.Alignment
+  @usableFromInline
+  var node: Node
 
   @usableFromInline
+  var overlayNode: any ComposeNode
+
+  @usableFromInline
+  let alignment: Layout.Alignment
+
+  @inlinable
   init(node: Node, overlayNode: any ComposeNode, alignment: Layout.Alignment) {
     self.node = node
     self.overlayNode = overlayNode

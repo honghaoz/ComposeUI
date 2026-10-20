@@ -30,6 +30,7 @@
 
 import Foundation
 
+@usableFromInline
 enum StandardComposeNodeId: String {
 
   case empty = "E"
@@ -76,6 +77,7 @@ public struct ComposeNodeId: Hashable {
   }
 
   /// Create a standard id for a node.
+  @usableFromInline
   static func standard(_ id: StandardComposeNodeId) -> ComposeNodeId {
     ComposeNodeId(id: id.rawValue, isFixed: false)
   }

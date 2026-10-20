@@ -423,6 +423,7 @@ public struct RenderItem<T> {
   /// Nodes are rebuilt on every refresh and items on every render pass, so the blocks form a linked list that adding a
   /// block extends without copying the others, with a single block stored inline. An array would copy its blocks each
   /// time a coalescing modifier adds one, since the inner modifier still holds them.
+  @usableFromInline
   enum AdditionalUpdates {
 
     case none
@@ -441,6 +442,7 @@ public struct RenderItem<T> {
     }
 
     /// Returns the list with a block added to run last.
+    @inlinable
     func adding(_ update: AdditionalUpdate) -> AdditionalUpdates {
       switch self {
       case .none:

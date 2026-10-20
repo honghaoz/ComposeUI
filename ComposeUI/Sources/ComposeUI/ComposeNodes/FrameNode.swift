@@ -50,19 +50,23 @@ public enum FrameSize: Hashable {
 }
 
 /// A node that sets the frame of another node.
-///
-/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
-/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
+@frozen
 @usableFromInline
 struct FrameNode<Node: ComposeNode>: ComposeNode {
 
-  private var node: Node
-
-  private let width: FrameSize
-  private let height: FrameSize
-  private let alignment: Layout.Alignment
+  @usableFromInline
+  var node: Node
 
   @usableFromInline
+  let width: FrameSize
+
+  @usableFromInline
+  let height: FrameSize
+
+  @usableFromInline
+  let alignment: Layout.Alignment
+
+  @inlinable
   init(node: Node, width: FrameSize, height: FrameSize, alignment: Layout.Alignment) {
     self.node = node
 

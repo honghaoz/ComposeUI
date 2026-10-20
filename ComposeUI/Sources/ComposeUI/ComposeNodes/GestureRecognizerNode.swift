@@ -37,9 +37,6 @@ import UIKit
 #endif
 
 /// A node that can add gesture recognizers to a view.
-///
-/// It's usable from inlinable code, so that the modifiers that make it are inlinable, and an app's module knows the
-/// type that they return, instead of looking up its conformance to `ComposeNode` at run time.
 @usableFromInline
 struct GestureRecognizerNode: ComposeNode {
 
