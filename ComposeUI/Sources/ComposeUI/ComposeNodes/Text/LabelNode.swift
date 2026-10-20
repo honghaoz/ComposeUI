@@ -102,7 +102,7 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     if node == nil {
-      // the default font is taken here, with the content's one read of the Bold Text setting, instead of in the
+      // the default font is taken here, with the layout pass's one read of the Bold Text setting, instead of in the
       // initializer, where each label would read the setting
       let font = font ?? Defaults.font(in: context)
 
@@ -173,13 +173,21 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
     /// Returns the system font of a label's size, which is semibold while Bold Text is on.
     ///
-    /// - Parameter context: The layout context of the label, whose content evaluation reads the Bold Text setting once
-    ///   for the content.
+    /// - Parameter context: The layout context of the label, whose layout pass reads the Bold Text setting once for the
+    ///   labels laid out in it.
     /// - Returns: The font.
     static func font(in context: ComposeNodeLayoutContext) -> Font {
-      fontCache.font(isBoldTextEnabled: context.contentEvaluation.isBoldTextEnabled) {
+      fontCache.font(inPass: context.passId, isBoldTextEnabled: readIsBoldTextEnabled()) {
         Font.systemFont(ofSize: fontSize)
       }
+    }
+
+    /// Returns whether Bold Text is on.
+    private static func readIsBoldTextEnabled() -> Bool {
+      #if DEBUG
+      WorkCounter.count(.boldTextSettingRead)
+      #endif
+      return UIAccessibility.isBoldTextEnabled
     }
 
     #if os(tvOS)
@@ -204,6 +212,30 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
       /// The font made last on the main thread, with the Bold Text setting that it was made with.
       private var lastFont: (font: Font, isBoldTextEnabled: Bool)?
+
+      /// The layout pass that read the Bold Text setting last.
+      private var lastPassId: UInt64?
+
+      /// Returns the font for a layout pass, which reads the Bold Text setting once for the labels laid out in it, made
+      /// with a block when the setting differs from the one that the last font was made with, and for each lookup off
+      /// the main thread.
+      ///
+      /// - Parameters:
+      ///   - passId: The layout pass of the lookup.
+      ///   - isBoldTextEnabled: Whether Bold Text is on, read only on the main thread, once for each pass.
+      ///   - make: The block that makes the font.
+      /// - Returns: The font.
+      func font(inPass passId: UInt64, isBoldTextEnabled: @autoclosure () -> Bool, make: () -> Font) -> Font {
+        guard pthread_main_np() != 0 else {
+          return make()
+        }
+        if passId == lastPassId, let lastFont {
+          return lastFont.font
+        } else {
+          lastPassId = passId
+          return font(isBoldTextEnabled: isBoldTextEnabled(), make: make)
+        }
+      }
 
       /// Returns the font for a Bold Text setting, made with a block when the setting differs from the one that the last
       /// font was made with, and for each lookup off the main thread.

@@ -172,22 +172,4 @@ class ContentEvaluationTests: XCTestCase {
     expect(weakProvider) == nil
     expect(weakValue) == nil
   }
-
-  #if canImport(UIKit)
-  func test_isBoldTextEnabled_readsTheSettingOnce() {
-    // given: a content evaluation
-    let evaluation = ContentEvaluation()
-
-    // when: reading whether Bold Text is on twice
-    var values: [Bool] = []
-    let counts = WorkCounter.counting {
-      values.append(evaluation.isBoldTextEnabled)
-      values.append(evaluation.isBoldTextEnabled)
-    }
-
-    // then: the evaluation reads the setting once and keeps its value
-    expect(counts.boldTextSettingReads) == 1
-    expect(values) == [UIAccessibility.isBoldTextEnabled, UIAccessibility.isBoldTextEnabled]
-  }
-  #endif
 }
