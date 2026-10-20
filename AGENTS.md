@@ -195,6 +195,7 @@ Hard-won rules from past corrections, grouped by theme.
 - Match content to the section's altitude: overview sections get a couple of high-level sentences, mechanics and specifics go in the section that owns them.
 - A CHANGELOG entry is for a change users would notice or need to act on. Leave out internal details, such as an edge-case fix that makes one more code path follow a rule the API already documents.
 - Judge CHANGELOG entries against the last release, not the previous commit. Users only see released behavior, so a change to behavior that's still unreleased gets no entry of its own: update the entry that introduced the behavior when what it describes changes, and add nothing when the change only corrects it. Otherwise entries pile up for intermediate states no user saw.
+- A `//` comment right above a declaration reads as the declaration's documentation. Put a comment that explains how the code works inside the body, next to the code it explains, or where the code relies on it, such as the line that builds a value, and keep a declaration's documentation to what the declaration is.
 
 ## Design decisions
 
