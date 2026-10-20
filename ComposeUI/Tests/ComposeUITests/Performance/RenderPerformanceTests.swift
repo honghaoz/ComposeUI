@@ -147,6 +147,13 @@ class RenderPerformanceTests: BenchmarkTestCase {
     }
   }
 
+  func test_scroll_viewRowsInPlace_5000() {
+    // when: scrolling through 5000 view rows that the app reuses in place
+    runScrollBenchmark(name: "scroll.viewRows.inPlace.5000", rowCount: 5000) { _ in
+      Self.makeViewRow(pooled: true, inPlace: true)
+    }
+  }
+
   // MARK: - Scroll (shadow nodes, default-pooled, - measure the pooling payoff vs disabled)
 
   func test_scroll_dropShadowRows_2000_noPool() {
@@ -624,7 +631,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
   }
 
   /// A plain view-backed row, optionally opted into the recycle pool via `reuseId`.
-  private static func makeViewRow(pooled: Bool) -> any ComposeNode {
+  private static func makeViewRow(pooled: Bool, inPlace: Bool = false) -> any ComposeNode {
     let node = ViewNode<View>(make: { context in
       let view = View(frame: context.initialFrame ?? .zero)
       #if canImport(AppKit)
@@ -635,7 +642,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
     .frame(width: .flexible, height: Constants.rowHeight)
 
     if pooled {
-      return node.reuseId("viewRow")
+      return node.reuseId("viewRow", inPlace: inPlace)
     } else {
       return node
     }
