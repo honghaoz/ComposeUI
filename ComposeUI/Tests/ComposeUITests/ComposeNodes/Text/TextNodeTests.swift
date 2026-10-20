@@ -177,6 +177,39 @@ class TextNodeTests: XCTestCase {
     expect(textView.superview) == nil
   }
 
+  func test_init_defaults_labelFontAndColor() throws {
+    // given: a text node without a font or a foreground color
+    var renderedView: TextLabelView?
+    let contentView = ComposeView {
+      TextNode("Hello")
+        .selectable(false)
+        .onUpdate { item, _ in
+          renderedView = item.view as? TextLabelView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+
+    // when: rendering it
+    contentView.refresh(animated: false)
+
+    // then: the text shows in a label's font and color, the system font of a label's size and the label color
+    let text = try renderedView.unwrap().attributedString
+    let font = text.attribute(.font, at: 0, effectiveRange: nil) as? Font
+    let color = text.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color
+    #if canImport(AppKit)
+    expect(font) == Font.systemFont(ofSize: NSFont.systemFontSize)
+    expect(color) == .labelColor
+    #endif
+    #if os(tvOS)
+    expect(font) == Font.systemFont(ofSize: 20)
+    #elseif canImport(UIKit)
+    expect(font) == Font.systemFont(ofSize: Font.labelFontSize)
+    #endif
+    #if canImport(UIKit)
+    expect(color) == .label
+    #endif
+  }
+
   func test_view() {
     // given: a compose view with a default text node
     var textView: TextView?
