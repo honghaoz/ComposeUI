@@ -161,6 +161,12 @@ Hard-won rules from past corrections, grouped by theme.
 - Before skipping work for an unchanged input, list everything the skipped code does, not only what it's for. Work that looks redundant can carry side effects that other changes rely on, such as a scheduled layout that also applies a new inset. Measure each part, skip only the part that is both redundant and costly, keep the rest, and test each kept side effect.
 - Before attributing a measured difference to a factor, vary that factor alone and repeat. A cost that changes from run to run for another reason can make a few runs agree by chance, such as an instruction count that two comparisons of one build agreed on, which actually varied between the test processes of any build.
 - A string literal needs no retain, but a string copied out of memory, such as from a table, takes a call to `swift_bridgeObjectRetain`, even a small string that holds no object, since the compiler can't tell what it holds. To compute part of a value once, keep its literals and put only the computed part in the table, as `ComposeNodeId.standard(_:)` does with the hashes of its id strings.
+- In unspecialized generic code, reading a value through `UnsafeMutablePointer.pointee`, such as calling a getter or a non-mutating method on it, copies the whole value into a temporary first, which retains and releases each of its references, while a mutating call uses the value in place. Pass the value as `inout` to a generic helper that reads it, as `NodeBuffer` does with its children, and look for `initializeWithCopy` frames in a profile instead of assuming that the address is used.
+- A change that nothing calls can still move the benchmarks: new code in a module changes how the optimizer compiles the module's other code, such as a test's `map` into `[any ComposeNode]`, after which the optimizer boxed each row of an unrelated benchmark again. Compare every change's benchmarks against master, including code that nothing calls yet and code that only the tests have.
+
+## Unsafe memory
+
+- Place values of different types in raw memory at offsets that advance by each value's stride, not its size: initializing a value binds its stride's bytes to its type, so a value that starts in the previous value's tail padding overlaps memory bound to another type, which is undefined behavior even though nothing writes there. Reserve the stride and the padding to the alignment, as `NodeBuffer` does for each child.
 
 ## CI
 
