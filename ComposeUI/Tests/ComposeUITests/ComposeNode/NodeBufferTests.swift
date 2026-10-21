@@ -323,6 +323,18 @@ class NodeBufferTests: XCTestCase {
     expect(buffer) === NodeBuffer.empty
   }
 
+  func test_roomOfChildren_withoutChildren_isZero() {
+    // given: a buffer of a node, and a buffer whose node is moved out
+    let buffer = NodeBuffer.make([ByteNode(flag: true)])
+    let emptied = NodeBuffer.make([ByteNode(flag: false)])
+    emptied.moveChildren(into: NodeBuffer.make(capacity: 1, valuesByteCount: emptied.roomOfChildren))
+
+    // then: the shared empty buffer and the emptied buffer take no room in another buffer, while the node takes some
+    expect(NodeBuffer.empty.roomOfChildren) == 0
+    expect(emptied.roomOfChildren) == 0
+    expect(buffer.roomOfChildren >= NodeBuffer.room(for: ByteNode.self)) == true
+  }
+
   func test_nodes_returnsTheChildrenInOrder() {
     // given: a buffer of nodes of different types
     let buffer = NodeBuffer.make([LabelNode("A").id("a"), ColorNode(.blue).id("b")])

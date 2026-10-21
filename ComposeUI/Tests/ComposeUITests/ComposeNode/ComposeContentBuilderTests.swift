@@ -423,6 +423,23 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(allocations) == Array(repeating: 0, count: bodies.count)
   }
 
+  func test_emptyContentInABlock_takesNoRoom() {
+    // given: the content of a loop with no iterations, which shares the empty buffer
+    let empty: [Int] = []
+    let emptyContent = Self.content {
+      for _ in empty {
+        ColorNode(.red)
+      }
+    }
+
+    // when: making the content's component, as a block that holds the content does
+    let component = ComposeContentBuilder.buildExpression(emptyContent)
+
+    // then: it has no nodes, and adds no bytes to the block's buffer
+    expect(component.nodeCount) == 0
+    expect(component.valuesByteCount) == 0
+  }
+
   func test_arrayExpressionOfBlocks_keepsTheirNodesInOrder() {
     // given: an array of the contents of a block of two nodes and of a block of four nodes
     let blocks: [ComposeContent] = [Self.twoNodes(), Self.fourNodes()]
