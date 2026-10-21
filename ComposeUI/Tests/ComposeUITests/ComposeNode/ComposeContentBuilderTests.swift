@@ -388,6 +388,82 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(allocations) == Array(repeating: 0, count: 10)
   }
 
+  func test_emptyContent_takesNoBuffer() {
+    // given: bodies that build stacks of empty content: no statements, an `if` whose condition is false and a loop with
+    // no iterations, each run once already, since a first run can also allocate what the runtime makes on first use
+    let condition = false
+    let empty: [Int] = []
+    let bodies: [() -> Void] = [
+      { _ = VStack {} },
+      { _ = HStack {} },
+      { _ = ZStack {} },
+      {
+        _ = VStack {
+          if condition {
+            ColorNode(.red)
+          }
+        }
+      },
+      {
+        _ = VStack {
+          for _ in empty {
+            ColorNode(.red)
+          }
+        }
+      },
+    ]
+    for body in bodies {
+      body()
+    }
+
+    // when: counting the allocations of each body
+    let allocations = bodies.map { AllocationCounter.count($0) }
+
+    // then: none allocates, since empty content shares the empty buffer
+    expect(allocations) == Array(repeating: 0, count: bodies.count)
+  }
+
+  func test_arrayExpressionOfBlocks_keepsTheirNodesInOrder() {
+    // given: an array of the contents of a block of two nodes and of a block of four nodes
+    let blocks: [ComposeContent] = [Self.twoNodes(), Self.fourNodes()]
+
+    // when: building a block of the array between two nodes
+    let ids = Self.nodeIds {
+      ColorNode(.red).id("a")
+      blocks
+      ColorNode(.red).id("f")
+    }
+
+    // then: each block's nodes are placed in order, where the array is
+    expect(ids) == ["a", "b", "c", "b", "c", "d", "e", "f"]
+  }
+
+  func test_blockContentWrittenTwice_asserts() {
+    // given: the content of a block of two nodes, which holds the nodes it wrote, and a test assertion failure handler
+    let content = ComposeContentBuilder.buildBlock(
+      ComposeContentBuilder.buildExpression(ColorNode(.red).id("a")),
+      ComposeContentBuilder.buildExpression(ColorNode(.red).id("b"))
+    )
+    var messages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      messages.append(message)
+    }
+
+    // when: writing the content in a block twice, which the builder never does
+    _ = ComposeContentBuilder.buildBlock(content, content)
+
+    // then: the second write asserts, since the first moved the nodes
+    expect(messages) == ["a block's content is written once, since writing it moves its nodes"]
+
+    // when: reading the content after it's written
+    _ = ComposeContentBuilder.buildFinalResult(content)
+
+    // then: the read asserts too
+    expect(messages.count) == 2
+
+    Assert.resetTestAssertionFailureHandler()
+  }
+
   func test_emptyBlock_buildsNoNodes() {
     // when: building an empty block
     let ids = Self.nodeIds {}
@@ -707,6 +783,15 @@ class ComposeContentBuilderTests: XCTestCase {
   private static func twoNodes() -> ComposeContent {
     ColorNode(.red).id("b")
     ColorNode(.red).id("c")
+  }
+
+  /// Returns a content of four color nodes.
+  @ComposeContentBuilder
+  private static func fourNodes() -> ComposeContent {
+    ColorNode(.red).id("b")
+    ColorNode(.red).id("c")
+    ColorNode(.red).id("d")
+    ColorNode(.red).id("e")
   }
 }
 

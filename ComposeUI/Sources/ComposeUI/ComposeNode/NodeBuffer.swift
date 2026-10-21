@@ -120,11 +120,17 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     return unsafeDowncast(buffer, to: NodeBuffer.self)
   }
 
-  /// Returns a buffer with copies of the nodes, in order.
+  /// The buffer that empty content shares, since it has no child to change.
+  static let empty = make(capacity: 0, valuesByteCount: 0)
+
+  /// Returns a buffer with copies of the nodes, in order, or the shared empty buffer for no nodes.
   ///
   /// - Parameter nodes: The nodes.
   /// - Returns: The buffer.
   static func make(_ nodes: [any ComposeNode]) -> NodeBuffer {
+    guard !nodes.isEmpty else {
+      return empty
+    }
     let buffer = make(capacity: nodes.count, valuesByteCount: room(of: nodes))
     for node in nodes {
       buffer.append(copyOf: node)
@@ -188,6 +194,7 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
   func appendEntry<N: ComposeNode>(for type: N.Type) -> UnsafeMutableRawPointer {
     withUnsafeMutablePointers { header, elements in
       let alignment = MemoryLayout<N>.alignment
+      // Swift caps a type's alignment at 16 bytes, the chunks' alignment, so this holds for every node
       precondition(alignment <= MemoryLayout<Chunk>.alignment, "a node's alignment must be at most 16 bytes")
       let offset = Self.alignedOffset(header.pointee.nextValueOffset, alignment: alignment)
       precondition(
@@ -239,11 +246,12 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     return copy
   }
 
-  /// Makes a buffer unique to its holder, replacing it with a copy when another holder shares it.
+  /// Makes a buffer unique to its holder, replacing it with a copy when another holder shares it and it has children.
   ///
   /// - Parameter buffer: The buffer, which the holder changes a child of afterward.
   static func makeUnique(_ buffer: inout NodeBuffer) {
-    if !isKnownUniquelyReferenced(&buffer) {
+    // an empty buffer stays shared, since it has no child to change, which keeps empty content from allocating
+    if !isKnownUniquelyReferenced(&buffer), buffer.count > 0 {
       buffer = buffer.copy()
     }
   }
@@ -260,6 +268,11 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
   /// The number of children.
   var count: Int {
     headerValue.count
+  }
+
+  /// The children, each in a box of its own.
+  var nodes: [any ComposeNode] {
+    (0 ..< count).map { node(at: $0) }
   }
 
   /// The number of bytes that the children's values take at most in another buffer.

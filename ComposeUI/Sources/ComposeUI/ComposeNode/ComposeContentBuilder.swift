@@ -62,7 +62,8 @@ public enum ComposeContentBuilder {
 
   /// For an array of content, which expands into the nodes of each.
   public static func buildExpression(_ contents: [ComposeContent]) -> _Content {
-    _Content(nodes: contents.flatMap(\.nodes))
+    // each element keeps its nodes as they are, so a block's nodes are copied from its buffer instead of each boxed
+    _Content(contents: contents.map { _Content($0) })
   }
 
   /// For a void expression.
@@ -408,7 +409,8 @@ public extension ComposeContentBuilder {
       /// The nodes of content that its holders can share, which a block copies.
       case shared(NodeList)
 
-      /// The nodes that a block wrote, which only the builder holds, so the next block moves them.
+      /// The nodes that a block wrote, which only the builder holds, so the block that writes them moves them, and the
+      /// content is written once.
       case written(NodeBuffer)
 
       /// A node in a box.
@@ -417,8 +419,9 @@ public extension ComposeContentBuilder {
       /// The nodes of content that isn't a node, in boxes.
       case nodes([any ComposeNode])
 
-      /// The contents of a loop's iterations, in order.
-      case contents([_Content])
+      /// The contents of a loop's iterations, in order, with the number of their nodes and of the bytes that the nodes'
+      /// values take at most.
+      case contents([_Content], nodeCount: Int, valuesByteCount: Int)
     }
 
     @usableFromInline
@@ -450,7 +453,15 @@ public extension ComposeContentBuilder {
 
     @usableFromInline
     init(contents: [_Content]) {
-      storage = .contents(contents)
+      // counted once here, since the enclosing block reads the counts before it writes, and so does each enclosing loop,
+      // where counting each time would walk the iterations again
+      var nodeCount = 0
+      var valuesByteCount = 0
+      for index in contents.indices {
+        nodeCount += contents[index].nodeCount
+        valuesByteCount += contents[index].valuesByteCount
+      }
+      storage = .contents(contents, nodeCount: nodeCount, valuesByteCount: valuesByteCount)
     }
 
     /// The nodes as content.
@@ -460,12 +471,16 @@ public extension ComposeContentBuilder {
       case .shared(let list):
         return list
       case .written(let buffer):
+        ComposeUI.assert(buffer.count > 0, "a block's content is written once, since writing it moves its nodes")
         return NodeList(buffer: buffer)
       case .node(let node):
         return [node]
       case .nodes(let nodes):
         return nodes
-      case .contents:
+      case .contents(_, let nodeCount, let valuesByteCount):
+        guard nodeCount > 0 else {
+          return NodeList(buffer: .empty)
+        }
         let writer = _NodeWriter(capacity: nodeCount, valuesByteCount: valuesByteCount)
         write(into: writer)
         return NodeList(buffer: writer.buffer)
@@ -482,11 +497,7 @@ public extension ComposeContentBuilder {
         return 1
       case .nodes(let nodes):
         return nodes.count
-      case .contents(let contents):
-        var nodeCount = 0
-        for content in contents {
-          nodeCount += content.nodeCount
-        }
+      case .contents(_, let nodeCount, _):
         return nodeCount
       }
     }
@@ -501,11 +512,7 @@ public extension ComposeContentBuilder {
         return NodeBuffer.room(of: node)
       case .nodes(let nodes):
         return NodeBuffer.room(of: nodes)
-      case .contents(let contents):
-        var valuesByteCount = 0
-        for content in contents {
-          valuesByteCount += content.valuesByteCount
-        }
+      case .contents(_, _, let valuesByteCount):
         return valuesByteCount
       }
     }
@@ -517,12 +524,13 @@ public extension ComposeContentBuilder {
       case .shared(let list):
         writer.append(contentsOf: list.buffer)
       case .written(let buffer):
+        ComposeUI.assert(buffer.count > 0, "a block's content is written once, since writing it moves its nodes")
         writer.moveChildren(of: buffer)
       case .node(let node):
         writer.append(boxed: node)
       case .nodes(let nodes):
         writer.append(contentsOf: nodes)
-      case .contents(let contents):
+      case .contents(let contents, _, _):
         for index in contents.indices {
           contents[index].write(into: writer)
         }
@@ -611,6 +619,6 @@ struct NodeList: ComposeContent {
 
   @usableFromInline
   func _nodes() -> [any ComposeNode] {
-    (0 ..< buffer.count).map { buffer.node(at: $0) }
+    buffer.nodes
   }
 }

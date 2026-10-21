@@ -70,7 +70,7 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
   var childNodes: [any ComposeNode] {
     get {
-      (0 ..< children.count).map { children.node(at: $0) }
+      children.nodes
     }
     set {
       children = NodeBuffer.make(newValue)

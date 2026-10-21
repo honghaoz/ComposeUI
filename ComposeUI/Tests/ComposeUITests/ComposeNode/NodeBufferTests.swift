@@ -174,7 +174,12 @@ class NodeBufferTests: XCTestCase {
     // given: a buffer with nodes that keep objects, and a buffer with room for them
     var objects: [Token]? = [Token(), Token()]
     let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
-    var source: NodeBuffer? = NodeBuffer.make(objects!.map { TrackedNode(token: $0, value: 0) }) // swiftlint:disable:this force_unwrapping
+    // the nodes are an array literal, since a map into `[any ComposeNode]` in this module changes how the optimizer
+    // compiles the benchmarks' arrays of rows, which then box each row again
+    var source: NodeBuffer? = NodeBuffer.make([
+      TrackedNode(token: objects![0], value: 0), // swiftlint:disable:this force_unwrapping
+      TrackedNode(token: objects![1], value: 0), // swiftlint:disable:this force_unwrapping
+    ])
     objects = nil
     var buffer: NodeBuffer? = NodeBuffer.make(capacity: 2, valuesByteCount: source!.roomOfChildren) // swiftlint:disable:this force_unwrapping
 
@@ -296,6 +301,40 @@ class NodeBufferTests: XCTestCase {
     expect(alignment) == 0
     expect(copy.withNode(at: 0, as: ByteNode.self) { $0.flag }) == true
     expect(copy.withNode(at: 1, as: AlignedNode.self) { $0.value }) == SIMD2(7, 8)
+  }
+
+  func test_make_withoutNodes_sharesTheEmptyBuffer() {
+    // when: making a buffer of no nodes
+    let buffer = NodeBuffer.make([])
+
+    // then: it's the shared empty buffer
+    expect(buffer) === NodeBuffer.empty
+    expect(buffer.count) == 0
+  }
+
+  func test_makeUnique_keepsTheSharedEmptyBuffer() {
+    // given: the shared empty buffer, which other holders share
+    var buffer = NodeBuffer.empty
+
+    // when: making it unique
+    NodeBuffer.makeUnique(&buffer)
+
+    // then: the holder keeps the shared buffer, since it has no child to change
+    expect(buffer) === NodeBuffer.empty
+  }
+
+  func test_nodes_returnsTheChildrenInOrder() {
+    // given: a buffer of nodes of different types
+    let buffer = NodeBuffer.make([LabelNode("A").id("a"), ColorNode(.blue).id("b")])
+
+    // when: reading its nodes
+    let nodes = buffer.nodes
+
+    // then: each child is in its place, with its type
+    expect(nodes.count) == 2
+    expect(nodes[0] is LabelNode) == true
+    expect(nodes[1] is ColorNode) == true
+    expect(nodes.map(\.id.id)) == ["a", "b"]
   }
 
   func test_emptyBuffer() {
