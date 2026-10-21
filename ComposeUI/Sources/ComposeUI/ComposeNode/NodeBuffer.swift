@@ -120,18 +120,20 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     return unsafeDowncast(buffer, to: NodeBuffer.self)
   }
 
-  /// Returns a buffer with copies of the nodes, in order.
+  /// The buffer that empty content shares, since it has no child to change.
+  static let empty = make(capacity: 0, valuesByteCount: 0)
+
+  /// Returns a buffer with copies of the nodes, in order, or the shared empty buffer for no nodes.
   ///
   /// - Parameter nodes: The nodes.
   /// - Returns: The buffer.
   static func make(_ nodes: [any ComposeNode]) -> NodeBuffer {
-    var valuesByteCount = 0
-    for node in nodes {
-      valuesByteCount += room(of: node)
+    guard !nodes.isEmpty else {
+      return empty
     }
-    let buffer = make(capacity: nodes.count, valuesByteCount: valuesByteCount)
+    let buffer = make(capacity: nodes.count, valuesByteCount: room(of: nodes))
     for node in nodes {
-      buffer.append(node)
+      buffer.append(copyOf: node)
     }
     return buffer
   }
@@ -146,13 +148,53 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     MemoryLayout<N>.stride + MemoryLayout<N>.alignment - 1
   }
 
+  /// Returns the number of bytes that a node's value takes at most in a buffer, with its alignment.
+  ///
+  /// - Parameter node: The node.
+  /// - Returns: The number of bytes.
+  static func room<N: ComposeNode>(of node: N) -> Int {
+    room(for: N.self)
+  }
+
+  /// Returns the number of bytes that the nodes' values take at most in a buffer, with their alignment.
+  ///
+  /// - Parameter nodes: The nodes.
+  /// - Returns: The number of bytes.
+  static func room(of nodes: [any ComposeNode]) -> Int {
+    var room = 0
+    for node in nodes {
+      room += self.room(of: node)
+    }
+    return room
+  }
+
   /// Appends a child after the children appended before it.
   ///
   /// - Parameter node: The child, which must fit in the room that the buffer was made with.
   @inlinable
   func append<N: ComposeNode>(_ node: consuming N) {
-    let pointer = withUnsafeMutablePointers { header, elements -> UnsafeMutableRawPointer in
+    // the node moves in after the closure that adds its entry, which can't consume it, at an address that stays valid after
+    // the closure, since a managed buffer's elements never move while the buffer lives
+    appendEntry(for: N.self).initializeMemory(as: N.self, to: node)
+  }
+
+  /// Appends a copy of a node in a box after the children appended before it.
+  ///
+  /// - Parameter node: The node, which must fit in the room that the buffer was made with.
+  func append(copyOf node: any ComposeNode) {
+    Self.appendCopy(of: node, to: self)
+  }
+
+  /// Adds the entry of a child of a type after the children appended before it, and returns the address of the child's
+  /// value, which the caller initializes.
+  ///
+  /// - Parameter type: The type of the child, which must fit in the room that the buffer was made with.
+  /// - Returns: The address of the child's value.
+  @inlinable
+  func appendEntry<N: ComposeNode>(for type: N.Type) -> UnsafeMutableRawPointer {
+    withUnsafeMutablePointers { header, elements in
       let alignment = MemoryLayout<N>.alignment
+      // Swift caps a type's alignment at 16 bytes, the chunks' alignment, so this holds for every node
       precondition(alignment <= MemoryLayout<Chunk>.alignment, "a node's alignment must be at most 16 bytes")
       let offset = Self.alignedOffset(header.pointee.nextValueOffset, alignment: alignment)
       precondition(
@@ -167,36 +209,55 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
       header.pointee.nextValueOffset = offset + MemoryLayout<N>.stride
       return base + offset
     }
-    // the node moves in after the closure, which can't consume it, at an address that stays valid after the closure, since
-    // a managed buffer's elements never move while the buffer lives
-    pointer.initializeMemory(as: N.self, to: node)
+  }
+
+  /// Appends copies of another buffer's children, in order.
+  ///
+  /// - Parameter other: The other buffer, whose children must fit in the room that this buffer was made with.
+  func append(contentsOf other: NodeBuffer) {
+    for index in 0 ..< other.count {
+      let (type, pointer) = other.child(at: index)
+      Self.appendCopy(type, pointer, to: self)
+    }
+  }
+
+  /// Moves the children into another buffer, in order, which leaves this buffer empty.
+  ///
+  /// - Parameter other: The other buffer, whose room the children must fit in.
+  func moveChildren(into other: NodeBuffer) {
+    for index in 0 ..< count {
+      let (type, pointer) = child(at: index)
+      Self.move(type, pointer, to: other)
+    }
+    withUnsafeMutablePointerToHeader { header in
+      header.pointee.count = 0
+      header.pointee.nextValueOffset = header.pointee.valuesStart
+    }
   }
 
   /// Returns a buffer with copies of the children, in order, with room for only those children.
   ///
   /// - Returns: The buffer.
   func copy() -> NodeBuffer {
-    let header = header
+    let header = headerValue
     // the values take the same bytes in the copy, since they're laid out in the same order from the same alignment
     let copy = NodeBuffer.make(capacity: header.count, valuesByteCount: header.nextValueOffset - header.valuesStart)
-    for index in 0 ..< header.count {
-      let (type, pointer) = child(at: index)
-      Self.append(type, pointer, to: copy)
-    }
+    copy.append(contentsOf: self)
     return copy
   }
 
-  /// Makes a buffer unique to its holder, replacing it with a copy when another holder shares it.
+  /// Makes a buffer unique to its holder, replacing it with a copy when another holder shares it and it has children.
   ///
   /// - Parameter buffer: The buffer, which the holder changes a child of afterward.
   static func makeUnique(_ buffer: inout NodeBuffer) {
-    if !isKnownUniquelyReferenced(&buffer) {
+    // an empty buffer stays shared, since it has no child to change, which keeps empty content from allocating
+    if !isKnownUniquelyReferenced(&buffer), buffer.count > 0 {
       buffer = buffer.copy()
     }
   }
 
   deinit {
-    for index in 0 ..< header.count {
+    for index in 0 ..< headerValue.count {
       let (type, pointer) = child(at: index)
       Self.deinitialize(type, pointer)
     }
@@ -206,7 +267,25 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
 
   /// The number of children.
   var count: Int {
-    header.count
+    headerValue.count
+  }
+
+  /// The children, each in a box of its own.
+  var nodes: [any ComposeNode] {
+    (0 ..< count).map { node(at: $0) }
+  }
+
+  /// The number of bytes that the children's values take at most in another buffer.
+  var roomOfChildren: Int {
+    let header = headerValue
+    guard header.count > 0 else {
+      // without values there's nothing to pad to a 16-byte boundary, so empty content adds no bytes to the buffer of a
+      // block that holds it
+      return 0
+    }
+    // from an offset of any alignment, the values take at most the bytes up to the next 16-byte boundary more than they
+    // take from one, since rounding each offset up never moves a later value past where it starts from the boundary
+    return header.nextValueOffset - header.valuesStart + MemoryLayout<Chunk>.alignment - 1
   }
 
   /// Lays out the child at an index.
@@ -277,8 +356,8 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
   /// Returns the type of the child at an index and the address of its value, which stays valid after the closure that
   /// reads it while the buffer lives, since a managed buffer's elements never move.
   private func child(at index: Int) -> (type: any ComposeNode.Type, pointer: UnsafeMutableRawPointer) {
-    precondition(index >= 0 && index < header.count, "index out of range")
-    return withUnsafeMutablePointerToElements { elements in
+    withUnsafeMutablePointers { header, elements in
+      precondition(index >= 0 && index < header.pointee.count, "index out of range")
       let base = UnsafeMutableRawPointer(elements)
       let entry = base.assumingMemoryBound(to: Entry.self)[index]
       return (entry.type, base + entry.offset)
@@ -286,6 +365,11 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
   }
 
   // MARK: - Helpers
+
+  /// The header, read through its address, since reading the `header` property checks exclusive access at run time.
+  private var headerValue: Header {
+    withUnsafeMutablePointerToHeader { $0.pointee }
+  }
 
   /// Returns an offset rounded up to an alignment, which is a power of two.
   @inlinable
@@ -297,12 +381,18 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     pointer.assumingMemoryBound(to: N.self).deinitialize(count: 1)
   }
 
-  private static func room<N: ComposeNode>(of _: N) -> Int {
-    room(for: N.self)
+  private static func appendCopy<N: ComposeNode>(of node: N, to buffer: NodeBuffer) {
+    // in unspecialized code, initializing from a value costs less than initializing from an address, which calls the
+    // runtime's copy of an array, while moving from an address costs less than moving the value out first
+    buffer.appendEntry(for: N.self).initializeMemory(as: N.self, to: node)
   }
 
-  private static func append<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer, to buffer: NodeBuffer) {
-    buffer.append(pointer.assumingMemoryBound(to: N.self).pointee)
+  private static func appendCopy<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer, to buffer: NodeBuffer) {
+    buffer.appendEntry(for: N.self).initializeMemory(as: N.self, to: pointer.assumingMemoryBound(to: N.self).pointee)
+  }
+
+  private static func move<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer, to buffer: NodeBuffer) {
+    _ = buffer.appendEntry(for: N.self).moveInitializeMemory(as: N.self, from: pointer.assumingMemoryBound(to: N.self), count: 1)
   }
 
   private static func layout<N: ComposeNode>(_: N.Type,

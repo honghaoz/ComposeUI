@@ -64,4 +64,22 @@ class ContainerNodeTests: XCTestCase {
       expect(layer.bounds.size) == CGSize(width: 10, height: 10)
     }
   }
+
+  func test_layeredStack_mapChildren() {
+    // given: a layered stack of two colors, whose children are mapped to 10 by 10 frames of them
+    var stack = ZStack {
+      ColorNode(.red)
+      ColorNode(.blue)
+    }
+    .mapChildren { node in
+      node.frame(width: 10, height: 10)
+    }
+
+    // when: laying out the stack
+    _ = stack.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: each child renders at the mapped size
+    let sizes = stack.renderableItems(in: CGRect(x: 0, y: 0, width: 100, height: 100)).map(\.frame.size)
+    expect(sizes) == [CGSize(width: 10, height: 10), CGSize(width: 10, height: 10)]
+  }
 }

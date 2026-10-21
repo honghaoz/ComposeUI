@@ -54,14 +54,14 @@ public extension ComposeContent {
   /// - Parameter alignment: The alignment of the vertical stack node.
   /// - Returns: The vertical stack node.
   func asVStack(alignment: Layout.HorizontalAlignment = .center) -> any ComposeNode {
-    let nodes = self.nodes
-    switch nodes.count {
+    let children = NodeList.buffer(of: self)
+    switch children.count {
     case 0:
       return EmptyNode()
     case 1:
-      return nodes.first! // swiftlint:disable:this force_unwrapping
+      return children.node(at: 0)
     default:
-      return VerticalStackNode(alignment: alignment, content: { nodes })
+      return VerticalStackNode(alignment: alignment, spacing: 0, children: children)
     }
   }
 
@@ -69,14 +69,14 @@ public extension ComposeContent {
   /// - Parameter alignment: The alignment of the layered stack node.
   /// - Returns: The layered stack node.
   func asZStack(alignment: Layout.Alignment = .center) -> any ComposeNode {
-    let nodes = self.nodes
-    switch nodes.count {
+    let children = NodeList.buffer(of: self)
+    switch children.count {
     case 0:
       return EmptyNode()
     case 1:
-      return nodes.first! // swiftlint:disable:this force_unwrapping
+      return children.node(at: 0)
     default:
-      return LayeredStackNode(alignment: alignment, content: { nodes })
+      return LayeredStackNode(alignment: alignment, children: children)
     }
   }
 }

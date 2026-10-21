@@ -153,6 +153,57 @@ class NodeBufferTests: XCTestCase {
     }
   }
 
+  func test_appendContentsOf_copiesTheChildrenAfterAnUnalignedValue() {
+    // given: a buffer of a 16-byte aligned node and a one-byte node, whose last byte needs the room for alignment, and a
+    // buffer with room for a one-byte node and copies of them
+    let source = NodeBuffer.make([AlignedNode(value: SIMD2(1, 2)), ByteNode(flag: false)])
+    let buffer = NodeBuffer.make(capacity: 3, valuesByteCount: NodeBuffer.room(for: ByteNode.self) + source.roomOfChildren)
+    buffer.append(ByteNode(flag: true))
+
+    // when: appending copies of the source's children after the one-byte node
+    buffer.append(contentsOf: source)
+
+    // then: the copies fit and keep their values, and the source keeps its children
+    expect(buffer.count) == 3
+    expect(buffer.withNode(at: 1, as: AlignedNode.self) { $0.value }) == SIMD2(1, 2)
+    expect(buffer.withNode(at: 2, as: ByteNode.self) { $0.flag }) == false
+    expect(source.count) == 2
+    expect(source.withNode(at: 1, as: ByteNode.self) { $0.flag }) == false
+  }
+
+  func test_moveChildren_movesThemAndEmptiesTheBuffer() {
+    // given: a buffer with nodes that keep objects, and a buffer with room for them
+    var objects: [Token]? = [Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+    // the nodes are an array literal, since a map into `[any ComposeNode]` in this module changes how the optimizer
+    // compiles the benchmarks' arrays of rows, which then box each row again
+    var source: NodeBuffer? = NodeBuffer.make([
+      TrackedNode(token: objects![0], value: 0), // swiftlint:disable:this force_unwrapping
+      TrackedNode(token: objects![1], value: 0), // swiftlint:disable:this force_unwrapping
+    ])
+    objects = nil
+    var buffer: NodeBuffer? = NodeBuffer.make(capacity: 2, valuesByteCount: source!.roomOfChildren) // swiftlint:disable:this force_unwrapping
+
+    // when: moving the children
+    source?.moveChildren(into: buffer!) // swiftlint:disable:this force_unwrapping
+
+    // then: the other buffer has them, and the source is empty
+    expect(buffer?.count) == 2
+    expect(source?.count) == 0
+
+    // when: releasing the source
+    source = nil
+
+    // then: the moved children keep their objects
+    expect(weakObjects.allSatisfy { $0.token != nil }) == true
+
+    // when: releasing the other buffer
+    buffer = nil
+
+    // then: the children are destroyed, which releases their objects
+    expect(weakObjects.allSatisfy { $0.token == nil }) == true
+  }
+
   func test_withNode_changesTheChildInPlace() {
     // given: a buffer with a node
     let buffer = NodeBuffer.make([ByteNode(flag: false)])
@@ -167,7 +218,8 @@ class NodeBufferTests: XCTestCase {
   func test_makeUnique_copiesASharedBuffer() {
     // given: a buffer with a node that keeps an object, shared by two holders
     var object: Token? = Token()
-    weak var weakObject = object
+    weak var weakObject: Token?
+    weakObject = object
     var holder: NodeBuffer? = NodeBuffer.make([TrackedNode(token: object!, value: 1)]) // swiftlint:disable:this force_unwrapping
     var otherHolder = holder! // swiftlint:disable:this force_unwrapping
     object = nil
@@ -250,6 +302,52 @@ class NodeBufferTests: XCTestCase {
     expect(alignment) == 0
     expect(copy.withNode(at: 0, as: ByteNode.self) { $0.flag }) == true
     expect(copy.withNode(at: 1, as: AlignedNode.self) { $0.value }) == SIMD2(7, 8)
+  }
+
+  func test_make_withoutNodes_sharesTheEmptyBuffer() {
+    // when: making a buffer of no nodes
+    let buffer = NodeBuffer.make([])
+
+    // then: it's the shared empty buffer
+    expect(buffer) === NodeBuffer.empty
+    expect(buffer.count) == 0
+  }
+
+  func test_makeUnique_keepsTheSharedEmptyBuffer() {
+    // given: the shared empty buffer, which other holders share
+    var buffer = NodeBuffer.empty
+
+    // when: making it unique
+    NodeBuffer.makeUnique(&buffer)
+
+    // then: the holder keeps the shared buffer, since it has no child to change
+    expect(buffer) === NodeBuffer.empty
+  }
+
+  func test_roomOfChildren_withoutChildren_isZero() {
+    // given: a buffer of a node, and a buffer whose node is moved out
+    let buffer = NodeBuffer.make([ByteNode(flag: true)])
+    let emptied = NodeBuffer.make([ByteNode(flag: false)])
+    emptied.moveChildren(into: NodeBuffer.make(capacity: 1, valuesByteCount: emptied.roomOfChildren))
+
+    // then: the shared empty buffer and the emptied buffer take no room in another buffer, while the node takes some
+    expect(NodeBuffer.empty.roomOfChildren) == 0
+    expect(emptied.roomOfChildren) == 0
+    expect(buffer.roomOfChildren >= NodeBuffer.room(for: ByteNode.self)) == true
+  }
+
+  func test_nodes_returnsTheChildrenInOrder() {
+    // given: a buffer of nodes of different types
+    let buffer = NodeBuffer.make([LabelNode("A").id("a"), ColorNode(.blue).id("b")])
+
+    // when: reading its nodes
+    let nodes = buffer.nodes
+
+    // then: each child is in its place, with its type
+    expect(nodes.count) == 2
+    expect(nodes[0] is LabelNode) == true
+    expect(nodes[1] is ColorNode) == true
+    expect(nodes.map(\.id.id)) == ["a", "b"]
   }
 
   func test_emptyBuffer() {

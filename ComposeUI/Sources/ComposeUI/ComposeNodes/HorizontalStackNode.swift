@@ -48,11 +48,9 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
   private let alignment: Layout.VerticalAlignment
   private let spacing: CGFloat
-  var childNodes: [any ComposeNode] {
-    didSet {
-      lastLayout = nil
-    }
-  }
+
+  /// The children, by value in one buffer.
+  private var children: NodeBuffer
 
   public init(alignment: Layout.VerticalAlignment = .center,
               spacing: CGFloat = 0,
@@ -60,7 +58,17 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
   {
     self.alignment = alignment
     self.spacing = spacing
-    self.childNodes = content().nodes
+    self.children = NodeList.buffer(of: content())
+  }
+
+  var childNodes: [any ComposeNode] {
+    get {
+      children.nodes
+    }
+    set {
+      children = NodeBuffer.make(newValue)
+      lastLayout = nil
+    }
   }
 
   // MARK: - ComposeNode
@@ -77,20 +85,23 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
   private var layoutCache = StackLayoutCache()
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    // a stack lays out each flexible child twice, for its sizing and at its proposed size, so without returning a layout
-    // made at the same size earlier in the pass, each enclosing stack with a flexible child would double the layouts of
-    // the nodes in it
+    // a stack lays out each flexible child twice, for its sizing and at its proposed size, so without returning a
+    // layout made at the same size earlier in the pass, each enclosing stack with a flexible child would double the
+    // layouts of the nodes in it
     if let lastLayout, lastLayout.passId == context.passId, lastLayout.containerSize == containerSize {
       return lastLayout.sizing
     }
 
-    guard !childNodes.isEmpty else {
+    // the children change in place as they lay out, so a copy of the stack that shares them gets its own
+    NodeBuffer.makeUnique(&children)
+
+    guard children.count > 0 else {
       size = .zero
       layoutCache = StackLayoutCache()
       return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
     }
 
-    let childCount = childNodes.count
+    let childCount = children.count
 
     let totalSpacing = spacing * CGFloat(childCount - 1)
 
@@ -104,13 +115,9 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
         // special treatment for spacer node with nil height to make it fixed with 0 height,
         // so that the spacer nodes don't expand the horizontal stack node's height.
-        // the spacer is found by its type, which costs less than casting each child, and changed in place, since storing
-        // a new node in the children allocates a box for it
-        if type(of: childNodes[nodeIndex]) == SpacerNode.self {
-          childNodes[nodeIndex].zeroHeightIfSpacerWithoutHeight()
-        }
+        children.withNode(at: nodeIndex, as: SpacerNode.self) { $0.zeroHeightIfSpacerWithoutHeight() }
 
-        let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize, context: context)
+        let childSizing = children.layout(at: nodeIndex, containerSize: containerSize, context: context)
 
         widthSizing = widthSizing.combine(with: childSizing.width, axis: .main)
         childWidthSizings.initializeElement(at: nodeIndex, to: childSizing.width)
@@ -128,7 +135,8 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
           switch childWidthSizings[nodeIndex] {
           case .flexible,
                .range:
-            _ = childNodes[nodeIndex].layout(
+            _ = children.layout(
+              at: nodeIndex,
               containerSize: CGSize(width: proposedWidths[nodeIndex], height: containerSize.height),
               context: context
             )
@@ -144,9 +152,10 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
     var maxHeight: CGFloat = 0
     var totalChildNodesWidth: CGFloat = 0
-    for node in childNodes {
-      maxHeight = max(maxHeight, node.size.height)
-      totalChildNodesWidth += node.size.width
+    for index in 0 ..< childCount {
+      let childSize = children.size(at: index)
+      maxHeight = max(maxHeight, childSize.height)
+      totalChildNodesWidth += childSize.width
     }
 
     size = CGSize(width: totalChildNodesWidth + totalSpacing, height: maxHeight)
@@ -155,8 +164,8 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
     layoutCache.reset(reservingCapacity: childCount)
 
     var x: CGFloat = 0
-    for node in childNodes {
-      let nodeSize = node.size
+    for index in 0 ..< childCount {
+      let nodeSize = children.size(at: index)
 
       let y: CGFloat
       switch alignment {
@@ -169,8 +178,11 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
       }
 
       let childOrigin = CGPoint(x: x, y: y)
-      let itemsBoundingRect = node.renderableItemsBoundingRect
-      layoutCache.appendChild(origin: childOrigin, itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
+      let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
+      layoutCache.appendChild(
+        origin: childOrigin,
+        itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
+      )
 
       x += nodeSize.width + spacing
     }
@@ -183,7 +195,7 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
   }
 
   public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
-    guard layoutCache.childCount == childNodes.count else {
+    guard layoutCache.childCount == children.count else {
       ComposeUI.assertFailure("render(visibleBounds:into:) requires layout(containerSize:context:) to be called first")
       return
     }
@@ -195,7 +207,7 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
       let childOrigin = layoutCache.child(at: i).origin
       let boundsInChild = visibleBounds.translate(-childOrigin)
       let start = items.count
-      childNodes[i].render(visibleBounds: boundsInChild, into: &items)
+      children.render(at: i, visibleBounds: boundsInChild, into: &items)
       for index in start ..< items.count {
         items[index].id = id.join(with: items[index].id, suffix: "\(i)")
         items[index].frame = items[index].frame.translate(childOrigin)
