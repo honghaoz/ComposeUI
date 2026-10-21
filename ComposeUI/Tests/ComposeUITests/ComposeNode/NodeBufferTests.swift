@@ -154,8 +154,9 @@ class NodeBufferTests: XCTestCase {
   }
 
   func test_appendContentsOf_copiesTheChildrenAfterAnUnalignedValue() {
-    // given: a buffer of 16-byte aligned nodes, and a buffer with room for a one-byte node and copies of them
-    let source = NodeBuffer.make([AlignedNode(value: SIMD2(1, 2)), AlignedNode(value: SIMD2(3, 4))])
+    // given: a buffer of a 16-byte aligned node and a one-byte node, whose last byte needs the room for alignment, and a
+    // buffer with room for a one-byte node and copies of them
+    let source = NodeBuffer.make([AlignedNode(value: SIMD2(1, 2)), ByteNode(flag: false)])
     let buffer = NodeBuffer.make(capacity: 3, valuesByteCount: NodeBuffer.room(for: ByteNode.self) + source.roomOfChildren)
     buffer.append(ByteNode(flag: true))
 
@@ -165,9 +166,9 @@ class NodeBufferTests: XCTestCase {
     // then: the copies fit and keep their values, and the source keeps its children
     expect(buffer.count) == 3
     expect(buffer.withNode(at: 1, as: AlignedNode.self) { $0.value }) == SIMD2(1, 2)
-    expect(buffer.withNode(at: 2, as: AlignedNode.self) { $0.value }) == SIMD2(3, 4)
+    expect(buffer.withNode(at: 2, as: ByteNode.self) { $0.flag }) == false
     expect(source.count) == 2
-    expect(source.withNode(at: 1, as: AlignedNode.self) { $0.value }) == SIMD2(3, 4)
+    expect(source.withNode(at: 1, as: ByteNode.self) { $0.flag }) == false
   }
 
   func test_moveChildren_movesThemAndEmptiesTheBuffer() {
