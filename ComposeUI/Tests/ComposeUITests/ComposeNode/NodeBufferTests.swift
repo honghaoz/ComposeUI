@@ -204,6 +204,220 @@ class NodeBufferTests: XCTestCase {
     expect(weakObjects.allSatisfy { $0.token == nil }) == true
   }
 
+  func test_moveChildrenFromRange_movesTheRangeAndKeepsTheOtherChildren() {
+    // given: a buffer with nodes that keep objects, and a buffer with room for the middle two
+    var objects: [Token]? = [Token(), Token(), Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+    var source: NodeBuffer? = NodeBuffer.make([
+      TrackedNode(token: objects![0], value: 0), // swiftlint:disable:this force_unwrapping
+      TrackedNode(token: objects![1], value: 1), // swiftlint:disable:this force_unwrapping
+      TrackedNode(token: objects![2], value: 2), // swiftlint:disable:this force_unwrapping
+      TrackedNode(token: objects![3], value: 3), // swiftlint:disable:this force_unwrapping
+    ])
+    objects = nil
+    var other: NodeBuffer? = NodeBuffer.make(capacity: 2, valuesByteCount: source!.roomOfChildren(from: 1, count: 2)) // swiftlint:disable:this force_unwrapping
+
+    // when: moving the middle two children
+    source?.moveChildren(from: 1, count: 2, into: other!) // swiftlint:disable:this force_unwrapping
+
+    // then: the other buffer has them in order, and the source keeps its other children in their places
+    expect(other?.count) == 2
+    expect(other?.withNode(at: 0, as: TrackedNode.self) { $0.value }) == 1
+    expect(other?.withNode(at: 1, as: TrackedNode.self) { $0.value }) == 2
+    expect(source?.count) == 4
+    expect(source?.withNode(at: 0, as: TrackedNode.self) { $0.value }) == 0
+    expect(source?.withNode(at: 1, as: TrackedNode.self) { $0.value }) == nil
+    expect(source?.withNode(at: 2, as: TrackedNode.self) { $0.value }) == nil
+    expect(source?.withNode(at: 3, as: TrackedNode.self) { $0.value }) == 3
+
+    // when: releasing the source
+    source = nil
+
+    // then: its children in place are destroyed, while the moved children keep their objects
+    expect(weakObjects.map { $0.token != nil }) == [false, true, true, false]
+
+    // when: releasing the other buffer
+    other = nil
+
+    // then: the moved children are destroyed too
+    expect(weakObjects.allSatisfy { $0.token == nil }) == true
+  }
+
+  func test_moveChildrenFromRange_leavesAnEmptyChildInEachPlace() {
+    // given: a buffer with a label, and a buffer with room for it
+    let source = NodeBuffer.make([LabelNode("Hello")])
+    let other = NodeBuffer.make(capacity: 1, valuesByteCount: source.roomOfChildren)
+
+    // when: moving the label
+    source.moveChildren(from: 0, count: 1, into: other)
+
+    // then: its place holds a child that has no size, lays out to no size, renders nothing and keeps the empty id
+    var items: [RenderableItem] = []
+    source.render(at: 0, visibleBounds: CGRect(x: 0, y: 0, width: 100, height: 100), into: &items)
+    expect(items.count) == 0
+    let sizing = source.layout(at: 0, containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+    expect(source.size(at: 0)) == .zero
+    var node = source.node(at: 0)
+    node.id = .custom("other")
+    expect(node.id) == .standard(.empty)
+    expect(other.withNode(at: 0, as: LabelNode.self) { _ in true }) == true
+  }
+
+  func test_moveChildrenFromRange_ofAMovedChild_asserts() {
+    // given: a buffer whose child is moved out, and a test assertion failure handler
+    let source = NodeBuffer.make([ByteNode(flag: true)])
+    let other = NodeBuffer.make(capacity: 2, valuesByteCount: 2 * NodeBuffer.room(for: ByteNode.self))
+    source.moveChildren(from: 0, count: 1, into: other)
+    var messages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      messages.append(message)
+    }
+
+    // when: moving the child out again, which no caller does
+    source.moveChildren(from: 0, count: 1, into: other)
+
+    // then: it asserts
+    expect(messages) == ["a child is moved out once"]
+
+    Assert.resetTestAssertionFailureHandler()
+  }
+
+  func test_dropMovedChildren_dropsThePlacesOfTheMovedChildrenAtTheEnd() {
+    // given: a buffer of four nodes with tail padding, whose last two are moved out, and the bytes the first two take
+    let source = NodeBuffer.make(capacity: 4, valuesByteCount: 4 * NodeBuffer.room(for: PaddedNode.self))
+    source.append(PaddedNode(value: 0, flag: false))
+    source.append(PaddedNode(value: 1, flag: false))
+    let bytesOfTwo = source.valuesByteCountInUse
+    source.append(PaddedNode(value: 2, flag: false))
+    source.append(PaddedNode(value: 3, flag: false))
+    let other = NodeBuffer.make(capacity: 2, valuesByteCount: source.roomOfChildren(from: 2, count: 2))
+    source.moveChildren(from: 2, count: 2, into: other)
+
+    // when: dropping the places of the moved children at the end
+    source.dropMovedChildren()
+
+    // then: the buffer keeps the first two, and its next value starts where the third did
+    expect(source.count) == 2
+    expect(source.valuesByteCountInUse) == bytesOfTwo
+    expect(source.withNode(at: 1, as: PaddedNode.self) { $0.value }) == 1
+
+    // when: appending a node
+    source.append(PaddedNode(value: 4, flag: true))
+
+    // then: it takes the third place
+    expect(source.count) == 3
+    expect(source.withNode(at: 2, as: PaddedNode.self) { $0.value }) == 4
+  }
+
+  func test_dropMovedChildren_keepsThePlacesBelowAChildInPlace() {
+    // given: a buffer of three nodes, whose first two are moved out
+    let source = NodeBuffer.make([ByteNode(flag: true), ByteNode(flag: false), ByteNode(flag: true)])
+    let other = NodeBuffer.make(capacity: 3, valuesByteCount: source.roomOfChildren)
+    source.moveChildren(from: 0, count: 2, into: other)
+
+    // when: dropping the places of the moved children at the end
+    source.dropMovedChildren()
+
+    // then: the child in place at the end keeps all three places
+    expect(source.count) == 3
+
+    // when: moving the last child out and dropping the places again
+    source.moveChildren(from: 2, count: 1, into: other)
+    source.dropMovedChildren()
+
+    // then: all the places are dropped
+    expect(source.count) == 0
+    expect(source.valuesByteCountInUse) == 0
+    expect(other.count) == 3
+  }
+
+  func test_dropMovedChildren_withoutMovedChildren_keepsTheChildren() {
+    // given: a buffer of two nodes, and an empty buffer
+    let buffer = NodeBuffer.make([ByteNode(flag: true), ByteNode(flag: false)])
+    let empty = NodeBuffer.make(capacity: 1, valuesByteCount: 1)
+
+    // when: dropping the places of moved children at the end
+    buffer.dropMovedChildren()
+    empty.dropMovedChildren()
+
+    // then: both keep their children
+    expect(buffer.count) == 2
+    expect(empty.count) == 0
+  }
+
+  func test_moveChildren_carriesThePlacesOfMovedChildren() {
+    // given: a buffer of three nodes whose first is moved out, and a buffer with room for all three
+    let source = NodeBuffer.make([PaddedNode(value: 0, flag: false), PaddedNode(value: 1, flag: false), PaddedNode(value: 2, flag: false)])
+    let moved = NodeBuffer.make(capacity: 1, valuesByteCount: source.roomOfChildren(from: 0, count: 1))
+    source.moveChildren(from: 0, count: 1, into: moved)
+    let other = NodeBuffer.make(capacity: 3, valuesByteCount: source.roomOfChildren)
+
+    // when: moving all the children into the other buffer
+    source.moveChildren(into: other)
+
+    // then: the other buffer keeps each child at its index, with the moved child's place empty
+    expect(other.count) == 3
+    expect(other.withNode(at: 0, as: PaddedNode.self) { $0.value }) == nil
+    expect(other.withNode(at: 1, as: PaddedNode.self) { $0.value }) == 1
+    expect(other.withNode(at: 2, as: PaddedNode.self) { $0.value }) == 2
+
+    // when: moving the other two out and dropping the places of the moved children
+    let rest = NodeBuffer.make(capacity: 2, valuesByteCount: other.roomOfChildren(from: 1, count: 2))
+    other.moveChildren(from: 1, count: 2, into: rest)
+    other.dropMovedChildren()
+
+    // then: the carried place is dropped too
+    expect(other.count) == 0
+  }
+
+  func test_roomOfChildren_ofARange_boundsTheBytesTheRangeTakesAfterAnyOffset() {
+    // given: a buffer of one-byte and 16-byte aligned nodes in turn
+    let source = NodeBuffer.make(
+      capacity: 4,
+      valuesByteCount: 2 * NodeBuffer.room(for: ByteNode.self) + 2 * NodeBuffer.room(for: AlignedNode.self)
+    )
+    source.append(ByteNode(flag: true))
+    source.append(AlignedNode(value: SIMD2(1, 2)))
+    source.append(ByteNode(flag: false))
+    source.append(AlignedNode(value: SIMD2(3, 4)))
+
+    for (start, count) in [(0, 4), (1, 2), (1, 3), (2, 2), (3, 1), (4, 0)] {
+      let room = source.roomOfChildren(from: start, count: count)
+      for offset in 0 ..< 16 {
+        // when: moving a copy of the range after a number of one-byte nodes, into a buffer with only the range's room left
+        let other = NodeBuffer.make(capacity: offset + count, valuesByteCount: offset + room)
+        for _ in 0 ..< offset {
+          other.append(ByteNode(flag: true))
+        }
+        let bytesBefore = other.valuesByteCountInUse
+        source.copy().moveChildren(from: start, count: count, into: other)
+
+        // then: the range takes at most its room
+        expect(other.count) == offset + count
+        expect(other.valuesByteCountInUse - bytesBefore <= room) == true
+      }
+    }
+  }
+
+  func test_capacities_tellTheRoomAndTheBytesInUse() {
+    // given: a buffer with room for two nodes with tail padding
+    let room = 2 * NodeBuffer.room(for: PaddedNode.self)
+    let buffer = NodeBuffer.make(capacity: 2, valuesByteCount: room)
+
+    // then: it has room for two children and for the values, rounded up to its chunks, none of which are in use
+    expect(buffer.childCapacity) == 2
+    expect(buffer.valuesByteCapacity >= room) == true
+    expect(buffer.valuesByteCapacity < room + MemoryLayout<NodeBuffer.Chunk>.stride) == true
+    expect(buffer.valuesByteCountInUse) == 0
+
+    // when: appending a node
+    buffer.append(PaddedNode(value: 1, flag: true))
+
+    // then: its stride is in use
+    expect(buffer.valuesByteCountInUse) == MemoryLayout<PaddedNode>.stride
+  }
+
   func test_withNode_changesTheChildInPlace() {
     // given: a buffer with a node
     let buffer = NodeBuffer.make([ByteNode(flag: false)])

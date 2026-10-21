@@ -446,6 +446,27 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.styled.200", result: result)
   }
 
+  func test_refresh_labelRows_200() {
+    // given: a compose view with 200 rows of a label each laid out, which a loop builds as blocks of one node
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          LabelNode("Row \(i) title")
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.labels.200", result: result)
+  }
+
   func test_refresh_nestedRows_200_drawn() {
     // given: a compose view with 200 nested rows laid out in a window, which draws the labels past its visible bounds
     // ahead of time
