@@ -81,10 +81,35 @@ class NodeBufferTests: XCTestCase {
     expect(buffer.withNode(at: 2, as: ByteNode.self) { $0.flag }) == false
   }
 
-  func test_room_isTheSizeWithTheAlignment() {
-    // then: a value's room is its size and the bytes that aligning it can skip
-    expect(NodeBuffer.room(for: AlignedNode.self)) == MemoryLayout<AlignedNode>.size + 15
-    expect(NodeBuffer.room(for: ByteNode.self)) == MemoryLayout<ByteNode>.size
+  func test_room_isTheStrideWithTheAlignment() {
+    // then: a value's room is its stride and the bytes that aligning it can skip
+    expect(NodeBuffer.room(for: AlignedNode.self)) == MemoryLayout<AlignedNode>.stride + 15
+    expect(NodeBuffer.room(for: PaddedNode.self)) == MemoryLayout<PaddedNode>.stride + 7
+    expect(NodeBuffer.room(for: ByteNode.self)) == MemoryLayout<ByteNode>.stride
+  }
+
+  func test_append_startsEachValueAfterThePreviousValuesStride() {
+    // given: a buffer with room for a node with tail padding and a one-byte node
+    expect(MemoryLayout<PaddedNode>.size) < MemoryLayout<PaddedNode>.stride
+    let buffer = NodeBuffer.make(
+      capacity: 2,
+      valuesByteCount: NodeBuffer.room(for: PaddedNode.self) + NodeBuffer.room(for: ByteNode.self)
+    )
+
+    // when: appending the node with tail padding, then the one-byte node
+    buffer.append(PaddedNode(value: 1, flag: true))
+    buffer.append(ByteNode(flag: true))
+
+    // then: the one-byte node starts after the other node's stride, outside the memory bound to its type
+    let paddedAddress = buffer.withNode(at: 0, as: PaddedNode.self) { node in
+      withUnsafeMutablePointer(to: &node) { Int(bitPattern: $0) }
+    }
+    let byteAddress = buffer.withNode(at: 1, as: ByteNode.self) { node in
+      withUnsafeMutablePointer(to: &node) { Int(bitPattern: $0) }
+    }
+    expect(try (byteAddress.unwrap() - paddedAddress.unwrap())) >= MemoryLayout<PaddedNode>.stride
+    expect(buffer.withNode(at: 0, as: PaddedNode.self) { $0.value }) == 1
+    expect(buffer.withNode(at: 1, as: ByteNode.self) { $0.flag }) == true
   }
 
   func test_make_fromNodes_copiesThemInOrder() {
@@ -185,7 +210,13 @@ class NodeBufferTests: XCTestCase {
     // given: a buffer with nodes that each keep an object
     var objects: [Token]? = [Token(), Token(), Token()]
     let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
-    var buffer: NodeBuffer? = NodeBuffer.make(objects!.map { TrackedNode(token: $0, value: 0) }) // swiftlint:disable:this force_unwrapping
+    // the nodes are an array literal, since a map into `[any ComposeNode]` in this module changes how the optimizer
+    // compiles the benchmarks' arrays of rows, which then box each row again
+    var buffer: NodeBuffer? = NodeBuffer.make([
+      TrackedNode(token: objects![0], value: 0), // swiftlint:disable:this force_unwrapping
+      TrackedNode(token: objects![1], value: 0), // swiftlint:disable:this force_unwrapping
+      TrackedNode(token: objects![2], value: 0), // swiftlint:disable:this force_unwrapping
+    ])
     objects = nil
 
     // then: the buffer keeps the objects
@@ -197,6 +228,28 @@ class NodeBufferTests: XCTestCase {
     // then: each child is destroyed, which releases its object
     expect(buffer) == nil
     expect(weakObjects.allSatisfy { $0.token == nil }) == true
+  }
+
+  func test_copy_ofAPartlyFilledBuffer_keepsEachValueAligned() {
+    // given: a buffer with room for three children, holding a one-byte node and a 16-byte aligned node
+    let buffer = NodeBuffer.make(
+      capacity: 3,
+      valuesByteCount: 3 * NodeBuffer.room(for: AlignedNode.self)
+    )
+    buffer.append(ByteNode(flag: true))
+    buffer.append(AlignedNode(value: SIMD2(7, 8)))
+
+    // when: copying it, which makes room for only the two children
+    let copy = buffer.copy()
+
+    // then: the copy's values start at another offset, and each value is at its alignment and keeps its value
+    expect(copy.count) == 2
+    let alignment = copy.withNode(at: 1, as: AlignedNode.self) { node in
+      withUnsafeMutablePointer(to: &node) { Int(bitPattern: $0) % 16 }
+    }
+    expect(alignment) == 0
+    expect(copy.withNode(at: 0, as: ByteNode.self) { $0.flag }) == true
+    expect(copy.withNode(at: 1, as: AlignedNode.self) { $0.value }) == SIMD2(7, 8)
   }
 
   func test_emptyBuffer() {
@@ -224,6 +277,29 @@ private struct ByteNode: ComposeNode {
 
   var id: ComposeNodeId {
     get { .custom("byte") }
+    set {} // swiftlint:disable:this unused_setter_value
+  }
+
+  var size: CGSize {
+    .zero
+  }
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+  }
+
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
+}
+
+/// A node with tail padding: its size is smaller than its stride, and its id isn't stored.
+private struct PaddedNode: ComposeNode {
+
+  var value: Int64
+
+  var flag: Bool
+
+  var id: ComposeNodeId {
+    get { .custom("padded") }
     set {} // swiftlint:disable:this unused_setter_value
   }
 

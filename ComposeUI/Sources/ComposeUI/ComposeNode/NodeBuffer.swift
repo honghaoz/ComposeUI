@@ -54,7 +54,7 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
 
     /// The number of children that the table has room for.
     @usableFromInline
-    let capacity: Int
+    let childCapacity: Int
 
     /// The byte offset of the next child's value, from the start of the elements.
     @usableFromInline
@@ -69,9 +69,9 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     let byteCount: Int
 
     @usableFromInline
-    init(count: Int, capacity: Int, nextValueOffset: Int, valuesStart: Int, byteCount: Int) {
+    init(count: Int, childCapacity: Int, nextValueOffset: Int, valuesStart: Int, byteCount: Int) {
       self.count = count
-      self.capacity = capacity
+      self.childCapacity = childCapacity
       self.nextValueOffset = nextValueOffset
       self.valuesStart = valuesStart
       self.byteCount = byteCount
@@ -111,7 +111,7 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     let buffer = create(minimumCapacity: chunkCount) { _ in
       Header(
         count: 0,
-        capacity: capacity,
+        childCapacity: capacity,
         nextValueOffset: valuesStart,
         valuesStart: valuesStart,
         byteCount: chunkCount * MemoryLayout<Chunk>.stride
@@ -136,13 +136,14 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     return buffer
   }
 
-  /// Returns the number of bytes that a value of a type takes at most in a buffer, with its alignment.
+  /// Returns the number of bytes that a value of a type takes at most in a buffer: its stride and the padding to its
+  /// alignment.
   ///
   /// - Parameter type: The type of the value.
   /// - Returns: The number of bytes.
   @inlinable
   static func room<N: ComposeNode>(for type: N.Type) -> Int {
-    MemoryLayout<N>.size + MemoryLayout<N>.alignment - 1
+    MemoryLayout<N>.stride + MemoryLayout<N>.alignment - 1
   }
 
   /// Appends a child after the children appended before it.
@@ -155,20 +156,23 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
       precondition(alignment <= MemoryLayout<Chunk>.alignment, "a node's alignment must be at most 16 bytes")
       let offset = Self.alignedOffset(header.pointee.nextValueOffset, alignment: alignment)
       precondition(
-        header.pointee.count < header.pointee.capacity && offset + MemoryLayout<N>.size <= header.pointee.byteCount,
+        header.pointee.count < header.pointee.childCapacity && offset + MemoryLayout<N>.stride <= header.pointee.byteCount,
         "a child must fit in the room that the buffer was made with"
       )
       let base = UnsafeMutableRawPointer(elements)
       (base + header.pointee.count * MemoryLayout<Entry>.stride).initializeMemory(as: Entry.self, to: Entry(type: N.self, offset: offset))
       header.pointee.count += 1
-      header.pointee.nextValueOffset = offset + MemoryLayout<N>.size
+      // the value takes its stride, since initializing it binds the stride's bytes to its type, so the next value starts
+      // after its tail padding
+      header.pointee.nextValueOffset = offset + MemoryLayout<N>.stride
       return base + offset
     }
-    // the node moves in after the closure, which can't consume it
+    // the node moves in after the closure, which can't consume it, at an address that stays valid after the closure, since
+    // a managed buffer's elements never move while the buffer lives
     pointer.initializeMemory(as: N.self, to: node)
   }
 
-  /// Returns a buffer with copies of the children, in order.
+  /// Returns a buffer with copies of the children, in order, with room for only those children.
   ///
   /// - Returns: The buffer.
   func copy() -> NodeBuffer {
@@ -270,7 +274,8 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     return Self.node(type, pointer)
   }
 
-  /// Returns the type of the child at an index and the address of its value, which stays valid while the buffer lives.
+  /// Returns the type of the child at an index and the address of its value, which stays valid after the closure that
+  /// reads it while the buffer lives, since a managed buffer's elements never move.
   private func child(at index: Int) -> (type: any ComposeNode.Type, pointer: UnsafeMutableRawPointer) {
     precondition(index >= 0 && index < header.count, "index out of range")
     return withUnsafeMutablePointerToElements { elements in
