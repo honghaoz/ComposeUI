@@ -247,6 +247,9 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
       let (type, pointer) = child(at: index)
       ComposeUI.assert(type != MovedNode.self, "a child is moved out once")
       Self.move(type, pointer, to: other)
+      // the empty child is initialized in the place, which binds its byte to the empty child's type, so that reading,
+      // moving and destroying the place access an initialized value of that type
+      pointer.initializeMemory(as: MovedNode.self, to: MovedNode())
       withUnsafeMutablePointerToElements { elements in
         let entry = UnsafeMutableRawPointer(elements).assumingMemoryBound(to: Entry.self) + index
         entry.pointee = Entry(type: MovedNode.self, offset: entry.pointee.offset)
