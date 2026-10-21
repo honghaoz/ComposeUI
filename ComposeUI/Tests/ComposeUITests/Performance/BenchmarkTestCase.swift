@@ -343,10 +343,12 @@ enum AllocationCounter {
   private static let logger: UnsafeMutablePointer<Logger?>? = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "malloc_logger") // RTLD_DEFAULT
     .map { $0.assumingMemoryBound(to: Logger?.self) }
 
-  /// The count and the counted thread, in memory that the logger reaches without capturing anything, since a C
+  /// The number of allocations counted, in memory that the logger reaches without capturing anything, since a C
   /// function pointer can't capture.
   private static let counter = UnsafeMutablePointer<Int>.allocate(capacity: 1)
 
+  /// The thread whose allocations are counted, in memory that the logger reaches without capturing anything, since a C
+  /// function pointer can't capture.
   private static let countedThread = UnsafeMutablePointer<pthread_t?>.allocate(capacity: 1)
 
   /// Runs the body once, and returns the number of allocations it makes on the calling thread, `nil` if the allocations
