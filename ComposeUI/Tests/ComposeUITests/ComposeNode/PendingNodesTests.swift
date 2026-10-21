@@ -443,7 +443,7 @@ private func fillsHalf(_ buffer: NodeBuffer) -> Bool {
 /// A node of one byte, whose id isn't stored.
 private struct ByteNode: ComposeNode {
 
-  var flag: Bool
+  let flag: Bool
 
   var id: ComposeNodeId {
     get { .custom("byte") }
@@ -464,9 +464,9 @@ private struct ByteNode: ComposeNode {
 /// A node with tail padding: its size is smaller than its stride, and its id isn't stored.
 private struct PaddedNode: ComposeNode {
 
-  var value: Int64
+  let value: Int64
 
-  var flag: Bool
+  let flag: Bool
 
   var id: ComposeNodeId {
     get { .custom("padded") }
@@ -487,7 +487,7 @@ private struct PaddedNode: ComposeNode {
 /// A node of 128 bytes, whose id isn't stored.
 private struct WideNode: ComposeNode {
 
-  var value = SIMD16<Int64>()
+  let value = SIMD16<Int64>()
 
   var id: ComposeNodeId {
     get { .custom("wide") }
@@ -508,7 +508,7 @@ private struct WideNode: ComposeNode {
 /// A node of 2048 bytes, whose id isn't stored.
 private struct HugeNode: ComposeNode {
 
-  var values = (SIMD64<Int64>(), SIMD64<Int64>(), SIMD64<Int64>(), SIMD64<Int64>())
+  let values = (SIMD64<Int64>(), SIMD64<Int64>(), SIMD64<Int64>(), SIMD64<Int64>())
 
   var id: ComposeNodeId {
     get { .custom("huge") }
@@ -539,7 +539,7 @@ private struct TrackedNode: ComposeNode {
 
   let token: Token
 
-  var value: Int
+  let value: Int
 
   var id: ComposeNodeId = .custom("tracked")
 
