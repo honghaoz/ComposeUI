@@ -529,14 +529,8 @@ public extension ComposeContentBuilder {
         let writer = _NodeWriter(capacity: nodeCount, valuesByteCount: valuesByteCount)
         write(into: writer)
         return NodeList(buffer: writer.buffer)
-      case .pending(let start, let count, _):
-        if let buffer = PendingNodes.current.takeAll(start: start, count: count) {
-          return NodeList(buffer: buffer)
-        } else {
-          let writer = _NodeWriter(capacity: count, valuesByteCount: valuesByteCount)
-          write(into: writer)
-          return NodeList(buffer: writer.buffer)
-        }
+      case .pending(let start, let count, let claim):
+        return NodeList(buffer: Self.owner(of: claim).contentBuffer(start: start, count: count))
       }
     }
 
@@ -569,8 +563,8 @@ public extension ComposeContentBuilder {
         return NodeBuffer.room(of: nodes)
       case .contents(_, _, let valuesByteCount):
         return valuesByteCount
-      case .pending(let start, let count, _):
-        return PendingNodes.current.room(start: start, count: count)
+      case .pending(let start, let count, let claim):
+        return Self.owner(of: claim).room(start: start, count: count)
       }
     }
 
@@ -591,9 +585,18 @@ public extension ComposeContentBuilder {
         for index in contents.indices {
           contents[index].write(into: writer)
         }
-      case .pending(let start, let count, _):
-        PendingNodes.current.moveNodes(start: start, count: count, into: writer.buffer)
+      case .pending(let start, let count, let claim):
+        Self.owner(of: claim).moveNodes(start: start, count: count, into: writer.buffer)
       }
+    }
+
+    /// Returns the pending nodes that a claim's content refers to, which are the calling thread's, since a content of
+    /// pending nodes is used only while the thread that wrote them builds.
+    @inline(__always)
+    private static func owner(of claim: PendingNodes.Claim) -> PendingNodes {
+      let owner = claim.owner
+      ComposeUI.assert(owner === PendingNodes.current, "a content of pending nodes is used on the thread that wrote them")
+      return owner
     }
   }
 

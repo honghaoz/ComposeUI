@@ -35,16 +35,31 @@ import Foundation
 ///
 /// A loop's iterations are blocks of one statement, so they write into one buffer, which a stack that holds only the
 /// loop keeps as its children, instead of each into a buffer of its own. A block's content refers to its pending nodes
-/// by their indexes until it's written, on the thread that built it.
+/// by their indexes until it's written.
 ///
-/// Content built in a task doesn't use the pending nodes. A builder function that throws leaves the nodes it wrote,
-/// which the pending nodes destroy once no content refers to them.
+/// The pending nodes stay sound through these rules:
+/// - A block writes its nodes after the nodes of its statements, so its ranges follow theirs, and when it moves its
+///   ranges in order, its last range is at the end.
+/// - A block takes the buffer only when its range holds all of the pending nodes.
+/// - Moving a range out leaves an empty node in each place, which the buffer drops once the places above it are empty.
+/// - A content is written on the thread that wrote its nodes, which its claim asserts in debug builds.
+/// - Content built in a task doesn't use the pending nodes, and the nodes that a builder function that throws leaves
+///   are destroyed when the thread next writes a block of one node, once no content refers to them, or when the thread
+///   exits.
 @usableFromInline
 final class PendingNodes {
 
   /// An object that the content of pending nodes keeps, whose references tell whether a content refers to pending nodes.
   @usableFromInline
-  final class Claim {}
+  final class Claim {
+
+    /// The pending nodes that the claim's content refers to, which outlive the build that writes and reads the content.
+    unowned(unsafe) let owner: PendingNodes
+
+    init(owner: PendingNodes) {
+      self.owner = owner
+    }
+  }
 
   /// Takes room for nodes in the calling thread's pending nodes, unless the thread runs a task.
   ///
@@ -98,17 +113,16 @@ final class PendingNodes {
   private var buffer: NodeBuffer?
 
   /// The claim that the content of the pending nodes keeps, a variable since `isKnownUniquelyReferenced(_:)` takes it
-  /// in place.
-  private var claim = Claim()
+  /// in place, and implicitly unwrapped since it refers back to the pending nodes, so it's made once they exist.
+  private var claim: Claim!
 
-  /// The number of children that the buffer that a block took last had room for, which a growing buffer grows to at
+  /// The rooms of the recent loops that held all of the pending nodes, newest first, which a growing buffer grows to at
   /// once, since a refresh builds the same content again.
-  private var takenChildCapacity = 0
+  private var rooms: [Room] = []
 
-  /// The number of bytes that the values of the buffer that a block took last had room for.
-  private var takenValuesByteCapacity = 0
-
-  private init() {}
+  private init() {
+    claim = Claim(owner: self)
+  }
 
   /// Returns the number of bytes that a range of the pending nodes' values take at most in another buffer.
   ///
@@ -120,26 +134,32 @@ final class PendingNodes {
     pendingBuffer().roomOfChildren(from: start, count: count)
   }
 
-  /// Takes the buffer of the pending nodes when a range holds all of them and at least half of the buffer's room for
-  /// children and for values, leaving no buffer for the next nodes.
+  /// Returns the buffer of a block's content whose nodes are a range of the pending nodes: their buffer, when the range
+  /// holds all of the pending nodes and at least three quarters of the buffer's room for children and for values, which
+  /// leaves no buffer for the next nodes, or else a buffer of their own that they move into.
+  ///
+  /// A range of all the pending nodes is a loop that a refresh builds again, so its room is remembered either way.
   ///
   /// - Parameters:
   ///   - start: The index of the first node.
   ///   - count: The number of nodes.
-  /// - Returns: The buffer, or `nil` when the range doesn't qualify, whose block moves the nodes out instead.
-  func takeAll(start: Int, count: Int) -> NodeBuffer? {
+  /// - Returns: The buffer.
+  func contentBuffer(start: Int, count: Int) -> NodeBuffer {
     let buffer = pendingBuffer()
-    guard start == 0,
-          count == buffer.count,
-          count * 2 >= buffer.childCapacity,
-          buffer.valuesByteCountInUse * 2 >= buffer.valuesByteCapacity
-    else {
-      return nil
+    // a single node is neither a loop whose room a buffer grows to nor enough to fill a buffer, so it moves out without
+    // either check
+    guard count > 1, start == 0, count == buffer.count else {
+      return movedIntoBufferOfTheirOwn(from: buffer, start: start, count: count, loopFilledTooLittle: false)
     }
-    takenChildCapacity = min(buffer.childCapacity, Constants.maximumChildCapacity)
-    takenValuesByteCapacity = min(buffer.valuesByteCapacity, Constants.maximumValuesByteCapacity)
-    self.buffer = nil
-    return buffer
+    let valuesByteCount = buffer.valuesByteCountInUse
+    remember(Room(childCount: count, valuesByteCount: valuesByteCount))
+    if count * 4 >= buffer.childCapacity * 3, valuesByteCount * 4 >= buffer.valuesByteCapacity * 3 {
+      self.buffer = nil
+      return buffer
+    } else {
+      // the stack would keep the room that its nodes don't use, so the nodes move into a buffer of their own instead
+      return movedIntoBufferOfTheirOwn(from: buffer, start: start, count: count, loopFilledTooLittle: true)
+    }
   }
 
   /// Moves a range of the pending nodes into a buffer, and drops the places of the moved nodes at the end of the pending
@@ -150,16 +170,22 @@ final class PendingNodes {
   ///   - count: The number of nodes.
   ///   - other: The buffer, whose room the nodes must fit in.
   func moveNodes(start: Int, count: Int, into other: NodeBuffer) {
-    let buffer = pendingBuffer()
+    move(from: pendingBuffer(), start: start, count: count, into: other, loopFilledTooLittle: false)
+  }
+
+  private func movedIntoBufferOfTheirOwn(from buffer: NodeBuffer, start: Int, count: Int, loopFilledTooLittle: Bool) -> NodeBuffer {
+    let other = NodeBuffer.make(capacity: count, valuesByteCount: buffer.roomOfChildren(from: start, count: count))
+    move(from: buffer, start: start, count: count, into: other, loopFilledTooLittle: loopFilledTooLittle)
+    return other
+  }
+
+  private func move(from buffer: NodeBuffer, start: Int, count: Int, into other: NodeBuffer, loopFilledTooLittle: Bool) {
     precondition(start >= 0 && count >= 0 && start + count <= buffer.count, "a block's pending nodes are written once")
     buffer.moveChildren(from: start, count: count, into: other)
     // a block moves its ranges in order, after the blocks in it moved theirs, so its last range is at the end, and
     // moving it drops the places of all the block's nodes, down to any nodes left by a builder function that threw
     buffer.dropMovedChildren()
-    if buffer.count == 0,
-       buffer.childCapacity > Constants.maximumChildCapacity || buffer.valuesByteCapacity > Constants.maximumValuesByteCapacity
-    {
-      // an empty buffer is kept for the next loop, which a refresh builds again, unless it's larger than the thread keeps
+    if buffer.count == 0, !keepsEmpty(buffer, loopFilledTooLittle: loopFilledTooLittle) {
       self.buffer = nil
     }
   }
@@ -183,9 +209,9 @@ final class PendingNodes {
 
   /// Replaces the buffer with one that has room for more nodes, which keeps the nodes at their indexes.
   ///
-  /// A first buffer is small, and a buffer that grows grows to the room of the buffer that a block took last at once,
-  /// so that a block of one node doesn't make a large buffer, and a loop that a refresh builds again moves its first
-  /// nodes once instead of each time the buffer doubles.
+  /// A first buffer is small, so that a block of one node doesn't make a large buffer, and a buffer that grows grows to
+  /// the smallest remembered room that fits its nodes at once, so that a loop that a refresh builds again moves its
+  /// first nodes once instead of each time the buffer doubles.
   private func grown(adding count: Int, valuesByteCount: Int) -> NodeBuffer {
     let grown: NodeBuffer
     if let old = buffer {
@@ -193,12 +219,15 @@ final class PendingNodes {
       // empty, which a block doesn't take
       let childCount = old.count + count
       let valuesByteCount = old.roomOfChildren + valuesByteCount
-      let childCapacity = childCount > old.childCapacity ? max(2 * old.childCapacity, childCount) : old.childCapacity
-      let valuesByteCapacity = valuesByteCount > old.valuesByteCapacity ? max(2 * old.valuesByteCapacity, valuesByteCount) : old.valuesByteCapacity
-      grown = NodeBuffer.make(
-        capacity: max(childCapacity, takenChildCapacity),
-        valuesByteCount: max(valuesByteCapacity, takenValuesByteCapacity)
-      )
+      var childCapacity = childCount > old.childCapacity ? max(2 * old.childCapacity, childCount) : old.childCapacity
+      var valuesByteCapacity = valuesByteCount > old.valuesByteCapacity ? max(2 * old.valuesByteCapacity, valuesByteCount) : old.valuesByteCapacity
+      if let room = smallestRoom(fitting: childCount, valuesByteCount: valuesByteCount) {
+        // an eighth more fits the loop when its list gets a little longer, and the jump stops at a number of times what
+        // the nodes need now, so that a short loop doesn't grow to a long list's room
+        childCapacity = min(room.childCount + room.childCount / 8, childCount * Constants.maximumGrowth)
+        valuesByteCapacity = min(room.valuesByteCount + room.valuesByteCount / 8, valuesByteCount * Constants.maximumGrowth)
+      }
+      grown = NodeBuffer.make(capacity: childCapacity, valuesByteCount: valuesByteCapacity)
       old.moveChildren(into: grown)
     } else {
       grown = NodeBuffer.make(
@@ -217,6 +246,57 @@ final class PendingNodes {
     return buffer
   }
 
+  // MARK: - Sizing
+
+  /// Remembers the room of a loop that held all of the pending nodes, in place of a room within an eighth of it, which is
+  /// likely the same loop's, or else of the oldest room.
+  private func remember(_ room: Room) {
+    guard room.childCount > Constants.initialChildCapacity || room.valuesByteCount > Constants.initialValuesByteCapacity else {
+      // a loop that fits a first buffer doesn't make a buffer grow
+      return
+    }
+    if let index = rooms.firstIndex(where: { abs($0.childCount - room.childCount) * 8 <= room.childCount }) {
+      rooms.remove(at: index)
+    } else if rooms.count == Constants.rememberedRoomCount {
+      rooms.removeLast()
+    }
+    rooms.insert(room, at: 0)
+  }
+
+  /// Returns the smallest remembered room that has room for a number of children and of bytes.
+  private func smallestRoom(fitting childCount: Int, valuesByteCount: Int) -> Room? {
+    rooms.lazy
+      .filter { $0.childCount >= childCount && $0.valuesByteCount >= valuesByteCount }
+      .min { $0.childCount < $1.childCount }
+  }
+
+  /// Returns whether the thread keeps an empty buffer for its next loop.
+  ///
+  /// - Parameters:
+  ///   - buffer: The empty buffer.
+  ///   - loopFilledTooLittle: Whether the buffer was emptied by a loop that held all of it and filled too little of it.
+  private func keepsEmpty(_ buffer: NodeBuffer, loopFilledTooLittle: Bool) -> Bool {
+    if buffer.childCapacity <= Constants.smallChildCapacity, buffer.valuesByteCapacity <= Constants.smallValuesByteCapacity {
+      // a small buffer costs little to keep, and serves the blocks and short loops that most content has
+      return true
+    } else if loopFilledTooLittle || !Thread.isMainThread {
+      // a buffer that the loop that held all of it filled too little of goes, so that the loop's next buffer grows to
+      // fit it, and a thread other than the main thread, which can stay alive without building again, keeps only a
+      // small buffer
+      return false
+    } else {
+      return buffer.childCapacity <= Constants.mainThreadChildCapacity && buffer.valuesByteCapacity <= Constants.mainThreadValuesByteCapacity
+    }
+  }
+
+  /// The room that a loop's nodes take, in children and in bytes of values.
+  private struct Room {
+
+    let childCount: Int
+
+    let valuesByteCount: Int
+  }
+
   // MARK: - Constants
 
   private enum Constants {
@@ -227,11 +307,23 @@ final class PendingNodes {
     /// The number of bytes that a first buffer's values have room for.
     static let initialValuesByteCapacity = 16 * 128
 
-    /// The most children that a buffer grows to at once, and that an empty buffer the thread keeps has room for.
-    static let maximumChildCapacity = 4096
+    /// The most times what its nodes need that a buffer grows to at once.
+    static let maximumGrowth = 16
 
-    /// The most bytes that a buffer's values grow to at once, and that an empty buffer the thread keeps has room for.
-    static let maximumValuesByteCapacity = 1 << 20
+    /// The number of rooms of recent loops that the thread remembers.
+    static let rememberedRoomCount = 4
+
+    /// The most children that an empty buffer that any thread keeps has room for.
+    static let smallChildCapacity = 256
+
+    /// The most bytes of values that an empty buffer that any thread keeps has room for.
+    static let smallValuesByteCapacity = 64 * 1024
+
+    /// The most children that an empty buffer that the main thread keeps has room for.
+    static let mainThreadChildCapacity = 4096
+
+    /// The most bytes of values that an empty buffer that the main thread keeps has room for.
+    static let mainThreadValuesByteCapacity = 1 << 20
   }
 }
 
@@ -241,6 +333,13 @@ extension PendingNodes {
   /// The buffer of the calling thread's pending nodes, for the tests.
   static var debugBuffer: NodeBuffer? {
     current.buffer
+  }
+
+  /// Drops the buffer of the calling thread's pending nodes and forgets the rooms of its loops, for the tests.
+  static func debugReset() {
+    let nodes = current
+    nodes.buffer = nil
+    nodes.rooms = []
   }
 }
 #endif

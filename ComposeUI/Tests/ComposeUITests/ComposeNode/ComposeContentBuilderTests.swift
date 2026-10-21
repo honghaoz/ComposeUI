@@ -455,6 +455,42 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(ids) == ["a", "b", "c", "b", "c", "d", "e", "f"]
   }
 
+  func test_pendingContentUsedOnAnotherThread_asserts() {
+    // given: the content of a block of one node, which the thread's pending nodes hold, and a test assertion failure
+    // handler
+    let content = ComposeContentBuilder.buildBlock(ComposeContentBuilder.buildExpression(ColorNode(.red).id("a")))
+    let claim: PendingNodes.Claim
+    switch content.storage {
+    case .pending(_, _, let pendingClaim):
+      claim = pendingClaim
+    default:
+      fail("expected the block's node in the thread's pending nodes")
+      return
+    }
+    var messages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      messages.append(message)
+    }
+
+    // then: the content refers to the calling thread's pending nodes
+    expect(claim.owner) === PendingNodes.current
+
+    // when: reading the content's room on another thread, which the builder never does
+    _ = onNewThread { content.valuesByteCount }
+
+    // then: it asserts, since the other thread's pending nodes don't hold the content's nodes
+    expect(messages) == ["a content of pending nodes is used on the thread that wrote them"]
+
+    // when: reading the content on the thread that wrote it
+    let nodes = ComposeContentBuilder.buildFinalResult(content).nodes
+
+    // then: it reads its nodes without asserting
+    expect(nodes.map(\.id.id)) == ["a"]
+    expect(messages.count) == 1
+
+    Assert.resetTestAssertionFailureHandler()
+  }
+
   func test_blockContentWrittenTwice_asserts() {
     // given: the content of a block of two nodes, which holds the nodes it wrote, and a test assertion failure handler
     let content = ComposeContentBuilder.buildBlock(
@@ -775,20 +811,23 @@ class ComposeContentBuilderTests: XCTestCase {
 
   // MARK: - Pending Nodes
 
-  func test_stackOfALoop_takesTheLoopsNodesAsItsChildren() {
-    let observed = onNewThread { () -> (ids: [String], buffer: NodeBuffer?) in
-      // when: building a stack of a loop whose iterations are blocks of one node, on a thread without pending nodes
-      let stack = VStack {
-        for index in 0 ..< 20 {
-          Self.node(index)
-        }
-      }
-      return (stack.childNodes.map(\.id.id), PendingNodes.debugBuffer)
+  func test_loopOfAllTheNodes_takesTheirBufferOnceItFitsThem() {
+    let observed = onNewThread { () -> (first: (ids: [String], childCapacity: Int), next: (ids: [String], childCapacity: Int)) in
+      // when: building the content of a loop of 300 nodes twice, as a refresh builds it again
+      let first = Self.nodeLoop(count: 300)
+      let next = Self.nodeLoop(count: 300)
+
+      let firstBuffer = NodeList.buffer(of: first)
+      let nextBuffer = NodeList.buffer(of: next)
+      return ((first.nodes.map(\.id.id), firstBuffer.childCapacity), (next.nodes.map(\.id.id), nextBuffer.childCapacity))
     }
 
-    // then: the stack has the nodes in order, in the buffer that they were written into, which leaves the thread none
-    expect(observed.ids) == (0 ..< 20).map { "\($0)" }
-    expect(observed.buffer) == nil
+    // then: the first content moves the nodes into a buffer of their own, since they fill too little of the buffer that
+    // doubled to hold them, and the next content keeps the buffer that grew to their room, with an eighth more
+    expect(observed.first.ids) == (0 ..< 300).map { "\($0)" }
+    expect(observed.first.childCapacity) == 300
+    expect(observed.next.ids) == (0 ..< 300).map { "\($0)" }
+    expect(observed.next.childCapacity) == 300 + 300 / 8
   }
 
   func test_loopBesideAStatement_movesTheLoopsNodesAndKeepsTheirBuffer() {
@@ -1042,6 +1081,45 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(Set(ids).count) == 1
   }
 
+  #if compiler(>=6.2)
+  func test_taskStartedImmediatelyInALoop_buildsItsContentApartFromTheLoopsPendingNodes() async throws {
+    guard #available(macOS 26.0, iOS 26.0, tvOS 26.0, visionOS 26.0, *) else {
+      throw XCTSkip("Task.immediate needs macOS 26, iOS 26, tvOS 26 or visionOS 26")
+    }
+
+    // given: a stream that ends when the test lets a task finish its content
+    let (resumption, resume) = AsyncStream<Void>.makeStream()
+
+    // when: building a loop outside a task, whose second iteration starts a task immediately, whose builder function
+    // builds a loop on the building thread and holds the loop's content while it suspends
+    let built = onNewThread { () -> (ids: [String], leftCount: Int, task: Task<ImmediateTaskResult, Never>?) in
+      var task: Task<ImmediateTaskResult, Never>?
+      let stack = VStack {
+        for index in 0 ..< 4 {
+          Self.node(index) {
+            if index == 1 {
+              task = Self.immediateTaskOfNodes(suspendingUntil: resumption)
+            }
+          }
+        }
+      }
+      return (stack.childNodes.map(\.id.id), PendingNodes.debugBuffer?.count ?? 0, task)
+    }
+
+    // then: the loop keeps its nodes in order, and leaves no nodes in the thread's pending nodes
+    expect(built.ids) == ["0", "1", "2", "3"]
+    expect(built.leftCount) == 0
+
+    // when: letting the task finish its content, once it resumes
+    resume.finish()
+    let result = await built.task?.value
+
+    // then: the task started on the building thread, and its content has its own nodes in order
+    expect(result?.startedOnTheCallingThread) == true
+    expect(result?.ids) == ["task.0", "task.1", "task.2", "task.3"]
+  }
+  #endif
+
   func test_buildsOnSeveralThreadsAtOnce_keepEachThreadsNodes() {
     // when: building loops on several threads at once
     let lock = NSLock()
@@ -1087,6 +1165,14 @@ class ComposeContentBuilderTests: XCTestCase {
     ColorNode(.red).id("\(index)")
   }
 
+  /// Returns the content of a loop of color nodes with their indexes as their ids.
+  @ComposeContentBuilder
+  private static func nodeLoop(count: Int) -> ComposeContent {
+    for index in 0 ..< count {
+      node(index)
+    }
+  }
+
   /// Returns a content of two color nodes.
   @ComposeContentBuilder
   private static func twoNodes() -> ComposeContent {
@@ -1109,10 +1195,10 @@ class ComposeContentBuilderTests: XCTestCase {
     for object in objects {
       TokenNode(token: object)
     }
-    try fail()
+    try throwTestError()
   }
 
-  private static func fail() throws {
+  private static func throwTestError() throws {
     throw TestError()
   }
 
@@ -1156,6 +1242,44 @@ class ComposeContentBuilderTests: XCTestCase {
     await Task.yield()
     return value
   }
+
+  /// Returns a color node with the index as its id, after calling a block.
+  private static func node(_ index: Int, after body: () -> Void) -> some ComposeNode {
+    body()
+    return node(index)
+  }
+
+  /// Returns the content of a loop of color nodes with a task's ids and a color node after them, whose builder function
+  /// holds the loop's content while it suspends until a stream ends.
+  @ComposeContentBuilder
+  private static func taskNodes(suspendingUntil resumption: AsyncStream<Void>) async -> ComposeContent {
+    for index in 0 ..< 3 {
+      ColorNode(.red).id("task.\(index)")
+    }
+    await waitForTheEnd(of: resumption)
+    ColorNode(.red).id("task.3")
+  }
+
+  /// Waits until a stream ends.
+  private static func waitForTheEnd(of stream: AsyncStream<Void>) async {
+    for await _ in stream {}
+  }
+
+  /// Whether a task started on the thread that started it, and the ids of the nodes that it built.
+  private typealias ImmediateTaskResult = (startedOnTheCallingThread: Bool, ids: [String])
+
+  #if compiler(>=6.2)
+  /// Starts a task immediately, which builds content of nodes across a suspension that lasts until a stream ends.
+  @available(macOS 26.0, iOS 26.0, tvOS 26.0, visionOS 26.0, *)
+  private static func immediateTaskOfNodes(suspendingUntil resumption: AsyncStream<Void>) -> Task<ImmediateTaskResult, Never> {
+    let callingThread = UInt(bitPattern: pthread_self())
+    return Task.immediate {
+      let startedOnTheCallingThread = UInt(bitPattern: pthread_self()) == callingThread
+      let ids = await taskNodes(suspendingUntil: resumption).nodes.map(\.id.id)
+      return (startedOnTheCallingThread, ids)
+    }
+  }
+  #endif
 }
 
 private struct TestError: Error {}

@@ -112,18 +112,18 @@ class PendingNodesTests: XCTestCase {
       let firstChildCapacity = first.buffer.childCapacity
       first.buffer.append(HugeNode())
 
-      // when: appending more nodes whose values each take more room than the first buffer has, as many as fill half of its
-      // room for children
-      let claims = [first.claim] + appendPending([HugeNode](repeating: HugeNode(), count: firstChildCapacity / 2 - 1))
+      // when: appending more nodes whose values each take more room than the first buffer has, as many as fill its room
+      // for children
+      let claims = [first.claim] + appendPending([HugeNode](repeating: HugeNode(), count: firstChildCapacity - 1))
       let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
-      let taken = PendingNodes.current.takeAll(start: 0, count: claims.count) != nil
+      let taken = PendingNodes.current.contentBuffer(start: 0, count: claims.count) === buffer
 
       return (firstChildCapacity, buffer.childCapacity, buffer.valuesByteCapacity, taken)
     }
 
     // then: the buffer grows its values to fit them, and keeps its room for children, so a block takes it
     expect(observed.childCapacity) == observed.firstChildCapacity
-    expect(observed.valuesByteCapacity >= observed.firstChildCapacity / 2 * MemoryLayout<HugeNode>.stride) == true
+    expect(observed.valuesByteCapacity >= observed.firstChildCapacity * MemoryLayout<HugeNode>.stride) == true
     expect(observed.taken) == true
   }
 
@@ -189,139 +189,257 @@ class PendingNodesTests: XCTestCase {
     expect(observed.start) == 2
   }
 
-  func test_takeAll_ofAllTheNodesFillingHalfTheRoom_takesTheBuffer() {
-    let observed = onNewThread { () -> (fillsHalf: Bool, taken: Bool, left: Bool) in
-      // given: wide nodes that fill half of a first buffer's room for children and for values
-      let claims = appendPending([WideNode](repeating: WideNode(), count: 8))
+  func test_contentBuffer_ofAllTheNodesFillingThreeQuartersOfTheRoom_isTheirBuffer() {
+    let observed = onNewThread { () -> (fillsThreeQuarters: Bool, taken: Bool, left: Bool) in
+      // given: wide nodes that fill three quarters of a first buffer's room for children and for values
+      let claims = appendPending([WideNode](repeating: WideNode(), count: 12))
       let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
+      let fills = fillsThreeQuarters(buffer)
 
-      // when: taking all of them
-      let taken = PendingNodes.current.takeAll(start: 0, count: claims.count)
+      // when: reading the buffer of a content of all of them
+      let contentBuffer = PendingNodes.current.contentBuffer(start: 0, count: claims.count)
 
-      return (fillsHalf(buffer), taken === buffer, PendingNodes.debugBuffer == nil)
+      return (fills, contentBuffer === buffer, PendingNodes.debugBuffer == nil)
     }
 
-    // then: the block takes the buffer, which leaves the thread without one
-    expect(observed.fillsHalf) == true
+    // then: the content takes their buffer, which leaves the thread without one
+    expect(observed.fillsThreeQuarters) == true
     expect(observed.taken) == true
     expect(observed.left) == true
   }
 
-  func test_takeAll_ofARangeAfterOtherNodes_leavesTheBuffer() {
-    let observed = onNewThread { () -> (fillsHalf: Bool, taken: Bool, kept: Bool) in
-      // given: wide nodes that fill half of a first buffer's room for children and for values
-      let claims = appendPending([WideNode](repeating: WideNode(), count: 8))
+  func test_contentBuffer_ofARangeAfterOtherNodes_movesTheNodesIntoABufferOfTheirOwn() {
+    let observed = onNewThread { () -> (fillsThreeQuarters: Bool, taken: Bool, movedCount: Int, leftCount: Int?) in
+      // given: 13 wide nodes, the last 12 of which fill three quarters of a first buffer's room for children and for
+      // values
+      let claims = appendPending([WideNode](repeating: WideNode(), count: 13))
       let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
+      let fills = fillsThreeQuarters(buffer, start: 1, count: 12)
 
-      // when: taking all of them but the first
-      let taken = PendingNodes.current.takeAll(start: 1, count: claims.count - 1)
+      // when: reading the buffer of a content of all of them but the first
+      let contentBuffer = PendingNodes.current.contentBuffer(start: 1, count: claims.count - 1)
 
-      return (fillsHalf(buffer), taken != nil, PendingNodes.debugBuffer === buffer)
+      return (fills, contentBuffer === buffer, contentBuffer.count, PendingNodes.debugBuffer === buffer ? buffer.count : nil)
     }
 
-    // then: the block doesn't take the buffer, whose first node belongs to another block
-    expect(observed.fillsHalf) == true
+    // then: the nodes move into a buffer of their own, since the first node in their buffer belongs to another block,
+    // which keeps its place
+    expect(observed.fillsThreeQuarters) == true
     expect(observed.taken) == false
-    expect(observed.kept) == true
+    expect(observed.movedCount) == 12
+    expect(observed.leftCount) == 1
   }
 
-  func test_takeAll_ofSomeOfTheNodes_leavesTheBuffer() {
-    let observed = onNewThread { () -> (fillsHalf: Bool, taken: Bool, kept: Bool) in
-      // given: wide nodes that fill half of a first buffer's room for children and for values
-      let claims = appendPending([WideNode](repeating: WideNode(), count: 8))
+  func test_contentBuffer_ofSomeOfTheNodes_movesTheNodesIntoABufferOfTheirOwn() {
+    let observed = onNewThread { () -> (fillsThreeQuarters: Bool, taken: Bool, movedCount: Int, leftCount: Int?) in
+      // given: 13 wide nodes, the first 12 of which fill three quarters of a first buffer's room for children and for
+      // values
+      let claims = appendPending([WideNode](repeating: WideNode(), count: 13))
       let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
+      let fills = fillsThreeQuarters(buffer, start: 0, count: 12)
 
-      // when: taking all of them but the last
-      let taken = PendingNodes.current.takeAll(start: 0, count: claims.count - 1)
+      // when: reading the buffer of a content of all of them but the last
+      let contentBuffer = PendingNodes.current.contentBuffer(start: 0, count: claims.count - 1)
 
-      return (fillsHalf(buffer), taken != nil, PendingNodes.debugBuffer === buffer)
+      return (fills, contentBuffer === buffer, contentBuffer.count, PendingNodes.debugBuffer === buffer ? buffer.count : nil)
     }
 
-    // then: the block doesn't take the buffer, whose last node belongs to another block
-    expect(observed.fillsHalf) == true
+    // then: the nodes move into a buffer of their own, since the last node in their buffer belongs to another block,
+    // which keeps its place above the places of the moved nodes
+    expect(observed.fillsThreeQuarters) == true
     expect(observed.taken) == false
-    expect(observed.kept) == true
+    expect(observed.movedCount) == 12
+    expect(observed.leftCount) == 13
   }
 
-  func test_takeAll_ofNodesFillingLessThanHalfTheRoomForChildren_leavesTheBuffer() {
-    let observed = onNewThread { () -> (fillsHalfOfTheChildren: Bool, fillsHalfOfTheValues: Bool, taken: Bool, kept: Bool) in
-      // given: two nodes whose values fill half of the buffer's room for values, and less of its room for children
-      let claims = appendPending([HugeNode](repeating: HugeNode(), count: 2))
+  func test_contentBuffer_ofAllTheNodesFillingLessThanThreeQuartersOfTheRoomForChildren_movesTheNodesIntoABufferOfTheirOwn() {
+    let observed = onNewThread { () -> (fillsTheChildren: Bool, fillsTheValues: Bool, taken: Bool, movedCount: Int) in
+      // given: four nodes whose values fill three quarters of the buffer's room for values, and less of its room for
+      // children
+      let claims = appendPending([HugeNode](repeating: HugeNode(), count: 4))
       let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
+      let fillsTheChildren = buffer.count * 4 >= buffer.childCapacity * 3
+      let fillsTheValues = buffer.valuesByteCountInUse * 4 >= buffer.valuesByteCapacity * 3
 
-      // when: taking all of them
-      let taken = PendingNodes.current.takeAll(start: 0, count: claims.count)
+      // when: reading the buffer of a content of all of them
+      let contentBuffer = PendingNodes.current.contentBuffer(start: 0, count: claims.count)
 
-      return (
-        buffer.count * 2 >= buffer.childCapacity,
-        buffer.valuesByteCountInUse * 2 >= buffer.valuesByteCapacity,
-        taken != nil,
-        PendingNodes.debugBuffer === buffer
-      )
+      return (fillsTheChildren, fillsTheValues, contentBuffer === buffer, contentBuffer.count)
     }
 
-    // then: the block doesn't take the buffer, which would keep the room it doesn't use
-    expect(observed.fillsHalfOfTheChildren) == false
-    expect(observed.fillsHalfOfTheValues) == true
+    // then: the nodes move into a buffer of their own, since a stack that took their buffer would keep the room that
+    // they don't use
+    expect(observed.fillsTheChildren) == false
+    expect(observed.fillsTheValues) == true
     expect(observed.taken) == false
-    expect(observed.kept) == true
+    expect(observed.movedCount) == 4
   }
 
-  func test_takeAll_ofNodesFillingLessThanHalfTheRoomForValues_leavesTheBuffer() {
-    let observed = onNewThread { () -> (fillsHalfOfTheChildren: Bool, fillsHalfOfTheValues: Bool, taken: Bool, kept: Bool) in
-      // given: one-byte nodes that fill half of a first buffer's room for children, and less of its room for values
-      let claims = appendPending([ByteNode](repeating: ByteNode(flag: true), count: 8))
+  func test_contentBuffer_ofAllTheNodesFillingLessThanThreeQuartersOfTheRoomForValues_movesTheNodesIntoABufferOfTheirOwn() {
+    let observed = onNewThread { () -> (fillsTheChildren: Bool, fillsTheValues: Bool, taken: Bool, movedCount: Int) in
+      // given: one-byte nodes that fill three quarters of a first buffer's room for children, and less of its room for
+      // values
+      let claims = appendPending([ByteNode](repeating: ByteNode(flag: true), count: 12))
       let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
+      let fillsTheChildren = buffer.count * 4 >= buffer.childCapacity * 3
+      let fillsTheValues = buffer.valuesByteCountInUse * 4 >= buffer.valuesByteCapacity * 3
 
-      // when: taking all of them
-      let taken = PendingNodes.current.takeAll(start: 0, count: claims.count)
+      // when: reading the buffer of a content of all of them
+      let contentBuffer = PendingNodes.current.contentBuffer(start: 0, count: claims.count)
 
-      return (
-        buffer.count * 2 >= buffer.childCapacity,
-        buffer.valuesByteCountInUse * 2 >= buffer.valuesByteCapacity,
-        taken != nil,
-        PendingNodes.debugBuffer === buffer
-      )
+      return (fillsTheChildren, fillsTheValues, contentBuffer === buffer, contentBuffer.count)
     }
 
-    // then: the block doesn't take the buffer, which would keep the room it doesn't use
-    expect(observed.fillsHalfOfTheChildren) == true
-    expect(observed.fillsHalfOfTheValues) == false
+    // then: the nodes move into a buffer of their own, since a stack that took their buffer would keep the room that
+    // they don't use
+    expect(observed.fillsTheChildren) == true
+    expect(observed.fillsTheValues) == false
     expect(observed.taken) == false
-    expect(observed.kept) == true
+    expect(observed.movedCount) == 12
   }
 
-  func test_takeAll_remembersTheRoom_whichAGrowingBufferTakesAtOnce() {
-    let observed = onNewThread { () -> (taken: (children: Int, values: Int), grown: (children: Int, values: Int), firstBuffers: Int) in
-      // given: a buffer of many wide nodes that a block took
-      var taken: (children: Int, values: Int) = (0, 0)
-      do {
-        let claims = appendPending([WideNode](repeating: WideNode(), count: 100))
-        let buffer = PendingNodes.current.takeAll(start: 0, count: claims.count)
-        taken = (buffer?.childCapacity ?? 0, buffer?.valuesByteCapacity ?? 0)
-      }
+  func test_contentBuffer_ofAllTheNodes_remembersTheirRoom_whichAGrowingBufferGrowsToAtOnce() {
+    let observed = onNewThread { () -> (taken: Bool, grown: (children: Int, values: Int), bufferCount: Int) in
+      // given: a loop of 100 wide nodes, whose content took their buffer
+      let taken = buildLoop([WideNode](repeating: WideNode(), count: 100))
 
       // when: appending more wide nodes than a first buffer has room for
-      var buffers: [NodeBuffer] = []
-      var claims: [PendingNodes.Claim] = []
-      for _ in 0 ..< 17 {
-        let pending = PendingNodes.reserve(count: 1, valuesByteCount: NodeBuffer.room(for: WideNode.self))! // swiftlint:disable:this force_unwrapping
-        pending.buffer.append(WideNode())
-        if buffers.last !== pending.buffer {
-          buffers.append(pending.buffer)
-        }
-        claims.append(pending.claim)
-      }
+      let (claims, bufferCount) = appendPendingCountingBuffers([WideNode](repeating: WideNode(), count: 17))
 
       let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
-      return (taken, (buffer.childCapacity, buffer.valuesByteCapacity), buffers.count)
+      return (taken && claims.count == 17, (buffer.childCapacity, buffer.valuesByteCapacity), bufferCount)
     }
 
-    // then: the first buffer grows once, to the room of the buffer that the block took
-    expect(observed.taken.children > 0) == true
-    expect(observed.firstBuffers) == 2
-    expect(observed.grown.children) == observed.taken.children
-    expect(observed.grown.values) == observed.taken.values
+    // then: the first buffer grows once, to the room that the 100 nodes took and an eighth more
+    expect(observed.taken) == true
+    expect(observed.bufferCount) == 2
+    expect(observed.grown.children) == 100 + 100 / 8
+    expect(observed.grown.values) == 100 * MemoryLayout<WideNode>.stride * 9 / 8
+  }
+
+  func test_contentBuffer_ofAllTheNodesFillingTooLittle_remembersTheirRoomToo() {
+    let observed = onNewThread { () -> (taken: Bool, grownChildCapacity: Int) in
+      // given: a loop of 300 one-byte nodes, whose content didn't take their buffer, since their values fill too little
+      // of it
+      let taken = buildLoop([ByteNode](repeating: ByteNode(flag: true), count: 300))
+
+      // when: appending more one-byte nodes than the room for children that the first growth reaches
+      let (claims, _) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 273))
+
+      return (taken, claims.count == 273 ? PendingNodes.debugBuffer?.childCapacity ?? 0 : 0)
+    }
+
+    // then: the buffer grows to the room that the 300 nodes took and an eighth more
+    expect(observed.taken) == false
+    expect(observed.grownChildCapacity) == 300 + 300 / 8
+  }
+
+  func test_contentBuffer_ofAFewNodes_keepsTheRememberedRoomsOfLongerLoops() {
+    let observed = onNewThread { () -> Int in
+      // given: the room of a loop of 300 one-byte nodes, which the thread remembers, and then loops of one to five
+      // nodes, more loops of different lengths than the thread remembers rooms
+      buildLoop([ByteNode](repeating: ByteNode(flag: true), count: 300))
+      for count in 1 ... 5 {
+        buildLoop([ByteNode](repeating: ByteNode(flag: true), count: count))
+      }
+
+      // when: appending more nodes than the room for children that the first growth reaches
+      let (claims, _) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 273))
+
+      return claims.count == 273 ? PendingNodes.debugBuffer?.childCapacity ?? 0 : 0
+    }
+
+    // then: the buffer grows to the room of 300 nodes and an eighth more, since a loop whose nodes fit a first buffer
+    // leaves no room in place of a longer loop's
+    expect(observed) == 300 + 300 / 8
+  }
+
+  func test_grown_toARememberedRoom_growsAtMostSixteenTimesWhatTheNodesNeed() {
+    let observed = onNewThread { () -> Int in
+      // given: the room of a loop of 1,000 one-byte nodes, which the thread remembers
+      buildLoop([ByteNode](repeating: ByteNode(flag: true), count: 1000))
+
+      // when: appending one more node than a first buffer has room for
+      let (claims, _) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 17))
+
+      return claims.count == 17 ? PendingNodes.debugBuffer?.childCapacity ?? 0 : 0
+    }
+
+    // then: the buffer grows to sixteen times the 17 nodes that it needs room for, instead of the remembered room
+    expect(observed) == 17 * 16
+  }
+
+  func test_grown_choosesTheSmallestRememberedRoomThatFits_ofTheFourNewest() {
+    let observed = onNewThread { () -> Int in
+      // given: the rooms of loops of 300, 400, 500, 600 and 700 one-byte nodes, which the thread remembers, the four newest
+      for count in [300, 400, 500, 600, 700] {
+        buildLoop([ByteNode](repeating: ByteNode(flag: true), count: count))
+      }
+
+      // when: appending more nodes than the room for children that the first growth reaches
+      let (claims, _) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 273))
+
+      return claims.count == 273 ? PendingNodes.debugBuffer?.childCapacity ?? 0 : 0
+    }
+
+    // then: the buffer grows to the room of 400 nodes and an eighth more, since the room of 300 nodes was the oldest
+    expect(observed) == 400 + 400 / 8
+  }
+
+  func test_grown_pastARememberedRoomWithTooFewBytes_doublesInstead() {
+    let observed = onNewThread { () -> (count: Int, childCapacity: Int, valuesByteCapacity: Int) in
+      // given: the room of a loop of 300 one-byte nodes, which the thread remembers
+      buildLoop([ByteNode](repeating: ByteNode(flag: true), count: 300))
+
+      // when: appending more wide nodes than a first buffer has room for, whose values take more bytes than the room has
+      let (claims, _) = appendPendingCountingBuffers([WideNode](repeating: WideNode(), count: 17))
+
+      let buffer = PendingNodes.debugBuffer
+      return (claims.count, buffer?.childCapacity ?? 0, buffer?.valuesByteCapacity ?? 0)
+    }
+
+    // then: the first buffer doubles, instead of growing to the remembered room, which doesn't fit the nodes' values
+    expect(observed.count) == 17
+    expect(observed.childCapacity) == 2 * 16
+    expect(observed.valuesByteCapacity) == 2 * 16 * MemoryLayout<WideNode>.stride
+  }
+
+  func test_grown_pastARememberedRoomWithTooFewChildren_doublesInstead() {
+    let observed = onNewThread { () -> (count: Int, childCapacity: Int, valuesByteCapacity: Int, keptValuesByteCapacity: Int) in
+      // given: the room of a loop of four huge nodes, which the thread remembers, since their values take more bytes
+      // than a first buffer has, and the small empty buffer that the thread keeps after it
+      buildLoop([HugeNode](repeating: HugeNode(), count: 4))
+      let keptValuesByteCapacity = PendingNodes.debugBuffer?.valuesByteCapacity ?? 0
+
+      // when: appending more one-byte nodes than the buffer has room for, more than the room has children for
+      let (claims, _) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 17))
+
+      let buffer = PendingNodes.debugBuffer
+      return (claims.count, buffer?.childCapacity ?? 0, buffer?.valuesByteCapacity ?? 0, keptValuesByteCapacity)
+    }
+
+    // then: the buffer doubles its room for children and keeps its room for values, instead of growing to the
+    // remembered room, which doesn't fit the nodes
+    expect(observed.count) == 17
+    expect(observed.childCapacity) == 2 * 16
+    expect(observed.valuesByteCapacity) == observed.keptValuesByteCapacity
+  }
+
+  func test_remember_aRoomWithinAnEighthOfAnother_replacesIt() {
+    let observed = onNewThread { () -> Int in
+      // given: the rooms of loops of 300 and then 330 one-byte nodes, which is within an eighth of 300
+      for count in [300, 330] {
+        buildLoop([ByteNode](repeating: ByteNode(flag: true), count: count))
+      }
+
+      // when: appending more nodes than the room for children that the first growth reaches
+      let (claims, _) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 273))
+
+      return claims.count == 273 ? PendingNodes.debugBuffer?.childCapacity ?? 0 : 0
+    }
+
+    // then: the buffer grows to the room of 330 nodes and an eighth more, since that room replaced the room of 300
+    expect(observed) == 330 + 330 / 8
   }
 
   func test_moveNodes_ofTheLastRange_dropsThePlacesOfTheMovedNodes() {
@@ -346,47 +464,155 @@ class PendingNodesTests: XCTestCase {
       return (countAfterFirst, PendingNodes.debugBuffer?.count, moved)
     }
 
-    // then: the first move keeps all four places, the last drops them all and keeps the empty buffer for the next loop
+    // then: the first move keeps all four places, the last drops them all and keeps the small empty buffer for the next
+    // loop
     expect(observed.countAfterFirst) == 4
     expect(observed.countAfterLast) == 0
     expect(observed.moved) == [0, 1, 2, 3]
   }
 
-  func test_moveNodes_emptyingABufferWithMoreRoomForChildrenThanTheThreadKeeps_releasesIt() {
+  func test_contentBuffer_ofAllTheNodesFillingTooLittleOfASmallBuffer_keepsTheBuffer() {
+    let observed = onNewThread { () -> (taken: Bool, kept: Bool) in
+      // given: eight wide nodes in the thread's pending nodes, which fill half of a first buffer
+      let claims = appendPending([WideNode](repeating: WideNode(), count: 8))
+      let buffer = PendingNodes.debugBuffer
+
+      // when: reading the buffer of a content of all of them
+      let contentBuffer = PendingNodes.current.contentBuffer(start: 0, count: claims.count)
+
+      return (contentBuffer === buffer, PendingNodes.debugBuffer === buffer && buffer?.count == 0)
+    }
+
+    // then: the nodes move into a buffer of their own, and the thread keeps the small empty buffer, which costs little
+    // to keep
+    expect(observed.taken) == false
+    expect(observed.kept) == true
+  }
+
+  func test_moveNodes_emptyingALargeBufferOnTheMainThread_keepsIt() {
+    // given: 300 one-byte nodes in the main thread's pending nodes, whose buffer has more room than a small one
+    PendingNodes.debugReset()
+    let claims = appendPending([ByteNode](repeating: ByteNode(flag: true), count: 300))
+    let childCapacity = PendingNodes.debugBuffer?.childCapacity ?? 0
+
+    // when: moving them all out
+    moveAllPending(keeping: claims)
+
+    // then: the main thread keeps the empty buffer for its next loop
+    expect(childCapacity > 256) == true
+    expect(PendingNodes.debugBuffer?.count) == 0
+
+    PendingNodes.debugReset()
+  }
+
+  func test_contentBuffer_ofAllTheNodesFillingTooLittleOfALargeBufferOnTheMainThread_releasesTheBuffer() {
+    // given: 300 one-byte nodes in the main thread's pending nodes, whose values fill too little of their buffer
+    PendingNodes.debugReset()
+    let claims = appendPending([ByteNode](repeating: ByteNode(flag: true), count: 300))
+    let buffer = PendingNodes.debugBuffer
+
+    // when: reading the buffer of a content of all of them
+    let contentBuffer = PendingNodes.current.contentBuffer(start: 0, count: claims.count)
+
+    // then: the nodes move into a buffer of their own, and the empty buffer goes, so that the loop's next buffer grows
+    // to fit them
+    expect(contentBuffer === buffer) == false
+    expect(contentBuffer.count) == 300
+    expect(PendingNodes.debugBuffer) == nil
+
+    // when: building the loop again
+    let taken = buildLoop([ByteNode](repeating: ByteNode(flag: true), count: 300))
+
+    // then: its nodes fill the buffer that grew to their room, which their content takes
+    expect(taken) == true
+
+    PendingNodes.debugReset()
+  }
+
+  func test_contentBuffer_ofTheLastRangeEmptyingALargeBufferOnTheMainThread_keepsTheBuffer() {
+    // given: 300 one-byte nodes in the main thread's pending nodes, whose buffer has more room than a small one, the
+    // first half of which moved into a buffer of their own
+    PendingNodes.debugReset()
+    let claims = appendPending([ByteNode](repeating: ByteNode(flag: true), count: 300))
+    let buffer = PendingNodes.debugBuffer
+    let firstHalf = PendingNodes.current.contentBuffer(start: 0, count: 150)
+
+    // when: reading the buffer of a content of the second half, which empties the pending nodes
+    let secondHalf = PendingNodes.current.contentBuffer(start: 150, count: claims.count - 150)
+
+    // then: the main thread keeps the empty buffer for its next loop, since neither range held all of the nodes, which
+    // makes neither a loop that filled too little of the buffer
+    expect(firstHalf.count) == 150
+    expect(secondHalf.count) == 150
+    expect((buffer?.childCapacity ?? 0) > 256) == true
+    expect(PendingNodes.debugBuffer === buffer) == true
+    expect(buffer?.count) == 0
+
+    PendingNodes.debugReset()
+  }
+
+  func test_contentBuffer_ofASingleNodeEmptyingALargeBufferOnTheMainThread_keepsTheBuffer() {
+    // given: the main thread's large empty buffer, which a loop of 300 one-byte nodes left, with one node in it
+    PendingNodes.debugReset()
+    moveAllPending(keeping: appendPending([ByteNode](repeating: ByteNode(flag: true), count: 300)))
+    let buffer = PendingNodes.debugBuffer
+    let claims = appendPending([ByteNode(flag: true)])
+
+    // when: reading the buffer of a content of the node, as a stack of one child does
+    let contentBuffer = PendingNodes.current.contentBuffer(start: 0, count: claims.count)
+
+    // then: the node moves into a buffer of its own, and the main thread keeps the large buffer for its next loop, since
+    // a single node isn't a loop whose room the buffer should fit
+    expect(contentBuffer.count) == 1
+    expect((buffer?.childCapacity ?? 0) > 256) == true
+    expect(PendingNodes.debugBuffer === buffer) == true
+    expect(buffer?.count) == 0
+
+    PendingNodes.debugReset()
+  }
+
+  func test_moveNodes_emptyingABufferPastTheMainThreadsLimits_releasesIt() {
+    // given: more one-byte nodes in the main thread's pending nodes than an empty buffer that it keeps has room for
+    PendingNodes.debugReset()
+    let byteClaims = appendPending([ByteNode](repeating: ByteNode(flag: true), count: 5000))
+    let childCapacity = PendingNodes.debugBuffer?.childCapacity ?? 0
+
+    // when: moving them all out
+    moveAllPending(keeping: byteClaims)
+
+    // then: the main thread releases the empty buffer, instead of keeping it
+    expect(childCapacity > 4096) == true
+    expect(PendingNodes.debugBuffer) == nil
+
+    // given: few nodes whose values take more bytes than an empty buffer that the main thread keeps has room for
+    let hugeClaims = appendPending([HugeNode](repeating: HugeNode(), count: 600))
+    let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
+
+    // when: moving them all out
+    moveAllPending(keeping: hugeClaims)
+
+    // then: the main thread releases the empty buffer
+    expect(buffer.childCapacity <= 4096) == true
+    expect(buffer.valuesByteCapacity > 1 << 20) == true
+    expect(PendingNodes.debugBuffer) == nil
+
+    PendingNodes.debugReset()
+  }
+
+  func test_moveNodes_emptyingALargeBufferOffTheMainThread_releasesIt() {
     let observed = onNewThread { () -> (childCapacity: Int, released: Bool) in
-      // given: one-byte nodes in the thread's pending nodes, more than an empty buffer that the thread keeps has room for
-      let claims = appendPending([ByteNode](repeating: ByteNode(flag: true), count: 5000))
+      // given: 300 one-byte nodes in another thread's pending nodes, whose buffer has more room than a small one
+      let claims = appendPending([ByteNode](repeating: ByteNode(flag: true), count: 300))
       let childCapacity = PendingNodes.debugBuffer?.childCapacity ?? 0
-      let other = NodeBuffer.make(capacity: claims.count, valuesByteCount: PendingNodes.current.room(start: 0, count: claims.count))
 
       // when: moving them all out
-      PendingNodes.current.moveNodes(start: 0, count: claims.count, into: other)
+      moveAllPending(keeping: claims)
 
       return (childCapacity, PendingNodes.debugBuffer == nil)
     }
 
-    // then: the thread releases the empty buffer, instead of keeping it
-    expect(observed.childCapacity >= 5000) == true
-    expect(observed.released) == true
-  }
-
-  func test_moveNodes_emptyingABufferWithMoreRoomForValuesThanTheThreadKeeps_releasesIt() {
-    let observed = onNewThread { () -> (childCapacity: Int, valuesByteCapacity: Int, released: Bool) in
-      // given: few nodes in the thread's pending nodes whose values take more bytes than an empty buffer that the thread
-      // keeps has room for
-      let claims = appendPending([HugeNode](repeating: HugeNode(), count: 600))
-      let buffer = PendingNodes.debugBuffer! // swiftlint:disable:this force_unwrapping
-      let other = NodeBuffer.make(capacity: claims.count, valuesByteCount: PendingNodes.current.room(start: 0, count: claims.count))
-
-      // when: moving them all out
-      PendingNodes.current.moveNodes(start: 0, count: claims.count, into: other)
-
-      return (buffer.childCapacity, buffer.valuesByteCapacity, PendingNodes.debugBuffer == nil)
-    }
-
-    // then: the thread releases the empty buffer, instead of keeping it
-    expect(observed.childCapacity <= 4096) == true
-    expect(observed.valuesByteCapacity > 1 << 20) == true
+    // then: the thread releases the empty buffer, since a thread other than the main thread keeps only a small one
+    expect(observed.childCapacity > 256) == true
     expect(observed.released) == true
   }
 
@@ -423,19 +649,56 @@ class PendingNodesTests: XCTestCase {
 
 /// Appends nodes to the calling thread's pending nodes, as blocks of one node do, and returns the claims that their
 /// contents keep.
-private func appendPending<N: ComposeNode>(_ nodes: [N]) -> [PendingNodes.Claim] {
+private func appendPending(_ nodes: [some ComposeNode]) -> [PendingNodes.Claim] {
+  appendPendingCountingBuffers(nodes).claims
+}
+
+/// Appends nodes to the calling thread's pending nodes, as blocks of one node do, and returns the claims that their
+/// contents keep and the number of buffers that the nodes were appended to.
+private func appendPendingCountingBuffers<N: ComposeNode>(_ nodes: [N]) -> (claims: [PendingNodes.Claim], bufferCount: Int) {
   var claims: [PendingNodes.Claim] = []
+  var buffers: [NodeBuffer] = []
   for node in nodes {
     let pending = PendingNodes.reserve(count: 1, valuesByteCount: NodeBuffer.room(for: N.self))! // swiftlint:disable:this force_unwrapping
     pending.buffer.append(node)
+    if buffers.last !== pending.buffer {
+      buffers.append(pending.buffer)
+    }
     claims.append(pending.claim)
   }
-  return claims
+  return (claims, buffers.count)
 }
 
-/// Returns whether a buffer's children fill at least half of its room for children and for values.
-private func fillsHalf(_ buffer: NodeBuffer) -> Bool {
-  buffer.count * 2 >= buffer.childCapacity && buffer.valuesByteCountInUse * 2 >= buffer.valuesByteCapacity
+/// Appends nodes to the calling thread's pending nodes and reads the buffer of a content of all of them, as a stack that
+/// holds a loop of blocks of one node does, and returns whether the content took the pending nodes' buffer.
+@discardableResult
+private func buildLoop(_ nodes: [some ComposeNode]) -> Bool {
+  let claims = appendPending(nodes)
+  let buffer = PendingNodes.debugBuffer
+  return PendingNodes.current.contentBuffer(start: 0, count: claims.count) === buffer
+}
+
+/// Moves all of the calling thread's pending nodes out, as the block that holds them does, while their contents keep
+/// their claims.
+private func moveAllPending(keeping claims: [PendingNodes.Claim] = []) {
+  withExtendedLifetime(claims) {
+    let count = PendingNodes.debugBuffer?.count ?? 0
+    let other = NodeBuffer.make(capacity: count, valuesByteCount: count > 0 ? PendingNodes.current.room(start: 0, count: count) : 0)
+    if count > 0 {
+      PendingNodes.current.moveNodes(start: 0, count: count, into: other)
+    }
+  }
+}
+
+/// Returns whether a buffer's children fill at least three quarters of its room for children and for values.
+private func fillsThreeQuarters(_ buffer: NodeBuffer) -> Bool {
+  buffer.count * 4 >= buffer.childCapacity * 3 && buffer.valuesByteCountInUse * 4 >= buffer.valuesByteCapacity * 3
+}
+
+/// Returns whether a range of a buffer's children fills at least three quarters of the buffer's room for children and
+/// for values.
+private func fillsThreeQuarters(_ buffer: NodeBuffer, start: Int, count: Int) -> Bool {
+  count * 4 >= buffer.childCapacity * 3 && buffer.roomOfChildren(from: start, count: count) * 4 >= buffer.valuesByteCapacity * 3
 }
 
 // MARK: - Test Nodes
