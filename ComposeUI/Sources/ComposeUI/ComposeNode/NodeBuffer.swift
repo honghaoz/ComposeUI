@@ -277,9 +277,14 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
 
   /// The number of bytes that the children's values take at most in another buffer.
   var roomOfChildren: Int {
+    let header = headerValue
+    guard header.count > 0 else {
+      // without values there's nothing to pad to a 16-byte boundary, so empty content adds no bytes to the buffer of a
+      // block that holds it
+      return 0
+    }
     // from an offset of any alignment, the values take at most the bytes up to the next 16-byte boundary more than they
     // take from one, since rounding each offset up never moves a later value past where it starts from the boundary
-    let header = headerValue
     return header.nextValueOffset - header.valuesStart + MemoryLayout<Chunk>.alignment - 1
   }
 
