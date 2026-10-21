@@ -805,6 +805,29 @@ class ComposeContentBuilderTests: XCTestCase {
     }
   }
 
+  func test_builtInNodesThatAreNotGeneric_keepTheirTypeInALoop() {
+    // given: the built-in node types that aren't generic
+    let types: [any ComposeNode.Type] = [
+      ButtonNode.self,
+      ColorNode.self,
+      ComposeViewNode.self,
+      DropShadowNode.self,
+      EmptyNode.self,
+      HorizontalStackNode.self,
+      InnerShadowNode.self,
+      LabelNode.self,
+      LayeredStackNode.self,
+      SpacerNode.self,
+      TextNode.self,
+      VerticalStackNode.self,
+    ]
+
+    // then: each conforms to `_LoopNode`, so that a loop whose body is one of them writes its nodes into one buffer
+    for type in types {
+      expect(type is any ComposeContentBuilder._LoopNode.Type) == true
+    }
+  }
+
   func test_forLoopOfOneNode_buildsEachIterationInOrder() {
     // when: building loops whose body is one node of a known type, and of an opaque type
     let knownIds = Self.nodeIds {

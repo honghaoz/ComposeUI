@@ -377,8 +377,11 @@ public enum ComposeContentBuilder {
     guard !nodes.isEmpty else {
       return _Content(nodes: [])
     }
-    let writer = _NodeWriter(capacity: nodes.count, valuesByteCount: nodes.count * NodeBuffer.room(for: N.self))
-    writer.append(movingFrom: &nodes)
+    // values of one type placed one after another each start at a multiple of its alignment once the first does, so
+    // they need the padding to their alignment at most once
+    let valuesByteCount = nodes.count * MemoryLayout<N>.stride + MemoryLayout<N>.alignment - 1
+    let writer = _NodeWriter(capacity: nodes.count, valuesByteCount: valuesByteCount)
+    writer.append(copiesOf: nodes)
     return _Content(written: writer)
   }
 
@@ -642,11 +645,9 @@ public extension ComposeContentBuilder {
       other.moveChildren(into: buffer)
     }
 
-    /// Appends the nodes of an array, in order, moving each out of the array, which is left empty.
+    /// Appends a copy of each node of an array, in order, and leaves the array as it is.
     @inlinable
-    func append(movingFrom nodes: inout [_Node<some ComposeNode>]) {
-      // popping moves an element out without copying it, so the array is reversed in place first, which moves the
-      // values without retaining them
+    func append(copiesOf nodes: [_Node<some ComposeNode>]) {
       for node in nodes {
         buffer.append(node.node)
       }
@@ -700,6 +701,10 @@ struct NodeList: ComposeContent {
 
 // MARK: - Loop Nodes
 
+// A generic node doesn't conform, since its generic argument can be an opaque type, such as the `some View` that a
+// function returns for a `SwiftUIViewNode`, which makes the node's type opaque too, and a conditional conformance can't
+// tell an opaque argument from a concrete one.
+
 extension ButtonNode: ComposeContentBuilder._LoopNode {}
 extension ColorNode: ComposeContentBuilder._LoopNode {}
 extension ComposeViewNode: ComposeContentBuilder._LoopNode {}
@@ -708,10 +713,7 @@ extension EmptyNode: ComposeContentBuilder._LoopNode {}
 extension HorizontalStackNode: ComposeContentBuilder._LoopNode {}
 extension InnerShadowNode: ComposeContentBuilder._LoopNode {}
 extension LabelNode: ComposeContentBuilder._LoopNode {}
-extension LayerNode: ComposeContentBuilder._LoopNode {}
 extension LayeredStackNode: ComposeContentBuilder._LoopNode {}
 extension SpacerNode: ComposeContentBuilder._LoopNode {}
-extension SwiftUIViewNode: ComposeContentBuilder._LoopNode {}
 extension TextNode: ComposeContentBuilder._LoopNode {}
 extension VerticalStackNode: ComposeContentBuilder._LoopNode {}
-extension ViewNode: ComposeContentBuilder._LoopNode {}
