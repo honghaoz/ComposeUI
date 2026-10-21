@@ -39,11 +39,28 @@ public typealias LayeredStack = LayeredStackNode
 public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
   private let alignment: Layout.Alignment
-  var childNodes: [any ComposeNode]
+
+  /// The children, by value in one buffer.
+  private var children: NodeBuffer
 
   public init(alignment: Layout.Alignment = .center, @ComposeContentBuilder content: () -> ComposeContent) {
     self.alignment = alignment
-    self.childNodes = content().nodes
+    self.children = NodeList.buffer(of: content())
+  }
+
+  /// Creates a stack of the children in a buffer.
+  init(alignment: Layout.Alignment, children: NodeBuffer) {
+    self.alignment = alignment
+    self.children = children
+  }
+
+  var childNodes: [any ComposeNode] {
+    get {
+      (0 ..< children.count).map { children.node(at: $0) }
+    }
+    set {
+      children = NodeBuffer.make(newValue)
+    }
   }
 
   // MARK: - ComposeNode
@@ -60,13 +77,16 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
   private var layoutCache = StackLayoutCache()
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    guard !childNodes.isEmpty else {
+    // the children change in place as they lay out, so a copy of the stack that shares them gets its own
+    NodeBuffer.makeUnique(&children)
+
+    guard children.count > 0 else {
       size = .zero
       layoutCache = StackLayoutCache()
       return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
     }
 
-    let childCount = childNodes.count
+    let childCount = children.count
 
     var maxWidth: CGFloat = 0
     var maxHeight: CGFloat = 0
@@ -74,8 +94,8 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     var heightSizing: ComposeNodeSizing.Sizing = .fixed(0)
 
     for nodeIndex in 0 ..< childCount {
-      let childSizing = childNodes[nodeIndex].layout(containerSize: containerSize, context: context)
-      let childSize = childNodes[nodeIndex].size
+      let childSizing = children.layout(at: nodeIndex, containerSize: containerSize, context: context)
+      let childSize = children.size(at: nodeIndex)
 
       if childSize.width > maxWidth {
         maxWidth = childSize.width
@@ -93,10 +113,13 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     // cache the children layout information for render(visibleBounds:into:)
     layoutCache.reset(reservingCapacity: childCount)
 
-    for node in childNodes {
-      let childOrigin = Layout.position(rect: node.size, in: size, alignment: alignment).origin
-      let itemsBoundingRect = node.renderableItemsBoundingRect
-      layoutCache.appendChild(origin: childOrigin, itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin))
+    for index in 0 ..< childCount {
+      let childOrigin = Layout.position(rect: children.size(at: index), in: size, alignment: alignment).origin
+      let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
+      layoutCache.appendChild(
+        origin: childOrigin,
+        itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
+      )
     }
 
     // no main axis: children in a layered stack overlap each other, so `render(visibleBounds:into:)` checks each
@@ -107,7 +130,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
   }
 
   public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
-    let childCount = childNodes.count
+    let childCount = children.count
     guard layoutCache.childCount == childCount else {
       ComposeUI.assertFailure("render(visibleBounds:into:) requires layout(containerSize:context:) to be called first")
       return
@@ -124,7 +147,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
       let boundsInChild = visibleBounds.translate(-child.origin)
       let start = items.count
-      childNodes[i].render(visibleBounds: boundsInChild, into: &items)
+      children.render(at: i, visibleBounds: boundsInChild, into: &items)
       for index in start ..< items.count {
         items[index].id = id.join(with: items[index].id, suffix: "\(i)")
         items[index].frame = items[index].frame.translate(child.origin)

@@ -260,6 +260,134 @@ class ComposeContentBuilderTests: XCTestCase {
     }
   }
 
+  func test_blockOfEachSize_withoutNodes_buildsNoNodesWithoutAllocating() {
+    // given: bodies that build blocks of two to ten statements, which have an overload each, and of eleven, which
+    // doesn't, whose statements count up a counter and make no nodes, each run once already, since a first run can also
+    // allocate what the runtime makes on first use
+    var count = 0
+    let bodies: [() -> ComposeContent] = [
+      {
+        Self.content {
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+      {
+        Self.content {
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+          count += 1
+        }
+      },
+    ]
+    let nodeCounts = bodies.map { $0().nodes.count }
+    count = 0
+
+    // when: counting the allocations of each body
+    let allocations = bodies.map { body in
+      AllocationCounter.count {
+        _ = body()
+      }
+    }
+
+    // then: each block runs its statements and builds no nodes, without a buffer for them
+    expect(nodeCounts) == Array(repeating: 0, count: 10)
+    expect(count) == (2 ... 11).reduce(0, +)
+    expect(allocations) == Array(repeating: 0, count: 10)
+  }
+
   func test_emptyBlock_buildsNoNodes() {
     // when: building an empty block
     let ids = Self.nodeIds {}
@@ -433,33 +561,131 @@ class ComposeContentBuilderTests: XCTestCase {
     expect([nodes[0], nodes[2], nodes[3], nodes[4]].map(\.id.id)) == ["a", "b", "c", "d"]
   }
 
-  func test_buildFinalResult_itemOtherThanABlock_buildsItsContent() {
-    // given: a node, and an array of two nodes
-    let node = ColorNode(.red).id("a")
-    let array: [ComposeNode] = [ColorNode(.red).id("b"), ColorNode(.red).id("c")]
+  func test_blockOfOneStatement_buildsItsContent() {
+    // when: building blocks of one statement each: a layer, content that another block built, an `if` without `else`
+    // whose condition is false, a loop, and a node in a box
+    let condition = false
+    let boxedNode: any ComposeNode = ColorNode(.red).id("boxed")
+    let layerNodes = Self.nodes {
+      CALayer()
+    }
+    let contentIds = Self.nodeIds {
+      Self.twoNodes()
+    }
+    let falseIfIds = Self.nodeIds {
+      if condition {
+        ColorNode(.red).id("never")
+      }
+    }
+    let loopIds = Self.nodeIds {
+      for index in 0 ..< 3 {
+        ColorNode(.red).id("\(index)")
+      }
+    }
+    let boxedIds = Self.nodeIds {
+      boxedNode
+    }
 
-    // when: building items other than a block directly, which a builder block never does
-    typealias Item = ComposeContentBuilder.Item<ComposeContent>
-    let single = ComposeContentBuilder.buildFinalResult(Item(.expressionSingle(node)))
-    let someOptional = ComposeContentBuilder.buildFinalResult(Item(.optional(Item(.expressionSingle(node)))))
-    let noneOptional = ComposeContentBuilder.buildFinalResult(Item(.optional(nil)))
-    let expressionArray = ComposeContentBuilder.buildFinalResult(Item(.expressionArray([node, array])))
-    let nodeItem = ComposeContentBuilder.buildFinalResult(Item(.node(node)))
-    let nodesItem = ComposeContentBuilder.buildFinalResult(Item(.nodes(array)))
-    let void = ComposeContentBuilder.buildFinalResult(Item(.void))
+    // then: each block builds its statement's nodes
+    expect(layerNodes.count) == 1
+    expect(layerNodes.first is LayerNode) == true
+    expect(contentIds) == ["b", "c"]
+    expect(falseIfIds) == []
+    expect(loopIds) == ["0", "1", "2"]
+    expect(boxedIds) == ["boxed"]
+  }
 
-    // then: a single expression gives itself, an optional gives its item's content, or none, an array expression
-    // gives its contents' nodes, a node gives an array of itself, nodes give themselves, and void gives none
-    expect((single as? ColorNode)?.id.id) == "a"
-    expect((someOptional as? ColorNode)?.id.id) == "a"
-    expect(noneOptional.nodes.isEmpty) == true
-    expect(expressionArray.nodes.map(\.id.id)) == ["a", "b", "c"]
-    expect((nodeItem as? [any ComposeNode])?.map(\.id.id)) == ["a"]
-    expect(nodesItem.nodes.map(\.id.id)) == ["b", "c"]
-    expect(void.nodes.isEmpty) == true
+  func test_boxedNode_isPlacedAsItselfWithoutCallingItsNodesPlumbing() {
+    // given: a node in a box, as a variable of type `any ComposeNode` keeps it, of a type that implements `_nodes()` to
+    // stand for two other nodes, which a node type shouldn't
+    let state = ExpandingNode.State()
+    let boxedNode: any ComposeNode = ExpandingNode(state: state)
+
+    // when: building a block with the boxed node between two nodes, a block of only the boxed node, and a loop of it
+    let ids = Self.nodeIds {
+      ColorNode(.red).id("a")
+      boxedNode
+      ColorNode(.red).id("c")
+    }
+    let onlyIds = Self.nodeIds {
+      boxedNode
+    }
+    let loopIds = Self.nodeIds {
+      for _ in 0 ..< 2 {
+        boxedNode
+      }
+    }
+
+    // then: the node is placed as itself, in place, and its `_nodes()` isn't called
+    expect(ids) == ["a", "expanding", "c"]
+    expect(onlyIds) == ["expanding"]
+    expect(loopIds) == ["expanding", "expanding"]
+    expect(state.nodesCallCount) == 0
+  }
+
+  func test_boxedNodeFromAnOverloadedCall_isPlacedInPlace() {
+    // when: building a block with a node that a call of an overloaded method returns in a box, between two nodes
+    let ids = Self.nodeIds {
+      ColorNode(.red).id("a")
+      ColorNode(.red).frame(width: .flexible, height: .flexible).id("b")
+      ColorNode(.red).id("c")
+    }
+
+    // then: the boxed node is placed in place
+    expect(ids) == ["a", "b", "c"]
+  }
+
+  func test_bodiesOfSeveralStatements_keepTheNodesInOrder() {
+    // when: building a block with a loop and an if-else whose bodies have two statements each
+    let condition = true
+    let ids = Self.nodeIds {
+      for index in 0 ..< 2 {
+        ColorNode(.red).id("\(index)a")
+        ColorNode(.red).id("\(index)b")
+      }
+      if condition {
+        ColorNode(.red).id("c")
+        ColorNode(.red).id("d")
+      } else {
+        ColorNode(.red).id("never")
+      }
+    }
+
+    // then: the bodies' nodes are in order
+    expect(ids) == ["0a", "0b", "1a", "1b", "c", "d"]
+  }
+
+  func test_nodesThatABodyWrote_areDestroyedOnce() {
+    // given: objects for nodes to keep
+    var objects: [Token]? = [Token(), Token(), Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+
+    // when: building content of a loop whose body writes two nodes that keep the objects, which the block moves
+    var content: ComposeContent? = Self.content {
+      for index in 0 ..< 2 {
+        TokenNode(token: objects![index * 2]) // swiftlint:disable:this force_unwrapping
+        TokenNode(token: objects![index * 2 + 1]) // swiftlint:disable:this force_unwrapping
+      }
+    }
+    objects = nil
+
+    // then: the content keeps the objects
+    expect(content?.nodes.count) == 4
+    expect(weakObjects.allSatisfy { $0.token != nil }) == true
+
+    // when: releasing the content
+    content = nil
+
+    // then: each node is destroyed, which releases its object
+    expect(weakObjects.allSatisfy { $0.token == nil }) == true
   }
 
   // MARK: - Helpers
+
+  /// Returns the content that the builder makes.
+  private static func content(@ComposeContentBuilder _ content: () -> ComposeContent) -> ComposeContent {
+    content()
+  }
 
   /// Returns the nodes that the builder makes of the content.
   private static func nodes(@ComposeContentBuilder _ content: () -> ComposeContent) -> [any ComposeNode] {
@@ -515,4 +741,30 @@ private struct ExpandingNode: ComposeNode {
     state.nodesCallCount += 1
     return [ColorNode(.red).id("b1"), ColorNode(.red).id("b2")]
   }
+}
+
+/// An object that a test node keeps, to tell when the node is destroyed.
+private final class Token {}
+
+private struct WeakToken {
+
+  weak var token: Token?
+}
+
+/// A node that keeps an object.
+private struct TokenNode: ComposeNode {
+
+  let token: Token
+
+  var id: ComposeNodeId = .custom("token")
+
+  var size: CGSize {
+    .zero
+  }
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+  }
+
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
 }

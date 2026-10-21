@@ -153,6 +153,51 @@ class NodeBufferTests: XCTestCase {
     }
   }
 
+  func test_appendContentsOf_copiesTheChildrenAfterAnUnalignedValue() {
+    // given: a buffer of 16-byte aligned nodes, and a buffer with room for a one-byte node and copies of them
+    let source = NodeBuffer.make([AlignedNode(value: SIMD2(1, 2)), AlignedNode(value: SIMD2(3, 4))])
+    let buffer = NodeBuffer.make(capacity: 3, valuesByteCount: NodeBuffer.room(for: ByteNode.self) + source.roomOfChildren)
+    buffer.append(ByteNode(flag: true))
+
+    // when: appending copies of the source's children after the one-byte node
+    buffer.append(contentsOf: source)
+
+    // then: the copies fit and keep their values, and the source keeps its children
+    expect(buffer.count) == 3
+    expect(buffer.withNode(at: 1, as: AlignedNode.self) { $0.value }) == SIMD2(1, 2)
+    expect(buffer.withNode(at: 2, as: AlignedNode.self) { $0.value }) == SIMD2(3, 4)
+    expect(source.count) == 2
+    expect(source.withNode(at: 1, as: AlignedNode.self) { $0.value }) == SIMD2(3, 4)
+  }
+
+  func test_moveChildren_movesThemAndEmptiesTheBuffer() {
+    // given: a buffer with nodes that keep objects, and a buffer with room for them
+    var objects: [Token]? = [Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+    var source: NodeBuffer? = NodeBuffer.make(objects!.map { TrackedNode(token: $0, value: 0) }) // swiftlint:disable:this force_unwrapping
+    objects = nil
+    var buffer: NodeBuffer? = NodeBuffer.make(capacity: 2, valuesByteCount: source!.roomOfChildren) // swiftlint:disable:this force_unwrapping
+
+    // when: moving the children
+    source?.moveChildren(into: buffer!) // swiftlint:disable:this force_unwrapping
+
+    // then: the other buffer has them, and the source is empty
+    expect(buffer?.count) == 2
+    expect(source?.count) == 0
+
+    // when: releasing the source
+    source = nil
+
+    // then: the moved children keep their objects
+    expect(weakObjects.allSatisfy { $0.token != nil }) == true
+
+    // when: releasing the other buffer
+    buffer = nil
+
+    // then: the children are destroyed, which releases their objects
+    expect(weakObjects.allSatisfy { $0.token == nil }) == true
+  }
+
   func test_withNode_changesTheChildInPlace() {
     // given: a buffer with a node
     let buffer = NodeBuffer.make([ByteNode(flag: false)])
@@ -167,7 +212,8 @@ class NodeBufferTests: XCTestCase {
   func test_makeUnique_copiesASharedBuffer() {
     // given: a buffer with a node that keeps an object, shared by two holders
     var object: Token? = Token()
-    weak var weakObject = object
+    weak var weakObject: Token?
+    weakObject = object
     var holder: NodeBuffer? = NodeBuffer.make([TrackedNode(token: object!, value: 1)]) // swiftlint:disable:this force_unwrapping
     var otherHolder = holder! // swiftlint:disable:this force_unwrapping
     object = nil

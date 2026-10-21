@@ -63,6 +63,61 @@ class ComposeContentTests: XCTestCase {
     ]
   }
 
+  func test_asVStack_arrayContentAndAnEmptyLoop() {
+    // given: arrays of one node and of two nodes of different widths, and a block of a loop without iterations
+    let one: [ComposeNode] = [ColorNode(.red).id("a")]
+    let two: [ComposeNode] = [ColorNode(.red).frame(width: 10, height: 10), ColorNode(.red).frame(width: 20, height: 10)]
+    let emptyLoop = Self.content {
+      for _ in 0 ..< 0 {
+        ColorNode(.red)
+      }
+    }
+
+    // when: converting them to vertical stacks, the two nodes aligned to the left, and laying out the two nodes' stack
+    let oneNode = one.asVStack()
+    var twoNode = two.asVStack(alignment: .left)
+    twoNode.layout(containerSize: Constants.containerSize, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let emptyLoopNode = emptyLoop.asVStack()
+
+    // then: one node gives the node itself, two nodes give a vertical stack of them, and the empty loop gives an
+    // empty node
+    expect(oneNode.id.id) == "a"
+    expect(twoNode is VerticalStackNode) == true
+    expect(twoNode.renderableItems(in: Constants.visibleBounds).map(\.frame)) == [
+      CGRect(x: 0, y: 0, width: 10, height: 10),
+      CGRect(x: 0, y: 10, width: 20, height: 10),
+    ]
+    expect(emptyLoopNode is EmptyNode) == true
+  }
+
+  func test_asZStack_arrayContentAndAnEmptyLoop() {
+    // given: arrays of one node and of two nodes of different sizes, and a block of a loop without iterations
+    let one: [ComposeNode] = [ColorNode(.red).id("a")]
+    let two: [ComposeNode] = [ColorNode(.red).frame(width: 10, height: 10), ColorNode(.red).frame(width: 20, height: 20)]
+    let emptyLoop = Self.content {
+      for _ in 0 ..< 0 {
+        ColorNode(.red)
+      }
+    }
+
+    // when: converting them to layered stacks, the two nodes aligned to the top left, and laying out the two nodes'
+    // stack
+    let oneNode = one.asZStack()
+    var twoNode = two.asZStack(alignment: .topLeft)
+    twoNode.layout(containerSize: Constants.containerSize, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let emptyLoopNode = emptyLoop.asZStack()
+
+    // then: one node gives the node itself, two nodes give a layered stack of them, and the empty loop gives an empty
+    // node
+    expect(oneNode.id.id) == "a"
+    expect(twoNode is LayeredStackNode) == true
+    expect(twoNode.renderableItems(in: Constants.visibleBounds).map(\.frame)) == [
+      CGRect(x: 0, y: 0, width: 10, height: 10),
+      CGRect(x: 0, y: 0, width: 20, height: 20),
+    ]
+    expect(emptyLoopNode is EmptyNode) == true
+  }
+
   func test_asZStack() {
     // given: contents of no node, one node, and two nodes of different sizes
     let none = Self.content {}

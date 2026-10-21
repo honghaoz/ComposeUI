@@ -346,6 +346,7 @@ enum AllocationCounter {
   /// The count and the counted thread, in memory that the logger reaches without capturing anything, since a C
   /// function pointer can't capture.
   private static let counter = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+
   private static let countedThread = UnsafeMutablePointer<pthread_t?>.allocate(capacity: 1)
 
   /// Runs the body once, and returns the number of allocations it makes on the calling thread, `nil` if the allocations

@@ -34,6 +34,23 @@ import ChouTiTest
 
 class LayeredStackNodeTests: XCTestCase {
 
+  func test_copy_laysOutItsOwnChildren() {
+    // given: a stack of a color as wide as its container, and a copy of the stack
+    var stack = ZStack {
+      ColorNode(.red).frame(width: .flexible, height: 10)
+    }
+    var copy = stack
+
+    // when: laying out the copy and the stack in containers of different widths
+    _ = copy.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+    _ = stack.layout(containerSize: CGSize(width: 200, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: each renders its own child, laid out in its own container
+    let bounds = CGRect(x: 0, y: 0, width: 200, height: 200)
+    expect(copy.renderableItems(in: bounds).map(\.frame.width)) == [100]
+    expect(stack.renderableItems(in: bounds).map(\.frame.width)) == [200]
+  }
+
   func test_typealias() {
     // then: the stack typealiases can be created
     _ = ZStack {}
