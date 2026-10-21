@@ -54,26 +54,14 @@ public extension ComposeContent {
   /// - Parameter alignment: The alignment of the vertical stack node.
   /// - Returns: The vertical stack node.
   func asVStack(alignment: Layout.HorizontalAlignment = .center) -> any ComposeNode {
-    if let list = NodeList(self) {
-      // a block's nodes are already in a buffer, which the stack keeps, instead of boxing each node
-      switch list.buffer.count {
-      case 0:
-        return EmptyNode()
-      case 1:
-        return list.buffer.node(at: 0)
-      default:
-        return VerticalStackNode(alignment: alignment, spacing: 0, children: list.buffer)
-      }
-    } else {
-      let nodes = self.nodes
-      switch nodes.count {
-      case 0:
-        return EmptyNode()
-      case 1:
-        return nodes.first! // swiftlint:disable:this force_unwrapping
-      default:
-        return VerticalStackNode(alignment: alignment, spacing: 0, children: NodeBuffer.make(nodes))
-      }
+    let children = NodeList.buffer(of: self)
+    switch children.count {
+    case 0:
+      return EmptyNode()
+    case 1:
+      return children.node(at: 0)
+    default:
+      return VerticalStackNode(alignment: alignment, spacing: 0, children: children)
     }
   }
 
@@ -81,25 +69,14 @@ public extension ComposeContent {
   /// - Parameter alignment: The alignment of the layered stack node.
   /// - Returns: The layered stack node.
   func asZStack(alignment: Layout.Alignment = .center) -> any ComposeNode {
-    if let list = NodeList(self) {
-      switch list.buffer.count {
-      case 0:
-        return EmptyNode()
-      case 1:
-        return list.buffer.node(at: 0)
-      default:
-        return LayeredStackNode(alignment: alignment, children: list.buffer)
-      }
-    } else {
-      let nodes = self.nodes
-      switch nodes.count {
-      case 0:
-        return EmptyNode()
-      case 1:
-        return nodes.first! // swiftlint:disable:this force_unwrapping
-      default:
-        return LayeredStackNode(alignment: alignment, children: NodeBuffer.make(nodes))
-      }
+    let children = NodeList.buffer(of: self)
+    switch children.count {
+    case 0:
+      return EmptyNode()
+    case 1:
+      return children.node(at: 0)
+    default:
+      return LayeredStackNode(alignment: alignment, children: children)
     }
   }
 }
