@@ -773,6 +773,109 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(weakObjects.allSatisfy { $0.token == nil }) == true
   }
 
+  func test_blockOfOneNodeOfAKnownType_keepsTheNodeTyped() {
+    // when: building blocks of one node of a known type, of a type that opts in, and of an opaque type
+    let known = ComposeContentBuilder.buildBlock(ComposeContentBuilder.buildExpression(ColorNode(.red)))
+    let optedIn = ComposeContentBuilder.buildBlock(ComposeContentBuilder.buildExpression(LoopTokenNode(token: Token())))
+    let opaque = ComposeContentBuilder.buildBlock(ComposeContentBuilder.buildExpression(Self.node(0)))
+
+    // then: the blocks of a known type keep the node's type, and the block of an opaque type writes its node
+    expect(type(of: known) == ComposeContentBuilder._Node<ColorNode>.self) == true
+    expect(type(of: optedIn) == ComposeContentBuilder._Node<LoopTokenNode>.self) == true
+    expect(type(of: opaque) == ComposeContentBuilder._Content.self) == true
+  }
+
+  func test_forLoopOfOneNodeOfAKnownType_writesTheIterationsIntoOneBuffer() {
+    for count in [0, 1, 3] {
+      // when: building a loop whose body is one node of a known type
+      let content = ComposeContentBuilder.buildArray((0 ..< count).map { ComposeContentBuilder._Node(ColorNode(.red).id("\($0)")) })
+
+      // then: the nodes are written into one buffer in order, and no buffer is made without iterations
+      if count == 0 {
+        expect(content.nodeCount) == 0
+        expect(content.content.nodes.isEmpty) == true
+      } else {
+        guard case .written(let buffer) = content.storage else {
+          fail("expected the loop's nodes to be written into one buffer")
+          return
+        }
+        expect(buffer.count) == count
+        expect(content.content.nodes.map(\.id.id)) == (0 ..< count).map { "\($0)" }
+      }
+    }
+  }
+
+  func test_forLoopOfOneNode_buildsEachIterationInOrder() {
+    // when: building loops whose body is one node of a known type, and of an opaque type
+    let knownIds = Self.nodeIds {
+      ColorNode(.red).id("before")
+      for index in 0 ..< 3 {
+        ColorNode(.red).id("\(index)")
+      }
+      ColorNode(.red).id("after")
+    }
+    let opaqueIds = Self.nodeIds {
+      for index in 0 ..< 3 {
+        Self.node(index)
+      }
+    }
+
+    // then: each iteration's node is built in order
+    expect(knownIds) == ["before", "0", "1", "2", "after"]
+    expect(opaqueIds) == ["0", "1", "2"]
+  }
+
+  func test_controlFlowOfOneNodeOfAKnownType_buildsTheChosenNode() {
+    for condition in [true, false] {
+      // when: building an if without an else, and an if-else, whose bodies are one node of a known type
+      let ids = Self.nodeIds {
+        if condition {
+          ColorNode(.red).id("optional")
+        }
+        if condition {
+          ColorNode(.red).id("then")
+        } else {
+          ColorNode(.red).id("else")
+        }
+      }
+
+      // then: only the chosen nodes are built
+      expect(ids) == (condition ? ["optional", "then"] : ["else"])
+    }
+
+    // when: building content of one node of a known type
+    let ids = Self.nodeIds {
+      ColorNode(.red).id("only")
+    }
+
+    // then: the node is built
+    expect(ids) == ["only"]
+  }
+
+  func test_nodesOfATypedLoop_areDestroyedOnce() {
+    // given: objects for nodes to keep
+    var objects: [Token]? = [Token(), Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+
+    // when: building content of a loop whose body is one node of a type that opts in, which keeps an object
+    var content: ComposeContent? = Self.content {
+      for index in 0 ..< 3 {
+        LoopTokenNode(token: objects![index]) // swiftlint:disable:this force_unwrapping
+      }
+    }
+    objects = nil
+
+    // then: the content keeps the objects
+    expect(content?.nodes.count) == 3
+    expect(weakObjects.allSatisfy { $0.token != nil }) == true
+
+    // when: releasing the content
+    content = nil
+
+    // then: each node is destroyed, which releases its object
+    expect(weakObjects.allSatisfy { $0.token == nil }) == true
+  }
+
   // MARK: - Helpers
 
   /// Returns the content that the builder makes.
@@ -859,6 +962,24 @@ private struct TokenNode: ComposeNode {
   let token: Token
 
   var id: ComposeNodeId = .custom("token")
+
+  var size: CGSize {
+    .zero
+  }
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+  }
+
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
+}
+
+/// A node that keeps an object, and whose blocks of one node keep its type.
+private struct LoopTokenNode: ComposeNode, ComposeContentBuilder._LoopNode {
+
+  let token: Token
+
+  var id: ComposeNodeId = .custom("loop-token")
 
   var size: CGSize {
     .zero

@@ -85,15 +85,23 @@ public enum ComposeContentBuilder {
 
   // A refresh builds every block again, so a block of up to ten statements has an overload of its own, which the
   // optimizer specializes fully and which moves each node into the buffer, where a parameter pack copies each node.
-  // Each block writes its nodes when it's built, instead of keeping their types until the final result, since a loop
-  // can't collect iterations whose type involves an opaque result type.
+  // Each block writes its nodes when it's built, except a block of one node of a type that conforms to `_LoopNode`,
+  // which keeps the node's type, so that a loop whose body is one such node collects the iterations' nodes in one array
+  // and writes them into one buffer. A loop can't collect iterations whose type involves an opaque result type, which
+  // the result builder transform can't declare its array of, and an opaque type conforms to `ComposeNode` only, so a
+  // node of an opaque type takes the overload that writes it.
 
   /// For a block of one node, which writes the node into a buffer.
   @inlinable
   public static func buildBlock(_ node: consuming _Node<some ComposeNode>) -> _Content {
-    let writer = _NodeWriter(capacity: 1, valuesByteCount: node.valuesByteCount)
-    node.write(into: writer)
-    return _Content(written: writer)
+    _Content(written: node)
+  }
+
+  /// For a block of one node of a known type, which keeps the node's type until the enclosing block, loop or final
+  /// result writes it.
+  @inlinable
+  public static func buildBlock<N: _LoopNode>(_ node: consuming _Node<N>) -> _Node<N> {
+    node
   }
 
   /// For a block of two statements, which writes its nodes into a buffer.
@@ -326,6 +334,18 @@ public enum ComposeContentBuilder {
     first
   }
 
+  /// For `if`/`else`/`switch` statements whose branch is one node.
+  @inlinable
+  public static func buildEither(first: consuming _Node<some ComposeNode>) -> _Content {
+    _Content(written: first)
+  }
+
+  /// For `if`/`else`/`switch` statements whose branch is one node.
+  @inlinable
+  public static func buildEither(second: consuming _Node<some ComposeNode>) -> _Content {
+    _Content(written: second)
+  }
+
   /// For `if`/`else`/`switch` statements.
   public static func buildEither(second: _Content) -> _Content {
     second
@@ -336,14 +356,41 @@ public enum ComposeContentBuilder {
     content ?? _Content(nodes: [])
   }
 
+  /// For `if` statements without `else` whose body is one node.
+  @inlinable
+  public static func buildOptional(_ node: consuming _Node<some ComposeNode>?) -> _Content {
+    if let node {
+      _Content(written: node)
+    } else {
+      _Content(nodes: [])
+    }
+  }
+
   /// For `for` loops.
   public static func buildArray(_ contents: [_Content]) -> _Content {
     _Content(contents: contents)
   }
 
+  /// For `for` loops whose body is one node, which writes the iterations' nodes into one buffer.
+  @inlinable
+  public static func buildArray<N: ComposeNode>(_ nodes: consuming [_Node<N>]) -> _Content {
+    guard !nodes.isEmpty else {
+      return _Content(nodes: [])
+    }
+    let writer = _NodeWriter(capacity: nodes.count, valuesByteCount: nodes.count * NodeBuffer.room(for: N.self))
+    writer.append(movingFrom: &nodes)
+    return _Content(written: writer)
+  }
+
   /// For `#available` statements.
   public static func buildLimitedAvailability(_ content: _Content) -> _Content {
     content
+  }
+
+  /// For `#available` statements whose body is one node.
+  @inlinable
+  public static func buildLimitedAvailability(_ node: consuming _Node<some ComposeNode>) -> _Content {
+    _Content(written: node)
   }
 
   // MARK: - Final Result
@@ -352,11 +399,21 @@ public enum ComposeContentBuilder {
   public static func buildFinalResult(_ content: _Content) -> ComposeContent {
     content.content
   }
+
+  /// Returns the content of a block of one node.
+  @inlinable
+  public static func buildFinalResult(_ node: consuming _Node<some ComposeNode>) -> ComposeContent {
+    _Content(written: node).content
+  }
 }
 
 // MARK: - Components
 
 public extension ComposeContentBuilder {
+
+  /// A node type whose block of one node keeps its type, so that a loop of such blocks writes its nodes into one buffer.
+  /// Builder plumbing.
+  protocol _LoopNode: ComposeNode {}
 
   /// A statement of a block, which the block writes into its buffer. Builder plumbing.
   protocol _Component {
@@ -448,6 +505,14 @@ public extension ComposeContentBuilder {
 
     @inlinable
     init(written writer: _NodeWriter) {
+      storage = .written(writer.buffer)
+    }
+
+    /// Makes the content of one node, written into a buffer of its own.
+    @inlinable
+    init(written node: consuming _Node<some ComposeNode>) {
+      let writer = _NodeWriter(capacity: 1, valuesByteCount: node.valuesByteCount)
+      node.write(into: writer)
       storage = .written(writer.buffer)
     }
 
@@ -576,6 +641,16 @@ public extension ComposeContentBuilder {
     func moveChildren(of other: NodeBuffer) {
       other.moveChildren(into: buffer)
     }
+
+    /// Appends the nodes of an array, in order, moving each out of the array, which is left empty.
+    @inlinable
+    func append(movingFrom nodes: inout [_Node<some ComposeNode>]) {
+      // popping moves an element out without copying it, so the array is reversed in place first, which moves the
+      // values without retaining them
+      for node in nodes {
+        buffer.append(node.node)
+      }
+    }
   }
 }
 
@@ -622,3 +697,21 @@ struct NodeList: ComposeContent {
     buffer.nodes
   }
 }
+
+// MARK: - Loop Nodes
+
+extension ButtonNode: ComposeContentBuilder._LoopNode {}
+extension ColorNode: ComposeContentBuilder._LoopNode {}
+extension ComposeViewNode: ComposeContentBuilder._LoopNode {}
+extension DropShadowNode: ComposeContentBuilder._LoopNode {}
+extension EmptyNode: ComposeContentBuilder._LoopNode {}
+extension HorizontalStackNode: ComposeContentBuilder._LoopNode {}
+extension InnerShadowNode: ComposeContentBuilder._LoopNode {}
+extension LabelNode: ComposeContentBuilder._LoopNode {}
+extension LayerNode: ComposeContentBuilder._LoopNode {}
+extension LayeredStackNode: ComposeContentBuilder._LoopNode {}
+extension SpacerNode: ComposeContentBuilder._LoopNode {}
+extension SwiftUIViewNode: ComposeContentBuilder._LoopNode {}
+extension TextNode: ComposeContentBuilder._LoopNode {}
+extension VerticalStackNode: ComposeContentBuilder._LoopNode {}
+extension ViewNode: ComposeContentBuilder._LoopNode {}
