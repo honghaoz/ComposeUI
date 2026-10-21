@@ -294,9 +294,9 @@ private struct ByteNode: ComposeNode {
 /// A node with tail padding: its size is smaller than its stride, and its id isn't stored.
 private struct PaddedNode: ComposeNode {
 
-  var value: Int64
+  let value: Int64
 
-  var flag: Bool
+  let flag: Bool
 
   var id: ComposeNodeId {
     get { .custom("padded") }
@@ -317,7 +317,7 @@ private struct PaddedNode: ComposeNode {
 /// A node whose value is 16-byte aligned.
 private struct AlignedNode: ComposeNode {
 
-  var value: SIMD2<Double>
+  let value: SIMD2<Double>
 
   var id: ComposeNodeId = .custom("aligned")
 
