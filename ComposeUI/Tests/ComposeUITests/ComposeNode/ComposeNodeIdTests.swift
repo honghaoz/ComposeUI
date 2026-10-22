@@ -84,11 +84,13 @@ class ComposeNodeIdTests: XCTestCase {
   }
 
   func test_object_takesNoAllocation() {
-    // given: an object, and a body that makes its id, run once already, since a first run can also allocate what the
-    // runtime makes on first use, such as type metadata
+    // given: an object, and a body that makes its id into a variable outside the body, so that an optimized build can't
+    // drop the work, run once already, since a first run can also allocate what the runtime makes on first use, such as
+    // type metadata
     let object = NSObject()
+    var id: ComposeNodeId?
     let body = {
-      _ = ComposeNodeId.object(object, kind: .layer)
+      id = ComposeNodeId.object(object, kind: .layer)
     }
     _ = AllocationCounter.count(body)
 
@@ -97,6 +99,7 @@ class ComposeNodeIdTests: XCTestCase {
 
     // then: the id fits in a small string, which takes no allocation
     expect(allocations) == 0
+    expect(id) == ComposeNodeId.object(object, kind: .layer)
   }
 
   func test_standard_joinedHashMatchesDirectId() {
