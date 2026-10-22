@@ -1438,9 +1438,11 @@ open class ComposeView: BaseScrollView {
 
     for index in newRenderableItems.indices {
       let id = newRenderableItems[index].id
-      ComposeUI.assert(renderableItemIndexMap[id] == nil, "conflicting renderable item id: \(id.id)")
       renderableItemIds.append(id)
-      renderableItemIndexMap[id] = index
+      // the insert returns the index of an earlier item of the id, so the check for a conflict takes no lookup of its own
+      if renderableItemIndexMap.updateValue(index, forKey: id) != nil {
+        ComposeUI.assertFailure("conflicting renderable item id: \(id.id)")
+      }
     }
     renderableItems = newRenderableItems
 
