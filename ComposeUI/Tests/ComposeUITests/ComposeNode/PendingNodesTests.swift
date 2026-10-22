@@ -425,6 +425,64 @@ class PendingNodesTests: XCTestCase {
     expect(observed.valuesByteCapacity) == observed.keptValuesByteCapacity
   }
 
+  func test_contentBuffer_ofLoopsOfOneCountAndDifferentSizesInTurn_takesEachLoopsBuffer() {
+    let observed = onNewThread { () -> [Bool] in
+      // given: a thread that builds a loop of 200 wide nodes and a loop of 200 padded nodes in turn, as a screen of two
+      // lists does on each refresh
+      for _ in 0 ..< 2 {
+        buildLoop([WideNode](repeating: WideNode(), count: 200))
+        buildLoop([PaddedNode](repeating: PaddedNode(value: 0, flag: false), count: 200))
+      }
+
+      // when: building both loops in turn again
+      return [
+        buildLoop([WideNode](repeating: WideNode(), count: 200)),
+        buildLoop([PaddedNode](repeating: PaddedNode(value: 0, flag: false), count: 200)),
+      ]
+    }
+
+    // then: each loop fills a buffer that grew to its own room, which its content takes
+    expect(observed) == [true, true]
+  }
+
+  func test_grown_amongRememberedRoomsOfAsManyChildren_growsToTheRoomOfNodesOfTheirSize() {
+    let observed = onNewThread { () -> (childCapacity: Int, valuesByteCapacity: Int) in
+      // given: the rooms of loops of 300 one-byte nodes and then 300 padded nodes, which have as many children and more
+      // bytes
+      buildLoop([ByteNode](repeating: ByteNode(flag: true), count: 300))
+      buildLoop([PaddedNode](repeating: PaddedNode(value: 0, flag: false), count: 300))
+
+      // when: appending more one-byte nodes than the room for children that the first growth reaches
+      let (claims, _) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 273))
+
+      let buffer = PendingNodes.debugBuffer
+      return claims.count == 273 ? (buffer?.childCapacity ?? 0, buffer?.valuesByteCapacity ?? 0) : (0, 0)
+    }
+
+    // then: the buffer grows to the room of the one-byte nodes and an eighth more, instead of to the padded nodes' bytes
+    expect(observed.childCapacity) == 300 + 300 / 8
+    expect(observed.valuesByteCapacity) == NodeBuffer.make(capacity: 300 + 300 / 8, valuesByteCount: 300 + 300 / 8).valuesByteCapacity
+  }
+
+  func test_grown_amongRememberedRoomsOfAsManyChildren_growsOnceToTheRoomOfNodesOfTheirSize() {
+    let observed = onNewThread { () -> Int in
+      // given: the rooms of loops of 300 wide nodes, 300 one-byte nodes and then 300 padded nodes, which have as many
+      // children and other bytes per child
+      buildLoop([WideNode](repeating: WideNode(), count: 300))
+      buildLoop([ByteNode](repeating: ByteNode(flag: true), count: 300))
+      buildLoop([PaddedNode](repeating: PaddedNode(value: 0, flag: false), count: 300))
+
+      // when: appending more wide nodes than a first buffer has room for
+      let (claims, bufferCount) = appendPendingCountingBuffers([WideNode](repeating: WideNode(), count: 60))
+
+      return claims.count == 60 ? bufferCount : 0
+    }
+
+    // then: the first buffer grows once, to the room of the wide nodes, instead of first to the padded nodes' room, which
+    // the first wide nodes fit in
+    expect(observed) == 2
+  }
+
   func test_remember_aRoomWithinAnEighthOfAnother_replacesIt() {
     let observed = onNewThread { () -> Int in
       // given: the rooms of loops of 300 and then 330 one-byte nodes, which is within an eighth of 300

@@ -210,8 +210,8 @@ final class PendingNodes {
   /// Replaces the buffer with one that has room for more nodes, which keeps the nodes at their indexes.
   ///
   /// A first buffer is small, so that a block of one node doesn't make a large buffer, and a buffer that grows grows to
-  /// the smallest remembered room that fits its nodes at once, so that a loop that a refresh builds again moves its
-  /// first nodes once instead of each time the buffer doubles.
+  /// the closest remembered room that fits its nodes at once, so that a loop that a refresh builds again moves its first
+  /// nodes once instead of each time the buffer doubles.
   private func grown(adding count: Int, valuesByteCount: Int) -> NodeBuffer {
     let grown: NodeBuffer
     if let old = buffer {
@@ -221,7 +221,7 @@ final class PendingNodes {
       let valuesByteCount = old.roomOfChildren + valuesByteCount
       var childCapacity = childCount > old.childCapacity ? max(2 * old.childCapacity, childCount) : old.childCapacity
       var valuesByteCapacity = valuesByteCount > old.valuesByteCapacity ? max(2 * old.valuesByteCapacity, valuesByteCount) : old.valuesByteCapacity
-      if let room = smallestRoom(fitting: childCount, valuesByteCount: valuesByteCount) {
+      if let room = closestRoom(fitting: childCount, valuesByteCount: valuesByteCount) {
         // an eighth more fits the loop when its list gets a little longer, and the jump stops at a number of times what
         // the nodes need now, so that a short loop doesn't grow to a long list's room
         childCapacity = min(room.childCount + room.childCount / 8, childCount * Constants.maximumGrowth)
@@ -248,14 +248,17 @@ final class PendingNodes {
 
   // MARK: - Sizing
 
-  /// Remembers the room of a loop that held all of the pending nodes, in place of a room within an eighth of it, which is
-  /// likely the same loop's, or else of the oldest room.
+  /// Remembers the room of a loop that held all of the pending nodes, in place of a room within an eighth of it in children
+  /// and in bytes, which is likely the same loop's, or else of the oldest room.
   private func remember(_ room: Room) {
     guard room.childCount > Constants.initialChildCapacity || room.valuesByteCount > Constants.initialValuesByteCapacity else {
       // a loop that fits a first buffer doesn't make a buffer grow
       return
     }
-    if let index = rooms.firstIndex(where: { abs($0.childCount - room.childCount) * 8 <= room.childCount }) {
+    // a loop of as many nodes of another size keeps a room of its own, since its next buffer needs other bytes
+    if let index = rooms.firstIndex(where: {
+      abs($0.childCount - room.childCount) * 8 <= room.childCount && abs($0.valuesByteCount - room.valuesByteCount) * 8 <= room.valuesByteCount
+    }) {
       rooms.remove(at: index)
     } else if rooms.count == Constants.rememberedRoomCount {
       rooms.removeLast()
@@ -263,11 +266,15 @@ final class PendingNodes {
     rooms.insert(room, at: 0)
   }
 
-  /// Returns the smallest remembered room that has room for a number of children and of bytes.
-  private func smallestRoom(fitting childCount: Int, valuesByteCount: Int) -> Room? {
-    rooms.lazy
+  /// Returns the remembered room that has room for a number of children and of bytes and whose bytes per child are closest
+  /// to theirs, with the fewest children among rooms as close.
+  private func closestRoom(fitting childCount: Int, valuesByteCount: Int) -> Room? {
+    // a loop's first nodes already tell the size of its nodes, so it grows to the room of a loop of nodes of their size,
+    // instead of to a loop of as many smaller nodes that its first nodes fit in
+    let bytesPerChild = Double(valuesByteCount) / Double(childCount)
+    return rooms.lazy
       .filter { $0.childCount >= childCount && $0.valuesByteCount >= valuesByteCount }
-      .min { $0.childCount < $1.childCount }
+      .min { ($0.distance(toBytesPerChild: bytesPerChild), $0.childCount) < ($1.distance(toBytesPerChild: bytesPerChild), $1.childCount) }
   }
 
   /// Returns whether the thread keeps an empty buffer for its next loop.
@@ -295,6 +302,11 @@ final class PendingNodes {
     let childCount: Int
 
     let valuesByteCount: Int
+
+    /// Returns how far the room's bytes per child are from a number of bytes per child.
+    func distance(toBytesPerChild bytesPerChild: Double) -> Double {
+      abs(Double(valuesByteCount) / Double(childCount) - bytesPerChild)
+    }
   }
 
   // MARK: - Constants
