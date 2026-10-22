@@ -305,7 +305,7 @@ extension RenderablePropertyUpdate {
     switch self {
     case .backgroundColor(let color):
       let layer = renderable.layer
-      let color = color.resolve(for: context.contentView.theme).cgColor
+      let color = CGColorCache.cgColor(of: color.resolve(for: context.contentView.theme))
       if let animationTiming = context.animationTiming {
         if layer.backgroundColor != color {
           layer.animate(
@@ -331,7 +331,7 @@ extension RenderablePropertyUpdate {
       }
     case .border(let color, let width):
       let layer = renderable.layer
-      let color = color.resolve(for: context.contentView.theme).cgColor
+      let color = CGColorCache.cgColor(of: color.resolve(for: context.contentView.theme))
       let width: CGFloat = width.resolve(for: context.contentView.theme)
       if let animationTiming = context.animationTiming {
         if layer.borderColor != color {
@@ -367,7 +367,7 @@ extension RenderablePropertyUpdate {
       let theme = context.contentView.theme
 
       let layer = renderable.layer
-      let color = color.resolve(for: theme).cgColor
+      let color = CGColorCache.cgColor(of: color.resolve(for: theme))
       let opacity = Float(opacity.resolve(for: theme))
       let radius: CGFloat = radius.resolve(for: theme)
       let offset: CGSize = offset.resolve(for: theme)

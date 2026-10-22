@@ -126,7 +126,7 @@ open class DropShadowLayer: CALayer {
                      paths: (CGSize) -> DropShadowPaths,
                      animationTiming: AnimationTiming? = nil)
   {
-    let color = color.cgColor
+    let color = CGColorCache.cgColor(of: color)
     let opacity = Float(opacity)
     let size = bounds.size
     let oldSize = pathsSize

@@ -102,7 +102,7 @@ public struct ColorNode: ComposeNode {
             return
           }
 
-          let color = themedColor.resolve(for: context.contentView.theme).cgColor
+          let color = CGColorCache.cgColor(of: themedColor.resolve(for: context.contentView.theme))
           if let animationTiming = context.animationTiming {
             if layer.backgroundColor != color {
               layer.animate(
