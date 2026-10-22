@@ -445,6 +445,55 @@ class PendingNodesTests: XCTestCase {
     expect(observed) == [true, true]
   }
 
+  func test_contentBuffer_ofAShortLoopAfterALongLoopOfNodesOfAboutTheirSize_takesItsBuffer() {
+    let observed = onNewThread { () -> Bool in
+      // given: the rooms of a loop of 2,000 wide and padded nodes in turn and of a loop of 300 such nodes and then 10
+      // one-byte nodes, whose bytes per child differ a little
+      buildMixedLoop(rowCount: 2000)
+      buildMixedLoop(rowCount: 300, byteNodeCount: 10)
+
+      // when: building the short loop again
+      return buildMixedLoop(rowCount: 300, byteNodeCount: 10)
+    }
+
+    // then: the short loop fills a buffer that grew to its own room, which its content takes, instead of the long loop's
+    // room, which its first nodes' bytes per child are closer to
+    expect(observed) == true
+  }
+
+  func test_grown_ofSmallNodes_growsAtOnceToTheirRememberedRoom() {
+    let observed = onNewThread { () -> Int in
+      // given: the room of a loop of 300 one-byte nodes
+      buildLoop([ByteNode](repeating: ByteNode(flag: true), count: 300))
+
+      // when: appending 100 one-byte nodes
+      let (claims, bufferCount) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 100))
+
+      return claims.count == 100 ? bufferCount : 0
+    }
+
+    // then: the first buffer grows once, to the room of the one-byte nodes, though the room for alignment of its values
+    // is larger than the bytes that they take
+    expect(observed) == 2
+  }
+
+  func test_grown_withoutARememberedRoomOfNodesOfAboutTheirSize_doubles() {
+    let observed = onNewThread { () -> (childCapacity: Int, bufferCount: Int) in
+      // given: the room of a loop of 300 padded nodes, which take more bytes than one-byte nodes
+      buildLoop([PaddedNode](repeating: PaddedNode(value: 0, flag: false), count: 300))
+
+      // when: appending 100 one-byte nodes
+      let (claims, bufferCount) = appendPendingCountingBuffers([ByteNode](repeating: ByteNode(flag: true), count: 100))
+
+      return claims.count == 100 ? (PendingNodes.debugBuffer?.childCapacity ?? 0, bufferCount) : (0, 0)
+    }
+
+    // then: the buffer doubles each time it fills, from 16 children to 128, instead of growing to the padded nodes' room,
+    // which isn't a loop of nodes of their size
+    expect(observed.childCapacity) == 128
+    expect(observed.bufferCount) == 4
+  }
+
   func test_grown_amongRememberedRoomsOfAsManyChildren_growsToTheRoomOfNodesOfTheirSize() {
     let observed = onNewThread { () -> (childCapacity: Int, valuesByteCapacity: Int) in
       // given: the rooms of loops of 300 one-byte nodes and then 300 padded nodes, which have as many children and more
@@ -732,6 +781,20 @@ private func appendPendingCountingBuffers<N: ComposeNode>(_ nodes: [N]) -> (clai
 @discardableResult
 private func buildLoop(_ nodes: [some ComposeNode]) -> Bool {
   let claims = appendPending(nodes)
+  let buffer = PendingNodes.debugBuffer
+  return PendingNodes.current.contentBuffer(start: 0, count: claims.count) === buffer
+}
+
+/// Appends wide and padded nodes in turn and then one-byte nodes to the calling thread's pending nodes, as a loop of rows
+/// of two kinds and then of a few small rows does, reads the buffer of a content of all of them, and returns whether the
+/// content took the pending nodes' buffer.
+@discardableResult
+private func buildMixedLoop(rowCount: Int, byteNodeCount: Int = 0) -> Bool {
+  var claims: [PendingNodes.Claim] = []
+  for index in 0 ..< rowCount {
+    claims += index.isMultiple(of: 2) ? appendPending([WideNode()]) : appendPending([PaddedNode(value: 0, flag: false)])
+  }
+  claims += appendPending([ByteNode](repeating: ByteNode(flag: true), count: byteNodeCount))
   let buffer = PendingNodes.debugBuffer
   return PendingNodes.current.contentBuffer(start: 0, count: claims.count) === buffer
 }

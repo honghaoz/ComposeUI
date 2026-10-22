@@ -266,6 +266,8 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
         count -= 1
       }
       if count < header.pointee.count {
+        // later children are initialized over the dropped places without deinitializing them first, which
+        // `initializeMemory(as:to:)` allows since the places hold empty children, whose type is trivial
         header.pointee.count = count
         header.pointee.nextValueOffset = entries[count].offset
       }
