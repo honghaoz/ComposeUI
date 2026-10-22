@@ -34,6 +34,11 @@ import ChouTiTest
 
 class ComposeView_DebugTests: XCTestCase {
 
+  func test_debugBuild_runsTheSanityChecks() {
+    // then: the tests' debug build runs the render pass's sanity checks, which the benchmark builds leave out
+    expect(ComposeView.runsSanityChecks) == true
+  }
+
   func test_renderDidFinish_mapsTheRenderableItemsByTheirIds() throws {
     // given: a compose view showing two nodes, with a debug handler that records the finished render pass
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))

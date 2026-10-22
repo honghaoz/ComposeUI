@@ -15,7 +15,16 @@ let package = Package(
   ],
   dependencies: [],
   targets: [
-    .target(name: "ComposeUI", dependencies: [], path: "ComposeUI/Sources"),
+    .target(
+      name: "ComposeUI",
+      dependencies: [],
+      path: "ComposeUI/Sources",
+      swiftSettings: [
+        // checks that walk a pass's data run in debug builds, but not in the benchmarks' optimized builds, which define
+        // DEBUG for the tests' hooks, so that the benchmarks measure what apps run
+        .define("COMPOSEUI_SANITY_CHECKS", .when(configuration: .debug)),
+      ]
+    ),
   ],
   swiftLanguageModes: [.v5]
 )
