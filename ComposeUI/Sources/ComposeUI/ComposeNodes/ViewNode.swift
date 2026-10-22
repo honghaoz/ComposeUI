@@ -121,7 +121,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     self.isFixedHeight = true
 
     // use a unique id for the view node with an external view so that the view won't be reused incorrectly on refresh
-    id = .custom("view-\(ObjectIdentifier(view))", isFixed: false)
+    id = .object(view, kind: .view)
   }
 
   /// Make a view node with a view factory.

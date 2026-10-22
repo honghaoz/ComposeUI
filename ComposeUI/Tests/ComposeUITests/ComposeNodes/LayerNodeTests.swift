@@ -38,12 +38,15 @@ class LayerNodeTests: XCTestCase {
     // then: a factory layer node has the standard id
     expect(LayerNode().id.id) == "L"
 
-    // given: an external layer
+    // given: two external layers
     let layer = CALayer()
-    let id = ObjectIdentifier(layer)
+    let otherLayer = CALayer()
 
-    // then: an external layer node id includes the layer identity
-    expect(LayerNode(layer).id.id) == "layer-\(id)"
+    // then: an external layer node's id is the layer's, which the nodes of the layer share, and the nodes of another
+    // layer don't
+    expect(LayerNode(layer).id) == ComposeNodeId.object(layer, kind: .layer)
+    expect(LayerNode(layer).id) == LayerNode(layer).id
+    expect(LayerNode(layer).id) != LayerNode(otherLayer).id
   }
 
   func test_fixedSize() {

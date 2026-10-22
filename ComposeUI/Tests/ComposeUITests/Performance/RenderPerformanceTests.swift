@@ -467,6 +467,56 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.labels.200", result: result)
   }
 
+  func test_refresh_externalLayerRows_200() {
+    // given: a compose view with 200 rows of an existing layer each laid out, whose nodes each refresh makes again
+    let layers = (0 ..< 200).map { _ -> CALayer in
+      let layer = CALayer()
+      layer.bounds = CGRect(x: 0, y: 0, width: 100, height: Constants.rowHeight)
+      return layer
+    }
+    let view = ComposeView {
+      VStack {
+        for layer in layers {
+          LayerNode(layer)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.externalLayers.200", result: result)
+  }
+
+  func test_refresh_externalViewRows_200() {
+    // given: a compose view with 200 rows of an existing view each laid out, whose nodes each refresh makes again
+    let views = (0 ..< 200).map { _ in
+      BaseView(frame: CGRect(x: 0, y: 0, width: 100, height: Constants.rowHeight))
+    }
+    let view = ComposeView {
+      VStack {
+        for rowView in views {
+          ViewNode(rowView)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.externalViews.200", result: result)
+  }
+
   @MainActor
   func test_refresh_labelRows_200_inATask() async {
     // given: a compose view with 200 rows of a label each laid out, which a loop builds as blocks of one node

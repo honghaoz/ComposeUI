@@ -132,6 +132,18 @@ public struct ComposeNodeId: Hashable {
     ComposeNodeId(id: id.string, isFixed: false, cachedHash: standardHashes[id.rawValue])
   }
 
+  /// Creates the id of a node that shows an object, unique to the object while it lives.
+  ///
+  /// - Parameters:
+  ///   - object: The object.
+  ///   - kind: The standard id of the node's kind, which tells the ids of different kinds of node apart.
+  /// - Returns: The id.
+  static func object(_ object: AnyObject, kind: StandardComposeNodeId) -> ComposeNodeId {
+    // the address in base 36 after the kind's short code fits in a small string, which takes no allocation, while
+    // describing the object identifier takes several, and makes each id that a parent joins with it long as well
+    ComposeNodeId(id: kind.string + ":" + String(UInt(bitPattern: ObjectIdentifier(object)), radix: 36), isFixed: false)
+  }
+
   /// The hashes of the standard ids' strings, each at its case's raw value.
   private static let standardHashes = StandardComposeNodeId.allCases.map { fnv1a($0.string) }
 

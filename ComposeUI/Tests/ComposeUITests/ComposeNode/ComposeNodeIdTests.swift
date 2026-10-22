@@ -50,6 +50,55 @@ class ComposeNodeIdTests: XCTestCase {
     expect(ids.map(\.id)) == ["E", "C", "TL", "TV", "B", "V", "L", "SUI", "G", "DS", "IS", "S", "F", "P", "O", "OV", "UL", "VS", "HS", "ZS", "CV"]
   }
 
+  func test_object_isTheKindsCodeAndTheObjectsAddress() {
+    // given: an object
+    let object = NSObject()
+    let address = String(UInt(bitPattern: ObjectIdentifier(object)), radix: 36)
+
+    // then: its id for a kind is the kind's code, a colon and the object's address in base 36
+    expect(ComposeNodeId.object(object, kind: .layer).id) == "L:\(address)"
+    expect(ComposeNodeId.object(object, kind: .view).id) == "V:\(address)"
+  }
+
+  func test_object_isTheSameForAnObject_andDiffersForAnother() {
+    // given: two objects
+    let object = NSObject()
+    let otherObject = NSObject()
+
+    // then: the ids of an object are equal and hash the same, and the ids of the other object differ
+    expect(ComposeNodeId.object(object, kind: .layer)) == ComposeNodeId.object(object, kind: .layer)
+    expect(ComposeNodeId.object(object, kind: .layer).hashValue) == ComposeNodeId.object(object, kind: .layer).hashValue
+    expect(ComposeNodeId.object(object, kind: .layer)) != ComposeNodeId.object(otherObject, kind: .layer)
+  }
+
+  func test_object_hashMatchesACustomIdOfItsString() {
+    // given: an object's id
+    let id = ComposeNodeId.object(NSObject(), kind: .layer)
+
+    // when: making a custom id of its string
+    let customId = ComposeNodeId.custom(id.id)
+
+    // then: the ids are equal and hash the same
+    expect(id) == customId
+    expect(id.hashValue) == customId.hashValue
+  }
+
+  func test_object_takesNoAllocation() {
+    // given: an object, and a body that makes its id, run once already, since a first run can also allocate what the
+    // runtime makes on first use, such as type metadata
+    let object = NSObject()
+    let body = {
+      _ = ComposeNodeId.object(object, kind: .layer)
+    }
+    _ = AllocationCounter.count(body)
+
+    // when: counting the allocations of the body
+    let allocations = AllocationCounter.count(body)
+
+    // then: the id fits in a small string, which takes no allocation
+    expect(allocations) == 0
+  }
+
   func test_standard_joinedHashMatchesDirectId() {
     for standardId in StandardComposeNodeId.allCases {
       // given: a standard id joined with a child, which hashes on from the standard id's hash

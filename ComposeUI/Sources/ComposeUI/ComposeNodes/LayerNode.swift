@@ -94,7 +94,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
     self.isFixedHeight = true
 
     // use a unique id for the layer node with an external layer so that the layer won't be reused incorrectly on refresh
-    id = .custom("layer-\(ObjectIdentifier(layer))", isFixed: false)
+    id = .object(layer, kind: .layer)
   }
 
   /// Make a layer node with a layer factory.
