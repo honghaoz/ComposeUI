@@ -34,6 +34,31 @@ import ChouTiTest
 
 class ComposeView_RenderableTests: XCTestCase {
 
+  func test_refresh_itemsOfTheSameId_assertsTheConflict() {
+    // given: a compose view showing a node of another fixed id between two nodes of the same fixed id
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      VStack {
+        ColorNode(.red).fixedId("same").frame(width: 100, height: 10)
+        ColorNode(.green).fixedId("other").frame(width: 100, height: 10)
+        ColorNode(.blue).fixedId("same").frame(width: 100, height: 10)
+      }
+    }
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view renders
+    view.refresh(animated: false)
+
+    // then: the render pass asserts once, for the third item, whose id is the first item's
+    expect(assertionMessages.filter { $0.hasPrefix("conflicting renderable item id") }) == ["conflicting renderable item id: same"]
+  }
+
   func test_lifecycle() {
     // given: a compose view and a view node with lifecycle callback counters
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
