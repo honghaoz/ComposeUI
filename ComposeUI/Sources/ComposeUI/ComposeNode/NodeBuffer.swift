@@ -235,6 +235,45 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     }
   }
 
+  /// Moves a range of the children into another buffer, in order, and leaves in each of their places an empty child, whose
+  /// value takes no bytes, so destroying it does nothing.
+  ///
+  /// - Parameters:
+  ///   - start: The index of the first child.
+  ///   - count: The number of children.
+  ///   - other: The other buffer, whose room the children must fit in.
+  func moveChildren(from start: Int, count: Int, into other: NodeBuffer) {
+    for index in start ..< start + count {
+      let (type, pointer) = child(at: index)
+      ComposeUI.assert(type != MovedNode.self, "a child is moved out once")
+      Self.move(type, pointer, to: other)
+      // the empty child is initialized in the place, which binds its byte to the empty child's type, so that reading,
+      // moving and destroying the place access an initialized value of that type
+      pointer.initializeMemory(as: MovedNode.self, to: MovedNode())
+      withUnsafeMutablePointerToElements { elements in
+        let entry = UnsafeMutableRawPointer(elements).assumingMemoryBound(to: Entry.self) + index
+        entry.pointee = Entry(type: MovedNode.self, offset: entry.pointee.offset)
+      }
+    }
+  }
+
+  /// Drops the places of the children moved out of a range at the end, down to the last child that's still in place.
+  func dropMovedChildren() {
+    withUnsafeMutablePointers { header, elements in
+      let entries = UnsafeMutableRawPointer(elements).assumingMemoryBound(to: Entry.self)
+      var count = header.pointee.count
+      while count > 0, entries[count - 1].type == MovedNode.self {
+        count -= 1
+      }
+      if count < header.pointee.count {
+        // later children are initialized over the dropped places without deinitializing them first, which
+        // `initializeMemory(as:to:)` allows since the places hold empty children, whose type is trivial
+        header.pointee.count = count
+        header.pointee.nextValueOffset = entries[count].offset
+      }
+    }
+  }
+
   /// Returns a buffer with copies of the children, in order, with room for only those children.
   ///
   /// - Returns: The buffer.
@@ -273,6 +312,39 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
   /// The children, each in a box of its own.
   var nodes: [any ComposeNode] {
     (0 ..< count).map { node(at: $0) }
+  }
+
+  /// The number of children that the table has room for.
+  var childCapacity: Int {
+    headerValue.childCapacity
+  }
+
+  /// The number of bytes that the values have room for.
+  var valuesByteCapacity: Int {
+    let header = headerValue
+    return header.byteCount - header.valuesStart
+  }
+
+  /// The number of bytes that the children's values take.
+  var valuesByteCountInUse: Int {
+    let header = headerValue
+    return header.nextValueOffset - header.valuesStart
+  }
+
+  /// Returns the number of bytes that a range of the children's values take at most in another buffer.
+  ///
+  /// - Parameters:
+  ///   - start: The index of the first child.
+  ///   - count: The number of children.
+  /// - Returns: The number of bytes.
+  func roomOfChildren(from start: Int, count: Int) -> Int {
+    let header = headerValue
+    precondition(start >= 0 && count >= 0 && start + count <= header.count, "the range must be within the children")
+    let startOffset = start < header.count ? valueOffset(at: start) : header.nextValueOffset
+    let endOffset = start + count < header.count ? valueOffset(at: start + count) : header.nextValueOffset
+    // the same bound as for all the children, from the 16-byte boundary at or before the first value, since placing the
+    // values from there ends no later than where they end here
+    return endOffset - (startOffset & ~(MemoryLayout<Chunk>.alignment - 1)) + MemoryLayout<Chunk>.alignment - 1
   }
 
   /// The number of bytes that the children's values take at most in another buffer.
@@ -364,6 +436,13 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     }
   }
 
+  /// Returns the byte offset of the value of the child at an index.
+  private func valueOffset(at index: Int) -> Int {
+    withUnsafeMutablePointerToElements { elements in
+      UnsafeMutableRawPointer(elements).assumingMemoryBound(to: Entry.self)[index].offset
+    }
+  }
+
   // MARK: - Helpers
 
   /// The header, read through its address, since reading the `header` property checks exclusive access at run time.
@@ -435,5 +514,26 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
 
   private static func node<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer) -> any ComposeNode {
     pointer.assumingMemoryBound(to: N.self).pointee
+  }
+
+  // MARK: - Moved Node
+
+  /// The child that takes the place of a child moved out of a range.
+  private struct MovedNode: ComposeNode {
+
+    var id: ComposeNodeId {
+      get { .standard(.empty) }
+      set {} // swiftlint:disable:this unused_setter_value
+    }
+
+    var size: CGSize {
+      .zero
+    }
+
+    mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+      ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+    }
+
+    func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
   }
 }

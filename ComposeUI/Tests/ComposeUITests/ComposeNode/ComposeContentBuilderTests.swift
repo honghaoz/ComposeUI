@@ -455,6 +455,42 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(ids) == ["a", "b", "c", "b", "c", "d", "e", "f"]
   }
 
+  func test_pendingContentUsedOnAnotherThread_asserts() {
+    // given: the content of a block of one node, which the thread's pending nodes hold, and a test assertion failure
+    // handler
+    let content = ComposeContentBuilder.buildBlock(ComposeContentBuilder.buildExpression(ColorNode(.red).id("a")))
+    let claim: PendingNodes.Claim
+    switch content.storage {
+    case .pending(_, _, let pendingClaim):
+      claim = pendingClaim
+    default:
+      fail("expected the block's node in the thread's pending nodes")
+      return
+    }
+    var messages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      messages.append(message)
+    }
+
+    // then: the content refers to the calling thread's pending nodes
+    expect(claim.owner) === PendingNodes.current
+
+    // when: reading the content's room on another thread, which the builder never does
+    _ = onNewThread { content.valuesByteCount }
+
+    // then: it asserts, since the other thread's pending nodes don't hold the content's nodes
+    expect(messages) == ["a content of pending nodes is used on the thread that wrote them"]
+
+    // when: reading the content on the thread that wrote it
+    let nodes = ComposeContentBuilder.buildFinalResult(content).nodes
+
+    // then: it reads its nodes without asserting
+    expect(nodes.map(\.id.id)) == ["a"]
+    expect(messages.count) == 1
+
+    Assert.resetTestAssertionFailureHandler()
+  }
+
   func test_blockContentWrittenTwice_asserts() {
     // given: the content of a block of two nodes, which holds the nodes it wrote, and a test assertion failure handler
     let content = ComposeContentBuilder.buildBlock(
@@ -773,6 +809,340 @@ class ComposeContentBuilderTests: XCTestCase {
     expect(weakObjects.allSatisfy { $0.token == nil }) == true
   }
 
+  // MARK: - Pending Nodes
+
+  func test_loopOfAllTheNodes_takesTheirBufferOnceItFitsThem() {
+    let observed = onNewThread { () -> (first: (ids: [String], childCapacity: Int), next: (ids: [String], childCapacity: Int)) in
+      // when: building the content of a loop of 300 nodes twice, as a refresh builds it again
+      let first = Self.nodeLoop(count: 300)
+      let next = Self.nodeLoop(count: 300)
+
+      let firstBuffer = NodeList.buffer(of: first)
+      let nextBuffer = NodeList.buffer(of: next)
+      return ((first.nodes.map(\.id.id), firstBuffer.childCapacity), (next.nodes.map(\.id.id), nextBuffer.childCapacity))
+    }
+
+    // then: the first content moves the nodes into a buffer of their own, since they fill too little of the buffer that
+    // doubled to hold them, and the next content keeps the buffer that grew to their room, with an eighth more
+    expect(observed.first.ids) == (0 ..< 300).map { "\($0)" }
+    expect(observed.first.childCapacity) == 300
+    expect(observed.next.ids) == (0 ..< 300).map { "\($0)" }
+    expect(observed.next.childCapacity) == 300 + 300 / 8
+  }
+
+  func test_loopBesideAStatement_movesTheLoopsNodesAndKeepsTheirBuffer() {
+    let observed = onNewThread { () -> (ids: [String], count: Int?) in
+      // when: building a stack of a node and a loop whose iterations are blocks of one node
+      let stack = VStack {
+        ColorNode(.red).id("header")
+        for index in 0 ..< 20 {
+          Self.node(index)
+        }
+      }
+      return (stack.childNodes.map(\.id.id), PendingNodes.debugBuffer?.count)
+    }
+
+    // then: the stack has the nodes in order, and the thread keeps the emptied buffer for the next loop
+    expect(observed.ids) == ["header"] + (0 ..< 20).map { "\($0)" }
+    expect(observed.count) == 0
+  }
+
+  func test_loopsInABlock_keepTheirNodesInOrder() {
+    // when: building a block of two loops whose iterations are blocks of one node, and of a node between them
+    let ids = Self.nodeIds {
+      for index in 0 ..< 3 {
+        ColorNode(.red).id("a\(index)")
+      }
+      ColorNode(.red).id("between")
+      for index in 0 ..< 3 {
+        ColorNode(.red).id("b\(index)")
+      }
+    }
+
+    // then: the nodes are in order, and no pending node is left
+    expect(ids) == ["a0", "a1", "a2", "between", "b0", "b1", "b2"]
+    expect(PendingNodes.debugBuffer?.count ?? 0) == 0
+  }
+
+  func test_nestedLoops_keepTheirNodesInOrder() {
+    // when: building a loop of stacks of loops, and a loop of stacks of a node and a loop
+    let stacks = Self.nodes {
+      for row in 0 ..< 3 {
+        VStack {
+          for column in 0 ..< 3 {
+            ColorNode(.red).id("\(row)\(column)")
+          }
+        }
+      }
+      for row in 0 ..< 2 {
+        HStack {
+          ColorNode(.red).id("\(row)h")
+          for column in 0 ..< 2 {
+            ColorNode(.red).id("\(row)\(column)c")
+          }
+        }
+      }
+    }
+
+    // then: each stack has its own nodes in order, and no pending node is left
+    let ids = stacks.map { stack in
+      (stack as? VStack)?.childNodes.map(\.id.id) ?? (stack as? HStack)?.childNodes.map(\.id.id) ?? []
+    }
+    expect(ids) == [["00", "01", "02"], ["10", "11", "12"], ["20", "21", "22"], ["0h", "00c", "01c"], ["1h", "10c", "11c"]]
+    expect(PendingNodes.debugBuffer?.count ?? 0) == 0
+  }
+
+  func test_loopWithAnIf_keepsItsNodesInOrder() {
+    // when: building a loop whose iterations have a node only when their index is even, and a loop whose iterations
+    // have one node or two
+    let evenIds = Self.nodeIds {
+      for index in 0 ..< 6 {
+        if index.isMultiple(of: 2) {
+          Self.node(index)
+        }
+      }
+    }
+    let mixedIds = Self.nodeIds {
+      for index in 0 ..< 4 {
+        if index.isMultiple(of: 2) {
+          Self.node(index)
+        } else {
+          Self.node(index)
+          Self.node(index + 10)
+        }
+      }
+    }
+
+    // then: the nodes are in order, and no pending node is left
+    expect(evenIds) == ["0", "2", "4"]
+    expect(mixedIds) == ["0", "1", "11", "2", "3", "13"]
+    expect(PendingNodes.debugBuffer?.count ?? 0) == 0
+  }
+
+  func test_caughtThrowInABlock_keepsTheNodesOfTheNextBuilds() {
+    // given: objects for the nodes of a builder function that throws after its loop
+    var objects: [Token]? = [Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+
+    // when: building a block with a loop and a statement that catches the builder function's throw
+    let ids = Self.nodeIds {
+      for index in 0 ..< 2 {
+        Self.node(index)
+      }
+      (try? Self.throwingNodes(objects!)) ?? ColorNode(.red).id("fallback") // swiftlint:disable:this force_unwrapping
+    }
+    objects = nil
+
+    // then: the block has its nodes, and the builder function's nodes are left in the pending nodes
+    expect(ids) == ["0", "1", "fallback"]
+    expect(weakObjects.allSatisfy { $0.token != nil }) == true
+
+    // when: building a loop
+    let nextIds = Self.nodeIds {
+      for index in 0 ..< 3 {
+        Self.node(index)
+      }
+    }
+
+    // then: the loop has its nodes, and the nodes that the builder function left are destroyed
+    expect(nextIds) == ["0", "1", "2"]
+    expect(weakObjects.allSatisfy { $0.token == nil }) == true
+  }
+
+  func test_caughtThrowInEachIteration_keepsTheLoopsNodesInOrder() {
+    // given: objects for the nodes of a builder function that throws after its loop
+    var objects: [Token]? = [Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+
+    // when: building a loop whose iterations' nodes each catch the builder function's throw first, which leaves its
+    // nodes before the iteration's node
+    let ids = Self.nodeIds {
+      for index in 0 ..< 3 {
+        Self.node(index, afterCatchingAThrowOf: objects!) // swiftlint:disable:this force_unwrapping
+      }
+    }
+    objects = nil
+
+    // then: the loop has only its nodes, in order, and the builder function's nodes are left in the pending nodes
+    expect(ids) == ["0", "1", "2"]
+    expect(weakObjects.allSatisfy { $0.token != nil }) == true
+
+    // when: building another loop
+    let nextIds = Self.nodeIds {
+      for index in 0 ..< 2 {
+        Self.node(index)
+      }
+    }
+
+    // then: the loop has its nodes, and the nodes that the builder function left are destroyed
+    expect(nextIds) == ["0", "1"]
+    expect(weakObjects.allSatisfy { $0.token == nil }) == true
+  }
+
+  func test_throwingBuilderFunction_leavesNodesThatTheNextLoopDestroys() {
+    // given: objects for the nodes of a builder function that throws after its loop
+    var objects: [Token]? = [Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+
+    // when: calling the builder function outside a block
+    let content = try? Self.throwingNodes(objects!) // swiftlint:disable:this force_unwrapping
+    objects = nil
+
+    // then: it has no content, and its nodes are left in the pending nodes
+    expect(content == nil) == true
+    expect(weakObjects.allSatisfy { $0.token != nil }) == true
+
+    // when: building a loop
+    let ids = Self.nodeIds {
+      for index in 0 ..< 2 {
+        Self.node(index)
+      }
+    }
+
+    // then: the loop has its nodes, and the nodes that the builder function left are destroyed
+    expect(ids) == ["0", "1"]
+    expect(weakObjects.allSatisfy { $0.token == nil }) == true
+  }
+
+  func test_asyncBuilderFunction_keepsEachTasksNodes() async {
+    // when: building rows in many tasks at once, with a builder function that suspends before each row
+    let results = await withTaskGroup(of: (task: Int, ids: [String]).self) { group in
+      for task in 0 ..< 64 {
+        group.addTask {
+          await (task, Self.suspendingRowIds(task))
+        }
+      }
+      var results: [(task: Int, ids: [String])] = []
+      for await result in group {
+        results.append(result)
+      }
+      return results
+    }
+
+    // then: each task builds its own rows in order
+    expect(results.count) == 64
+    for result in results {
+      expect(result.ids) == (0 ..< 20).map { "\(result.task).\($0)" }
+    }
+  }
+
+  func test_mainActorAsyncBuilderFunction_keepsEachTasksNodes() async {
+    // when: building rows in many tasks at once on the main actor, with a builder function that suspends before each row
+    let results = await withTaskGroup(of: (task: Int, ids: [String]).self) { group in
+      for task in 0 ..< 64 {
+        group.addTask {
+          await (task, Self.mainActorSuspendingRowIds(task))
+        }
+      }
+      var results: [(task: Int, ids: [String])] = []
+      for await result in group {
+        results.append(result)
+      }
+      return results
+    }
+
+    // then: each task builds its own rows in order
+    expect(results.count) == 64
+    for result in results {
+      expect(result.ids) == (0 ..< 20).map { "\(result.task).\($0)" }
+    }
+  }
+
+  func test_loopOutsideATask_writesItsNodesIntoThePendingNodes() {
+    let ids = onNewThread { () -> [String] in
+      // when: building a stack of a loop outside a task, whose nodes' ids are the number of pending nodes before them
+      let stack = VStack {
+        for _ in 0 ..< 5 {
+          let pendingCount = PendingNodes.debugBuffer?.count ?? 0
+          ColorNode(.red).id("\(pendingCount)")
+        }
+      }
+      return stack.childNodes.map(\.id.id)
+    }
+
+    // then: each iteration writes its node into the pending nodes
+    expect(ids) == ["0", "1", "2", "3", "4"]
+  }
+
+  func test_loopInATask_writesEachNodeIntoABufferOfItsOwn() async {
+    // when: building a stack of a loop in a task, whose nodes' ids are the number of pending nodes before them
+    let ids = await Task.detached { () -> [String] in
+      let stack = VStack {
+        for _ in 0 ..< 5 {
+          let pendingCount = PendingNodes.debugBuffer?.count ?? 0
+          ColorNode(.red).id("\(pendingCount)")
+        }
+      }
+      return stack.childNodes.map(\.id.id)
+    }.value
+
+    // then: no iteration writes its node into the pending nodes
+    expect(ids.count) == 5
+    expect(Set(ids).count) == 1
+  }
+
+  #if compiler(>=6.2)
+  func test_taskStartedImmediatelyInALoop_buildsItsContentApartFromTheLoopsPendingNodes() async throws {
+    guard #available(macOS 26.0, iOS 26.0, tvOS 26.0, visionOS 26.0, *) else {
+      throw XCTSkip("Task.immediate needs macOS 26, iOS 26, tvOS 26 or visionOS 26")
+    }
+
+    // given: a stream that ends when the test lets a task finish its content
+    let (resumption, resume) = AsyncStream<Void>.makeStream()
+
+    // when: building a loop outside a task, whose second iteration starts a task immediately, whose builder function
+    // builds a loop on the building thread and holds the loop's content while it suspends
+    let built = onNewThread { () -> (ids: [String], leftCount: Int, task: Task<ImmediateTaskResult, Never>?) in
+      var task: Task<ImmediateTaskResult, Never>?
+      let stack = VStack {
+        for index in 0 ..< 4 {
+          Self.node(index) {
+            if index == 1 {
+              task = Self.immediateTaskOfNodes(suspendingUntil: resumption)
+            }
+          }
+        }
+      }
+      return (stack.childNodes.map(\.id.id), PendingNodes.debugBuffer?.count ?? 0, task)
+    }
+
+    // then: the loop keeps its nodes in order, and leaves no nodes in the thread's pending nodes
+    expect(built.ids) == ["0", "1", "2", "3"]
+    expect(built.leftCount) == 0
+
+    // when: letting the task finish its content, once it resumes
+    resume.finish()
+    let result = await built.task?.value
+
+    // then: the task started on the building thread, and its content has its own nodes in order
+    expect(result?.startedOnTheCallingThread) == true
+    expect(result?.ids) == ["task.0", "task.1", "task.2", "task.3"]
+  }
+  #endif
+
+  func test_buildsOnSeveralThreadsAtOnce_keepEachThreadsNodes() {
+    // when: building loops on several threads at once
+    let lock = NSLock()
+    var results: [Int: [String]] = [:]
+    DispatchQueue.concurrentPerform(iterations: 8) { thread in
+      let ids = Self.nodeIds {
+        ColorNode(.red).id("\(thread)")
+        for index in 0 ..< 100 {
+          ColorNode(.red).id("\(thread).\(index)")
+        }
+      }
+      lock.lock()
+      results[thread] = ids
+      lock.unlock()
+    }
+
+    // then: each build has its own nodes in order
+    expect(results.count) == 8
+    for (thread, ids) in results {
+      expect(ids) == ["\(thread)"] + (0 ..< 100).map { "\(thread).\($0)" }
+    }
+  }
+
   // MARK: - Helpers
 
   /// Returns the content that the builder makes.
@@ -795,6 +1165,14 @@ class ComposeContentBuilderTests: XCTestCase {
     ColorNode(.red).id("\(index)")
   }
 
+  /// Returns the content of a loop of color nodes with their indexes as their ids.
+  @ComposeContentBuilder
+  private static func nodeLoop(count: Int) -> ComposeContent {
+    for index in 0 ..< count {
+      node(index)
+    }
+  }
+
   /// Returns a content of two color nodes.
   @ComposeContentBuilder
   private static func twoNodes() -> ComposeContent {
@@ -810,7 +1188,101 @@ class ComposeContentBuilderTests: XCTestCase {
     ColorNode(.red).id("d")
     ColorNode(.red).id("e")
   }
+
+  /// Throws after a loop of nodes that keep the objects.
+  @ComposeContentBuilder
+  private static func throwingNodes(_ objects: [Token]) throws -> ComposeContent {
+    for object in objects {
+      TokenNode(token: object)
+    }
+    try throwTestError()
+  }
+
+  private static func throwTestError() throws {
+    throw TestError()
+  }
+
+  /// Returns a color node with the index as its id, after catching the throw of a builder function, which leaves its
+  /// nodes in the pending nodes.
+  private static func node(_ index: Int, afterCatchingAThrowOf objects: [Token]) -> some ComposeNode {
+    _ = try? throwingNodes(objects)
+    return node(index)
+  }
+
+  /// Returns the ids of the rows that a builder function builds, which suspends before each row.
+  private static func suspendingRowIds(_ task: Int) async -> [String] {
+    await suspendingRows(task).nodes.map(\.id.id)
+  }
+
+  @ComposeContentBuilder
+  private static func suspendingRows(_ task: Int) async -> ComposeContent {
+    for index in 0 ..< 20 {
+      let row = await yielded(index)
+      ColorNode(.red).id("\(task).\(row)")
+    }
+  }
+
+  /// Returns the ids of the rows that a builder function on the main actor builds, which suspends before each row.
+  @MainActor
+  private static func mainActorSuspendingRowIds(_ task: Int) async -> [String] {
+    await mainActorSuspendingRows(task).nodes.map(\.id.id)
+  }
+
+  @MainActor
+  @ComposeContentBuilder
+  private static func mainActorSuspendingRows(_ task: Int) async -> ComposeContent {
+    for index in 0 ..< 20 {
+      let row = await yielded(index)
+      ColorNode(.red).id("\(task).\(row)")
+    }
+  }
+
+  /// Returns a value after yielding to the other tasks, as a statement that awaits in an async builder function.
+  private static func yielded(_ value: Int) async -> Int {
+    await Task.yield()
+    return value
+  }
+
+  /// Returns a color node with the index as its id, after calling a block.
+  private static func node(_ index: Int, after body: () -> Void) -> some ComposeNode {
+    body()
+    return node(index)
+  }
+
+  /// Returns the content of a loop of color nodes with a task's ids and a color node after them, whose builder function
+  /// holds the loop's content while it suspends until a stream ends.
+  @ComposeContentBuilder
+  private static func taskNodes(suspendingUntil resumption: AsyncStream<Void>) async -> ComposeContent {
+    for index in 0 ..< 3 {
+      ColorNode(.red).id("task.\(index)")
+    }
+    await waitForTheEnd(of: resumption)
+    ColorNode(.red).id("task.3")
+  }
+
+  /// Waits until a stream ends.
+  private static func waitForTheEnd(of stream: AsyncStream<Void>) async {
+    for await _ in stream {}
+  }
+
+  /// Whether a task started on the thread that started it, and the ids of the nodes that it built.
+  private typealias ImmediateTaskResult = (startedOnTheCallingThread: Bool, ids: [String])
+
+  #if compiler(>=6.2)
+  /// Starts a task immediately, which builds content of nodes across a suspension that lasts until a stream ends.
+  @available(macOS 26.0, iOS 26.0, tvOS 26.0, visionOS 26.0, *)
+  private static func immediateTaskOfNodes(suspendingUntil resumption: AsyncStream<Void>) -> Task<ImmediateTaskResult, Never> {
+    let callingThread = UInt(bitPattern: pthread_self())
+    return Task.immediate {
+      let startedOnTheCallingThread = UInt(bitPattern: pthread_self()) == callingThread
+      let ids = await taskNodes(suspendingUntil: resumption).nodes.map(\.id.id)
+      return (startedOnTheCallingThread, ids)
+    }
+  }
+  #endif
 }
+
+private struct TestError: Error {}
 
 /// A node that implements `_nodes()` to stand for two color nodes, and tracks the calls to it.
 private struct ExpandingNode: ComposeNode {

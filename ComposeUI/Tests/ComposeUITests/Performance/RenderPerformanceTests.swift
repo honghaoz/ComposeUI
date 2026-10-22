@@ -446,6 +446,141 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.styled.200", result: result)
   }
 
+  func test_refresh_labelRows_200() {
+    // given: a compose view with 200 rows of a label each laid out, which a loop builds as blocks of one node
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          LabelNode("Row \(i) title")
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.labels.200", result: result)
+  }
+
+  @MainActor
+  func test_refresh_labelRows_200_inATask() async {
+    // given: a compose view with 200 rows of a label each laid out, which a loop builds as blocks of one node
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          LabelNode("Row \(i) title")
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes in this test's task, as a refresh after an `await` builds
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.labels.200.inTask", result: result)
+  }
+
+  func test_refresh_labelRowsFromAHelper_200() {
+    // given: a compose view with 200 rows of a label each laid out, which a helper returns as `some ComposeNode`
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeLabelRow(i)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.labels.200.helper", result: result)
+  }
+
+  func test_refresh_colorRows_200() {
+    // given: a compose view with 200 rows of a color with a fixed height laid out, whose modifier wraps each color
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 200 {
+          ColorNode(.red)
+            .frame(width: .flexible, height: 20)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.colors.200", result: result)
+  }
+
+  func test_refresh_labelRowsInStacks_200() {
+    // given: a compose view with 200 rows of a stack of one label each laid out, whose stacks take their label from a
+    // block of one node
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          HStack {
+            LabelNode("Row \(i) title")
+          }
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.labels.200.inStacks", result: result)
+  }
+
+  func test_refresh_labelRowsWithBackgrounds_200() {
+    // given: a compose view with 200 rows of a label with a background color each laid out, whose backgrounds take their
+    // color from a block of one node
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          LabelNode("Row \(i) title")
+            .background {
+              ColorNode(.red)
+            }
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.labels.200.withBackgrounds", result: result)
+  }
+
   func test_refresh_nestedRows_200_drawn() {
     // given: a compose view with 200 nested rows laid out in a window, which draws the labels past its visible bounds
     // ahead of time
@@ -737,6 +872,11 @@ class RenderPerformanceTests: BenchmarkTestCase {
       Spacer()
     }
     .padding(8)
+  }
+
+  /// A list row of one label, as a helper returns a row whose type its callers don't name.
+  private static func makeLabelRow(_ i: Int) -> some ComposeNode {
+    LabelNode("Row \(i) title")
   }
 
   /// A list row like the nested row, with labels that set their own font, color and number of lines, as an app's labels

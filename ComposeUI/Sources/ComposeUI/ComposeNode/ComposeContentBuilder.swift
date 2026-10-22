@@ -88,12 +88,20 @@ public enum ComposeContentBuilder {
   // Each block writes its nodes when it's built, instead of keeping their types until the final result, since a loop
   // can't collect iterations whose type involves an opaque result type.
 
-  /// For a block of one node, which writes the node into a buffer.
+  /// For a block of one node, which writes the node into the thread's pending nodes, or into a buffer of its own in a
+  /// task.
   @inlinable
   public static func buildBlock(_ node: consuming _Node<some ComposeNode>) -> _Content {
-    let writer = _NodeWriter(capacity: 1, valuesByteCount: node.valuesByteCount)
-    node.write(into: writer)
-    return _Content(written: writer)
+    // a loop's iterations are blocks of one statement, which write into the pending nodes one after another, instead of
+    // each into a buffer of its own, so that a stack that holds only the loop takes their buffer
+    if let pending = PendingNodes.reserve(count: 1, valuesByteCount: node.valuesByteCount) {
+      node.write(into: _NodeWriter(buffer: pending.buffer))
+      return _Content(pendingAt: pending.start, count: 1, claim: pending.claim)
+    } else {
+      let writer = _NodeWriter(capacity: 1, valuesByteCount: node.valuesByteCount)
+      node.write(into: writer)
+      return _Content(written: writer)
+    }
   }
 
   /// For a block of two statements, which writes its nodes into a buffer.
@@ -338,7 +346,11 @@ public enum ComposeContentBuilder {
 
   /// For `for` loops.
   public static func buildArray(_ contents: [_Content]) -> _Content {
-    _Content(contents: contents)
+    if let range = _Content.pendingRange(of: contents) {
+      return _Content(pendingAt: range.start, count: range.count, claim: range.claim)
+    } else {
+      return _Content(contents: contents)
+    }
   }
 
   /// For `#available` statements.
@@ -422,6 +434,10 @@ public extension ComposeContentBuilder {
       /// The contents of a loop's iterations, in order, with the number of their nodes and of the bytes that the nodes'
       /// values take at most.
       case contents([_Content], nodeCount: Int, valuesByteCount: Int)
+
+      /// A range of the thread's pending nodes, which the content is the only one to refer to, so it's written once, and the
+      /// claim that tells the pending nodes that a content refers to them.
+      case pending(start: Int, count: Int, claim: PendingNodes.Claim)
     }
 
     @usableFromInline
@@ -464,6 +480,35 @@ public extension ComposeContentBuilder {
       storage = .contents(contents, nodeCount: nodeCount, valuesByteCount: valuesByteCount)
     }
 
+    @inlinable
+    init(pendingAt start: Int, count: Int, claim: PendingNodes.Claim) {
+      storage = .pending(start: start, count: count, claim: claim)
+    }
+
+    /// Returns the range of the pending nodes that contents refer to, with their claim, if each refers to a range and the
+    /// ranges follow one another.
+    static func pendingRange(of contents: [_Content]) -> (start: Int, count: Int, claim: PendingNodes.Claim)? {
+      guard let first = contents.first else {
+        return nil
+      }
+      switch first.storage {
+      case .pending(let start, _, let claim):
+        var end = start
+        for index in contents.indices {
+          // the claim is read once, since reading it from each content retains and releases it
+          switch contents[index].storage {
+          case .pending(let rangeStart, let count, _) where rangeStart == end:
+            end += count
+          default:
+            return nil
+          }
+        }
+        return (start, end - start, claim)
+      default:
+        return nil
+      }
+    }
+
     /// The nodes as content.
     @usableFromInline
     var content: ComposeContent {
@@ -484,6 +529,8 @@ public extension ComposeContentBuilder {
         let writer = _NodeWriter(capacity: nodeCount, valuesByteCount: valuesByteCount)
         write(into: writer)
         return NodeList(buffer: writer.buffer)
+      case .pending(let start, let count, let claim):
+        return NodeList(buffer: Self.owner(of: claim).contentBuffer(start: start, count: count))
       }
     }
 
@@ -499,6 +546,8 @@ public extension ComposeContentBuilder {
         return nodes.count
       case .contents(_, let nodeCount, _):
         return nodeCount
+      case .pending(_, let count, _):
+        return count
       }
     }
 
@@ -514,6 +563,8 @@ public extension ComposeContentBuilder {
         return NodeBuffer.room(of: nodes)
       case .contents(_, _, let valuesByteCount):
         return valuesByteCount
+      case .pending(let start, let count, let claim):
+        return Self.owner(of: claim).room(start: start, count: count)
       }
     }
 
@@ -534,7 +585,18 @@ public extension ComposeContentBuilder {
         for index in contents.indices {
           contents[index].write(into: writer)
         }
+      case .pending(let start, let count, let claim):
+        Self.owner(of: claim).moveNodes(start: start, count: count, into: writer.buffer)
       }
+    }
+
+    /// Returns the pending nodes that a claim's content refers to, which are the calling thread's, since a content of
+    /// pending nodes is used only while the thread that wrote them builds.
+    @inline(__always)
+    private static func owner(of claim: PendingNodes.Claim) -> PendingNodes {
+      let owner = claim.owner
+      ComposeUI.assert(owner === PendingNodes.current, "a content of pending nodes is used on the thread that wrote them")
+      return owner
     }
   }
 
@@ -548,6 +610,11 @@ public extension ComposeContentBuilder {
     @inlinable
     init(capacity: Int, valuesByteCount: Int) {
       buffer = NodeBuffer.make(capacity: capacity, valuesByteCount: valuesByteCount)
+    }
+
+    @inlinable
+    init(buffer: NodeBuffer) {
+      self.buffer = buffer
     }
 
     @inlinable
