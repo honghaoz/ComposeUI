@@ -210,8 +210,8 @@ final class PendingNodes {
   /// Replaces the buffer with one that has room for more nodes, which keeps the nodes at their indexes.
   ///
   /// A first buffer is small, so that a block of one node doesn't make a large buffer, and a buffer that grows grows to
-  /// the smallest remembered room of a loop of nodes of about its nodes' size that fits them at once, so that a loop that
-  /// a refresh builds again moves its first nodes once instead of each time the buffer doubles.
+  /// the smallest remembered room that fits its nodes at once, preferring a loop of nodes of about their size, so that a
+  /// loop that a refresh builds again moves its first nodes once instead of each time the buffer doubles.
   private func grown(adding count: Int, valuesByteCount: Int) -> NodeBuffer {
     let grown: NodeBuffer
     if let old = buffer {
@@ -269,21 +269,29 @@ final class PendingNodes {
   }
 
   /// Returns the remembered room with the fewest children that has room for a number of children and of bytes, among the
-  /// rooms whose bytes per child are within an eighth of the nodes'.
+  /// rooms whose bytes per child are within an eighth of the nodes', or else among all the rooms.
   ///
   /// - Parameters:
   ///   - childCount: The number of children.
   ///   - valuesByteCount: The number of bytes that the children's values take at most.
   ///   - usedValuesByteCount: The number of bytes that the children's values take, which tells their size.
   private func smallestRoom(fitting childCount: Int, valuesByteCount: Int, usedValuesByteCount: Int) -> Room? {
-    // a loop's first nodes already tell the size of its nodes, so it grows only to the room of a loop of nodes of about
-    // their size, instead of to a loop of as many smaller nodes that its first nodes fit in
-    rooms.lazy
-      .filter {
-        $0.childCount >= childCount && $0.valuesByteCount >= valuesByteCount
-          && abs($0.valuesByteCount * childCount - usedValuesByteCount * $0.childCount) * 8 <= usedValuesByteCount * $0.childCount
+    var smallestAlike: Room?
+    var smallest: Room?
+    for room in rooms where room.childCount >= childCount && room.valuesByteCount >= valuesByteCount {
+      if abs(room.valuesByteCount * childCount - usedValuesByteCount * room.childCount) * 8 <= usedValuesByteCount * room.childCount,
+         room.childCount < smallestAlike?.childCount ?? .max
+      {
+        smallestAlike = room
       }
-      .min { $0.childCount < $1.childCount }
+      if room.childCount < smallest?.childCount ?? .max {
+        smallest = room
+      }
+    }
+    // a room of nodes of about the nodes' size comes first, since a loop of large nodes would otherwise grow to the room
+    // of a loop of as many small nodes, which its first nodes fit in, and the smallest room comes next, since the first
+    // nodes of a loop of uneven nodes don't tell the size of the rest
+    return smallestAlike ?? smallest
   }
 
   /// Returns whether the thread keeps an empty buffer for its next loop.
