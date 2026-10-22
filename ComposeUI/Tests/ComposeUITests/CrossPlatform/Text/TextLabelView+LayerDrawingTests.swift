@@ -562,6 +562,28 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: shownPixels)) == 0
   }
 
+  func test_imageDrawnAhead_windowColorSpaceChange_drawsTheTextInTheNewColorSpace() throws {
+    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+
+    // given: a label in an sRGB window, showing an image drawn ahead of time of a text in a red that sRGB can't show
+    let testCase = Case(name: "Display P3 red", text: Self.text("Row 12 title", [.foregroundColor: Self.displayP3Red]))
+    let (renderer, labelView, cache) = try Self.makeLabelWithImageDrawnAhead(testCase)
+    labelView.imageCache = cache
+    labelView.attributedString = testCase.text
+    let image = try unwrap(labelView.test.readyImage)
+    _ = try renderer.render()
+    expect(labelView.test.drawingLayer?.contents as AnyObject?) === image
+
+    // when: the app sets the window's color space to Display P3, which AppKit answers by updating the views' layers
+    renderer.colorSpace = .displayP3
+    let pixels = try renderer.render()
+
+    // then: the layer draws the text in the new color space, instead of showing the image drawn for the old one, in the
+    // same pixels as AppKit
+    expect(labelView.test.drawingLayer?.contents as AnyObject?) !== image
+    expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: pixels)) == 0
+  }
+
   func test_imageDrawnAhead_systemColorsChangeBeforeTheLabelShowsIt_drawsTheTextItself() throws {
     try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
@@ -785,6 +807,9 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
 
   /// The text that a label has before it gets a case's text.
   private static let placeholderText = NSAttributedString(string: "Placeholder")
+
+  /// A red that sRGB can't show, so a text drawn in sRGB shows it less saturated than a text drawn in Display P3.
+  private static let displayP3Red = NSColor(displayP3Red: 1, green: 0, blue: 0, alpha: 1)
 
   /// Returns the number of pixels that differ between what the label shows and what AppKit draws for it.
   private static func differingPixelCountFromAppKit(_ labelView: TextLabelView, _ renderer: WindowRenderer) throws -> Int {
