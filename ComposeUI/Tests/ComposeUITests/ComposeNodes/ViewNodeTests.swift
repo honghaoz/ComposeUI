@@ -38,12 +38,15 @@ class ViewNodeTests: XCTestCase {
     // then: a factory view node uses the default id
     expect(ViewNode().id.id) == "V"
 
-    // given: an external view
+    // given: two external views
     let view = View()
-    let id = ObjectIdentifier(view)
+    let otherView = View()
 
-    // then: a view node with the external view uses the view's identity in the id
-    expect(ViewNode(view).id.id) == "view-\(id)"
+    // then: an external view node's id is the view's, which the nodes of the view share, and the nodes of another view
+    // don't
+    expect(ViewNode(view).id) == ComposeNodeId.object(view, kind: .view)
+    expect(ViewNode(view).id) == ViewNode(view).id
+    expect(ViewNode(view).id) != ViewNode(otherView).id
   }
 
   func test_fixedSize() {
