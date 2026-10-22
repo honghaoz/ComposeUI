@@ -65,7 +65,13 @@ final class WindowRenderer {
   private let commandQueue: MTLCommandQueue
 
   /// The color space that the window shows its pixels in, which Core Animation draws the layers' backing stores in.
-  let colorSpace: NSColorSpace
+  ///
+  /// Setting it sets the window's color space, as an app does.
+  var colorSpace: NSColorSpace {
+    didSet {
+      window.colorSpace = colorSpace
+    }
+  }
 
   /// Creates a window with a view of a size to render. Throws `XCTSkip` without a Metal device.
   ///
