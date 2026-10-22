@@ -148,7 +148,7 @@ open class InnerShadowLayer: CALayer {
       return
     }
 
-    let color = color.cgColor
+    let color = CGColorCache.cgColor(of: color)
     let opacity = Float(opacity)
 
     // initialize mask layer if not initialized

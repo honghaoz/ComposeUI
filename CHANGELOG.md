@@ -109,6 +109,7 @@
 - Scrolling labels is faster on macOS: the cache of label images drawn ahead of time evicts its oldest image without searching all of them.
 - Scrolling labels is faster on iOS, tvOS and visionOS: a label lays out its text once, when it draws, instead of each time its text, number of lines, line break mode or size changes, since a UIKit layout manager lays out its text again at once.
 - Building and laying out stacks allocates less, and is faster when rows have several nodes: a `@ComposeContentBuilder` block writes its nodes into one buffer, which a stack keeps as its children, instead of putting each node in a box of its own, and a loop's iterations write their nodes into one buffer, which a stack of only the loop keeps. A node that comes in a box, which a function returning `any ComposeNode` makes, is copied into the buffer, so return a row as `some ComposeNode` where possible. Content built in a Swift task, such as by `refresh(animated:)` right after an `await`, writes each iteration's node into a buffer of its own instead, while `setNeedsRefresh(animated:)` builds at the view's next layout or run loop iteration, outside the task.
+- Refreshing and scrolling colored content is faster on macOS: a color node, the `backgroundColor`, `border` and `shadow` modifiers, and the drop and inner shadow layers reuse the `CGColor` made for the same component-based color, instead of having AppKit make a new one each time they set it.
 
 ## [0.0.5](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.5) (2026-08-08)
 
