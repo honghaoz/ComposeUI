@@ -115,11 +115,33 @@ extension ComposeView {
 
     /// Creates an in-place reuse that keeps no views yet.
     ///
-    /// - Parameter isMouseButtonPressed: Returns whether a mouse button is pressed. Default reads
-    ///   `NSEvent.pressedMouseButtons`.
-    init(isMouseButtonPressed: @escaping () -> Bool = { NSEvent.pressedMouseButtons != 0 }) {
+    /// - Parameter isMouseButtonPressed: Returns whether a mouse button is pressed. Default reads the pressed mouse
+    ///   buttons, see `isAnyMouseButtonPressed()`.
+    init(isMouseButtonPressed: @escaping () -> Bool = InPlaceReuse.isAnyMouseButtonPressed) {
       self.isMouseButtonPressed = isMouseButtonPressed
     }
+
+    /// Returns whether a mouse button is pressed, from `NSEvent.pressedMouseButtons`, or in tests, from
+    /// `pressedMouseButtonsForTesting`.
+    private static func isAnyMouseButtonPressed() -> Bool {
+      var pressedMouseButtons = NSEvent.pressedMouseButtons
+      #if DEBUG
+      // a click during a test run would change what the tests render, so tests set the buttons instead. the buttons are
+      // still read, as apps read them, so that the benchmarks count the read
+      if isRunningTests {
+        pressedMouseButtons = pressedMouseButtonsForTesting
+      }
+      #endif
+      return pressedMouseButtons != 0
+    }
+
+    #if DEBUG
+    /// Whether the process runs tests, checked once for the process instead of in each render pass.
+    private static let isRunningTests = Thread.isRunningXCTest
+
+    /// The mouse buttons that the in-place reuses see pressed in tests, none unless a test presses one.
+    static var pressedMouseButtonsForTesting = 0
+    #endif
     #endif
 
     // MARK: - Render Pass
