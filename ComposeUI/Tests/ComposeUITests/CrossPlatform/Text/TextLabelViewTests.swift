@@ -49,7 +49,7 @@ class TextLabelViewTests: XCTestCase {
     let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
 
     // then: it shows no text, with no line limit, wrapping words, without an inset, clipped to its bounds, and draws its
-    // text instead of updating its layer
+    // text instead of updating its layer, in a layer of its own, in flipped coordinates
     expect(labelView.attributedString.length) == 0
     expect(labelView.numberOfLines) == 0
     expect(labelView.lineBreakMode) == .byWordWrapping
@@ -58,6 +58,7 @@ class TextLabelViewTests: XCTestCase {
     expect(labelView.test.textContainer.lineFragmentPadding) == 0
     #if canImport(AppKit)
     expect(labelView.wantsUpdateLayer) == false
+    expect(labelView.wantsLayer) == true
     expect(labelView.isFlipped) == true
     #endif
     #if canImport(UIKit)
@@ -292,6 +293,22 @@ class TextLabelViewTests: XCTestCase {
 
     // then: the view draws again
     expect(Self.needsDisplay(labelView)) == true
+  }
+
+  func test_setFrameSize_doesNotMarkTheViewForLayout() {
+    // given: a label view in a window, showing a text, laid out
+    let window = TestWindow()
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+    labelView.attributedString = NSAttributedString(string: "Hello", attributes: [.foregroundColor: Color.black])
+    window.contentView().addSubview(labelView)
+    window.layoutIfNeeded()
+    expect(labelView.needsLayout) == false
+
+    // when: resizing it
+    labelView.setFrameSize(CGSize(width: 120, height: 20))
+
+    // then: AppKit doesn't mark it for layout, since a label has nothing to lay out
+    expect(labelView.needsLayout) == false
   }
   #endif
 
