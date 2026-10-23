@@ -41,6 +41,8 @@ import UIKit
 /// `TextNode` shows a text that the user can neither edit nor select in this view, instead of in a `BaseTextView`. It
 /// lays out the text with TextKit 1, as ComposeUI measures text, and draws it, without a text view's machinery for
 /// editing, selection and scrolling.
+///
+/// On macOS, it doesn't post frame-change notifications by default.
 public final class TextLabelView: View, ScheduledTextRemovable {
 
   /// The text that the view shows.
@@ -138,6 +140,10 @@ public final class TextLabelView: View, ScheduledTextRemovable {
     // the view subclasses `View` instead of `BaseView`, whose `layout()` has AppKit lay out a view each time it resizes,
     // while a label has nothing to lay out, so it takes `BaseView`'s settings itself
     updateCommonSettings()
+
+    // ComposeUI moves and resizes label views as content scrolls, and observes none of their frames, so a label view
+    // doesn't post a notification for each change
+    postsFrameChangedNotifications = false
     #endif
 
     // a truncated line, such as with `.byTruncatingTail`, can lay out past the bounds

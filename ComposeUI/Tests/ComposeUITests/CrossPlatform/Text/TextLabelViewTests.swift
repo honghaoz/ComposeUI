@@ -49,7 +49,7 @@ class TextLabelViewTests: XCTestCase {
     let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
 
     // then: it shows no text, with no line limit, wrapping words, without an inset, clipped to its bounds, and draws its
-    // text instead of updating its layer, in a layer of its own, in flipped coordinates
+    // text instead of updating its layer, in a layer of its own, in flipped coordinates, without posting frame changes
     expect(labelView.attributedString.length) == 0
     expect(labelView.numberOfLines) == 0
     expect(labelView.lineBreakMode) == .byWordWrapping
@@ -60,6 +60,7 @@ class TextLabelViewTests: XCTestCase {
     expect(labelView.wantsUpdateLayer) == false
     expect(labelView.wantsLayer) == true
     expect(labelView.isFlipped) == true
+    expect(labelView.postsFrameChangedNotifications) == false
     #endif
     #if canImport(UIKit)
     expect(labelView.isOpaque) == false
@@ -309,6 +310,25 @@ class TextLabelViewTests: XCTestCase {
 
     // then: AppKit doesn't mark it for layout, since a label has nothing to lay out
     expect(labelView.needsLayout) == false
+  }
+
+  func test_frameChange_postsNoNotification() {
+    // given: a label view, and an observer of its frame-change notifications
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 20))
+    var notificationCount = 0
+    let observer = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: labelView, queue: nil) { _ in
+      notificationCount += 1
+    }
+    defer {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    // when: moving and resizing it
+    labelView.setFrameOrigin(CGPoint(x: 10, y: 10))
+    labelView.setFrameSize(CGSize(width: 120, height: 20))
+
+    // then: it posts no frame-change notification
+    expect(notificationCount) == 0
   }
   #endif
 
