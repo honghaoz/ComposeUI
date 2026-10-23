@@ -1465,7 +1465,7 @@ open class ComposeView: BaseScrollView {
     var zOrder = ZOrderPass(oldItemCount: oldRenderableItemIds.count, previousKeyOffset: zPositionKeyOffset)
 
     // the removals below can keep their reusable views in place, for the insertions after them
-    inPlaceReuse.startKeeping()
+    inPlaceReuse.startKeeping(hasPool: renderablePool != nil)
 
     // the old and new items are read in place from their arrays, by index, since looking them up in a map of items
     // would copy each item, which retains and releases its references
@@ -2190,14 +2190,16 @@ open class ComposeView: BaseScrollView {
   // MARK: - Accessibility
 
   #if canImport(AppKit)
-  /// Returns the shown subviews of the content view in the items order: the views of the items in the items order, in
-  /// the places that they take among the subviews, and the other subviews, such as views being removed, in theirs.
+  /// Returns the content view's accessibility children with the views of the items among them in the items order, in
+  /// the places that they take, and the other children, such as views being removed or elements that an app sets, in
+  /// theirs.
   ///
-  /// A render pass keeps only the views that take clicks in the items order, see `ClickThroughView`, so the subview
-  /// order alone doesn't tell the items order.
-  func shownSubviewsInItemsOrder() -> [NSView] {
-    let subviews = contentContainerView.subviews.filter { !$0.isHidden }
-
+  /// AppKit tells a view's children in the subview order, while a render pass keeps only the views that take clicks in
+  /// the items order, see `ClickThroughView`.
+  ///
+  /// - Parameter children: The children that AppKit tells.
+  /// - Returns: The children, with the views of the items in the items order.
+  func accessibilityChildrenInItemsOrder(_ children: [Any]) -> [Any] {
     var itemIndices: [ObjectIdentifier: Int] = [:]
     for (index, id) in renderableItemIds.enumerated() {
       if let view = renderableMap[id]?.view {
@@ -2205,16 +2207,16 @@ open class ComposeView: BaseScrollView {
       }
     }
 
-    // the places of the items' views among the subviews, which take the items' views in the items order
-    let slots = subviews.indices.compactMap { place in
-      itemIndices[ObjectIdentifier(subviews[place])].map { (place: place, itemIndex: $0) }
+    // the places of the items' views among the children, which take the items' views in the items order
+    let slots = children.indices.compactMap { place in
+      (children[place] as? NSView).flatMap { itemIndices[ObjectIdentifier($0)] }.map { (place: place, itemIndex: $0) }
     }
-    let itemViews = slots.sorted { $0.itemIndex < $1.itemIndex }.map { subviews[$0.place] }
-    var orderedSubviews = subviews
+    let itemViews = slots.sorted { $0.itemIndex < $1.itemIndex }.map { children[$0.place] }
+    var orderedChildren = children
     for (slot, view) in zip(slots, itemViews) {
-      orderedSubviews[slot.place] = view
+      orderedChildren[slot.place] = view
     }
-    return orderedSubviews
+    return orderedChildren
   }
   #endif
 

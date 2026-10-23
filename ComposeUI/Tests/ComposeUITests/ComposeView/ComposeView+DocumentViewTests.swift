@@ -136,6 +136,20 @@ class ComposeView_DocumentViewTests: XCTestCase {
     expect(rows(of: children)) == Array(1 ..< 7)
   }
 
+  func test_accessibilityChildren_setByTheApp_stay() throws {
+    // given: rows of labels in a window, and an element of the app's own set as the document view's only child
+    let (_, view) = makeLabelRowsView()
+    view.refresh(animated: false)
+    let element = NSAccessibilityElement()
+    element.setAccessibilityRole(.group)
+    view.contentContainerView.setAccessibilityChildren([element])
+
+    // then: the children are the element that the app set
+    let children = try view.contentContainerView.accessibilityChildren().unwrap()
+    expect(children.count) == 1
+    expect(children.first as AnyObject) === element
+  }
+
   func test_accessibilityChildren_outsideAComposeView_comeInTheSubviewOrder() {
     // given: a document view outside a compose view, with labels out of their rows' order
     let documentView = ComposeView.DocumentView(frame: CGRect(x: 0, y: 0, width: 100, height: 300))

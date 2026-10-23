@@ -51,10 +51,11 @@ extension ComposeView {
   /// it, since ComposeUI makes and resets them itself. An app's view can rely on being removed in ways that ComposeUI
   /// can't check, so its identifier allows it only when the app passes `inPlace: true` to `reuseId(_:inPlace:)`.
   ///
-  /// On macOS, a view that passes every click through, which no insertion took, stays in place, hidden, for the
-  /// insertions of later passes, up to `maxHiddenViewCount` of a kind, see `ClickThroughView`: a scroll leaves views
-  /// over or lacks them in most steps, as the rows that it moves out and in differ, and each view that leaves the
-  /// content view or comes back makes AppKit build the layer tree of the window's views again.
+  /// On macOS, a view of one of ComposeUI's own reuse identifiers that passes every click through, which no insertion
+  /// took, stays in place, hidden, for the insertions of later passes, up to `maxHiddenViewCount` of a kind, see
+  /// `ClickThroughView`: a scroll leaves views over or lacks them in most steps, as the rows that it moves out and in
+  /// differ, and each view that leaves the content view or comes back makes AppKit build the layer tree of the window's
+  /// views again.
   ///
   /// It's a class that the view keeps in a constant, instead of a structure in a variable, since each call on a
   /// structure in a variable of the view checks at run time that no other access to the variable overlaps it, which
@@ -88,8 +89,8 @@ extension ComposeView {
     /// The views that pass every click through, which earlier passes kept and no insertion took, hidden in place, by
     /// their reuse keys.
     ///
-    /// Only ComposeUI's own views pass every click through, so the keys are few, and their emptied arrays stay.
-    /// A hidden view takes no clicks, and assistive technologies skip it.
+    /// Only the views of ComposeUI's own reuse identifiers stay hidden, so the keys are few, and their emptied arrays
+    /// stay. A hidden view takes no clicks, and assistive technologies skip it.
     private var hiddenRenderables: [ReuseKey: [Renderable]] = [:]
 
     /// The number of hidden views, which lets a take skip the lookup when there's none.
@@ -124,10 +125,17 @@ extension ComposeView {
     // MARK: - Render Pass
 
     /// Starts keeping the views that the render pass's removals leave, before the removals.
-    func startKeeping() {
+    ///
+    /// - Parameter hasPool: Whether the compose view has a pool, without which it reuses no view, so the views that stay
+    ///   hidden from earlier passes are removed first. It's an autoclosure, read only when views stay hidden, since
+    ///   reading the compose view's pool costs more than the rest of the call.
+    func startKeeping(hasPool: @autoclosure () -> Bool = true) {
       isKeeping = true
       #if canImport(AppKit)
       isMouseButtonPressedInPass = nil
+      if hiddenCount > 0, !hasPool() {
+        removeHiddenViews()
+      }
       #endif
     }
 
@@ -253,14 +261,23 @@ extension ComposeView {
     }
 
     #if canImport(AppKit)
-    /// Hides a kept view that passes every click through in place, for an insertion of its kind in a later pass, while
-    /// fewer than `maxHiddenViewCount` views of its kind are hidden.
+    /// Hides a kept view of one of ComposeUI's own reuse identifiers that passes every click through in place, for an
+    /// insertion of its kind in a later pass, while fewer than `maxHiddenViewCount` views of its kind are hidden.
     ///
     /// - Parameters:
     ///   - renderable: The kept view, which no insertion took.
     ///   - key: The view's reuse key.
     /// - Returns: Whether the view stays hidden in place.
     private func hide(_ renderable: Renderable, key: ReuseKey) -> Bool {
+      switch key.reuseId.namespace {
+      case .framework:
+        break
+      case .user:
+        // an app can give each item a reuse identifier of its own, so its views leave for the pool instead of staying
+        // hidden without a limit
+        return false
+      }
+
       guard let view = renderable.view, view is ClickThroughView else {
         return false
       }
