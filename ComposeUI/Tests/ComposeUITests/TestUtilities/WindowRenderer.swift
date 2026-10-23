@@ -36,6 +36,9 @@ import XCTest
 
 /// A window with a view to render through `CARenderer`, which shows the pixels that the window shows, including the
 /// contents that AppKit draws for a layer-backed view, which `CALayer.render(in:)` draws again instead.
+///
+/// A render draws again only the layers that the changes since the last render marked for display, as a window's commit
+/// does, so a test can tell a change that doesn't draw again from one that does.
 final class WindowRenderer {
 
   /// A window whose backing store has a scale that a test sets, instead of the scale of the machine's screen, so the
@@ -63,6 +66,13 @@ final class WindowRenderer {
   let view: NSView
 
   private let commandQueue: MTLCommandQueue
+
+  /// The renderer that shows the view's layer, `nil` before the first render.
+  ///
+  /// The view's layer stays in the renderer from one render to the next, instead of moving into a new renderer for each
+  /// render, since moving a layer into a renderer or out of one marks the layers that draw for display, which would draw
+  /// each of them again on each render, whatever a change marked.
+  private var layerRenderer: LayerRenderer?
 
   /// The color space that the window shows its pixels in, which Core Animation draws the layers' backing stores in.
   ///
@@ -105,6 +115,59 @@ final class WindowRenderer {
     let scale = window.backingScaleFactor
     let width = Int((view.bounds.width * scale).rounded(.up))
     let height = Int((view.bounds.height * scale).rounded(.up))
+    let layerRenderer = try layerRenderer(width: width, height: height, scale: scale)
+    let texture = layerRenderer.texture
+    let renderer = layerRenderer.renderer
+
+    // the renderer draws into the same texture on each render, which starts each render transparent, as a new texture
+    let bytesPerRow = width * 4
+    let transparent = [UInt8](repeating: 0, count: bytesPerRow * height)
+    transparent.withUnsafeBytes { buffer in
+      if let baseAddress = buffer.baseAddress {
+        texture.replace(region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0, withBytes: baseAddress, bytesPerRow: bytesPerRow)
+      }
+    }
+
+    // the renderer takes the changes to the layer tree when the transaction commits
+    CATransaction.flush()
+    renderer.beginFrame(atTime: time ?? CACurrentMediaTime(), timeStamp: nil)
+    renderer.addUpdate(renderer.bounds)
+    renderer.render()
+    renderer.endFrame()
+
+    // a command buffer committed after the renderer's work on the same queue completes after it
+    let fence = commandQueue.makeCommandBuffer()
+    fence?.commit()
+    fence?.waitUntilCompleted()
+
+    var bytes = [UInt8](repeating: 0, count: bytesPerRow * height)
+    bytes.withUnsafeMutableBytes { buffer in
+      if let baseAddress = buffer.baseAddress {
+        texture.getBytes(baseAddress, bytesPerRow: bytesPerRow, from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0)
+      }
+    }
+    return RenderedPixels(width: width, height: height, bytes: bytes)
+  }
+
+  /// Returns the renderer that shows the view's layer: the last render's renderer, while the layer is still its root, at
+  /// the same size, scale and color space, or else a new renderer, which takes the layer.
+  ///
+  /// - Parameters:
+  ///   - width: The width of the view in the window's pixels.
+  ///   - height: The height of the view in the window's pixels.
+  ///   - scale: The scale of the window's backing store.
+  /// - Returns: The renderer, with the texture that it draws into.
+  private func layerRenderer(width: Int, height: Int, scale: CGFloat) throws -> LayerRenderer {
+    let layer = try XCTUnwrap(view.layer)
+    if let layerRenderer, layerRenderer.renderer.layer === layer, layer.superlayer == nil,
+       layerRenderer.texture.width == width, layerRenderer.texture.height == height, layerRenderer.scale == scale, layerRenderer.colorSpace == colorSpace
+    {
+      return layerRenderer
+    }
+
+    // a layer is in one renderer at a time, so it leaves the last renderer before a new renderer takes it
+    layerRenderer?.renderer.layer = nil
+
     let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
     descriptor.usage = [.renderTarget, .shaderRead]
     descriptor.storageMode = .shared
@@ -112,7 +175,6 @@ final class WindowRenderer {
 
     // the renderer maps the layer's points to the texture's pixels one to one, so the view's layer scales its sublayers
     // to show their contents one pixel to one pixel
-    let layer = try XCTUnwrap(view.layer)
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     layer.sublayerTransform = CATransform3DMakeScale(scale, scale, 1)
@@ -126,26 +188,20 @@ final class WindowRenderer {
     let renderer = CARenderer(mtlTexture: texture, options: options)
     renderer.layer = layer
     renderer.bounds = CGRect(x: 0, y: 0, width: width, height: height)
-    // the renderer takes the layer tree when the transaction commits
-    CATransaction.flush()
-    renderer.beginFrame(atTime: time ?? CACurrentMediaTime(), timeStamp: nil)
-    renderer.addUpdate(renderer.bounds)
-    renderer.render()
-    renderer.endFrame()
 
-    // a command buffer committed after the renderer's work on the same queue completes after it
-    let fence = commandQueue.makeCommandBuffer()
-    fence?.commit()
-    fence?.waitUntilCompleted()
-    renderer.layer = nil
+    let layerRenderer = LayerRenderer(renderer: renderer, texture: texture, scale: scale, colorSpace: colorSpace)
+    self.layerRenderer = layerRenderer
+    return layerRenderer
+  }
 
-    var bytes = [UInt8](repeating: 0, count: width * height * 4)
-    bytes.withUnsafeMutableBytes { buffer in
-      if let baseAddress = buffer.baseAddress {
-        texture.getBytes(baseAddress, bytesPerRow: width * 4, from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0)
-      }
-    }
-    return RenderedPixels(width: width, height: height, bytes: bytes)
+  /// A renderer that shows the view's layer, with the texture that it draws into, and the scale and the color space that
+  /// it draws at.
+  private struct LayerRenderer {
+
+    let renderer: CARenderer
+    let texture: MTLTexture
+    let scale: CGFloat
+    let colorSpace: NSColorSpace
   }
 }
 
