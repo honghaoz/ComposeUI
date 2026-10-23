@@ -403,6 +403,200 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
   }
   #endif
 
+  // MARK: - Views that pass clicks through
+
+  #if canImport(AppKit)
+  func test_scroll_labelReusedInPlace_staysWhereItIsAmongTheSubviews() throws {
+    // given: rows of labels in a window, rendered at the top, with a pool that records its use
+    let pool = RecordingPool()
+    let (_, view) = makeLabelRowsView(pool: pool)
+    view.refresh(animated: false)
+    let subviews = view.contentContainerView.subviews
+    let rowZeroLabel = try labelView(showing: 0, in: view).unwrap()
+
+    // when: scrolling by one row, which moves row 0 out and row 2 in
+    scroll(view, to: Constants.rowHeight)
+
+    // then: row 2 shows in the label view of row 0, which stays where it was among the subviews, since a label passes
+    // every click through, so the subviews keep their order
+    expect(labelView(showing: 2, in: view)) === rowZeroLabel
+    expect(view.contentContainerView.subviews.elementsEqual(subviews, by: ===)) == true
+    expect(pool.enqueued.count) == 0
+  }
+
+  func test_scroll_labelLeftOver_staysHiddenInPlaceForALaterRow() throws {
+    // given: rows of labels in a window, with a pool that records its use, scrolled by half a row, so that 3 rows show
+    let pool = RecordingPool()
+    let (_, view) = makeLabelRowsView(pool: pool)
+    view.refresh(animated: false)
+    scroll(view, to: Constants.rowHeight / 2)
+    let subviews = view.contentContainerView.subviews
+    let rowZeroLabel = try labelView(showing: 0, in: view).unwrap()
+    let enqueuedCount = pool.enqueued.count
+    let dequeueCount = pool.dequeueCount
+
+    // when: scrolling by another half row, which moves row 0 out without moving a row in
+    scroll(view, to: Constants.rowHeight)
+
+    // then: the label view of row 0 stays where it was, hidden, out of the pool
+    expect(rowZeroLabel.superview) === view.contentContainerView
+    expect(rowZeroLabel.isHidden) == true
+    expect(shownRows(in: view)) == [1, 2]
+    expect(pool.enqueued.count) == enqueuedCount
+
+    // when: scrolling by another half row, which moves row 3 in without moving a row out
+    scroll(view, to: 1.5 * Constants.rowHeight)
+
+    // then: row 3 shows in the hidden label view, shown again, without the pool, and the subviews are the ones before,
+    // in their order
+    expect(labelView(showing: 3, in: view)) === rowZeroLabel
+    expect(rowZeroLabel.isHidden) == false
+    expect(shownRows(in: view)) == [1, 2, 3]
+    expect(view.contentContainerView.subviews.elementsEqual(subviews, by: ===)) == true
+    expect(pool.enqueued.count) == enqueuedCount
+    expect(pool.dequeueCount) == dequeueCount
+  }
+
+  func test_removal_ofMoreLabelsThanTheLimit_hidesAsManyAsTheLimitAndPoolsTheRest() {
+    // given: as many rows of labels as the limit and 2 more, all shown in a window, with a pool that records its use
+    let rowCount = ComposeView.InPlaceReuse.maxHiddenViewCount + 2
+    var showsRows = true
+    let pool = RecordingPool()
+    let (_, view) = makeView(pool: pool) {
+      VStack {
+        if showsRows {
+          for row in 0 ..< rowCount {
+            LabelNode("Row \(row)")
+              .frame(width: .flexible, height: Constants.rowHeight)
+          }
+        }
+      }
+    }
+    view.frame.size.height = CGFloat(rowCount) * Constants.rowHeight
+    view.refresh(animated: false)
+    expect(labelViews(in: view).count) == rowCount
+
+    // when: the rows go, which removes every label without inserting one
+    showsRows = false
+    view.refresh(animated: false)
+
+    // then: as many label views as the limit stay hidden in place, and the other 2 leave for the pool, shown
+    let labels = labelViews(in: view)
+    expect(labels.count) == ComposeView.InPlaceReuse.maxHiddenViewCount
+    expect(labels.allSatisfy(\.isHidden)) == true
+    expect(pool.enqueued.count) == 2
+    for enqueued in pool.enqueued {
+      expect(enqueued.renderable.view is TextLabelView) == true
+      expect(enqueued.renderable.view?.superview) == nil
+      expect(enqueued.renderable.view?.isHidden) == false
+    }
+  }
+
+  func test_scroll_labelsOfAppReuseIdentifiers_leaveForThePoolInsteadOfStayingHidden() {
+    // given: rows of labels, each with a reuse identifier of the app's own that allows a reuse in place, in a window,
+    // with a pool that records its use
+    let pool = RecordingPool()
+    let (_, view) = makeView(pool: pool) {
+      VStack {
+        for row in 0 ..< Constants.rowCount {
+          LabelNode("Row \(row)")
+            .reuseId("row-\(row)", inPlace: true)
+            .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.refresh(animated: false)
+
+    // when: scrolling by half a row at a time, by 10 rows
+    for step in 1 ... 20 {
+      scroll(view, to: CGFloat(step) * Constants.rowHeight / 2)
+    }
+
+    // then: no label view stays hidden, since an app can give each row an identifier of its own, and the label views of
+    // the 10 rows that moved out left for the pool
+    expect(labelViews(in: view).filter(\.isHidden).count) == 0
+    expect(shownRows(in: view)) == [10, 11]
+    expect(pool.enqueued.count) == 10
+    for enqueued in pool.enqueued {
+      expect(enqueued.renderable.view is TextLabelView) == true
+      expect(enqueued.renderable.view?.superview) == nil
+    }
+  }
+
+  func test_scroll_withoutAPool_releasesTheHiddenLabel() throws {
+    // given: rows of labels in a window, scrolled so that the label view of row 0 stays hidden
+    let (_, view) = makeLabelRowsView(pool: RecordingPool())
+    view.refresh(animated: false)
+    scroll(view, to: Constants.rowHeight / 2)
+    let rowZeroLabel = try labelView(showing: 0, in: view).unwrap()
+    scroll(view, to: Constants.rowHeight)
+    expect(rowZeroLabel.isHidden) == true
+
+    // when: the view stops reusing views, and scrolls by another half row, which moves row 3 in
+    view.renderablePool = nil
+    scroll(view, to: 1.5 * Constants.rowHeight)
+
+    // then: the hidden label view left the content view, and row 3 shows in a label view of its own
+    expect(rowZeroLabel.superview) == nil
+    expect(labelView(showing: 3, in: view)) !== rowZeroLabel
+    expect(labelViews(in: view).filter(\.isHidden).count) == 0
+  }
+
+  func test_scroll_viewsThatTakeClicks_stayInTheItemsOrderAmongLabels() {
+    // given: rows that alternate between views that take clicks and labels, in a window that shows 6 rows, rendered at
+    // row 10, so that a scroll can move either way
+    let (window, view) = makeMixedRowsView(pool: RecordingPool())
+    view.frame.size.height = 6 * Constants.rowHeight
+    view.refresh(animated: false)
+    window.displayIfNeeded()
+    scroll(view, to: 10 * Constants.rowHeight)
+
+    for firstRow in [11, 12, 13, 14, 13, 12, 11, 10, 9, 8, 7] {
+      // when: scrolling by one row
+      scroll(view, to: CGFloat(firstRow) * Constants.rowHeight)
+
+      // then: the views that take clicks are in their rows' order among the subviews, whatever the labels' places,
+      // which keeps the hit-testing order, and their layers in the sublayer order
+      let shownClickRows = (firstRow ..< firstRow + 6).filter { $0.isMultiple(of: 2) }
+      expect(rowsInSubviewOrder(of: view)) == shownClickRows
+      expect(rowsInSublayerOrder(of: view)) == shownClickRows
+    }
+  }
+
+  func test_refresh_reorderedContent_restacksTheViewsThatTakeClicks_andLeavesTheLabels() {
+    // given: rows of a view that takes clicks and a label, each with a fixed id, in a window, so that reordering the
+    // rows keeps the item ids
+    var rows = [0, 1, 2, 3]
+    let (_, view) = makeView(pool: RecordingPool()) {
+      VStack {
+        for row in rows {
+          HStack {
+            RowNode(row: row, reuseId: Constants.rowReuseId)
+              .fixedId("view \(row)")
+              .frame(width: Constants.viewSize.width / 2, height: Constants.rowHeight)
+            LabelNode("Row \(row)")
+              .fixedId("label \(row)")
+          }
+          .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.frame.size.height = 4 * Constants.rowHeight
+    view.refresh(animated: false)
+    let labelsInSubviewOrder = labelViews(in: view)
+    expect(rowsInSubviewOrder(of: view)) == [0, 1, 2, 3]
+
+    // when: reversing the rows, which keeps each row's views, out of their order
+    rows = [3, 2, 1, 0]
+    view.refresh(animated: false)
+
+    // then: the views that take clicks are in the new order, and the labels keep their order among the subviews
+    expect(rowsInSubviewOrder(of: view)) == [3, 2, 1, 0]
+    expect(labelViews(in: view).elementsEqual(labelsInSubviewOrder, by: ===)) == true
+    expect(shownRows(in: view)) == [0, 1, 2, 3]
+  }
+  #endif
+
   // MARK: - InPlaceReuse
 
   func test_take_returnsTheLastKeptViewOfTheKind() {
@@ -597,6 +791,258 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(pool.enqueued.count) == 0
   }
 
+  #if canImport(AppKit)
+  func test_stopKeeping_viewsThatPassClicksThrough_stayHiddenInPlaceForALaterPass() {
+    // given: two kept label views, which pass every click through, and a kept view that takes clicks, in a parent
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
+    let parent = View()
+    let labelA = TextLabelView(frame: .zero)
+    let labelB = TextLabelView(frame: .zero)
+    let viewA = View()
+    parent.addSubview(labelA)
+    parent.addSubview(labelB)
+    parent.addSubview(viewA)
+    reuse.keep(.view(labelA), key: Constants.labelKey)
+    reuse.keep(.view(labelB), key: Constants.labelKey)
+    reuse.keep(.view(viewA), key: Constants.keyA)
+    let pool = RecordingPool()
+
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: pool)
+
+    // then: the label views stay in their parent, hidden, out of the pool, and the view that takes clicks leaves for
+    // the pool
+    expect(parent.subviews.elementsEqual([labelA, labelB], by: ===)) == true
+    expect(labelA.isHidden) == true
+    expect(labelB.isHidden) == true
+    expect(viewA.superview) == nil
+    expect(pool.enqueued.count) == 1
+    expect(pool.enqueued.first?.renderable.view) === viewA
+
+    // when: a later pass takes views of the label views' kind
+    reuse.startKeeping()
+
+    // then: each take shows the last hidden view again, in place, until none is left
+    expect(reuse.take(Constants.labelKey)?.view) === labelB
+    expect(labelB.isHidden) == false
+    expect(labelB.superview) === parent
+    expect(labelA.isHidden) == true
+    expect(reuse.take(Constants.labelKey)?.view) === labelA
+    expect(labelA.isHidden) == false
+    expect(reuse.take(Constants.labelKey)?.view) == nil
+    reuse.stopKeeping(addingTo: pool)
+    expect(pool.enqueued.count) == 1
+  }
+
+  func test_stopKeeping_viewThatPassesClicksThroughOfAnAppReuseIdentifier_leavesForThePool() {
+    // given: a kept label view of a reuse identifier of the app's own, in a parent
+    let reuse = ComposeView.InPlaceReuse()
+    reuse.startKeeping()
+    let parent = View()
+    let label = TextLabelView(frame: .zero)
+    parent.addSubview(label)
+    reuse.keep(.view(label), key: Constants.appLabelKey)
+    let pool = RecordingPool()
+
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: pool)
+
+    // then: the label view leaves for the pool, shown, since an app can give each item an identifier of its own
+    expect(label.superview) == nil
+    expect(label.isHidden) == false
+    expect(pool.enqueued.count) == 1
+    expect(pool.enqueued.first?.renderable.view) === label
+  }
+
+  func test_startKeeping_withoutAPool_releasesTheHiddenViews() {
+    // given: a hidden label view, which nothing else keeps, and a count of the reads of whether there's a pool
+    let reuse = ComposeView.InPlaceReuse()
+    let parent = View()
+    var poolReadCount = 0
+    func hasPool(_ value: Bool) -> Bool {
+      poolReadCount += 1
+      return value
+    }
+    reuse.startKeeping(hasPool: hasPool(true))
+    expect(poolReadCount) == 0
+    weak var weakLabel: TextLabelView?
+    autoreleasepool {
+      let label = TextLabelView(frame: .zero)
+      weakLabel = label
+      parent.addSubview(label)
+      reuse.keep(.view(label), key: Constants.labelKey)
+      reuse.stopKeeping(addingTo: nil)
+    }
+    expect(weakLabel?.isHidden) == true
+
+    // when: a pass starts with a pool
+    reuse.startKeeping(hasPool: hasPool(true))
+    reuse.stopKeeping(addingTo: nil)
+
+    // then: the hidden view stays
+    expect(poolReadCount) == 1
+    expect(weakLabel?.superview) === parent
+    expect(weakLabel?.isHidden) == true
+
+    // when: a pass starts without a pool
+    autoreleasepool {
+      reuse.startKeeping(hasPool: hasPool(false))
+    }
+
+    // then: the hidden view left its parent and was released, and none is left to take
+    expect(poolReadCount) == 2
+    expect(parent.subviews.isEmpty) == true
+    expect(weakLabel) == nil
+    expect(reuse.take(Constants.labelKey)?.view) == nil
+  }
+
+  func test_take_viewThatThePassKept_comesBeforeAHiddenView() {
+    // given: a label view hidden by an earlier pass, and a label view that this pass kept, in a parent
+    let reuse = ComposeView.InPlaceReuse()
+    let parent = View()
+    let hiddenLabel = TextLabelView(frame: .zero)
+    let keptLabel = TextLabelView(frame: .zero)
+    parent.addSubview(hiddenLabel)
+    parent.addSubview(keptLabel)
+    reuse.startKeeping()
+    reuse.keep(.view(hiddenLabel), key: Constants.labelKey)
+    reuse.stopKeeping(addingTo: nil)
+    reuse.startKeeping()
+    reuse.keep(.view(keptLabel), key: Constants.labelKey)
+
+    // then: the label view that this pass kept is taken first, as it is, and then the hidden one, shown again
+    expect(reuse.take(Constants.labelKey)?.view) === keptLabel
+    expect(keptLabel.isHidden) == false
+    expect(hiddenLabel.isHidden) == true
+    expect(reuse.take(Constants.labelKey)?.view) === hiddenLabel
+    expect(hiddenLabel.isHidden) == false
+  }
+
+  func test_take_withoutAHiddenViewOfTheKind_returnsNil() {
+    // given: a hidden label view of one kind
+    let reuse = ComposeView.InPlaceReuse()
+    let parent = View()
+    let label = TextLabelView(frame: .zero)
+    parent.addSubview(label)
+    reuse.startKeeping()
+    reuse.keep(.view(label), key: Constants.labelKey)
+    reuse.stopKeeping(addingTo: nil)
+
+    // then: a take of another kind returns nil, and leaves the hidden view
+    expect(reuse.take(Constants.keyA)?.view) == nil
+    expect(label.isHidden) == true
+
+    // when: taking the hidden view
+    expect(reuse.take(Constants.labelKey)?.view) === label
+
+    // then: another take of its kind returns nil
+    expect(reuse.take(Constants.labelKey)?.view) == nil
+  }
+
+  func test_stopKeeping_viewsThatPassClicksThroughPastTheLimit_poolsTheRest() {
+    // given: as many hidden label views as the limit, from an earlier pass, in a parent
+    let reuse = ComposeView.InPlaceReuse()
+    let parent = View()
+    reuse.startKeeping()
+    for _ in 0 ..< ComposeView.InPlaceReuse.maxHiddenViewCount {
+      let label = TextLabelView(frame: .zero)
+      parent.addSubview(label)
+      reuse.keep(.view(label), key: Constants.labelKey)
+    }
+    reuse.stopKeeping(addingTo: nil)
+    expect(parent.subviews.count) == ComposeView.InPlaceReuse.maxHiddenViewCount
+
+    // when: a pass keeps one more label view, which no insertion takes
+    let extraLabel = TextLabelView(frame: .zero)
+    parent.addSubview(extraLabel)
+    reuse.startKeeping()
+    reuse.keep(.view(extraLabel), key: Constants.labelKey)
+    let pool = RecordingPool()
+    reuse.stopKeeping(addingTo: pool)
+
+    // then: the extra label view leaves for the pool, shown, and the hidden ones stay
+    expect(extraLabel.superview) == nil
+    expect(extraLabel.isHidden) == false
+    expect(pool.enqueued.count) == 1
+    expect(pool.enqueued.first?.renderable.view) === extraLabel
+    expect(parent.subviews.count) == ComposeView.InPlaceReuse.maxHiddenViewCount
+    expect(parent.subviews.allSatisfy(\.isHidden)) == true
+  }
+
+  func test_stopKeeping_everyKeptViewStaysHidden_leavesThePoolUnread() {
+    // given: a kept label view in a parent
+    let reuse = ComposeView.InPlaceReuse()
+    let parent = View()
+    let label = TextLabelView(frame: .zero)
+    parent.addSubview(label)
+    reuse.startKeeping()
+    reuse.keep(.view(label), key: Constants.labelKey)
+    var poolReadCount = 0
+    func readPool() -> RenderablePoolType {
+      poolReadCount += 1
+      return RecordingPool()
+    }
+
+    // when: stopping keeping views
+    reuse.stopKeeping(addingTo: readPool())
+
+    // then: the label view stays hidden, and the pool isn't read
+    expect(label.isHidden) == true
+    expect(poolReadCount) == 0
+  }
+
+  func test_memoryWarning_removesAndReleasesTheHiddenViews() {
+    // given: a hidden label view, which nothing else keeps, of an in-place reuse, and a released in-place reuse that
+    // hid a view
+    let reuse = ComposeView.InPlaceReuse()
+    let parent = View()
+    weak var weakLabel: TextLabelView?
+    autoreleasepool {
+      let label = TextLabelView(frame: .zero)
+      weakLabel = label
+      parent.addSubview(label)
+      reuse.startKeeping()
+      reuse.keep(.view(label), key: Constants.labelKey)
+      reuse.stopKeeping(addingTo: nil)
+    }
+    weak var weakReleasedReuse: ComposeView.InPlaceReuse?
+    autoreleasepool {
+      let releasedReuse = ComposeView.InPlaceReuse()
+      weakReleasedReuse = releasedReuse
+      let label = TextLabelView(frame: .zero)
+      View().addSubview(label)
+      releasedReuse.startKeeping()
+      releasedReuse.keep(.view(label), key: Constants.labelKey)
+      releasedReuse.stopKeeping(addingTo: nil)
+    }
+    expect(weakLabel?.isHidden) == true
+    expect(weakReleasedReuse) == nil
+
+    // when: the system is low on memory
+    autoreleasepool {
+      MemoryWarning.handleMemoryWarning()
+    }
+
+    // then: the hidden label view left its parent and was released, and none is left to take
+    expect(parent.subviews.isEmpty) == true
+    expect(weakLabel) == nil
+    expect(reuse.take(Constants.labelKey)?.view) == nil
+
+    // when: the in-place reuse hides another view, and the system is low on memory again
+    let label = TextLabelView(frame: .zero)
+    parent.addSubview(label)
+    reuse.startKeeping()
+    reuse.keep(.view(label), key: Constants.labelKey)
+    reuse.stopKeeping(addingTo: nil)
+    MemoryWarning.handleMemoryWarning()
+
+    // then: the memory warning removes the new hidden view too, shown
+    expect(label.superview) == nil
+    expect(label.isHidden) == false
+  }
+  #endif
+
   func test_canKeep() {
     // given: views in place
     let reuse = ComposeView.InPlaceReuse()
@@ -769,6 +1215,11 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     static let appKey = ReuseKey(reuseId: ReuseId(namespace: .user, id: "a"), type: ObjectIdentifier(View.self))
     static let appInPlaceKey = ReuseKey(reuseId: ReuseId(namespace: .user, id: "a", reusesInPlace: true), type: ObjectIdentifier(View.self))
 
+    #if canImport(AppKit)
+    static let labelKey = ReuseKey(reuseId: ReuseId(namespace: .framework, id: "label", reusesInPlace: true), type: ObjectIdentifier(TextLabelView.self))
+    static let appLabelKey = ReuseKey(reuseId: ReuseId(namespace: .user, id: "label", reusesInPlace: true), type: ObjectIdentifier(TextLabelView.self))
+    #endif
+
     /// The reuse identifier of the rows' views, as ComposeUI's own nodes give their views.
     static let rowReuseId = ReuseId(namespace: .framework, id: "row", reusesInPlace: true)
   }
@@ -807,6 +1258,55 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
       }
     }
   }
+
+  #if canImport(AppKit)
+  /// Returns a view of rows of labels in a window.
+  private func makeLabelRowsView(pool: RenderablePoolType) -> (TestWindow, ComposeView) {
+    makeView(pool: pool) {
+      VStack {
+        for row in 0 ..< Constants.rowCount {
+          LabelNode("Row \(row)")
+            .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+  }
+
+  /// Returns a view of rows in a window, which alternate between views that take clicks, in the even rows, and labels.
+  private func makeMixedRowsView(pool: RenderablePoolType) -> (TestWindow, ComposeView) {
+    makeView(pool: pool) {
+      VStack {
+        for row in 0 ..< Constants.rowCount {
+          if row.isMultiple(of: 2) {
+            RowNode(row: row, reuseId: Constants.rowReuseId)
+              .frame(width: .flexible, height: Constants.rowHeight)
+          } else {
+            LabelNode("Row \(row)")
+              .frame(width: .flexible, height: Constants.rowHeight)
+          }
+        }
+      }
+    }
+  }
+
+  /// Returns the label views in the content view, in the subview order, shown or hidden.
+  private func labelViews(in view: ComposeView) -> [TextLabelView] {
+    view.contentContainerView.subviews.compactMap { $0 as? TextLabelView }
+  }
+
+  /// Returns the shown label view that shows a row.
+  private func labelView(showing row: Int, in view: ComposeView) -> TextLabelView? {
+    labelViews(in: view).first { !$0.isHidden && $0.attributedString.string == "Row \(row)" }
+  }
+
+  /// Returns the rows that the shown label views show, in the rows' order.
+  private func shownRows(in view: ComposeView) -> [Int] {
+    labelViews(in: view)
+      .filter { !$0.isHidden }
+      .compactMap { Int($0.attributedString.string.dropFirst("Row ".count)) }
+      .sorted()
+  }
+  #endif
 
   /// Returns a compose view in a window, with a pool.
   private func makeView(pool: RenderablePoolType, @ComposeContentBuilder content: @escaping () -> ComposeContent) -> (TestWindow, ComposeView) {

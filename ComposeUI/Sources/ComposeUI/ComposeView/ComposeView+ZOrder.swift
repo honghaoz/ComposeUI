@@ -49,8 +49,9 @@ extension ComposeView {
   ///   layers share the content view's sublayers, but AppKit stacks the backing layers above the other sublayers when it
   ///   displays, so the sublayer order can't keep the two kinds interleaved. A layer's `zPosition` is its item's z-index
   ///   band plus a fraction of its key, which increases in the items order (see `updateZPosition(of:zIndex:index:)`).
-  /// - The hit-testing order comes from the subview order, which the pass keeps in the items order among the view items.
-  ///   Layer items never hit-test.
+  /// - The hit-testing order comes from the subview order, which the pass keeps in the items order among the views that
+  ///   take clicks. Layer items never hit-test, and on macOS, a view that passes every click through can be anywhere
+  ///   in the subview order, see `ClickThroughView`.
   ///
   /// A render pass records each reused item, an item of the previous pass that it keeps, from the loop that walks the
   /// previous items in order (`recordReuse(oldIndex:newIndex:)`), finishes recording, then places each renderable in
@@ -70,11 +71,13 @@ extension ComposeView {
     /// the layer's properties and makes the commit copy the layer again.
     private(set) var keyOffset = 0
 
-    /// Whether the reused items changed their order, so that every view moves to the front in the items order.
+    /// Whether the reused items changed their order, so that every view that takes clicks moves to the front in the items
+    /// order.
     ///
     /// Moving a view to the front costs time in proportion to its siblings, so the pass moves the views only when the
     /// reused items changed their order, such as in a refresh that reordered the content. Otherwise, the reused views
-    /// stay where they are, and each new view goes below the next reused view, see `insert(_:at:into:ids:reusedRenderables:)`.
+    /// stay where they are, and each new view goes below the next reused view that takes clicks, see
+    /// `insert(_:at:into:ids:reusedRenderables:)`.
     private(set) var restacksViews = false
 
     /// The index of the reused item nearest the middle of the previous items.
@@ -228,11 +231,14 @@ extension ComposeView {
       }
     }
 
-    /// Places a new item's renderable in the content view, in the subview order of the items if it's a view.
+    /// Places a new item's renderable in the content view, in the subview order of the items if it's a view that takes
+    /// clicks.
     ///
-    /// A new view goes below the next reused view in the items order, or to the front when no reused view comes after
-    /// it. The reused views keep their order, so each view is in place once it's added, without another move. When
-    /// the reused views restack, every view goes to the front in the items order instead.
+    /// A new view goes below the next reused view that takes clicks in the items order, or to the front when no such
+    /// view comes after it. The reused views keep their order, so each view is in place once it's added, without another
+    /// move. When the reused views restack, every view that takes clicks goes to the front in the items order instead.
+    /// On macOS, a view that passes every click through stays where a removal in the pass left it, or goes to the front,
+    /// see `ClickThroughView`.
     ///
     /// - Parameters:
     ///   - renderable: The new item's renderable. A view that a removal in the pass left in place is in the content view
@@ -242,15 +248,34 @@ extension ComposeView {
     ///   - ids: The ids of the render pass's items, in order.
     ///   - reusedRenderables: The reused renderables, by their items' ids.
     mutating func insert(_ renderable: Renderable, at index: Int, into parent: View, ids: [ComposeNodeId], reusedRenderables: [ComposeNodeId: Renderable]) {
-      if !restacksViews, let view = renderable.view, let sibling = nextReusedView(after: index, ids: ids, reusedRenderables: reusedRenderables) {
+      if let view = renderable.view, Self.passesClicksThrough(view) {
+        if view.superview !== parent {
+          parent.addSubview(view)
+        }
+      } else if !restacksViews, let view = renderable.view, let sibling = nextReusedView(after: index, ids: ids, reusedRenderables: reusedRenderables) {
         parent.insertSubview(view, belowSubview: sibling)
       } else {
         renderable.addToParent(parent)
       }
     }
 
-    /// Returns the next reused view after an index in the items order, or `nil` when no reused view comes after it.
+    /// Returns whether a view passes every click through, so that its place in the subview order doesn't matter, see
+    /// `ClickThroughView`.
     ///
+    /// - Parameter view: The view.
+    /// - Returns: Whether the view passes every click through, which only a view on macOS can.
+    static func passesClicksThrough(_ view: View) -> Bool {
+      #if canImport(AppKit)
+      return view is ClickThroughView
+      #else
+      return false
+      #endif
+    }
+
+    /// Returns the next reused view that takes clicks after an index in the items order, or `nil` when no such view
+    /// comes after it.
+    ///
+    /// A view that passes every click through can be anywhere in the subview order, so it's no place to insert below.
     /// The new views are added in the items order, so the search continues from the view it found for the previous new
     /// view, which looks at each item at most once in a render pass.
     private mutating func nextReusedView(after index: Int, ids: [ComposeNodeId], reusedRenderables: [ComposeNodeId: Renderable]) -> View? {
@@ -258,7 +283,7 @@ extension ComposeView {
         nextReusedViewIndex = index + 1
         nextReusedView = nil
         while nextReusedViewIndex < ids.count {
-          if let view = reusedRenderables[ids[nextReusedViewIndex]]?.view {
+          if let view = reusedRenderables[ids[nextReusedViewIndex]]?.view, !Self.passesClicksThrough(view) {
             nextReusedView = view
             break
           }

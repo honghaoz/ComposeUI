@@ -161,19 +161,29 @@ class TextNodeTests: XCTestCase {
     isSelectable = true
     contentView.refresh(animated: false)
 
-    // then: a selectable text view showing the text replaces the label view
+    // then: a selectable text view showing the text replaces the label view, which on macOS stays in the compose view,
+    // hidden, for a later label, and elsewhere leaves it
     let textView = try (renderedView as? BaseTextView).unwrap()
     expect(textView.isSelectable) == true
     expect(textView.attributedString.string) == "Hello"
     expect(textView.superview) != nil
+    #if canImport(AppKit)
+    expect(labelView.superview) === contentView.contentContainerView
+    expect(labelView.isHidden) == true
+    #else
     expect(labelView.superview) == nil
+    #endif
 
     // when: the text node isn't selectable again
     isSelectable = false
     contentView.refresh(animated: false)
 
-    // then: a label view replaces the text view
+    // then: a label view replaces the text view, the one that waited for a label on macOS, shown again
     expect((renderedView as? TextLabelView)?.attributedString.string) == "Hello"
+    expect(renderedView?.isHidden) == false
+    #if canImport(AppKit)
+    expect(renderedView) === labelView
+    #endif
     expect(textView.superview) == nil
   }
 

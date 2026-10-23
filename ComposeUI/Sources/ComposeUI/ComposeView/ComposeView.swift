@@ -270,6 +270,12 @@ open class ComposeView: BaseScrollView {
     fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
   }
 
+  #if canImport(AppKit)
+  override class func makeDocumentView() -> NSView {
+    DocumentView()
+  }
+  #endif
+
   private func commonInit() {
     contentScaleFactor = windowScaleFactor
 
@@ -1459,7 +1465,7 @@ open class ComposeView: BaseScrollView {
     var zOrder = ZOrderPass(oldItemCount: oldRenderableItemIds.count, previousKeyOffset: zPositionKeyOffset)
 
     // the removals below can keep their reusable views in place, for the insertions after them
-    inPlaceReuse.startKeeping()
+    inPlaceReuse.startKeeping(hasPool: renderablePool != nil)
 
     // the old and new items are read in place from their arrays, by index, since looking them up in a map of items
     // would copy each item, which retains and releases its references
@@ -1656,8 +1662,8 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
-        if zOrder.restacksViews, let view = renderable.view {
-          // only view items need re-stacking: the subview order drives the hit-testing order.
+        if zOrder.restacksViews, let view = renderable.view, !ZOrderPass.passesClicksThrough(view) {
+          // only the views that take clicks need re-stacking: the subview order drives the hit-testing order.
           // the visual z-order is driven by the layers' `zPosition`, so layer items need no re-stacking.
           // skips `moveToFront()`'s `subviews.last` check, which copies the array, since only the first view of a
           // restack can be at the front already. `addSubview` would walk the view's subviews
@@ -2180,6 +2186,39 @@ open class ComposeView: BaseScrollView {
       prefetchItems.removeAll(keepingCapacity: true)
     }
   }
+
+  // MARK: - Accessibility
+
+  #if canImport(AppKit)
+  /// Returns the content view's accessibility children with the views of the items among them in the items order, in
+  /// the places that they take, and the other children, such as views being removed or elements that an app sets, in
+  /// theirs.
+  ///
+  /// AppKit tells a view's children in the subview order, while a render pass keeps only the views that take clicks in
+  /// the items order, see `ClickThroughView`.
+  ///
+  /// - Parameter children: The children that AppKit tells.
+  /// - Returns: The children, with the views of the items in the items order.
+  func accessibilityChildrenInItemsOrder(_ children: [Any]) -> [Any] {
+    var itemIndices: [ObjectIdentifier: Int] = [:]
+    for (index, id) in renderableItemIds.enumerated() {
+      if let view = renderableMap[id]?.view {
+        itemIndices[ObjectIdentifier(view)] = index
+      }
+    }
+
+    // the places of the items' views among the children, which take the items' views in the items order
+    let slots = children.indices.compactMap { place in
+      (children[place] as? NSView).flatMap { itemIndices[ObjectIdentifier($0)] }.map { (place: place, itemIndex: $0) }
+    }
+    let itemViews = slots.sorted { $0.itemIndex < $1.itemIndex }.map { children[$0.place] }
+    var orderedChildren = children
+    for (slot, view) in zip(slots, itemViews) {
+      orderedChildren[slot.place] = view
+    }
+    return orderedChildren
+  }
+  #endif
 
   // MARK: - Testing
 
