@@ -203,10 +203,16 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
 
   // MARK: - Drawing
 
-  /// Marks the view to draw its text again.
+  /// Marks the label to draw its text again: the drawing layer when the label draws in it, or else the view.
   private func setNeedsDisplayForText() {
     #if canImport(AppKit)
-    needsDisplay = true
+    // AppKit would display a marked view only to have `updateLayer()` mark the drawing layer, so a label that draws in
+    // its layer marks the layer itself
+    if drawsInLayer {
+      drawingLayer?.setNeedsDisplay()
+    } else {
+      needsDisplay = true
+    }
     #endif
 
     #if canImport(UIKit)
@@ -257,9 +263,10 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   ///
   /// The drawing layer stands in for the view's own drawing, so it follows what AppKit does with that drawing: it covers
   /// the bounds at the window's scale, sits below the layer's other sublayers, and draws again whenever AppKit would draw
-  /// the view, which AppKit tells through `updateLayer()`. It relies on code outside the label leaving the label's layer
-  /// alone, as AppKit asks of a layer-backed view, since the layer's sublayers and transforms apply to a sublayer
-  /// differently than to the layer's own contents.
+  /// the view, which AppKit tells through `updateLayer()`. A change of the label's text, settings or size reaches the
+  /// drawing layer directly instead, without AppKit displaying the view. It relies on code outside the label leaving the
+  /// label's layer alone, as AppKit asks of a layer-backed view, since the layer's sublayers and transforms apply to a
+  /// sublayer differently than to the layer's own contents.
   private var drawsInLayer = false
 
   /// The layer that draws the text when the label draws in a layer, made the first time it does.
@@ -374,6 +381,10 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
     }
 
     self.drawsInLayer = drawsInLayer
+    // the drawing layer draws again when its bounds change, so while the label draws in it, a resize doesn't mark the
+    // view, which AppKit would display only to have `updateLayer()` mark the layer. AppKit's drawing of the text keeps
+    // AppKit's default for a view that draws, which draws the view again during a resize animation
+    layerContentsRedrawPolicy = drawsInLayer ? .onSetNeedsDisplay : .duringViewResize
     if drawsInLayer {
       drawingLayer?.isHidden = false
     } else {
