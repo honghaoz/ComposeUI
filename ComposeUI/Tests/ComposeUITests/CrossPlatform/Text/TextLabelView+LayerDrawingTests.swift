@@ -444,6 +444,127 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(drawingLayer.labelView) == nil
   }
 
+  // MARK: - Display Marks
+
+  func test_textChange_marksTheDrawingLayer_insteadOfTheView() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label in a window, drawing a text in its layer, with nothing marked for display
+    let (_, labelView) = Self.makeSettledLabel(text: Self.text("Row 12 title"))
+    let drawingLayer = try unwrap(labelView.test.drawingLayer)
+    expect(labelView.test.drawsInLayer) == true
+    expect(drawingLayer.needsDisplay()) == false
+    expect(labelView.layer?.needsDisplay()) == false
+
+    // when: showing another text, in the same size
+    labelView.attributedString = Self.text("Row 13 title")
+
+    // then: the drawing layer is marked to draw the text again, and the view isn't
+    expect(drawingLayer.needsDisplay()) == true
+    expect(labelView.layer?.needsDisplay()) == false
+  }
+
+  func test_settingsChange_marksTheDrawingLayer_insteadOfTheView() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    let changes: [(name: String, change: (TextLabelView) -> Void)] = [
+      ("number of lines", { $0.numberOfLines = 1 }),
+      ("line break mode", { $0.lineBreakMode = .byTruncatingTail }),
+      ("inset", { $0.textContainerInset = CGSize(width: 4, height: 2) }),
+    ]
+    for (name, change) in changes {
+      // given: a label in a window, drawing a text in its layer, with nothing marked for display
+      let (_, labelView) = Self.makeSettledLabel(text: Self.text("A paragraph that wraps across several lines in the label."))
+      let drawingLayer = try unwrap(labelView.test.drawingLayer, name)
+      expect(labelView.test.drawsInLayer, name) == true
+      expect(drawingLayer.needsDisplay(), name) == false
+
+      // when: changing a setting
+      change(labelView)
+
+      // then: the drawing layer is marked to draw the text again, and the view isn't
+      expect(drawingLayer.needsDisplay(), name) == true
+      expect(labelView.layer?.needsDisplay(), name) == false
+    }
+  }
+
+  func test_resize_marksTheDrawingLayer_insteadOfTheView() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label in a window, drawing a text in its layer, with nothing marked for display
+    let (_, labelView) = Self.makeSettledLabel(text: Self.text("Row 12 title"))
+    let drawingLayer = try unwrap(labelView.test.drawingLayer)
+    expect(drawingLayer.needsDisplay()) == false
+    expect(labelView.layer?.needsDisplay()) == false
+
+    // when: resizing it
+    labelView.setFrameSize(CGSize(width: 120, height: 64))
+
+    // then: the drawing layer takes the new size and is marked to draw the text again, and the view isn't
+    expect(labelView.test.drawsInLayer) == true
+    expect(drawingLayer.frame) == labelView.bounds
+    expect(drawingLayer.needsDisplay()) == true
+    expect(labelView.layer?.needsDisplay()) == false
+  }
+
+  func test_drawingThroughAppKit_afterDrawingInTheLayer_textChangeAndResize_markTheView() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label in a window, drawing a text in its layer, which a resize doesn't mark the view for
+    let (window, labelView) = Self.makeSettledLabel(text: Self.text("Row 12 title"))
+    expect(labelView.test.drawsInLayer) == true
+    expect(labelView.layerContentsRedrawPolicy) == .onSetNeedsDisplay
+
+    // when: showing a text with an emoji, which AppKit draws
+    labelView.attributedString = Self.text("Party \u{1F389}")
+
+    // then: the view takes AppKit's default redraw policy for a view that draws, which draws it again during a resize
+    // animation
+    expect(labelView.test.drawsInLayer) == false
+    expect(labelView.layerContentsRedrawPolicy) == .duringViewResize
+
+    // when: showing another text with an emoji, after a commit
+    Self.settle(window)
+    expect(labelView.layer?.needsDisplay()) == false
+    labelView.attributedString = Self.text("Party again \u{1F389}")
+
+    // then: the view is marked for AppKit to draw the text again
+    expect(labelView.layer?.needsDisplay()) == true
+
+    // when: resizing it, after a commit
+    Self.settle(window)
+    expect(labelView.layer?.needsDisplay()) == false
+    labelView.setFrameSize(CGSize(width: 120, height: 64))
+
+    // then: the view is marked for AppKit to draw the text in the new size, as AppKit marks a view that draws
+    expect(labelView.layer?.needsDisplay()) == true
+  }
+
+  func test_appKitDisplayRequests_whileTheLabelDrawsInItsLayer_markTheView() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label in a window in the light appearance, drawing a text in its layer, with nothing marked for display
+    let (window, labelView) = Self.makeSettledLabel(text: Self.text("Row 12 title"))
+    window.appearance = NSAppearance(named: .aqua)
+    Self.settle(window)
+    expect(labelView.test.drawsInLayer) == true
+    expect(labelView.layer?.needsDisplay()) == false
+
+    // when: the app asks the view to display again
+    labelView.needsDisplay = true
+
+    // then: the view is marked, so that AppKit tells the drawing layer through `updateLayer()`
+    expect(labelView.layer?.needsDisplay()) == true
+
+    // when: the window changes to the dark appearance, after a commit
+    Self.settle(window)
+    expect(labelView.layer?.needsDisplay()) == false
+    window.appearance = NSAppearance(named: .darkAqua)
+
+    // then: AppKit marks the view, so that the drawing layer draws the colors of the new appearance
+    expect(labelView.layer?.needsDisplay()) == true
+  }
+
   // MARK: - Drawing Ahead of Time
 
   func test_imageDrawnAhead_drawsTheSamePixelsAsAppKit() throws {
@@ -777,6 +898,26 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     labelView.attributedString = testCase.text
     renderer.view.addSubview(labelView)
     return (renderer, labelView)
+  }
+
+  /// Returns a label in a window that shows a text, after the window displays and commits, which leaves nothing marked for
+  /// display, so a test can tell what a change marks, unlike after a `WindowRenderer`'s render, which leaves the label's
+  /// layer marked.
+  private static func makeSettledLabel(text: NSAttributedString) -> (TestWindow, TextLabelView) {
+    let window = TestWindow()
+    let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 200, height: 64))
+    labelView.numberOfLines = 0
+    labelView.lineBreakMode = .byWordWrapping
+    labelView.attributedString = text
+    window.contentView().addSubview(labelView)
+    settle(window)
+    return (window, labelView)
+  }
+
+  /// Has a window display and commit, which clears what its views marked for display.
+  private static func settle(_ window: TestWindow) {
+    window.displayIfNeeded()
+    CATransaction.flush()
   }
 
   /// Returns a label in a window, with the settings of a case and a placeholder text, and a cache that drew the case's
