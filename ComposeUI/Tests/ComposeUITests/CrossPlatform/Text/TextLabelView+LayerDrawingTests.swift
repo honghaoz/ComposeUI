@@ -155,6 +155,24 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(try Self.differingPixelCountFromAppKit(labelView, renderer)) == 0
   }
 
+  func test_textChange_inTheLayer_drawsTheNewText_inTheSamePixelsAsAppKit() throws {
+    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label in a window, drawing a text in its layer
+    let (renderer, labelView) = try Self.makeLabel(Case(name: "plain", text: Self.text("Row 12 title")))
+    let pixels = try renderer.render()
+    expect(labelView.test.drawsInLayer) == true
+
+    // when: showing another text that the label draws in its layer
+    labelView.attributedString = Self.text("Row 13 title")
+
+    // then: the layer draws the new text, in the same pixels as AppKit
+    let newPixels = try renderer.render()
+    expect(labelView.test.drawsInLayer) == true
+    expect(newPixels.differingPixelCount(from: pixels)) > 0
+    expect(try Self.appKitPixels(labelView, renderer).differingPixelCount(from: newPixels)) == 0
+  }
+
   func test_resize_drawsInTheNewSize_inTheSamePixelsAsAppKit() throws {
     try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
@@ -901,8 +919,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   /// Returns a label in a window that shows a text, after the window displays and commits, which leaves nothing marked for
-  /// display, so a test can tell what a change marks, unlike after a `WindowRenderer`'s render, which leaves the label's
-  /// layer marked.
+  /// display, so a test can tell what a change marks.
   private static func makeSettledLabel(text: NSAttributedString) -> (TestWindow, TextLabelView) {
     let window = TestWindow()
     let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 200, height: 64))
