@@ -41,7 +41,7 @@ import UIKit
 /// `TextNode` shows a text that the user can neither edit nor select in this view, instead of in a `BaseTextView`. It
 /// lays out the text with TextKit 1, as ComposeUI measures text, and draws it, without a text view's machinery for
 /// editing, selection and scrolling.
-public final class TextLabelView: BaseView, ScheduledTextRemovable {
+public final class TextLabelView: View, ScheduledTextRemovable {
 
   /// The text that the view shows.
   ///
@@ -134,6 +134,12 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   override public init(frame: CGRect) {
     super.init(frame: frame)
 
+    #if canImport(AppKit)
+    // the view subclasses `View` instead of `BaseView`, whose `layout()` has AppKit lay out a view each time it resizes,
+    // while a label has nothing to lay out, so it takes `BaseView`'s settings itself
+    updateCommonSettings()
+    #endif
+
     // a truncated line, such as with `.byTruncatingTail`, can lay out past the bounds
     clipsToBounds = true
 
@@ -151,6 +157,10 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   public required init?(coder: NSCoder) {
     fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
   }
+
+  #if canImport(AppKit)
+  override public var isFlipped: Bool { true }
+  #endif
 
   /// Resets the view for a reuse by a text node.
   ///
