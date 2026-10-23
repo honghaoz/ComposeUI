@@ -356,6 +356,29 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     expect(pool.enqueued.count) == 1
     expect(pool.enqueued.first?.renderable.view) === rowZeroView
   }
+
+  func test_scroll_whileAMouseButtonIsPressed_leavesAsBefore() throws {
+    // given: rows of reusable views in a window, rendered at the top, with a mouse button pressed
+    let pool = RecordingPool()
+    let (window, view) = makeRowsView(pool: pool)
+    view.refresh(animated: false)
+    let rowZeroView = try rowView(showing: 0, in: view).unwrap()
+    let moveCount = rowZeroView.moveCount
+    ComposeView.InPlaceReuse.pressedMouseButtonsForTesting = 1
+    defer {
+      ComposeView.InPlaceReuse.pressedMouseButtonsForTesting = 0
+    }
+
+    // when: scrolling by one row, which moves row 0 out and row 2 in
+    scroll(view, to: Constants.rowHeight)
+
+    // then: the view of row 0 was removed, which ends a click in it, and came back from the pool for row 2
+    expect(rowView(showing: 2, in: view)) === rowZeroView
+    expect(rowZeroView.moveCount) > moveCount
+    expect(pool.enqueued.count) == 1
+    expect(pool.enqueued.first?.renderable.view) === rowZeroView
+    expect(window.contentView().subviews.contains(view)) == true
+  }
   #endif
 
   #if canImport(UIKit)
@@ -1136,6 +1159,29 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     // then: a view can stay, with the state read again
     expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == true
     expect(readCount) == 2
+  }
+
+  func test_canKeep_byDefault_seesTheMouseButtonsThatTestsPress() {
+    // given: an in-place reuse that reads the mouse buttons by default, which tests see released
+    let reuse = ComposeView.InPlaceReuse()
+    expect(ComposeView.InPlaceReuse.pressedMouseButtonsForTesting) == 0
+
+    // when: a pass starts keeping views
+    reuse.startKeeping()
+
+    // then: a view can stay, whatever the real mouse buttons are
+    expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == true
+
+    // when: a test presses a mouse button, and the next pass starts keeping views
+    ComposeView.InPlaceReuse.pressedMouseButtonsForTesting = 1
+    defer {
+      ComposeView.InPlaceReuse.pressedMouseButtonsForTesting = 0
+    }
+    reuse.stopKeeping(addingTo: nil)
+    reuse.startKeeping()
+
+    // then: no view can stay
+    expect(reuse.canKeep(.view(View()), key: Constants.keyA)) == false
   }
   #endif
 
