@@ -51,6 +51,11 @@ extension ComposeView {
   /// it, since ComposeUI makes and resets them itself. An app's view can rely on being removed in ways that ComposeUI
   /// can't check, so its identifier allows it only when the app passes `inPlace: true` to `reuseId(_:inPlace:)`.
   ///
+  /// On macOS, a view that passes every click through, which no insertion took, stays in place, hidden, for the
+  /// insertions of later passes, up to `maxHiddenViewCount` of a kind, see `ClickThroughView`: a scroll leaves views
+  /// over or lacks them in most steps, as the rows that it moves out and in differ, and each view that leaves the
+  /// content view or comes back makes AppKit build the layer tree of the window's views again.
+  ///
   /// It's a class that the view keeps in a constant, instead of a structure in a variable, since each call on a
   /// structure in a variable of the view checks at run time that no other access to the variable overlaps it, which
   /// costs more than the call itself in a pass that keeps no view.
@@ -80,6 +85,27 @@ extension ComposeView {
     private var isKeeping = false
 
     #if canImport(AppKit)
+    /// The views that pass every click through, which earlier passes kept and no insertion took, hidden in place, by
+    /// their reuse keys.
+    ///
+    /// Only ComposeUI's own views pass every click through, so the keys are few, and their emptied arrays stay.
+    /// A hidden view takes no clicks, and assistive technologies skip it.
+    private var hiddenRenderables: [ReuseKey: [Renderable]] = [:]
+
+    /// The number of hidden views, which lets a take skip the lookup when there's none.
+    private var hiddenCount = 0
+
+    /// The number of views of a kind up to which the views that pass every click through stay hidden in place, past
+    /// which they go to the pool.
+    ///
+    /// A steady scroll leaves over as many views of a kind as the number of shown views of the kind drops by, a few per
+    /// row, so the limit leaves room for rows of several such views, while it bounds the views that a compose view keeps
+    /// out of the pool.
+    static let maxHiddenViewCount = 8
+
+    /// Whether a memory warning removes the hidden views, which the in-place reuse arranges when it first hides a view.
+    private var isObservingMemoryWarnings = false
+
     /// Returns whether a mouse button is pressed.
     private let isMouseButtonPressed: () -> Bool
 
@@ -106,16 +132,18 @@ extension ComposeView {
     }
 
     /// Stops keeping views, and removes the kept views, which no insertion took, from their parent, adding them to a
-    /// pool.
+    /// pool. On macOS, the views that pass every click through stay in place, hidden, instead, up to
+    /// `maxHiddenViewCount` of a kind.
     ///
-    /// - Parameter pool: The pool, or `nil` to release the views. It's an autoclosure, read only when there are views
-    ///   to remove, since reading the compose view's pool for a plain argument costs more than the rest of the call in
-    ///   a pass that keeps no view.
+    /// - Parameter pool: The pool, or `nil` to release the views. It's an autoclosure, read only when a view leaves for
+    ///   it, since reading the compose view's pool for a plain argument costs more than the rest of the call in a pass
+    ///   that keeps no view.
     func stopKeeping(addingTo pool: @autoclosure () -> RenderablePoolType?) {
       isKeeping = false
 
       if count > 0 {
-        let pool = pool()
+        var leavingPool: RenderablePoolType?
+        var hasReadPool = false
 
         // the index advances by hand, instead of iterating `renderables.indices`, which holds the dictionary's storage,
         // so emptying an array in the loop would copy the whole dictionary
@@ -123,8 +151,17 @@ extension ComposeView {
         while index != renderables.endIndex {
           let key = renderables.keys[index]
           for renderable in renderables.values[index] {
+            #if canImport(AppKit)
+            if hide(renderable, key: key) {
+              continue
+            }
+            #endif
             renderable.removeFromParent()
-            pool?.enqueue(renderable, key: key)
+            if !hasReadPool {
+              leavingPool = pool()
+              hasReadPool = true
+            }
+            leavingPool?.enqueue(renderable, key: key)
           }
           renderables.values[index].removeAll(keepingCapacity: true)
           renderables.formIndex(after: &index)
@@ -181,20 +218,120 @@ extension ComposeView {
       count += 1
     }
 
-    /// Takes a kept view of a kind.
+    /// Takes a kept view of a kind: one that a removal in the pass left in place, or on macOS, one that stays hidden from
+    /// an earlier pass, which shows again.
     ///
     /// - Parameter key: The reuse key.
     /// - Returns: A kept view, or `nil` if there's none of the kind.
     func take(_ key: ReuseKey) -> Renderable? {
-      guard count > 0,
-            let index = renderables.index(forKey: key),
-            let renderable = renderables.values[index].popLast()
+      if count > 0, let index = renderables.index(forKey: key), let renderable = renderables.values[index].popLast() {
+        count -= 1
+        return renderable
+      } else {
+        return takeHidden(key)
+      }
+    }
+
+    /// Takes a view of a kind that stays hidden from an earlier pass, which shows again.
+    ///
+    /// - Parameter key: The reuse key.
+    /// - Returns: A hidden view, or `nil` if there's none of the kind.
+    private func takeHidden(_ key: ReuseKey) -> Renderable? {
+      #if canImport(AppKit)
+      guard hiddenCount > 0,
+            let index = hiddenRenderables.index(forKey: key),
+            let renderable = hiddenRenderables.values[index].popLast()
       else {
         return nil
       }
-      count -= 1
+      hiddenCount -= 1
+      renderable.view?.isHidden = false
       return renderable
+      #else
+      return nil
+      #endif
     }
+
+    #if canImport(AppKit)
+    /// Hides a kept view that passes every click through in place, for an insertion of its kind in a later pass, while
+    /// fewer than `maxHiddenViewCount` views of its kind are hidden.
+    ///
+    /// - Parameters:
+    ///   - renderable: The kept view, which no insertion took.
+    ///   - key: The view's reuse key.
+    /// - Returns: Whether the view stays hidden in place.
+    private func hide(_ renderable: Renderable, key: ReuseKey) -> Bool {
+      guard let view = renderable.view, view is ClickThroughView else {
+        return false
+      }
+
+      if let index = hiddenRenderables.index(forKey: key) {
+        guard hiddenRenderables.values[index].count < Self.maxHiddenViewCount else {
+          return false
+        }
+        hiddenRenderables.values[index].append(renderable)
+      } else {
+        hiddenRenderables[key] = [renderable]
+      }
+      view.isHidden = true
+      hiddenCount += 1
+
+      if !isObservingMemoryWarnings {
+        isObservingMemoryWarnings = true
+        Self.observeMemoryWarnings(for: self)
+      }
+      return true
+    }
+
+    /// Removes the hidden views from their parent, and releases them.
+    private func removeHiddenViews() {
+      for views in hiddenRenderables.values {
+        for renderable in views {
+          renderable.view?.isHidden = false
+          renderable.removeFromParent()
+        }
+      }
+      hiddenRenderables.removeAll()
+      hiddenCount = 0
+    }
+
+    // MARK: - Memory Warnings
+
+    /// A reference to an in-place reuse that doesn't keep it alive.
+    private struct WeakReference {
+
+      weak var reuse: InPlaceReuse?
+    }
+
+    /// The in-place reuses that hid views, whose hidden views a memory warning removes.
+    ///
+    /// One handler serves them all, since the memory warning handlers stay for the life of the process, while compose
+    /// views come and go.
+    private static var memoryWarningObservers: [WeakReference] = []
+
+    /// Whether the handler that removes the hidden views on a memory warning is added.
+    private static var isHandlingMemoryWarnings = false
+
+    /// Makes a memory warning remove an in-place reuse's hidden views.
+    private static func observeMemoryWarnings(for reuse: InPlaceReuse) {
+      if !isHandlingMemoryWarnings {
+        isHandlingMemoryWarnings = true
+        MemoryWarning.addHandler(removeObservedHiddenViews)
+      }
+      // the in-place reuses released since go first, so that the list doesn't grow with each compose view that the
+      // process makes
+      memoryWarningObservers.removeAll { $0.reuse == nil }
+      memoryWarningObservers.append(WeakReference(reuse: reuse))
+    }
+
+    /// Removes the hidden views of the in-place reuses that hid views.
+    private static func removeObservedHiddenViews() {
+      for observer in memoryWarningObservers {
+        observer.reuse?.removeHiddenViews()
+      }
+      memoryWarningObservers.removeAll { $0.reuse == nil }
+    }
+    #endif
 
     /// Returns whether a view can stay in place.
     ///

@@ -846,22 +846,27 @@ class LabelNodeTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    // then: the view is enqueued into the pool, which resets it (via TextNode's resetForReuse) for reuse, keeping what a
-    // text node sets on each reuse, such as its number of lines and line break mode, and its text until the run loop
-    // turn ends
+    // then: the view is reset (via TextNode's resetForReuse) for reuse, keeping what a text node sets on each reuse, such
+    // as its number of lines and line break mode, and its text until the run loop turn ends. on macOS, a label view stays
+    // in the compose view, hidden, for a later label, and elsewhere it leaves for the pool
+    #if canImport(AppKit)
+    expect(labelView.superview) === view.contentContainerView
+    expect(labelView.isHidden) == true
+    #else
     expect(firstTextLabelView(in: view)) == nil
+    #endif
     expect(labelView.numberOfLines) == 2
     expect(labelView.lineBreakMode) == .byTruncatingTail
     expect(labelView.attributedString.string) == "First"
 
-    // when: the run loop turn ends with the view still in the pool
+    // when: the run loop turn ends with the view still waiting for a label
     let turnEnded = expectation(description: "the run loop turn ends")
     onNextRunLoop {
       turnEnded.fulfill()
     }
     wait(for: [turnEnded], timeout: 1)
 
-    // then: the pooled view removes its text
+    // then: the waiting view removes its text
     expect(labelView.attributedString.string) == ""
 
     // when: rendering a new label
@@ -870,9 +875,10 @@ class LabelNodeTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    // then: the very same pooled view is reused, reconfigured for the new content (no stale state)
+    // then: the very same view is reused, shown and reconfigured for the new content (no stale state)
     let reusedView = try firstTextLabelView(in: view).unwrap()
     expect(reusedView) === labelView
+    expect(reusedView.isHidden) == false
     expect(reusedView.attributedString.string) == "Second"
     expect(reusedView.numberOfLines) == 1
   }

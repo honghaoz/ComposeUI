@@ -135,13 +135,18 @@ open class ScrollView: NSScrollView {
     updateCommonSettings()
 
     contentView = ScrollClipView()
-    documentView = BaseView()
+    documentView = Self.makeDocumentView()
 
     startObservingBoundsChange()
   }
 
   deinit {
     stopObservingBoundsChange()
+  }
+
+  /// Returns a new view to hold the scroll view's content, which the scroll view makes once, when it's made.
+  class func makeDocumentView() -> NSView {
+    BaseView()
   }
 
   @available(*, unavailable)

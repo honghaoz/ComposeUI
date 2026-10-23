@@ -270,6 +270,12 @@ open class ComposeView: BaseScrollView {
     fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
   }
 
+  #if canImport(AppKit)
+  override class func makeDocumentView() -> NSView {
+    DocumentView()
+  }
+  #endif
+
   private func commonInit() {
     contentScaleFactor = windowScaleFactor
 
@@ -1656,8 +1662,8 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
-        if zOrder.restacksViews, let view = renderable.view {
-          // only view items need re-stacking: the subview order drives the hit-testing order.
+        if zOrder.restacksViews, let view = renderable.view, !ZOrderPass.passesClicksThrough(view) {
+          // only the views that take clicks need re-stacking: the subview order drives the hit-testing order.
           // the visual z-order is driven by the layers' `zPosition`, so layer items need no re-stacking.
           // skips `moveToFront()`'s `subviews.last` check, which copies the array, since only the first view of a
           // restack can be at the front already. `addSubview` would walk the view's subviews
@@ -2180,6 +2186,37 @@ open class ComposeView: BaseScrollView {
       prefetchItems.removeAll(keepingCapacity: true)
     }
   }
+
+  // MARK: - Accessibility
+
+  #if canImport(AppKit)
+  /// Returns the shown subviews of the content view in the items order: the views of the items in the items order, in
+  /// the places that they take among the subviews, and the other subviews, such as views being removed, in theirs.
+  ///
+  /// A render pass keeps only the views that take clicks in the items order, see `ClickThroughView`, so the subview
+  /// order alone doesn't tell the items order.
+  func shownSubviewsInItemsOrder() -> [NSView] {
+    let subviews = contentContainerView.subviews.filter { !$0.isHidden }
+
+    var itemIndices: [ObjectIdentifier: Int] = [:]
+    for (index, id) in renderableItemIds.enumerated() {
+      if let view = renderableMap[id]?.view {
+        itemIndices[ObjectIdentifier(view)] = index
+      }
+    }
+
+    // the places of the items' views among the subviews, which take the items' views in the items order
+    let slots = subviews.indices.compactMap { place in
+      itemIndices[ObjectIdentifier(subviews[place])].map { (place: place, itemIndex: $0) }
+    }
+    let itemViews = slots.sorted { $0.itemIndex < $1.itemIndex }.map { subviews[$0.place] }
+    var orderedSubviews = subviews
+    for (slot, view) in zip(slots, itemViews) {
+      orderedSubviews[slot.place] = view
+    }
+    return orderedSubviews
+  }
+  #endif
 
   // MARK: - Testing
 

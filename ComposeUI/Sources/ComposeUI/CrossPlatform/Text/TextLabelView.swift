@@ -791,6 +791,12 @@ public final class TextLabelView: BaseView, ScheduledTextRemovable {
   #endif
 }
 
+// MARK: - ClickThroughView
+
+#if canImport(AppKit)
+extension TextLabelView: ClickThroughView {}
+#endif
+
 // MARK: - Ranges
 
 #if canImport(AppKit)
