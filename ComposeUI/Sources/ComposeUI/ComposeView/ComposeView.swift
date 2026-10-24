@@ -86,23 +86,6 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Animation Behavior
 
-  /// The type of the render pass.
-  public enum RenderType: Equatable {
-
-    /// The content is refreshed by an explicit refresh request or in response to an environment change.
-    case refresh(isAnimated: Bool)
-
-    /// The viewport is changed by scrolling, resizing, or both.
-    ///
-    /// - Parameters:
-    ///   - previousBounds: The viewport from the last completed render, or nil before the first render.
-    ///   - bounds: The viewport when this render type is reported, without applying `visibleBoundsInsets`.
-    ///     The will-layout handler receives the proposed layout viewport, the will-render handler receives the viewport
-    ///     after the layout, when the content size was applied, and the `AnimationBehavior.dynamic` closure and the
-    ///     did-render handler receive the viewport after the will-render handler ran.
-    case boundsChange(previousBounds: CGRect?, bounds: CGRect)
-  }
-
   /// The animation behavior of the content update.
   public var animationBehavior: AnimationBehavior = .default
 
@@ -369,50 +352,6 @@ open class ComposeView: BaseScrollView {
   }
 
   // MARK: - Render Handlers
-
-  /// The context for the will-layout handler.
-  public struct WillLayoutContext {
-
-    /// The container size that will be used for layout: the visible size minus the content insets (`adjustedContentInset`).
-    public let containerSize: CGSize
-
-    /// The render type for this render pass.
-    public let renderType: RenderType
-  }
-
-  /// The context for the will-render handler.
-  public struct WillRenderContext {
-
-    /// The content size after layout.
-    ///
-    /// If the `content`'s natural size is smaller than the layout container size (`WillLayoutContext.containerSize`) in either dimension, the content size is adjusted to be the same as the container size.
-    public let contentSize: CGSize
-
-    /// The bounds that will be used for rendering.
-    ///
-    /// The bounds' size is the visible size, while the content lays out in that size minus the content insets
-    /// (`WillLayoutContext.containerSize`).
-    public let renderBounds: CGRect
-
-    /// The render type for this render pass.
-    public let renderType: RenderType
-  }
-
-  /// The context for the did-render handler.
-  public struct DidRenderContext {
-
-    /// The content size after the render pass.
-    public let contentSize: CGSize
-
-    /// The bounds used for rendering.
-    ///
-    /// The bounds' size is the visible size, while the content lays out in that size minus the content insets
-    /// (`WillLayoutContext.containerSize`).
-    public let renderBounds: CGRect
-
-    /// The render type for this render pass.
-    public let renderType: RenderType
-  }
 
   private var willLayoutHandler: ((_ view: ComposeView, _ context: WillLayoutContext) -> Void)?
   private var willRenderHandler: ((_ view: ComposeView, _ context: WillRenderContext) -> Void)?
