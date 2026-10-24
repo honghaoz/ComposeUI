@@ -382,11 +382,13 @@ open class ComposeView: BaseScrollView {
     return self
   }
 
-  /// Set a handler to be called after layout computed the content size and updated the scroll view's content size, but before renderable items are requested.
+  /// Set a handler to be called after layout computed the content size and updated the scroll view's content size, but
+  /// before renderable items are requested.
   ///
   /// This handler gives you a chance to adjust the content offset (which affects the visible bounds) before rendering.
   ///
-  /// For example, for chat-like UI, you can use this handler to adjust the content offset to be at the bottom, so the renderable items are rendered from the bottom.
+  /// For example, for chat-like UI, you can use this handler to adjust the content offset to be at the bottom, so the
+  /// renderable items are rendered from the bottom.
   ///
   /// You should not change the view's bounds size in this handler, otherwise an additional layout pass will be scheduled.
   ///
@@ -449,7 +451,8 @@ open class ComposeView: BaseScrollView {
   // MARK: - Size
 
   #if canImport(AppKit)
-  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the same as the displayed content.
+  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the
+  /// same as the displayed content.
   ///
   /// As in a render pass, the content lays out in the proposed size minus the insets.
   ///
@@ -461,7 +464,8 @@ open class ComposeView: BaseScrollView {
   #endif
 
   #if canImport(UIKit)
-  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the same as the displayed content.
+  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the
+  /// same as the displayed content.
   ///
   /// As in a render pass, the content lays out in the proposed size minus the insets.
   ///
@@ -515,6 +519,48 @@ open class ComposeView: BaseScrollView {
   private func themeDidChange() {
     restartPrefetching()
     setNeedsRefresh(animated: true)
+  }
+
+  /// The theme that the render pass read first, which `theme` returns until the pass ends.
+  private var renderPassTheme: Theme?
+
+  /// The theme of the view.
+  ///
+  /// It stays the same during a render pass, as the theme that the pass read first, so change the theme outside a
+  /// render pass: a change made during one renders in the next pass, and a change undone in the same pass can leave
+  /// the pass's content in the changed theme.
+  override public var theme: Theme {
+    // the renderables' updates read the theme from the pass instead of the appearance, which allocates to read on
+    // macOS. it's read on the first read instead of when the pass begins, so that a pass without a themed renderable
+    // reads nothing, and it's kept on the main thread, where the pass runs
+    guard Thread.isMainThread, isRendering else {
+      return super.theme
+    }
+
+    if let renderPassTheme {
+      return renderPassTheme
+    }
+    let theme = super.theme
+    renderPassTheme = theme
+    return theme
+  }
+
+  /// The override theme of the view.
+  ///
+  /// Setting it during the view's render pass, such as from a renderable's update, asserts and keeps the current
+  /// value, since the theme stays the same during a render pass.
+  override public final var overrideTheme: Theme? {
+    get {
+      super.overrideTheme
+    }
+    set {
+      // a set from another thread waits for the main thread, so it applies after the pass
+      if Thread.isMainThread, isRendering {
+        ComposeUI.assertFailure("ComposeView doesn't support changing the theme during its render pass")
+        return
+      }
+      super.overrideTheme = newValue
+    }
   }
 
   // MARK: - Window
@@ -887,48 +933,6 @@ open class ComposeView: BaseScrollView {
 
   /// Whether a render pass is in progress.
   private var isRendering = false
-
-  /// The theme that the render pass read first, which `theme` returns until the pass ends.
-  private var renderPassTheme: Theme?
-
-  /// The theme of the view.
-  ///
-  /// It stays the same during a render pass, as the theme that the pass read first, so change the theme outside a
-  /// render pass: a change made during one renders in the next pass, and a change undone in the same pass can leave
-  /// the pass's content in the changed theme.
-  override public var theme: Theme {
-    // the renderables' updates read the theme from the pass instead of the appearance, which allocates to read on
-    // macOS. it's read on the first read instead of when the pass begins, so that a pass without a themed renderable
-    // reads nothing, and it's kept on the main thread, where the pass runs
-    guard Thread.isMainThread, isRendering else {
-      return super.theme
-    }
-
-    if let renderPassTheme {
-      return renderPassTheme
-    }
-    let theme = super.theme
-    renderPassTheme = theme
-    return theme
-  }
-
-  /// The override theme of the view.
-  ///
-  /// Setting it during the view's render pass, such as from a renderable's update, asserts and keeps the current
-  /// value, since the theme stays the same during a render pass.
-  override public final var overrideTheme: Theme? {
-    get {
-      super.overrideTheme
-    }
-    set {
-      // a set from another thread waits for the main thread, so it applies after the pass
-      if Thread.isMainThread, isRendering {
-        ComposeUI.assertFailure("ComposeView doesn't support changing the theme during its render pass")
-        return
-      }
-      super.overrideTheme = newValue
-    }
-  }
 
   /// The view whose render pass is in progress. Main thread only.
   ///
@@ -1543,7 +1547,12 @@ open class ComposeView: BaseScrollView {
 
           insertTransition.animate(
             renderable: renderable,
-            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, revivalPosition: revivalPosition, revivalTransform: revivalTransform, contentView: self),
+            context: RenderableTransition.InsertTransition.Context(
+              targetFrame: newFrame,
+              revivalPosition: revivalPosition,
+              revivalTransform: revivalTransform,
+              contentView: self
+            ),
             completion: completion.execute
           )
         } else {
