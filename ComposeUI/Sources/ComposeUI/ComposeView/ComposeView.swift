@@ -86,23 +86,6 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Animation Behavior
 
-  /// The type of the render pass.
-  public enum RenderType: Equatable {
-
-    /// The content is refreshed by an explicit refresh request or in response to an environment change.
-    case refresh(isAnimated: Bool)
-
-    /// The viewport is changed by scrolling, resizing, or both.
-    ///
-    /// - Parameters:
-    ///   - previousBounds: The viewport from the last completed render, or nil before the first render.
-    ///   - bounds: The viewport when this render type is reported, without applying `visibleBoundsInsets`.
-    ///     The will-layout handler receives the proposed layout viewport, the will-render handler receives the viewport
-    ///     after the layout, when the content size was applied, and the `AnimationBehavior.dynamic` closure and the
-    ///     did-render handler receive the viewport after the will-render handler ran.
-    case boundsChange(previousBounds: CGRect?, bounds: CGRect)
-  }
-
   /// The animation behavior of the content update.
   public var animationBehavior: AnimationBehavior = .default
 
@@ -370,50 +353,6 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Render Handlers
 
-  /// The context for the will-layout handler.
-  public struct WillLayoutContext {
-
-    /// The container size that will be used for layout: the visible size minus the content insets (`adjustedContentInset`).
-    public let containerSize: CGSize
-
-    /// The render type for this render pass.
-    public let renderType: RenderType
-  }
-
-  /// The context for the will-render handler.
-  public struct WillRenderContext {
-
-    /// The content size after layout.
-    ///
-    /// If the `content`'s natural size is smaller than the layout container size (`WillLayoutContext.containerSize`) in either dimension, the content size is adjusted to be the same as the container size.
-    public let contentSize: CGSize
-
-    /// The bounds that will be used for rendering.
-    ///
-    /// The bounds' size is the visible size, while the content lays out in that size minus the content insets
-    /// (`WillLayoutContext.containerSize`).
-    public let renderBounds: CGRect
-
-    /// The render type for this render pass.
-    public let renderType: RenderType
-  }
-
-  /// The context for the did-render handler.
-  public struct DidRenderContext {
-
-    /// The content size after the render pass.
-    public let contentSize: CGSize
-
-    /// The bounds used for rendering.
-    ///
-    /// The bounds' size is the visible size, while the content lays out in that size minus the content insets
-    /// (`WillLayoutContext.containerSize`).
-    public let renderBounds: CGRect
-
-    /// The render type for this render pass.
-    public let renderType: RenderType
-  }
-
   private var willLayoutHandler: ((_ view: ComposeView, _ context: WillLayoutContext) -> Void)?
   private var willRenderHandler: ((_ view: ComposeView, _ context: WillRenderContext) -> Void)?
   private var didRenderHandler: ((_ view: ComposeView, _ context: DidRenderContext) -> Void)?
@@ -443,11 +382,13 @@ open class ComposeView: BaseScrollView {
     return self
   }
 
-  /// Set a handler to be called after layout computed the content size and updated the scroll view's content size, but before renderable items are requested.
+  /// Set a handler to be called after layout computed the content size and updated the scroll view's content size, but
+  /// before renderable items are requested.
   ///
   /// This handler gives you a chance to adjust the content offset (which affects the visible bounds) before rendering.
   ///
-  /// For example, for chat-like UI, you can use this handler to adjust the content offset to be at the bottom, so the renderable items are rendered from the bottom.
+  /// For example, for chat-like UI, you can use this handler to adjust the content offset to be at the bottom, so the
+  /// renderable items are rendered from the bottom.
   ///
   /// You should not change the view's bounds size in this handler, otherwise an additional layout pass will be scheduled.
   ///
@@ -510,7 +451,8 @@ open class ComposeView: BaseScrollView {
   // MARK: - Size
 
   #if canImport(AppKit)
-  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the same as the displayed content.
+  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the
+  /// same as the displayed content.
   ///
   /// As in a render pass, the content lays out in the proposed size minus the insets.
   ///
@@ -522,7 +464,8 @@ open class ComposeView: BaseScrollView {
   #endif
 
   #if canImport(UIKit)
-  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the same as the displayed content.
+  /// Returns the size that fits the content and its content insets. This measures the latest content, it may not be the
+  /// same as the displayed content.
   ///
   /// As in a render pass, the content lays out in the proposed size minus the insets.
   ///
@@ -549,48 +492,8 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Scroll
 
-  /// The view's scrollable behavior.
-  public enum ScrollBehavior {
-
-    /// The view is scrollable if the content and its insets (`adjustedContentInset`) are larger than the visible size.
-    /// Otherwise, the view is not scrollable.
-    ///
-    /// On macOS, with the legacy scroll bar style (`NSScrollView.scrollerStyle == .legacy`), the scroll bars take space
-    /// from the visible size.
-    case auto
-
-    /// The view does not modify scroll settings. `isScrollEnabled` and `alwaysBounceHorizontal`/`alwaysBounceVertical` are managed by you.
-    case manual
-
-    /// The view is always scrollable. The view will always bounce.
-    case always
-
-    /// The view is never scrollable.
-    case never
-  }
-
   /// The view's scrollable behavior. The default value is `.auto`. Requires a refresh to take effect.
   public var scrollBehavior: ScrollBehavior = .auto
-
-  /// The view's scroll indicator behavior.
-  public enum ScrollIndicatorBehavior {
-
-    /// A scroll indicator is shown for each axis where the content and its insets (`adjustedContentInset`) are larger than
-    /// the view's bounds, and hidden otherwise.
-    ///
-    /// On macOS, with the legacy scroll bar style (`NSScrollView.scrollerStyle == .legacy`), a scroll bar takes space,
-    /// so the other axis's scroll indicator also shows if the content and its insets overflow the space that remains.
-    case auto
-
-    /// The view does not modify scroll indicator settings. `showsHorizontalScrollIndicator` and `showsVerticalScrollIndicator` are managed by you.
-    case manual
-
-    /// The scroll indicators are always shown.
-    case always
-
-    /// The scroll indicators are never shown even if the content is larger than the view's bounds.
-    case never
-  }
 
   /// The view's scroll indicator behavior. The default value is `.auto`. Requires a refresh to take effect.
   public var scrollIndicatorBehavior: ScrollIndicatorBehavior = .auto
@@ -599,22 +502,6 @@ open class ComposeView: BaseScrollView {
   private var lastScrollIndicatorBehavior: ScrollIndicatorBehavior?
 
   // MARK: - Clipping
-
-  /// The view's clipping behavior.
-  public enum ClippingBehavior {
-
-    /// The view clips the content to the bounds when the view is scrollable.
-    case auto
-
-    /// The view does not modify `clipsToBounds`. It is managed by you.
-    case manual
-
-    /// The view always clips the content to the bounds.
-    case always
-
-    /// The view never clips the content.
-    case never
-  }
 
   /// The view's clipping behavior. The default value is `.auto`. Requires a refresh to take effect.
   public var clippingBehavior: ClippingBehavior = .auto
@@ -632,6 +519,48 @@ open class ComposeView: BaseScrollView {
   private func themeDidChange() {
     restartPrefetching()
     setNeedsRefresh(animated: true)
+  }
+
+  /// The theme that the render pass read first, which `theme` returns until the pass ends.
+  private var renderPassTheme: Theme?
+
+  /// The theme of the view.
+  ///
+  /// It stays the same during a render pass, as the theme that the pass read first, so change the theme outside a
+  /// render pass: a change made during one renders in the next pass, and a change undone in the same pass can leave
+  /// the pass's content in the changed theme.
+  override public var theme: Theme {
+    // the renderables' updates read the theme from the pass instead of the appearance, which allocates to read on
+    // macOS. it's read on the first read instead of when the pass begins, so that a pass without a themed renderable
+    // reads nothing, and it's kept on the main thread, where the pass runs
+    guard Thread.isMainThread, isRendering else {
+      return super.theme
+    }
+
+    if let renderPassTheme {
+      return renderPassTheme
+    }
+    let theme = super.theme
+    renderPassTheme = theme
+    return theme
+  }
+
+  /// The override theme of the view.
+  ///
+  /// Setting it during the view's render pass, such as from a renderable's update, asserts and keeps the current
+  /// value, since the theme stays the same during a render pass.
+  override public final var overrideTheme: Theme? {
+    get {
+      super.overrideTheme
+    }
+    set {
+      // a set from another thread waits for the main thread, so it applies after the pass
+      if Thread.isMainThread, isRendering {
+        ComposeUI.assertFailure("ComposeView doesn't support changing the theme during its render pass")
+        return
+      }
+      super.overrideTheme = newValue
+    }
   }
 
   // MARK: - Window
@@ -1134,48 +1063,6 @@ open class ComposeView: BaseScrollView {
 
   /// Whether a render pass is in progress.
   private var isRendering = false
-
-  /// The theme that the render pass read first, which `theme` returns until the pass ends.
-  private var renderPassTheme: Theme?
-
-  /// The theme of the view.
-  ///
-  /// It stays the same during a render pass, as the theme that the pass read first, so change the theme outside a
-  /// render pass: a change made during one renders in the next pass, and a change undone in the same pass can leave
-  /// the pass's content in the changed theme.
-  override public var theme: Theme {
-    // the renderables' updates read the theme from the pass instead of the appearance, which allocates to read on
-    // macOS. it's read on the first read instead of when the pass begins, so that a pass without a themed renderable
-    // reads nothing, and it's kept on the main thread, where the pass runs
-    guard Thread.isMainThread, isRendering else {
-      return super.theme
-    }
-
-    if let renderPassTheme {
-      return renderPassTheme
-    }
-    let theme = super.theme
-    renderPassTheme = theme
-    return theme
-  }
-
-  /// The override theme of the view.
-  ///
-  /// Setting it during the view's render pass, such as from a renderable's update, asserts and keeps the current
-  /// value, since the theme stays the same during a render pass.
-  override public final var overrideTheme: Theme? {
-    get {
-      super.overrideTheme
-    }
-    set {
-      // a set from another thread waits for the main thread, so it applies after the pass
-      if Thread.isMainThread, isRendering {
-        ComposeUI.assertFailure("ComposeView doesn't support changing the theme during its render pass")
-        return
-      }
-      super.overrideTheme = newValue
-    }
-  }
 
   /// The view whose render pass is in progress. Main thread only.
   ///
@@ -1790,7 +1677,12 @@ open class ComposeView: BaseScrollView {
 
           insertTransition.animate(
             renderable: renderable,
-            context: RenderableTransition.InsertTransition.Context(targetFrame: newFrame, revivalPosition: revivalPosition, revivalTransform: revivalTransform, contentView: self),
+            context: RenderableTransition.InsertTransition.Context(
+              targetFrame: newFrame,
+              revivalPosition: revivalPosition,
+              revivalTransform: revivalTransform,
+              contentView: self
+            ),
             completion: completion.execute
           )
         } else {
