@@ -488,48 +488,8 @@ open class ComposeView: BaseScrollView {
 
   // MARK: - Scroll
 
-  /// The view's scrollable behavior.
-  public enum ScrollBehavior {
-
-    /// The view is scrollable if the content and its insets (`adjustedContentInset`) are larger than the visible size.
-    /// Otherwise, the view is not scrollable.
-    ///
-    /// On macOS, with the legacy scroll bar style (`NSScrollView.scrollerStyle == .legacy`), the scroll bars take space
-    /// from the visible size.
-    case auto
-
-    /// The view does not modify scroll settings. `isScrollEnabled` and `alwaysBounceHorizontal`/`alwaysBounceVertical` are managed by you.
-    case manual
-
-    /// The view is always scrollable. The view will always bounce.
-    case always
-
-    /// The view is never scrollable.
-    case never
-  }
-
   /// The view's scrollable behavior. The default value is `.auto`. Requires a refresh to take effect.
   public var scrollBehavior: ScrollBehavior = .auto
-
-  /// The view's scroll indicator behavior.
-  public enum ScrollIndicatorBehavior {
-
-    /// A scroll indicator is shown for each axis where the content and its insets (`adjustedContentInset`) are larger than
-    /// the view's bounds, and hidden otherwise.
-    ///
-    /// On macOS, with the legacy scroll bar style (`NSScrollView.scrollerStyle == .legacy`), a scroll bar takes space,
-    /// so the other axis's scroll indicator also shows if the content and its insets overflow the space that remains.
-    case auto
-
-    /// The view does not modify scroll indicator settings. `showsHorizontalScrollIndicator` and `showsVerticalScrollIndicator` are managed by you.
-    case manual
-
-    /// The scroll indicators are always shown.
-    case always
-
-    /// The scroll indicators are never shown even if the content is larger than the view's bounds.
-    case never
-  }
 
   /// The view's scroll indicator behavior. The default value is `.auto`. Requires a refresh to take effect.
   public var scrollIndicatorBehavior: ScrollIndicatorBehavior = .auto
@@ -538,22 +498,6 @@ open class ComposeView: BaseScrollView {
   private var lastScrollIndicatorBehavior: ScrollIndicatorBehavior?
 
   // MARK: - Clipping
-
-  /// The view's clipping behavior.
-  public enum ClippingBehavior {
-
-    /// The view clips the content to the bounds when the view is scrollable.
-    case auto
-
-    /// The view does not modify `clipsToBounds`. It is managed by you.
-    case manual
-
-    /// The view always clips the content to the bounds.
-    case always
-
-    /// The view never clips the content.
-    case never
-  }
 
   /// The view's clipping behavior. The default value is `.auto`. Requires a refresh to take effect.
   public var clippingBehavior: ClippingBehavior = .auto
