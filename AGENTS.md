@@ -121,7 +121,7 @@ Before reporting a change complete, verify in order:
 
 # Commit & Pull Request Guidelines
 
-- Follow existing commit style: optional bracketed scopes/tags + short summary (e.g. `[theme] add theme publisher tests`).
+- Write a commit subject or PR title as an optional bracketed tag and a short summary, such as `[theme] add theme publisher tests`. The tag names the area or the kind of change in lowercase, such as `[render]`, `[perf]` or `[docs]`, not a type. The summary says what changed in a few words, under about 70 characters, and leaves the why to the commit body or the PR description. Where recent titles differ, follow this rule.
 - Keep commits focused and atomic.
 - For PRs, include: what changed, why, and how to test the changes.
 
