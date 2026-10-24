@@ -39,11 +39,6 @@ public typealias HorizontalStack = HorizontalStackNode
 /// The node's height is the maximum height of its children.
 public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
-  public var id: ComposeNodeId = .standard(.hStack)
-
-  /// The children, and their layout along the horizontal axis.
-  private var stack: AxisStack<Axis>
-
   public init(alignment: Layout.VerticalAlignment = .center,
               spacing: CGFloat = 0,
               @ComposeContentBuilder content: () -> ComposeContent)
@@ -62,6 +57,8 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
   // MARK: - ComposeNode
 
+  public var id: ComposeNodeId = .standard(.hStack)
+
   public var size: CGSize {
     stack.size
   }
@@ -78,7 +75,14 @@ public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
     stack.render(visibleBounds: visibleBounds, into: &items, id: id)
   }
 
-  // MARK: - Axis
+  // MARK: - Stack
+
+  /// The children, and their layout along the horizontal axis.
+  ///
+  /// Declared after `id`: it ends 7 bytes short of an 8-byte boundary, so as the last stored property, those bytes are
+  /// the node's tail padding, which a struct that stores the node can put its next field in, instead of padding inside
+  /// the node before `id`.
+  private var stack: AxisStack<Axis>
 
   /// The horizontal axis, across which the stack aligns its children vertically.
   private enum Axis: StackAxis {

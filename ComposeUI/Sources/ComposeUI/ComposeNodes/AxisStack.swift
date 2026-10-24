@@ -330,7 +330,10 @@ struct AxisStack<Axis: StackAxis> {
       return
     }
 
-    let visibleChildRange = layoutCache.visibleChildRange(minPosition: Axis.minMain(of: visibleBounds), maxPosition: Axis.maxMain(of: visibleBounds))
+    let visibleChildRange = layoutCache.visibleChildRange(
+      minPosition: Axis.minMain(of: visibleBounds),
+      maxPosition: Axis.maxMain(of: visibleBounds)
+    )
 
     // each visible child appends its items to the pass's array, where they're changed in place
     for i in visibleChildRange {

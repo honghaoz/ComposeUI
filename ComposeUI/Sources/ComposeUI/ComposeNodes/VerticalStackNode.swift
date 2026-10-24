@@ -39,11 +39,6 @@ public typealias VerticalStack = VerticalStackNode
 /// The node's height is the sum of its children's heights plus the spacing between them.
 public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
-  public var id: ComposeNodeId = .standard(.vStack)
-
-  /// The children, and their layout along the vertical axis.
-  private var stack: AxisStack<Axis>
-
   public init(alignment: Layout.HorizontalAlignment = .center,
               spacing: CGFloat = 0,
               @ComposeContentBuilder content: () -> ComposeContent)
@@ -69,6 +64,8 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
 
   // MARK: - ComposeNode
 
+  public var id: ComposeNodeId = .standard(.vStack)
+
   public var size: CGSize {
     stack.size
   }
@@ -85,7 +82,14 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
     stack.render(visibleBounds: visibleBounds, into: &items, id: id)
   }
 
-  // MARK: - Axis
+  // MARK: - Stack
+
+  /// The children, and their layout along the vertical axis.
+  ///
+  /// Declared after `id`: it ends 7 bytes short of an 8-byte boundary, so as the last stored property, those bytes are
+  /// the node's tail padding, which a struct that stores the node can put its next field in, instead of padding inside
+  /// the node before `id`.
+  private var stack: AxisStack<Axis>
 
   /// The vertical axis, across which the stack aligns its children horizontally.
   private enum Axis: StackAxis {
