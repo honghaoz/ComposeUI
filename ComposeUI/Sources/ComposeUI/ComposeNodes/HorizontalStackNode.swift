@@ -39,178 +39,62 @@ public typealias HorizontalStack = HorizontalStackNode
 /// The node's height is the maximum height of its children.
 public struct HorizontalStackNode: ComposeNode, ContainerNodeInternal {
 
-  /// The latest layout's pass, container size and sizing, which a layout in the same pass at the same container size
-  /// returns instead of laying out the children again.
-  ///
-  /// Declared first: it ends 7 bytes short of an 8-byte boundary, and the one-byte `alignment` declared after it goes
-  /// into those bytes instead of taking an 8-byte slot of its own, which keeps the stack's heap box 16 bytes smaller.
-  private var lastLayout: (passId: UInt64, containerSize: CGSize, sizing: ComposeNodeSizing)?
+  public var id: ComposeNodeId = .standard(.hStack)
 
-  private let alignment: Layout.VerticalAlignment
-  private let spacing: CGFloat
-
-  /// The children, by value in one buffer.
-  private var children: NodeBuffer
+  /// The children, and their layout along the horizontal axis.
+  private var stack: AxisStack<Axis>
 
   public init(alignment: Layout.VerticalAlignment = .center,
               spacing: CGFloat = 0,
               @ComposeContentBuilder content: () -> ComposeContent)
   {
-    self.alignment = alignment
-    self.spacing = spacing
-    self.children = NodeList.buffer(of: content())
+    stack = AxisStack(alignment: alignment, spacing: spacing, children: NodeList.buffer(of: content()))
   }
 
   var childNodes: [any ComposeNode] {
     get {
-      children.nodes
+      stack.childNodes
     }
     set {
-      children = NodeBuffer.make(newValue)
-      lastLayout = nil
+      stack.childNodes = newValue
     }
   }
 
   // MARK: - ComposeNode
 
-  public var id: ComposeNodeId = .standard(.hStack)
-
-  public private(set) var size: CGSize = .zero
-
-  public var renderableItemsBoundingRect: CGRect {
-    layoutCache.itemsBoundingRect
+  public var size: CGSize {
+    stack.size
   }
 
-  /// The cached children layout information, used to cull invisible children in `render(visibleBounds:into:)`.
-  private var layoutCache = StackLayoutCache()
+  public var renderableItemsBoundingRect: CGRect {
+    stack.renderableItemsBoundingRect
+  }
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    // a stack lays out each flexible child twice, for its sizing and at its proposed size, so without returning a
-    // layout made at the same size earlier in the pass, each enclosing stack with a flexible child would double the
-    // layouts of the nodes in it
-    if let lastLayout, lastLayout.passId == context.passId, lastLayout.containerSize == containerSize {
-      return lastLayout.sizing
-    }
-
-    // the children change in place as they lay out, so a copy of the stack that shares them gets its own
-    NodeBuffer.makeUnique(&children)
-
-    guard children.count > 0 else {
-      size = .zero
-      layoutCache = StackLayoutCache()
-      return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
-    }
-
-    let childCount = children.count
-
-    let totalSpacing = spacing * CGFloat(childCount - 1)
-
-    var widthSizing: ComposeNodeSizing.Sizing = .fixed(totalSpacing)
-    var heightSizing: ComposeNodeSizing.Sizing = .fixed(0)
-
-    // the children's sizings and proposed widths are needed only during this layout, so they're in temporary memory
-    withUnsafeTemporaryAllocation(of: ComposeNodeSizing.Sizing.self, capacity: childCount) { childWidthSizings in
-      // first pass: collect children's sizings
-      for nodeIndex in 0 ..< childCount {
-
-        // special treatment for spacer node with nil height to make it fixed with 0 height,
-        // so that the spacer nodes don't expand the horizontal stack node's height.
-        children.withNode(at: nodeIndex, as: SpacerNode.self) { $0.zeroHeightIfSpacerWithoutHeight() }
-
-        let childSizing = children.layout(at: nodeIndex, containerSize: containerSize, context: context)
-
-        widthSizing = widthSizing.combine(with: childSizing.width, axis: .main)
-        childWidthSizings.initializeElement(at: nodeIndex, to: childSizing.width)
-
-        heightSizing = heightSizing.combine(with: childSizing.height, axis: .cross)
-      }
-
-      withUnsafeTemporaryAllocation(of: CGFloat.self, capacity: childCount) { proposedWidths in
-        let remainingWidth = containerSize.width - totalSpacing
-        Layout.stackLayout(space: remainingWidth, items: UnsafeBufferPointer(childWidthSizings), into: proposedWidths)
-        proposedWidths.round(scaleFactor: context.scaleFactor)
-
-        // second pass: layout children with proposed widths
-        for nodeIndex in 0 ..< childCount {
-          switch childWidthSizings[nodeIndex] {
-          case .flexible,
-               .range:
-            _ = children.layout(
-              at: nodeIndex,
-              containerSize: CGSize(width: proposedWidths[nodeIndex], height: containerSize.height),
-              context: context
-            )
-          case .fixed:
-            // skips fixed width nodes as they don't need to be laid out again
-            continue
-          }
-        }
-      }
-
-      childWidthSizings.deinitialize()
-    }
-
-    var maxHeight: CGFloat = 0
-    var totalChildNodesWidth: CGFloat = 0
-    for index in 0 ..< childCount {
-      let childSize = children.size(at: index)
-      maxHeight = max(maxHeight, childSize.height)
-      totalChildNodesWidth += childSize.width
-    }
-
-    size = CGSize(width: totalChildNodesWidth + totalSpacing, height: maxHeight)
-
-    // cache the children layout information for render(visibleBounds:into:)
-    layoutCache.reset(reservingCapacity: childCount)
-
-    var x: CGFloat = 0
-    for index in 0 ..< childCount {
-      let nodeSize = children.size(at: index)
-
-      let y: CGFloat
-      switch alignment {
-      case .center:
-        y = (size.height - nodeSize.height) / 2
-      case .top:
-        y = 0
-      case .bottom:
-        y = size.height - nodeSize.height
-      }
-
-      let childOrigin = CGPoint(x: x, y: y)
-      let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
-      layoutCache.appendChild(
-        origin: childOrigin,
-        itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
-      )
-
-      x += nodeSize.width + spacing
-    }
-
-    layoutCache.finish(mainAxis: .horizontal)
-
-    let sizing = ComposeNodeSizing(width: widthSizing, height: heightSizing)
-    lastLayout = (context.passId, containerSize, sizing)
-    return sizing
+    stack.layout(containerSize: containerSize, context: context)
   }
 
   public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
-    guard layoutCache.childCount == children.count else {
-      ComposeUI.assertFailure("render(visibleBounds:into:) requires layout(containerSize:context:) to be called first")
-      return
+    stack.render(visibleBounds: visibleBounds, into: &items, id: id)
+  }
+
+  // MARK: - Axis
+
+  /// The horizontal axis, across which the stack aligns its children vertically.
+  private enum Axis: StackAxis {
+
+    static var mainAxis: StackLayoutCache.MainAxis {
+      .horizontal
     }
 
-    let visibleChildRange = layoutCache.visibleChildRange(minPosition: visibleBounds.minX, maxPosition: visibleBounds.maxX)
-
-    // each visible child appends its items to the pass's array, where they're changed in place
-    for i in visibleChildRange {
-      let childOrigin = layoutCache.child(at: i).origin
-      let boundsInChild = visibleBounds.translate(-childOrigin)
-      let start = items.count
-      children.render(at: i, visibleBounds: boundsInChild, into: &items)
-      for index in start ..< items.count {
-        items[index].id = id.join(with: items[index].id, suffix: "\(i)")
-        items[index].frame = items[index].frame.translate(childOrigin)
+    static func crossPosition(of childLength: CGFloat, in length: CGFloat, alignment: Layout.VerticalAlignment) -> CGFloat {
+      switch alignment {
+      case .center:
+        return (length - childLength) / 2
+      case .top:
+        return 0
+      case .bottom:
+        return length - childLength
       }
     }
   }
