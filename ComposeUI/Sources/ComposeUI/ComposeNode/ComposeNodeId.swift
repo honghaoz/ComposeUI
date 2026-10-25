@@ -277,6 +277,9 @@ public struct ComposeNodeId: Hashable {
     } else {
       // systems before macOS 11, iOS 14 and tvOS 14 can't make a string by writing into its storage, so the id is
       // written into a temporary buffer and then decoded
+      #if COMPOSEUI_SANITY_CHECKS
+      Self.temporaryBufferJoinCount += 1
+      #endif
       id = withUnsafeTemporaryAllocation(of: UInt8.self, capacity: count) { buffer in
         Self.write(parent: parentBytes, suffix: suffixBytes, child: childBytes, into: buffer, hash: &hash)
 
@@ -333,6 +336,10 @@ extension ComposeNodeId {
   /// instead of into the string's storage, which the builds that run the sanity checks honor. A test turns it on to run
   /// those systems' joins.
   static var joinsInTemporaryBuffer = false
+
+  /// The number of joins that wrote their ids into a temporary buffer, which the builds that run the sanity checks count.
+  /// A test checks it to tell which way its joins went, since both ways make the same ids.
+  static var temporaryBufferJoinCount = 0
 }
 #endif
 

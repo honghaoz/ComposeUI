@@ -245,8 +245,8 @@ class ComposeNodeIdTests: XCTestCase {
   }
 
   func test_join_keepsEachPiecesBytes_andHashesAsADirectId() {
-    // then: joins, which write into the string's storage on the systems that the tests run on, keep each piece's bytes,
-    // and hash as an id made directly of those bytes
+    // then: joins write into the string's storage on the systems that the tests run on, keep each piece's bytes, and
+    // hash as an id made directly of those bytes
     expectJoinsToKeepEachPiecesBytes_andHashAsADirectId()
   }
 
@@ -257,13 +257,14 @@ class ComposeNodeIdTests: XCTestCase {
       ComposeNodeId.joinsInTemporaryBuffer = false
     }
 
-    // then: the joins keep each piece's bytes, and hash as an id made directly of those bytes
+    // then: the joins write into the temporary buffer, keep each piece's bytes, and hash as an id made directly of those
+    // bytes
     expectJoinsToKeepEachPiecesBytes_andHashAsADirectId()
   }
 
   func test_join_allocatesOnlyForAnIdPastTheInlineLimit() {
-    // then: joins, which write into the string's storage on the systems that the tests run on, allocate only for an id
-    // past the 15 bytes that a string stores inline
+    // then: joins write into the string's storage on the systems that the tests run on, and allocate only for an id past
+    // the 15 bytes that a string stores inline
     expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit()
   }
 
@@ -274,7 +275,8 @@ class ComposeNodeIdTests: XCTestCase {
       ComposeNodeId.joinsInTemporaryBuffer = false
     }
 
-    // then: the joins allocate only for an id past the 15 bytes that a string stores inline
+    // then: the joins write into the temporary buffer, and allocate only for an id past the 15 bytes that a string
+    // stores inline
     expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit()
   }
 
@@ -360,6 +362,7 @@ class ComposeNodeIdTests: XCTestCase {
       (longPiece, longPiece, longPiece),
       (bridgedParent, "1", bridgedChild),
     ]
+    let temporaryBufferJoinCount = ComposeNodeId.temporaryBufferJoinCount
 
     for (parent, suffix, child) in cases {
       // when: joining the child's id to the parent's id, with the suffix, if any
@@ -372,6 +375,11 @@ class ComposeNodeIdTests: XCTestCase {
       expect(joinedId, file: file, line: line) == ComposeNodeId.custom(expectedId)
       expect(joinedId.hashValue, file: file, line: line) == ComposeNodeId.custom(expectedId).hashValue
     }
+
+    // then: each join went the way that `joinsInTemporaryBuffer` chose, which the ids can't tell, since both ways make
+    // the same ids
+    let temporaryBufferJoins = ComposeNodeId.temporaryBufferJoinCount - temporaryBufferJoinCount
+    expect(temporaryBufferJoins, file: file, line: line) == (ComposeNodeId.joinsInTemporaryBuffer ? cases.count : 0)
   }
 
   /// Expects joins to allocate nothing for an id of 15 bytes, which a string stores inline, and once, for its storage,
@@ -392,6 +400,7 @@ class ComposeNodeIdTests: XCTestCase {
     }
     _ = AllocationCounter.count(joinShort)
     _ = AllocationCounter.count(joinLong)
+    let temporaryBufferJoinCount = ComposeNodeId.temporaryBufferJoinCount
 
     // when: counting the allocations of each join
     let shortAllocations = AllocationCounter.count(joinShort)
@@ -402,6 +411,10 @@ class ComposeNodeIdTests: XCTestCase {
     expect(shortAllocations, file: file, line: line) == 0
     expect(longAllocations, file: file, line: line) == 1
     expect(joinedId?.id, file: file, line: line) == "AAAA|1|BBBBBBBBB"
+
+    // then: both joins went the way that `joinsInTemporaryBuffer` chose
+    let temporaryBufferJoins = ComposeNodeId.temporaryBufferJoinCount - temporaryBufferJoinCount
+    expect(temporaryBufferJoins, file: file, line: line) == (ComposeNodeId.joinsInTemporaryBuffer ? 2 : 0)
   }
 }
 
