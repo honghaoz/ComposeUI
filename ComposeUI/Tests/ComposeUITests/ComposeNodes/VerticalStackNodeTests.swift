@@ -713,6 +713,21 @@ class VerticalStackNodeTests: XCTestCase {
     expect(assertionCount) == 1
   }
 
+  func test_renderableItems_nullVisibleBounds_providesNoItems() {
+    // given: a laid out stack of nodes with items
+    var node = VStack {
+      LayerNode().frame(width: 10, height: 10)
+      LayerNode().frame(width: 10, height: 10)
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // when: getting the renderable items in null bounds
+    let items = node.renderableItems(in: .null)
+
+    // then: no item is visible
+    expect(items.isEmpty) == true
+  }
+
   func test_renderableItemsBoundingRect() {
     // given: an empty stack
     var emptyNode = VStack {}

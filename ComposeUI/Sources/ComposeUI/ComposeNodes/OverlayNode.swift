@@ -64,12 +64,12 @@ struct OverlayNode<Node: ComposeNode>: ComposeNode {
     let childRect = node.renderableItemsBoundingRect
 
     let overlayRect = overlayNode.renderableItemsBoundingRect
-    guard !overlayRect.isNull else {
+    guard !overlayRect.isNullInline else {
       return childRect
     }
 
     let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
-    return childRect.union(overlayRect.translate(overlayFrame.origin))
+    return childRect.unionInline(overlayRect.translate(overlayFrame.origin))
   }
 
   @usableFromInline

@@ -86,7 +86,7 @@ struct FrameNode<Node: ComposeNode>: ComposeNode {
   @usableFromInline
   var renderableItemsBoundingRect: CGRect {
     let childRect = node.renderableItemsBoundingRect
-    guard !childRect.isNull else {
+    guard !childRect.isNullInline else {
       return childRect
     }
 

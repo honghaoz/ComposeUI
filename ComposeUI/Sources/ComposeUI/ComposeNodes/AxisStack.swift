@@ -95,22 +95,28 @@ extension StackAxis {
   }
 
   /// Returns a rect's minimum position along the axis.
-  static func minMain(of rect: CGRect) -> CGFloat {
+  ///
+  /// - Parameter edges: The rect's edges, as `CGRect.edgesInline` gives them.
+  /// - Returns: The rect's minimum position along the axis.
+  static func minMain(of edges: (minX: CGFloat, minY: CGFloat, maxX: CGFloat, maxY: CGFloat)) -> CGFloat {
     switch mainAxis {
     case .horizontal:
-      return rect.minX
+      return edges.minX
     case .vertical:
-      return rect.minY
+      return edges.minY
     }
   }
 
   /// Returns a rect's maximum position along the axis.
-  static func maxMain(of rect: CGRect) -> CGFloat {
+  ///
+  /// - Parameter edges: The rect's edges, as `CGRect.edgesInline` gives them.
+  /// - Returns: The rect's maximum position along the axis.
+  static func maxMain(of edges: (minX: CGFloat, minY: CGFloat, maxX: CGFloat, maxY: CGFloat)) -> CGFloat {
     switch mainAxis {
     case .horizontal:
-      return rect.maxX
+      return edges.maxX
     case .vertical:
-      return rect.maxY
+      return edges.maxY
     }
   }
 
@@ -161,11 +167,11 @@ extension StackAxis {
 /// across the axis is the maximum length of its children.
 struct AxisStack<Axis: StackAxis> {
 
-  /// The latest layout's pass, container size and sizing, which a layout in the same pass at the same container size
-  /// returns instead of laying out the children again.
+  /// The latest layout's pass, container size and sizing, which a layout in the same pass at a container size that
+  /// differs only in lengths that the layout didn't read returns instead of laying out the children again.
   ///
-  /// Declared first: it ends 7 bytes short of an 8-byte boundary, and the one-byte `alignment` declared after it goes
-  /// into those bytes instead of taking an 8-byte slot of its own, which keeps the stack's heap box 16 bytes smaller.
+  /// Declared first, so that the one-byte `alignment` declared after it goes into the padding after its sizing instead
+  /// of taking an 8-byte slot of its own, which keeps the stack, and each node or buffer that stores one, 8 bytes smaller.
   private var lastLayout: (passId: UInt64, containerSize: CGSize, sizing: ComposeNodeSizing)?
 
   private let alignment: Axis.CrossAlignment
@@ -368,9 +374,15 @@ struct AxisStack<Axis: StackAxis> {
       return
     }
 
+    // null bounds show nothing, and the edges of other bounds are computed inline, instead of with two calls into
+    // CoreGraphics in each render
+    guard !visibleBounds.isNullInline else {
+      return
+    }
+    let visibleEdges = visibleBounds.edgesInline
     let visibleChildRange = layoutCache.visibleChildRange(
-      minPosition: Axis.minMain(of: visibleBounds),
-      maxPosition: Axis.maxMain(of: visibleBounds)
+      minPosition: Axis.minMain(of: visibleEdges),
+      maxPosition: Axis.maxMain(of: visibleEdges)
     )
 
     // each visible child appends its items to the pass's array, where they're changed in place
@@ -379,8 +391,14 @@ struct AxisStack<Axis: StackAxis> {
       let boundsInChild = visibleBounds.translate(-childOrigin)
       let start = items.count
       children.render(at: i, visibleBounds: boundsInChild, into: &items)
+      guard items.count > start else {
+        continue
+      }
+
+      // the child's items share one suffix, which is made once for the child instead of once for each item
+      let suffix = "\(i)"
       for index in start ..< items.count {
-        items[index].id = id.join(with: items[index].id, suffix: "\(i)")
+        items[index].id = id.join(with: items[index].id, suffix: suffix)
         items[index].frame = items[index].frame.translate(childOrigin)
       }
     }
