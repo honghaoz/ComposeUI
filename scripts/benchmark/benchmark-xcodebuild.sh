@@ -70,10 +70,13 @@ benchmark_pick_simulator() { # <platform>
 }
 
 # Builds a package's tests for the simulator in release, into a derived data directory.
+#
+# The tests use debug-only hooks, so the release build defines DEBUG, and COMPOSEUI_BENCHMARK, which leaves out the work
+# that only debug builds do, and which the benchmarks run only in.
 benchmark_build_for_simulator() { # <package dir> <derived data dir>
   (cd "$1" && xcodebuild build-for-testing -scheme "$SCHEME" -destination "$DESTINATION" -derivedDataPath "$2" \
-    -configuration Release -enableCodeCoverage NO ENABLE_TESTABILITY=YES SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
-    COMPILER_INDEX_STORE_ENABLE=NO)
+    -configuration Release -enableCodeCoverage NO ENABLE_TESTABILITY=YES \
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS="DEBUG COMPOSEUI_BENCHMARK" COMPILER_INDEX_STORE_ENABLE=NO)
 }
 
 # Boots the simulator, or waits for its boot to finish.
@@ -117,7 +120,7 @@ benchmark_run_on_simulator() { # <package dir> <derived data dir> <selected test
   while IFS= read -r test; do
     only_testing+=("$test")
   done < "$3"
-  (cd "$1" && TEST_RUNNER_BENCHMARK=1 TEST_RUNNER_SWIFT_DETERMINISTIC_HASHING=1 xcodebuild test-without-building \
+  (cd "$1" && TEST_RUNNER_SWIFT_DETERMINISTIC_HASHING=1 xcodebuild test-without-building \
     -scheme "$SCHEME" -destination "$DESTINATION" -derivedDataPath "$2" -configuration Release -enableCodeCoverage NO \
     -parallel-testing-enabled NO ${only_testing[@]+"${only_testing[@]}"})
 }

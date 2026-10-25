@@ -284,7 +284,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
   /// A long-running scroll loop for attaching a sampling profiler.
   ///
   /// ```bash
-  /// BENCHMARK=1 PROFILE=1 swift test -c debug -Xswiftc -O --filter RenderPerformanceTests/test_profile_scroll_nested &
+  /// PROFILE=1 swift test -c debug -Xswiftc -O -Xswiftc -DCOMPOSEUI_BENCHMARK --filter RenderPerformanceTests/test_profile_scroll_nested &
   /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_profile.txt
   /// ```
   func test_profile_scroll_nested() throws {
@@ -326,7 +326,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
   /// count (~107), which amplifies the per-item allocation churn we want to size.
   ///
   /// ```bash
-  /// BENCHMARK=1 PROFILE=1 swift test -c debug -Xswiftc -O --filter RenderPerformanceTests/test_profile_scroll_flatLayers &
+  /// PROFILE=1 swift test -c debug -Xswiftc -O -Xswiftc -DCOMPOSEUI_BENCHMARK --filter RenderPerformanceTests/test_profile_scroll_flatLayers &
   /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_flat_profile.txt
   /// ```
   func test_profile_scroll_flatLayers() throws {
@@ -367,7 +367,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
   /// row).
   ///
   /// ```bash
-  /// BENCHMARK=1 PROFILE=1 REUSE=1 swift test -c debug -Xswiftc -O --filter RenderPerformanceTests/test_profile_scroll_viewRows &
+  /// PROFILE=1 REUSE=1 swift test -c debug -Xswiftc -O -Xswiftc -DCOMPOSEUI_BENCHMARK --filter RenderPerformanceTests/test_profile_scroll_viewRows &
   /// sleep 20 && sample $(pgrep -f ComposeUIPackageTests | head -1) 8 -file /tmp/scroll_view_profile.txt
   /// ```
   func test_profile_scroll_viewRows() throws {

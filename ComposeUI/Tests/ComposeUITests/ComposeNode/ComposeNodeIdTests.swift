@@ -250,7 +250,7 @@ class ComposeNodeIdTests: XCTestCase {
     expectJoinsToKeepEachPiecesBytes_andHashAsADirectId()
   }
 
-  #if COMPOSEUI_SANITY_CHECKS
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_join_inTemporaryBuffer_keepsEachPiecesBytes_andHashesAsADirectId() {
     // given: joins that write into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14
     ComposeNodeId.joinsInTemporaryBuffer = true
@@ -270,7 +270,7 @@ class ComposeNodeIdTests: XCTestCase {
     expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit()
   }
 
-  #if COMPOSEUI_SANITY_CHECKS
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_join_inTemporaryBuffer_allocatesOnlyForAnIdPastTheInlineLimit() {
     // given: joins that write into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14
     ComposeNodeId.joinsInTemporaryBuffer = true
@@ -366,7 +366,7 @@ class ComposeNodeIdTests: XCTestCase {
       (longPiece, longPiece, longPiece),
       (bridgedParent, "1", bridgedChild),
     ]
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     let temporaryBufferJoinCount = ComposeNodeId.temporaryBufferJoinCount
     #endif
 
@@ -382,7 +382,7 @@ class ComposeNodeIdTests: XCTestCase {
       expect(joinedId.hashValue, file: file, line: line) == ComposeNodeId.custom(expectedId).hashValue
     }
 
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     // then: each join went the way that `joinsInTemporaryBuffer` chose, which the ids can't tell, since both ways make
     // the same ids
     let temporaryBufferJoins = ComposeNodeId.temporaryBufferJoinCount - temporaryBufferJoinCount
@@ -408,7 +408,7 @@ class ComposeNodeIdTests: XCTestCase {
     }
     _ = AllocationCounter.count(joinShort)
     _ = AllocationCounter.count(joinLong)
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     let temporaryBufferJoinCount = ComposeNodeId.temporaryBufferJoinCount
     #endif
 
@@ -422,7 +422,7 @@ class ComposeNodeIdTests: XCTestCase {
     expect(longAllocations, file: file, line: line) == 1
     expect(joinedId?.id, file: file, line: line) == "AAAA|1|BBBBBBBBB"
 
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     // then: both joins went the way that `joinsInTemporaryBuffer` chose
     let temporaryBufferJoins = ComposeNodeId.temporaryBufferJoinCount - temporaryBufferJoinCount
     expect(temporaryBufferJoins, file: file, line: line) == (ComposeNodeId.joinsInTemporaryBuffer ? 2 : 0)

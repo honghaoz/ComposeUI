@@ -226,7 +226,7 @@ struct AxisStack<Axis: StackAxis> {
     // enclosing stack with a flexible child would double the layouts of the nodes in it, and a stack of fixed rows that
     // a flexible stack holds would lay out its rows again for each length that the flexible stack is given
     if let lastLayout, lastLayout.passId == context.passId, lastLayout.sizing.dependence.isSame(lastLayout.containerSize, as: containerSize) {
-      #if COMPOSEUI_SANITY_CHECKS
+      #if DEBUG && !COMPOSEUI_BENCHMARK
       if lastLayout.containerSize != containerSize, ComposeNodeSizing.Dependence.checksKeptLayouts {
         return layoutCheckingKeptLayout(lastLayout, containerSize: containerSize, context: context)
       }
@@ -363,7 +363,7 @@ struct AxisStack<Axis: StackAxis> {
     return sizing
   }
 
-  #if COMPOSEUI_SANITY_CHECKS
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   /// Lays out the children again at a container size that differs from the kept layout's only in lengths that the kept
   /// layout didn't read, and asserts that the new layout has the same sizing, size, and children's positions and items
   /// bounding rects, which a child's wrong dependence that changes any of them breaks.
