@@ -328,8 +328,33 @@ class HorizontalStackNodeTests: XCTestCase {
     }
     _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-    // then: the flexible child gets half of the width, as it does next to another flexible child
+    // then: the flexible child gets half of the width, as it does next to another flexible child, and the layout asserts
+    // once more
     expect(node.childNodes.map(\.size)) == [CGSize(width: 50, height: 50), CGSize(width: CGFloat.infinity, height: 50)]
+    expect(assertionMessages) == ["fixed sizing must have a non-infinite size", "fixed sizing must have a non-infinite size"]
+  }
+
+  func test_layout_negativeFixedWidth() {
+    // given: a test assertion failure handler, since a negative fixed width is invalid
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: laying out an hstack of fixed children, one of them a spacer with a negative width
+    var node = HStack {
+      LayerNode().frame(width: 20, height: 50)
+      Spacer(width: -10)
+    }
+    _ = node.layout(containerSize: CGSize(width: 100, height: 50), context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the layout asserts, and the spacer keeps its width, which the stack's width includes
+    expect(assertionMessages) == ["fixed sizing must have a size greater than or equal to 0, got -10.0"]
+    expect(node.childNodes.map(\.size)) == [CGSize(width: 20, height: 50), CGSize(width: -10, height: 0)]
+    expect(node.size) == CGSize(width: 10, height: 50)
   }
 
   func test_fixedWidth_fixedHeight_alignment() {

@@ -228,6 +228,11 @@ struct AxisStack<Axis: StackAxis> {
     var mainSizing: ComposeNodeSizing.Sizing = .fixed(totalSpacing)
     var crossSizing: ComposeNodeSizing.Sizing = .fixed(0)
 
+    // the space along the axis is distributed only when a flexible or range child can take part of it, since the
+    // distribution's proposals for fixed children go unused
+    var hasExpandableChild = false
+    var hasInvalidFixedLength = false
+
     // the children's sizings and proposed lengths along the axis are needed only during this layout, so they're in
     // temporary memory
     withUnsafeTemporaryAllocation(of: ComposeNodeSizing.Sizing.self, capacity: childCount) { childMainSizings in
@@ -250,29 +255,44 @@ struct AxisStack<Axis: StackAxis> {
         let childMainSizing = Axis.main(of: childSizing)
         mainSizing = mainSizing.combine(with: childMainSizing, axis: .main)
         childMainSizings.initializeElement(at: nodeIndex, to: childMainSizing)
+        switch childMainSizing {
+        case .fixed(let length):
+          hasInvalidFixedLength = hasInvalidFixedLength || length < 0 || length == .infinity
+        case .flexible,
+             .range:
+          hasExpandableChild = true
+        }
 
         crossSizing = crossSizing.combine(with: Axis.cross(of: childSizing), axis: .cross)
       }
 
-      withUnsafeTemporaryAllocation(of: CGFloat.self, capacity: childCount) { proposedMainLengths in
-        let remainingMainLength = Axis.main(of: containerSize) - totalSpacing
-        Layout.stackLayout(space: remainingMainLength, items: UnsafeBufferPointer(childMainSizings), into: proposedMainLengths)
-        proposedMainLengths.round(scaleFactor: context.scaleFactor)
+      if hasExpandableChild {
+        withUnsafeTemporaryAllocation(of: CGFloat.self, capacity: childCount) { proposedMainLengths in
+          let remainingMainLength = Axis.main(of: containerSize) - totalSpacing
+          Layout.stackLayout(space: remainingMainLength, items: UnsafeBufferPointer(childMainSizings), into: proposedMainLengths)
+          proposedMainLengths.round(scaleFactor: context.scaleFactor)
 
-        // second pass: layout children with proposed lengths along the axis
-        for nodeIndex in 0 ..< childCount {
-          switch childMainSizings[nodeIndex] {
-          case .flexible,
-               .range:
-            _ = children.layout(
-              at: nodeIndex,
-              containerSize: Axis.size(main: proposedMainLengths[nodeIndex], cross: Axis.cross(of: containerSize)),
-              context: context
-            )
-          case .fixed:
-            // skips the nodes of a fixed length along the axis as they don't need to be laid out again
-            continue
+          // second pass: layout children with proposed lengths along the axis
+          for nodeIndex in 0 ..< childCount {
+            switch childMainSizings[nodeIndex] {
+            case .flexible,
+                 .range:
+              _ = children.layout(
+                at: nodeIndex,
+                containerSize: Axis.size(main: proposedMainLengths[nodeIndex], cross: Axis.cross(of: containerSize)),
+                context: context
+              )
+            case .fixed:
+              // skips the nodes of a fixed length along the axis as they don't need to be laid out again
+              continue
+            }
           }
+        }
+      } else if hasInvalidFixedLength {
+        // the distribution normalizes each sizing, which reports an invalid length, so a stack of fixed children reports
+        // them here instead
+        for nodeIndex in 0 ..< childCount {
+          _ = childMainSizings[nodeIndex].normalized()
         }
       }
 
