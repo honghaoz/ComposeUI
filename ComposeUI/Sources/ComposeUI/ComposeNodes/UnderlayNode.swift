@@ -67,12 +67,12 @@ struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     let childRect = node.renderableItemsBoundingRect
 
     let underlayRect = underlayNode.renderableItemsBoundingRect
-    guard !underlayRect.isNull else {
+    guard !underlayRect.isNullInline else {
       return childRect
     }
 
     let underlayFrame = Layout.position(rect: underlayNode.size, in: size, alignment: alignment)
-    return childRect.union(underlayRect.translate(underlayFrame.origin))
+    return childRect.unionInline(underlayRect.translate(underlayFrame.origin))
   }
 
   @usableFromInline

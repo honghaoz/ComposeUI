@@ -58,7 +58,7 @@ struct OffsetNode<Node: ComposeNode>: ComposeNode {
   @usableFromInline
   var renderableItemsBoundingRect: CGRect {
     let childRect = node.renderableItemsBoundingRect
-    return childRect.isNull ? childRect : childRect.translate(offset)
+    return childRect.isNullInline ? childRect : childRect.translate(offset)
   }
 
   @usableFromInline

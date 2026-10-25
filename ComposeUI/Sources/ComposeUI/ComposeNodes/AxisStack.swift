@@ -95,22 +95,28 @@ extension StackAxis {
   }
 
   /// Returns a rect's minimum position along the axis.
-  static func minMain(of rect: CGRect) -> CGFloat {
+  ///
+  /// - Parameter edges: The rect's edges, as `CGRect.edgesInline` gives them.
+  /// - Returns: The rect's minimum position along the axis.
+  static func minMain(of edges: (minX: CGFloat, minY: CGFloat, maxX: CGFloat, maxY: CGFloat)) -> CGFloat {
     switch mainAxis {
     case .horizontal:
-      return rect.minX
+      return edges.minX
     case .vertical:
-      return rect.minY
+      return edges.minY
     }
   }
 
   /// Returns a rect's maximum position along the axis.
-  static func maxMain(of rect: CGRect) -> CGFloat {
+  ///
+  /// - Parameter edges: The rect's edges, as `CGRect.edgesInline` gives them.
+  /// - Returns: The rect's maximum position along the axis.
+  static func maxMain(of edges: (minX: CGFloat, minY: CGFloat, maxX: CGFloat, maxY: CGFloat)) -> CGFloat {
     switch mainAxis {
     case .horizontal:
-      return rect.maxX
+      return edges.maxX
     case .vertical:
-      return rect.maxY
+      return edges.maxY
     }
   }
 
@@ -368,9 +374,15 @@ struct AxisStack<Axis: StackAxis> {
       return
     }
 
+    // null bounds show nothing, and the edges of other bounds are computed inline, instead of with two calls into
+    // CoreGraphics in each render
+    guard !visibleBounds.isNullInline else {
+      return
+    }
+    let visibleEdges = visibleBounds.edgesInline
     let visibleChildRange = layoutCache.visibleChildRange(
-      minPosition: Axis.minMain(of: visibleBounds),
-      maxPosition: Axis.maxMain(of: visibleBounds)
+      minPosition: Axis.minMain(of: visibleEdges),
+      maxPosition: Axis.maxMain(of: visibleEdges)
     )
 
     // each visible child appends its items to the pass's array, where they're changed in place
