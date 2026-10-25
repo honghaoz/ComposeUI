@@ -232,18 +232,64 @@ public struct ComposeNodeId: Hashable {
     if childNodeId.isFixed {
       return childNodeId
     } else {
-      if let suffix {
-        var hash = Self.fnv1a(HashConstants.separator, hash: cachedHash)
-        hash = Self.fnv1a(suffix, hash: hash)
-        hash = Self.fnv1a(HashConstants.separator, hash: hash)
-        hash = Self.fnv1a(childNodeId.id, hash: hash)
-        return ComposeNodeId(id: "\(id)|\(suffix)|\(childNodeId.id)", isFixed: isFixed, cachedHash: hash)
-      } else {
-        var hash = Self.fnv1a(HashConstants.separator, hash: cachedHash)
-        hash = Self.fnv1a(childNodeId.id, hash: hash)
-        return ComposeNodeId(id: "\(id)|\(childNodeId.id)", isFixed: isFixed, cachedHash: hash)
+      var parentId = id
+      var childId = childNodeId.id
+      return parentId.withUTF8 { parentBytes in
+        childId.withUTF8 { childBytes in
+          if var suffix {
+            return suffix.withUTF8 { suffixBytes in
+              joinedId(parent: parentBytes, suffix: suffixBytes, child: childBytes)
+            }
+          } else {
+            return joinedId(parent: parentBytes, suffix: nil, child: childBytes)
+          }
+        }
       }
     }
+  }
+
+  /// Returns the id of this id's bytes, a suffix's bytes, if any, and a child id's bytes, with a separator between each.
+  @inline(__always)
+  private func joinedId(parent parentBytes: UnsafeBufferPointer<UInt8>,
+                        suffix suffixBytes: UnsafeBufferPointer<UInt8>?,
+                        child childBytes: UnsafeBufferPointer<UInt8>) -> ComposeNodeId
+  {
+    // interpolating the pieces re-encodes the string at each piece that it appends, which took most of a join's time,
+    // so the joined id is written once at its length, with its hash going on over each byte as it's copied
+    let count = parentBytes.count + 1 + (suffixBytes.map { $0.count + 1 } ?? 0) + childBytes.count
+    return withUnsafeTemporaryAllocation(of: UInt8.self, capacity: count) { buffer in
+      var index = 0
+      for byte in parentBytes {
+        buffer[index] = byte
+        index += 1
+      }
+
+      // this id's hash covers its bytes, so the hash goes on from the separator after them
+      var hash = cachedHash
+      Self.write(HashConstants.separator, into: buffer, at: &index, hash: &hash)
+      if let suffixBytes {
+        for byte in suffixBytes {
+          Self.write(byte, into: buffer, at: &index, hash: &hash)
+        }
+        Self.write(HashConstants.separator, into: buffer, at: &index, hash: &hash)
+      }
+      for byte in childBytes {
+        Self.write(byte, into: buffer, at: &index, hash: &hash)
+      }
+
+      // the bytes come from strings, which hold valid UTF-8, so decoding them has nothing to repair, while the failable
+      // `String(bytes:encoding:)` that the rule prefers goes through `NSString`
+      // swiftlint:disable:next optional_data_string_conversion
+      return ComposeNodeId(id: String(decoding: UnsafeBufferPointer(buffer), as: UTF8.self), isFixed: isFixed, cachedHash: hash)
+    }
+  }
+
+  /// Writes a byte into a buffer at an index, moves the index past it, and goes on with a hash over it.
+  @inline(__always)
+  private static func write(_ byte: UInt8, into buffer: UnsafeMutableBufferPointer<UInt8>, at index: inout Int, hash: inout UInt64) {
+    buffer[index] = byte
+    index += 1
+    hash = fnv1a(byte, hash: hash)
   }
 }
 
