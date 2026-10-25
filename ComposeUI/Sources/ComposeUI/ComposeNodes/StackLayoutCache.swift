@@ -104,6 +104,7 @@ struct StackLayoutCache {
   }
 
   /// A child's layout information, in the inline storage or the array.
+  @inline(__always)
   private subscript(index: Int) -> Child {
     guard usesHeapChildren else {
       switch index {
@@ -237,10 +238,14 @@ struct StackLayoutCache {
   ///
   /// The cache must be finished with a main axis (`finish(mainAxis:)` with a non-nil `mainAxis`), unless it's empty.
   ///
+  /// It's always inlined, as is the search it runs, since a stack's render reads the cache that the stack stores, and a
+  /// call would copy the whole cache, which is too big for registers, to pass it.
+  ///
   /// - Parameters:
   ///   - minPosition: The min position of the visible bounds on the main axis.
   ///   - maxPosition: The max position of the visible bounds on the main axis.
   /// - Returns: The range of children that can provide visible renderable items.
+  @inline(__always)
   func visibleChildRange(minPosition: CGFloat, maxPosition: CGFloat) -> Range<Int> {
     // an empty cache, such as an empty stack's, has no children to search
     guard hasSearchStructures || childCount == 0 else {
@@ -268,6 +273,7 @@ struct StackLayoutCache {
   ///
   /// - Parameter predicate: The predicate to satisfy.
   /// - Returns: The index of the first child that satisfies the predicate, or `childCount` if no child satisfies it.
+  @inline(__always)
   private func firstChildIndex(where predicate: (Child) -> Bool) -> Int {
     var low = 0
     var high = childCount
