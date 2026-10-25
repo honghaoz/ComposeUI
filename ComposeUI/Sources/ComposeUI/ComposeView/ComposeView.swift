@@ -1309,7 +1309,7 @@ open class ComposeView: BaseScrollView {
     let oldRenderableItemIds = renderableItemIds
     var oldRenderableMap = renderableMap
 
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     // sanity check for old renderable item ids and maps before rendering
     let oldRenderableItemIndexMap = renderableItemIndexMap
     ComposeUI.assert(oldRenderableItems.count == oldRenderableItemIds.count, "mismatched old renderable item and id counts")
@@ -1702,7 +1702,7 @@ open class ComposeView: BaseScrollView {
     // left in place and no insertion took leave now, for the pool
     inPlaceReuse.stopKeeping(addingTo: renderablePool)
 
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     // sanity check for renderable item ids and maps after rendering
     ComposeUI.assert(renderableItemIds.count == renderableItemIndexMap.count, "mismatched renderable item count")
     ComposeUI.assert(renderableItemIds.count == renderableMap.count, "mismatched renderable count")

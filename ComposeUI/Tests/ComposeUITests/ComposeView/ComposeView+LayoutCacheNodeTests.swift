@@ -188,7 +188,7 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(cachedNode.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
   }
 
-  #if COMPOSEUI_SANITY_CHECKS
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_layout_keptLayoutAtAnotherSize_isCheckedAgainstANewLayout() {
     // given: a test assertion failure handler
     var assertionMessages: [String] = []

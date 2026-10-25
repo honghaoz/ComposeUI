@@ -464,7 +464,7 @@ class VerticalStackNodeTests: XCTestCase {
   }
 
   func test_layout_otherContainerSizeInALengthTheLayoutDoesntDependOn_returnsTheEarlierLayout() {
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     // given: the debug check of kept layouts off, since it lays out again, which the test would count
     KeptLayoutChecks.isOn = false
     defer {
@@ -498,7 +498,7 @@ class VerticalStackNodeTests: XCTestCase {
     expect(node.size) == CGSize(width: 40, height: 20)
   }
 
-  #if COMPOSEUI_SANITY_CHECKS
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_layout_keptLayoutAtAnotherSize_isCheckedAgainstANewLayout() {
     // given: a test assertion failure handler
     var assertionMessages: [String] = []

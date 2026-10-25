@@ -262,7 +262,7 @@ public struct ComposeNodeId: Hashable {
     // interpolating the pieces re-encodes the string at each piece that it appends, which took most of a join's time,
     // so the joined id is written once at its length, with its hash going on over each byte as it's copied
     let count = parentBytes.count + 1 + (suffixBytes.map { $0.count + 1 } ?? 0) + childBytes.count
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     let writesIntoStorage = !Self.joinsInTemporaryBuffer
     #else
     let writesIntoStorage = true
@@ -277,7 +277,7 @@ public struct ComposeNodeId: Hashable {
     } else {
       // systems before macOS 11, iOS 14 and tvOS 14 can't make a string by writing into its storage, so the id is
       // written into a temporary buffer and then decoded
-      #if COMPOSEUI_SANITY_CHECKS
+      #if DEBUG && !COMPOSEUI_BENCHMARK
       Self.temporaryBufferJoinCount += 1
       #endif
       id = withUnsafeTemporaryAllocation(of: UInt8.self, capacity: count) { buffer in
@@ -329,7 +329,7 @@ public struct ComposeNodeId: Hashable {
   }
 }
 
-#if COMPOSEUI_SANITY_CHECKS
+#if DEBUG && !COMPOSEUI_BENCHMARK
 extension ComposeNodeId {
 
   /// Whether a join writes the joined id into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14,

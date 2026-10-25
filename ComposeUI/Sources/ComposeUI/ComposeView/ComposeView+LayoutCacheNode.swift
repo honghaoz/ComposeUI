@@ -78,7 +78,7 @@ extension ComposeView {
       // a resize that changes only a length the content's layout didn't depend on, such as the height of a list of
       // fixed rows, keeps the layout, which a layout at the new size would only repeat
       if let cachedLayout, cachedLayout.sizing.dependence.isSame(cachedLayout.containerSize, as: containerSize), cachedLayout.scaleFactor == context.scaleFactor {
-        #if COMPOSEUI_SANITY_CHECKS
+        #if DEBUG && !COMPOSEUI_BENCHMARK
         if cachedLayout.containerSize != containerSize, ComposeNodeSizing.Dependence.checksKeptLayouts {
           return layoutCheckingKeptLayout(cachedLayout, containerSize: containerSize, context: context)
         }
@@ -93,7 +93,7 @@ extension ComposeView {
       }
     }
 
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     /// Lays out the content again at a container size that differs from the kept layout's only in lengths that the kept
     /// layout didn't read, and asserts that the new layout has the same sizing, size and items bounding rect, which a
     /// node's wrong dependence that changes any of them breaks.

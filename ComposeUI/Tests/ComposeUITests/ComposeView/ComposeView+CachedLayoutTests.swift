@@ -37,7 +37,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
   override func setUp() {
     super.setUp()
 
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     // the tests count the layouts that a cached layout saves, so the debug check of kept layouts, which lays out again,
     // is off
     KeptLayoutChecks.isOn = false
@@ -45,7 +45,7 @@ class ComposeView_CachedLayoutTests: XCTestCase {
   }
 
   override func tearDown() {
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     KeptLayoutChecks.isOn = true
     #endif
 

@@ -104,16 +104,4 @@ public extension ComposeView {
     }
   }
 }
-
-extension ComposeView {
-
-  /// Whether the build runs the render pass's sanity checks, which debug builds do, and the benchmark builds don't.
-  static var runsSanityChecks: Bool {
-    #if COMPOSEUI_SANITY_CHECKS
-    true
-    #else
-    false
-    #endif
-  }
-}
 #endif

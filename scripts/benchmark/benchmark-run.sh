@@ -65,7 +65,9 @@ if [ -z "$FILTER" ]; then
 fi
 
 if [ "$PLATFORM" = "macOS" ]; then
-  BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --package-path "$PACKAGE_DIR" -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG --filter "$FILTER"
+  # the tests use debug-only hooks, so the release build defines DEBUG, and COMPOSEUI_BENCHMARK, which leaves out the
+  # work that only debug builds do, and which the benchmarks run only in
+  SWIFT_DETERMINISTIC_HASHING=1 swift test --package-path "$PACKAGE_DIR" -c release -Xswiftc -enable-testing -Xswiftc -DDEBUG -Xswiftc -DCOMPOSEUI_BENCHMARK --filter "$FILTER"
   exit 0
 fi
 

@@ -44,14 +44,14 @@ class ComposeView_LayoutWorkTests: XCTestCase {
     // the text sizes are cached process-wide, so each test starts from an empty cache to count every measurement
     NSAttributedString.clearTextSizeCache()
 
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     // the counts pin the release builds' work, so the debug check of kept layouts, which lays out again, is off
     KeptLayoutChecks.isOn = false
     #endif
   }
 
   override func tearDown() {
-    #if COMPOSEUI_SANITY_CHECKS
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     KeptLayoutChecks.isOn = true
     #endif
 

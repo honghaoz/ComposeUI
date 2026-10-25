@@ -39,7 +39,10 @@ import ChouTiTest
 /// profiling test, named `test_profile_...`, runs for a profiler instead, so it reports nothing, and the comparison
 /// leaves it out.
 ///
-/// Benchmarks are skipped by default. To run them in release configuration on macOS:
+/// Benchmarks run only in the benchmark build, and other builds skip them. It's an optimized build that defines
+/// `DEBUG`, since the tests use the framework's `DEBUG`-only hooks, and `COMPOSEUI_BENCHMARK`, which leaves out the work
+/// that only debug builds do, the code under `#if DEBUG && !COMPOSEUI_BENCHMARK`, so that the benchmarks measure what
+/// apps run. To run them on macOS:
 ///
 /// ```bash
 /// make -C ComposeUI benchmark FILTER=RenderPerformanceTests
@@ -67,11 +70,14 @@ class BenchmarkTestCase: XCTestCase {
 
   override func setUpWithError() throws {
     try super.setUpWithError()
-    try XCTSkipUnless(ProcessInfo.processInfo.environment["BENCHMARK"] == "1", "benchmarks are skipped by default, run with BENCHMARK=1")
 
+    #if COMPOSEUI_BENCHMARK
     addTeardownBlock {
       self.failIfUnreported(wasSkipped: self.testRun?.hasBeenSkipped == true)
     }
+    #else
+    throw XCTSkip("benchmarks run only in the benchmark build, see `make -C ComposeUI benchmark`")
+    #endif
   }
 
   /// Fails the running benchmark when it ran without reporting its costs.

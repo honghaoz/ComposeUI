@@ -352,7 +352,7 @@ public extension ComposeNodeSizing {
   }
 }
 
-#if COMPOSEUI_SANITY_CHECKS
+#if DEBUG && !COMPOSEUI_BENCHMARK
 extension ComposeNodeSizing.Dependence {
 
   /// Whether a layout kept at another container size is checked against a new layout at that size. A test that counts

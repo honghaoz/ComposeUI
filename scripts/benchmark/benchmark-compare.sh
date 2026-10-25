@@ -155,8 +155,9 @@ if ! swiftc -parse-as-library -o "$COMPARE" "$PACKAGE_DIR/$BENCHMARKS_PATH_IN_PA
   fail "The comparison doesn't compile."
 fi
 
-# the tests use debug-only hooks, so the release build defines DEBUG
-BUILD_FLAGS=(-c release -Xswiftc -enable-testing -Xswiftc -DDEBUG)
+# the tests use debug-only hooks, so the release build defines DEBUG, and COMPOSEUI_BENCHMARK, which leaves out the work
+# that only debug builds do, and which the benchmarks run only in
+BUILD_FLAGS=(-c release -Xswiftc -enable-testing -Xswiftc -DDEBUG -Xswiftc -DCOMPOSEUI_BENCHMARK)
 
 PLATFORM_DESCRIPTION="macOS"
 if [ "$PLATFORM" != "macOS" ]; then
@@ -229,13 +230,18 @@ run() { # <side> <package dir> <round> <simulator derived data dir>
   local log="$RESULTS_DIR/$1-$3.txt"
   local status=0
   if [ "$PLATFORM" = "macOS" ]; then
-    BENCHMARK=1 SWIFT_DETERMINISTIC_HASHING=1 swift test --skip-build -c release --package-path "$2" --filter "$FILTER" --skip "/test_profile_" > "$log" 2>&1 || status=$?
+    SWIFT_DETERMINISTIC_HASHING=1 swift test --skip-build -c release --package-path "$2" --filter "$FILTER" --skip "/test_profile_" > "$log" 2>&1 || status=$?
   else
     benchmark_run_on_simulator "$2" "$4" "$WORK_DIR/$1-tests.txt" > "$log" 2>&1 || status=$?
   fi
   if [ "$status" -ne 0 ]; then
     tail -30 "$log" >&2
     fail "The $1 benchmarks failed in round $3, see the end of their log."
+  fi
+  # a round passes without results when the filter selects no benchmark that reports, or when a build without
+  # COMPOSEUI_BENCHMARK skips them all, so a round without results stops the comparison instead of comparing nothing
+  if ! grep -q "^\[BENCHMARK\] " "$log"; then
+    fail "The $1 benchmarks reported no results in round $3: the filter selects no benchmark that reports, or the build doesn't define COMPOSEUI_BENCHMARK."
   fi
 }
 
