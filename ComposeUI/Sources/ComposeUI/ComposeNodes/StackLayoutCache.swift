@@ -193,8 +193,8 @@ struct StackLayoutCache {
       guard let mainAxis else {
         // no main axis: the caller doesn't use `visibleChildRange(minPosition:maxPosition:)`, so only collect the
         // union of the bounding rects.
-        for child in children where !child.itemsBoundingRect.isNull {
-          itemsBoundingRect = itemsBoundingRect.union(child.itemsBoundingRect)
+        for child in children where !child.itemsBoundingRect.isNullInline {
+          itemsBoundingRect = itemsBoundingRect.unionInline(child.itemsBoundingRect)
         }
         return itemsBoundingRect
       }
@@ -203,9 +203,10 @@ struct StackLayoutCache {
       var runningMax: CGFloat = -.greatestFiniteMagnitude
       for index in children.indices {
         let rect = children[index].itemsBoundingRect
-        if !rect.isNull {
-          itemsBoundingRect = itemsBoundingRect.union(rect)
-          runningMax = Swift.max(runningMax, mainAxis == .vertical ? rect.maxY : rect.maxX)
+        if !rect.isNullInline {
+          itemsBoundingRect = itemsBoundingRect.unionInline(rect)
+          let edges = rect.edgesInline
+          runningMax = Swift.max(runningMax, mainAxis == .vertical ? edges.maxY : edges.maxX)
         }
         children[index].runningMaxPosition = runningMax
       }
@@ -214,8 +215,9 @@ struct StackLayoutCache {
       var runningMin: CGFloat = .greatestFiniteMagnitude
       for index in children.indices.reversed() {
         let rect = children[index].itemsBoundingRect
-        if !rect.isNull {
-          runningMin = Swift.min(runningMin, mainAxis == .vertical ? rect.minY : rect.minX)
+        if !rect.isNullInline {
+          let edges = rect.edgesInline
+          runningMin = Swift.min(runningMin, mainAxis == .vertical ? edges.minY : edges.minX)
         }
         children[index].runningMinPosition = runningMin
       }
