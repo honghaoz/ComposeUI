@@ -463,11 +463,13 @@ class HorizontalStackNodeTests: XCTestCase {
   }
 
   func test_layout_otherContainerSizeInALengthTheLayoutDoesntDependOn_returnsTheEarlierLayout() {
+    #if COMPOSEUI_SANITY_CHECKS
     // given: the debug check of kept layouts off, since it lays out again, which the test would count
     KeptLayoutChecks.isOn = false
     defer {
       KeptLayoutChecks.isOn = true
     }
+    #endif
 
     // given: a stack of a node that counts its layouts, framed to a fixed width and the container's height, laid out in
     // a pass

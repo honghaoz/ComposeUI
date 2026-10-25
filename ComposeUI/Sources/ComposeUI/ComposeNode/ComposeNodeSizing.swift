@@ -352,17 +352,12 @@ public extension ComposeNodeSizing {
   }
 }
 
-#if DEBUG
-extension ComposeNodeSizing.Dependence {
-
-  /// Whether a layout kept at another container size is checked against a new layout at that size, which the builds
-  /// that run the sanity checks do. A test that counts the layouts that a kept layout saves turns it off.
-  static var checksKeptLayouts = true
-}
-#endif
-
 #if COMPOSEUI_SANITY_CHECKS
 extension ComposeNodeSizing.Dependence {
+
+  /// Whether a layout kept at another container size is checked against a new layout at that size. A test that counts
+  /// the layouts that a kept layout saves turns it off.
+  static var checksKeptLayouts = true
 
   /// Returns the message of the assertion that a kept layout differs from a new layout at another container size,
   /// which a node whose layout reads a length that its sizing's dependence leaves out causes.

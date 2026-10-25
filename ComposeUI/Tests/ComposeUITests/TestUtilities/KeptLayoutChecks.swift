@@ -30,7 +30,9 @@
 
 @testable import ComposeUI
 
-/// The debug check of the layouts that `ComposeView` and stacks keep at another container size.
+#if COMPOSEUI_SANITY_CHECKS
+/// The debug check of the layouts that `ComposeView` and stacks keep at another container size, which only the builds
+/// that run the sanity checks have.
 enum KeptLayoutChecks {
 
   /// Whether a kept layout is checked against a new layout at the other container size, which lays the content out
@@ -44,3 +46,4 @@ enum KeptLayoutChecks {
     }
   }
 }
+#endif
