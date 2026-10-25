@@ -165,6 +165,11 @@ public struct ComposeNodeId: Hashable {
   private let cachedHash: UInt64
 
   private init(id: String, isFixed: Bool) {
+    // a join reads an id's bytes in place, which copies a string bridged from `NSString` that doesn't store contiguous
+    // UTF-8 into contiguous storage first, so the id is made contiguous once here instead of in each join, which costs
+    // nothing for a native string
+    var id = id
+    id.makeContiguousUTF8()
     self.id = id
     self.isFixed = isFixed
     self.cachedHash = Self.fnv1a(id)

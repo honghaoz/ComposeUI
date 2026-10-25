@@ -278,6 +278,38 @@ class ComposeNodeIdTests: XCTestCase {
     expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit()
   }
 
+  func test_join_idsOfBridgedStrings_allocatesOnlyForTheJoinedId() {
+    // given: ids of strings bridged from `NSString`, which don't store contiguous UTF-8, and bodies that join each with
+    // a native id into a variable outside the bodies, run once already, since a first run can also allocate what the
+    // runtime makes on first use, such as type metadata
+    let bridgedParent = NSString(string: "a parent id from Objective-C, naïve") as String
+    let bridgedChild = NSString(string: "a child id from Objective-C, naïve") as String
+    expect(bridgedParent.isContiguousUTF8) == false
+    expect(bridgedChild.isContiguousUTF8) == false
+    let bridgedParentId = ComposeNodeId.custom(bridgedParent)
+    let bridgedChildId = ComposeNodeId.custom(bridgedChild)
+    let nativeId = ComposeNodeId.custom("native")
+    var joinedId: ComposeNodeId?
+    let joinBridgedParent = {
+      joinedId = bridgedParentId.join(with: nativeId, suffix: "1")
+    }
+    let joinBridgedChild = {
+      joinedId = nativeId.join(with: bridgedChildId, suffix: "1")
+    }
+    _ = AllocationCounter.count(joinBridgedParent)
+    _ = AllocationCounter.count(joinBridgedChild)
+
+    // when: counting the allocations of each join
+    let bridgedParentAllocations = AllocationCounter.count(joinBridgedParent)
+    let bridgedChildAllocations = AllocationCounter.count(joinBridgedChild)
+
+    // then: each join allocates only the joined id's storage, since making an id copies a bridged string into contiguous
+    // storage once, where each join would otherwise copy it
+    expect(bridgedParentAllocations) == 1
+    expect(bridgedChildAllocations) == 1
+    expect(joinedId?.id) == "native|1|a child id from Objective-C, naïve"
+  }
+
   func test_custom_fixed() {
     // given: a fixed custom id
     let id = ComposeNodeId.custom("test", isFixed: true)
