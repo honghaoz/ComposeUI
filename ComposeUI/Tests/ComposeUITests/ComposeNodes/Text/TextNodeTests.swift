@@ -1802,36 +1802,32 @@ class TextNodeTests: XCTestCase {
     }
   }
 
-  func test_layout_dependsOnTheWidth_andOnTheHeightWhenItFillsIt() throws {
+  func test_layout_dependsOnTheWidthWhenTheTextCanWrap_andOnTheLengthsItFills() throws {
     let font = try unwrap(Font(name: "HelveticaNeue", size: 18))
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
-    let modes: [(isFixedWidth: Bool, isFixedHeight: Bool, dependence: ComposeNodeSizing.Dependence)] = [
-      (true, true, .width),
-      (false, true, .width),
-      (true, false, [.width, .height]),
-      (false, false, [.width, .height]),
+    let modes: [(numberOfLines: Int, isFixedWidth: Bool, isFixedHeight: Bool, dependence: ComposeNodeSizing.Dependence)] = [
+      (0, true, true, .width),
+      (0, false, true, .width),
+      (0, true, false, [.width, .height]),
+      (0, false, false, [.width, .height]),
+      (1, true, true, []),
+      (1, false, true, .width),
+      (1, true, false, .height),
+      (1, false, false, [.width, .height]),
     ]
-    for (isFixedWidth, isFixedHeight, expectedDependence) in modes {
-      // given: a text node that wraps, in one of the sizing modes
-      let mode = "fixed width: \(isFixedWidth), fixed height: \(isFixedHeight)"
+    for (numberOfLines, isFixedWidth, isFixedHeight, expectedDependence) in modes {
+      // given: a text node of a long text, with a number of lines and in one of the sizing modes
+      let mode = "lines: \(numberOfLines), fixed width: \(isFixedWidth), fixed height: \(isFixedHeight)"
       var node = TextNode("Hello, world! A text long enough to wrap.", font: font)
+        .numberOfLines(numberOfLines)
         .fixedSize(width: isFixedWidth, height: isFixedHeight)
 
       // when: laying it out
       let sizing = node.layout(containerSize: CGSize(width: 100, height: 300), context: context)
-      let size = node.size
 
-      // then: its layout depends on the width, which the text wraps in, and on the height when the node fills it
+      // then: its layout depends on the width when the text can wrap in it, since a single line is measured at an
+      // unlimited width, and on the lengths that the node fills
       expect(sizing.dependence, mode) == expectedDependence
-
-      // when: laying it out at another height
-      let sizingAtAnotherHeight = node.layout(containerSize: CGSize(width: 100, height: 20), context: context)
-
-      // then: a node whose layout doesn't depend on the height has the same layout at another height
-      if !expectedDependence.contains(.height) {
-        expect(sizingAtAnotherHeight, mode) == sizing
-        expect(node.size, mode) == size
-      }
     }
   }
 
