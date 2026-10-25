@@ -161,11 +161,11 @@ extension StackAxis {
 /// across the axis is the maximum length of its children.
 struct AxisStack<Axis: StackAxis> {
 
-  /// The latest layout's pass, container size and sizing, which a layout in the same pass at the same container size
-  /// returns instead of laying out the children again.
+  /// The latest layout's pass, container size and sizing, which a layout in the same pass at a container size that
+  /// differs only in lengths that the layout didn't read returns instead of laying out the children again.
   ///
-  /// Declared first: it ends 7 bytes short of an 8-byte boundary, and the one-byte `alignment` declared after it goes
-  /// into those bytes instead of taking an 8-byte slot of its own, which keeps the stack's heap box 16 bytes smaller.
+  /// Declared first, so that the one-byte `alignment` declared after it goes into the padding after its sizing instead
+  /// of taking an 8-byte slot of its own, which keeps the stack, and each node or buffer that stores one, 8 bytes smaller.
   private var lastLayout: (passId: UInt64, containerSize: CGSize, sizing: ComposeNodeSizing)?
 
   private let alignment: Axis.CrossAlignment
