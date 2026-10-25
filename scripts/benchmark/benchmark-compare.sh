@@ -238,10 +238,10 @@ run() { # <side> <package dir> <round> <simulator derived data dir>
     tail -30 "$log" >&2
     fail "The $1 benchmarks failed in round $3, see the end of their log."
   fi
-  # a build without COMPOSEUI_BENCHMARK skips every benchmark, which passes, so a round without results stops the
-  # comparison instead of comparing nothing
+  # a round passes without results when the filter selects no benchmark that reports, or when a build without
+  # COMPOSEUI_BENCHMARK skips them all, so a round without results stops the comparison instead of comparing nothing
   if ! grep -q "^\[BENCHMARK\] " "$log"; then
-    fail "The $1 benchmarks reported no results in round $3. They run only in a build that defines COMPOSEUI_BENCHMARK."
+    fail "The $1 benchmarks reported no results in round $3: the filter selects no benchmark that reports, or the build doesn't define COMPOSEUI_BENCHMARK."
   fi
 }
 
