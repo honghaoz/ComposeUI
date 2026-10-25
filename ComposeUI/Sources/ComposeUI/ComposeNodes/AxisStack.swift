@@ -365,8 +365,8 @@ struct AxisStack<Axis: StackAxis> {
 
   #if COMPOSEUI_SANITY_CHECKS
   /// Lays out the children again at a container size that differs from the kept layout's only in lengths that the kept
-  /// layout didn't read, and asserts that the new layout is the same, which a child that reports a wrong dependence
-  /// breaks.
+  /// layout didn't read, and asserts that the new layout has the same sizing, size, and children's positions and items
+  /// bounding rects, which a child's wrong dependence that changes any of them breaks.
   ///
   /// - Parameters:
   ///   - keptLayout: The latest layout in the pass, which the stack would keep.

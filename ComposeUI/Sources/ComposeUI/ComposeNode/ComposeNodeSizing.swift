@@ -50,7 +50,8 @@ public struct ComposeNodeSizing: Hashable {
   /// leaves out a length that the layout read can keep a layout made for another value of that length, so report every
   /// length that the layout reads, itself or through its child nodes. A node that returns its child's sizing passes on
   /// the child's dependence, so it adds the lengths that it reads itself. Debug builds lay out again where a layout
-  /// would be kept at another size, and assert if the two layouts differ.
+  /// would be kept at another size, and assert if the two layouts differ in sizing, in size, or in the bounds of their
+  /// items.
   ///
   /// It isn't part of the sizing's equality, since two layouts that size a node the same way give the same sizing,
   /// whatever they read.

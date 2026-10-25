@@ -95,8 +95,8 @@ extension ComposeView {
 
     #if COMPOSEUI_SANITY_CHECKS
     /// Lays out the content again at a container size that differs from the kept layout's only in lengths that the kept
-    /// layout didn't read, and asserts that the new layout is the same, which a node that reports a wrong dependence
-    /// breaks.
+    /// layout didn't read, and asserts that the new layout has the same sizing, size and items bounding rect, which a
+    /// node's wrong dependence that changes any of them breaks.
     ///
     /// - Parameters:
     ///   - keptLayout: The cached layout, which the root would keep.
