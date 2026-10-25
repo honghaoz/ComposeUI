@@ -57,8 +57,9 @@ extension CGRect {
   // MARK: - Inline Geometry
 
   // `isNull`, `minX`, `union(_:)` and the like are calls into CoreGraphics, which cost more than their math where a
-  // layout does them for each child, so these compute the same results inline, bit for bit, apart from the bits of a
-  // NaN, which x86 makes differently and no comparison tells apart
+  // layout does them for each child, so these compute them inline. They give CoreGraphics' values, up to the sign of a
+  // zero, which CoreGraphics itself gives differently on macOS than on iOS, and the bits of a NaN, which x86 makes
+  // differently, neither of which a comparison tells apart
 
   /// Whether the rectangle is the null rectangle, as `isNull` tells.
   @inline(__always)
@@ -66,11 +67,11 @@ extension CGRect {
     origin.x == .infinity || origin.y == .infinity
   }
 
-  /// The rectangle's smallest and largest x and y, as `minX`, `minY`, `maxX` and `maxY` give them.
+  /// The smallest and largest x and y of a rectangle that isn't null, as `minX`, `minY`, `maxX` and `maxY` give them.
   @inline(__always)
   var edgesInline: (minX: CGFloat, minY: CGFloat, maxX: CGFloat, maxY: CGFloat) {
-    // a negative size extends back from the origin. `fmin` keeps CoreGraphics' result for a zero of either sign, which
-    // turns -0 into +0 for a positive size and keeps it for a size of -0
+    // a negative size extends back from the origin, and the largest edges are the smallest ones plus the length, as
+    // CoreGraphics computes them, which for a negative size can round differently from the origin itself
     let minX = origin.x + fmin(size.width, 0)
     let minY = origin.y + fmin(size.height, 0)
     return (minX, minY, minX + abs(size.width), minY + abs(size.height))
@@ -89,7 +90,7 @@ extension CGRect {
       return self
     }
 
-    // `fmin` and `fmax` treat -0 as less than +0 and skip a NaN, as CoreGraphics does, unlike `Swift.min` and `Swift.max`
+    // `fmin` and `fmax` skip a NaN, as CoreGraphics does, while `Swift.min` and `Swift.max` can return it
     let edges = edgesInline
     let otherEdges = other.edgesInline
     let minX = fmin(edges.minX, otherEdges.minX)

@@ -122,8 +122,9 @@ class CGRect_ExtensionsTests: XCTestCase {
   }
 
   func test_edgesInline_matchesMinAndMax() {
-    // given: rectangles of special and random values
-    let rects = Self.specialRects + Self.randomRects()
+    // given: rectangles of special and random values that aren't null, since the edges of a null rectangle are infinite
+    // on iOS and computed from its values on macOS
+    let rects = (Self.specialRects + Self.randomRects()).filter { !$0.isNull }
 
     // then: each rectangle's edges inline are CoreGraphics' edges
     let mismatches = rects.filter { rect in
@@ -192,9 +193,10 @@ class CGRect_ExtensionsTests: XCTestCase {
     return (0 ..< 20000).map { _ in CGRect(x: value(), y: value(), width: value(), height: value()) }
   }
 
-  /// Whether two values are the same, bit for bit, or both NaN, whose bits x86 and arm64 make differently.
+  /// Whether two values are equal, as comparisons tell, which ignores the sign of a zero, which CoreGraphics gives
+  /// differently on macOS than on iOS, or both NaN, whose bits x86 and arm64 make differently.
   private static func isSame(_ value: CGFloat, _ other: CGFloat) -> Bool {
-    (value.isNaN && other.isNaN) || value.bitPattern == other.bitPattern
+    (value.isNaN && other.isNaN) || value == other
   }
 
   private static func isSame(_ rect: CGRect, _ other: CGRect) -> Bool {
