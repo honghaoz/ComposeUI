@@ -34,9 +34,11 @@ import ChouTiTest
 
 class ComposeView_DebugTests: XCTestCase {
 
-  func test_debugBuild_runsTheSanityChecks() {
-    // then: the tests' debug build runs the render pass's sanity checks, which the benchmark builds leave out
-    expect(ComposeView.runsSanityChecks) == true
+  func test_runsSanityChecks_exactlyInUnoptimizedBuilds() {
+    // then: the render pass's sanity checks run in the debug build, which isn't optimized, and not in the benchmark
+    // build, which is. The assert configuration tells the two apart, which DEBUG can't, since the benchmark build
+    // defines it for the tests' hooks
+    expect(ComposeView.runsSanityChecks) == _isDebugAssertConfiguration()
   }
 
   func test_renderDidFinish_mapsTheRenderableItemsByTheirIds() throws {
