@@ -48,7 +48,8 @@ public struct ComposeNodeSizing: Hashable {
   /// `ComposeView` keeps a layout when it lays out the same content again at a container size that differs only in
   /// lengths that the layout didn't read, such as a list of rows of a fixed height at another height. A sizing that
   /// leaves out a length that the layout read can keep a layout made for another value of that length, so report every
-  /// length that the layout reads, itself or through its child nodes.
+  /// length that the layout reads, itself or through its child nodes. A node that returns its child's sizing passes on
+  /// the child's dependence, so it adds the lengths that it reads itself.
   ///
   /// It isn't part of the sizing's equality, since two layouts that size a node the same way give the same sizing,
   /// whatever they read.
@@ -306,7 +307,22 @@ public extension ComposeNodeSizing {
   /// ```
   ///
   /// A node that passes the container's lengths on to its child nodes also reads what their layouts read, which their
-  /// sizings' `dependence` tells.
+  /// sizings' `dependence` tells. A node that returns a child's sizing passes on the child's `dependence`, so a node that
+  /// also reads the container size itself, such as to pick a child, adds the lengths it reads:
+  ///
+  /// ```swift
+  /// mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+  ///   isTall = containerSize.height >= 600
+  ///   let sizing = isTall
+  ///     ? tall.layout(containerSize: containerSize, context: context)
+  ///     : short.layout(containerSize: containerSize, context: context)
+  ///   return ComposeNodeSizing(
+  ///     width: sizing.width,
+  ///     height: sizing.height,
+  ///     dependence: sizing.dependence.union(.height)
+  ///   )
+  /// }
+  /// ```
   struct Dependence: OptionSet, Hashable {
 
     public let rawValue: UInt8

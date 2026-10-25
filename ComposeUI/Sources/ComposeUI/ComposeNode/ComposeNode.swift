@@ -71,8 +71,9 @@ public protocol ComposeNode: ComposeContent {
   /// once and keep them across layouts, instead of making new ones in each layout: each built-in node made in a layout
   /// keeps its render item until the content is refreshed.
   ///
-  /// Report the lengths of the container size that the layout reads in the sizing's `dependence`, so that `ComposeView`
-  /// can keep the layout when it lays out the content again at a size that differs only in the other lengths.
+  /// Report the lengths of the container size that the layout reads in the sizing's `dependence`, including when the node
+  /// returns a child's sizing, so that `ComposeView` can keep the layout when it lays out the content again at a size
+  /// that differs only in the other lengths.
   ///
   /// - Parameters:
   ///   - containerSize: The proposed container size.
