@@ -4,9 +4,9 @@
 # source it.
 #
 # `swift test` runs tests only on the Mac, so the benchmarks run on a simulator through xcodebuild, with the settings of
-# the macOS runs: a release build with testability and DEBUG, since the tests use debug-only hooks, and the benchmark and
-# deterministic hashing variables, which xcodebuild passes to the tests without their TEST_RUNNER_ prefix. Each call
-# turns off code coverage, which the scheme turns on, since its counters add instructions that apps don't run.
+# the macOS runs: a release build with testability, DEBUG and COMPOSEUI_BENCHMARK, see benchmark_build_for_simulator,
+# and the deterministic hashing variable, which xcodebuild passes to the tests without its TEST_RUNNER_ prefix. Each
+# call turns off code coverage, which the scheme turns on, since its counters add instructions that apps don't run.
 #
 # Needs REPO_ROOT, and SCHEME, the package's scheme.
 
