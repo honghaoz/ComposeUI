@@ -464,11 +464,13 @@ class VerticalStackNodeTests: XCTestCase {
   }
 
   func test_layout_otherContainerSizeInALengthTheLayoutDoesntDependOn_returnsTheEarlierLayout() {
+    #if COMPOSEUI_SANITY_CHECKS
     // given: the debug check of kept layouts off, since it lays out again, which the test would count
     KeptLayoutChecks.isOn = false
     defer {
       KeptLayoutChecks.isOn = true
     }
+    #endif
 
     // given: a stack of a node that counts its layouts, framed to the container's width and a fixed height, laid out in
     // a pass
@@ -496,6 +498,7 @@ class VerticalStackNodeTests: XCTestCase {
     expect(node.size) == CGSize(width: 40, height: 20)
   }
 
+  #if COMPOSEUI_SANITY_CHECKS
   func test_layout_keptLayoutAtAnotherSize_isCheckedAgainstANewLayout() {
     // given: a test assertion failure handler
     var assertionMessages: [String] = []
@@ -640,6 +643,7 @@ class VerticalStackNodeTests: XCTestCase {
     expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 20, width: 50, height: 50)
     expect(assertionMessages.count) == 1
   }
+  #endif
 
   func test_layout_dependsOnWhatTheChildrenDependOn_andOnTheHeightItDistributes() {
     let context = ComposeNodeLayoutContext(scaleFactor: 1)

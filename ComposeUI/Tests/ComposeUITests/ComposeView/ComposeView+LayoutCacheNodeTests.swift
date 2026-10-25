@@ -188,6 +188,7 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(cachedNode.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
   }
 
+  #if COMPOSEUI_SANITY_CHECKS
   func test_layout_keptLayoutAtAnotherSize_isCheckedAgainstANewLayout() {
     // given: a test assertion failure handler
     var assertionMessages: [String] = []
@@ -323,6 +324,7 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(root.renderableItemsBoundingRect) == CGRect(x: 0, y: 20, width: 50, height: 50)
     expect(assertionMessages.count) == 1
   }
+  #endif
 }
 
 private struct ScaleDependentNode: ComposeNode {
