@@ -329,16 +329,15 @@ public struct ComposeNodeId: Hashable {
   }
 }
 
-#if DEBUG
+#if COMPOSEUI_SANITY_CHECKS
 extension ComposeNodeId {
 
   /// Whether a join writes the joined id into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14,
-  /// instead of into the string's storage, which the builds that run the sanity checks honor. A test turns it on to run
-  /// those systems' joins.
+  /// instead of into the string's storage. A test turns it on to run those systems' joins.
   static var joinsInTemporaryBuffer = false
 
-  /// The number of joins that wrote their ids into a temporary buffer, which the builds that run the sanity checks count.
-  /// A test checks it to tell which way its joins went, since both ways make the same ids.
+  /// The number of joins that wrote their ids into a temporary buffer. A test checks it to tell which way its joins
+  /// went, since both ways make the same ids.
   static var temporaryBufferJoinCount = 0
 }
 #endif
