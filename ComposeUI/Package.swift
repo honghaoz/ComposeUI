@@ -2,6 +2,11 @@
 
 import PackageDescription
 
+// checks that walk a pass's data, and the test switches that hot code reads, are in debug builds, but not in the
+// benchmarks' optimized builds, which define DEBUG for the tests' other hooks, so that the benchmarks measure what apps
+// run. The tests define it too, so that a test of a switch compiles only where the code that reads the switch does.
+let sanityChecks: SwiftSetting = .define("COMPOSEUI_SANITY_CHECKS", .when(configuration: .debug))
+
 let package = Package(
   name: "ComposeUI",
   platforms: [
@@ -25,9 +30,7 @@ let package = Package(
         "ComposeUI/_Deprecated",
       ],
       swiftSettings: [
-        // checks that walk a pass's data run in debug builds, but not in the benchmarks' optimized builds, which define
-        // DEBUG for the tests' hooks, so that the benchmarks measure what apps run
-        .define("COMPOSEUI_SANITY_CHECKS", .when(configuration: .debug)),
+        sanityChecks,
       ]
     ),
     .testTarget(
@@ -40,6 +43,9 @@ let package = Package(
       path: "Tests",
       exclude: [
         "ComposeUITests/_Deprecated",
+      ],
+      swiftSettings: [
+        sanityChecks,
       ]
     ),
   ],

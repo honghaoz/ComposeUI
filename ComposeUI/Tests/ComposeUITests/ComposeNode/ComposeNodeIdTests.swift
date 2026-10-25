@@ -244,6 +244,78 @@ class ComposeNodeIdTests: XCTestCase {
     expect(id.hashValue) == directId.hashValue
   }
 
+  func test_join_keepsEachPiecesBytes_andHashesAsADirectId() {
+    // then: joins write into the string's storage on the systems that the tests run on, keep each piece's bytes, and
+    // hash as an id made directly of those bytes
+    expectJoinsToKeepEachPiecesBytes_andHashAsADirectId()
+  }
+
+  #if COMPOSEUI_SANITY_CHECKS
+  func test_join_inTemporaryBuffer_keepsEachPiecesBytes_andHashesAsADirectId() {
+    // given: joins that write into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14
+    ComposeNodeId.joinsInTemporaryBuffer = true
+    defer {
+      ComposeNodeId.joinsInTemporaryBuffer = false
+    }
+
+    // then: the joins write into the temporary buffer, keep each piece's bytes, and hash as an id made directly of those
+    // bytes
+    expectJoinsToKeepEachPiecesBytes_andHashAsADirectId()
+  }
+  #endif
+
+  func test_join_allocatesOnlyForAnIdPastTheInlineLimit() {
+    // then: joins write into the string's storage on the systems that the tests run on, and allocate only for an id past
+    // the 15 bytes that a string stores inline
+    expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit()
+  }
+
+  #if COMPOSEUI_SANITY_CHECKS
+  func test_join_inTemporaryBuffer_allocatesOnlyForAnIdPastTheInlineLimit() {
+    // given: joins that write into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14
+    ComposeNodeId.joinsInTemporaryBuffer = true
+    defer {
+      ComposeNodeId.joinsInTemporaryBuffer = false
+    }
+
+    // then: the joins write into the temporary buffer, and allocate only for an id past the 15 bytes that a string
+    // stores inline
+    expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit()
+  }
+  #endif
+
+  func test_join_idsOfBridgedStrings_allocatesOnlyForTheJoinedId() {
+    // given: ids of strings bridged from `NSString`, which don't store contiguous UTF-8, and bodies that join each with
+    // a native id into a variable outside the bodies, run once already, since a first run can also allocate what the
+    // runtime makes on first use, such as type metadata
+    let bridgedParent = NSString(string: "a parent id from Objective-C, naïve") as String
+    let bridgedChild = NSString(string: "a child id from Objective-C, naïve") as String
+    expect(bridgedParent.isContiguousUTF8) == false
+    expect(bridgedChild.isContiguousUTF8) == false
+    let bridgedParentId = ComposeNodeId.custom(bridgedParent)
+    let bridgedChildId = ComposeNodeId.custom(bridgedChild)
+    let nativeId = ComposeNodeId.custom("native")
+    var joinedId: ComposeNodeId?
+    let joinBridgedParent = {
+      joinedId = bridgedParentId.join(with: nativeId, suffix: "1")
+    }
+    let joinBridgedChild = {
+      joinedId = nativeId.join(with: bridgedChildId, suffix: "1")
+    }
+    _ = AllocationCounter.count(joinBridgedParent)
+    _ = AllocationCounter.count(joinBridgedChild)
+
+    // when: counting the allocations of each join
+    let bridgedParentAllocations = AllocationCounter.count(joinBridgedParent)
+    let bridgedChildAllocations = AllocationCounter.count(joinBridgedChild)
+
+    // then: each join allocates only the joined id's storage, since making an id copies a bridged string into contiguous
+    // storage once, where each join would otherwise copy it
+    expect(bridgedParentAllocations) == 1
+    expect(bridgedChildAllocations) == 1
+    expect(joinedId?.id) == "native|1|a child id from Objective-C, naïve"
+  }
+
   func test_custom_fixed() {
     // given: a fixed custom id
     let id = ComposeNodeId.custom("test", isFixed: true)
@@ -269,6 +341,92 @@ class ComposeNodeIdTests: XCTestCase {
       // then: the fixed id is not prefixed by the parent
       expect(childId.id) == "test"
     }
+  }
+
+  // MARK: - Helpers
+
+  /// Expects joins to keep each piece's bytes, and to hash as an id made directly of those bytes.
+  private func expectJoinsToKeepEachPiecesBytes_andHashAsADirectId(file: StaticString = #filePath, line: UInt = #line) {
+    // given: pieces whose joined ids take 15 and 16 bytes, the most and the least that a string stores inline and on the
+    // heap, with and without a suffix, pieces with a decomposed character, which `String`'s `==` matches with its
+    // precomposed form, and characters of several bytes, empty pieces, long pieces, and pieces bridged from `NSString`,
+    // which don't store contiguous UTF-8
+    let longPiece = String(repeating: "a", count: 5000)
+    let bridgedParent = NSString(string: "naïve") as String
+    let bridgedChild = NSString(string: "child 👋🏽") as String
+    expect(bridgedParent.isContiguousUTF8, file: file, line: line) == false
+    expect(bridgedChild.isContiguousUTF8, file: file, line: line) == false
+    let cases: [(parent: String, suffix: String?, child: String)] = [
+      ("AAAA", "1", "BBBBBBBB"),
+      ("AAAA", "1", "BBBBBBBBB"),
+      ("AAAAAAA", nil, "BBBBBBB"),
+      ("AAAAAAA", nil, "BBBBBBBB"),
+      ("e\u{301}", "２", "👋🏽"),
+      ("", "", ""),
+      (longPiece, longPiece, longPiece),
+      (bridgedParent, "1", bridgedChild),
+    ]
+    #if COMPOSEUI_SANITY_CHECKS
+    let temporaryBufferJoinCount = ComposeNodeId.temporaryBufferJoinCount
+    #endif
+
+    for (parent, suffix, child) in cases {
+      // when: joining the child's id to the parent's id, with the suffix, if any
+      let joinedId = ComposeNodeId.custom(parent).join(with: .custom(child), suffix: suffix)
+
+      // then: the joined id has the bytes of each piece, with a separator between each, and equals and hashes the same
+      // as an id made directly of those bytes
+      let expectedId = suffix.map { "\(parent)|\($0)|\(child)" } ?? "\(parent)|\(child)"
+      expect(Array(joinedId.id.utf8), file: file, line: line) == Array(expectedId.utf8)
+      expect(joinedId, file: file, line: line) == ComposeNodeId.custom(expectedId)
+      expect(joinedId.hashValue, file: file, line: line) == ComposeNodeId.custom(expectedId).hashValue
+    }
+
+    #if COMPOSEUI_SANITY_CHECKS
+    // then: each join went the way that `joinsInTemporaryBuffer` chose, which the ids can't tell, since both ways make
+    // the same ids
+    let temporaryBufferJoins = ComposeNodeId.temporaryBufferJoinCount - temporaryBufferJoinCount
+    expect(temporaryBufferJoins, file: file, line: line) == (ComposeNodeId.joinsInTemporaryBuffer ? cases.count : 0)
+    #endif
+  }
+
+  /// Expects joins to allocate nothing for an id of 15 bytes, which a string stores inline, and once, for its storage,
+  /// for an id of 16 bytes.
+  private func expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit(file: StaticString = #filePath, line: UInt = #line) {
+    // given: a parent id and child ids whose joined ids take 15 and 16 bytes, and bodies that join them into a variable
+    // outside the bodies, so that an optimized build can't drop the work, run once already, since a first run can also
+    // allocate what the runtime makes on first use, such as type metadata
+    let parentId = ComposeNodeId.custom("AAAA")
+    let shortChildId = ComposeNodeId.custom("BBBBBBBB")
+    let longChildId = ComposeNodeId.custom("BBBBBBBBB")
+    var joinedId: ComposeNodeId?
+    let joinShort = {
+      joinedId = parentId.join(with: shortChildId, suffix: "1")
+    }
+    let joinLong = {
+      joinedId = parentId.join(with: longChildId, suffix: "1")
+    }
+    _ = AllocationCounter.count(joinShort)
+    _ = AllocationCounter.count(joinLong)
+    #if COMPOSEUI_SANITY_CHECKS
+    let temporaryBufferJoinCount = ComposeNodeId.temporaryBufferJoinCount
+    #endif
+
+    // when: counting the allocations of each join
+    let shortAllocations = AllocationCounter.count(joinShort)
+    let longAllocations = AllocationCounter.count(joinLong)
+
+    // then: the 15-byte id fits in a small string, which takes no allocation, and the 16-byte id takes one, for its
+    // storage
+    expect(shortAllocations, file: file, line: line) == 0
+    expect(longAllocations, file: file, line: line) == 1
+    expect(joinedId?.id, file: file, line: line) == "AAAA|1|BBBBBBBBB"
+
+    #if COMPOSEUI_SANITY_CHECKS
+    // then: both joins went the way that `joinsInTemporaryBuffer` chose
+    let temporaryBufferJoins = ComposeNodeId.temporaryBufferJoinCount - temporaryBufferJoinCount
+    expect(temporaryBufferJoins, file: file, line: line) == (ComposeNodeId.joinsInTemporaryBuffer ? 2 : 0)
+    #endif
   }
 }
 
