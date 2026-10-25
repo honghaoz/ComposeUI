@@ -245,65 +245,37 @@ class ComposeNodeIdTests: XCTestCase {
   }
 
   func test_join_keepsEachPiecesBytes_andHashesAsADirectId() {
-    // given: pieces whose joined ids take 15 and 16 bytes, the most and the least that a string stores inline and on the
-    // heap, with and without a suffix, pieces with a decomposed character, which `String`'s `==` matches with its
-    // precomposed form, and characters of several bytes, empty pieces, long pieces, and pieces bridged from `NSString`,
-    // which don't store contiguous UTF-8
-    let longPiece = String(repeating: "a", count: 5000)
-    let bridgedParent = NSString(string: "naïve") as String
-    let bridgedChild = NSString(string: "child 👋🏽") as String
-    expect(bridgedParent.isContiguousUTF8) == false
-    expect(bridgedChild.isContiguousUTF8) == false
-    let cases: [(parent: String, suffix: String?, child: String)] = [
-      ("AAAA", "1", "BBBBBBBB"),
-      ("AAAA", "1", "BBBBBBBBB"),
-      ("AAAAAAA", nil, "BBBBBBB"),
-      ("AAAAAAA", nil, "BBBBBBBB"),
-      ("e\u{301}", "２", "👋🏽"),
-      ("", "", ""),
-      (longPiece, longPiece, longPiece),
-      (bridgedParent, "1", bridgedChild),
-    ]
+    // then: joins, which write into the string's storage on the systems that the tests run on, keep each piece's bytes,
+    // and hash as an id made directly of those bytes
+    expectJoinsToKeepEachPiecesBytes_andHashAsADirectId()
+  }
 
-    for (parent, suffix, child) in cases {
-      // when: joining the child's id to the parent's id, with the suffix, if any
-      let joinedId = ComposeNodeId.custom(parent).join(with: .custom(child), suffix: suffix)
-
-      // then: the joined id has the bytes of each piece, with a separator between each, and equals and hashes the same
-      // as an id made directly of those bytes
-      let expectedId = suffix.map { "\(parent)|\($0)|\(child)" } ?? "\(parent)|\(child)"
-      expect(Array(joinedId.id.utf8)) == Array(expectedId.utf8)
-      expect(joinedId) == ComposeNodeId.custom(expectedId)
-      expect(joinedId.hashValue) == ComposeNodeId.custom(expectedId).hashValue
+  func test_join_inTemporaryBuffer_keepsEachPiecesBytes_andHashesAsADirectId() {
+    // given: joins that write into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14
+    ComposeNodeId.joinsInTemporaryBuffer = true
+    defer {
+      ComposeNodeId.joinsInTemporaryBuffer = false
     }
+
+    // then: the joins keep each piece's bytes, and hash as an id made directly of those bytes
+    expectJoinsToKeepEachPiecesBytes_andHashAsADirectId()
   }
 
   func test_join_allocatesOnlyForAnIdPastTheInlineLimit() {
-    // given: a parent id and child ids whose joined ids take 15 and 16 bytes, and bodies that join them into a variable
-    // outside the bodies, so that an optimized build can't drop the work, run once already, since a first run can also
-    // allocate what the runtime makes on first use, such as type metadata
-    let parentId = ComposeNodeId.custom("AAAA")
-    let shortChildId = ComposeNodeId.custom("BBBBBBBB")
-    let longChildId = ComposeNodeId.custom("BBBBBBBBB")
-    var joinedId: ComposeNodeId?
-    let joinShort = {
-      joinedId = parentId.join(with: shortChildId, suffix: "1")
-    }
-    let joinLong = {
-      joinedId = parentId.join(with: longChildId, suffix: "1")
-    }
-    _ = AllocationCounter.count(joinShort)
-    _ = AllocationCounter.count(joinLong)
+    // then: joins, which write into the string's storage on the systems that the tests run on, allocate only for an id
+    // past the 15 bytes that a string stores inline
+    expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit()
+  }
 
-    // when: counting the allocations of each join
-    let shortAllocations = AllocationCounter.count(joinShort)
-    let longAllocations = AllocationCounter.count(joinLong)
+  func test_join_inTemporaryBuffer_allocatesOnlyForAnIdPastTheInlineLimit() {
+    // given: joins that write into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14
+    ComposeNodeId.joinsInTemporaryBuffer = true
+    defer {
+      ComposeNodeId.joinsInTemporaryBuffer = false
+    }
 
-    // then: the 15-byte id fits in a small string, which takes no allocation, and the 16-byte id takes one, for its
-    // storage
-    expect(shortAllocations) == 0
-    expect(longAllocations) == 1
-    expect(joinedId?.id) == "AAAA|1|BBBBBBBBB"
+    // then: the joins allocate only for an id past the 15 bytes that a string stores inline
+    expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit()
   }
 
   func test_custom_fixed() {
@@ -331,6 +303,73 @@ class ComposeNodeIdTests: XCTestCase {
       // then: the fixed id is not prefixed by the parent
       expect(childId.id) == "test"
     }
+  }
+
+  // MARK: - Helpers
+
+  /// Expects joins to keep each piece's bytes, and to hash as an id made directly of those bytes.
+  private func expectJoinsToKeepEachPiecesBytes_andHashAsADirectId(file: StaticString = #filePath, line: UInt = #line) {
+    // given: pieces whose joined ids take 15 and 16 bytes, the most and the least that a string stores inline and on the
+    // heap, with and without a suffix, pieces with a decomposed character, which `String`'s `==` matches with its
+    // precomposed form, and characters of several bytes, empty pieces, long pieces, and pieces bridged from `NSString`,
+    // which don't store contiguous UTF-8
+    let longPiece = String(repeating: "a", count: 5000)
+    let bridgedParent = NSString(string: "naïve") as String
+    let bridgedChild = NSString(string: "child 👋🏽") as String
+    expect(bridgedParent.isContiguousUTF8, file: file, line: line) == false
+    expect(bridgedChild.isContiguousUTF8, file: file, line: line) == false
+    let cases: [(parent: String, suffix: String?, child: String)] = [
+      ("AAAA", "1", "BBBBBBBB"),
+      ("AAAA", "1", "BBBBBBBBB"),
+      ("AAAAAAA", nil, "BBBBBBB"),
+      ("AAAAAAA", nil, "BBBBBBBB"),
+      ("e\u{301}", "２", "👋🏽"),
+      ("", "", ""),
+      (longPiece, longPiece, longPiece),
+      (bridgedParent, "1", bridgedChild),
+    ]
+
+    for (parent, suffix, child) in cases {
+      // when: joining the child's id to the parent's id, with the suffix, if any
+      let joinedId = ComposeNodeId.custom(parent).join(with: .custom(child), suffix: suffix)
+
+      // then: the joined id has the bytes of each piece, with a separator between each, and equals and hashes the same
+      // as an id made directly of those bytes
+      let expectedId = suffix.map { "\(parent)|\($0)|\(child)" } ?? "\(parent)|\(child)"
+      expect(Array(joinedId.id.utf8), file: file, line: line) == Array(expectedId.utf8)
+      expect(joinedId, file: file, line: line) == ComposeNodeId.custom(expectedId)
+      expect(joinedId.hashValue, file: file, line: line) == ComposeNodeId.custom(expectedId).hashValue
+    }
+  }
+
+  /// Expects joins to allocate nothing for an id of 15 bytes, which a string stores inline, and once, for its storage,
+  /// for an id of 16 bytes.
+  private func expectJoinsToAllocateOnlyForAnIdPastTheInlineLimit(file: StaticString = #filePath, line: UInt = #line) {
+    // given: a parent id and child ids whose joined ids take 15 and 16 bytes, and bodies that join them into a variable
+    // outside the bodies, so that an optimized build can't drop the work, run once already, since a first run can also
+    // allocate what the runtime makes on first use, such as type metadata
+    let parentId = ComposeNodeId.custom("AAAA")
+    let shortChildId = ComposeNodeId.custom("BBBBBBBB")
+    let longChildId = ComposeNodeId.custom("BBBBBBBBB")
+    var joinedId: ComposeNodeId?
+    let joinShort = {
+      joinedId = parentId.join(with: shortChildId, suffix: "1")
+    }
+    let joinLong = {
+      joinedId = parentId.join(with: longChildId, suffix: "1")
+    }
+    _ = AllocationCounter.count(joinShort)
+    _ = AllocationCounter.count(joinLong)
+
+    // when: counting the allocations of each join
+    let shortAllocations = AllocationCounter.count(joinShort)
+    let longAllocations = AllocationCounter.count(joinLong)
+
+    // then: the 15-byte id fits in a small string, which takes no allocation, and the 16-byte id takes one, for its
+    // storage
+    expect(shortAllocations, file: file, line: line) == 0
+    expect(longAllocations, file: file, line: line) == 1
+    expect(joinedId?.id, file: file, line: line) == "AAAA|1|BBBBBBBBB"
   }
 }
 

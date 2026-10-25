@@ -257,30 +257,58 @@ public struct ComposeNodeId: Hashable {
     // interpolating the pieces re-encodes the string at each piece that it appends, which took most of a join's time,
     // so the joined id is written once at its length, with its hash going on over each byte as it's copied
     let count = parentBytes.count + 1 + (suffixBytes.map { $0.count + 1 } ?? 0) + childBytes.count
-    return withUnsafeTemporaryAllocation(of: UInt8.self, capacity: count) { buffer in
-      var index = 0
-      for byte in parentBytes {
-        buffer[index] = byte
-        index += 1
+    #if COMPOSEUI_SANITY_CHECKS
+    let writesIntoStorage = !Self.joinsInTemporaryBuffer
+    #else
+    let writesIntoStorage = true
+    #endif
+    var hash = cachedHash
+    let id: String
+    if #available(macOS 11, iOS 14, tvOS 14, *), writesIntoStorage {
+      id = String(unsafeUninitializedCapacity: count) { buffer in
+        Self.write(parent: parentBytes, suffix: suffixBytes, child: childBytes, into: buffer, hash: &hash)
+        return count
       }
+    } else {
+      // systems before macOS 11, iOS 14 and tvOS 14 can't make a string by writing into its storage, so the id is
+      // written into a temporary buffer and then decoded
+      id = withUnsafeTemporaryAllocation(of: UInt8.self, capacity: count) { buffer in
+        Self.write(parent: parentBytes, suffix: suffixBytes, child: childBytes, into: buffer, hash: &hash)
 
-      // this id's hash covers its bytes, so the hash goes on from the separator after them
-      var hash = cachedHash
-      Self.write(HashConstants.separator, into: buffer, at: &index, hash: &hash)
-      if let suffixBytes {
-        for byte in suffixBytes {
-          Self.write(byte, into: buffer, at: &index, hash: &hash)
-        }
-        Self.write(HashConstants.separator, into: buffer, at: &index, hash: &hash)
+        // the bytes come from strings, which hold valid UTF-8, so decoding them has nothing to repair, while the
+        // failable `String(bytes:encoding:)` that the rule prefers goes through `NSString`
+        // swiftlint:disable:next optional_data_string_conversion
+        return String(decoding: UnsafeBufferPointer(buffer), as: UTF8.self)
       }
-      for byte in childBytes {
-        Self.write(byte, into: buffer, at: &index, hash: &hash)
-      }
+    }
+    return ComposeNodeId(id: id, isFixed: isFixed, cachedHash: hash)
+  }
 
-      // the bytes come from strings, which hold valid UTF-8, so decoding them has nothing to repair, while the failable
-      // `String(bytes:encoding:)` that the rule prefers goes through `NSString`
-      // swiftlint:disable:next optional_data_string_conversion
-      return ComposeNodeId(id: String(decoding: UnsafeBufferPointer(buffer), as: UTF8.self), isFixed: isFixed, cachedHash: hash)
+  /// Writes an id's bytes, a suffix's bytes, if any, and a child id's bytes, with a separator between each, into a
+  /// buffer of their length, and goes on with the id's hash over each byte after the id's.
+  @inline(__always)
+  private static func write(parent parentBytes: UnsafeBufferPointer<UInt8>,
+                            suffix suffixBytes: UnsafeBufferPointer<UInt8>?,
+                            child childBytes: UnsafeBufferPointer<UInt8>,
+                            into buffer: UnsafeMutableBufferPointer<UInt8>,
+                            hash: inout UInt64)
+  {
+    var index = 0
+    for byte in parentBytes {
+      buffer[index] = byte
+      index += 1
+    }
+
+    // the id's hash covers its bytes, so the hash goes on from the separator after them
+    write(HashConstants.separator, into: buffer, at: &index, hash: &hash)
+    if let suffixBytes {
+      for byte in suffixBytes {
+        write(byte, into: buffer, at: &index, hash: &hash)
+      }
+      write(HashConstants.separator, into: buffer, at: &index, hash: &hash)
+    }
+    for byte in childBytes {
+      write(byte, into: buffer, at: &index, hash: &hash)
     }
   }
 
@@ -292,6 +320,16 @@ public struct ComposeNodeId: Hashable {
     hash = fnv1a(byte, hash: hash)
   }
 }
+
+#if DEBUG
+extension ComposeNodeId {
+
+  /// Whether a join writes the joined id into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14,
+  /// instead of into the string's storage, which the builds that run the sanity checks honor. A test turns it on to run
+  /// those systems' joins.
+  static var joinsInTemporaryBuffer = false
+}
+#endif
 
 // MARK: - Constants
 
