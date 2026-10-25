@@ -780,6 +780,55 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "layout.nested.200.newTexts", result: result)
   }
 
+  func test_layout_nestedRowsInAFlexibleStack_200() {
+    // given: a header above 200 nested rows, which a spacer below them pushes to the top, laid out once
+    var content = VStack {
+      LabelNode("Header")
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeNestedRow(i)
+        }
+        Spacer()
+      }
+    }
+    let contentEvaluation = ContentEvaluation()
+    _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: contentEvaluation))
+
+    // when: measuring layouts of the same content, each in a new pass, in which the outer stack lays out the spacer's
+    // stack for its sizing and again at its proposed height
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      _ = content.layout(containerSize: Constants.viewSize, context: ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: contentEvaluation))
+    }
+
+    // then: report the timings
+    report(name: "layout.nested.flexible.200", result: result)
+  }
+
+  // MARK: - Resize (view-level, a resize that keeps the content)
+
+  func test_resize_height_nestedRows_200() {
+    // given: a compose view with 200 nested rows laid out
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeNestedRow(i)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring the view's layouts after changes of its height, as a keyboard or a window resize changes it
+    let result = measure(warmup: 3, iterations: 30) { iteration in
+      let height = iteration.isMultiple(of: 2) ? Constants.viewSize.height - Constants.resizeStep : Constants.viewSize.height
+      view.frame = CGRect(origin: .zero, size: CGSize(width: Constants.viewSize.width, height: height))
+      view.layoutIfNeeded()
+    }
+
+    // then: report the timings
+    report(name: "resize.height.nested.200", result: result)
+  }
+
   // MARK: - Frame Update (renderable-level, a reused renderable's frame update)
 
   func test_updateFrame_nonAnimated_layer_unchanged() {
@@ -829,6 +878,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let rowHeight: CGFloat = 50
     static let smallRowHeight: CGFloat = 8
     static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
+    static let resizeStep: CGFloat = 300 // about a keyboard's height
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
     static let reorderRowCount = 16 // rows that all show, so that reversing them keeps the same items
     static let subviewsPerRow = 30

@@ -224,21 +224,22 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     RenderableItemCache.updateSlot(&itemSlot)
 
+    // the intrinsic size comes from the app, which can read both lengths of the proposed size, so every mode reads both
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
       size = self.intrinsicSize(for: containerSize)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height), dependence: [.width, .height])
     case (true, false):
       let intrinsicSize = self.intrinsicSize(for: containerSize)
       size = CGSize(width: intrinsicSize.width, height: containerSize.height)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
+      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible, dependence: [.width, .height])
     case (false, true):
       let intrinsicSize = self.intrinsicSize(for: containerSize)
       size = CGSize(width: containerSize.width, height: intrinsicSize.height)
-      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
+      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height), dependence: [.width, .height])
     case (false, false):
       size = containerSize
-      return ComposeNodeSizing(width: .flexible, height: .flexible)
+      return ComposeNodeSizing(width: .flexible, height: .flexible, dependence: [.width, .height])
     }
   }
 

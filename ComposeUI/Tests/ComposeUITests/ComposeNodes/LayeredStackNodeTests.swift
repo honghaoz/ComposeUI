@@ -228,6 +228,39 @@ class LayeredStackNodeTests: XCTestCase {
     expect(items[1].frame) == CGRect(x: 40, y: 40, width: 20, height: 20)
   }
 
+  func test_layout_dependsOnWhatTheChildrenDependOn() {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let stacks: [(node: ZStack, dependence: ComposeNodeSizing.Dependence)] = [
+      (ZStack {}, []),
+      (ZStack {
+        SpacerNode(width: 10, height: 10)
+        SpacerNode(width: 20, height: 20)
+      }, []),
+      (ZStack {
+        SpacerNode(width: 10, height: 10)
+        SpacerNode(height: 10)
+      }, .width),
+      (ZStack {
+        SpacerNode(width: 10, height: 10)
+        SpacerNode(width: 10)
+      }, .height),
+      (ZStack {
+        SpacerNode(height: 10)
+        SpacerNode(width: 10)
+      }, [.width, .height]),
+    ]
+    for (index, (node, expectedDependence)) in stacks.enumerated() {
+      // given: a stack of children whose layouts depend on some lengths
+      var node = node
+
+      // when: laying out the stack
+      let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // then: its layout depends on what its children's depend on, since it gives each child the container size
+      expect(sizing.dependence, "stack \(index)") == expectedDependence
+    }
+  }
+
   func test_renderableItems_culling_onlyQueriesVisibleChildren() {
     // given: a laid out zstack with a big and a small probe child
     let bigChildState = RenderableItemsProbeNode.State()

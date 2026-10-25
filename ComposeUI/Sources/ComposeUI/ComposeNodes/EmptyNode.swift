@@ -48,7 +48,7 @@ public struct EmptyNode: ComposeNode {
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     size = containerSize
-    return ComposeNodeSizing(width: .flexible, height: .flexible)
+    return ComposeNodeSizing(width: .flexible, height: .flexible, dependence: [.width, .height])
   }
 
   public var renderableItemsBoundingRect: CGRect {

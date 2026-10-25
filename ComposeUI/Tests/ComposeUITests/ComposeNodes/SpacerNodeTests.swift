@@ -31,7 +31,7 @@
 import ChouTiTest
 
 import ChouTi
-import ComposeUI
+@testable import ComposeUI
 
 class SpacerNodeTests: XCTestCase {
 
@@ -120,6 +120,26 @@ class SpacerNodeTests: XCTestCase {
       // then: the sizing and size are fixed
       expect(sizing) == ComposeNodeSizing(width: .fixed(100), height: .fixed(200))
       expect(spacer.size) == CGSize(width: 100, height: 200)
+    }
+  }
+
+  func test_layout_dependsOnTheLengthsItFills() {
+    let context = ComposeNodeLayoutContext(scaleFactor: 2)
+    let spacers: [(spacer: SpacerNode, dependence: ComposeNodeSizing.Dependence)] = [
+      (SpacerNode(), [.width, .height]),
+      (SpacerNode(width: 10), .height),
+      (SpacerNode(height: 10), .width),
+      (SpacerNode(width: 10, height: 20), []),
+    ]
+    for (spacer, expectedDependence) in spacers {
+      // given: a spacer with a length of its own along some axes
+      var spacer = spacer
+
+      // when: laying out the spacer
+      let sizing = spacer.layout(containerSize: CGSize(width: 200, height: 200), context: context)
+
+      // then: its layout depends on the container lengths that it fills
+      expect(sizing.dependence, "\(sizing)") == expectedDependence
     }
   }
 

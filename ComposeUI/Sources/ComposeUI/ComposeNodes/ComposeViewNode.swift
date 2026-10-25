@@ -118,6 +118,8 @@ public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
       viewNode?.id = id
     }
 
+    // a length that the node takes from its content depends on what the content's layout read, and a length that it
+    // fills reads the container's
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
       size = node.size
@@ -128,15 +130,15 @@ public struct ComposeViewNode: ComposeNode, IntrinsicSizableComposeNode {
     case (true, false):
       size = CGSize(width: node.size.width, height: containerSize.height)
       _ = viewNode?.layout(containerSize: size, context: context)
-      return ComposeNodeSizing(width: sizing.width, height: .flexible)
+      return ComposeNodeSizing(width: sizing.width, height: .flexible, dependence: sizing.dependence.union(.height))
     case (false, true):
       size = CGSize(width: containerSize.width, height: node.size.height)
       _ = viewNode?.layout(containerSize: size, context: context)
-      return ComposeNodeSizing(width: .flexible, height: sizing.height)
+      return ComposeNodeSizing(width: .flexible, height: sizing.height, dependence: sizing.dependence.union(.width))
     case (false, false):
       size = containerSize
       _ = viewNode?.layout(containerSize: size, context: context)
-      return ComposeNodeSizing(width: .flexible, height: .flexible)
+      return ComposeNodeSizing(width: .flexible, height: .flexible, dependence: [.width, .height])
     }
   }
 

@@ -256,6 +256,41 @@ class ComposeViewNodeTests: XCTestCase {
     }
   }
 
+  func test_layout_dependsOnWhatTheContentDependsOn_andOnTheLengthsItFills() {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let nodes: [(node: ComposeViewNode, dependence: ComposeNodeSizing.Dependence)] = [
+      (ComposeViewNode { SpacerNode(width: 50, height: 30) }, []),
+      (ComposeViewNode { LayerNode().frame(width: .flexible, height: 30) }, .width),
+      (ComposeViewNode { SpacerNode(width: 50, height: 30) }.fixedSize(width: true, height: false), .height),
+      (ComposeViewNode { SpacerNode(width: 50, height: 30) }.fixedSize(width: false, height: true), .width),
+      (ComposeViewNode { LayerNode().frame(width: .flexible, height: 30) }.fixedSize(width: true, height: false), [.width, .height]),
+      (ComposeViewNode { SpacerNode(width: 50, height: 30) }.fixedSize(width: false, height: false), [.width, .height]),
+    ]
+    for (index, (node, expectedDependence)) in nodes.enumerated() {
+      // given: a compose view node of content whose layout depends on some lengths, in one of the sizing modes
+      var node = node
+
+      // when: laying out the node
+      let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+      let size = node.size
+
+      // then: its layout depends on what its content's layout depends on, and on the lengths that it fills
+      expect(sizing.dependence, "node \(index)") == expectedDependence
+
+      // when: laying it out in a new pass, in which its content's stack lays out again instead of returning its earlier
+      // layout, at a container size that differs in each length that its layout doesn't depend on
+      let otherContainerSize = CGSize(
+        width: expectedDependence.contains(.width) ? 100 : 70,
+        height: expectedDependence.contains(.height) ? 100 : 60
+      )
+      let otherSizing = node.layout(containerSize: otherContainerSize, context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+      // then: it has the same layout
+      expect(otherSizing, "node \(index)") == sizing
+      expect(node.size, "node \(index)") == size
+    }
+  }
+
   func test_renderableItems() throws {
     // given: a laid out compose view node with fixed size content
     let context = ComposeNodeLayoutContext(scaleFactor: 1)

@@ -30,7 +30,7 @@
 
 import ChouTiTest
 
-import ComposeUI
+@testable import ComposeUI
 
 class PaddingNodeTests: XCTestCase {
 
@@ -62,6 +62,27 @@ class PaddingNodeTests: XCTestCase {
       // then: the size includes the padding and the child rect is inset
       expect(node.size) == CGSize(width: 14, height: 16)
       expect(node.renderableItemsBoundingRect) == CGRect(x: 2, y: 3, width: 10, height: 10)
+    }
+  }
+
+  func test_layout_dependsOnWhatTheChildDependsOn() {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let children: [(node: any ComposeNode, dependence: ComposeNodeSizing.Dependence)] = [
+      (SpacerNode(width: 10, height: 10), []),
+      (SpacerNode(height: 10), .width),
+      (SpacerNode(width: 10), .height),
+      (ColorNode(.red), [.width, .height]),
+    ]
+    for (child, expectedDependence) in children {
+      // given: a padding around a child whose layout depends on some lengths
+      var node = child.padding(5)
+
+      // when: laying out the padding
+      let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // then: its layout depends on what the child's depends on, since it gives the child the container size less the
+      // insets
+      expect(sizing.dependence, "\(child)") == expectedDependence
     }
   }
 

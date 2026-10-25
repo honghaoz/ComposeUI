@@ -168,6 +168,48 @@ class FrameNodeTests: XCTestCase {
     expect(node.size) == CGSize(width: 60, height: 40)
   }
 
+  func test_layout_dependence() throws {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let fixedChild = SpacerNode(width: 60, height: 40)
+    let widthDependentChild = SpacerNode(height: 40)
+    let frames: [(node: any ComposeNode, dependence: ComposeNodeSizing.Dependence)] = [
+      // a fixed length gives the child the frame's length, whatever the container's
+      (ColorNode(.red).frame(width: .fixed(50), height: .fixed(30)), []),
+      // a flexible length takes the container's
+      (fixedChild.frame(width: .flexible, height: .fixed(30)), .width),
+      (fixedChild.frame(width: .fixed(50), height: .flexible), .height),
+      (fixedChild.frame(width: .flexible, height: .flexible), [.width, .height]),
+      // an intrinsic length takes the child's, which depends on the container's when the child's layout does
+      (widthDependentChild.frame(width: .intrinsic, height: .fixed(30)), .width),
+      (widthDependentChild.frame(width: .intrinsic, height: .flexible), [.width, .height]),
+      (widthDependentChild.frame(width: .fixed(50), height: .intrinsic), []),
+      (widthDependentChild.frame(width: .flexible, height: .intrinsic), .width),
+      (ColorNode(.red).frame(width: .fixed(50), height: .intrinsic), .height),
+    ]
+    for (index, (node, expectedDependence)) in frames.enumerated() {
+      // given: a frame of a child whose layout depends on some lengths
+      var node = node
+
+      // when: laying out the frame
+      let sizing = node.layout(containerSize: CGSize(width: 100, height: 80), context: context)
+      let size = node.size
+
+      // then: its layout depends on the container lengths that its sizes take
+      expect(sizing.dependence, "frame \(index)") == expectedDependence
+
+      // when: laying it out at a container size that differs in each length that its layout doesn't depend on
+      let otherContainerSize = CGSize(
+        width: expectedDependence.contains(.width) ? 100 : 70,
+        height: expectedDependence.contains(.height) ? 80 : 20
+      )
+      let otherSizing = node.layout(containerSize: otherContainerSize, context: context)
+
+      // then: it has the same layout
+      expect(otherSizing, "frame \(index)") == sizing
+      expect(node.size, "frame \(index)") == size
+    }
+  }
+
   // MARK: - RenderableItems Tests
 
   func test_renderableItems_center_alignment() throws {

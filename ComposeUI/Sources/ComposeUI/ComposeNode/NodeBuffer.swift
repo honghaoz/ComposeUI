@@ -531,7 +531,7 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     }
 
     mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-      ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+      ComposeNodeSizing(width: .fixed(0), height: .fixed(0), dependence: [])
     }
 
     func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}

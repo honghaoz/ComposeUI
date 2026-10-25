@@ -114,39 +114,67 @@ struct FrameNode<Node: ComposeNode>: ComposeNode {
 
     let childNodeSizing = node.layout(containerSize: childContainerSize, context: context)
 
+    var dependence: ComposeNodeSizing.Dependence = []
+    if Self.dependsOnContainerLength(for: width, childDepends: childNodeSizing.dependence.contains(.width)) {
+      dependence.insert(.width)
+    }
+    if Self.dependsOnContainerLength(for: height, childDepends: childNodeSizing.dependence.contains(.height)) {
+      dependence.insert(.height)
+    }
+
     // determine the final size and sizing for the wrapped node
     let sizing: ComposeNodeSizing
     switch (width, height) {
     case (.fixed(let width), .fixed(let height)):
       size = CGSize(width: width, height: height)
-      sizing = ComposeNodeSizing(width: .fixed(width), height: .fixed(height))
+      sizing = ComposeNodeSizing(width: .fixed(width), height: .fixed(height), dependence: dependence)
     case (.fixed(let width), .flexible):
       size = CGSize(width: width, height: containerSize.height)
-      sizing = ComposeNodeSizing(width: .fixed(width), height: .flexible)
+      sizing = ComposeNodeSizing(width: .fixed(width), height: .flexible, dependence: dependence)
     case (.fixed(let width), .intrinsic):
       size = CGSize(width: width, height: node.size.height)
-      sizing = ComposeNodeSizing(width: .fixed(width), height: childNodeSizing.height)
+      sizing = ComposeNodeSizing(width: .fixed(width), height: childNodeSizing.height, dependence: dependence)
     case (.flexible, .fixed(let height)):
       size = CGSize(width: containerSize.width, height: height)
-      sizing = ComposeNodeSizing(width: .flexible, height: .fixed(height))
+      sizing = ComposeNodeSizing(width: .flexible, height: .fixed(height), dependence: dependence)
     case (.flexible, .flexible):
       size = containerSize
-      sizing = ComposeNodeSizing(width: .flexible, height: .flexible)
+      sizing = ComposeNodeSizing(width: .flexible, height: .flexible, dependence: dependence)
     case (.flexible, .intrinsic):
       size = CGSize(width: containerSize.width, height: node.size.height)
-      sizing = ComposeNodeSizing(width: .flexible, height: childNodeSizing.height)
+      sizing = ComposeNodeSizing(width: .flexible, height: childNodeSizing.height, dependence: dependence)
     case (.intrinsic, .fixed(let height)):
       size = CGSize(width: node.size.width, height: height)
-      sizing = ComposeNodeSizing(width: childNodeSizing.width, height: .fixed(height))
+      sizing = ComposeNodeSizing(width: childNodeSizing.width, height: .fixed(height), dependence: dependence)
     case (.intrinsic, .flexible):
       size = CGSize(width: node.size.width, height: containerSize.height)
-      sizing = ComposeNodeSizing(width: childNodeSizing.width, height: .flexible)
+      sizing = ComposeNodeSizing(width: childNodeSizing.width, height: .flexible, dependence: dependence)
     case (.intrinsic, .intrinsic):
       size = node.size
       sizing = childNodeSizing
     }
 
     return sizing
+  }
+
+  /// Returns whether a frame's layout depends on the container's length along an axis.
+  ///
+  /// - Parameters:
+  ///   - frameSize: The frame's size along the axis.
+  ///   - childDepends: Whether the child's layout depends on the length it's given along the axis.
+  /// - Returns: Whether the frame's layout depends on the container's length along the axis.
+  private static func dependsOnContainerLength(for frameSize: FrameSize, childDepends: Bool) -> Bool {
+    switch frameSize {
+    case .fixed:
+      // the frame keeps its length, and gives the child the same length whatever the container's
+      return false
+    case .flexible:
+      // the frame takes the container's length
+      return true
+    case .intrinsic:
+      // the frame takes the child's length, and gives the child the container's
+      return childDepends
+    }
   }
 
   @usableFromInline

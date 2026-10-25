@@ -1802,6 +1802,35 @@ class TextNodeTests: XCTestCase {
     }
   }
 
+  func test_layout_dependsOnTheWidthWhenTheTextCanWrap_andOnTheLengthsItFills() throws {
+    let font = try unwrap(Font(name: "HelveticaNeue", size: 18))
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let modes: [(numberOfLines: Int, isFixedWidth: Bool, isFixedHeight: Bool, dependence: ComposeNodeSizing.Dependence)] = [
+      (0, true, true, .width),
+      (0, false, true, .width),
+      (0, true, false, [.width, .height]),
+      (0, false, false, [.width, .height]),
+      (1, true, true, []),
+      (1, false, true, .width),
+      (1, true, false, .height),
+      (1, false, false, [.width, .height]),
+    ]
+    for (numberOfLines, isFixedWidth, isFixedHeight, expectedDependence) in modes {
+      // given: a text node of a long text, with a number of lines and in one of the sizing modes
+      let mode = "lines: \(numberOfLines), fixed width: \(isFixedWidth), fixed height: \(isFixedHeight)"
+      var node = TextNode("Hello, world! A text long enough to wrap.", font: font)
+        .numberOfLines(numberOfLines)
+        .fixedSize(width: isFixedWidth, height: isFixedHeight)
+
+      // when: laying it out
+      let sizing = node.layout(containerSize: CGSize(width: 100, height: 300), context: context)
+
+      // then: its layout depends on the width when the text can wrap in it, since a single line is measured at an
+      // unlimited width, and on the lengths that the node fills
+      expect(sizing.dependence, mode) == expectedDependence
+    }
+  }
+
   func test_fixedSize_textContainerInset_textViewShowsTheWholeText() throws {
     // given: a compose view with a text node of its text's size, with a text container inset
     var renderedView: BaseTextView?
