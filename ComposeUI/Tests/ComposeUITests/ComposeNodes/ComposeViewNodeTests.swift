@@ -277,12 +277,13 @@ class ComposeViewNodeTests: XCTestCase {
       // then: its layout depends on what its content's layout depends on, and on the lengths that it fills
       expect(sizing.dependence, "node \(index)") == expectedDependence
 
-      // when: laying it out at a container size that differs in each length that its layout doesn't depend on
+      // when: laying it out in a new pass, in which its content's stack lays out again instead of returning its earlier
+      // layout, at a container size that differs in each length that its layout doesn't depend on
       let otherContainerSize = CGSize(
         width: expectedDependence.contains(.width) ? 100 : 70,
         height: expectedDependence.contains(.height) ? 100 : 60
       )
-      let otherSizing = node.layout(containerSize: otherContainerSize, context: context)
+      let otherSizing = node.layout(containerSize: otherContainerSize, context: ComposeNodeLayoutContext(scaleFactor: 1))
 
       // then: it has the same layout
       expect(otherSizing, "node \(index)") == sizing
