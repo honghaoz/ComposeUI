@@ -464,6 +464,12 @@ class VerticalStackNodeTests: XCTestCase {
   }
 
   func test_layout_otherContainerSizeInALengthTheLayoutDoesntDependOn_returnsTheEarlierLayout() {
+    // given: the debug check of kept layouts off, since it lays out again, which the test would count
+    KeptLayoutChecks.isOn = false
+    defer {
+      KeptLayoutChecks.isOn = true
+    }
+
     // given: a stack of a node that counts its layouts, framed to the container's width and a fixed height, laid out in
     // a pass
     let state = TestNode.State()
@@ -488,6 +494,151 @@ class VerticalStackNodeTests: XCTestCase {
     // then: the stack lays out its child again, at the new width
     expect(state.layoutCount) == 2
     expect(node.size) == CGSize(width: 40, height: 20)
+  }
+
+  func test_layout_keptLayoutAtAnotherSize_isCheckedAgainstANewLayout() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a stack of a node that counts its layouts, framed to the container's width and a fixed height, laid out in
+    // a pass
+    let state = TestNode.State()
+    var node = VStack {
+      TestNode(state: state).frame(width: .flexible, height: 20)
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let sizing = node.layout(containerSize: CGSize(width: 50, height: 100), context: context)
+
+    // when: laying out the stack at another height in the same pass, at which it keeps its layout
+    let sizingAtAnotherHeight = node.layout(containerSize: CGSize(width: 50, height: 60), context: context)
+
+    // then: the debug check lays out the child again, and finds the same layout
+    expect(state.layoutCount) == 2
+    expect(sizingAtAnotherHeight) == sizing
+    expect(node.size) == CGSize(width: 50, height: 20)
+    expect(assertionMessages.isEmpty) == true
+  }
+
+  func test_layout_keptLayoutThatDiffersFromANewLayout_asserts_andReturnsTheNewLayout() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a stack of a node that picks a child's height by the container's height, whose sizing reports that its
+    // layout reads the width alone, laid out in a pass
+    var node = VStack {
+      HeightPickingNode()
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+    expect(node.size) == CGSize(width: 100, height: 300)
+
+    // when: laying out the stack at another height in the same pass, at which it keeps its layout
+    let sizing = node.layout(containerSize: CGSize(width: 100, height: 200), context: context)
+
+    // then: the debug check finds another layout, asserts, and returns the new layout
+    expect(assertionMessages) == [
+      """
+      a layout differs at a container size that differs only in lengths that its sizing's dependence leaves out: \
+      (100.0, 300.0) at (100.0, 100.0), and (100.0, 600.0) at (100.0, 200.0). Report each length of the container size \
+      that a layout reads in its sizing's dependence, including when a node returns a child's sizing.
+      """,
+    ]
+    expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(600))
+    expect(node.size) == CGSize(width: 100, height: 600)
+  }
+
+  func test_layout_keptLayoutOfAnotherSizing_asserts() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a stack of a node of a fixed size whose sizing changes with the container's height, and reports that its
+    // layout reads no length, laid out in a pass
+    var node = VStack {
+      SizingFlippingNode()
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    // when: laying out the stack at another height in the same pass, at which it keeps its layout
+    let sizingAtAnotherHeight = node.layout(containerSize: CGSize(width: 100, height: 200), context: context)
+
+    // then: the debug check finds the same size and children but another sizing, and asserts
+    expect(sizingAtAnotherHeight) != sizing
+    expect(node.size) == CGSize(width: 50, height: 50)
+    expect(assertionMessages.count) == 1
+  }
+
+  func test_layout_keptLayoutOfAnotherSize_asserts() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a stack of a node that fills its container, whose sizing reports that its layout reads no length, laid out
+    // in a pass
+    var node = VStack {
+      FillingNode()
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    // when: laying out the stack at another width in the same pass, at which it keeps its layout, since it shares out
+    // only its height
+    let sizingAtAnotherWidth = node.layout(containerSize: CGSize(width: 80, height: 100), context: context)
+
+    // then: the debug check finds the same sizing and children but another size, and asserts
+    expect(sizingAtAnotherWidth) == sizing
+    expect(node.size) == CGSize(width: 80, height: 100)
+    expect(assertionMessages.count) == 1
+  }
+
+  func test_layout_keptLayoutOfMovedItems_asserts() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a stack of a node of a fixed size whose items move with the container's height, whose sizing reports that
+    // its layout reads no length, laid out in a pass
+    var node = VStack {
+      MovingItemsNode()
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+    // when: laying out the stack at another height in the same pass, at which it keeps its layout
+    _ = node.layout(containerSize: CGSize(width: 100, height: 200), context: context)
+
+    // then: the debug check finds the same sizing and size but the child's items moved, and asserts
+    expect(node.size) == CGSize(width: 50, height: 50)
+    expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 20, width: 50, height: 50)
+    expect(assertionMessages.count) == 1
   }
 
   func test_layout_dependsOnWhatTheChildrenDependOn_andOnTheHeightItDistributes() {

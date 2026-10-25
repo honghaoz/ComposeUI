@@ -49,7 +49,8 @@ public struct ComposeNodeSizing: Hashable {
   /// lengths that the layout didn't read, such as a list of rows of a fixed height at another height. A sizing that
   /// leaves out a length that the layout read can keep a layout made for another value of that length, so report every
   /// length that the layout reads, itself or through its child nodes. A node that returns its child's sizing passes on
-  /// the child's dependence, so it adds the lengths that it reads itself.
+  /// the child's dependence, so it adds the lengths that it reads itself. Debug builds lay out again where a layout
+  /// would be kept at another size, and assert if the two layouts differ.
   ///
   /// It isn't part of the sizing's equality, since two layouts that size a node the same way give the same sizing,
   /// whatever they read.
@@ -349,3 +350,34 @@ public extension ComposeNodeSizing {
     }
   }
 }
+
+#if DEBUG
+extension ComposeNodeSizing.Dependence {
+
+  /// Whether a layout kept at another container size is checked against a new layout at that size, which the builds
+  /// that run the sanity checks do. A test that counts the layouts that a kept layout saves turns it off.
+  static var checksKeptLayouts = true
+}
+#endif
+
+#if COMPOSEUI_SANITY_CHECKS
+extension ComposeNodeSizing.Dependence {
+
+  /// Returns the message of the assertion that a kept layout differs from a new layout at another container size,
+  /// which a node whose layout reads a length that its sizing's dependence leaves out causes.
+  ///
+  /// - Parameters:
+  ///   - keptContainerSize: The container size of the kept layout.
+  ///   - keptSize: The size of the kept layout.
+  ///   - containerSize: The container size of the new layout.
+  ///   - size: The size of the new layout.
+  /// - Returns: The message.
+  static func keptLayoutMismatchMessage(keptContainerSize: CGSize, keptSize: CGSize, containerSize: CGSize, size: CGSize) -> String {
+    """
+    a layout differs at a container size that differs only in lengths that its sizing's dependence leaves out: \
+    \(keptSize) at \(keptContainerSize), and \(size) at \(containerSize). Report each length of the container size \
+    that a layout reads in its sizing's dependence, including when a node returns a child's sizing.
+    """
+  }
+}
+#endif

@@ -78,6 +78,11 @@ extension ComposeView {
       // a resize that changes only a length the content's layout didn't depend on, such as the height of a list of
       // fixed rows, keeps the layout, which a layout at the new size would only repeat
       if let cachedLayout, cachedLayout.sizing.dependence.isSame(cachedLayout.containerSize, as: containerSize), cachedLayout.scaleFactor == context.scaleFactor {
+        #if COMPOSEUI_SANITY_CHECKS
+        if cachedLayout.containerSize != containerSize, ComposeNodeSizing.Dependence.checksKeptLayouts {
+          return layoutCheckingKeptLayout(cachedLayout, containerSize: containerSize, context: context)
+        }
+        #endif
         return cachedLayout.sizing
       } else {
         let sizing = itemCache.performAsCurrent {
@@ -87,6 +92,41 @@ extension ComposeView {
         return sizing
       }
     }
+
+    #if COMPOSEUI_SANITY_CHECKS
+    /// Lays out the content again at a container size that differs from the kept layout's only in lengths that the kept
+    /// layout didn't read, and asserts that the new layout is the same, which a node that reports a wrong dependence
+    /// breaks.
+    ///
+    /// - Parameters:
+    ///   - keptLayout: The cached layout, which the root would keep.
+    ///   - containerSize: The container size to lay out the content in.
+    ///   - context: The layout context.
+    /// - Returns: The new layout's sizing.
+    @inline(never)
+    private func layoutCheckingKeptLayout(_ keptLayout: (containerSize: CGSize, scaleFactor: CGFloat, sizing: ComposeNodeSizing),
+                                          containerSize: CGSize,
+                                          context: ComposeNodeLayoutContext) -> ComposeNodeSizing
+    {
+      let keptSize = node.size
+      let keptItemsBoundingRect = node.renderableItemsBoundingRect
+
+      // without a cached layout, the root lays out the content instead of returning the kept layout
+      cachedLayout = nil
+      let sizing = layout(containerSize: containerSize, context: context)
+
+      ComposeUI.assert(
+        sizing == keptLayout.sizing && node.size == keptSize && node.renderableItemsBoundingRect == keptItemsBoundingRect,
+        ComposeNodeSizing.Dependence.keptLayoutMismatchMessage(
+          keptContainerSize: keptLayout.containerSize,
+          keptSize: keptSize,
+          containerSize: containerSize,
+          size: node.size
+        )
+      )
+      return sizing
+    }
+    #endif
 
     func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
       itemCache.performAsCurrent {

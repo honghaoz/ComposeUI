@@ -34,6 +34,20 @@ import ComposeUI
 
 class ComposeView_CachedLayoutTests: XCTestCase {
 
+  override func setUp() {
+    super.setUp()
+
+    // the tests count the layouts that a cached layout saves, so the debug check of kept layouts, which lays out again,
+    // is off
+    KeptLayoutChecks.isOn = false
+  }
+
+  override func tearDown() {
+    KeptLayoutChecks.isOn = true
+
+    super.tearDown()
+  }
+
   func test_noLayoutOnScroll() {
     // given: a compose view with a content make counter and a node tracking layout and render counts
     var contentMakeCount = 0

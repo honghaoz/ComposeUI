@@ -226,6 +226,11 @@ struct AxisStack<Axis: StackAxis> {
     // enclosing stack with a flexible child would double the layouts of the nodes in it, and a stack of fixed rows that
     // a flexible stack holds would lay out its rows again for each length that the flexible stack is given
     if let lastLayout, lastLayout.passId == context.passId, lastLayout.sizing.dependence.isSame(lastLayout.containerSize, as: containerSize) {
+      #if COMPOSEUI_SANITY_CHECKS
+      if lastLayout.containerSize != containerSize, ComposeNodeSizing.Dependence.checksKeptLayouts {
+        return layoutCheckingKeptLayout(lastLayout, containerSize: containerSize, context: context)
+      }
+      #endif
       return lastLayout.sizing
     }
 
@@ -357,6 +362,41 @@ struct AxisStack<Axis: StackAxis> {
     lastLayout = (context.passId, containerSize, sizing)
     return sizing
   }
+
+  #if COMPOSEUI_SANITY_CHECKS
+  /// Lays out the children again at a container size that differs from the kept layout's only in lengths that the kept
+  /// layout didn't read, and asserts that the new layout is the same, which a child that reports a wrong dependence
+  /// breaks.
+  ///
+  /// - Parameters:
+  ///   - keptLayout: The latest layout in the pass, which the stack would keep.
+  ///   - containerSize: The container size to lay out the children in.
+  ///   - context: The layout context.
+  /// - Returns: The new layout's sizing.
+  @inline(never)
+  private mutating func layoutCheckingKeptLayout(_ keptLayout: (passId: UInt64, containerSize: CGSize, sizing: ComposeNodeSizing),
+                                                 containerSize: CGSize,
+                                                 context: ComposeNodeLayoutContext) -> ComposeNodeSizing
+  {
+    let keptSize = size
+    let keptLayoutCache = layoutCache
+
+    // without a latest layout, the stack lays out its children instead of returning the kept layout
+    lastLayout = nil
+    let sizing = layout(containerSize: containerSize, context: context)
+
+    ComposeUI.assert(
+      sizing == keptLayout.sizing && size == keptSize && layoutCache.hasSameChildren(as: keptLayoutCache),
+      ComposeNodeSizing.Dependence.keptLayoutMismatchMessage(
+        keptContainerSize: keptLayout.containerSize,
+        keptSize: keptSize,
+        containerSize: containerSize,
+        size: size
+      )
+    )
+    return sizing
+  }
+  #endif
 
   /// Renders the children that are visible in the given bounds, by appending their renderable items to an array.
   ///

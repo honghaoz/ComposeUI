@@ -187,6 +187,142 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     // then: the bounding rect is forwarded from the wrapped node
     expect(cachedNode.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
   }
+
+  func test_layout_keptLayoutAtAnotherSize_isCheckedAgainstANewLayout() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a root around a node that counts its layouts, framed to the container's width and a fixed height, laid out
+    let state = TestNode.State()
+    let root = ComposeView.LayoutCacheNode(node: TestNode(state: state).frame(width: .flexible, height: 300))
+    _ = root.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // when: laying it out in a new pass at another height, at which it keeps its layout
+    _ = root.layout(containerSize: CGSize(width: 100, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // then: the debug check lays out the content again, and finds the same layout
+    expect(state.layoutCount) == 2
+    expect(root.size) == CGSize(width: 100, height: 300)
+    expect(assertionMessages.isEmpty) == true
+
+    // when: laying it out at another height with the check off
+    KeptLayoutChecks.isOn = false
+    defer {
+      KeptLayoutChecks.isOn = true
+    }
+    _ = root.layout(containerSize: CGSize(width: 100, height: 150), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // then: it keeps its layout, without laying out the content again
+    expect(state.layoutCount) == 2
+  }
+
+  func test_layout_keptLayoutThatDiffersFromANewLayout_asserts_andReturnsTheNewLayout() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a root around a node that picks a child's height by the container's height, whose sizing reports that its
+    // layout reads the width alone, laid out
+    let root = ComposeView.LayoutCacheNode(node: HeightPickingNode())
+    _ = root.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+    expect(root.size) == CGSize(width: 100, height: 300)
+
+    // when: laying it out in a new pass at another height, at which it keeps its layout
+    let sizing = root.layout(containerSize: CGSize(width: 100, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // then: the debug check finds another layout, asserts, and returns the new layout
+    expect(assertionMessages) == [
+      """
+      a layout differs at a container size that differs only in lengths that its sizing's dependence leaves out: \
+      (100.0, 300.0) at (100.0, 100.0), and (100.0, 600.0) at (100.0, 200.0). Report each length of the container size \
+      that a layout reads in its sizing's dependence, including when a node returns a child's sizing.
+      """,
+    ]
+    expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(600))
+    expect(root.size) == CGSize(width: 100, height: 600)
+  }
+
+  func test_layout_keptLayoutOfAnotherSizing_asserts() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a root around a node of a fixed size whose sizing changes with the container's height, and reports that its
+    // layout reads no length, laid out
+    let root = ComposeView.LayoutCacheNode(node: SizingFlippingNode())
+    let sizing = root.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // when: laying it out in a new pass at another height, at which it keeps its layout
+    let sizingAtAnotherHeight = root.layout(containerSize: CGSize(width: 100, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // then: the debug check finds the same size and items but another sizing, and asserts
+    expect(sizingAtAnotherHeight) != sizing
+    expect(root.size) == CGSize(width: 50, height: 50)
+    expect(assertionMessages.count) == 1
+  }
+
+  func test_layout_keptLayoutOfAnotherSize_asserts() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a root around a node that fills its container, whose sizing reports that its layout reads no length, laid
+    // out
+    let root = ComposeView.LayoutCacheNode(node: FillingNode())
+    _ = root.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // when: laying it out in a new pass at another size, at which it keeps its layout
+    _ = root.layout(containerSize: CGSize(width: 80, height: 120), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // then: the debug check finds the same sizing and items but another size, and asserts
+    expect(root.size) == CGSize(width: 80, height: 120)
+    expect(assertionMessages.count) == 1
+  }
+
+  func test_layout_keptLayoutOfMovedItems_asserts() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // given: a root around a node of a fixed size whose items move with the container's height, whose sizing reports
+    // that its layout reads no length, laid out
+    let root = ComposeView.LayoutCacheNode(node: MovingItemsNode())
+    _ = root.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // when: laying it out in a new pass at another height, at which it keeps its layout
+    _ = root.layout(containerSize: CGSize(width: 100, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 2))
+
+    // then: the debug check finds the same sizing and size but the items moved, and asserts
+    expect(root.size) == CGSize(width: 50, height: 50)
+    expect(root.renderableItemsBoundingRect) == CGRect(x: 0, y: 20, width: 50, height: 50)
+    expect(assertionMessages.count) == 1
+  }
 }
 
 private struct ScaleDependentNode: ComposeNode {
