@@ -223,6 +223,30 @@ class StackLayoutCacheTests: XCTestCase {
     expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 200, width: 10, height: 60)
   }
 
+  func test_hasSameChildren_comparesEachChildsOriginAndItemsBoundingRect() {
+    // given: a cache of 2 children
+    func makeCache(_ children: [(origin: CGPoint, itemsBoundingRect: CGRect)]) -> StackLayoutCache {
+      var cache = StackLayoutCache()
+      cache.reset(reservingCapacity: children.count)
+      for child in children {
+        cache.appendChild(origin: child.origin, itemsBoundingRect: child.itemsBoundingRect)
+      }
+      cache.finish(mainAxis: .vertical)
+      return cache
+    }
+    let rect = CGRect(x: 0, y: 0, width: 10, height: 10)
+    let cache = makeCache([(.zero, rect), (CGPoint(x: 0, y: 10), .null)])
+
+    // then: a cache of the same children has the same children
+    expect(cache.hasSameChildren(as: makeCache([(.zero, rect), (CGPoint(x: 0, y: 10), .null)]))) == true
+
+    // then: a cache of another number of children, of a child at another origin, or of a child whose items are
+    // elsewhere doesn't
+    expect(cache.hasSameChildren(as: makeCache([(.zero, rect)]))) == false
+    expect(cache.hasSameChildren(as: makeCache([(.zero, rect), (CGPoint(x: 0, y: 20), .null)]))) == false
+    expect(cache.hasSameChildren(as: makeCache([(.zero, rect), (CGPoint(x: 0, y: 10), rect)]))) == false
+  }
+
   // MARK: - Helpers
 
   /// Appends a child 10 points tall at the vertical position.

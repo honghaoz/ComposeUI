@@ -266,6 +266,23 @@ struct StackLayoutCache {
     return start ..< Swift.max(start, end)
   }
 
+  #if DEBUG
+  /// Returns whether the cache has the same children's layout information as another, which the check of a stack's
+  /// kept layout compares.
+  ///
+  /// - Parameter other: The other cache.
+  /// - Returns: Whether the caches have the same number of children, with the same origins and items bounding rects.
+  func hasSameChildren(as other: StackLayoutCache) -> Bool {
+    guard childCount == other.childCount else {
+      return false
+    }
+    for index in 0 ..< childCount where self[index].origin != other[index].origin || self[index].itemsBoundingRect != other[index].itemsBoundingRect {
+      return false
+    }
+    return true
+  }
+  #endif
+
   /// Binary search for the first child that satisfies the predicate.
   ///
   /// The children must be partitioned by the predicate: all children that don't satisfy the predicate
