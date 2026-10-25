@@ -111,11 +111,112 @@ class CGRect_ExtensionsTests: XCTestCase {
     expect(parts(of: rect, outside: CGRect(x: 200, y: 0, width: 100, height: 100))) == []
   }
 
+  // MARK: - Inline Geometry
+
+  func test_isNullInline_matchesIsNull() {
+    // given: rectangles of special and random values
+    let rects = Self.specialRects + Self.randomRects()
+
+    // then: each is null inline exactly when CoreGraphics tells it's null
+    expect(rects.filter { $0.isNullInline != $0.isNull }) == []
+  }
+
+  func test_edgesInline_matchesMinAndMax() {
+    // given: rectangles of special and random values
+    let rects = Self.specialRects + Self.randomRects()
+
+    // then: each rectangle's edges inline are CoreGraphics' edges
+    let mismatches = rects.filter { rect in
+      let edges = rect.edgesInline
+      return !Self.isSame(edges.minX, rect.minX) || !Self.isSame(edges.minY, rect.minY)
+        || !Self.isSame(edges.maxX, rect.maxX) || !Self.isSame(edges.maxY, rect.maxY)
+    }
+    expect(mismatches) == []
+  }
+
+  func test_unionInline_matchesUnion() {
+    // given: each pair of special rectangles, and pairs of random rectangles
+    let specialPairs = Self.specialRects.flatMap { rect in Self.specialRects.map { (rect, $0) } }
+    let randomRects = Self.randomRects()
+    let randomPairs = zip(randomRects, randomRects.dropFirst()).map { ($0, $1) }
+
+    // then: each pair's union inline is CoreGraphics' union, including a null rectangle's other rectangle as it is
+    let mismatches = (specialPairs + randomPairs).filter { !Self.isSame($0.unionInline($1), $0.union($1)) }
+    expect(mismatches.map { "\($0) \($1)" }) == []
+  }
+
   // MARK: - Helpers
 
   private func parts(of rect: CGRect, outside other: CGRect) -> [CGRect] {
     var parts: [CGRect] = []
     rect.forEachPart(outside: other) { parts.append($0) }
     return parts
+  }
+
+  /// Rectangles whose values make CoreGraphics' geometry take its special paths: the null and infinite rectangles,
+  /// negative sizes, zeros of either sign, infinities and NaNs.
+  private static let specialRects: [CGRect] = {
+    let infinity = CGFloat.infinity
+    let nan = CGFloat.nan
+    let largest = CGFloat.greatestFiniteMagnitude
+    let negativeZero = -CGFloat.zero
+    return [
+      .null,
+      .infinite,
+      .zero,
+      CGRect(x: 10, y: 20, width: 30, height: 40),
+      CGRect(x: 10, y: 20, width: -4, height: -6),
+      CGRect(x: negativeZero, y: negativeZero, width: 5, height: 5),
+      CGRect(x: negativeZero, y: negativeZero, width: negativeZero, height: negativeZero),
+      CGRect(x: 0, y: 0, width: negativeZero, height: 3),
+      CGRect(x: infinity, y: 0, width: 1, height: 1),
+      CGRect(x: 0, y: infinity, width: 1, height: 1),
+      CGRect(x: -infinity, y: 0, width: 1, height: 1),
+      CGRect(x: 0, y: 0, width: infinity, height: 1),
+      CGRect(x: 0, y: 0, width: -infinity, height: 1),
+      CGRect(x: nan, y: 0, width: 1, height: 1),
+      CGRect(x: 0, y: 0, width: nan, height: 1),
+      CGRect(x: -largest, y: largest, width: largest, height: -1),
+    ]
+  }()
+
+  /// Returns rectangles of random values, a quarter of them special, from a seeded generator, so a failure repeats.
+  private static func randomRects() -> [CGRect] {
+    var generator = SeededRandomNumberGenerator(seed: 0x5EED)
+    let specialValues: [CGFloat] = [0, -0.0, 1, -1, 0.1, 1e-300, .infinity, -.infinity, .nan, .greatestFiniteMagnitude, -.greatestFiniteMagnitude]
+    func value() -> CGFloat {
+      Int.random(in: 0 ..< 4, using: &generator) == 0
+        ? specialValues[Int.random(in: 0 ..< specialValues.count, using: &generator)]
+        : CGFloat.random(in: -1000 ... 1000, using: &generator)
+    }
+    return (0 ..< 20000).map { _ in CGRect(x: value(), y: value(), width: value(), height: value()) }
+  }
+
+  /// Whether two values are the same, bit for bit, or both NaN, whose bits x86 and arm64 make differently.
+  private static func isSame(_ value: CGFloat, _ other: CGFloat) -> Bool {
+    (value.isNaN && other.isNaN) || value.bitPattern == other.bitPattern
+  }
+
+  private static func isSame(_ rect: CGRect, _ other: CGRect) -> Bool {
+    isSame(rect.origin.x, other.origin.x) && isSame(rect.origin.y, other.origin.y)
+      && isSame(rect.size.width, other.size.width) && isSame(rect.size.height, other.size.height)
+  }
+}
+
+/// A random number generator that makes the same numbers for the same seed, with SplitMix64.
+private struct SeededRandomNumberGenerator: RandomNumberGenerator {
+
+  private var state: UInt64
+
+  init(seed: UInt64) {
+    state = seed
+  }
+
+  mutating func next() -> UInt64 {
+    state &+= 0x9E3779B97F4A7C15
+    var value = state
+    value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+    value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+    return value ^ (value >> 31)
   }
 }

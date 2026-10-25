@@ -321,7 +321,7 @@ struct AxisStack<Axis: StackAxis> {
       let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
       layoutCache.appendChild(
         origin: childOrigin,
-        itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
+        itemsBoundingRect: itemsBoundingRect.isNullInline ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
       )
 
       mainPosition += Axis.main(of: childSize) + spacing

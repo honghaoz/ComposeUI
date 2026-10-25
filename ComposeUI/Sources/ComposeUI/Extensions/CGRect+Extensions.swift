@@ -54,6 +54,51 @@ extension CGRect {
     CGRect(origin: CGPoint(x: origin.x + point.x, y: origin.y + point.y), size: size)
   }
 
+  // MARK: - Inline Geometry
+
+  // `isNull`, `minX`, `union(_:)` and the like are calls into CoreGraphics, which cost more than their math where a
+  // layout does them for each child, so these compute the same results inline, bit for bit, apart from the bits of a
+  // NaN, which x86 makes differently and no comparison tells apart
+
+  /// Whether the rectangle is the null rectangle, as `isNull` tells.
+  @inline(__always)
+  var isNullInline: Bool {
+    origin.x == .infinity || origin.y == .infinity
+  }
+
+  /// The rectangle's smallest and largest x and y, as `minX`, `minY`, `maxX` and `maxY` give them.
+  @inline(__always)
+  var edgesInline: (minX: CGFloat, minY: CGFloat, maxX: CGFloat, maxY: CGFloat) {
+    // a negative size extends back from the origin. `fmin` keeps CoreGraphics' result for a zero of either sign, which
+    // turns -0 into +0 for a positive size and keeps it for a size of -0
+    let minX = origin.x + fmin(size.width, 0)
+    let minY = origin.y + fmin(size.height, 0)
+    return (minX, minY, minX + abs(size.width), minY + abs(size.height))
+  }
+
+  /// The smallest rectangle that contains the rectangle and another, as `union(_:)` returns it.
+  ///
+  /// - Parameter other: The other rectangle.
+  /// - Returns: The union, or the other rectangle as it is when this one is null, and this one as it is when the other is.
+  @inline(__always)
+  func unionInline(_ other: CGRect) -> CGRect {
+    guard !isNullInline else {
+      return other
+    }
+    guard !other.isNullInline else {
+      return self
+    }
+
+    // `fmin` and `fmax` treat -0 as less than +0 and skip a NaN, as CoreGraphics does, unlike `Swift.min` and `Swift.max`
+    let edges = edgesInline
+    let otherEdges = other.edgesInline
+    let minX = fmin(edges.minX, otherEdges.minX)
+    let minY = fmin(edges.minY, otherEdges.minY)
+    let maxX = fmax(edges.maxX, otherEdges.maxX)
+    let maxY = fmax(edges.maxY, otherEdges.maxY)
+    return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+  }
+
   /// Rounds the rectangle to the nearest pixel size based on the given scale factor.
   /// So that the view can be rendered without subpixel rendering artifacts.
   ///

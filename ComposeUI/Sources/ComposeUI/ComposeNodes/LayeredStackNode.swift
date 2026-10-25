@@ -118,7 +118,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
       let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
       layoutCache.appendChild(
         origin: childOrigin,
-        itemsBoundingRect: itemsBoundingRect.isNull ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
+        itemsBoundingRect: itemsBoundingRect.isNullInline ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
       )
     }
 
