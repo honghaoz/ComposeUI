@@ -83,7 +83,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     guard children.count > 0 else {
       size = .zero
       layoutCache = StackLayoutCache()
-      return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+      return ComposeNodeSizing(width: .fixed(0), height: .fixed(0), dependence: [])
     }
 
     let childCount = children.count
@@ -93,8 +93,12 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     var widthSizing: ComposeNodeSizing.Sizing = .fixed(0)
     var heightSizing: ComposeNodeSizing.Sizing = .fixed(0)
 
+    // the stack passes the container size on to each child, so its layout depends on what theirs depend on
+    var dependence: ComposeNodeSizing.Dependence = []
+
     for nodeIndex in 0 ..< childCount {
       let childSizing = children.layout(at: nodeIndex, containerSize: containerSize, context: context)
+      dependence.formUnion(childSizing.dependence)
       let childSize = children.size(at: nodeIndex)
 
       if childSize.width > maxWidth {
@@ -126,7 +130,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     // child's bounding rect directly instead of binary searching a visible range.
     layoutCache.finish(mainAxis: nil)
 
-    return ComposeNodeSizing(width: widthSizing, height: heightSizing)
+    return ComposeNodeSizing(width: widthSizing, height: heightSizing, dependence: dependence)
   }
 
   public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {

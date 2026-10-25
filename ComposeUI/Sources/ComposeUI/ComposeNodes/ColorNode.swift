@@ -69,7 +69,7 @@ public struct ColorNode: ComposeNode {
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     RenderableItemCache.updateSlot(&itemSlot)
     size = containerSize
-    return ComposeNodeSizing(width: .flexible, height: .flexible)
+    return ComposeNodeSizing(width: .flexible, height: .flexible, dependence: [.width, .height])
   }
 
   public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {

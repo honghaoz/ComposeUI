@@ -43,14 +43,39 @@ public struct ComposeNodeSizing: Hashable {
   /// The height sizing behavior.
   public let height: Sizing
 
+  /// The lengths of the container size that the layout read.
+  ///
+  /// `ComposeView` keeps a layout when it lays out the same content again at a container size that differs only in
+  /// lengths that the layout didn't read, such as a list of rows of a fixed height at another height. A sizing that
+  /// leaves out a length that the layout read can keep a layout made for another value of that length, so report every
+  /// length that the layout reads, itself or through its child nodes.
+  ///
+  /// It isn't part of the sizing's equality, since two layouts that size a node the same way give the same sizing,
+  /// whatever they read.
+  public let dependence: Dependence
+
   /// Creates a sizing with the given width and height.
   ///
   /// - Parameters:
   ///   - width: The width sizing behavior.
   ///   - height: The height sizing behavior.
-  public init(width: Sizing, height: Sizing) {
+  ///   - dependence: The lengths of the container size that the layout read. The default value, both lengths, is
+  ///     correct for any layout.
+  public init(width: Sizing, height: Sizing, dependence: Dependence = [.width, .height]) {
     self.width = width
     self.height = height
+    self.dependence = dependence
+  }
+
+  /// Returns whether two sizings have the same width and height sizing behaviors, whatever lengths their layouts read.
+  public static func == (lhs: ComposeNodeSizing, rhs: ComposeNodeSizing) -> Bool {
+    lhs.width == rhs.width && lhs.height == rhs.height
+  }
+
+  /// Hashes the width and height sizing behaviors, which are the sizing's equality.
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(width)
+    hasher.combine(height)
   }
 }
 
@@ -263,6 +288,48 @@ public extension ComposeNodeSizing {
         // |         min      max
         return .range(min: max(min1, min2), max: max(max1, max2))
       }
+    }
+  }
+}
+
+public extension ComposeNodeSizing {
+
+  /// The lengths of a container size that a layout read.
+  ///
+  /// For example, a node as wide as its container and as tall as its content at that width reads the width alone:
+  ///
+  /// ```swift
+  /// mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+  ///   size = CGSize(width: containerSize.width, height: contentHeight(forWidth: containerSize.width))
+  ///   return ComposeNodeSizing(width: .flexible, height: .fixed(size.height), dependence: .width)
+  /// }
+  /// ```
+  ///
+  /// A node that passes the container's lengths on to its child nodes also reads what their layouts read, which their
+  /// sizings' `dependence` tells.
+  struct Dependence: OptionSet, Hashable {
+
+    public let rawValue: UInt8
+
+    public init(rawValue: UInt8) {
+      self.rawValue = rawValue
+    }
+
+    /// The layout read the container's width.
+    public static let width = Dependence(rawValue: 1 << 0)
+
+    /// The layout read the container's height.
+    public static let height = Dependence(rawValue: 1 << 1)
+
+    /// Returns whether two container sizes have the same lengths that the layout read, so that a layout at either gives
+    /// the same result.
+    ///
+    /// - Parameters:
+    ///   - size: A container size.
+    ///   - other: Another container size.
+    /// - Returns: Whether the sizes have the same lengths that the layout read.
+    func isSame(_ size: CGSize, as other: CGSize) -> Bool {
+      (!contains(.width) || size.width == other.width) && (!contains(.height) || size.height == other.height)
     }
   }
 }

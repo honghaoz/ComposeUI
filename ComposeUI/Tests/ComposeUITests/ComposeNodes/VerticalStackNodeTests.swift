@@ -463,6 +463,80 @@ class VerticalStackNodeTests: XCTestCase {
     expect(node.size) == CGSize(width: 50, height: 60)
   }
 
+  func test_layout_otherContainerSizeInALengthTheLayoutDoesntDependOn_returnsTheEarlierLayout() {
+    // given: a stack of a node that counts its layouts, framed to the container's width and a fixed height, laid out in
+    // a pass
+    let state = TestNode.State()
+    var node = VStack {
+      TestNode(state: state).frame(width: .flexible, height: 20)
+    }
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let sizing = node.layout(containerSize: CGSize(width: 50, height: 100), context: context)
+    expect(state.layoutCount) == 1
+
+    // when: laying out the stack at another height in the same pass
+    let sizingAtAnotherHeight = node.layout(containerSize: CGSize(width: 50, height: 60), context: context)
+
+    // then: the stack returns the earlier layout, which doesn't depend on the height, without laying out its child again
+    expect(state.layoutCount) == 1
+    expect(sizingAtAnotherHeight) == sizing
+    expect(node.size) == CGSize(width: 50, height: 20)
+
+    // when: laying out the stack at another width in the same pass
+    _ = node.layout(containerSize: CGSize(width: 40, height: 60), context: context)
+
+    // then: the stack lays out its child again, at the new width
+    expect(state.layoutCount) == 2
+    expect(node.size) == CGSize(width: 40, height: 20)
+  }
+
+  func test_layout_dependsOnWhatTheChildrenDependOn_andOnTheHeightItDistributes() {
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let stacks: [(node: VStack, dependence: ComposeNodeSizing.Dependence)] = [
+      (VStack {}, []),
+      (VStack {
+        LayerNode().frame(width: 10, height: 10)
+        LayerNode().frame(width: 20, height: 20)
+      }, []),
+      (VStack {
+        LayerNode().frame(width: 10, height: 10)
+        LayerNode().frame(width: .flexible, height: 10)
+      }, .width),
+      // a spacer without a width gets a width of 0 in the stack, instead of the container's
+      (VStack {
+        LayerNode().frame(width: 10, height: 10)
+        SpacerNode(height: 10)
+      }, []),
+      (VStack {
+        LayerNode().frame(width: 10, height: 10)
+        SpacerNode()
+      }, .height),
+      (VStack {
+        LayerNode().frame(width: .flexible, height: 10)
+        SpacerNode()
+      }, [.width, .height]),
+      // a stack that distributes its height depends on it, even when the child that takes it reports no dependence
+      (VStack {
+        DependenceReportingNode { _ in [] }
+      }, .height),
+      // a child laid out again at its proposed height reports the dependence of that layout
+      (VStack {
+        LayerNode().frame(width: 10, height: 10)
+        DependenceReportingNode { containerSize in containerSize.height == 100 ? [] : .width }
+      }, [.width, .height]),
+    ]
+    for (index, (node, expectedDependence)) in stacks.enumerated() {
+      // given: a stack of children whose layouts depend on some lengths
+      var node = node
+
+      // when: laying out the stack in a container of a height of 100
+      let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
+
+      // then: its layout depends on what its children's layouts depend on, and on its height when it distributes it
+      expect(sizing.dependence, "stack \(index)") == expectedDependence
+    }
+  }
+
   func test_layout_afterTheChildrenChange_laysOutTheNewChildren() {
     // given: a stack of a flexible node, laid out in a pass
     var node = VStack {
@@ -675,4 +749,26 @@ class VerticalStackNodeTests: XCTestCase {
     // child 1 items rect: (0, 0, 10, 10), child 2 items rect: (0, 5, 10, 10)
     expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 15)
   }
+}
+
+/// A node of a fixed width and as tall as its container, whose sizing reports the dependence that a closure gives for the
+/// container size, to tell which dependence a stack takes from its children and which it adds.
+private struct DependenceReportingNode: ComposeNode {
+
+  var id: ComposeNodeId = .custom("DependenceReportingNode")
+
+  private(set) var size: CGSize = .zero
+
+  private let dependence: (CGSize) -> ComposeNodeSizing.Dependence
+
+  init(dependence: @escaping (_ containerSize: CGSize) -> ComposeNodeSizing.Dependence) {
+    self.dependence = dependence
+  }
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    size = CGSize(width: 10, height: containerSize.height)
+    return ComposeNodeSizing(width: .fixed(10), height: .flexible, dependence: dependence(containerSize))
+  }
+
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
 }

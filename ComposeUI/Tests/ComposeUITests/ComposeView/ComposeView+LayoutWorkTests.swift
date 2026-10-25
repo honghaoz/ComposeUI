@@ -86,7 +86,7 @@ class ComposeView_LayoutWorkTests: XCTestCase {
   }
 
   func test_refresh_alternatingStacksWithASpacer_doubleTheLeafLayoutsFromTheThirdLevel() {
-    for depth in 1 ... 8 {
+    for (depth, expectedLayoutCount) in zip(1 ... 8, [1, 1, 2, 4, 7, 14, 28, 56]) {
       // given: a leaf node in nested stacks that alternate between vertical and horizontal, each also holding a spacer
       let state = TestNode.State()
       let view = ComposeView {
@@ -99,10 +99,38 @@ class ComposeView_LayoutWorkTests: XCTestCase {
 
       // then: from the third level on, each stack is flexible in its enclosing stack's direction, so the enclosing stack
       // lays it out twice, for its sizing and at its proposed size. The levels change the width and the height in turns,
-      // so no stack is laid out again at a size it already had in the pass, and each of these levels doubles the leaf's
-      // layouts
-      expect(state.layoutCount, "at depth \(depth)") == 1 << max(depth - 2, 0)
+      // so a stack is rarely laid out again at the lengths it depends on of its latest layout, and each of these levels
+      // doubles the leaf's layouts. From the fifth level on, the innermost stack, which depends on its height alone, keeps
+      // its layout once, when it's given a new width at the height of its latest layout, and the levels above double that
+      expect(state.layoutCount, "at depth \(depth)") == expectedLayoutCount
     }
+  }
+
+  func test_refresh_listInAFlexibleStack_laysOutEachRowOnce() {
+    // given: a header above a list of rows of a fixed height, which a spacer below it pushes to the top
+    let state = TestNode.State()
+    let view = ComposeView {
+      VStack {
+        LayerNode().frame(width: .flexible, height: 44)
+        VStack {
+          VStack {
+            for _ in 0 ..< 3 {
+              TestNode(state: state).frame(width: .flexible, height: 44)
+            }
+          }
+          Spacer()
+        }
+      }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 300)
+
+    // when: refreshing
+    view.refresh(animated: false)
+
+    // then: the spacer makes its stack flexible, so the outer stack lays that stack out twice, for its sizing and at
+    // its proposed height, which lays out the list at two heights, but the list's layout depends on its width alone,
+    // so the list keeps its layout the second time, and each row lays out once
+    expect(state.layoutCount) == 3
   }
 
   // MARK: - Text Measurements

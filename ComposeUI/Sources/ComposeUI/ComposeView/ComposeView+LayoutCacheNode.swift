@@ -75,7 +75,9 @@ extension ComposeView {
     }
 
     func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-      if let cachedLayout, cachedLayout.containerSize == containerSize, cachedLayout.scaleFactor == context.scaleFactor {
+      // a resize that changes only a length the content's layout didn't depend on, such as the height of a list of
+      // fixed rows, keeps the layout, which a layout at the new size would only repeat
+      if let cachedLayout, cachedLayout.sizing.dependence.isSame(cachedLayout.containerSize, as: containerSize), cachedLayout.scaleFactor == context.scaleFactor {
         return cachedLayout.sizing
       } else {
         let sizing = itemCache.performAsCurrent {

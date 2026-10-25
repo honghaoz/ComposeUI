@@ -80,9 +80,10 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: size change relayouts and renders the reused content
+    // then: size change renders the reused content, which keeps its layout, since a fixed frame doesn't depend on the
+    // view's size
     expect(contentMakeCount) == 1
-    expect(state.layoutCount) == 2 // size change should trigger layout
+    expect(state.layoutCount) == 1 // a size change the content doesn't depend on should not trigger layout
     expect(state.renderCount) == 4 // size change should trigger render
 
     // when: the view size changes to zero
@@ -90,9 +91,9 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     view.setNeedsLayout()
     view.layoutIfNeeded()
 
-    // then: zero size relayouts and renders without rebuilding content
+    // then: zero size renders without rebuilding content or laying it out again
     expect(contentMakeCount) == 1
-    expect(state.layoutCount) == 3 // size change should trigger layout
+    expect(state.layoutCount) == 1 // a size change the content doesn't depend on should not trigger layout
     expect(state.renderCount) == 5 // size change should trigger render
 
     // when: the view scrolls after the size change
@@ -102,8 +103,101 @@ class ComposeView_CachedLayoutTests: XCTestCase {
 
     // then: scroll triggers a render but no content make or layout
     expect(contentMakeCount) == 1 // scroll should not trigger content make
-    expect(state.layoutCount) == 3 // scroll should not trigger layout
+    expect(state.layoutCount) == 1 // scroll should not trigger layout
     expect(state.renderCount) == 6 // scroll should trigger render
+  }
+
+  func test_resize_laysOutAgainOnlyForALengthTheContentDependsOn() {
+    // given: a compose view of content as wide as the view and of a fixed height, laid out
+    let state = TestNode.State()
+    let view = ComposeView {
+      TestNode(state: state)
+        .frame(width: .flexible, height: 300)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    #if canImport(AppKit)
+    // overlay scroll bars take no space, so the layout doesn't depend on the system's scroll bar setting
+    view.scrollerStyle = .overlay
+    #endif
+    view.layoutIfNeeded()
+    expect(state.layoutCount) == 1
+
+    // when: the view's height changes
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
+    view.layoutIfNeeded()
+
+    // then: the content keeps its layout, which doesn't depend on the height
+    expect(state.layoutCount) == 1
+
+    // when: the view's width changes
+    view.frame = CGRect(x: 0, y: 0, width: 150, height: 200)
+    view.layoutIfNeeded()
+
+    // then: the content lays out again at the new width
+    expect(state.layoutCount) == 2
+    expect(view.contentSize) == CGSize(width: 150, height: 300)
+  }
+
+  func test_resize_customNodeThatDependsOnTheWidthAlone_keepsItsLayoutOnAHeightChange() {
+    // given: a compose view of an app's node as wide as the view and twice as tall, which reports that its layout reads
+    // the width alone, laid out
+    let state = AspectRatioNode.State()
+    let view = ComposeView {
+      AspectRatioNode(state: state)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    #if canImport(AppKit)
+    // overlay scroll bars take no space, so the layout doesn't depend on the system's scroll bar setting
+    view.scrollerStyle = .overlay
+    #endif
+    view.layoutIfNeeded()
+    expect(state.layoutCount) == 1
+
+    // when: the view's height changes
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
+    view.layoutIfNeeded()
+
+    // then: the node keeps its layout
+    expect(state.layoutCount) == 1
+
+    // when: the view's width changes
+    view.frame = CGRect(x: 0, y: 0, width: 150, height: 200)
+    view.layoutIfNeeded()
+
+    // then: the node lays out again at the new width
+    expect(state.layoutCount) == 2
+    expect(view.contentSize) == CGSize(width: 150, height: 300)
+  }
+
+  func test_resize_customContainerThatReportsItsChildsDependence_keepsItsLayoutOnAHeightChange() {
+    // given: a compose view of an app's container node, which reports that its layout reads what its child's layout
+    // reads, around content as wide as the view and of a fixed height, laid out
+    let state = TestNode.State()
+    let view = ComposeView {
+      InsetNode(inset: 10, child: TestNode(state: state).frame(width: .flexible, height: 300))
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    #if canImport(AppKit)
+    // overlay scroll bars take no space, so the layout doesn't depend on the system's scroll bar setting
+    view.scrollerStyle = .overlay
+    #endif
+    view.layoutIfNeeded()
+    expect(state.layoutCount) == 1
+
+    // when: the view's height changes
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 200)
+    view.layoutIfNeeded()
+
+    // then: the container keeps its layout, which doesn't depend on the height
+    expect(state.layoutCount) == 1
+
+    // when: the view's width changes
+    view.frame = CGRect(x: 0, y: 0, width: 150, height: 200)
+    view.layoutIfNeeded()
+
+    // then: the container lays out its child again at the new width
+    expect(state.layoutCount) == 2
+    expect(view.contentSize) == CGSize(width: 150, height: 320)
   }
 
   func test_resize_relayoutsReusedContentAcrossZeroSize() throws {
@@ -211,4 +305,58 @@ class ComposeView_CachedLayoutTests: XCTestCase {
     // then: no additional content evaluation occurs
     expect(contentMakeCount) == 2
   }
+}
+
+/// An app's node as wide as its container and twice as tall, as an image of a fixed aspect ratio is, which reports that
+/// its layout reads the container's width alone.
+private struct AspectRatioNode: ComposeNode {
+
+  final class State {
+    var layoutCount = 0
+  }
+
+  private let state: State
+
+  init(state: State) {
+    self.state = state
+  }
+
+  var id: ComposeNodeId = .custom("AspectRatioNode")
+
+  private(set) var size: CGSize = .zero
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    state.layoutCount += 1
+    size = CGSize(width: containerSize.width, height: containerSize.width * 2)
+    return ComposeNodeSizing(width: .flexible, height: .fixed(size.height), dependence: .width)
+  }
+
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
+}
+
+/// An app's container node that insets its child on each side, which reports that its layout reads what its child's
+/// layout reads.
+private struct InsetNode<Child: ComposeNode>: ComposeNode {
+
+  private let inset: CGFloat
+
+  private var child: Child
+
+  init(inset: CGFloat, child: Child) {
+    self.inset = inset
+    self.child = child
+  }
+
+  var id: ComposeNodeId = .custom("InsetNode")
+
+  private(set) var size: CGSize = .zero
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    let childContainerSize = CGSize(width: containerSize.width - inset * 2, height: containerSize.height - inset * 2)
+    let childSizing = child.layout(containerSize: childContainerSize, context: context)
+    size = CGSize(width: child.size.width + inset * 2, height: child.size.height + inset * 2)
+    return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height), dependence: childSizing.dependence)
+  }
+
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
 }

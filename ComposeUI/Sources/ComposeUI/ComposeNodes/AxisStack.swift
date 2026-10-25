@@ -134,13 +134,23 @@ extension StackAxis {
     }
   }
 
-  /// Returns the sizing of the sizings along and across the axis.
-  static func sizing(main: ComposeNodeSizing.Sizing, cross: ComposeNodeSizing.Sizing) -> ComposeNodeSizing {
+  /// Returns the sizing of the sizings along and across the axis, made by a layout that depended on the given lengths.
+  static func sizing(main: ComposeNodeSizing.Sizing, cross: ComposeNodeSizing.Sizing, dependence: ComposeNodeSizing.Dependence) -> ComposeNodeSizing {
     switch mainAxis {
     case .horizontal:
-      return ComposeNodeSizing(width: main, height: cross)
+      return ComposeNodeSizing(width: main, height: cross, dependence: dependence)
     case .vertical:
-      return ComposeNodeSizing(width: cross, height: main)
+      return ComposeNodeSizing(width: cross, height: main, dependence: dependence)
+    }
+  }
+
+  /// The container length along the axis, as a dependence.
+  static var mainDependence: ComposeNodeSizing.Dependence {
+    switch mainAxis {
+    case .horizontal:
+      return .width
+    case .vertical:
+      return .height
     }
   }
 }
@@ -206,9 +216,10 @@ struct AxisStack<Axis: StackAxis> {
   /// - Returns: The stack's sizing.
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     // a stack lays out each flexible child twice, for its sizing and at its proposed size, so without returning a
-    // layout made at the same size earlier in the pass, each enclosing stack with a flexible child would double the
-    // layouts of the nodes in it
-    if let lastLayout, lastLayout.passId == context.passId, lastLayout.containerSize == containerSize {
+    // layout made earlier in the pass at a container size with the same lengths that the layout depended on, each
+    // enclosing stack with a flexible child would double the layouts of the nodes in it, and a stack of fixed rows that
+    // a flexible stack holds would lay out its rows again for each length that the flexible stack is given
+    if let lastLayout, lastLayout.passId == context.passId, lastLayout.sizing.dependence.isSame(lastLayout.containerSize, as: containerSize) {
       return lastLayout.sizing
     }
 
@@ -218,7 +229,7 @@ struct AxisStack<Axis: StackAxis> {
     guard children.count > 0 else {
       size = .zero
       layoutCache = StackLayoutCache()
-      return ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+      return ComposeNodeSizing(width: .fixed(0), height: .fixed(0), dependence: [])
     }
 
     let childCount = children.count
@@ -232,6 +243,10 @@ struct AxisStack<Axis: StackAxis> {
     // distribution's proposals for fixed children go unused
     var hasExpandableChild = false
     var hasInvalidFixedLength = false
+
+    // the stack's layout depends on the container lengths that its children's layouts depend on, since it passes them
+    // on, and on its length along the axis when it distributes it
+    var dependence: ComposeNodeSizing.Dependence = []
 
     // the children's sizings and proposed lengths along the axis are needed only during this layout, so they're in
     // temporary memory
@@ -251,6 +266,7 @@ struct AxisStack<Axis: StackAxis> {
         }
 
         let childSizing = children.layout(at: nodeIndex, containerSize: containerSize, context: context)
+        dependence.formUnion(childSizing.dependence)
 
         let childMainSizing = Axis.main(of: childSizing)
         mainSizing = mainSizing.combine(with: childMainSizing, axis: .main)
@@ -267,6 +283,7 @@ struct AxisStack<Axis: StackAxis> {
       }
 
       if hasExpandableChild {
+        dependence.formUnion(Axis.mainDependence)
         withUnsafeTemporaryAllocation(of: CGFloat.self, capacity: childCount) { proposedMainLengths in
           let remainingMainLength = Axis.main(of: containerSize) - totalSpacing
           Layout.stackLayout(space: remainingMainLength, items: UnsafeBufferPointer(childMainSizings), into: proposedMainLengths)
@@ -277,11 +294,12 @@ struct AxisStack<Axis: StackAxis> {
             switch childMainSizings[nodeIndex] {
             case .flexible,
                  .range:
-              _ = children.layout(
+              let childSizing = children.layout(
                 at: nodeIndex,
                 containerSize: Axis.size(main: proposedMainLengths[nodeIndex], cross: Axis.cross(of: containerSize)),
                 context: context
               )
+              dependence.formUnion(childSizing.dependence)
             case .fixed:
               // skips the nodes of a fixed length along the axis as they don't need to be laid out again
               continue
@@ -329,7 +347,7 @@ struct AxisStack<Axis: StackAxis> {
 
     layoutCache.finish(mainAxis: Axis.mainAxis)
 
-    let sizing = Axis.sizing(main: mainSizing, cross: crossSizing)
+    let sizing = Axis.sizing(main: mainSizing, cross: crossSizing, dependence: dependence)
     lastLayout = (context.passId, containerSize, sizing)
     return sizing
   }

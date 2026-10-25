@@ -74,19 +74,20 @@ public struct SpacerNode: ComposeNode {
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     let sizing: ComposeNodeSizing
 
+    // a spacer depends on the container lengths that it fills, along the axes it has no length of its own for
     switch (width, height) {
     case (.none, .none):
       self.size = containerSize
-      sizing = ComposeNodeSizing(width: .flexible, height: .flexible)
+      sizing = ComposeNodeSizing(width: .flexible, height: .flexible, dependence: [.width, .height])
     case (.some(let width), .none):
       self.size = CGSize(width: width, height: containerSize.height)
-      sizing = ComposeNodeSizing(width: .fixed(width), height: .flexible)
+      sizing = ComposeNodeSizing(width: .fixed(width), height: .flexible, dependence: .height)
     case (.none, .some(let height)):
       self.size = CGSize(width: containerSize.width, height: height)
-      sizing = ComposeNodeSizing(width: .flexible, height: .fixed(height))
+      sizing = ComposeNodeSizing(width: .flexible, height: .fixed(height), dependence: .width)
     case (.some(let width), .some(let height)):
       self.size = CGSize(width: width, height: height)
-      sizing = ComposeNodeSizing(width: .fixed(width), height: .fixed(height))
+      sizing = ComposeNodeSizing(width: .fixed(width), height: .fixed(height), dependence: [])
     }
 
     return sizing

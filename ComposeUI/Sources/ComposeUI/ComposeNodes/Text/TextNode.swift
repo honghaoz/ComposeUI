@@ -361,21 +361,23 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     RenderableItemCache.updateSlot(&itemSlot)
 
+    // the text's size depends on the container's width, which it wraps in, and not on its height, so a node of the
+    // text's height reads the width alone, and a node that fills the height reads both
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
       size = intrinsicTextSize(for: containerSize)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height))
+      return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height), dependence: .width)
     case (true, false):
       let intrinsicSize = intrinsicTextSize(for: containerSize)
       size = CGSize(width: intrinsicSize.width, height: containerSize.height)
-      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible)
+      return ComposeNodeSizing(width: .fixed(size.width), height: .flexible, dependence: [.width, .height])
     case (false, true):
       let intrinsicSize = intrinsicTextSize(for: containerSize)
       size = CGSize(width: containerSize.width, height: intrinsicSize.height)
-      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height))
+      return ComposeNodeSizing(width: .flexible, height: .fixed(size.height), dependence: .width)
     case (false, false):
       size = containerSize
-      return ComposeNodeSizing(width: .flexible, height: .flexible)
+      return ComposeNodeSizing(width: .flexible, height: .flexible, dependence: [.width, .height])
     }
   }
 

@@ -1802,6 +1802,39 @@ class TextNodeTests: XCTestCase {
     }
   }
 
+  func test_layout_dependsOnTheWidth_andOnTheHeightWhenItFillsIt() throws {
+    let font = try unwrap(Font(name: "HelveticaNeue", size: 18))
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+    let modes: [(isFixedWidth: Bool, isFixedHeight: Bool, dependence: ComposeNodeSizing.Dependence)] = [
+      (true, true, .width),
+      (false, true, .width),
+      (true, false, [.width, .height]),
+      (false, false, [.width, .height]),
+    ]
+    for (isFixedWidth, isFixedHeight, expectedDependence) in modes {
+      // given: a text node that wraps, in one of the sizing modes
+      let mode = "fixed width: \(isFixedWidth), fixed height: \(isFixedHeight)"
+      var node = TextNode("Hello, world! A text long enough to wrap.", font: font)
+        .fixedSize(width: isFixedWidth, height: isFixedHeight)
+
+      // when: laying it out
+      let sizing = node.layout(containerSize: CGSize(width: 100, height: 300), context: context)
+      let size = node.size
+
+      // then: its layout depends on the width, which the text wraps in, and on the height when the node fills it
+      expect(sizing.dependence, mode) == expectedDependence
+
+      // when: laying it out at another height
+      let sizingAtAnotherHeight = node.layout(containerSize: CGSize(width: 100, height: 20), context: context)
+
+      // then: a node whose layout doesn't depend on the height has the same layout at another height
+      if !expectedDependence.contains(.height) {
+        expect(sizingAtAnotherHeight, mode) == sizing
+        expect(node.size, mode) == size
+      }
+    }
+  }
+
   func test_fixedSize_textContainerInset_textViewShowsTheWholeText() throws {
     // given: a compose view with a text node of its text's size, with a text container inset
     var renderedView: BaseTextView?

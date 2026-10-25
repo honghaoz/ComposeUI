@@ -90,9 +90,11 @@ struct PaddingNode<Node: ComposeNode>: ComposeNode {
     // positive padding -> bigger flexible sizing
     // negative padding -> flexible sizing
 
+    // the child gets the container size less the insets, so the padding depends on what the child depends on
     return ComposeNodeSizing(
       width: childSizing.width.combine(with: .fixed(insets.horizontal), axis: .main),
-      height: childSizing.height.combine(with: .fixed(insets.vertical), axis: .main)
+      height: childSizing.height.combine(with: .fixed(insets.vertical), axis: .main),
+      dependence: childSizing.dependence
     )
   }
 
