@@ -450,15 +450,17 @@ class DropShadowNodeTests: XCTestCase {
     CATransaction.flush()
     expect(shadowLayer.presentation()).toEventuallyNot(beNil())
 
-    // the shown widths of the layer, its shadow path, and the cutout, which the mask path pads by a million points
-    func shownWidths() throws -> (bounds: CGFloat, shadowPath: CGFloat, cutout: CGFloat) {
-      let presentation = try unwrap(shadowLayer.presentation())
-      let maskPath = try unwrap(unwrap(mask.presentation()).path)
-      return try (
-        presentation.bounds.width,
-        unwrap(presentation.shadowPath).boundingBoxOfPath.width,
-        maskPath.boundingBoxOfPath.width - 2000000
-      )
+    // the shown widths of the layer, its shadow path, and the cutout, which the mask path pads by a million points, with
+    // the times just before and after the read, see `readPresentation(_:)`
+    func readShownWidths() throws -> (shown: (bounds: CGFloat, shadowPath: CGFloat, cutout: CGFloat), times: ClosedRange<TimeInterval>) {
+      try shadowLayer.readPresentation { presentation in
+        let maskPath = try unwrap(unwrap(mask.presentation()).path)
+        return try (
+          presentation.bounds.width,
+          unwrap(presentation.shadowPath).boundingBoxOfPath.width,
+          maskPath.boundingBoxOfPath.width - 2000000
+        )
+      }
     }
 
     func expectOnTheFrame(_ shown: (bounds: CGFloat, shadowPath: CGFloat, cutout: CGFloat)) {
@@ -466,45 +468,69 @@ class DropShadowNodeTests: XCTestCase {
       expect(shown.cutout).to(beApproximatelyEqual(to: shown.bounds - 20, within: 1))
     }
 
-    // when: an animated refresh widens the shadow
+    // the width that linear one-second resizes that add up to the model width show at a time, from each resize's change
+    // and begin time
+    func resizedWidth(of modelWidth: CGFloat, resizes: [(change: CGFloat, beginTime: TimeInterval)], at time: TimeInterval) -> CGFloat {
+      resizes.reduce(modelWidth) { width, resize in
+        width - resize.change * (1 - min(max(time - resize.beginTime, 0), 1))
+      }
+    }
+
+    // expects a shown width to be what widening resizes leave at the read, between the widths for the times just before
+    // and after it, since the main thread can stall for any time between the refreshes and the read
+    func expectWidth(_ shown: CGFloat,
+                     of modelWidth: CGFloat,
+                     resizes: [(change: CGFloat, beginTime: TimeInterval)],
+                     between times: ClosedRange<TimeInterval>,
+                     line: UInt = #line)
+    {
+      let earlier = resizedWidth(of: modelWidth, resizes: resizes, at: times.lowerBound)
+      let later = resizedWidth(of: modelWidth, resizes: resizes, at: times.upperBound)
+      expect(shown, line: line).to(beBetween(earlier, and: later, within: 0.01))
+    }
+
+    // when: an animated refresh widens the shadow, from the time of its run loop turn, see `AnimationClock`
     width = 200
     view.refresh(animated: true)
+    let firstBeginTime = shadowLayer.currentTime
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
 
-    // then: mid-flight, the shown paths are on the shown bounds
-    let shownDuringResize = try shownWidths()
-    expect(shownDuringResize.bounds) > 105
-    expect(shownDuringResize.bounds) < 195
+    // then: mid-flight, the bounds show the resize's progress, and the shown paths are on the shown bounds
+    let (shownDuringResize, timesDuringResize) = try readShownWidths()
+    expectWidth(shownDuringResize.bounds, of: 200, resizes: [(100, firstBeginTime)], between: timesDuringResize)
     expectOnTheFrame(shownDuringResize)
 
     // when: an animated refresh widens the shadow further while the resize is in flight, and its transaction commits
     // 50 ms later, as it does when the main thread is busy
     width = 250
     view.refresh(animated: true)
+    let secondBeginTime = shadowLayer.currentTime
     Thread.sleep(forTimeInterval: 0.05)
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
 
-    // then: the resizes add up, far short of the new width, and the paths stay on the bounds, as the frame's new
-    // animation and the paths' new change both begin at the refresh instead of at the commit
-    let shownDuringInterruption = try shownWidths()
-    expect(shownDuringInterruption.bounds) > 105
-    expect(shownDuringInterruption.bounds) < 240
+    // then: the resizes add up, and the paths stay on the bounds, as the frame's new animation and the paths' new change
+    // both begin at the refresh instead of at the commit
+    let (shownDuringInterruption, timesDuringInterruption) = try readShownWidths()
+    expectWidth(shownDuringInterruption.bounds, of: 250, resizes: [(100, firstBeginTime), (50, secondBeginTime)], between: timesDuringInterruption)
     expectOnTheFrame(shownDuringInterruption)
 
     // when: a non-animated refresh narrows the shadow while both resizes are in flight
     width = 220
+    let timeBeforeNonAnimatedResize = shadowLayer.convertTime(CACurrentMediaTime(), from: nil)
     view.refresh(animated: false)
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
 
-    // then: the bounds and the paths change by the same amount at once and keep moving together
-    let shownAfterNonAnimatedResize = try shownWidths()
-    expect(shownAfterNonAnimatedResize.bounds) > 75
-    expect(shownAfterNonAnimatedResize.bounds) < 210
+    // then: the bounds glide from where they showed to the new width, as the frame retargets its resizes, so they show
+    // at least what the resizes showed before the refresh and at most the new width, and the paths change by the same
+    // amount at once and keep moving together
+    let shownAfterNonAnimatedResize = try readShownWidths().shown
+    let widthBeforeNonAnimatedResize = resizedWidth(of: 250, resizes: [(100, firstBeginTime), (50, secondBeginTime)], at: timeBeforeNonAnimatedResize)
+    expect(shownAfterNonAnimatedResize.bounds).to(beBetween(widthBeforeNonAnimatedResize, and: 220, within: 0.01))
     expectOnTheFrame(shownAfterNonAnimatedResize)
 
     // then: all land on the new width when the resizes would have ended
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
-    let shownAtEnd = try shownWidths()
+    let shownAtEnd = try readShownWidths().shown
     expect(shownAtEnd.bounds).to(beApproximatelyEqual(to: 220, within: 0.5))
     expectOnTheFrame(shownAtEnd)
   }
