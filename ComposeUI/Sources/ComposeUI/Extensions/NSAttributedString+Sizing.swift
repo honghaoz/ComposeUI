@@ -437,7 +437,11 @@ extension NSAttributedString {
 /// is low on memory.
 ///
 /// Text is measured for layout on the main thread, so the cache is only used there, which lets a lookup skip the lock
-/// and the key object of an `NSCache`.
+/// and the key object of an `NSCache`. Its state skips the runtime's exclusivity checks: no access to it calls the
+/// framework's code that reaches the cache, so no two accesses overlap, which the compiler can't prove past the calls
+/// inside them. An assignment releases what it replaces only after writing the new value, so a deinitializer that it
+/// runs sees the new value. A lookup calls the texts' hashing and equality, so a text or an attribute whose hashing or
+/// equality measures text would make accesses overlap, which isn't supported.
 enum TextSizeCache {
 
   /// The text and the layout settings that a text's size depends on.
@@ -469,13 +473,13 @@ enum TextSizeCache {
   static let generationLimit = 4096
 
   /// The sizes looked up since the generations last rotated.
-  private static var current: [Key: CGSize] = [:]
+  @exclusivity(unchecked) private static var current: [Key: CGSize] = [:]
 
   /// The sizes of the generation before, which a lookup moves back to `current`.
-  private static var previous: [Key: CGSize] = [:]
+  @exclusivity(unchecked) private static var previous: [Key: CGSize] = [:]
 
   /// Whether the cache empties itself when the system is low on memory.
-  private static var isHandlingMemoryWarnings = false
+  @exclusivity(unchecked) private static var isHandlingMemoryWarnings = false
 
   /// Returns the size stored for the key, if any.
   ///
@@ -522,7 +526,7 @@ enum TextSizeCache {
   }
 
   /// The number of times the cache was emptied, so that a size kept outside the cache is measured again after it.
-  private(set) static var clearCount = 0
+  @exclusivity(unchecked) private(set) static var clearCount = 0
 }
 
 // Notes on CoreText API:
