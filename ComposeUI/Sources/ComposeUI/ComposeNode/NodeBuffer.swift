@@ -296,9 +296,27 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
   }
 
   deinit {
-    for index in 0 ..< headerValue.count {
-      let (type, pointer) = child(at: index)
-      Self.deinitialize(type, pointer)
+    withUnsafeMutablePointers { header, elements in
+      let base = UnsafeMutableRawPointer(elements)
+      let entries = base.assumingMemoryBound(to: Entry.self)
+      let count = header.pointee.count
+      // consecutive children of one type, such as the rows that a loop makes, are destroyed with one call, since each
+      // call looks up the type's metadata before it destroys, which a run then does once instead of for each child
+      var index = 0
+      while index < count {
+        let type = entries[index].type
+        var end = index + 1
+        if end < count, ObjectIdentifier(entries[end].type) == ObjectIdentifier(type) {
+          // a child of the type can start past the stride of the one before it, when it's appended where dropped
+          // children started at a larger alignment, so a run ends where a value doesn't follow the one before it
+          let stride = Self.stride(of: type)
+          while end < count, ObjectIdentifier(entries[end].type) == ObjectIdentifier(type), entries[end].offset == entries[end - 1].offset + stride {
+            end += 1
+          }
+        }
+        Self.deinitialize(type, base + entries[index].offset, count: end - index)
+        index = end
+      }
     }
   }
 
@@ -456,8 +474,12 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     (offset + alignment - 1) & ~(alignment - 1)
   }
 
-  private static func deinitialize<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer) {
-    pointer.assumingMemoryBound(to: N.self).deinitialize(count: 1)
+  private static func stride<N: ComposeNode>(of _: N.Type) -> Int {
+    MemoryLayout<N>.stride
+  }
+
+  private static func deinitialize<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer, count: Int) {
+    pointer.assumingMemoryBound(to: N.self).deinitialize(count: count)
   }
 
   private static func appendCopy<N: ComposeNode>(of node: N, to buffer: NodeBuffer) {

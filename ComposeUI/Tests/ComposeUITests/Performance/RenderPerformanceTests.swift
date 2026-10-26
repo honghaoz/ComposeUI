@@ -425,6 +425,30 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.nested.200", result: result)
   }
 
+  func test_refresh_nestedRowsWithDividers_200() {
+    // given: a compose view with 200 nested rows laid out, each followed by a divider, so that the stack's children
+    // alternate between a row and a divider instead of being all rows
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeNestedRow(i)
+          ColorNode(.gray)
+            .frame(width: .flexible, height: 1)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.nested.200.dividers", result: result)
+  }
+
   func test_refresh_styledRows_200() {
     // given: a compose view with 200 rows of labels that set their own font, color and number of lines, laid out
     let view = ComposeView {
