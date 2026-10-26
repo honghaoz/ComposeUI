@@ -151,7 +151,7 @@ public extension CALayer {
         continue
       }
 
-      // the clock is read only when a frame animation is found, as `inFlightAnimations(forKeyPath:)` does
+      // the clock is read only when a frame animation is found, as `inFlightAnimations(forKeyPath:animationKeys:)` does
       let time = now ?? currentTime
       now = time
       guard let remainingTime = animation.remainingTime(at: time) else {
