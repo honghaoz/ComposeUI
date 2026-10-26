@@ -158,6 +158,49 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(buildCount.value) == 2
   }
 
+  func test_renderableItems_joinsTheItemIdsWithTheIdJoinCache() {
+    // given: a root around rows with ids past the 15 bytes that a string stores inline, with an id join cache, laid out,
+    // and its items made twice, after which the cache keeps the ids that the stack joins
+    let root = ComposeView.LayoutCacheNode(node: Self.makeRowsWithIds(), idJoinCache: ComposeNodeId.JoinCache())
+    _ = root.layout(containerSize: Constants.rowsSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let bounds = CGRect(origin: .zero, size: Constants.rowsSize)
+    _ = root.renderableItems(in: bounds)
+    let keptIds = root.renderableItems(in: bounds).map(\.id)
+
+    // when: making the root's items again
+    let ids = root.renderableItems(in: bounds).map(\.id)
+
+    // then: the items have the joined ids, the ones that the cache kept
+    expect(ids.map(\.id)) == [
+      "VS|0|a row id past the inline limit 0|C",
+      "VS|1|a row id past the inline limit 1|C",
+      "VS|2|a row id past the inline limit 2|C",
+    ]
+    expect(keptIds.contains { $0.id.storageAddress == nil }) == false
+    expect(ids.map(\.id.storageAddress)) == keptIds.map(\.id.storageAddress)
+  }
+
+  func test_renderableItems_rootOfNewContentWithTheIdJoinCache_hasTheIdsThatTheRootBeforeJoined() {
+    // given: a root around rows with ids past the inline limit, with an id join cache, laid out, and its items made
+    // twice, after which the cache keeps the ids that the stack joins
+    let idJoinCache = ComposeNodeId.JoinCache()
+    let root = ComposeView.LayoutCacheNode(node: Self.makeRowsWithIds(), idJoinCache: idJoinCache)
+    _ = root.layout(containerSize: Constants.rowsSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let bounds = CGRect(origin: .zero, size: Constants.rowsSize)
+    _ = root.renderableItems(in: bounds)
+    let keptIds = root.renderableItems(in: bounds).map(\.id)
+
+    // when: making the items of a root around new rows of the same ids, with the cache, as a refresh does
+    let newRoot = ComposeView.LayoutCacheNode(node: Self.makeRowsWithIds(), idJoinCache: idJoinCache)
+    _ = newRoot.layout(containerSize: Constants.rowsSize, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    let ids = newRoot.renderableItems(in: bounds).map(\.id)
+
+    // then: the new root's items have the ids that the cache kept
+    expect(ids.count) == 3
+    expect(keptIds.contains { $0.id.storageAddress == nil }) == false
+    expect(ids.map(\.id.storageAddress)) == keptIds.map(\.id.storageAddress)
+  }
+
   func test_releasingTheRoot_releasesCachedItemsThatKeepALaidOutNode() {
     // given: a root whose cache keeps an item whose update block keeps a node laid out in the content, which has a slot
     // in the cache, and an object
@@ -325,6 +368,26 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(assertionMessages.count) == 1
   }
   #endif
+
+  // MARK: - Helpers
+
+  private enum Constants {
+
+    /// The size of the rows that `makeRowsWithIds()` makes.
+    static let rowsSize = CGSize(width: 10, height: 30)
+  }
+
+  /// Returns 3 rows of 10 points in a vertical stack, with ids past the 15 bytes that a string stores inline, so that
+  /// their joined ids are in storage of their own.
+  private static func makeRowsWithIds() -> some ComposeNode {
+    VStack {
+      for index in 0 ..< 3 {
+        ColorNode(.red)
+          .frame(width: 10, height: 10)
+          .id("a row id past the inline limit \(index)")
+      }
+    }
+  }
 }
 
 private struct ScaleDependentNode: ComposeNode {

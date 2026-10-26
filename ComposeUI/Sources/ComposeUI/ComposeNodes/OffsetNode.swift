@@ -74,7 +74,7 @@ struct OffsetNode<Node: ComposeNode>: ComposeNode {
     let start = items.count
     node.render(visibleBounds: boundsInChild, into: &items)
     for index in start ..< items.count {
-      items[index].id = id.join(with: items[index].id)
+      items[index].id = id.cachedJoin(with: items[index].id)
       items[index].frame = items[index].frame.translate(offset)
     }
   }

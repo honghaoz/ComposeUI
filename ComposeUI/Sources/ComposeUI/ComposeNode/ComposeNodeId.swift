@@ -156,13 +156,13 @@ public struct ComposeNodeId: Hashable {
   /// If the id is fixed.
   ///
   /// If the id is fixed, `join` will not add the parent node's id to the child node's id.
-  private let isFixed: Bool
+  let isFixed: Bool
 
   /// A precomputed 64-bit hash of `id`.
   ///
   /// `ComposeView` uses node ids as render-pass dictionary/set keys. Caching this value keeps dictionary probes from
   /// repeatedly hashing long composed id strings, while equality still checks the exact string so collisions remain safe.
-  private let cachedHash: UInt64
+  let cachedHash: UInt64
 
   private init(id: String, isFixed: Bool) {
     // a join reads an id's bytes in place, which copies a string bridged from `NSString` that doesn't store contiguous
@@ -253,6 +253,56 @@ public struct ComposeNodeId: Hashable {
     }
   }
 
+  /// Make a `ComposeNodeId` by joining the current node's id with a child node's id, with the child's index as the
+  /// suffix.
+  ///
+  /// It makes the id that `join(with:suffix:)` makes with the index's decimal string as the suffix, and writes the
+  /// index's digits into the joined id instead of making the string.
+  ///
+  /// - Parameters:
+  ///   - childNodeId: The child node's id.
+  ///   - index: The child's index.
+  /// - Returns: A `ComposeNodeId`.
+  func join(with childNodeId: ComposeNodeId, suffixIndex index: Int) -> ComposeNodeId {
+    if childNodeId.isFixed {
+      return childNodeId
+    } else {
+      var parentId = id
+      var childId = childNodeId.id
+      return parentId.withUTF8 { parentBytes in
+        childId.withUTF8 { childBytes in
+          withUnsafeTemporaryAllocation(of: UInt8.self, capacity: Constants.decimalByteCount) { buffer in
+            let start = Self.writeDecimal(index, endingAt: buffer)
+            return joinedId(parent: parentBytes, suffix: UnsafeBufferPointer(rebasing: buffer[start...]), child: childBytes)
+          }
+        }
+      }
+    }
+  }
+
+  /// Writes an integer's decimal digits, after a minus sign for a negative integer, at the end of a buffer, and returns
+  /// the index of the first byte written.
+  ///
+  /// - Parameters:
+  ///   - value: The integer.
+  ///   - buffer: The buffer, with room for `Constants.decimalByteCount` bytes.
+  /// - Returns: The index of the first byte written.
+  @inline(__always)
+  private static func writeDecimal(_ value: Int, endingAt buffer: UnsafeMutableBufferPointer<UInt8>) -> Int {
+    var magnitude = value.magnitude
+    var start = buffer.count
+    repeat {
+      start -= 1
+      buffer[start] = UInt8(truncatingIfNeeded: magnitude % 10) &+ UInt8(ascii: "0")
+      magnitude /= 10
+    } while magnitude != 0
+    if value < 0 {
+      start -= 1
+      buffer[start] = UInt8(ascii: "-")
+    }
+    return start
+  }
+
   /// Returns the id of this id's bytes, a suffix's bytes, if any, and a child id's bytes, with a separator between each.
   @inline(__always)
   private func joinedId(parent parentBytes: UnsafeBufferPointer<UInt8>,
@@ -326,6 +376,14 @@ public struct ComposeNodeId: Hashable {
     buffer[index] = byte
     index += 1
     hash = fnv1a(byte, hash: hash)
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The most bytes that an `Int` takes in decimal, which `Int.min` takes: a minus sign and 19 digits.
+    static let decimalByteCount = 20
   }
 }
 

@@ -105,6 +105,10 @@ open class ComposeView: BaseScrollView {
   /// The root layout node for the current content.
   private var contentNode: LayoutCacheNode?
 
+  /// The cache of the ids that the content's containers join, which each content's root uses, so that a refresh finds
+  /// the ids that the content before joined.
+  private let idJoinCache = ComposeNodeId.JoinCache()
+
   /// The evaluation used to measure and render the current content.
   private var contentEvaluation: ContentEvaluation?
 
@@ -329,7 +333,7 @@ open class ComposeView: BaseScrollView {
   func setPreparedContent(_ content: ComposeNode, contentEvaluation: ContentEvaluation?, animationDecision: AnimationDecision) {
     makeContent = { _ in content }
     preparedContent = PreparedContent(
-      node: LayoutCacheNode(node: content),
+      node: LayoutCacheNode(node: content, idJoinCache: idJoinCache),
       evaluation: contentEvaluation,
       animationDecision: animationDecision
     )
@@ -924,7 +928,7 @@ open class ComposeView: BaseScrollView {
     let preparedContent = self.preparedContent
     self.preparedContent = nil
 
-    let contentNode = preparedContent?.node ?? LayoutCacheNode(node: _makeContent())
+    let contentNode = preparedContent?.node ?? LayoutCacheNode(node: _makeContent(), idJoinCache: idJoinCache)
     let contentEvaluation = preparedContent?.evaluation ?? ContentEvaluation()
     self.contentNode = contentNode
     self.contentEvaluation = contentEvaluation
@@ -1023,7 +1027,7 @@ open class ComposeView: BaseScrollView {
     if contentUpdateContext == nil, boundsChangedSinceLastRender() {
       // no pending render request but bounds changed, should re-render the content
 
-      let contentNode = contentNode ?? LayoutCacheNode(node: _makeContent())
+      let contentNode = contentNode ?? LayoutCacheNode(node: _makeContent(), idJoinCache: idJoinCache)
       let contentEvaluation = contentEvaluation ?? ContentEvaluation()
       self.contentNode = contentNode
       self.contentEvaluation = contentEvaluation
@@ -1638,7 +1642,9 @@ open class ComposeView: BaseScrollView {
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
         zOrder.insert(renderable, at: itemIndex, into: contentContainerView, ids: renderableItemIds, reusedRenderables: oldRenderableMap)
+        #if DEBUG && !COMPOSEUI_BENCHMARK
         renderable.assertIdentityTransform()
+        #endif
         renderable.setFrame(newFrame)
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)

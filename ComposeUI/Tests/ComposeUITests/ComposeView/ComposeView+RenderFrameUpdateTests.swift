@@ -400,6 +400,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
 
   // MARK: - transform ownership
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_reusedLayer_assertsWhenWillUpdateSetsTransform() {
     // given: a rendered layer row whose `willUpdate` starts setting a transform, and a test assertion failure handler
     var appliesTransform = false
@@ -495,6 +496,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     // then: each insertion asserts once before the frame is applied
     expect(assertionCount) == 2
   }
+  #endif
 
   func test_reusedRenderable_keepsTransformSetInUpdate() {
     // given: a rendered layer row whose `update` sets a transform, and a test assertion failure handler
@@ -618,7 +620,9 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     /// A non-identity transform set on the tracking row in the transform ownership tests.
     static let translation = CATransform3DMakeTranslation(20, 0, 0)
 
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     /// The message of the render pass's identity transform assertion.
     static let identityTransformAssertionMessage = "the renderable's transform must be identity when its frame is applied, set a transform in `update` instead of `willInsert` or `willUpdate`"
+    #endif
   }
 }

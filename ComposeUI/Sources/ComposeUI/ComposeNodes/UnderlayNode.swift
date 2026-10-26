@@ -90,14 +90,14 @@ struct UnderlayNode<Node: ComposeNode>: ComposeNode {
     let start = items.count
     underlayNode.render(visibleBounds: boundsInUnderlay, into: &items)
     for index in start ..< items.count {
-      items[index].id = id.join(with: items[index].id, suffix: "U")
+      items[index].id = id.cachedJoin(with: items[index].id, suffix: .text("U"))
       items[index].frame = items[index].frame.translate(underlayFrame.origin)
     }
 
     let childStart = items.count
     node.render(visibleBounds: visibleBounds, into: &items)
     for index in childStart ..< items.count {
-      items[index].id = id.join(with: items[index].id)
+      items[index].id = id.cachedJoin(with: items[index].id)
     }
   }
 }

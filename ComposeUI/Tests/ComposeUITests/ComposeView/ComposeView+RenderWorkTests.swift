@@ -33,7 +33,7 @@ import ChouTiTest
 @testable import ComposeUI
 
 /// Pins the render work of representative updates: the render passes, the nodes asked for renderable items, the
-/// renderables inserted, reused and removed, and the text storages edited.
+/// renderables inserted, reused and removed, the text storages edited, and the item ids joined again.
 ///
 /// The counts don't depend on the machine's speed or load, so they hold on any machine. A changed count is a changed
 /// cost: update the expected count when the change is intended.
@@ -200,6 +200,84 @@ class ComposeView_RenderWorkTests: XCTestCase {
     expect(textStorages.map(\.string)) == ["Changed", "Row 1"]
   }
 
+  func test_refresh_rowsWithIds_haveTheIdsThatTheRefreshBeforeJoined() {
+    // given: rows with ids past the 15 bytes that a string stores inline, rendered at the top, and refreshed, after which
+    // the view keeps the ids that the stack joins
+    let view = makeRowsView { index in
+      ColorNode(.red)
+        .frame(width: .flexible, height: Constants.rowHeight)
+        .id("a row id past the inline limit \(index)")
+    }
+    view.refresh(animated: false)
+    let keptIds = renderedIds(of: view) {
+      view.refresh(animated: false)
+    }
+
+    // when: refreshing again
+    let ids = renderedIds(of: view) {
+      view.refresh(animated: false)
+    }
+
+    // then: the 2 rows that show have their joined ids, the ones that the view kept, which the refresh didn't make again
+    expect(ids.map(\.id)) == ["VS|0|a row id past the inline limit 0|C", "VS|1|a row id past the inline limit 1|C"]
+    expect(keptIds.contains { $0.id.storageAddress == nil }) == false
+    expect(ids.map(\.id.storageAddress)) == keptIds.map(\.id.storageAddress)
+  }
+
+  func test_scroll_rowsWithIds_haveTheIdsThatTheViewKeptForTheRowsThatStay() {
+    // given: rows with ids past the inline limit, rendered at the top and refreshed, after which the view keeps the ids
+    // that the stack joins
+    let view = makeRowsView { index in
+      ColorNode(.red)
+        .frame(width: .flexible, height: Constants.rowHeight)
+        .id("a row id past the inline limit \(index)")
+    }
+    view.refresh(animated: false)
+    let keptIds = renderedIds(of: view) {
+      view.refresh(animated: false)
+    }
+
+    // when: scrolling by less than a row, so the 2 rows that show stay and a third row shows
+    let ids = renderedIds(of: view) {
+      view.contentOffset = CGPoint(x: 0, y: 10)
+      view.layoutIfNeeded()
+    }
+
+    // then: the rows have their joined ids, and the rows that stay have the ones that the view kept
+    expect(ids.map(\.id)) == [
+      "VS|0|a row id past the inline limit 0|C",
+      "VS|1|a row id past the inline limit 1|C",
+      "VS|2|a row id past the inline limit 2|C",
+    ]
+    expect(keptIds.contains { $0.id.storageAddress == nil }) == false
+    expect(ids.prefix(2).map(\.id.storageAddress)) == keptIds.map(\.id.storageAddress)
+  }
+
+  func test_refresh_rowWithANewId_hasTheJoinedIdOfItsNewId() {
+    // given: rows with ids past the inline limit, the first row's id in a variable, rendered at the top and refreshed,
+    // after which the view keeps the ids that the stack joins
+    var firstRowId = "a row id past the inline limit 0"
+    let view = makeRowsView { index in
+      ColorNode(.red)
+        .frame(width: .flexible, height: Constants.rowHeight)
+        .id(index == 0 ? firstRowId : "a row id past the inline limit \(index)")
+    }
+    view.refresh(animated: false)
+    let keptIds = renderedIds(of: view) {
+      view.refresh(animated: false)
+    }
+
+    // when: changing the first row's id, and refreshing
+    firstRowId = "a new row id past the inline limit"
+    let ids = renderedIds(of: view) {
+      view.refresh(animated: false)
+    }
+
+    // then: the first row has the joined id of its new id, and the second row has the id that the view kept
+    expect(ids.map(\.id)) == ["VS|0|a new row id past the inline limit|C", "VS|1|a row id past the inline limit 1|C"]
+    expect(ids.last?.id.storageAddress) == keptIds.last?.id.storageAddress
+  }
+
   // MARK: - Helpers
 
   private enum Constants {
@@ -221,6 +299,21 @@ class ComposeView_RenderWorkTests: XCTestCase {
     view.renderablePool = pool // isolate from the shared pool, so earlier tests don't affect the reuse
     view.frame = CGRect(origin: .zero, size: Constants.viewSize)
     return view
+  }
+
+  /// Returns the ids of the items of the view's last render pass while the body runs.
+  private func renderedIds(of view: ComposeView, during body: () -> Void) -> [ComposeNodeId] {
+    var ids: [ComposeNodeId] = []
+    view.debug { _, event in
+      switch event {
+      case .renderDidFinish(let renderableItemIds, _, _):
+        ids = renderableItemIds
+      default:
+        break
+      }
+    }
+    body()
+    return ids
   }
 }
 

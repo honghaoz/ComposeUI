@@ -431,14 +431,8 @@ struct AxisStack<Axis: StackAxis> {
       let boundsInChild = visibleBounds.translate(-childOrigin)
       let start = items.count
       children.render(at: i, visibleBounds: boundsInChild, into: &items)
-      guard items.count > start else {
-        continue
-      }
-
-      // the child's items share one suffix, which is made once for the child instead of once for each item
-      let suffix = "\(i)"
       for index in start ..< items.count {
-        items[index].id = id.join(with: items[index].id, suffix: suffix)
+        items[index].id = id.cachedJoin(with: items[index].id, suffix: .index(i))
         items[index].frame = items[index].frame.translate(childOrigin)
       }
     }

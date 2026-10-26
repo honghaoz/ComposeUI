@@ -316,6 +316,67 @@ class ComposeNodeIdTests: XCTestCase {
     expect(joinedId?.id) == "native|1|a child id from Objective-C, naïve"
   }
 
+  func test_joinWithSuffixIndex_makesTheIdOfTheIndexsDecimalString() {
+    // then: joins with an index write into the string's storage on the systems that the tests run on, and make the id
+    // that a join with the index's decimal string as the suffix makes
+    expectJoinsWithSuffixIndexToMakeTheIdsOfTheDecimalStrings()
+  }
+
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  func test_joinWithSuffixIndex_inTemporaryBuffer_makesTheIdOfTheIndexsDecimalString() {
+    // given: joins that write into a temporary buffer, as on systems before macOS 11, iOS 14 and tvOS 14
+    ComposeNodeId.joinsInTemporaryBuffer = true
+    defer {
+      ComposeNodeId.joinsInTemporaryBuffer = false
+    }
+
+    // then: joins with an index write into the temporary buffer, and make the id that a join with the index's decimal
+    // string as the suffix makes
+    expectJoinsWithSuffixIndexToMakeTheIdsOfTheDecimalStrings()
+  }
+  #endif
+
+  func test_joinWithSuffixIndex_fixedChild_givesTheChildsId() {
+    // given: a parent id and a fixed child id
+    let parentId = ComposeNodeId.custom("parent")
+    let childId = ComposeNodeId.custom("child", isFixed: true)
+
+    // when: joining them with an index
+    let joinedId = parentId.join(with: childId, suffixIndex: 1)
+
+    // then: the joined id is the fixed child's id
+    expect(joinedId.id) == "child"
+    expect(joinedId.isFixed) == true
+  }
+
+  func test_joinWithSuffixIndex_allocatesOnlyForAnIdPastTheInlineLimit() {
+    // given: a parent id and child ids whose joined ids with a one-digit index take 15 and 16 bytes, and bodies that join
+    // them into a variable outside the bodies, run once already, since a first run can also allocate what the runtime
+    // makes on first use, such as type metadata
+    let parentId = ComposeNodeId.custom("AAAA")
+    let shortChildId = ComposeNodeId.custom("BBBBBBBB")
+    let longChildId = ComposeNodeId.custom("BBBBBBBBB")
+    var joinedId: ComposeNodeId?
+    let joinShort = {
+      joinedId = parentId.join(with: shortChildId, suffixIndex: 1)
+    }
+    let joinLong = {
+      joinedId = parentId.join(with: longChildId, suffixIndex: 1)
+    }
+    _ = AllocationCounter.count(joinShort)
+    _ = AllocationCounter.count(joinLong)
+
+    // when: counting the allocations of each join
+    let shortAllocations = AllocationCounter.count(joinShort)
+    let longAllocations = AllocationCounter.count(joinLong)
+
+    // then: the index's digits take no allocation, so the 15-byte id, which fits in a small string, takes none, and the
+    // 16-byte id takes one, for its storage
+    expect(shortAllocations) == 0
+    expect(longAllocations) == 1
+    expect(joinedId?.id) == "AAAA|1|BBBBBBBBB"
+  }
+
   func test_custom_fixed() {
     // given: a fixed custom id
     let id = ComposeNodeId.custom("test", isFixed: true)
@@ -387,6 +448,39 @@ class ComposeNodeIdTests: XCTestCase {
     // the same ids
     let temporaryBufferJoins = ComposeNodeId.temporaryBufferJoinCount - temporaryBufferJoinCount
     expect(temporaryBufferJoins, file: file, line: line) == (ComposeNodeId.joinsInTemporaryBuffer ? cases.count : 0)
+    #endif
+  }
+
+  /// Expects joins with an index to make the ids that joins with the index's decimal string as the suffix make.
+  private func expectJoinsWithSuffixIndexToMakeTheIdsOfTheDecimalStrings(file: StaticString = #filePath, line: UInt = #line) {
+    // given: indices of one and more digits, the most and the least `Int`, and negative indices, and parent and child ids
+    // within and past the inline limit
+    let indices = [0, 7, 10, 99, 100, 12345, Int.max, -1, -10, Int.min]
+    let idPairs: [(parent: ComposeNodeId, child: ComposeNodeId)] = [
+      (.custom("parent"), .custom("child")),
+      (.custom("a parent id past the inline limit"), .custom("a child id past the inline limit")),
+    ]
+    #if DEBUG && !COMPOSEUI_BENCHMARK
+    let temporaryBufferJoinCount = ComposeNodeId.temporaryBufferJoinCount
+    #endif
+
+    for (parentId, childId) in idPairs {
+      for index in indices {
+        // when: joining the child's id to the parent's id with the index
+        let joinedId = parentId.join(with: childId, suffixIndex: index)
+
+        // then: the joined id has the bytes and the hash of the join with the index's decimal string as the suffix
+        let expectedId = parentId.join(with: childId, suffix: "\(index)")
+        expect(Array(joinedId.id.utf8), file: file, line: line) == Array(expectedId.id.utf8)
+        expect(joinedId, file: file, line: line) == expectedId
+        expect(joinedId.hashValue, file: file, line: line) == expectedId.hashValue
+      }
+    }
+
+    #if DEBUG && !COMPOSEUI_BENCHMARK
+    // then: each join, with the index and with its decimal string, went the way that `joinsInTemporaryBuffer` chose
+    let temporaryBufferJoins = ComposeNodeId.temporaryBufferJoinCount - temporaryBufferJoinCount
+    expect(temporaryBufferJoins, file: file, line: line) == (ComposeNodeId.joinsInTemporaryBuffer ? 2 * idPairs.count * indices.count : 0)
     #endif
   }
 
