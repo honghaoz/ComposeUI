@@ -311,6 +311,22 @@ class SimpleTextCacheTests: XCTestCase {
     expect(firstAgain) === first
   }
 
+  func test_attributedString_textOverTheByteLimit_isReleasedAfterItsLookup() {
+    // given: the string of a short text
+    _ = SimpleTextCache.entry(for: Self.settings(text: "short"))
+
+    // when: looking up the string of a text over the byte limit, right after the short text's, and letting it go
+    weak var longString: NSAttributedString?
+    autoreleasepool {
+      let long = Self.settings(text: String(repeating: "b", count: SimpleTextCache.generationByteLimit + 1))
+      longString = SimpleTextCache.entry(for: long).string
+    }
+
+    // then: the long text's string is released, since the cache keeps nothing of it, not even a link from the short
+    // text's entry
+    expect(longString) == nil
+  }
+
   func test_attributedString_shadowChangedLater_keepsTheStringOfTheEarlierValues() {
     // given: the string of settings with a shadow, which the caller then changes
     let shadow = Self.makeShadow(height: 1)
@@ -347,6 +363,74 @@ class SimpleTextCacheTests: XCTestCase {
     // then: both lookups find the string, since moving it back kept the key's own copy of the shadow
     expect(movedBack) === string
     expect(again) === string
+  }
+
+  func test_attributedString_sameTextsInTheSameOrder_reusesEachString() {
+    // given: the strings of three texts
+    let allSettings = ["First", "Second", "Third"].map { Self.settings(text: $0) }
+    let strings = allSettings.map { SimpleTextCache.entry(for: $0).string }
+
+    // when: looking up the strings in the same order twice, where each lookup follows the same lookup as the time before
+    let secondRound = allSettings.map { SimpleTextCache.entry(for: $0).string }
+    let thirdRound = allSettings.map { SimpleTextCache.entry(for: $0).string }
+
+    // then: each lookup finds its string
+    for (index, string) in strings.enumerated() {
+      expect(secondRound[index]) === string
+      expect(thirdRound[index]) === string
+    }
+  }
+
+  func test_attributedString_afterTheSameLookup_eachOtherSetting_makesItsOwnString() {
+    let variants: [(name: String, settings: SimpleTextCache.Settings)] = [
+      ("another text of the same length", Self.settings(text: "Next")),
+      ("another font", Self.settings(font: .systemFont(ofSize: 20))),
+      ("another text color", Self.settings(textColor: ThemedColor(.blue))),
+      ("a background color", Self.settings(textBackgroundColor: ThemedColor(.green))),
+      ("a shadow", Self.settings(textShadow: Self.shadow)),
+      ("another alignment", Self.settings(textAlignment: .right)),
+    ]
+
+    for variant in variants {
+      // given: the string of some settings, looked up right after the string of another text, which is looked up again
+      SimpleTextCache.removeAll()
+      let other = Self.settings(text: "Other")
+      _ = SimpleTextCache.entry(for: other)
+      let base = SimpleTextCache.entry(for: Self.settings()).string
+      _ = SimpleTextCache.entry(for: other)
+
+      // when: looking up the string of the variant, right after the other text's string, as the base string was
+      let string = SimpleTextCache.entry(for: variant.settings).string
+
+      // then: it's a string of its own, made of its settings
+      expect(string, variant.name) !== base
+      expect(string.isEqual(to: Self.expectedString(for: variant.settings)), variant.name) == true
+    }
+  }
+
+  func test_attributedString_sameOrderInTheGenerationBefore_movesBackEachString() {
+    // given: the strings of two texts looked up one after the other, which a full generation of other strings moves to
+    // the generation before
+    let first = Self.settings(text: "First")
+    let second = Self.settings(text: "Second")
+    _ = SimpleTextCache.entry(for: first)
+    let secondString = SimpleTextCache.entry(for: second).string
+    for index in 0 ..< SimpleTextCache.generationLimit {
+      _ = SimpleTextCache.entry(for: Self.settings(text: "\(index)"))
+    }
+
+    // when: looking up both strings again in the same order, then filling another generation, which drops the
+    // generation before
+    _ = SimpleTextCache.entry(for: first)
+    let movedBack = SimpleTextCache.entry(for: second).string
+    for index in 0 ..< SimpleTextCache.generationLimit {
+      _ = SimpleTextCache.entry(for: Self.settings(text: "next\(index)"))
+    }
+
+    // then: the second string is kept, since its lookup moved it back like any lookup, though it followed the first
+    // string's lookup as the time before
+    expect(movedBack) === secondString
+    expect(SimpleTextCache.entry(for: second).string) === secondString
   }
 
   func test_entry_singleLineSize_keepsTheSizeUntilTheTextSizeCacheIsCleared() {
@@ -394,6 +478,30 @@ class SimpleTextCacheTests: XCTestCase {
     expect(kept?.string.string) == "Text"
   }
 
+  func test_attributedString_droppedGeneration_releasesTheStringLookedUpAfterAKeptEntry() {
+    // given: the entries of two texts looked up one after the other, the first kept outside the cache, as a text node
+    // keeps it, and a weak reference to the second's string
+    weak var nextString: NSAttributedString?
+    var kept: SimpleTextCache.Entry?
+    autoreleasepool {
+      kept = SimpleTextCache.entry(for: Self.settings(text: "First"))
+      nextString = SimpleTextCache.entry(for: Self.settings(text: "Second")).string
+    }
+    expect(nextString) != nil
+
+    // when: filling two generations of other strings, which drop the generation that holds both entries
+    autoreleasepool {
+      for index in 0 ..< 2 * SimpleTextCache.generationLimit {
+        _ = SimpleTextCache.entry(for: Self.settings(text: "\(index)"))
+      }
+    }
+
+    // then: the second string is released, since the kept entry no longer links to the entry looked up after it, and
+    // the kept entry still has its own string
+    expect(nextString) == nil
+    expect(kept?.string.string) == "First"
+  }
+
   func test_removeAll_releasesTheOtherStringsOfAKeptEntrysText() {
     // given: the entries of a text in two fonts, the one made last kept outside the cache, as a text node keeps it, and
     // a weak reference to the other's string
@@ -412,6 +520,26 @@ class SimpleTextCacheTests: XCTestCase {
     // has its own string
     expect(otherString) == nil
     expect(kept?.string.string) == "Text"
+  }
+
+  func test_removeAll_releasesTheStringLookedUpAfterAKeptEntry() {
+    // given: the entries of two texts looked up one after the other, the first kept outside the cache, as a text node
+    // keeps it, and a weak reference to the second's string, which the last lookup returned
+    weak var nextString: NSAttributedString?
+    var kept: SimpleTextCache.Entry?
+    autoreleasepool {
+      kept = SimpleTextCache.entry(for: Self.settings(text: "First"))
+      nextString = SimpleTextCache.entry(for: Self.settings(text: "Second")).string
+    }
+    expect(nextString) != nil
+
+    // when: removing all strings
+    SimpleTextCache.removeAll()
+
+    // then: the second string is released, since neither the kept entry's link nor the cache's last lookup keeps its
+    // entry, and the kept entry still has its own string
+    expect(nextString) == nil
+    expect(kept?.string.string) == "First"
   }
 
   func test_memoryWarning_removesAllStrings() {

@@ -42,10 +42,10 @@ import UIKit
 /// The cache keeps two generations of strings, each of up to `generationLimit` strings and `generationByteLimit` bytes of
 /// text, and empties itself when the system is low on memory.
 ///
-/// Nodes are made and laid out on the main thread, so the cache is only used there. Its state, including the size that
-/// each entry keeps, skips the runtime's exclusivity checks: no access to it calls the framework's code that reaches
-/// the cache, so no two accesses overlap, which the compiler can't prove past the calls inside them. An assignment
-/// releases what it replaces only after writing the new value, so a deinitializer that it runs sees the new value.
+/// Nodes are made and laid out on the main thread, so the cache is only used there. Its state, including what each
+/// entry keeps, skips the runtime's exclusivity checks: no access to it calls the framework's code that reaches the
+/// cache, so no two accesses overlap, which the compiler can't prove past the calls inside them. An assignment releases
+/// what it replaces only after writing the new value, so a deinitializer that it runs sees the new value.
 enum SimpleTextCache {
 
   /// The settings that make the attributed string of simple text.
@@ -110,7 +110,7 @@ enum SimpleTextCache {
     /// `String`'s `==` matches canonically equivalent text, such as a precomposed "é" and an "e" with a combining accent,
     /// while a text node shows its text's exact characters, so the texts are compared by their code units, in place
     /// where both texts store them contiguously.
-    private static func hasSameCodeUnits(_ lhs: String, _ rhs: String) -> Bool {
+    fileprivate static func hasSameCodeUnits(_ lhs: String, _ rhs: String) -> Bool {
       let lhsCodeUnits = lhs.utf8
       let rhsCodeUnits = rhs.utf8
       let count = lhsCodeUnits.count
@@ -133,16 +133,26 @@ enum SimpleTextCache {
     }
   }
 
-  /// A string with its settings other than the text and the alignment, the size of its single line once measured, and
-  /// the next entry of the same key.
+  /// A string with the settings that make it, the size of its single line once measured, the next entry of the same
+  /// key, and the entry that the lookup after it returned.
   final class Entry {
 
+    let text: String
+    let textAlignment: NSTextAlignment
     let font: Font
     let textColor: ThemedColor
     let textBackgroundColor: ThemedColor?
     let textShadow: Themed<NSShadow>?
     let string: NSAttributedString
     var next: Entry?
+
+    /// The entry that the lookup right after this entry's last lookup returned, which a lookup right after this entry
+    /// tries first.
+    @exclusivity(unchecked) var nextLookup: Entry?
+
+    /// The number of the generation that the cache last put the entry in, see `currentGeneration`, or -1 for an entry
+    /// that the cache doesn't keep.
+    @exclusivity(unchecked) var generation = -1
 
     /// The size of the string's single line, measured once after each clearing of the text size cache.
     @exclusivity(unchecked) private var singleLineSize: CGSize?
@@ -151,6 +161,8 @@ enum SimpleTextCache {
     @exclusivity(unchecked) private var singleLineSizeClearCount = 0
 
     init(settings: Settings, string: NSAttributedString) {
+      text = settings.text
+      textAlignment = settings.textAlignment
       font = settings.font
       textColor = settings.textColor
       textBackgroundColor = settings.textBackgroundColor
@@ -181,6 +193,12 @@ enum SimpleTextCache {
         entry = candidate.next
       }
       return nil
+    }
+
+    /// Returns whether the entry's string is made of the settings, comparing the text and the alignment too, which a
+    /// lookup in the dictionary leaves to the key.
+    func isMade(of settings: Settings) -> Bool {
+      textAlignment == settings.textAlignment && Key.hasSameCodeUnits(text, settings.text) && hasSettings(settings)
     }
 
     private func hasSettings(_ settings: Settings) -> Bool {
@@ -234,19 +252,42 @@ enum SimpleTextCache {
   /// Whether the cache empties itself when the system is low on memory.
   @exclusivity(unchecked) private static var isHandlingMemoryWarnings = false
 
+  /// The number of `current`'s generation, which grows by one each time the generations rotate.
+  @exclusivity(unchecked) private static var currentGeneration = 0
+
+  /// The entry that the last lookup of a string that the cache keeps returned.
+  @exclusivity(unchecked) private static var lastLookup: Entry?
+
   /// Returns the entry of the settings, with the attributed string made once and then reused.
   ///
   /// - Parameter settings: The settings that make the string.
   /// - Returns: The entry of the attributed string.
   static func entry(for settings: Settings) -> Entry {
+    // a layout usually looks up the same texts in the same order as the layout before, so a lookup first tries the entry
+    // that followed the last lookup's entry the time before, which skips hashing the text and probing the dictionary.
+    // the candidate has to be in `current`, so that an entry in `previous` moves to `current` through the dictionary
+    // like any other, instead of being dropped with `previous` while it's in use
+    if let candidate = lastLookup?.nextLookup, candidate.generation == currentGeneration, candidate.isMade(of: settings) {
+      lastLookup = candidate
+      return candidate
+    }
+
     // the key leaves the font, the colors and the shadow to the strings' entries, since a dictionary lookup retains
     // the objects of each key that it compares with, while an entry compares them in place
     let key = Key(text: settings.text, textAlignment: settings.textAlignment)
-    if let entry = current[key]?.entry(of: settings) {
-      return entry
+    let entry: Entry
+    if let found = current[key]?.entry(of: settings) {
+      entry = found
     } else {
-      return moveOrMakeEntry(for: settings, key: key)
+      entry = moveOrMakeEntry(for: settings, key: key)
     }
+    // only an entry that the cache keeps is linked, since a link would keep a text over the byte limit after its node
+    // lets it go
+    if entry.generation == currentGeneration {
+      lastLookup?.nextLookup = entry
+      lastLookup = entry
+    }
+    return entry
   }
 
   /// Returns the entry of settings that `current` doesn't have, moved from `previous` or made, and keeps it in
@@ -283,7 +324,9 @@ enum SimpleTextCache {
       current.removeAll(keepingCapacity: true)
       currentCount = 0
       currentByteCount = 0
+      currentGeneration += 1
     }
+    entry.generation = currentGeneration
     entry.next = current[key]
     current[key] = entry
     currentCount += 1
@@ -304,14 +347,16 @@ enum SimpleTextCache {
     }
   }
 
-  /// Clears the links between the entries of a generation that the cache drops, so that a text node that keeps one of
-  /// them doesn't keep the others of its key.
+  /// Clears the links of the entries of a generation that the cache drops, so that the entries are freed, since a
+  /// repeated sequence of lookups links its entries in a cycle, and a text node that keeps one of them doesn't keep the
+  /// others.
   private static func unlink(_ generation: [Key: Entry]) {
     for head in generation.values {
       var entry: Entry? = head
       while let node = entry {
         entry = node.next
         node.next = nil
+        node.nextLookup = nil
       }
     }
   }
@@ -337,5 +382,6 @@ enum SimpleTextCache {
     currentCount = 0
     currentByteCount = 0
     previous = [:]
+    lastLookup = nil
   }
 }
