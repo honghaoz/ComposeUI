@@ -210,7 +210,7 @@ struct AxisStack<Axis: StackAxis> {
   }
 
   /// The bounding rect of the children's renderable items, from the latest layout.
-  var renderableItemsBoundingRect: CGRect {
+  var renderableItemsBounds: CGRect {
     layoutCache.itemsBoundingRect
   }
 
@@ -347,7 +347,7 @@ struct AxisStack<Axis: StackAxis> {
 
       let crossPosition = Axis.crossPosition(of: Axis.cross(of: childSize), in: maxChildCrossLength, alignment: alignment)
       let childOrigin = Axis.point(main: mainPosition, cross: crossPosition)
-      let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
+      let itemsBoundingRect = children.renderableItemsBounds(at: index)
       layoutCache.appendChild(
         origin: childOrigin,
         itemsBoundingRect: itemsBoundingRect.isNullInline ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)

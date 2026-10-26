@@ -63,7 +63,7 @@ public protocol ComposeNode: ComposeContent {
   /// bounds, for example, if the node translates its child node's renderable items.
   ///
   /// Like `size`, this value is only valid after `layout(containerSize:context:)` is called.
-  var renderableItemsBoundingRect: CGRect { get }
+  var renderableItemsBounds: CGRect { get }
 
   /// Compute the node's layout with the given container size and layout context.
   ///
@@ -103,7 +103,7 @@ public protocol ComposeNode: ComposeContent {
 
 public extension ComposeNode {
 
-  var renderableItemsBoundingRect: CGRect {
+  var renderableItemsBounds: CGRect {
     CGRect(origin: .zero, size: size)
   }
 }

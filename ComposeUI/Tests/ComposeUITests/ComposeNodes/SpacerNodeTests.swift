@@ -164,7 +164,7 @@ class SpacerNodeTests: XCTestCase {
     expect(items.isEmpty) == true
   }
 
-  func test_renderableItemsBoundingRect() {
+  func test_renderableItemsBounds() {
     // given: a laid out spacer node
     var spacer = SpacerNode()
 
@@ -172,7 +172,7 @@ class SpacerNodeTests: XCTestCase {
     _ = spacer.layout(containerSize: CGSize(width: 200, height: 200), context: context)
 
     // then: the bounding rect is null since the spacer node provides no renderable items
-    expect(spacer.renderableItemsBoundingRect.isNull) == true
+    expect(spacer.renderableItemsBounds.isNull) == true
   }
 
   func test_modifier_width() {

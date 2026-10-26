@@ -202,7 +202,7 @@ class GestureRecognizerNodeTests: XCTestCase {
     }
   }
 
-  func test_renderableItemsBoundingRect() {
+  func test_renderableItemsBounds() {
     // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
@@ -212,7 +212,7 @@ class GestureRecognizerNodeTests: XCTestCase {
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
       // then: the bounding rect is the child items rect
-      expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 100, height: 50)
+      expect(node.renderableItemsBounds) == CGRect(x: 0, y: 0, width: 100, height: 50)
     }
 
     // when: laying out a node whose child items are outside of the node's bounds
@@ -221,7 +221,7 @@ class GestureRecognizerNodeTests: XCTestCase {
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
       // then: the bounding rect should include both the child items rect and the gesture overlay (the node's bounds)
-      expect(node.renderableItemsBoundingRect) == CGRect(x: -10, y: -10, width: 60, height: 60)
+      expect(node.renderableItemsBounds) == CGRect(x: -10, y: -10, width: 60, height: 60)
     }
 
     // when: laying out a node whose child has no renderable items
@@ -230,7 +230,7 @@ class GestureRecognizerNodeTests: XCTestCase {
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
       // then: the node provides no items, including the gesture overlay
-      expect(node.renderableItemsBoundingRect.isNull) == true
+      expect(node.renderableItemsBounds.isNull) == true
     }
   }
 

@@ -94,13 +94,13 @@ class EmptyNodeTests: XCTestCase {
     }
   }
 
-  func test_renderableItemsBoundingRect() throws {
+  func test_renderableItemsBounds() throws {
     // given: a laid out empty node
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
     var node = EmptyNode()
     _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
     // then: the bounding rect is null, the empty node provides no renderable items
-    expect(node.renderableItemsBoundingRect.isNull) == true
+    expect(node.renderableItemsBounds.isNull) == true
   }
 }

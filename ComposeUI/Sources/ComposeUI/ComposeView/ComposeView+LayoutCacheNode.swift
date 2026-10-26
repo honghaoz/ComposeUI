@@ -70,8 +70,8 @@ extension ComposeView {
       node.size
     }
 
-    var renderableItemsBoundingRect: CGRect {
-      node.renderableItemsBoundingRect
+    var renderableItemsBounds: CGRect {
+      node.renderableItemsBounds
     }
 
     func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
@@ -109,14 +109,14 @@ extension ComposeView {
                                           context: ComposeNodeLayoutContext) -> ComposeNodeSizing
     {
       let keptSize = node.size
-      let keptItemsBoundingRect = node.renderableItemsBoundingRect
+      let keptItemsBoundingRect = node.renderableItemsBounds
 
       // without a cached layout, the root lays out the content instead of returning the kept layout
       cachedLayout = nil
       let sizing = layout(containerSize: containerSize, context: context)
 
       ComposeUI.assert(
-        sizing == keptLayout.sizing && node.size == keptSize && node.renderableItemsBoundingRect == keptItemsBoundingRect,
+        sizing == keptLayout.sizing && node.size == keptSize && node.renderableItemsBounds == keptItemsBoundingRect,
         ComposeNodeSizing.Dependence.keptLayoutMismatchMessage(
           keptContainerSize: keptLayout.containerSize,
           keptSize: keptSize,

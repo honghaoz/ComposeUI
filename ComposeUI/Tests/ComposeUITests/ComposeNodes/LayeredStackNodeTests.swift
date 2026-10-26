@@ -318,13 +318,13 @@ class LayeredStackNodeTests: XCTestCase {
     expect(assertionCount) == 1
   }
 
-  func test_renderableItemsBoundingRect() {
+  func test_renderableItemsBounds() {
     // when: laying out an empty stack
     var emptyNode = ZStack {}
     _ = emptyNode.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
     // then: an empty stack has no renderable items, the bounding rect is null
-    expect(emptyNode.renderableItemsBoundingRect.isNull) == true
+    expect(emptyNode.renderableItemsBounds.isNull) == true
 
     // when: laying out a stack with an offset child
     var node = ZStack {
@@ -336,6 +336,6 @@ class LayeredStackNodeTests: XCTestCase {
 
     // then: the bounding rect should include the translated child rect
     // child 1 items rect: (0, 0, 10, 10), child 2 items rect: (5, 5, 10, 10)
-    expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 15, height: 15)
+    expect(node.renderableItemsBounds) == CGRect(x: 0, y: 0, width: 15, height: 15)
   }
 }

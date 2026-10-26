@@ -64,8 +64,8 @@ struct PaddingNode<Node: ComposeNode>: ComposeNode {
   private(set) var size: CGSize = .zero
 
   @usableFromInline
-  var renderableItemsBoundingRect: CGRect {
-    let childRect = node.renderableItemsBoundingRect
+  var renderableItemsBounds: CGRect {
+    let childRect = node.renderableItemsBounds
     return childRect.isNullInline ? childRect : childRect.translate(CGPoint(x: insets.left, y: insets.top))
   }
 

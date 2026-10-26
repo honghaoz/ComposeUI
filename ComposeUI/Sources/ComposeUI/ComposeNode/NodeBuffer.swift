@@ -385,9 +385,9 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
   ///
   /// - Parameter index: The index of the child.
   /// - Returns: The bounding rect.
-  func renderableItemsBoundingRect(at index: Int) -> CGRect {
+  func renderableItemsBounds(at index: Int) -> CGRect {
     let (type, pointer) = child(at: index)
-    return Self.renderableItemsBoundingRect(type, pointer)
+    return Self.renderableItemsBounds(type, pointer)
   }
 
   /// Appends the renderable items of the child at an index in its visible bounds.
@@ -492,12 +492,12 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     node.size
   }
 
-  private static func renderableItemsBoundingRect<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer) -> CGRect {
-    renderableItemsBoundingRect(of: &pointer.assumingMemoryBound(to: N.self).pointee)
+  private static func renderableItemsBounds<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer) -> CGRect {
+    renderableItemsBounds(of: &pointer.assumingMemoryBound(to: N.self).pointee)
   }
 
-  private static func renderableItemsBoundingRect(of node: inout some ComposeNode) -> CGRect {
-    node.renderableItemsBoundingRect
+  private static func renderableItemsBounds(of node: inout some ComposeNode) -> CGRect {
+    node.renderableItemsBounds
   }
 
   private static func render<N: ComposeNode>(_: N.Type,

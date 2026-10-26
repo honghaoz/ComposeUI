@@ -84,8 +84,8 @@ struct FrameNode<Node: ComposeNode>: ComposeNode {
   private(set) var size: CGSize = .zero
 
   @usableFromInline
-  var renderableItemsBoundingRect: CGRect {
-    let childRect = node.renderableItemsBoundingRect
+  var renderableItemsBounds: CGRect {
+    let childRect = node.renderableItemsBounds
     guard !childRect.isNullInline else {
       return childRect
     }

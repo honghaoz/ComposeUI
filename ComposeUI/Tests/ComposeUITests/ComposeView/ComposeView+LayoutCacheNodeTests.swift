@@ -176,7 +176,7 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(weakObject) == nil
   }
 
-  func test_renderableItemsBoundingRect() {
+  func test_renderableItemsBounds() {
     // given: a cache node wrapping a laid out node with an offset
     var node = LayerNode().frame(width: 10, height: 10).offset(x: 5, y: 5)
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
@@ -185,7 +185,7 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     let cachedNode = ComposeView.LayoutCacheNode(node: node)
 
     // then: the bounding rect is forwarded from the wrapped node
-    expect(cachedNode.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
+    expect(cachedNode.renderableItemsBounds) == CGRect(x: 5, y: 5, width: 10, height: 10)
   }
 
   #if DEBUG && !COMPOSEUI_BENCHMARK
@@ -321,7 +321,7 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
 
     // then: the debug check finds the same sizing and size but the items moved, and asserts
     expect(root.size) == CGSize(width: 50, height: 50)
-    expect(root.renderableItemsBoundingRect) == CGRect(x: 0, y: 20, width: 50, height: 50)
+    expect(root.renderableItemsBounds) == CGRect(x: 0, y: 20, width: 50, height: 50)
     expect(assertionMessages.count) == 1
   }
   #endif

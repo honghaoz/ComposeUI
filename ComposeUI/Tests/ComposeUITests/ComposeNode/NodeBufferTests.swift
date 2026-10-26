@@ -146,7 +146,7 @@ class NodeBufferTests: XCTestCase {
       // then: the child lays out, sizes and renders as the node does
       expect(sizing) == nodeSizing
       expect(buffer.size(at: index)) == nodes[index].size
-      expect(buffer.renderableItemsBoundingRect(at: index)) == nodes[index].renderableItemsBoundingRect
+      expect(buffer.renderableItemsBounds(at: index)) == nodes[index].renderableItemsBounds
       expect(items.map(\.id)) == nodeItems.map(\.id)
       expect(items.map(\.frame)) == nodeItems.map(\.frame)
       expect(items.isEmpty) == false

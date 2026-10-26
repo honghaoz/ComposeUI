@@ -69,7 +69,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
   public private(set) var size: CGSize = .zero
 
-  public var renderableItemsBoundingRect: CGRect {
+  public var renderableItemsBounds: CGRect {
     layoutCache.itemsBoundingRect
   }
 
@@ -119,7 +119,7 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
     for index in 0 ..< childCount {
       let childOrigin = Layout.position(rect: children.size(at: index), in: size, alignment: alignment).origin
-      let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
+      let itemsBoundingRect = children.renderableItemsBounds(at: index)
       layoutCache.appendChild(
         origin: childOrigin,
         itemsBoundingRect: itemsBoundingRect.isNullInline ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
