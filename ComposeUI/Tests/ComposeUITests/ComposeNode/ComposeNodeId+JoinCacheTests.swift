@@ -256,42 +256,50 @@ class ComposeNodeId_JoinCacheTests: XCTestCase {
   }
 
   func test_cachedJoin_joinOfAFullBucket_replacesTheJoinUsedLongestAgo() {
-    // given: five joins of one bucket in a cache of the fewest entries, whose ids are past the inline limit, so that
-    // each join that the cache doesn't give allocates its id
+    // given: joins of one bucket, one more than its entries, whose ids are past the inline limit, so that each join that
+    // a cache doesn't give allocates its id
     let parent = ComposeNodeId.custom("a parent id past the inline limit")
-    let children = childrenOfOneBucket(count: ComposeNodeId.JoinCache.bucketSizeForTesting + 1, parent: parent)
-    let cache = ComposeNodeId.JoinCache()
-    func makePass(joining children: [ComposeNodeId]) {
+    let bucketSize = ComposeNodeId.JoinCache.bucketSizeForTesting
+    let children = childrenOfOneBucket(count: bucketSize + 1, parent: parent)
+    let keptChildren = Array(children.prefix(bucketSize))
+    let newChild = children[bucketSize]
+    func makePass(joining children: [ComposeNodeId], in cache: ComposeNodeId.JoinCache) {
       cache.performAsCurrent {
         for child in children {
           _ = parent.cachedJoin(with: child)
         }
       }
     }
-    func allocationsOfAPass(joining child: ComposeNodeId) -> Int? {
+    func allocationsOfAPass(joining child: ComposeNodeId, in cache: ComposeNodeId.JoinCache) -> Int? {
       AllocationCounter.count {
         cache.performAsCurrent {
           _ = parent.cachedJoin(with: child)
         }
       }
     }
-    let (first, second, third, fourth, fifth) = (children[0], children[1], children[2], children[3], children[4])
 
-    // given: a pass of the first four joins, which sizes the cache to the fewest entries, another, which keeps them in
-    // the bucket's entries, and a pass of all but the first, after which the cache used the first longest ago
-    makePass(joining: [first, second, third, fourth])
-    expect(cache.capacityForTesting) == ComposeNodeId.JoinCache.minimumCapacityForTesting
-    makePass(joining: [first, second, third, fourth])
-    makePass(joining: [second, third, fourth])
+    for oldestIndex in 0 ..< bucketSize {
+      // given: a cache with a pass of the bucket's first joins, which sizes it to the fewest entries, another, which keeps
+      // them in the bucket's entries in their order, and a pass of all of them but one, after which the cache used that
+      // one longest ago, in each of the bucket's entries in turn
+      let cache = ComposeNodeId.JoinCache()
+      makePass(joining: keptChildren, in: cache)
+      expect(cache.capacityForTesting) == ComposeNodeId.JoinCache.minimumCapacityForTesting
+      makePass(joining: keptChildren, in: cache)
+      let oldestChild = keptChildren[oldestIndex]
+      let otherChildren = keptChildren.enumerated().filter { $0.offset != oldestIndex }.map(\.element)
+      makePass(joining: otherChildren, in: cache)
 
-    // when: a pass of the fifth join
-    let fifthJoinAllocations = allocationsOfAPass(joining: fifth)
+      // when: a pass of the other join of the bucket
+      let newJoinAllocations = allocationsOfAPass(joining: newChild, in: cache)
 
-    // then: the fifth join allocates its id, which the cache keeps in place of the first join, and the cache gives the
-    // other joins without allocating, while the first join allocates its id again
-    expect(fifthJoinAllocations) == 1
-    expect([second, third, fourth, fifth].map { allocationsOfAPass(joining: $0) }) == [0, 0, 0, 0]
-    expect(allocationsOfAPass(joining: first)) == 1
+      // then: the join allocates its id, which the cache keeps in place of the join that it used longest ago, and the
+      // cache gives the other joins without allocating, while the join that it replaced allocates its id again
+      expect(newJoinAllocations, "entry \(oldestIndex)") == 1
+      let keptJoinAllocations = (otherChildren + [newChild]).map { allocationsOfAPass(joining: $0, in: cache) }
+      expect(keptJoinAllocations, "entry \(oldestIndex)") == Array(repeating: 0, count: bucketSize)
+      expect(allocationsOfAPass(joining: oldestChild, in: cache), "entry \(oldestIndex)") == 1
+    }
   }
 
   // MARK: - Sizes
