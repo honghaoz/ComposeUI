@@ -1638,7 +1638,9 @@ open class ComposeView: BaseScrollView {
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
         zOrder.insert(renderable, at: itemIndex, into: contentContainerView, ids: renderableItemIds, reusedRenderables: oldRenderableMap)
+        #if DEBUG && !COMPOSEUI_BENCHMARK
         renderable.assertIdentityTransform()
+        #endif
         renderable.setFrame(newFrame)
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)

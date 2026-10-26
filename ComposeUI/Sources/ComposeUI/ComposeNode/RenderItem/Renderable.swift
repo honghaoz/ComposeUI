@@ -138,7 +138,9 @@ public enum Renderable {
   ///   - frame: The frame to apply.
   ///   - animationTiming: The timing to animate the change with, or `nil` to apply it without starting an animation.
   func updateFrame(_ frame: CGRect, animationTiming: AnimationTiming?) {
+    #if DEBUG && !COMPOSEUI_BENCHMARK
     assertIdentityTransform()
+    #endif
 
     // re-applying an unchanged frame is wasteful: without a timing it dirties the renderable and on AppKit posts a
     // frame-change notification that forces a layout pass, with a timing it adds zero-delta animations that live for
@@ -163,11 +165,16 @@ public enum Renderable {
     setFrame(frame)
   }
 
-  /// Asserts, in debug builds, that the renderable's transform is identity, as the render pass requires when it applies
-  /// the frame, see `Renderable`.
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  /// Asserts that the renderable's transform is identity, as the render pass requires when it applies the frame, see
+  /// `Renderable`.
+  ///
+  /// Benchmark builds leave the check out, since reading the transform costs more than the rest of a frame update that
+  /// keeps the frame, so the frame update benchmarks would measure the check instead of the update.
   func assertIdentityTransform() {
     ComposeUI.assert(CATransform3DIsIdentity(layer.transform), "the renderable's transform must be identity when its frame is applied, set a transform in `update` instead of `willInsert` or `willUpdate`")
   }
+  #endif
 
   /// Add the renderable as a sublayer to the parent view.
   ///
