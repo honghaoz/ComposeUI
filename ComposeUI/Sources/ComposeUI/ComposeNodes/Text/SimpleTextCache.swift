@@ -43,8 +43,9 @@ import UIKit
 /// text, and empties itself when the system is low on memory.
 ///
 /// Nodes are made and laid out on the main thread, so the cache is only used there. Its state, including the size that
-/// each entry keeps, skips the runtime's exclusivity checks: no access to it reaches the cache again, so no two accesses
-/// can overlap, which the compiler can't prove past the calls inside them.
+/// each entry keeps, skips the runtime's exclusivity checks: no access to it calls the framework's code that reaches
+/// the cache, so no two accesses overlap, which the compiler can't prove past the calls inside them. An assignment
+/// releases what it replaces only after writing the new value, so a deinitializer that it runs sees the new value.
 enum SimpleTextCache {
 
   /// The settings that make the attributed string of simple text.
