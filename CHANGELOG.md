@@ -34,7 +34,7 @@
 ### Changes
 
 - Added `previousRenderBounds` and `renderBounds` to `RenderableUpdateContext`, which tell a scroll from a resize. ([#24](https://github.com/honghaoz/ComposeUI/pull/24))
-- Added a scale transition, `.scale(from:anchor:timing:options:)`. ([#10](https://github.com/honghaoz/ComposeUI/pull/10))
+- Added a scale transition, `.scale(from:anchor:timing:options:)`, whose anchor is a `UnitPoint`, a type that moved from ChouTiUI. ([#10](https://github.com/honghaoz/ComposeUI/pull/10), [#255](https://github.com/honghaoz/ComposeUI/pull/255))
 - Added `InsertTransition.prepareForTakeover(renderable:)`, and `revivalPosition` and `revivalTransform` in the insert transition context, for transitions that take over a removal. Slide and spring opacity transitions continue a revival from where the removal left off. ([#6](https://github.com/honghaoz/ComposeUI/pull/6), [#10](https://github.com/honghaoz/ComposeUI/pull/10), [#74](https://github.com/honghaoz/ComposeUI/pull/74))
 - Added `CALayer.retarget(keyPath:to:)`, which sets a property and continues its in-flight animations toward the new value. ([#48](https://github.com/honghaoz/ComposeUI/pull/48))
 - Added `dependence` to `ComposeNodeSizing`, the lengths of the container size that a node's layout reads. A custom node that reports only the lengths it reads, such as `.width` for content that wraps in the container's width, lets `ComposeView` keep its layout when only another length changes. A sizing made without it depends on both lengths. ([#244](https://github.com/honghaoz/ComposeUI/pull/244))
