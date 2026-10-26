@@ -455,6 +455,7 @@ class RenderableTests: XCTestCase {
     expect(layer.animationKeys()) == nil
   }
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_layer_case_updateFrame_nonIdentityTransform_asserts() {
     // given: a layer-backed renderable at a frame, with a non-identity transform, and a test assertion failure handler
     let layer = FrameTrackingLayer()
@@ -478,6 +479,7 @@ class RenderableTests: XCTestCase {
     expect(layer.frameSetCount) == 0
     expect(CATransform3DEqualToTransform(layer.transform, CATransform3DMakeTranslation(20, 0, 0))) == true
   }
+  #endif
 
   func test_layer_case_updateFrame_changed() {
     // given: a layer-backed renderable at a frame
