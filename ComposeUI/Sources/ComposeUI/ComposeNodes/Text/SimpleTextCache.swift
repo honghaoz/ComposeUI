@@ -42,7 +42,9 @@ import UIKit
 /// The cache keeps two generations of strings, each of up to `generationLimit` strings and `generationByteLimit` bytes of
 /// text, and empties itself when the system is low on memory.
 ///
-/// Nodes are made and laid out on the main thread, so the cache is only used there.
+/// Nodes are made and laid out on the main thread, so the cache is only used there. Its state, including the size that
+/// each entry keeps, skips the runtime's exclusivity checks: no access to it reaches the cache again, so no two accesses
+/// can overlap, which the compiler can't prove past the calls inside them.
 enum SimpleTextCache {
 
   /// The settings that make the attributed string of simple text.
@@ -142,10 +144,10 @@ enum SimpleTextCache {
     var next: Entry?
 
     /// The size of the string's single line, measured once after each clearing of the text size cache.
-    private var singleLineSize: CGSize?
+    @exclusivity(unchecked) private var singleLineSize: CGSize?
 
     /// The text size cache's clear count when `singleLineSize` was measured.
-    private var singleLineSizeClearCount = 0
+    @exclusivity(unchecked) private var singleLineSizeClearCount = 0
 
     init(settings: Settings, string: NSAttributedString) {
       font = settings.font
@@ -217,19 +219,19 @@ enum SimpleTextCache {
 
   /// The strings looked up since the generations last rotated, with the strings of other settings of each key in the
   /// list of its entries.
-  private static var current: [Key: Entry] = [:]
+  @exclusivity(unchecked) private static var current: [Key: Entry] = [:]
 
   /// The number of strings in `current`.
-  private static var currentCount = 0
+  @exclusivity(unchecked) private static var currentCount = 0
 
   /// The UTF-8 bytes of the text in `current`.
-  private static var currentByteCount = 0
+  @exclusivity(unchecked) private static var currentByteCount = 0
 
   /// The strings of the generation before, which a lookup moves back to `current`.
-  private static var previous: [Key: Entry] = [:]
+  @exclusivity(unchecked) private static var previous: [Key: Entry] = [:]
 
   /// Whether the cache empties itself when the system is low on memory.
-  private static var isHandlingMemoryWarnings = false
+  @exclusivity(unchecked) private static var isHandlingMemoryWarnings = false
 
   /// Returns the entry of the settings, with the attributed string made once and then reused.
   ///
