@@ -631,6 +631,33 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.labels.200.withBackgrounds", result: result)
   }
 
+  func test_refresh_reorderedLabelRows_200() {
+    // given: a compose view with 200 rows of a label each, laid out below a node that fills the view, whose rows switch
+    // between two orders, so that each refresh looks up every text right after another text than the refresh before did
+    var isReversed = false
+    let view = ComposeView {
+      VStack {
+        // the node keeps the rows out of the view, so that each refresh renders the same content
+        ColorNode(.blue)
+          .frame(width: Constants.viewSize.width, height: Constants.viewSize.height)
+        for i in 0 ..< 200 {
+          LabelNode("Row \(isReversed ? 199 - i : i) title")
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes, each in the other order
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      isReversed.toggle()
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.labels.200.reordered", result: result)
+  }
+
   func test_refresh_nestedRows_200_drawn() {
     // given: a compose view with 200 nested rows laid out in a window, which draws the labels past its visible bounds
     // ahead of time
