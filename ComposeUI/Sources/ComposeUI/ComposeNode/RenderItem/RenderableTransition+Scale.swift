@@ -44,11 +44,12 @@ public extension RenderableTransition {
   ///
   /// - Parameters:
   ///   - from: The scale to insert from and remove to. Values above 1 zoom down into place. Defaults to 0.
-  ///   - anchor: The point of the renderable that stays fixed while it scales. Defaults to `.center`.
+  ///   - anchor: The point of the renderable that stays fixed while it scales, in the unit space of its bounds with the
+  ///     origin at the top left. Defaults to `.center`.
   ///   - timing: The timing of the scale transition.
   ///   - options: The options for the scale transition.
   static func scale(from: CGFloat = 0,
-                    anchor: Layout.Alignment = .center, // TODO: replace with https://github.com/honghaoz/ChouTiUI/blob/master/ChouTiUI/Sources/ChouTiUI/Universal/Layout/UnitPoint.swift
+                    anchor: UnitPoint = .center,
                     timing: AnimationTiming = .spring(),
                     options: RenderableTransition.Options = .both) -> Self
   {
@@ -84,7 +85,7 @@ public extension RenderableTransition {
             startTranslation = CGSize(width: revivalTransform.m41, height: revivalTransform.m42)
           } else {
             startScale = from
-            startTranslation = layer.pivotTranslation(towards: anchor.unitPoint, for: from, size: context.targetFrame.size)
+            startTranslation = layer.pivotTranslation(towards: anchor.cgPoint, for: from, size: context.targetFrame.size)
           }
 
           renderable.setFrame(context.targetFrame)
@@ -123,7 +124,7 @@ public extension RenderableTransition {
         animatedKeyPaths: Constants.animatedKeyPaths,
         animate: { renderable, _, completion in
           let layer = renderable.layer
-          let endTranslation = layer.pivotTranslation(towards: anchor.unitPoint, for: from, size: layer.bounds.size)
+          let endTranslation = layer.pivotTranslation(towards: anchor.cgPoint, for: from, size: layer.bounds.size)
 
           guard timing.timing.duration > 0 || timing.delay > 0 else {
             layer.setKeyPathValue("transform.scale", from)
@@ -163,33 +164,6 @@ public extension RenderableTransition {
 
     /// The root-layer key paths the scale transition animates.
     static let animatedKeyPaths: Set<String> = ["transform.scale", "transform.translation"]
-  }
-}
-
-private extension Layout.Alignment {
-
-  /// The alignment as a point in the unit coordinate space, with the origin at the top left.
-  var unitPoint: CGPoint {
-    switch self {
-    case .center:
-      return CGPoint(x: 0.5, y: 0.5)
-    case .left:
-      return CGPoint(x: 0, y: 0.5)
-    case .right:
-      return CGPoint(x: 1, y: 0.5)
-    case .top:
-      return CGPoint(x: 0.5, y: 0)
-    case .bottom:
-      return CGPoint(x: 0.5, y: 1)
-    case .topLeft:
-      return CGPoint(x: 0, y: 0)
-    case .topRight:
-      return CGPoint(x: 1, y: 0)
-    case .bottomLeft:
-      return CGPoint(x: 0, y: 1)
-    case .bottomRight:
-      return CGPoint(x: 1, y: 1)
-    }
   }
 }
 

@@ -598,11 +598,11 @@ class RenderableTransition_ScaleTests: XCTestCase {
 
   // MARK: - Anchor
 
-  func test_insertTransition_anchor_mapsToUnitPoints() throws {
-    // given: expected pivot compensations for every anchor, for a center-anchored layer scaling in from 0:
-    // the compensation is (anchor unit point - 0.5) * target size
+  func test_insertTransition_anchor_compensatesTowardsPivot() throws {
+    // given: expected pivot compensations for every preset anchor and a custom one, for a center-anchored layer scaling
+    // in from 0: the compensation is (anchor unit point - 0.5) * target size
     let targetFrame = Constants.targetFrame
-    let expectedTranslations: [Layout.Alignment: CGSize] = [
+    let expectedTranslations: [UnitPoint: CGSize] = [
       .center: .zero,
       .left: CGSize(width: -0.5 * targetFrame.width, height: 0),
       .right: CGSize(width: 0.5 * targetFrame.width, height: 0),
@@ -612,9 +612,10 @@ class RenderableTransition_ScaleTests: XCTestCase {
       .topRight: CGSize(width: 0.5 * targetFrame.width, height: -0.5 * targetFrame.height),
       .bottomLeft: CGSize(width: -0.5 * targetFrame.width, height: 0.5 * targetFrame.height),
       .bottomRight: CGSize(width: 0.5 * targetFrame.width, height: 0.5 * targetFrame.height),
+      UnitPoint(x: 0.25, y: 0.75): CGSize(width: -0.25 * targetFrame.width, height: 0.25 * targetFrame.height),
     ]
 
-    for anchor in Layout.Alignment.allCases {
+    for (anchor, expectedTranslation) in expectedTranslations {
       let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
       let layer = TestLayer()
       let transition = RenderableTransition.scale(anchor: anchor, timing: Constants.timing, options: .insert)
@@ -624,7 +625,6 @@ class RenderableTransition_ScaleTests: XCTestCase {
       try transition.insert.unwrap().animate(renderable: .layer(layer), context: context, completion: {})
 
       // then: the compensation matches the anchor's unit point, and a zero compensation adds no animation
-      let expectedTranslation = try expectedTranslations[anchor].unwrap()
       let translationAnimations = layer.basicAnimations(forKeyPath: "transform.translation")
       if expectedTranslation == .zero {
         expect(translationAnimations.count, "\(anchor)") == 0

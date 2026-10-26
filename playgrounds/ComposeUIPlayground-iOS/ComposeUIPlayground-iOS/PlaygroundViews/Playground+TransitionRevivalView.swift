@@ -100,7 +100,7 @@ extension Playground {
       }
 
       /// The transition to verify. The scale kinds pivot about `scaleAnchor`, the other kinds ignore it.
-      func transition(scaleAnchor: Layout.Alignment) -> RenderableTransition {
+      func transition(scaleAnchor: UnitPoint) -> RenderableTransition {
         switch self {
         case .opacity:
           return .opacity(timing: .spring(dampingRatio: 0.8, response: 3))
@@ -126,7 +126,7 @@ extension Playground {
 
     private var isShowing = true
     private var transitionKind: TransitionKind = .opacity
-    private var scaleAnchor: Layout.Alignment = .center
+    private var scaleAnchor: UnitPoint = .center
 
     /// The page's preferred height, for the hosting content view's layout.
     var preferredHeight: CGFloat {
@@ -242,7 +242,7 @@ extension Playground {
             guard let self else {
               return
             }
-            let anchors = Layout.Alignment.allCases
+            let anchors: [UnitPoint] = [.center, .left, .right, .top, .bottom, .topLeft, .topRight, .bottomLeft, .bottomRight]
             let index = anchors.firstIndex(of: self.scaleAnchor)! // swiftlint:disable:this force_unwrapping
             self.scaleAnchor = anchors[(index + 1) % anchors.count]
             self.log("TAP scale anchor -> \(self.scaleAnchor)")
