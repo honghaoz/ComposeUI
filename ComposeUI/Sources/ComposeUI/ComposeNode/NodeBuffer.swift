@@ -381,13 +381,13 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     return Self.size(type, pointer)
   }
 
-  /// Returns the render bounds of the child at an index.
+  /// Returns the bounding rect of the renderable items of the child at an index.
   ///
   /// - Parameter index: The index of the child.
-  /// - Returns: The render bounds.
-  func renderBounds(at index: Int) -> CGRect {
+  /// - Returns: The bounding rect.
+  func renderableItemsBounds(at index: Int) -> CGRect {
     let (type, pointer) = child(at: index)
-    return Self.renderBounds(type, pointer)
+    return Self.renderableItemsBounds(type, pointer)
   }
 
   /// Appends the renderable items of the child at an index in its visible bounds.
@@ -483,7 +483,7 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
   }
 
   private static func size<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer) -> CGSize {
-    // the child is passed in place, as it is for its render bounds and its render, since reading it through `pointee`
+    // the child is passed in place, as it is for its bounding rect and its render, since reading it through `pointee`
     // in unspecialized code copies the whole child first
     size(of: &pointer.assumingMemoryBound(to: N.self).pointee)
   }
@@ -492,12 +492,12 @@ final class NodeBuffer: ManagedBuffer<NodeBuffer.Header, NodeBuffer.Chunk> {
     node.size
   }
 
-  private static func renderBounds<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer) -> CGRect {
-    renderBounds(of: &pointer.assumingMemoryBound(to: N.self).pointee)
+  private static func renderableItemsBounds<N: ComposeNode>(_: N.Type, _ pointer: UnsafeMutableRawPointer) -> CGRect {
+    renderableItemsBounds(of: &pointer.assumingMemoryBound(to: N.self).pointee)
   }
 
-  private static func renderBounds(of node: inout some ComposeNode) -> CGRect {
-    node.renderBounds
+  private static func renderableItemsBounds(of node: inout some ComposeNode) -> CGRect {
+    node.renderableItemsBounds
   }
 
   private static func render<N: ComposeNode>(_: N.Type,

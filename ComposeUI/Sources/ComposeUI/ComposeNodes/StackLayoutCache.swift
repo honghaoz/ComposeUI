@@ -36,7 +36,7 @@ import CoreGraphics
 /// to skip querying child nodes that can't provide visible renderable items, so that getting renderable
 /// items is O(visible children) instead of O(all children).
 ///
-/// A layout rebuilds it with `reset(reservingCapacity:)`, then `appendChild(origin:renderBounds:)` for each child,
+/// A layout rebuilds it with `reset(reservingCapacity:)`, then `appendChild(origin:itemsBoundingRect:)` for each child,
 /// then `finish(mainAxis:)`.
 struct StackLayoutCache {
 
@@ -50,29 +50,29 @@ struct StackLayoutCache {
   struct Child {
 
     /// The layout information of no child, which fills the unused inline storage.
-    fileprivate static let empty = Child(origin: .zero, renderBounds: .null)
+    fileprivate static let empty = Child(origin: .zero, itemsBoundingRect: .null)
 
     /// The child's origin, in the stack node's coordinate space.
     let origin: CGPoint
 
-    /// The child's render bounds, in the stack node's coordinate space.
+    /// The child's renderable items bounding rect, in the stack node's coordinate space.
     ///
     /// The rect is `.null` if the child can't provide any renderable items.
-    let renderBounds: CGRect
+    let itemsBoundingRect: CGRect
 
-    /// The running maximum, from the first child, of the children's render bounds max position on the main axis.
+    /// The running maximum, from the first child, of the children's items bounding rect max position on the main axis.
     ///
     /// The values are non-decreasing, which makes them binary searchable.
     fileprivate(set) var runningMaxPosition: CGFloat
 
-    /// The running minimum, from the last child, of the children's render bounds min position on the main axis.
+    /// The running minimum, from the last child, of the children's items bounding rect min position on the main axis.
     ///
     /// The values are non-decreasing, which makes them binary searchable.
     fileprivate(set) var runningMinPosition: CGFloat
 
-    fileprivate init(origin: CGPoint, renderBounds: CGRect) {
+    fileprivate init(origin: CGPoint, itemsBoundingRect: CGRect) {
       self.origin = origin
-      self.renderBounds = renderBounds
+      self.itemsBoundingRect = itemsBoundingRect
       runningMaxPosition = 0
       runningMinPosition = 0
     }
@@ -138,10 +138,10 @@ struct StackLayoutCache {
     }
   }
 
-  /// The union of all children's render bounds, in the stack node's coordinate space.
+  /// The union of all children's renderable items bounding rects, in the stack node's coordinate space.
   ///
   /// The rect is `.null` if no child can provide any renderable items.
-  private(set) var renderBounds: CGRect = .null
+  private(set) var itemsBoundingRect: CGRect = .null
 
   /// Whether the cache was finished with a main axis, which builds the search structures that
   /// `visibleChildRange(minPosition:maxPosition:)` uses.
@@ -157,7 +157,7 @@ struct StackLayoutCache {
     if usesHeapChildren {
       heapChildren.reserveCapacity(capacity)
     }
-    renderBounds = .null
+    itemsBoundingRect = .null
     hasSearchStructures = false
   }
 
@@ -165,9 +165,10 @@ struct StackLayoutCache {
   ///
   /// - Parameters:
   ///   - origin: The child's origin, in the stack node's coordinate space.
-  ///   - renderBounds: The child's render bounds, translated to the stack node's coordinate space.
-  mutating func appendChild(origin: CGPoint, renderBounds: CGRect) {
-    let child = Child(origin: origin, renderBounds: renderBounds)
+  ///   - itemsBoundingRect: The child's renderable items bounding rect, translated to the stack node's coordinate
+  ///     space.
+  mutating func appendChild(origin: CGPoint, itemsBoundingRect: CGRect) {
+    let child = Child(origin: origin, itemsBoundingRect: itemsBoundingRect)
     if usesHeapChildren {
       heapChildren.append(child)
     } else if childCount < Self.inlineCapacity {
@@ -187,24 +188,24 @@ struct StackLayoutCache {
   ///   axis (e.g. a layered stack), which skips building the binary-search structures that only
   ///   `visibleChildRange(minPosition:maxPosition:)` uses.
   mutating func finish(mainAxis: MainAxis?) {
-    let renderBounds: CGRect = withMutableChildren { children in
-      var renderBounds: CGRect = .null
+    let itemsBoundingRect: CGRect = withMutableChildren { children in
+      var itemsBoundingRect: CGRect = .null
 
       guard let mainAxis else {
         // no main axis: the caller doesn't use `visibleChildRange(minPosition:maxPosition:)`, so only collect the
-        // union of the render bounds.
-        for child in children where !child.renderBounds.isNullInline {
-          renderBounds = renderBounds.unionInline(child.renderBounds)
+        // union of the bounding rects.
+        for child in children where !child.itemsBoundingRect.isNullInline {
+          itemsBoundingRect = itemsBoundingRect.unionInline(child.itemsBoundingRect)
         }
-        return renderBounds
+        return itemsBoundingRect
       }
 
-      // build the running max positions (from the first child) and collect the union of the render bounds
+      // build the running max positions (from the first child) and collect the union of the bounding rects
       var runningMax: CGFloat = -.greatestFiniteMagnitude
       for index in children.indices {
-        let rect = children[index].renderBounds
+        let rect = children[index].itemsBoundingRect
         if !rect.isNullInline {
-          renderBounds = renderBounds.unionInline(rect)
+          itemsBoundingRect = itemsBoundingRect.unionInline(rect)
           let edges = rect.edgesInline
           runningMax = Swift.max(runningMax, mainAxis == .vertical ? edges.maxY : edges.maxX)
         }
@@ -214,7 +215,7 @@ struct StackLayoutCache {
       // build the running min positions (from the last child)
       var runningMin: CGFloat = .greatestFiniteMagnitude
       for index in children.indices.reversed() {
-        let rect = children[index].renderBounds
+        let rect = children[index].itemsBoundingRect
         if !rect.isNullInline {
           let edges = rect.edgesInline
           runningMin = Swift.min(runningMin, mainAxis == .vertical ? edges.minY : edges.minX)
@@ -222,10 +223,10 @@ struct StackLayoutCache {
         children[index].runningMinPosition = runningMin
       }
 
-      return renderBounds
+      return itemsBoundingRect
     }
 
-    self.renderBounds = renderBounds
+    self.itemsBoundingRect = itemsBoundingRect
     hasSearchStructures = mainAxis != nil
   }
 
@@ -270,12 +271,12 @@ struct StackLayoutCache {
   /// kept layout compares.
   ///
   /// - Parameter other: The other cache.
-  /// - Returns: Whether the caches have the same number of children, with the same origins and render bounds.
+  /// - Returns: Whether the caches have the same number of children, with the same origins and items bounding rects.
   func hasSameChildren(as other: StackLayoutCache) -> Bool {
     guard childCount == other.childCount else {
       return false
     }
-    for index in 0 ..< childCount where self[index].origin != other[index].origin || self[index].renderBounds != other[index].renderBounds {
+    for index in 0 ..< childCount where self[index].origin != other[index].origin || self[index].itemsBoundingRect != other[index].itemsBoundingRect {
       return false
     }
     return true

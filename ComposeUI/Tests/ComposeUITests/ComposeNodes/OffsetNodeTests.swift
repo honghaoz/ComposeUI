@@ -153,7 +153,7 @@ class OffsetNodeTests: XCTestCase {
     }
   }
 
-  func test_renderBounds() throws {
+  func test_renderableItemsBounds() throws {
     // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
@@ -164,8 +164,8 @@ class OffsetNodeTests: XCTestCase {
         .offset(x: 10, y: 20)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // then: the render bounds should be translated by the offset
-      expect(node.renderBounds) == CGRect(x: 10, y: 20, width: 20, height: 30)
+      // then: the bounding rect should be translated by the offset
+      expect(node.renderableItemsBounds) == CGRect(x: 10, y: 20, width: 20, height: 30)
     }
 
     do {
@@ -173,8 +173,8 @@ class OffsetNodeTests: XCTestCase {
       var node = Spacer().offset(x: 10, y: 20)
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // then: the render bounds are null
-      expect(node.renderBounds.isNull) == true
+      // then: the bounding rect is null
+      expect(node.renderableItemsBounds.isNull) == true
     }
   }
 }

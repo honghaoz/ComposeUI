@@ -60,10 +60,10 @@ struct OverlayNode<Node: ComposeNode>: ComposeNode {
   var size: CGSize { node.size }
 
   @usableFromInline
-  var renderBounds: CGRect {
-    let childRect = node.renderBounds
+  var renderableItemsBounds: CGRect {
+    let childRect = node.renderableItemsBounds
 
-    let overlayRect = overlayNode.renderBounds
+    let overlayRect = overlayNode.renderableItemsBounds
     guard !overlayRect.isNullInline else {
       return childRect
     }

@@ -84,14 +84,14 @@ struct FrameNode<Node: ComposeNode>: ComposeNode {
   private(set) var size: CGSize = .zero
 
   @usableFromInline
-  var renderBounds: CGRect {
-    let childRect = node.renderBounds
+  var renderableItemsBounds: CGRect {
+    let childRect = node.renderableItemsBounds
     guard !childRect.isNullInline else {
       return childRect
     }
 
     // the child node can overflow the frame node's bounds when the child node is bigger than the frame
-    // node, so the render bounds must be the child node's render bounds positioned by the alignment,
+    // node, so the bounding rect must be the child node's bounding rect positioned by the alignment,
     // rather than the default implementation (the frame node's bounds)
     let childFrame = Layout.position(rect: node.size, in: size, alignment: alignment)
     return childRect.translate(childFrame.origin)

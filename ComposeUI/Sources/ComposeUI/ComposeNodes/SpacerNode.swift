@@ -93,7 +93,7 @@ public struct SpacerNode: ComposeNode {
     return sizing
   }
 
-  public var renderBounds: CGRect {
+  public var renderableItemsBounds: CGRect {
     .null // the node provides no renderable items
   }
 

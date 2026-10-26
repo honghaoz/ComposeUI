@@ -90,7 +90,7 @@ class UnderlayNodeTests: XCTestCase {
     expect(items.map(\.id.id)) == ["UL|L"]
   }
 
-  func test_renderBounds() {
+  func test_renderableItemsBounds() {
     // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
@@ -101,8 +101,8 @@ class UnderlayNodeTests: XCTestCase {
       }
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // then: the render bounds should include the underlay rect
-      expect(node.renderBounds) == CGRect(x: -10, y: -10, width: 120, height: 120)
+      // then: the bounding rect should include the underlay rect
+      expect(node.renderableItemsBounds) == CGRect(x: -10, y: -10, width: 120, height: 120)
     }
 
     do {
@@ -112,8 +112,8 @@ class UnderlayNodeTests: XCTestCase {
       }
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // then: the render bounds should be the child node's rect
-      expect(node.renderBounds) == CGRect(x: 0, y: 0, width: 100, height: 100)
+      // then: the bounding rect should be the child node's rect
+      expect(node.renderableItemsBounds) == CGRect(x: 0, y: 0, width: 100, height: 100)
     }
   }
 }

@@ -56,8 +56,8 @@ struct OffsetNode<Node: ComposeNode>: ComposeNode {
   var size: CGSize { node.size }
 
   @usableFromInline
-  var renderBounds: CGRect {
-    let childRect = node.renderBounds
+  var renderableItemsBounds: CGRect {
+    let childRect = node.renderableItemsBounds
     return childRect.isNullInline ? childRect : childRect.translate(offset)
   }
 

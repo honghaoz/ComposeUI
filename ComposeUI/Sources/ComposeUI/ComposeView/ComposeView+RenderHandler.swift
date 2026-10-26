@@ -67,12 +67,10 @@ public extension ComposeView {
     /// If the `content`'s natural size is smaller than the layout container size (`WillLayoutContext.containerSize`) in either dimension, the content size is adjusted to be the same as the container size.
     public let contentSize: CGSize
 
-    /// The `ComposeView`'s bounds that will be used for rendering.
+    /// The bounds that will be used for rendering.
     ///
     /// The bounds' size is the visible size, while the content lays out in that size minus the content insets
     /// (`WillLayoutContext.containerSize`).
-    ///
-    /// Not to be confused with `ComposeNode.renderBounds`, which is the area that a node's renderable items cover.
     public let renderBounds: CGRect
 
     /// The render type for this render pass.
@@ -85,12 +83,10 @@ public extension ComposeView {
     /// The content size after the render pass.
     public let contentSize: CGSize
 
-    /// The `ComposeView`'s bounds used for rendering.
+    /// The bounds used for rendering.
     ///
     /// The bounds' size is the visible size, while the content lays out in that size minus the content insets
     /// (`WillLayoutContext.containerSize`).
-    ///
-    /// Not to be confused with `ComposeNode.renderBounds`, which is the area that a node's renderable items cover.
     public let renderBounds: CGRect
 
     /// The render type for this render pass.

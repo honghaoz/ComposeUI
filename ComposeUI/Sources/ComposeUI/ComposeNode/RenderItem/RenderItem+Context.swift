@@ -90,8 +90,6 @@ public struct RenderableUpdateContext: Equatable {
   public let previousRenderBounds: CGRect?
 
   /// The `ComposeView`'s bounds used to select and position the renderables of this render pass, before applying `visibleBoundsInsets`.
-  ///
-  /// Not to be confused with `ComposeNode.renderBounds`, which is the area that a node's renderable items cover.
   public let renderBounds: CGRect
 
   /// The timing to use for this renderable update, or nil to apply the changes without starting an animation.

@@ -51,7 +51,7 @@ public struct EmptyNode: ComposeNode {
     return ComposeNodeSizing(width: .flexible, height: .flexible, dependence: [.width, .height])
   }
 
-  public var renderBounds: CGRect {
+  public var renderableItemsBounds: CGRect {
     .null // the node provides no renderable items
   }
 

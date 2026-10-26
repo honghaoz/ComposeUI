@@ -70,8 +70,8 @@ public struct VerticalStackNode: ComposeNode, ContainerNodeInternal {
     stack.size
   }
 
-  public var renderBounds: CGRect {
-    stack.renderBounds
+  public var renderableItemsBounds: CGRect {
+    stack.renderableItemsBounds
   }
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
