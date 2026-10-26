@@ -913,7 +913,7 @@ open class ComposeView: BaseScrollView {
   /// - Parameter animated: Whether the refresh is animated. A non-animated refresh starts no animation and does not
   ///   stop the in-flight ones. Default value is `true`.
   open func refresh(animated: Bool = true) {
-    ComposeUI.assert(Thread.isMainThread, "refresh(animated:) must be called on the main thread")
+    ComposeUI.assert(Thread.isMain, "refresh(animated:) must be called on the main thread")
 
     guard canStartRenderPass else {
       setNeedsRefresh(animated: animated)
@@ -964,7 +964,7 @@ open class ComposeView: BaseScrollView {
   ///
   /// - Parameter animated: Whether the refresh is animated, see `refresh(animated:)`. Default value is `true`.
   open func setNeedsRefresh(animated: Bool = true) {
-    ComposeUI.assert(Thread.isMainThread, "setNeedsRefresh(animated:) must be called on the main thread")
+    ComposeUI.assert(Thread.isMain, "setNeedsRefresh(animated:) must be called on the main thread")
 
     if pendingRefresh == nil {
       RunLoop.main.perform(inModes: [.common]) { [weak self] in
@@ -1072,7 +1072,7 @@ open class ComposeView: BaseScrollView {
 
   /// Performs a render pass.
   open func render() {
-    ComposeUI.assert(Thread.isMainThread, "render() must be called on the main thread")
+    ComposeUI.assert(Thread.isMain, "render() must be called on the main thread")
 
     guard let contentUpdateContext, !isRendering else {
       return
@@ -1437,7 +1437,7 @@ open class ComposeView: BaseScrollView {
         if let removeTransition {
           let removingKey = RemovingRenderableKey(id: oldId, renderableType: oldRenderableItem.renderableType)
           let completion = CancellableBlock { [weak self] in
-            ComposeUI.assert(Thread.isMainThread, "remove transition completion must be called on the main thread")
+            ComposeUI.assert(Thread.isMain, "remove transition completion must be called on the main thread")
             // the view can be released before its removal transition completes, which leaves no removal to finish
             guard let self else {
               return
@@ -1656,7 +1656,7 @@ open class ComposeView: BaseScrollView {
           // still in flight can cancel the pending `didInsert`.
           // a previous completion for the same id, if any, was already cancelled by the removal that preceded this re-insertion.
           let completion = CancellableBlock { [weak self] in
-            ComposeUI.assert(Thread.isMainThread, "insert transition completion must be called on the main thread")
+            ComposeUI.assert(Thread.isMain, "insert transition completion must be called on the main thread")
             self?.insertingRenderableTransitionCompletionMap.removeValue(forKey: id)
 
             // at the moment, the renderable's frame may not be the target frame, this is because during the insert transition,
