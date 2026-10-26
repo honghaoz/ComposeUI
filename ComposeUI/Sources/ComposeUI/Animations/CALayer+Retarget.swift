@@ -69,6 +69,23 @@ public extension CALayer {
       setKeyPathValue(keyPath, value)
       return
     }
+    retarget(keyPath: keyPath, to: value, animations: animations)
+  }
+
+  /// Retargets the animations of a key path to a value that the model doesn't have, see `retarget(keyPath:to:)`.
+  ///
+  /// It's never inlined, since most retargets return before reaching it, while its body, with what the optimizer
+  /// inlines into it, would make every retarget save and restore more registers.
+  ///
+  /// - Parameters:
+  ///   - keyPath: The key path to set.
+  ///   - value: The value to set.
+  ///   - animations: The key path's animations, see `inFlightAnimations(forKeyPath:)`.
+  @inline(never)
+  private func retarget(keyPath: String,
+                        to value: Any,
+                        animations: (animations: InlineFirstArray<InFlightAnimation>, indirectAnimations: [KeyPathAnimation], endedKeptKeys: [String], now: TimeInterval))
+  {
     let (inFlightAnimations, indirectAnimations, endedKeptKeys, now) = animations
 
     // a kept animation that has ended would cover the new value
