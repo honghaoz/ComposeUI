@@ -496,6 +496,30 @@ class NodeBufferTests: XCTestCase {
     expect(weakObjects.allSatisfy { $0.token == nil }) == true
   }
 
+  func test_deinit_runOfOneTypeRightBeforeAnotherType_destroysEachChild() {
+    // given: a buffer with two 8-byte nodes that keep objects, a node of another type right after them, which keeps its
+    // object after a number instead of in its first 8 bytes, where an 8-byte node keeps its object, and another 8-byte
+    // node that keeps an object
+    var objects: [Token]? = [Token(), Token(), Token(), Token()]
+    let weakObjects = objects!.map { WeakToken(token: $0) } // swiftlint:disable:this force_unwrapping
+    var buffer: NodeBuffer? = NodeBuffer.make(
+      capacity: 4,
+      valuesByteCount: 3 * NodeBuffer.room(for: TokenNode.self) + NodeBuffer.room(for: NumberAndTokenNode.self)
+    )
+    buffer?.append(TokenNode(token: objects![0])) // swiftlint:disable:this force_unwrapping
+    buffer?.append(TokenNode(token: objects![1])) // swiftlint:disable:this force_unwrapping
+    buffer?.append(NumberAndTokenNode(number: 0, token: objects![2])) // swiftlint:disable:this force_unwrapping
+    buffer?.append(TokenNode(token: objects![3])) // swiftlint:disable:this force_unwrapping
+    objects = nil
+    expect(buffer?.valuesByteCountInUse) == 40
+
+    // when: releasing the buffer
+    buffer = nil
+
+    // then: each node is destroyed, which releases its object
+    expect(weakObjects.map { $0.token == nil }) == [true, true, true, true]
+  }
+
   func test_deinit_childOfTheSameTypePastTheStride_destroysEachChild() {
     // given: a buffer with an 8-byte node that keeps an object, then a 16-byte aligned node, which is moved out and whose
     // place is dropped, and another 8-byte node that keeps an object, which takes that place, 16 bytes after the first
@@ -685,6 +709,29 @@ private struct TokenNode: ComposeNode {
 
   var id: ComposeNodeId {
     get { .custom("token") }
+    set {} // swiftlint:disable:this unused_setter_value
+  }
+
+  var size: CGSize {
+    .zero
+  }
+
+  mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
+    ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
+  }
+
+  func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {}
+}
+
+/// A node that keeps an object after a number, and whose id isn't stored.
+private struct NumberAndTokenNode: ComposeNode {
+
+  let number: Int
+
+  let token: Token
+
+  var id: ComposeNodeId {
+    get { .custom("numberAndToken") }
     set {} // swiftlint:disable:this unused_setter_value
   }
 
