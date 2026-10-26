@@ -252,7 +252,8 @@ enum SimpleTextCache {
   /// Whether the cache empties itself when the system is low on memory.
   @exclusivity(unchecked) private static var isHandlingMemoryWarnings = false
 
-  /// The number of `current`'s generation, which grows by one each time the generations rotate.
+  /// The number of `current`'s generation, which grows by one each time the generations rotate and each time the cache
+  /// empties, so that only an entry in `current` has it.
   @exclusivity(unchecked) private static var currentGeneration = 0
 
   /// The entry that the last lookup of a string that the cache keeps returned.
@@ -382,6 +383,7 @@ enum SimpleTextCache {
     currentCount = 0
     currentByteCount = 0
     previous = [:]
+    currentGeneration += 1
     lastLookup = nil
   }
 }
