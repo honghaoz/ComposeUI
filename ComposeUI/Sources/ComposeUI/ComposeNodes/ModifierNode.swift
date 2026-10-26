@@ -192,8 +192,8 @@ struct ModifierNode: ComposeNode {
   }
 
   @usableFromInline
-  var renderableItemsBoundingRect: CGRect {
-    node.renderableItemsBoundingRect
+  var renderBounds: CGRect {
+    node.renderBounds
   }
 
   @usableFromInline

@@ -63,10 +63,10 @@ struct UnderlayNode<Node: ComposeNode>: ComposeNode {
   var size: CGSize { node.size }
 
   @usableFromInline
-  var renderableItemsBoundingRect: CGRect {
-    let childRect = node.renderableItemsBoundingRect
+  var renderBounds: CGRect {
+    let childRect = node.renderBounds
 
-    let underlayRect = underlayNode.renderableItemsBoundingRect
+    let underlayRect = underlayNode.renderBounds
     guard !underlayRect.isNullInline else {
       return childRect
     }

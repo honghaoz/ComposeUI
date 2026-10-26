@@ -70,8 +70,8 @@ extension ComposeView {
       node.size
     }
 
-    var renderableItemsBoundingRect: CGRect {
-      node.renderableItemsBoundingRect
+    var renderBounds: CGRect {
+      node.renderBounds
     }
 
     func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
@@ -95,7 +95,7 @@ extension ComposeView {
 
     #if DEBUG && !COMPOSEUI_BENCHMARK
     /// Lays out the content again at a container size that differs from the kept layout's only in lengths that the kept
-    /// layout didn't read, and asserts that the new layout has the same sizing, size and items bounding rect, which a
+    /// layout didn't read, and asserts that the new layout has the same sizing, size and render bounds, which a
     /// node's wrong dependence that changes any of them breaks.
     ///
     /// - Parameters:
@@ -109,14 +109,14 @@ extension ComposeView {
                                           context: ComposeNodeLayoutContext) -> ComposeNodeSizing
     {
       let keptSize = node.size
-      let keptItemsBoundingRect = node.renderableItemsBoundingRect
+      let keptRenderBounds = node.renderBounds
 
       // without a cached layout, the root lays out the content instead of returning the kept layout
       cachedLayout = nil
       let sizing = layout(containerSize: containerSize, context: context)
 
       ComposeUI.assert(
-        sizing == keptLayout.sizing && node.size == keptSize && node.renderableItemsBoundingRect == keptItemsBoundingRect,
+        sizing == keptLayout.sizing && node.size == keptSize && node.renderBounds == keptRenderBounds,
         ComposeNodeSizing.Dependence.keptLayoutMismatchMessage(
           keptContainerSize: keptLayout.containerSize,
           keptSize: keptSize,

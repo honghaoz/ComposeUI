@@ -63,7 +63,11 @@ public protocol ComposeNode: ComposeContent {
   /// bounds, for example, if the node translates its child node's renderable items.
   ///
   /// Like `size`, this value is only valid after `layout(containerSize:context:)` is called.
-  var renderableItemsBoundingRect: CGRect { get }
+  ///
+  /// Not to be confused with the `renderBounds` of `RenderableUpdateContext`, `ComposeView.WillRenderContext` and
+  /// `ComposeView.DidRenderContext`, which is the `ComposeView`'s bounds in a render pass. Those bounds are the area
+  /// that the view shows, which the visible bounds come from, while this rect is the area that the node's items cover.
+  var renderBounds: CGRect { get }
 
   /// Compute the node's layout with the given container size and layout context.
   ///
@@ -103,7 +107,7 @@ public protocol ComposeNode: ComposeContent {
 
 public extension ComposeNode {
 
-  var renderableItemsBoundingRect: CGRect {
+  var renderBounds: CGRect {
     CGRect(origin: .zero, size: size)
   }
 }

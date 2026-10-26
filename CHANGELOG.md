@@ -29,6 +29,7 @@
 - Methods that return a changed node, such as `LabelNode.font(_:)`, consume the node, so a call on a `borrowing` parameter needs a copy: `(copy node).font(font)`. ([#219](https://github.com/honghaoz/ComposeUI/pull/219))
 - `TextNode` defaults to a label's font and text color, so unstyled text looks the same in a text node as in a label: 13 points in the label color on macOS and 20 points on tvOS, unchanged on iOS and visionOS. To keep the old look, pass `font: .systemFont(ofSize: 17)` and `foregroundColor: ThemedColor(light: .black, dark: .white)`. ([#223](https://github.com/honghaoz/ComposeUI/pull/223))
 - Building ComposeUI requires Swift 6.0, which Xcode 16 has. The package still builds in the Swift 5 language mode. ([#225](https://github.com/honghaoz/ComposeUI/pull/225))
+- Renamed `ComposeNode.renderableItemsBoundingRect` to `renderBounds`. To migrate a node, rename its implementation: one under the old name still builds, but isn't read, so items that the node places outside its bounds can be left out of a render. A node's `renderBounds` is the area that its renderable items cover, unlike the `renderBounds` of `RenderableUpdateContext`, `ComposeView.WillRenderContext` and `ComposeView.DidRenderContext`, which is the `ComposeView`'s bounds in a render pass.
 
 ### Changes
 

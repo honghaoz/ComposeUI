@@ -640,7 +640,7 @@ class VerticalStackNodeTests: XCTestCase {
 
     // then: the debug check finds the same sizing and size but the child's items moved, and asserts
     expect(node.size) == CGSize(width: 50, height: 50)
-    expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 20, width: 50, height: 50)
+    expect(node.renderBounds) == CGRect(x: 0, y: 20, width: 50, height: 50)
     expect(assertionMessages.count) == 1
   }
   #endif
@@ -883,15 +883,15 @@ class VerticalStackNodeTests: XCTestCase {
     expect(items.isEmpty) == true
   }
 
-  func test_renderableItemsBoundingRect() {
+  func test_renderBounds() {
     // given: an empty stack
     var emptyNode = VStack {}
 
     // when: laying out the stack
     _ = emptyNode.layout(containerSize: CGSize(width: 10, height: 20), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-    // then: the bounding rect is null since an empty stack has no renderable items
-    expect(emptyNode.renderableItemsBoundingRect.isNull) == true
+    // then: the render bounds are null since an empty stack has no renderable items
+    expect(emptyNode.renderBounds.isNull) == true
 
     // given: a stack with only spacers
     var spacerNode = VStack {
@@ -901,23 +901,23 @@ class VerticalStackNodeTests: XCTestCase {
     // when: laying out the stack
     _ = spacerNode.layout(containerSize: CGSize(width: 10, height: 20), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-    // then: the bounding rect is null since a stack with only spacers has no renderable items
-    expect(spacerNode.renderableItemsBoundingRect.isNull) == true
+    // then: the render bounds are null since a stack with only spacers has no renderable items
+    expect(spacerNode.renderBounds.isNull) == true
 
     // given: a stack with an offset child
     var node = VStack {
       LayerNode().frame(width: 10, height: 10)
       LayerNode().frame(width: 10, height: 10)
         .offset(x: 0, y: -5)
-        .onUpdate { _, _ in } // wrap in a modifier node to verify the bounding rect is forwarded
+        .onUpdate { _, _ in } // wrap in a modifier node to verify the render bounds are forwarded
     }
 
     // when: laying out the stack
     _ = node.layout(containerSize: CGSize(width: 10, height: 20), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-    // then: the bounding rect should include the translated child rect
+    // then: the render bounds should include the translated child rect
     // child 1 items rect: (0, 0, 10, 10), child 2 items rect: (0, 5, 10, 10)
-    expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 15)
+    expect(node.renderBounds) == CGRect(x: 0, y: 0, width: 10, height: 15)
   }
 }
 

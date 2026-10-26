@@ -63,9 +63,9 @@ struct GestureRecognizerNode: ComposeNode {
   var size: CGSize { node.size }
 
   @usableFromInline
-  var renderableItemsBoundingRect: CGRect {
+  var renderBounds: CGRect {
     // the node provides the child node's items plus a gesture overlay item covering the node's bounds
-    let childRect = node.renderableItemsBoundingRect
+    let childRect = node.renderBounds
     return childRect.isNullInline ? childRect : childRect.unionInline(CGRect(origin: .zero, size: size))
   }
 

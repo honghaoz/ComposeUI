@@ -69,8 +69,8 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
   public private(set) var size: CGSize = .zero
 
-  public var renderableItemsBoundingRect: CGRect {
-    layoutCache.itemsBoundingRect
+  public var renderBounds: CGRect {
+    layoutCache.renderBounds
   }
 
   /// The cached children layout information, used to cull invisible children in `render(visibleBounds:into:)`.
@@ -119,15 +119,15 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
 
     for index in 0 ..< childCount {
       let childOrigin = Layout.position(rect: children.size(at: index), in: size, alignment: alignment).origin
-      let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
+      let childRenderBounds = children.renderBounds(at: index)
       layoutCache.appendChild(
         origin: childOrigin,
-        itemsBoundingRect: itemsBoundingRect.isNullInline ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
+        renderBounds: childRenderBounds.isNullInline ? childRenderBounds : childRenderBounds.translate(childOrigin)
       )
     }
 
     // no main axis: children in a layered stack overlap each other, so `render(visibleBounds:into:)` checks each
-    // child's bounding rect directly instead of binary searching a visible range.
+    // child's render bounds directly instead of binary searching a visible range.
     layoutCache.finish(mainAxis: nil)
 
     return ComposeNodeSizing(width: widthSizing, height: heightSizing, dependence: dependence)
@@ -143,9 +143,9 @@ public struct LayeredStackNode: ComposeNode, ContainerNodeInternal {
     // each visible child appends its items to the pass's array, where they're changed in place
     for i in 0 ..< childCount {
       // children in a layered stack can overlap each other, so there's no visible range to binary search.
-      // instead, skip children whose items bounding rect doesn't intersect the visible bounds.
+      // instead, skip children whose render bounds don't intersect the visible bounds.
       let child = layoutCache.child(at: i)
-      guard visibleBounds.intersects(child.itemsBoundingRect) else {
+      guard visibleBounds.intersects(child.renderBounds) else {
         continue
       }
 

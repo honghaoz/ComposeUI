@@ -209,9 +209,9 @@ struct AxisStack<Axis: StackAxis> {
     }
   }
 
-  /// The bounding rect of the children's renderable items, from the latest layout.
-  var renderableItemsBoundingRect: CGRect {
-    layoutCache.itemsBoundingRect
+  /// The union of the children's render bounds, from the latest layout.
+  var renderBounds: CGRect {
+    layoutCache.renderBounds
   }
 
   /// Lays out the children along the axis in the container size.
@@ -347,10 +347,10 @@ struct AxisStack<Axis: StackAxis> {
 
       let crossPosition = Axis.crossPosition(of: Axis.cross(of: childSize), in: maxChildCrossLength, alignment: alignment)
       let childOrigin = Axis.point(main: mainPosition, cross: crossPosition)
-      let itemsBoundingRect = children.renderableItemsBoundingRect(at: index)
+      let childRenderBounds = children.renderBounds(at: index)
       layoutCache.appendChild(
         origin: childOrigin,
-        itemsBoundingRect: itemsBoundingRect.isNullInline ? itemsBoundingRect : itemsBoundingRect.translate(childOrigin)
+        renderBounds: childRenderBounds.isNullInline ? childRenderBounds : childRenderBounds.translate(childOrigin)
       )
 
       mainPosition += Axis.main(of: childSize) + spacing
@@ -365,8 +365,8 @@ struct AxisStack<Axis: StackAxis> {
 
   #if DEBUG && !COMPOSEUI_BENCHMARK
   /// Lays out the children again at a container size that differs from the kept layout's only in lengths that the kept
-  /// layout didn't read, and asserts that the new layout has the same sizing, size, and children's positions and items
-  /// bounding rects, which a child's wrong dependence that changes any of them breaks.
+  /// layout didn't read, and asserts that the new layout has the same sizing, size, and children's positions and render
+  /// bounds, which a child's wrong dependence that changes any of them breaks.
   ///
   /// - Parameters:
   ///   - keptLayout: The latest layout in the pass, which the stack would keep.

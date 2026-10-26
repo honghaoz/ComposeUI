@@ -36,45 +36,45 @@ import ChouTiTest
 
 class StackLayoutCacheTests: XCTestCase {
 
-  func test_finish_withoutMainAxis_collectsBoundingRectOnly() {
+  func test_finish_withoutMainAxis_collectsRenderBoundsOnly() {
     // given: a cache with 3 children appended, one of them without renderable items
     var cache = StackLayoutCache()
     cache.reset(reservingCapacity: 3)
-    cache.appendChild(origin: CGPoint(x: 0, y: 0), itemsBoundingRect: CGRect(x: 0, y: 0, width: 10, height: 10))
-    cache.appendChild(origin: CGPoint(x: 0, y: 10), itemsBoundingRect: .null)
-    cache.appendChild(origin: CGPoint(x: 0, y: 20), itemsBoundingRect: CGRect(x: 0, y: 20, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: 0), renderBounds: CGRect(x: 0, y: 0, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: 10), renderBounds: .null)
+    cache.appendChild(origin: CGPoint(x: 0, y: 20), renderBounds: CGRect(x: 0, y: 20, width: 10, height: 10))
 
     // when: finishing the cache without a main axis
     cache.finish(mainAxis: nil)
 
-    // then: the children and the items bounding rect are collected
+    // then: the children and the render bounds are collected
     expect(cache.childCount) == 3
     expect(cache.child(at: 1).origin) == CGPoint(x: 0, y: 10)
-    expect(cache.child(at: 1).itemsBoundingRect.isNull) == true
-    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 30)
+    expect(cache.child(at: 1).renderBounds.isNull) == true
+    expect(cache.renderBounds) == CGRect(x: 0, y: 0, width: 10, height: 30)
   }
 
-  func test_finish_withoutMainAxis_allNullRects_boundingRectIsNull() {
+  func test_finish_withoutMainAxis_allNullRects_renderBoundsIsNull() {
     // given: a cache with a child without renderable items appended
     var cache = StackLayoutCache()
     cache.reset(reservingCapacity: 1)
-    cache.appendChild(origin: CGPoint(x: 0, y: 0), itemsBoundingRect: .null)
+    cache.appendChild(origin: CGPoint(x: 0, y: 0), renderBounds: .null)
 
     // when: finishing the cache without a main axis
     cache.finish(mainAxis: nil)
 
-    // then: the child is collected and the items bounding rect is null
+    // then: the child is collected and the render bounds are null
     expect(cache.childCount) == 1
-    expect(cache.itemsBoundingRect.isNull) == true
+    expect(cache.renderBounds.isNull) == true
   }
 
   func test_visibleChildRange_withMainAxis_returnsTheChildrenInTheRange() {
     // given: a cache of 3 children 10 points tall, stacked vertically, the middle one without renderable items
     var cache = StackLayoutCache()
     cache.reset(reservingCapacity: 3)
-    cache.appendChild(origin: CGPoint(x: 0, y: 0), itemsBoundingRect: CGRect(x: 0, y: 0, width: 10, height: 10))
-    cache.appendChild(origin: CGPoint(x: 0, y: 10), itemsBoundingRect: .null)
-    cache.appendChild(origin: CGPoint(x: 0, y: 20), itemsBoundingRect: CGRect(x: 0, y: 20, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: 0), renderBounds: CGRect(x: 0, y: 0, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: 10), renderBounds: .null)
+    cache.appendChild(origin: CGPoint(x: 0, y: 20), renderBounds: CGRect(x: 0, y: 20, width: 10, height: 10))
     cache.finish(mainAxis: .vertical)
 
     // then: a visible range returns the children whose items can intersect it, and an empty range between the items
@@ -84,7 +84,7 @@ class StackLayoutCacheTests: XCTestCase {
     expect(cache.visibleChildRange(minPosition: 12, maxPosition: 18)) == 2 ..< 2
     expect(cache.visibleChildRange(minPosition: 22, maxPosition: 40)) == 2 ..< 3
     expect(cache.visibleChildRange(minPosition: 30, maxPosition: 40)) == 3 ..< 3
-    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 30)
+    expect(cache.renderBounds) == CGRect(x: 0, y: 0, width: 10, height: 30)
   }
 
   func test_visibleChildRange_emptyCache_returnsNoChildrenWithoutAsserting() {
@@ -107,8 +107,8 @@ class StackLayoutCacheTests: XCTestCase {
     // given: a cache of 2 children finished with a vertical main axis, and a test assertion failure handler
     var cache = StackLayoutCache()
     cache.reset(reservingCapacity: 2)
-    cache.appendChild(origin: CGPoint(x: 0, y: 0), itemsBoundingRect: CGRect(x: 0, y: 0, width: 10, height: 10))
-    cache.appendChild(origin: CGPoint(x: 0, y: 10), itemsBoundingRect: CGRect(x: 0, y: 10, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: 0), renderBounds: CGRect(x: 0, y: 0, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: 10), renderBounds: CGRect(x: 0, y: 10, width: 10, height: 10))
     cache.finish(mainAxis: .vertical)
     var assertionCount = 0
     ComposeUI.Assert.setTestAssertionFailureHandler { _, _, _, _ in
@@ -120,13 +120,13 @@ class StackLayoutCacheTests: XCTestCase {
 
     // when: rebuilding it with another child, without a main axis
     cache.reset(reservingCapacity: 1)
-    cache.appendChild(origin: CGPoint(x: 5, y: 5), itemsBoundingRect: CGRect(x: 5, y: 5, width: 1, height: 1))
+    cache.appendChild(origin: CGPoint(x: 5, y: 5), renderBounds: CGRect(x: 5, y: 5, width: 1, height: 1))
     cache.finish(mainAxis: nil)
 
-    // then: only the new child and its bounding rect remain, and the previous search structures are gone
+    // then: only the new child and its render bounds remain, and the previous search structures are gone
     expect(cache.childCount) == 1
     expect(cache.child(at: 0).origin) == CGPoint(x: 5, y: 5)
-    expect(cache.itemsBoundingRect) == CGRect(x: 5, y: 5, width: 1, height: 1)
+    expect(cache.renderBounds) == CGRect(x: 5, y: 5, width: 1, height: 1)
     expect(cache.visibleChildRange(minPosition: 0, maxPosition: 10)) == 0 ..< 1
     expect(assertionCount) == 1
   }
@@ -135,8 +135,8 @@ class StackLayoutCacheTests: XCTestCase {
     // given: a cache finished without a main axis, with a test assertion failure handler
     var cache = StackLayoutCache()
     cache.reset(reservingCapacity: 2)
-    cache.appendChild(origin: CGPoint(x: 0, y: 0), itemsBoundingRect: CGRect(x: 0, y: 0, width: 10, height: 10))
-    cache.appendChild(origin: CGPoint(x: 0, y: 10), itemsBoundingRect: CGRect(x: 0, y: 10, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: 0), renderBounds: CGRect(x: 0, y: 0, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: 10), renderBounds: CGRect(x: 0, y: 10, width: 10, height: 10))
     cache.finish(mainAxis: nil)
 
     var assertionCount = 0
@@ -168,7 +168,7 @@ class StackLayoutCacheTests: XCTestCase {
     expect(cache.childCount) == 6
     expect((0 ..< 6).map { cache.child(at: $0).origin.y }) == [0, 10, 20, 30, 40, 50]
     expect(cache.visibleChildRange(minPosition: 15, maxPosition: 35)) == 1 ..< 4
-    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 0, width: 10, height: 60)
+    expect(cache.renderBounds) == CGRect(x: 0, y: 0, width: 10, height: 60)
   }
 
   func test_appendChild_moreChildrenThanReserved_keepsEachChild() {
@@ -208,7 +208,7 @@ class StackLayoutCacheTests: XCTestCase {
     expect(cache.childCount) == 4
     expect((0 ..< 4).map { cache.child(at: $0).origin.y }) == [100, 110, 120, 130]
     expect(cache.visibleChildRange(minPosition: 105, maxPosition: 125)) == 0 ..< 3
-    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 100, width: 10, height: 40)
+    expect(cache.renderBounds) == CGRect(x: 0, y: 100, width: 10, height: 40)
 
     // when: rebuilding it with 6 children again
     cache.reset(reservingCapacity: 6)
@@ -220,16 +220,16 @@ class StackLayoutCacheTests: XCTestCase {
     // then: only the 6 new children remain
     expect(cache.childCount) == 6
     expect((0 ..< 6).map { cache.child(at: $0).origin.y }) == [200, 210, 220, 230, 240, 250]
-    expect(cache.itemsBoundingRect) == CGRect(x: 0, y: 200, width: 10, height: 60)
+    expect(cache.renderBounds) == CGRect(x: 0, y: 200, width: 10, height: 60)
   }
 
-  func test_hasSameChildren_comparesEachChildsOriginAndItemsBoundingRect() {
+  func test_hasSameChildren_comparesEachChildsOriginAndRenderBounds() {
     // given: a cache of 2 children
-    func makeCache(_ children: [(origin: CGPoint, itemsBoundingRect: CGRect)]) -> StackLayoutCache {
+    func makeCache(_ children: [(origin: CGPoint, renderBounds: CGRect)]) -> StackLayoutCache {
       var cache = StackLayoutCache()
       cache.reset(reservingCapacity: children.count)
       for child in children {
-        cache.appendChild(origin: child.origin, itemsBoundingRect: child.itemsBoundingRect)
+        cache.appendChild(origin: child.origin, renderBounds: child.renderBounds)
       }
       cache.finish(mainAxis: .vertical)
       return cache
@@ -251,6 +251,6 @@ class StackLayoutCacheTests: XCTestCase {
 
   /// Appends a child 10 points tall at the vertical position.
   private func appendVerticalChild(to cache: inout StackLayoutCache, y: CGFloat) {
-    cache.appendChild(origin: CGPoint(x: 0, y: y), itemsBoundingRect: CGRect(x: 0, y: y, width: 10, height: 10))
+    cache.appendChild(origin: CGPoint(x: 0, y: y), renderBounds: CGRect(x: 0, y: y, width: 10, height: 10))
   }
 }

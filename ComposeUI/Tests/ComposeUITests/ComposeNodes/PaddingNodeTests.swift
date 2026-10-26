@@ -48,7 +48,7 @@ class PaddingNodeTests: XCTestCase {
 
       // then: the size includes the padding and the child rect is inset
       expect(node.size) == CGSize(width: 16, height: 14)
-      expect(node.renderableItemsBoundingRect) == CGRect(x: 2, y: 1, width: 10, height: 10)
+      expect(node.renderBounds) == CGRect(x: 2, y: 1, width: 10, height: 10)
     }
 
     // padding(horizontal:vertical:)
@@ -61,7 +61,7 @@ class PaddingNodeTests: XCTestCase {
 
       // then: the size includes the padding and the child rect is inset
       expect(node.size) == CGSize(width: 14, height: 16)
-      expect(node.renderableItemsBoundingRect) == CGRect(x: 2, y: 3, width: 10, height: 10)
+      expect(node.renderBounds) == CGRect(x: 2, y: 3, width: 10, height: 10)
     }
   }
 
@@ -86,7 +86,7 @@ class PaddingNodeTests: XCTestCase {
     }
   }
 
-  func test_renderableItemsBoundingRect() {
+  func test_renderBounds() {
     // given: a layout context
     let context = ComposeNodeLayoutContext(scaleFactor: 1)
 
@@ -97,9 +97,9 @@ class PaddingNodeTests: XCTestCase {
       // when: laying out the node
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // then: the bounding rect should be translated by the padding insets
+      // then: the render bounds should be translated by the padding insets
       expect(node.size) == CGSize(width: 20, height: 20)
-      expect(node.renderableItemsBoundingRect) == CGRect(x: 5, y: 5, width: 10, height: 10)
+      expect(node.renderBounds) == CGRect(x: 5, y: 5, width: 10, height: 10)
     }
 
     do {
@@ -109,8 +109,8 @@ class PaddingNodeTests: XCTestCase {
       // when: laying out the node
       _ = node.layout(containerSize: CGSize(width: 100, height: 100), context: context)
 
-      // then: the bounding rect is null
-      expect(node.renderableItemsBoundingRect.isNull) == true
+      // then: the render bounds are null
+      expect(node.renderBounds.isNull) == true
     }
   }
 }

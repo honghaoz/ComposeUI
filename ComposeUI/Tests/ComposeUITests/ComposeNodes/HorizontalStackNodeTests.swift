@@ -709,13 +709,13 @@ class HorizontalStackNodeTests: XCTestCase {
     expect(items.isEmpty) == true
   }
 
-  func test_renderableItemsBoundingRect() {
+  func test_renderBounds() {
     // when: laying out an empty stack
     var emptyNode = HStack {}
     _ = emptyNode.layout(containerSize: CGSize(width: 20, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-    // then: an empty stack has no renderable items, the bounding rect is null
-    expect(emptyNode.renderableItemsBoundingRect.isNull) == true
+    // then: an empty stack has no renderable items, the render bounds are null
+    expect(emptyNode.renderBounds.isNull) == true
 
     // when: laying out a stack with an offset child
     var node = HStack {
@@ -725,9 +725,9 @@ class HorizontalStackNodeTests: XCTestCase {
     }
     _ = node.layout(containerSize: CGSize(width: 20, height: 10), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-    // then: the bounding rect should include the translated child rect
+    // then: the render bounds should include the translated child rect
     // child 1 items rect: (0, 0, 10, 10), child 2 items rect: (5, 0, 10, 10)
-    expect(node.renderableItemsBoundingRect) == CGRect(x: 0, y: 0, width: 15, height: 10)
+    expect(node.renderBounds) == CGRect(x: 0, y: 0, width: 15, height: 10)
   }
 }
 

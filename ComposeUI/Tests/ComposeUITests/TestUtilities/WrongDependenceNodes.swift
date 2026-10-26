@@ -67,8 +67,8 @@ struct FillingNode: ComposeNode {
 
   private(set) var size: CGSize = .zero
 
-  /// The node provides no items, so its items bounding rect stays the same at any size.
-  var renderableItemsBoundingRect: CGRect {
+  /// The node provides no items, so its render bounds stay the same at any size.
+  var renderBounds: CGRect {
     .null
   }
 
@@ -88,7 +88,7 @@ struct SizingFlippingNode: ComposeNode {
 
   let size = CGSize(width: 50, height: 50)
 
-  var renderableItemsBoundingRect: CGRect {
+  var renderBounds: CGRect {
     .null
   }
 
@@ -108,10 +108,10 @@ struct MovingItemsNode: ComposeNode {
 
   let size = CGSize(width: 50, height: 50)
 
-  private(set) var renderableItemsBoundingRect: CGRect = .null
+  private(set) var renderBounds: CGRect = .null
 
   mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
-    renderableItemsBoundingRect = CGRect(x: 0, y: containerSize.height / 10, width: size.width, height: size.height)
+    renderBounds = CGRect(x: 0, y: containerSize.height / 10, width: size.width, height: size.height)
     return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height), dependence: [])
   }
 
