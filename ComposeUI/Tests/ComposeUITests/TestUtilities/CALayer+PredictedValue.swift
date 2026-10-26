@@ -112,3 +112,36 @@ extension CALayer {
     expect(shown, description, file: file, line: line).to(beBetween(earlier, and: later, within: tolerance))
   }
 }
+
+/// Expects a width read with `CALayer.readPresentation(_:)` to be what linear resizes that add up to a model width show
+/// at the read, between the widths for the times just before and after it, within a tolerance.
+///
+/// The widths come from the begin time that the test reads at each resize's refresh instead of from the layer's
+/// animations, so the expectation also checks that each resize begins at its refresh, see `AnimationClock`.
+///
+/// - Parameters:
+///   - shown: The width read from the presentation layer.
+///   - modelWidth: The width that the resizes add up to.
+///   - resizes: Each resize's change of the width and its begin time, in the layer's time space.
+///   - duration: The duration of each resize.
+///   - times: The times the width was read between, see `CALayer.readPresentation(_:)`.
+///   - tolerance: How far outside the widths for the two times the shown width may be.
+func expectShownWidth(_ shown: CGFloat,
+                      ofLinearResizesTo modelWidth: CGFloat,
+                      resizes: [(change: CGFloat, beginTime: TimeInterval)],
+                      duration: TimeInterval,
+                      between times: ClosedRange<TimeInterval>,
+                      within tolerance: CGFloat,
+                      file: StaticString = #filePath,
+                      line: UInt = #line)
+{
+  // the model width, less the part of each resize's change that it hasn't shown yet at the time
+  func width(at time: TimeInterval) -> CGFloat {
+    resizes.reduce(modelWidth) { width, resize in
+      width - resize.change * CGFloat(1 - min(max((time - resize.beginTime) / duration, 0), 1))
+    }
+  }
+  let earlier = width(at: times.lowerBound)
+  let later = width(at: times.upperBound)
+  expect(shown, "predicted \(earlier) to \(later)", file: file, line: line).to(beBetween(earlier, and: later, within: tolerance))
+}

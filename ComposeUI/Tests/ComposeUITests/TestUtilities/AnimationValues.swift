@@ -75,6 +75,11 @@ func blueScalar(_ value: Any) throws -> CGFloat {
   try colorValue(value).sRGBComponents()[2]
 }
 
+/// The scalar of a size value, its width, for `CALayer.predictedValue(forKeyPath:at:scalar:)`.
+func widthScalar(_ value: Any) throws -> CGFloat {
+  try (value as? CGSize).unwrap().width
+}
+
 /// The value as an object of a Core Foundation type, or `nil` for a value of another type or no value.
 private func object(_ value: Any?, withTypeID typeID: CFTypeID) -> AnyObject? {
   guard let object = value.map({ $0 as AnyObject }), CFGetTypeID(object) == typeID else {

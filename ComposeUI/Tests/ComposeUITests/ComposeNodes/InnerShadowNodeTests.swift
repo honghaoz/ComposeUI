@@ -444,14 +444,16 @@ class InnerShadowNodeTests: XCTestCase {
     // the inverted shadow's path is the hole
     expect(shadowLayer.invertsShadow) == true
 
-    // the shown widths of the layer, its hole, and its clip, which is the mask path
-    func shownWidths() throws -> (bounds: CGFloat, hole: CGFloat, clip: CGFloat) {
-      let presentation = try unwrap(shadowLayer.presentation())
-      return try (
-        presentation.bounds.width,
-        unwrap(presentation.shadowPath).boundingBoxOfPath.width,
-        unwrap(unwrap(mask.presentation()).path).boundingBoxOfPath.width
-      )
+    // the shown widths of the layer, its hole, and its clip, which is the mask path, with the times just before and after
+    // the read, see `readPresentation(_:)`
+    func readShownWidths() throws -> (shown: (bounds: CGFloat, hole: CGFloat, clip: CGFloat), times: ClosedRange<TimeInterval>) {
+      try shadowLayer.readPresentation { presentation in
+        try (
+          presentation.bounds.width,
+          unwrap(presentation.shadowPath).boundingBoxOfPath.width,
+          unwrap(unwrap(mask.presentation()).path).boundingBoxOfPath.width
+        )
+      }
     }
 
     func expectOnTheFrame(_ shown: (bounds: CGFloat, hole: CGFloat, clip: CGFloat)) {
@@ -459,45 +461,53 @@ class InnerShadowNodeTests: XCTestCase {
       expect(shown.clip).to(beApproximatelyEqual(to: shown.bounds, within: 1))
     }
 
-    // when: an animated refresh widens the shadow
+    // when: an animated refresh widens the shadow, from the time of its run loop turn, see `AnimationClock`
     width = 200
     view.refresh(animated: true)
+    let firstBeginTime = shadowLayer.currentTime
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
 
-    // then: mid-flight, the shown paths are on the shown bounds
-    let shownDuringResize = try shownWidths()
-    expect(shownDuringResize.bounds) > 105
-    expect(shownDuringResize.bounds) < 195
+    // then: mid-flight, the bounds show the resize's progress, and the shown paths are on the shown bounds
+    let (shownDuringResize, timesDuringResize) = try readShownWidths()
+    expectShownWidth(shownDuringResize.bounds, ofLinearResizesTo: 200, resizes: [(100, firstBeginTime)], duration: 1, between: timesDuringResize, within: 0.01)
     expectOnTheFrame(shownDuringResize)
 
     // when: an animated refresh widens the shadow further while the resize is in flight, and its transaction commits
     // 50 ms later, as it does when the main thread is busy
     width = 250
     view.refresh(animated: true)
+    let secondBeginTime = shadowLayer.currentTime
     Thread.sleep(forTimeInterval: 0.05)
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
 
-    // then: the resizes add up, far short of the new width, and the paths stay on the bounds, as the frame's new
-    // animation and the paths' new change both begin at the refresh instead of at the commit
-    let shownDuringInterruption = try shownWidths()
-    expect(shownDuringInterruption.bounds) > 105
-    expect(shownDuringInterruption.bounds) < 240
+    // then: the resizes add up, and the paths stay on the bounds, as the frame's new animation and the paths' new change
+    // both begin at the refresh instead of at the commit
+    let (shownDuringInterruption, timesDuringInterruption) = try readShownWidths()
+    expectShownWidth(shownDuringInterruption.bounds, ofLinearResizesTo: 250, resizes: [(100, firstBeginTime), (50, secondBeginTime)], duration: 1, between: timesDuringInterruption, within: 0.01)
     expectOnTheFrame(shownDuringInterruption)
 
-    // when: a non-animated refresh narrows the shadow while both resizes are in flight
+    // when: a non-animated refresh narrows the shadow while both resizes are in flight, which retargets them into a
+    // glide that begins at the clock's time for this turn, which the test reads first, see `AnimationClock`
     width = 220
+    let retargetTime = shadowLayer.currentTime
+    let widthAtRetarget = try shadowLayer.predictedValue(forKeyPath: "bounds.size", at: retargetTime, scalar: widthScalar)
     view.refresh(animated: false)
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
 
-    // then: the bounds and the paths change by the same amount at once and keep moving together
-    let shownAfterNonAnimatedResize = try shownWidths()
-    expect(shownAfterNonAnimatedResize.bounds) > 75
-    expect(shownAfterNonAnimatedResize.bounds) < 210
-    expectOnTheFrame(shownAfterNonAnimatedResize)
+    // then: the glide starts from the width that the resizes showed at the retarget's time: no jump
+    expect(try shadowLayer.predictedValue(forKeyPath: "bounds.size", at: retargetTime, scalar: widthScalar))
+      .to(beApproximatelyEqual(to: widthAtRetarget, within: 1e-6))
+
+    // then: the bounds show where the glide puts them, between where they were and the new width, and the paths change
+    // by the same amount at once and keep moving together
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+    let (shownAfterRetarget, timesAfterRetarget) = try readShownWidths()
+    try shadowLayer.expectShown(shownAfterRetarget.bounds, forKeyPath: "bounds.size", between: timesAfterRetarget, scalar: widthScalar, within: 0.01)
+    expect(shownAfterRetarget.bounds).to(beBetween(widthAtRetarget, and: 220, within: 0.01))
+    expectOnTheFrame(shownAfterRetarget)
 
     // then: all land on the new width when the resizes would have ended
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
-    let shownAtEnd = try shownWidths()
+    let shownAtEnd = try readShownWidths().shown
     expect(shownAtEnd.bounds).to(beApproximatelyEqual(to: 220, within: 0.5))
     expectOnTheFrame(shownAtEnd)
   }
