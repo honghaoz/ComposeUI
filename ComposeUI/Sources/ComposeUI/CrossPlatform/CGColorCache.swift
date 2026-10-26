@@ -50,9 +50,7 @@ enum CGColorCache {
   /// - Returns: The `CGColor`.
   static func cgColor(of color: Color) -> CGColor {
     #if canImport(AppKit)
-    // `pthread_main_np()` instead of `Thread.isMainThread`, which sends an Objective-C message, since this runs for
-    // each color that a render pass sets
-    guard pthread_main_np() != 0 else {
+    guard Thread.isMain else {
       return color.cgColor
     }
 

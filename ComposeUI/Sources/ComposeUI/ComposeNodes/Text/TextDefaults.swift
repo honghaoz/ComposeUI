@@ -129,7 +129,7 @@ enum TextDefaults {
     ///   - make: The block that makes the font.
     /// - Returns: The font.
     func font(inPass passId: UInt64, isBoldTextEnabled: @autoclosure () -> Bool, make: () -> Font) -> Font {
-      guard pthread_main_np() != 0 else {
+      guard Thread.isMain else {
         return make()
       }
       if passId == lastPassId, let lastFont {
@@ -149,9 +149,7 @@ enum TextDefaults {
     ///   - make: The block that makes the font.
     /// - Returns: The font.
     func font(isBoldTextEnabled: @autoclosure () -> Bool, make: () -> Font) -> Font {
-      // `pthread_main_np()` instead of `Thread.isMainThread`, which sends an Objective-C message, since this runs for
-      // each node
-      guard pthread_main_np() != 0 else {
+      guard Thread.isMain else {
         return make()
       }
       let isBoldTextEnabled = isBoldTextEnabled()

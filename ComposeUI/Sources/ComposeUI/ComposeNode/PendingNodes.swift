@@ -303,7 +303,7 @@ final class PendingNodes {
     if buffer.childCapacity <= Constants.smallChildCapacity, buffer.valuesByteCapacity <= Constants.smallValuesByteCapacity {
       // a small buffer costs little to keep, and serves the blocks and short loops that most content has
       return true
-    } else if loopFilledTooLittle || !Thread.isMainThread {
+    } else if loopFilledTooLittle || !Thread.isMain {
       // a buffer that the loop that held all of it filled too little of goes, so that the loop's next buffer grows to
       // fit it, and a thread other than the main thread, which can stay alive without building again, keeps only a
       // small buffer

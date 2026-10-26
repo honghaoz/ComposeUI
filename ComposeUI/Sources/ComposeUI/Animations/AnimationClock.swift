@@ -59,7 +59,7 @@ enum AnimationClock {
   /// On the main thread, it's the time of the first read in the current turn of the main run loop.
   static var now: CFTimeInterval {
     // the turn's time is main thread state, so it needs no synchronization, and ComposeUI renders on the main thread
-    guard Thread.isMainThread else {
+    guard Thread.isMain else {
       return CACurrentMediaTime()
     }
 
@@ -128,7 +128,7 @@ enum AnimationClock {
   ///   - block: The block to execute.
   /// - Returns: The result of the block.
   static func sharingTime<T>(at time: CFTimeInterval, _ block: () throws -> T) rethrows -> T {
-    guard Thread.isMainThread else {
+    guard Thread.isMain else {
       ComposeUI.assertFailure("sharingTime(at:_:) must be called on the main thread")
       return try block()
     }

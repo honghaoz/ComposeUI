@@ -533,7 +533,7 @@ open class ComposeView: BaseScrollView {
     // the renderables' updates read the theme from the pass instead of the appearance, which allocates to read on
     // macOS. it's read on the first read instead of when the pass begins, so that a pass without a themed renderable
     // reads nothing, and it's kept on the main thread, where the pass runs
-    guard Thread.isMainThread, isRendering else {
+    guard Thread.isMain, isRendering else {
       return super.theme
     }
 
@@ -555,7 +555,7 @@ open class ComposeView: BaseScrollView {
     }
     set {
       // a set from another thread waits for the main thread, so it applies after the pass
-      if Thread.isMainThread, isRendering {
+      if Thread.isMain, isRendering {
         ComposeUI.assertFailure("ComposeView doesn't support changing the theme during its render pass")
         return
       }
