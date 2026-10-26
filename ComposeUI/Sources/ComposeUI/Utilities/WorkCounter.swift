@@ -74,8 +74,8 @@ enum WorkCounter {
     // compiles it, so benchmark builds, which define DEBUG, would measure different code than release builds, which
     // have no counter. A call adds only the call
 
-    // check the depth first, since it's a plain load, and the main thread check is a message send
-    guard depth > 0, Thread.isMainThread else {
+    // check the depth first, since it's a plain load, while the main thread check is a call
+    guard depth > 0, Thread.isMain else {
       return
     }
 
@@ -136,7 +136,7 @@ enum WorkCounter {
   /// - Parameter block: The block to count the work of. Must be called on the main thread.
   /// - Returns: The work done in the block.
   static func counting(_ block: () throws -> Void) rethrows -> Counts {
-    guard Thread.isMainThread else {
+    guard Thread.isMain else {
       ComposeUI.assertFailure("counting(_:) must be called on the main thread")
       try block()
       return Counts()

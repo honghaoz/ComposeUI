@@ -79,7 +79,7 @@ private extension ComposeNodeLayoutContext {
   static func makePassId() -> UInt64 {
     // the pass ids aren't synchronized, since layout runs on the main thread, where a context's content evaluation
     // also has to be used
-    ComposeUI.assert(Thread.isMainThread, "ComposeNodeLayoutContext must be created on the main thread")
+    ComposeUI.assert(Thread.isMain, "ComposeNodeLayoutContext must be created on the main thread")
     latestPassId += 1
     return latestPassId
   }

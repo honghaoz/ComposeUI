@@ -349,7 +349,7 @@ private final class TextMeasuringSystem {
   ///   - lineBreakMode: The line break mode to use for the layout.
   /// - Returns: The size that the text lays out in.
   static func size(of text: NSAttributedString, numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode) -> CGSize {
-    guard Thread.isMainThread, let system = main else {
+    guard Thread.isMain, let system = main else {
       return TextMeasuringSystem().size(of: text, numberOfLines: numberOfLines, layoutWidth: layoutWidth, lineBreakMode: lineBreakMode)
     }
 

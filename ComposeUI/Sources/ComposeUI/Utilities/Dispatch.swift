@@ -36,7 +36,7 @@ import Foundation
 @inlinable
 @inline(__always)
 public func onMainSync<T>(_ block: () throws -> T) rethrows -> T {
-  if Thread.isMainThread {
+  if pthread_main_np() != 0 {
     return try block()
   } else {
     return try DispatchQueue.main.sync(execute: block)

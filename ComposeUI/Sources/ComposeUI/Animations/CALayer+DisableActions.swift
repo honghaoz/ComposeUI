@@ -149,7 +149,7 @@ public extension CALayer {
       try work()
     } else {
       // if delegate exists, use the subclass approach to disable actions
-      ComposeUI.assert(Thread.isMainThread, "CALayer.disableActions() must be called on the main thread")
+      ComposeUI.assert(Thread.isMain, "CALayer.disableActions() must be called on the main thread")
 
       guard let originalClass: AnyClass = object_getClass(self) else {
         ComposeUI.assertFailure("Unable to get class for layer")

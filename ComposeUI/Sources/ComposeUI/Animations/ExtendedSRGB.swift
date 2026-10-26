@@ -56,7 +56,7 @@ enum ExtendedSRGB {
       return rgbaComponents(of: color)
     }
 
-    guard Thread.isMainThread else {
+    guard Thread.isMain else {
       return convertedComponents(of: color)
     }
     if let conversion = conversions.last(where: { $0.color === color || CFEqual($0.color, color) }) {
