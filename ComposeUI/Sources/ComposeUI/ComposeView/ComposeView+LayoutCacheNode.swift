@@ -33,7 +33,8 @@ import Foundation
 extension ComposeView {
 
   /// The root wrapper of a content tree that skips the layout when the layout inputs are unchanged, so that a scroll
-  /// pass doesn't lay out the content again, and caches the items of the content's nodes.
+  /// pass doesn't lay out the content again, caches the items of the content's nodes, and makes the view's id join
+  /// cache current while it collects them.
   ///
   /// This is a reference type, so a `ComposeView` must create one root per content tree and never place it inside the
   /// content: copies of a content tree would share it and overwrite each other's layout.
@@ -52,11 +53,19 @@ extension ComposeView {
     /// can keep the nested view, which would keep the cache alive through the evaluation.
     private let itemCache = RenderableItemCache()
 
+    /// The cache of the ids that the content's containers join, which the view keeps across its content trees, so that
+    /// a refresh finds the ids that the last content joined.
+    private let idJoinCache: ComposeNodeId.JoinCache
+
     /// Creates a root wrapper around the content node.
     ///
-    /// - Parameter node: The content node.
-    init(node: ComposeNode) {
+    /// - Parameters:
+    ///   - node: The content node.
+    ///   - idJoinCache: The view's cache of the ids that the content's containers join. A root made outside a view has a
+    ///     cache of its own.
+    init(node: ComposeNode, idJoinCache: ComposeNodeId.JoinCache = ComposeNodeId.JoinCache()) {
       self.node = node
+      self.idJoinCache = idJoinCache
     }
 
     // MARK: - ComposeNode
@@ -129,8 +138,10 @@ extension ComposeView {
     #endif
 
     func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
-      itemCache.performAsCurrent {
-        node.render(visibleBounds: visibleBounds, into: &items)
+      idJoinCache.performAsCurrent {
+        itemCache.performAsCurrent {
+          node.render(visibleBounds: visibleBounds, into: &items)
+        }
       }
     }
   }

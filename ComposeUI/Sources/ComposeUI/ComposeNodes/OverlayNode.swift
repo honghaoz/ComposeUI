@@ -85,7 +85,7 @@ struct OverlayNode<Node: ComposeNode>: ComposeNode {
     let start = items.count
     node.render(visibleBounds: visibleBounds, into: &items)
     for index in start ..< items.count {
-      items[index].id = id.join(with: items[index].id)
+      items[index].id = id.cachedJoin(with: items[index].id)
     }
 
     let overlayFrame = Layout.position(rect: overlayNode.size, in: size, alignment: alignment)
@@ -93,7 +93,7 @@ struct OverlayNode<Node: ComposeNode>: ComposeNode {
     let overlayStart = items.count
     overlayNode.render(visibleBounds: boundsInOverlay, into: &items)
     for index in overlayStart ..< items.count {
-      items[index].id = id.join(with: items[index].id, suffix: "O")
+      items[index].id = id.cachedJoin(with: items[index].id, suffix: .text("O"))
       items[index].frame = items[index].frame.translate(overlayFrame.origin)
     }
   }

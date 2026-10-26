@@ -78,6 +78,14 @@ class RenderPerformanceTests: BenchmarkTestCase {
     }
   }
 
+  func test_scroll_nestedRowsWithIds_10000() {
+    // when: scrolling through 10000 nested rows with ids, as an app gives its rows and their parts
+    // the ids make most of the joined ids too long to store inline, so each id that a pass joins again allocates
+    runScrollBenchmark(name: "scroll.nestedWithIds.10000", rowCount: 10000) { i in
+      Self.makeNestedRowWithIds(i)
+    }
+  }
+
   func test_scroll_nestedRows_10000_up() {
     // when: scrolling up through 10000 nested rows
     // scrolling up makes new rows enter at the back of the z-order, which is the worst case
@@ -423,6 +431,51 @@ class RenderPerformanceTests: BenchmarkTestCase {
 
     // then: report the timings
     report(name: "refresh.nested.200", result: result)
+  }
+
+  func test_refresh_nestedRowsWithIds_200() {
+    // given: a compose view with 200 nested rows with ids laid out
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeNestedRowWithIds(i)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.nestedWithIds.200", result: result)
+  }
+
+  func test_refresh_nestedRowsWithNewIds_200() {
+    // given: a compose view with 200 nested rows whose parts take ids of their row that are new on each refresh, so that
+    // no join of a refresh was made before, in the refresh or in an earlier one, laid out
+    var generation = 0
+    let view = ComposeView {
+      VStack {
+        for i in 0 ..< 200 {
+          Self.makeNestedRowWithIds(i, partIdSuffix: "-\(i)-\(generation)")
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes, each with new ids, which replace every item's renderable
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      generation += 1
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: "refresh.nestedWithNewIds.200", result: result)
   }
 
   func test_refresh_nestedRowsWithDividers_200() {
@@ -1023,6 +1076,28 @@ class RenderPerformanceTests: BenchmarkTestCase {
       Spacer()
     }
     .padding(8)
+  }
+
+  /// A list row like the nested row, with ids on the row and its parts, as an app gives them to tell its rows apart.
+  ///
+  /// - Parameters:
+  ///   - i: The row's index.
+  ///   - partIdSuffix: The suffix of the ids of the row's parts, which a benchmark changes to give them new ids.
+  private static func makeNestedRowWithIds(_ i: Int, partIdSuffix: String = "") -> some ComposeNode {
+    HStack(spacing: 8) {
+      ColorNode(.blue)
+        .frame(width: 32, height: 32)
+        .id("avatar\(partIdSuffix)")
+      VStack(alignment: .left, spacing: 2) {
+        LabelNode("Row \(i) title")
+          .id("title\(partIdSuffix)")
+        LabelNode("Subtitle for row \(i) with longer text")
+          .id("subtitle\(partIdSuffix)")
+      }
+      Spacer()
+    }
+    .padding(8)
+    .id("message-\(i)")
   }
 
   /// A list row of one label, as a helper returns a row whose type its callers don't name.
