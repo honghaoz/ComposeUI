@@ -327,7 +327,18 @@ public extension CALayer {
     guard let keys = unbridgedAnimationKeys else {
       return nil
     }
-    return KeyPathAnimationSequence(layer: self, keyPath: keyPath, keys: keys)
+    return animationSequence(forKeyPath: keyPath, keys: keys)
+  }
+
+  /// The layer's animations that change what the given key path shows, among the animations of the given keys, see
+  /// `animationSequence(forKeyPath:)`.
+  ///
+  /// - Parameters:
+  ///   - keyPath: The animated key path.
+  ///   - keys: The layer's animation keys, see `unbridgedAnimationKeys`.
+  /// - Returns: The animations in the keys' order, or `nil` when no animation changes the key path.
+  internal func animationSequence(forKeyPath keyPath: String, keys: AnimationKeys) -> KeyPathAnimationSequence? {
+    KeyPathAnimationSequence(layer: self, keyPath: keyPath, keys: keys)
   }
 
   /// The layer's animation keys, or `nil` when it has no animations.

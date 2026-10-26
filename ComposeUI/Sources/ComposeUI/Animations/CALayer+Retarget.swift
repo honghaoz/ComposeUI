@@ -64,7 +64,28 @@ public extension CALayer {
       return
     }
 
-    guard let animations = inFlightAnimations(forKeyPath: keyPath) else {
+    guard let animationKeys = unbridgedAnimationKeys else {
+      // nothing animates the layer, set the value directly
+      setKeyPathValue(keyPath, value)
+      return
+    }
+    retarget(keyPath: keyPath, to: value, animationKeys: animationKeys)
+  }
+
+  /// Retargets the animations of a key path to a value that the model doesn't have, on a layer with animations, see
+  /// `retarget(keyPath:to:)`.
+  ///
+  /// It's never inlined, since most retargets return before reaching it, while its body, with what the optimizer
+  /// inlines into it, would make every retarget save and restore more registers. It takes the layer's animation keys
+  /// instead of its key path's animations, which a call would copy, while the keys pass in registers.
+  ///
+  /// - Parameters:
+  ///   - keyPath: The key path to set.
+  ///   - value: The value to set.
+  ///   - animationKeys: The layer's animation keys.
+  @inline(never)
+  private func retarget(keyPath: String, to value: Any, animationKeys: AnimationKeys) {
+    guard let animations = inFlightAnimations(forKeyPath: keyPath, animationKeys: animationKeys) else {
       // nothing animates the key path, set the value directly
       setKeyPathValue(keyPath, value)
       return
@@ -139,8 +160,8 @@ public extension CALayer {
   ///
   /// Returns `nil` when no animation changes the key path, without reading the current time, since reading it converts
   /// the time through the layer tree, and a layer usually has nothing animating.
-  private func inFlightAnimations(forKeyPath keyPath: String) -> (animations: InlineFirstArray<InFlightAnimation>, indirectAnimations: [KeyPathAnimation], endedKeptKeys: [String], now: TimeInterval)? {
-    guard let animations = animationSequence(forKeyPath: keyPath) else {
+  private func inFlightAnimations(forKeyPath keyPath: String, animationKeys: AnimationKeys) -> (animations: InlineFirstArray<InFlightAnimation>, indirectAnimations: [KeyPathAnimation], endedKeptKeys: [String], now: TimeInterval)? {
+    guard let animations = animationSequence(forKeyPath: keyPath, keys: animationKeys) else {
       return nil
     }
 
