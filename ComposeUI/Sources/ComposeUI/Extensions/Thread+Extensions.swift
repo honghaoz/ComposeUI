@@ -32,9 +32,9 @@ import Foundation
 
 extension Thread {
 
-  /// Whether the current thread is the main thread, checked with a C call, which costs less than the Objective-C
-  /// message that `Thread.isMainThread` sends.
+  /// Whether the current thread is the main thread.
   static var isMain: Bool {
+    // a C call, which costs less than the Objective-C message that `Thread.isMainThread` sends
     pthread_main_np() != 0
   }
 
