@@ -62,11 +62,11 @@ public struct UnitPoint: Equatable, Hashable, Sendable {
   /// Convert point in bounds to unit point.
   ///
   /// - Parameters:
-  ///   - point: The point in bounds.
+  ///   - point: The point, in the same coordinate space as `bounds`.
   ///   - bounds: The bounds.
   public init(point: CGPoint, in bounds: CGRect) {
-    self.x = point.x / bounds.width
-    self.y = point.y / bounds.height
+    self.x = (point.x - bounds.origin.x) / bounds.width
+    self.y = (point.y - bounds.origin.y) / bounds.height
   }
 
   /// The center point.

@@ -58,6 +58,19 @@ class UnitPointTests: XCTestCase {
     expect(point.y) == 0.5
   }
 
+  func test_init_pointInOffsetBounds() {
+    // given: bounds away from the origin and a point in the same coordinate space
+    let bounds = CGRect(x: 100, y: 200, width: 400, height: 600)
+    let point = CGPoint(x: 200, y: 650)
+
+    // when: converting the point to a unit point
+    let unitPoint = UnitPoint(point: point, in: bounds)
+
+    // then: the unit point is measured from the bounds' origin, so converting it back gives the point
+    expect(unitPoint) == UnitPoint(x: 0.25, y: 0.75)
+    expect(unitPoint.point(in: bounds)) == point
+  }
+
   func test_presets() {
     // then: each preset is its point in the unit space
     expect(UnitPoint.center) == UnitPoint(x: 0.5, y: 0.5)
