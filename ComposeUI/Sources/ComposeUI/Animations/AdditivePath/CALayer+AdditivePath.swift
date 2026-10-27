@@ -395,7 +395,7 @@ private enum ModelPath {
 private final class PathChangesBox {
 
   /// The key of the box on the animation.
-  static let key = "ComposeUI.pathChanges"
+  static let key = "io.chouti.composeui.pathChanges"
 
   /// The changes.
   let changes: PathChanges

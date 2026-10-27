@@ -55,7 +55,7 @@
 
    // MARK: - ComposeNode
 
-   public var id: ComposeNodeId = .custom("io.chouti.ui.<#MyNode#>")
+   public var id: ComposeNodeId = .custom("<#com.myapp#>.<#MyNode#>")
 
    public var size: CGSize = .zero
 

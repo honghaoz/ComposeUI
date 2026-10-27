@@ -275,8 +275,8 @@ private enum RetargetConstants {
   static let velocitySamplingInterval: TimeInterval = 1 / 240
 
   /// The key of the opacity an opacity animation replaced, kept on the animation.
-  static let replacedOpacityKey = "ComposeUI.replacedOpacity"
+  static let replacedOpacityKey = "io.chouti.composeui.replacedOpacity"
 
   /// The key of the rate of change an opacity animation replaced, kept on the animation.
-  static let replacedVelocityKey = "ComposeUI.replacedOpacityVelocity"
+  static let replacedVelocityKey = "io.chouti.composeui.replacedOpacityVelocity"
 }
