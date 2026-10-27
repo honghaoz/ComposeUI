@@ -54,30 +54,30 @@ enum ReplacedImageRelease {
     guard let contents, CFGetTypeID(contents as CFTypeRef) == CGImage.typeID else {
       return
     }
-    replacedImages.append(contents as AnyObject)
+    let image = unsafeDowncast(contents as AnyObject, to: CGImage.self)
+    replacedImages.append(image)
+    replacedImageBytes += image.bytesPerRow * image.height
     if observer == nil {
       observer = makeObserver()
     }
 
     // a host that commits without turning the run loop, such as one that renders snapshots, never runs the observer,
-    // so the images are handed off at a bound instead of piling up, which is safe before their commit, since Core
-    // Animation keeps an image until then
-    if replacedImages.count >= Constants.replacedImageCountToHandOff {
+    // so the images are handed off at a bound of their bytes instead of piling up. Core Animation keeps an image until
+    // its commit, which frees an image handed off before it on the main thread, as without the release, but only a
+    // frame that replaces more than the bound hands images off before their commit
+    if replacedImageBytes >= Constants.replacedImageBytesToHandOff {
       handOffReplacedImages()
     }
   }
 
   /// The images that the main thread replaced since the observer last ran.
-  private static var replacedImages: [AnyObject] = []
+  private static var replacedImages: [CGImage] = []
+
+  /// The bytes of the images in `replacedImages`.
+  private static var replacedImageBytes = 0
 
   /// The observer of the main run loop that hands the replaced images to `queue`, made with the first image.
   private static var observer: CFRunLoopObserver?
-
-  /// The images that the main thread handed to `queue`, guarded by `lock`.
-  private static var handedOffImages: [AnyObject] = []
-
-  /// The lock that guards `handedOffImages`.
-  private static let lock = UnfairLock()
 
   /// The queue that releases the images that the main thread hands it.
   private static let queue = DispatchQueue(label: "com.honghaoz.ComposeUI.ReplacedImageRelease", qos: .utility)
@@ -104,20 +104,27 @@ enum ReplacedImageRelease {
       return
     }
 
-    lock.withLock {
-      handedOffImages.append(contentsOf: replacedImages)
-    }
-    // the array keeps its capacity, so that the next replaced images append without allocating
+    // the images move to a batch that only its block changes, and the main thread lets go of them before it queues the
+    // block, so the block's emptying of the batch releases each image on the queue, whichever thread releases the
+    // batch itself last
+    let batch = Batch(images: replacedImages)
+    // the array keeps its capacity, in a buffer of its own, so that the next replaced images append without allocating
     replacedImages.removeAll(keepingCapacity: true)
+    replacedImageBytes = 0
 
     queue.async {
-      // the images are taken out under the lock and released when this block's local goes away, instead of with the
-      // block, which the main thread can release last
-      var images: [AnyObject] = []
-      lock.withLock {
-        swap(&images, &handedOffImages)
-      }
-      withExtendedLifetime(images) {}
+      batch.images.removeAll()
+    }
+  }
+
+  /// The images of a hand-off, which only the block that releases them changes.
+  private final class Batch {
+
+    /// The images, which the block that releases them empties.
+    var images: [CGImage]
+
+    init(images: [CGImage]) {
+      self.images = images
     }
   }
 
@@ -131,9 +138,14 @@ enum ReplacedImageRelease {
       replacedImages.count
     }
 
-    /// The number of replaced images that the main thread hands to the queue without waiting for the observer.
-    static var replacedImageCountToHandOff: Int {
-      Constants.replacedImageCountToHandOff
+    /// The bytes of the replaced images that the main thread hasn't handed to the queue.
+    static var replacedImageBytes: Int {
+      ReplacedImageRelease.replacedImageBytes
+    }
+
+    /// The bytes of replaced images at which the main thread hands them to the queue without waiting for the observer.
+    static var replacedImageBytesToHandOff: Int {
+      Constants.replacedImageBytesToHandOff
     }
 
     /// The order of the observer that hands the replaced images to the queue, `nil` before the first image makes it.
@@ -164,9 +176,13 @@ enum ReplacedImageRelease {
 
   private enum Constants {
 
-    /// The number of replaced images at which the main thread hands them to the queue without waiting for the observer,
-    /// more than a frame of scrolling replaces, which bounds the images that a host that doesn't turn the run loop keeps.
-    static let replacedImageCountToHandOff = 64
+    /// The bytes of replaced images at which the main thread hands them to the queue without waiting for the observer,
+    /// which bounds the images that a host that doesn't turn the run loop keeps.
+    ///
+    /// Scrolling the benchmarks' nested rows by a full screen in one frame replaces 1.2 MB of label images in a window of
+    /// 390 by 844 points at a scale of 2, about a quarter of the window's pixels, which in a full-screen window on a 6K
+    /// display would be about 20 MB, so an app's frames stay below the bound.
+    static let replacedImageBytesToHandOff = 64 * 1024 * 1024
 
     /// The order of the observer, after Core Animation's commit observer, which has order 2,000,000, and commits the
     /// main thread's transaction before the run loop waits and when it exits, as the observer runs.

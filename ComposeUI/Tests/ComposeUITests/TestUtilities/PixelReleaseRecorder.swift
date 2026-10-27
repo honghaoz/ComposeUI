@@ -40,16 +40,21 @@ final class PixelReleaseRecorder {
   /// Whether the main thread freed the pixels, `nil` until they're freed.
   private(set) var isReleasedOnMainThread: Bool?
 
-  /// Makes a 1 by 1 image whose pixels the recorder records the release of.
+  /// Makes an image whose pixels the recorder records the release of.
   ///
+  /// - Parameters:
+  ///   - width: The image's width in pixels, of 4 bytes each.
+  ///   - height: The image's height in pixels.
   /// - Returns: The image.
-  func makeImage() throws -> CGImage {
-    let bytes = UnsafeMutableRawPointer.allocate(byteCount: 4, alignment: 4)
-    bytes.initializeMemory(as: UInt8.self, repeating: 0, count: 4)
+  func makeImage(width: Int = 1, height: Int = 1) throws -> CGImage {
+    let bytesPerRow = width * 4
+    let byteCount = bytesPerRow * height
+    let bytes = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 16)
+    bytes.initializeMemory(as: UInt8.self, repeating: 0, count: byteCount)
     // the provider keeps the recorder until it frees the pixels, which it does when the image goes away
     let info = Unmanaged.passRetained(self).toOpaque()
     let provider = try unwrap(
-      CGDataProvider(dataInfo: info, data: bytes, size: 4) { info, data, _ in
+      CGDataProvider(dataInfo: info, data: bytes, size: byteCount) { info, data, _ in
         UnsafeMutableRawPointer(mutating: data).deallocate()
         guard let info else {
           return
@@ -59,11 +64,11 @@ final class PixelReleaseRecorder {
     )
     return try unwrap(
       CGImage(
-        width: 1,
-        height: 1,
+        width: width,
+        height: height,
         bitsPerComponent: 8,
         bitsPerPixel: 32,
-        bytesPerRow: 4,
+        bytesPerRow: bytesPerRow,
         space: CGColorSpaceCreateDeviceRGB(),
         bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
         provider: provider,

@@ -78,23 +78,25 @@ class ReplacedImageReleaseTests: XCTestCase {
   }
 
   func test_releaseAfterCommit_withoutTheRunLoop_handsTheImagesOffAtABound() throws {
-    // given: replaced images in a host that commits without turning the run loop, such as one that renders snapshots,
-    // where the observer doesn't run
-    let bound = ReplacedImageRelease.Test.replacedImageCountToHandOff
-    let recorders = (0 ..< bound * 3 + 1).map { _ in PixelReleaseRecorder() }
+    // given: replaced images of a quarter of the bound's bytes each, in a host that commits without turning the run
+    // loop, such as one that renders snapshots, where the observer doesn't run
+    let bound = ReplacedImageRelease.Test.replacedImageBytesToHandOff
+    let width = 1024
+    let height = bound / 4 / (width * 4)
+    let recorders = (0 ..< 13).map { _ in PixelReleaseRecorder() }
 
     // when: releasing each image after the commit
     for pixels in recorders {
-      try ReplacedImageRelease.releaseAfterCommit(pixels.makeImage())
+      try ReplacedImageRelease.releaseAfterCommit(pixels.makeImage(width: width, height: height))
 
-      // then: the images that wait for a hand-off stay below the bound
-      expect(ReplacedImageRelease.Test.replacedImageCount) < bound
+      // then: the bytes that wait for a hand-off stay below the bound
+      expect(ReplacedImageRelease.Test.replacedImageBytes) < bound
     }
 
-    // then: the images that reached the bound went to the queue, which freed their pixels off the main thread, and the
+    // then: each fourth image handed the images off to the queue, which freed their pixels off the main thread, and the
     // last image waits for the next hand-off
     ReplacedImageRelease.Test.waitForReleases()
-    expect(recorders.filter { $0.isReleasedOnMainThread == false }.count) == bound * 3
+    expect(recorders.filter { $0.isReleasedOnMainThread == false }.count) == 12
     expect(recorders.last?.isReleasedOnMainThread) == nil
     expect(ReplacedImageRelease.Test.replacedImageCount) == 1
   }
