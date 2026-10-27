@@ -35,6 +35,7 @@ import ChouTi
 
 class LabelNodeTests: XCTestCase {
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_size_assertion() throws {
     // given: a label node and a test assertion failure handler
     var assertionCount = 0
@@ -53,6 +54,29 @@ class LabelNodeTests: XCTestCase {
 
     // then: it should trigger the assertion
     expect(assertionCount) == 1
+  }
+  #endif
+
+  func test_size_isTheLatestLayoutsSize() {
+    // given: a multi-line label, which fills the container's width and wraps its text in it
+    var labelNode = LabelNode("Hello World Hello World").numberOfLines(0)
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+
+    // when: laying it out in a wide container
+    let wideSizing = labelNode.layout(containerSize: CGSize(width: 1000, height: 100), context: context)
+
+    // then: its size is the layout's size, a line of the container's width
+    expect(labelNode.size.width) == 1000
+    expect(wideSizing.height) == .fixed(labelNode.size.height)
+    let wideHeight = labelNode.size.height
+
+    // when: laying it out again in a narrow container
+    let narrowSizing = labelNode.layout(containerSize: CGSize(width: 50, height: 100), context: context)
+
+    // then: its size is the new layout's size, taller since the text wraps
+    expect(labelNode.size.width) == 50
+    expect(narrowSizing.height) == .fixed(labelNode.size.height)
+    expect(labelNode.size.height) > wideHeight
   }
 
   func test_renderableItems_assertion() throws {
