@@ -457,28 +457,14 @@ final class TextLabelImageCache {
       case finished(Result)
     }
 
-    /// The lock that guards every drawing's state, allocated once, since an `os_unfair_lock` needs an address that
-    /// doesn't change, which a stored property doesn't have.
-    private static let lock: UnsafeMutablePointer<os_unfair_lock> = {
-      let lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
-      lock.initialize(to: os_unfair_lock())
-      return lock
-    }()
+    /// The lock that guards every drawing's state.
+    private static let lock = UnfairLock()
 
     private var state = State.pending
 
-    /// Runs a body while holding the lock.
-    private static func withLock<T>(_ body: () -> T) -> T {
-      os_unfair_lock_lock(lock)
-      defer {
-        os_unfair_lock_unlock(lock)
-      }
-      return body()
-    }
-
     /// Whether a worker should still draw it, which it checks before drawing.
     var isPending: Bool {
-      Self.withLock {
+      Self.lock.withLock {
         switch state {
         case .pending:
           return true
@@ -491,7 +477,7 @@ final class TextLabelImageCache {
 
     /// The result, `nil` if the drawing isn't finished.
     var result: Result? {
-      Self.withLock {
+      Self.lock.withLock {
         switch state {
         case .pending,
              .cancelled:
@@ -504,7 +490,7 @@ final class TextLabelImageCache {
 
     /// Finishes the drawing with a result, unless it's cancelled.
     func finish(_ result: Result) {
-      Self.withLock {
+      Self.lock.withLock {
         switch state {
         case .pending:
           state = .finished(result)
@@ -524,7 +510,7 @@ final class TextLabelImageCache {
 
     /// The number of drawings that workers finished, which tests read to check that a worker skips a cancelled one.
     static var finishedDrawingCount: Int {
-      withLock {
+      lock.withLock {
         finishedCount
       }
     }
@@ -532,7 +518,7 @@ final class TextLabelImageCache {
 
     /// Cancels the drawing, unless it's finished.
     func cancel() {
-      Self.withLock {
+      Self.lock.withLock {
         switch state {
         case .pending:
           state = .cancelled
@@ -546,7 +532,7 @@ final class TextLabelImageCache {
     /// Returns the result, or cancels the drawing if it isn't finished, in one step, so that a worker that finishes in
     /// between doesn't leave a result that no one takes.
     func takeResultOrCancel() -> Result? {
-      Self.withLock {
+      Self.lock.withLock {
         switch state {
         case .pending:
           state = .cancelled

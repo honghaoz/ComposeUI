@@ -42,6 +42,9 @@ enum BackgroundDrawing {
   static func finishAndPause() {
     #if canImport(AppKit)
     TextLabelImageCache.Test.finishDrawingsAndPause()
+    // the labels' replaced images go away between the steps, as they do after each commit in an app, whose run loop
+    // hands them off, instead of piling up through a benchmark that doesn't run the run loop
+    ReplacedImageRelease.Test.handOffReplacedImagesAndWait()
     #endif
   }
 
@@ -49,6 +52,7 @@ enum BackgroundDrawing {
   static func finish() {
     #if canImport(AppKit)
     TextLabelImageCache.Test.waitForDrawings()
+    ReplacedImageRelease.Test.handOffReplacedImagesAndWait()
     #endif
   }
 }

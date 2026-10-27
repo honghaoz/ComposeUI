@@ -65,6 +65,9 @@ extension TextLabelView {
     }
 
     override func display() {
+      // the contents that the display replaces go away after the commit, off the main thread, see `ReplacedImageRelease`
+      let replacedContents = contents
+
       // the label shows the image that a worker drew ahead of time for its text, in the pixels that the layer draws,
       // instead of drawing the text
       if let image = labelView?.takeImageToDisplay() {
@@ -72,6 +75,8 @@ extension TextLabelView {
       } else {
         super.display()
       }
+
+      ReplacedImageRelease.releaseAfterCommit(replacedContents)
     }
 
     override func draw(in ctx: CGContext) {

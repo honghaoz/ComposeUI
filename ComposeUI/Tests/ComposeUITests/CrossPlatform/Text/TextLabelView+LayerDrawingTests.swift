@@ -462,6 +462,50 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(drawingLayer.labelView) == nil
   }
 
+  func test_drawingLayer_display_freesTheReplacedImageOffTheMainThread() throws {
+    // given: a drawing layer showing an image that only it holds, with no replaced images waiting
+    ReplacedImageRelease.Test.handOffReplacedImagesAndWait()
+    let drawingLayer = TextLabelView.DrawingLayer()
+    drawingLayer.frame = CGRect(x: 0, y: 0, width: 20, height: 10)
+    let pixels = PixelReleaseRecorder()
+    drawingLayer.contents = try pixels.makeImage()
+    CATransaction.flush()
+
+    // when: the layer displays, which replaces the image, and the transaction commits
+    drawingLayer.display()
+    CATransaction.flush()
+
+    // then: the image waits for the hand-off, instead of going away with the commit on the main thread
+    expect(ReplacedImageRelease.Test.replacedImageCount) == 1
+    expect(pixels.isReleasedOnMainThread) == nil
+
+    // when: handing the replaced images off, as the observer does after the commit
+    ReplacedImageRelease.Test.handOffReplacedImagesAndWait()
+
+    // then: the image's pixels were freed off the main thread
+    expect(pixels.isReleasedOnMainThread) == false
+  }
+
+  func test_drawingLayer_display_freesTheReplacedImageOffTheMainThreadAfterTheRunLoopCommits() throws {
+    // given: a drawing layer showing an image that only it holds, committed, with no replaced images waiting
+    ReplacedImageRelease.Test.handOffReplacedImagesAndWait()
+    let drawingLayer = TextLabelView.DrawingLayer()
+    drawingLayer.frame = CGRect(x: 0, y: 0, width: 20, height: 10)
+    let pixels = PixelReleaseRecorder()
+    drawingLayer.contents = try pixels.makeImage()
+    CATransaction.flush()
+
+    // when: the layer displays in the run loop's implicit transaction, which replaces the image, and the main run loop
+    // runs once, where Core Animation commits the transaction before the observer hands the image off
+    drawingLayer.display()
+    RunLoop.main.run(mode: .default, before: Date())
+
+    // then: the queue freed the image's pixels, off the main thread
+    expect(ReplacedImageRelease.Test.replacedImageCount) == 0
+    ReplacedImageRelease.Test.waitForReleases()
+    expect(pixels.isReleasedOnMainThread) == false
+  }
+
   // MARK: - Display Marks
 
   func test_textChange_marksTheDrawingLayer_insteadOfTheView() throws {
