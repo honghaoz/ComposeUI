@@ -35,6 +35,7 @@ import ChouTi
 
 class LabelNodeTests: XCTestCase {
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_size_assertion() throws {
     // given: a label node and a test assertion failure handler
     var assertionCount = 0
@@ -54,6 +55,7 @@ class LabelNodeTests: XCTestCase {
     // then: it should trigger the assertion
     expect(assertionCount) == 1
   }
+  #endif
 
   func test_size_isTheLatestLayoutsSize() {
     // given: a multi-line label, which fills the container's width and wraps its text in it
