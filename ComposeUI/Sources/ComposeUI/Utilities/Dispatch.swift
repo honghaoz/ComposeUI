@@ -42,3 +42,16 @@ public func onMainSync<T>(_ block: () throws -> T) rethrows -> T {
     return try DispatchQueue.main.sync(execute: block)
   }
 }
+
+extension DispatchQueue {
+
+  /// Submits a block to run asynchronously on the queue, without flags.
+  ///
+  /// - Parameter work: The block to run.
+  func asyncWithoutFlags(execute work: @escaping @Sendable @convention(block) () -> Void) {
+    // the flags are made from their raw value instead of with `[]`, which `async` takes by default: the flags' type comes
+    // from another module, so the literal makes them with the generic `SetAlgebra.init(_:)` through witness tables, which
+    // adds about 1,100 instructions to a call that otherwise takes about 1,500
+    async(flags: DispatchWorkItemFlags(rawValue: 0), execute: work)
+  }
+}
