@@ -53,6 +53,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 
 - SwiftFormat and SwiftLint own formatting and style (configs in `configs/`). Run `make format` after edits instead of hand-formatting. The bullets below cover only what the tools can't enforce.
 - Follow existing Swift naming conventions: `lowerCamelCase` for functions/vars, `UpperCamelCase` for types.
+- Prefix string identifiers in shared namespaces, such as queue labels and attributed string or Core Animation keys, with `io.chouti.composeui.` and the name as spelled in Swift, for example `io.chouti.composeui.ReplacedImageRelease` or `io.chouti.composeui.themedShadow`. Write each as one literal, not built from a prefix constant, so that a search finds it.
 - Keep documentation concise: a one-line short summary plus parameter docs is the norm, not an essay. Add a clarification or a code example when it is necessary to understand or correctly use the API. Design rationale belongs in the inline comments or commit/PR description.
 - New Swift files start with the standard header: copy it from a neighboring file, then update the file name and the `Created by Honghao Zhang on M/D/YY.` date. SwiftFormat's header template (in `configs/.swiftformat`) enforces the rest but cannot generate the `Created by` line for new files.
 - Place a new `ComposeNode` extension API in a dedicated file named after its concern (for example `ComposeNode+Transform.swift`), not in an unrelated extension file.

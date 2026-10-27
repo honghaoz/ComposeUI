@@ -619,7 +619,7 @@ final class TextLabelImageCache {
 
     init(index: Int) {
       // each drawing gets an autorelease pool, so that the objects that drawing a text autoreleases go away with it
-      queue = DispatchQueue(label: "com.honghaoz.ComposeUI.TextLabelImageCache.worker\(index)", qos: .userInitiated, autoreleaseFrequency: .workItem)
+      queue = DispatchQueue(label: "io.chouti.composeui.TextLabelImageCache.worker\(index)", qos: .userInitiated, autoreleaseFrequency: .workItem)
     }
 
     /// Draws a label's image on the worker's queue.

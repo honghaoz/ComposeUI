@@ -80,7 +80,7 @@ enum ReplacedImageRelease {
   private static var observer: CFRunLoopObserver?
 
   /// The queue that releases the images that the main thread hands it.
-  private static let queue = DispatchQueue(label: "com.honghaoz.ComposeUI.ReplacedImageRelease", qos: .utility)
+  private static let queue = DispatchQueue(label: "io.chouti.composeui.ReplacedImageRelease", qos: .utility)
 
   /// Makes the observer that hands the replaced images to `queue` after Core Animation's commit, and adds it to the
   /// main run loop.
