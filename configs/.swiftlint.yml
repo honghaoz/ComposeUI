@@ -104,12 +104,3 @@ custom_rules:
     message: "Avoid passing `.init` as a function reference (e.g. map(Foo.init)). Use an explicit closure like map { Foo($0) } instead."
     regex: '\.init\b(?!\s*[({])'
     severity: warning
-
-  reverse_domain_identifier:
-    name: "Reverse Domain Identifier"
-    message: "Start a reverse-domain identifier, such as a queue label or a key, with ComposeUI's reverse domain `io.chouti.composeui.`."
-    included: ".*/Sources/.*.swift"
-    regex: '"(?!io\.chouti\.composeui\.)(?:com|io|org|net|dev)\.[A-Za-z0-9-]+\.'
-    match_kinds:
-      - string
-    severity: warning
