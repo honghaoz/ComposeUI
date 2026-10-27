@@ -93,12 +93,19 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
   public var id: ComposeNodeId = .standard(.label)
 
   public var size: CGSize {
-    guard let node else {
+    // the size is kept apart from the text node, since reading the optional node copies the whole node to check that
+    // it's there, which a stack would do for each read of a child's size, so only the debug builds other than the
+    // benchmarks' check the node
+    #if DEBUG && !COMPOSEUI_BENCHMARK
+    if node == nil {
       ComposeUI.assertFailure("layout(containerSize:context:) should be called before calling size")
-      return .zero
     }
-    return node.size
+    #endif
+    return layoutSize
   }
+
+  /// The label's size from its latest layout.
+  private var layoutSize: CGSize = .zero
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     if node == nil {
@@ -136,7 +143,9 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
       node!.id = id // swiftlint:disable:this force_unwrapping
     }
 
-    return node!.layout(containerSize: containerSize, context: context) // swiftlint:disable:this force_unwrapping
+    let sizing = node!.layout(containerSize: containerSize, context: context) // swiftlint:disable:this force_unwrapping
+    layoutSize = node!.size // swiftlint:disable:this force_unwrapping
+    return sizing
   }
 
   public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
