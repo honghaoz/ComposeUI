@@ -243,6 +243,10 @@ struct AxisStack<Axis: StackAxis> {
       return ComposeNodeSizing(width: .fixed(0), height: .fixed(0), dependence: [])
     }
 
+    // the layout reads the children through this local reference instead of the stored property, which the closures
+    // below reach through the stack's address, where the compiler retains and releases the buffer around each child's
+    // layout, since for all it can tell the call could replace the property
+    let children = children
     let childCount = children.count
 
     let totalSpacing = spacing * CGFloat(childCount - 1)
@@ -270,9 +274,9 @@ struct AxisStack<Axis: StackAxis> {
         children.withNode(at: nodeIndex, as: SpacerNode.self) { spacer in
           switch Axis.mainAxis {
           case .horizontal:
-            spacer.zeroHeightIfSpacerWithoutHeight()
+            spacer.zeroHeightIfFlexible()
           case .vertical:
-            spacer.zeroWidthIfSpacerWithoutWidth()
+            spacer.zeroWidthIfFlexible()
           }
         }
 

@@ -152,7 +152,12 @@ struct StackLayoutCache {
   /// - Parameter capacity: The number of children the layout appends.
   mutating func reset(reservingCapacity capacity: Int) {
     childCount = 0
-    heapChildren.removeAll(keepingCapacity: true)
+    // an empty array is left alone, since emptying one still checks its uniqueness, makes an empty buffer and releases
+    // the old one in Swift 6.4 and earlier, before swiftlang/swift#91071, which a stack of up to `inlineCapacity`
+    // children, whose layouts never use the array, would do in each layout
+    if !heapChildren.isEmpty {
+      heapChildren.removeAll(keepingCapacity: true)
+    }
     usesHeapChildren = capacity > Self.inlineCapacity
     if usesHeapChildren {
       heapChildren.reserveCapacity(capacity)
