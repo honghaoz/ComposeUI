@@ -48,6 +48,9 @@ public struct RenderableMakeContext {
 public struct RenderableInsertContext {
 
   /// The old frame of the renderable before it is inserted.
+  ///
+  /// The frame is read from the renderable, so it can differ from the frame set on it by floating-point noise, for
+  /// example on a 3x display.
   public let oldFrame: CGRect
 
   /// The new frame that the renderable should be set to after the insertion.
@@ -79,8 +82,9 @@ public struct RenderableUpdateContext: Equatable {
 
   /// The old frame of the renderable before the update.
   ///
-  /// The frame is read from the renderable, so it can differ from the frame the previous update applied by
-  /// floating-point noise, for example on a 3x display. Compare it with `newFrame` with a tolerance rather than exactly.
+  /// For a refresh or a bounds change, the `newFrame` of the renderable's previous update, so the two are equal when
+  /// the frame didn't change. For an insertion, the frame read from the renderable after `willInsert`, which can differ
+  /// from the frame set on it by floating-point noise, for example on a 3x display.
   public let oldFrame: CGRect
 
   /// The new frame that the renderable should be set to after the update.
@@ -177,7 +181,7 @@ struct RenderablePrefetchContext {
 /// The context for removing a renderable from a renderable hierarchy.
 public struct RenderableRemoveContext {
 
-  /// The frame of the renderable before it is removed.
+  /// The frame of the renderable before it is removed, the `newFrame` of its last update.
   public let oldFrame: CGRect
 
   /// The `ComposeView` that the renderable is removed from.
