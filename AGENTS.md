@@ -119,7 +119,7 @@ Before reporting a change complete, verify in order:
 - Prefer `rg` for search.
 - For non-trivial tasks, briefly outline the approach and proceed with the requested work. You may propose a dedicated planning mode when useful, but enter it only after the user explicitly requests or approves it.
 - Stop and re-plan instead of pushing forward when any of these happen: the same error survives two different fix attempts, the change is growing beyond the planned scope, you need a workaround or special case to keep the plan viable, or a plan assumption turns out to be wrong.
-- Record learnings only when corrections reveal non-trivial, generalizable principles (skip one-offs). Write each as the rule, not the incident, concisely. File performance learnings in `docs/performance.md`, and others under the matching theme below (create a new theme if needed). Review the learnings below at session start, and `docs/performance.md` before working on a hot path.
+- Record learnings only when corrections reveal non-trivial, generalizable principles (skip one-offs). Write each as the rule, not the incident, concisely. File performance learnings in `docs/performance.md`, and others under the matching theme below (create a new theme if needed). Review the learnings below at session start, and `docs/performance.md` before working on a hot path. Correct or remove a learning that a measurement contradicts or that a newer Xcode, Swift or OS version makes stale, in the change that finds it.
 
 # Commit & Pull Request Guidelines
 
