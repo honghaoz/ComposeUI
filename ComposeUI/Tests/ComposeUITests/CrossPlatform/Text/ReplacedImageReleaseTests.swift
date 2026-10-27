@@ -77,6 +77,61 @@ class ReplacedImageReleaseTests: XCTestCase {
     expect(weakContents) == nil
   }
 
+  func test_releaseAfterCommit_withoutTheRunLoop_handsTheImagesOffAtABound() throws {
+    // given: replaced images in a host that commits without turning the run loop, such as one that renders snapshots,
+    // where the observer doesn't run
+    let bound = ReplacedImageRelease.Test.replacedImageCountToHandOff
+    let recorders = (0 ..< bound * 3 + 1).map { _ in PixelReleaseRecorder() }
+
+    // when: releasing each image after the commit
+    for pixels in recorders {
+      try ReplacedImageRelease.releaseAfterCommit(pixels.makeImage())
+
+      // then: the images that wait for a hand-off stay below the bound
+      expect(ReplacedImageRelease.Test.replacedImageCount) < bound
+    }
+
+    // then: the images that reached the bound went to the queue, which freed their pixels off the main thread, and the
+    // last image waits for the next hand-off
+    ReplacedImageRelease.Test.waitForReleases()
+    expect(recorders.filter { $0.isReleasedOnMainThread == false }.count) == bound * 3
+    expect(recorders.last?.isReleasedOnMainThread) == nil
+    expect(ReplacedImageRelease.Test.replacedImageCount) == 1
+  }
+
+  func test_releaseAfterCommit_offTheMainThread_asserts() {
+    // given: a test assertion failure handler
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: releasing contents after the commit on another thread
+    onNewThread {
+      ReplacedImageRelease.releaseAfterCommit(nil)
+    }
+
+    // then: it asserts that the release runs on the main thread
+    expect(assertionMessages) == ["releaseAfterCommit(_:) must be called on the main thread"]
+  }
+
+  func test_observer_runsAfterCoreAnimationsCommit() throws {
+    // given: the main run loop's observers, after a layer change installs Core Animation's commit observer, and a
+    // replaced image installs the release's
+    let layer = CALayer()
+    layer.opacity = 0.5
+    try ReplacedImageRelease.releaseAfterCommit(PixelReleaseRecorder().makeImage())
+    let commitObserver = try unwrap(Self.coreAnimationCommitObserver())
+
+    // then: the release's observer runs after Core Animation's commit, in each run loop activity that Core Animation
+    // commits in
+    expect(try unwrap(ReplacedImageRelease.Test.observerOrder)) > commitObserver.order
+    expect(try unwrap(ReplacedImageRelease.Test.observerActivities) & commitObserver.activities) == commitObserver.activities
+  }
+
   func test_runLoop_handsTheReplacedImagesToTheQueueAfterTheCommit() throws {
     // given: a replaced image that only the release holds
     let pixels = PixelReleaseRecorder()
@@ -91,6 +146,26 @@ class ReplacedImageReleaseTests: XCTestCase {
     expect(ReplacedImageRelease.Test.replacedImageCount) == 0
     ReplacedImageRelease.Test.handOffReplacedImagesAndWait()
     expect(pixels.isReleasedOnMainThread) == false
+  }
+
+  // MARK: - Helpers
+
+  /// Returns the order and the activities of Core Animation's commit observer on the main run loop, `nil` if the main
+  /// run loop has none.
+  ///
+  /// They're read from the run loop's description, since no API lists a run loop's observers.
+  private static func coreAnimationCommitObserver() -> (order: CFIndex, activities: CFOptionFlags)? {
+    let description = CFCopyDescription(CFRunLoopGetMain()) as String
+    let pattern = "activities = 0x([0-9a-f]+)[^}]*?order = (-?[0-9]+), callout = [^,(]*CA11Transaction17observer_callback"
+    guard let match = try? NSRegularExpression(pattern: pattern).firstMatch(in: description, range: NSRange(description.startIndex..., in: description)),
+          let activitiesRange = Range(match.range(at: 1), in: description),
+          let orderRange = Range(match.range(at: 2), in: description),
+          let activities = CFOptionFlags(description[activitiesRange], radix: 16),
+          let order = CFIndex(description[orderRange])
+    else {
+      return nil
+    }
+    return (order, activities)
   }
 }
 

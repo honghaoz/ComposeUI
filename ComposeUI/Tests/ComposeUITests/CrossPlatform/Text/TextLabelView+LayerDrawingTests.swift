@@ -486,6 +486,26 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(pixels.isReleasedOnMainThread) == false
   }
 
+  func test_drawingLayer_display_freesTheReplacedImageOffTheMainThreadAfterTheRunLoopCommits() throws {
+    // given: a drawing layer showing an image that only it holds, committed, with no replaced images waiting
+    ReplacedImageRelease.Test.handOffReplacedImagesAndWait()
+    let drawingLayer = TextLabelView.DrawingLayer()
+    drawingLayer.frame = CGRect(x: 0, y: 0, width: 20, height: 10)
+    let pixels = PixelReleaseRecorder()
+    drawingLayer.contents = try pixels.makeImage()
+    CATransaction.flush()
+
+    // when: the layer displays in the run loop's implicit transaction, which replaces the image, and the main run loop
+    // runs once, where Core Animation commits the transaction before the observer hands the image off
+    drawingLayer.display()
+    RunLoop.main.run(mode: .default, before: Date())
+
+    // then: the queue freed the image's pixels, off the main thread
+    expect(ReplacedImageRelease.Test.replacedImageCount) == 0
+    ReplacedImageRelease.Test.waitForReleases()
+    expect(pixels.isReleasedOnMainThread) == false
+  }
+
   // MARK: - Display Marks
 
   func test_textChange_marksTheDrawingLayer_insteadOfTheView() throws {
