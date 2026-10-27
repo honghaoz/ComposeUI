@@ -389,10 +389,17 @@ final class TextLabelImageCache {
 
     /// Removes the key in a slot, and frees the slot.
     ///
+    /// The slot must hold a key, since a free slot's links are stale: a free slot asserts and leaves the order as it is.
+    ///
     /// - Parameter slot: The key's slot.
-    /// - Returns: The key, `nil` if the slot is free.
+    /// - Returns: The key, `nil` for a free slot.
     @discardableResult
     mutating func remove(_ slot: Int) -> Key? {
+      guard let key = keys[slot].take() else {
+        ComposeUI.assertFailure("remove(_:) takes a slot that holds a key")
+        return nil
+      }
+
       let link = links[slot]
       if let older = link.older {
         links[older].newer = link.newer
@@ -405,7 +412,7 @@ final class TextLabelImageCache {
         newest = link.older
       }
       freeSlots.append(slot)
-      return keys[slot].take()
+      return key
     }
 
     /// Removes every key.
@@ -717,6 +724,14 @@ final class TextLabelImageCache {
     /// The number of slots in the order that eviction follows, free or not.
     var evictionSlotCount: Int {
       host.order.keys.count
+    }
+
+    /// Removes the key in a slot of the order that eviction follows, as the removal of an entry does.
+    ///
+    /// - Parameter slot: The key's slot.
+    /// - Returns: The key, `nil` for a free slot.
+    func removeFromEvictionOrder(slot: Int) -> Key? {
+      host.order.remove(slot)
     }
 
     /// Whether the drawing of a key is pending, which `nil` means there's no drawing for.

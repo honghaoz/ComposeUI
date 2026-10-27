@@ -375,6 +375,46 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(cache.test.evictionSlotCount) == 3
   }
 
+  func test_evictionOrder_removalOfAFreeSlot_assertsAndLeavesTheOrder() throws {
+    // given: a cache with room for two images, with its workers paused, whose order has a slot that a label's take
+    // freed, and an assertion failure handler that records the messages
+    let cache = TextLabelImageCache()
+    let first = try Self.key("First", size: CGSize(width: 100, height: 20))
+    let second = try Self.key("Second", size: CGSize(width: 100, height: 20))
+    let third = try Self.key("Third", size: CGSize(width: 100, height: 20))
+    let fourth = try Self.key("Fourth", size: CGSize(width: 100, height: 20))
+    cache.maximumBytes = 200 * 40 * 4 * 2
+    TextLabelImageCache.Test.finishDrawingsAndPause()
+    cache.prefetch(first)
+    _ = cache.takeResult(for: first)
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: removing the free slot from the order
+    let removedKey = cache.test.removeFromEvictionOrder(slot: 0)
+
+    // then: the order asserts, and returns no key
+    expect(assertionMessages) == ["remove(_:) takes a slot that holds a key"]
+    expect(removedKey == nil) == true
+
+    // when: prefetching three labels
+    cache.prefetch(second)
+    cache.prefetch(third)
+    cache.prefetch(fourth)
+
+    // then: each request took a slot of its own, and the oldest one is evicted, as without the removal
+    expect(cache.test.isPending(second)) == nil
+    expect(cache.test.isPending(third)) == true
+    expect(cache.test.isPending(fourth)) == true
+    expect(cache.test.evictionKeyCount) == 2
+    expect(cache.test.evictionSlotCount) == 3
+  }
+
   func test_maximumBytesLowered_afterALabelTookADrawingBetweenTwoOthers_evictsInRequestOrder() throws {
     // given: a cache with room for four images, with its workers paused, that requested four labels, the second of which
     // a label took
