@@ -112,7 +112,7 @@ enum ReplacedImageRelease {
     replacedImages.removeAll(keepingCapacity: true)
     replacedImageBytes = 0
 
-    queue.async {
+    queue.asyncWithoutFlags {
       batch.images.removeAll()
     }
   }

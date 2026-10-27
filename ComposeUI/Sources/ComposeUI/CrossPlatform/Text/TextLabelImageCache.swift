@@ -624,7 +624,7 @@ final class TextLabelImageCache {
 
     /// Draws a label's image on the worker's queue.
     func draw(_ key: Key, into drawing: Drawing) {
-      queue.async { [drawer] in
+      queue.asyncWithoutFlags { [drawer] in
         // the cache cancels a drawing that it no longer needs, which the worker then skips
         guard drawing.isPending else {
           return
