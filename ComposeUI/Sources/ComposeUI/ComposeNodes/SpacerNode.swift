@@ -126,29 +126,19 @@ public struct SpacerNode: ComposeNode {
   }
 }
 
-extension ComposeNode {
+extension SpacerNode {
 
-  /// Gives the node a width of 0 if it's a spacer without a width.
-  ///
-  /// Called on an `any ComposeNode`, it changes the spacer in its existential box, where storing a new spacer would
-  /// allocate a new box.
-  mutating func zeroWidthIfSpacerWithoutWidth() {
-    guard var spacer = self as? SpacerNode, spacer.width == nil else {
-      return
+  /// Gives the spacer a width of 0 if it's flexible in width.
+  mutating func zeroWidthIfFlexible() {
+    if width == nil {
+      width = 0
     }
-    spacer.width = 0
-    self = spacer as! Self // swiftlint:disable:this force_cast
   }
 
-  /// Gives the node a height of 0 if it's a spacer without a height.
-  ///
-  /// Called on an `any ComposeNode`, it changes the spacer in its existential box, where storing a new spacer would
-  /// allocate a new box.
-  mutating func zeroHeightIfSpacerWithoutHeight() {
-    guard var spacer = self as? SpacerNode, spacer.height == nil else {
-      return
+  /// Gives the spacer a height of 0 if it's flexible in height.
+  mutating func zeroHeightIfFlexible() {
+    if height == nil {
+      height = 0
     }
-    spacer.height = 0
-    self = spacer as! Self // swiftlint:disable:this force_cast
   }
 }
