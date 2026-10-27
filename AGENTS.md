@@ -139,6 +139,10 @@ The performance learnings are in `docs/performance.md`. Read it before changing 
 - Measure the delta before recommending or claiming an optimization, since plausible-sounding savings can be ~0.
 - Compare every change's benchmarks against master, and before treating a flagged benchmark as a regression, check whether it runs the changed code and rerun it alone against the base.
 
+## Unsafe memory
+
+- Place values of different types in raw memory at offsets that advance by each value's stride, not its size: initializing a value binds its stride's bytes to its type, so a value that starts in the previous value's tail padding overlaps memory bound to another type, which is undefined behavior even though nothing writes there. Reserve the stride and the padding to the alignment, as `NodeBuffer` does for each child.
+
 ## CI
 
 - Do not run a standalone `swift package resolve` before xcodebuild tests. xcodebuild resolves pinned packages into DerivedData/SourcePackages itself, so the standalone resolve only duplicates work.
