@@ -276,13 +276,14 @@ class TextLabelImageCacheTests: XCTestCase {
     cache.prefetch(third)
     cache.prefetch(fourth)
 
-    // then: the second request, the oldest one left, is evicted
+    // then: the second request, the oldest one left, is evicted, and the third request took the slot in the order that
+    // the first label's take freed
     expect(cache.test.isPending(second)) == nil
     expect(cache.test.isPending(third)) == true
     expect(cache.test.isPending(fourth)) == true
     expect(cache.test.bytes) == imageBytes * 2
     expect(cache.test.evictionKeyCount) == 2
-    expect(cache.test.linkCount) == 2
+    expect(cache.test.evictionSlotCount) == 3
   }
 
   func test_prefetch_overMaximumBytes_evictsALabelRequestedAgainAfterTheEarlierRequests() throws {
@@ -307,7 +308,6 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(cache.test.isPending(first)) == true
     expect(cache.test.isPending(third)) == true
     expect(cache.test.evictionKeyCount) == 2
-    expect(cache.test.linkCount) == 2
   }
 
   func test_prefetch_overMaximumBytesAfterRemoveAll_evictsTheFirstRequestAfterItInOneStep() throws {
@@ -333,13 +333,14 @@ class TextLabelImageCacheTests: XCTestCase {
       cache.prefetch(third)
     }
 
-    // then: the first request after the removal is evicted, in one step, instead of one for each request before it
+    // then: the first request after the removal is evicted, in one step, instead of one for each request before it,
+    // and the order keeps only the slots of the requests after the removal
     expect(counts.imageEvictionSteps) == 1
     expect(cache.test.isPending(first)) == nil
     expect(cache.test.isPending(second)) == true
     expect(cache.test.isPending(third)) == true
     expect(cache.test.evictionKeyCount) == 2
-    expect(cache.test.linkCount) == 2
+    expect(cache.test.evictionSlotCount) == 3
   }
 
   func test_prefetch_overMaximumBytesAfterManyTakes_evictsInOneStep() throws {
@@ -364,11 +365,14 @@ class TextLabelImageCacheTests: XCTestCase {
       cache.prefetch(third)
     }
 
-    // then: the first of the two is evicted, in one step, instead of one for each label that took its drawing before
+    // then: the first of the two is evicted, in one step, instead of one for each label that took its drawing before,
+    // and the 1,000 requests shared the slot that each take freed, instead of one slot each
     expect(counts.imageEvictionSteps) == 1
     expect(cache.test.isPending(first)) == nil
     expect(cache.test.isPending(second)) == true
     expect(cache.test.isPending(third)) == true
+    expect(cache.test.evictionKeyCount) == 2
+    expect(cache.test.evictionSlotCount) == 3
   }
 
   func test_maximumBytesLowered_afterALabelTookADrawingBetweenTwoOthers_evictsInRequestOrder() throws {
@@ -399,7 +403,6 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(cache.test.isPending(keys[3])) == nil
     expect(cache.test.entryCount) == 0
     expect(cache.test.evictionKeyCount) == 0
-    expect(cache.test.linkCount) == 0
   }
 
   func test_maximumBytesLowered_afterALabelTookTheNewestDrawing_evictsInRequestOrder() throws {
@@ -424,7 +427,6 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(cache.test.isPending(keys[1])) == nil
     expect(cache.test.isPending(keys[3])) == true
     expect(cache.test.evictionKeyCount) == 1
-    expect(cache.test.linkCount) == 1
 
     // when: lowering the room to none
     cache.maximumBytes = 0
@@ -432,7 +434,6 @@ class TextLabelImageCacheTests: XCTestCase {
     // then: the fourth request is evicted too, and no entry is left in the order
     expect(cache.test.isPending(keys[3])) == nil
     expect(cache.test.evictionKeyCount) == 0
-    expect(cache.test.linkCount) == 0
   }
 
   func test_prefetch_imageLargerThanMaximumBytes_isntDrawn() throws {
@@ -462,10 +463,10 @@ class TextLabelImageCacheTests: XCTestCase {
     // when: removing all the drawings
     cache.removeAll()
 
-    // then: the cache forgets the drawing, and the worker skips it
+    // then: the cache forgets the drawing and its slot in the order, and the worker skips it
     expect(cache.test.entryCount) == 0
     expect(cache.test.evictionKeyCount) == 0
-    expect(cache.test.linkCount) == 0
+    expect(cache.test.evictionSlotCount) == 0
     expect(cache.test.bytes) == 0
     TextLabelImageCache.Test.waitForDrawings()
     expect(TextLabelImageCache.Test.finishedDrawingCount) == finishedCount
@@ -608,11 +609,15 @@ class TextLabelImageCacheTests: XCTestCase {
     expect(equalText) == key
     expect(equalText.hashValue) == key.hashValue
 
-    // then: a key with any other input isn't equal
+    // then: a key with any other input isn't equal, including a text of the same string with other attributes, which has
+    // the same hash
     let darkAppearance = try unwrap(NSAppearance(named: .darkAqua))
     let displayP3 = try unwrap(CGColorSpace(name: CGColorSpace.displayP3))
+    let otherAttributes = NSAttributedString(string: "Hello", attributes: [.foregroundColor: NSColor.red])
+    expect(otherAttributes.hash) == text.hash
     let otherKeys = [
       TextLabelImageCache.Key(text: NSAttributedString(string: "Hi"), size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: environment),
+      TextLabelImageCache.Key(text: otherAttributes, size: key.size, numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: environment),
       TextLabelImageCache.Key(text: text, size: CGSize(width: 100, height: 21), numberOfLines: 1, lineBreakMode: .byTruncatingTail, inset: .zero, environment: environment),
       TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 2, lineBreakMode: .byTruncatingTail, inset: .zero, environment: environment),
       TextLabelImageCache.Key(text: text, size: key.size, numberOfLines: 1, lineBreakMode: .byWordWrapping, inset: .zero, environment: environment),

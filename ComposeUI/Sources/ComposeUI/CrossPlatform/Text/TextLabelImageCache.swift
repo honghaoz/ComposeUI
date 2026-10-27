@@ -114,6 +114,9 @@ final class TextLabelImageCache {
     /// The window and the appearance that the label shows in.
     let environment: Environment
 
+    /// The text's hash, which the key keeps, since hashing the text reads its characters.
+    private let textHash: Int
+
     /// Makes the key of a label's image.
     ///
     /// - Parameters:
@@ -125,31 +128,44 @@ final class TextLabelImageCache {
     ///   - environment: The window and the appearance that the label shows in.
     init(text: NSAttributedString, size: CGSize, numberOfLines: Int, lineBreakMode: NSLineBreakMode, inset: CGSize, environment: Environment) {
       // a mutable text can change after it's set, while a worker reads it, so the key keeps a copy
-      self.text = text is NSMutableAttributedString ? NSAttributedString(attributedString: text) : text
+      let text = text is NSMutableAttributedString ? NSAttributedString(attributedString: text) : text
+      self.text = text
       self.size = size
       self.numberOfLines = numberOfLines
       self.lineBreakMode = lineBreakMode
       self.inset = inset
       self.environment = environment
+      self.textHash = text.hash
     }
 
     static func == (lhs: Key, rhs: Key) -> Bool {
-      // a text node passes the same text object across render passes, so identity settles most comparisons without
-      // comparing the texts' contents
-      (lhs.text === rhs.text || lhs.text.isEqual(to: rhs.text)) &&
+      // a dictionary compares the key that it looks up with each key that it probes, so the cheap comparisons come
+      // first, and the texts' hashes tell most texts apart before their contents. the comparisons of objects are kept
+      // out of line, so that the rest is small enough to inline into the dictionary's probe, which then passes another
+      // label's key without a call or a retain of the key
+      lhs.textHash == rhs.textHash &&
         lhs.size == rhs.size &&
         lhs.numberOfLines == rhs.numberOfLines &&
         lhs.lineBreakMode == rhs.lineBreakMode &&
         lhs.inset == rhs.inset &&
         lhs.environment.scale == rhs.environment.scale &&
-        lhs.environment.colorSpace == rhs.environment.colorSpace &&
-        lhs.environment.appearance.name == rhs.environment.appearance.name &&
-        lhs.environment.systemColorsGeneration == rhs.environment.systemColorsGeneration
+        lhs.environment.systemColorsGeneration == rhs.environment.systemColorsGeneration &&
+        lhs.hasTheSameTextAndColors(as: rhs)
+    }
+
+    /// Returns whether the key has the same text, color space and appearance as another key.
+    @inline(never)
+    private func hasTheSameTextAndColors(as other: Key) -> Bool {
+      // a text node passes the same text object across render passes, so identity settles most comparisons without
+      // comparing the texts' contents
+      (text === other.text || text.isEqual(to: other.text)) &&
+        environment.colorSpace == other.environment.colorSpace &&
+        environment.appearance.name == other.environment.appearance.name
     }
 
     func hash(into hasher: inout Hasher) {
       // the labels of one view share the window and usually the inset, so the hash leaves them to the comparison
-      hasher.combine(text.hash)
+      hasher.combine(textHash)
       hasher.combine(size.width)
       hasher.combine(size.height)
       hasher.combine(numberOfLines)
@@ -208,19 +224,36 @@ final class TextLabelImageCache {
   ///
   /// - Parameter key: The key of the label's image.
   func prefetch(_ key: Key) {
-    if let index = entries.index(forKey: key) {
-      entries.values[index].requestCount += 1
-    } else {
+    // the key is looked up and inserted in one probe of the dictionary, through its subscript's access in place
+    guard let drawing = addRequest(for: key, to: &entries[key]) else {
+      return
+    }
+    evictIfNeeded()
+    Self.workers.next().draw(key, into: drawing)
+  }
+
+  /// Adds a label's request to the entry of its key, which it makes if there's none.
+  ///
+  /// - Parameters:
+  ///   - key: The key of the label's image.
+  ///   - entry: The entry of the key, `nil` if there's none.
+  /// - Returns: The drawing of the entry that it made, `nil` if there was an entry, or if the image takes more than
+  ///   `maximumBytes`.
+  private func addRequest(for key: Key, to entry: inout Entry?) -> Drawing? {
+    switch entry {
+    case .some:
+      entry?.requestCount += 1
+      return nil
+    case .none:
       let entryBytes = Self.bytes(of: key)
       guard entryBytes <= maximumBytes else {
-        return
+        return nil
       }
 
       let drawing = Drawing()
-      entries[key] = Entry(drawing: drawing, bytes: entryBytes, sequence: order.append(key), requestCount: 1)
+      entry = Entry(drawing: drawing, bytes: entryBytes, slot: order.append(key), requestCount: 1)
       bytes += entryBytes
-      evictIfNeeded()
-      Self.workers.next().draw(key, into: drawing)
+      return drawing
     }
   }
 
@@ -246,7 +279,7 @@ final class TextLabelImageCache {
       return result
     } else {
       let entry = entries.remove(at: index).value
-      order.remove(entry.sequence)
+      order.remove(entry.slot)
       bytes -= entry.bytes
       return entry.drawing.takeResultOrCancel()
     }
@@ -264,7 +297,7 @@ final class TextLabelImageCache {
 
   /// Evicts the entries requested first, until the entries' images fit `maximumBytes`.
   private func evictIfNeeded() {
-    while bytes > maximumBytes, let sequence = order.oldest, let key = order.remove(sequence) {
+    while bytes > maximumBytes, let slot = order.oldest, let key = order.remove(slot) {
       #if DEBUG
       WorkCounter.count(.imageEvictionStep)
       #endif
@@ -299,105 +332,98 @@ final class TextLabelImageCache {
     /// The bytes that the drawing's image takes at most.
     let bytes: Int
 
-    /// The entry's sequence number in the order of the requests.
-    let sequence: Int
+    /// The slot of the entry's key in the order of the requests.
+    let slot: Int
 
     /// The number of labels about to scroll in that the drawing was requested for, and that haven't taken it.
     var requestCount: Int
   }
 
-  /// The keys of the entries in the order of their requests, linked by their sequence numbers, so that eviction takes
-  /// the oldest without searching the entries or going past the ones that labels took.
+  /// The keys of the entries in the order of their requests, linked through the slots that keep them, so that eviction
+  /// takes the oldest without searching the entries or going past the ones that labels took.
   ///
-  /// A link is read and written back, instead of changed in place through `links[sequence]?.newer`, which allocates,
-  /// and the keys are kept apart from the links, so that writing a link back doesn't copy a key.
+  /// The keys and their links are kept in arrays by their slots, which a removed key frees for a later key, so that a
+  /// request and a removal change array elements instead of hashing into dictionaries, and the keys are kept apart from
+  /// the links, so that changing a link doesn't copy a key.
   private struct RequestOrder {
 
-    /// The keys by their sequence numbers.
-    private(set) var keys: [Int: Key] = [:]
+    /// The keys by their slots, `nil` in a free slot.
+    private(set) var keys: [Key?] = []
 
-    /// The links by their sequence numbers.
-    private(set) var links: [Int: Link] = [:]
+    /// The links by their slots.
+    private var links: [Link] = []
 
-    /// The sequence number of the oldest key, `nil` if there's none.
+    /// The free slots, which later keys take.
+    private var freeSlots: [Int] = []
+
+    /// The slot of the oldest key, `nil` if there's none.
     private(set) var oldest: Int?
 
-    /// The sequence number of the newest key, `nil` if there's none.
+    /// The slot of the newest key, `nil` if there's none.
     private var newest: Int?
-
-    /// The sequence number of the next key.
-    private var next = 0
 
     /// Adds a key as the newest.
     ///
     /// - Parameter key: The key.
-    /// - Returns: The key's sequence number.
+    /// - Returns: The key's slot.
     mutating func append(_ key: Key) -> Int {
-      let sequence = next
-      next += 1
-      keys[sequence] = key
-      links[sequence] = Link(older: newest, newer: nil)
-      if let newest {
-        if var newestLink = links[newest] {
-          newestLink.newer = sequence
-          links[newest] = newestLink
-        }
+      let link = Link(older: newest, newer: nil)
+      let slot: Int
+      if let freeSlot = freeSlots.popLast() {
+        slot = freeSlot
+        keys[slot] = key
+        links[slot] = link
       } else {
-        oldest = sequence
+        slot = keys.count
+        keys.append(key)
+        links.append(link)
       }
-      newest = sequence
-      return sequence
+      if let newest {
+        links[newest].newer = slot
+      } else {
+        oldest = slot
+      }
+      newest = slot
+      return slot
     }
 
-    /// Removes a key.
+    /// Removes the key in a slot, and frees the slot.
     ///
-    /// - Parameter sequence: The key's sequence number.
-    /// - Returns: The key, `nil` if there's none with the sequence number.
+    /// - Parameter slot: The key's slot.
+    /// - Returns: The key, `nil` if the slot is free.
     @discardableResult
-    mutating func remove(_ sequence: Int) -> Key? {
-      if let link = links.removeValue(forKey: sequence) {
-        unlink(link)
+    mutating func remove(_ slot: Int) -> Key? {
+      let link = links[slot]
+      if let older = link.older {
+        links[older].newer = link.newer
+      } else {
+        oldest = link.newer
       }
-      return keys.removeValue(forKey: sequence)
+      if let newer = link.newer {
+        links[newer].older = link.older
+      } else {
+        newest = link.older
+      }
+      freeSlots.append(slot)
+      return keys[slot].take()
     }
 
     /// Removes every key.
     mutating func removeAll() {
       keys.removeAll()
       links.removeAll()
+      freeSlots.removeAll()
       oldest = nil
       newest = nil
-    }
-
-    /// Joins the keys before and after a key that left the order.
-    ///
-    /// - Parameter link: The link of the key that left.
-    private mutating func unlink(_ link: Link) {
-      if let older = link.older {
-        if var olderLink = links[older] {
-          olderLink.newer = link.newer
-          links[older] = olderLink
-        }
-      } else {
-        oldest = link.newer
-      }
-      if let newer = link.newer {
-        if var newerLink = links[newer] {
-          newerLink.older = link.older
-          links[newer] = newerLink
-        }
-      } else {
-        newest = link.older
-      }
     }
 
     /// A key's place in the order.
     struct Link {
 
-      /// The sequence number of the key before it, `nil` for the oldest.
+      /// The slot of the key before it, `nil` for the oldest.
       var older: Int?
 
-      /// The sequence number of the key after it, `nil` for the newest.
+      /// The slot of the key after it, `nil` for the newest.
       var newer: Int?
     }
   }
@@ -685,12 +711,12 @@ final class TextLabelImageCache {
 
     /// The number of keys in the order that eviction follows.
     var evictionKeyCount: Int {
-      host.order.keys.count
+      host.order.keys.count { $0 != nil }
     }
 
-    /// The number of links in the order that eviction follows.
-    var linkCount: Int {
-      host.order.links.count
+    /// The number of slots in the order that eviction follows, free or not.
+    var evictionSlotCount: Int {
+      host.order.keys.count
     }
 
     /// Whether the drawing of a key is pending, which `nil` means there's no drawing for.
