@@ -44,10 +44,12 @@ import ChouTiTest
 
 /// Tests for the steady-state per-item frame/transform update behavior in the render pass.
 ///
-/// These tests pin down two properties of the reuse path:
+/// These tests pin down three properties of the reuse path:
 /// - Correctness: a reused renderable always ends a render pass with the correct frame and an identity transform.
 /// - Efficiency: a reused renderable whose frame is unchanged (the common case while scrolling) is neither re-framed
 ///   nor frame-animated, including at third-pixel frames on 3x displays where the derived frame is imprecise.
+/// - Exactness: a reused renderable's update context, and its remove context when it leaves, hand out the frame that
+///   the previous pass applied as the old frame, including at third-pixel frames.
 class ComposeView_RenderFrameUpdateTests: XCTestCase {
 
   // MARK: - setFrame skipping
@@ -534,6 +536,200 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(tracked.hasFrame(CGRect(x: 0, y: 0, width: 100, height: 50))) == true
   }
 
+  // MARK: - old frame
+
+  func test_reusedRenderable_oldFrameIsThePreviousFrame_thirdPixelFrame() throws {
+    // given: a 3x content view with a layer row at a third-pixel offset, rendered, whose layer derives a frame that
+    // differs from the frame that the render pass applied
+    let third: CGFloat = 1 / 3
+    var spacerHeight = 10 + third
+    var updateContext: RenderableUpdateContext?
+    var trackingLayer: FrameTrackingLayer?
+    let view = makeLayerContentView(spacerHeight: { spacerHeight }, update: { _, context in updateContext = context }, captureLayer: { trackingLayer = $0 })
+    view.contentScaleFactor = 3
+    view.refresh(animated: false)
+
+    let tracked = try unwrap(trackingLayer)
+    let appliedFrame = try unwrap(updateContext?.newFrame)
+    expect(tracked.frame) != appliedFrame
+
+    // when: scroll a little, which keeps the row's frame
+    view.contentOffset = CGPoint(x: 0, y: 10)
+    view.layoutIfNeeded()
+
+    // then: the old frame is the frame that the previous pass applied, equal to the new frame
+    expect(updateContext?.updateType) == .boundsChange
+    expect(updateContext?.oldFrame) == appliedFrame
+    expect(updateContext?.newFrame) == appliedFrame
+
+    // when: refresh, which keeps the row's frame
+    view.refresh(animated: false)
+
+    // then: the old frame is the frame that the previous pass applied, equal to the new frame
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.oldFrame) == appliedFrame
+    expect(updateContext?.newFrame) == appliedFrame
+
+    // when: refresh with the row moved to another third-pixel offset
+    spacerHeight = 20 + 2 * third
+    view.refresh(animated: false)
+
+    // then: the old frame is the frame that the previous pass applied, and the new frame is the moved frame
+    let movedFrame = CGRect(x: 0, y: 20 + 2 * third, width: 100, height: 50).rounded(scaleFactor: 3)
+    expect(updateContext?.oldFrame) == appliedFrame
+    expect(updateContext?.newFrame) == movedFrame
+
+    // when: scroll a little, which keeps the moved frame
+    view.contentOffset = CGPoint(x: 0, y: 20)
+    view.layoutIfNeeded()
+
+    // then: the old frame is the moved frame, which the previous pass applied
+    expect(updateContext?.oldFrame) == movedFrame
+    expect(updateContext?.newFrame) == movedFrame
+  }
+
+  func test_reusedRenderable_oldFrameIsThePreviousFrame_afterAnEarlierItemLeaves() throws {
+    // given: a 3x content view with a layer row at a third-pixel offset below another row, rendered
+    let third: CGFloat = 1 / 3
+    var updateContext: RenderableUpdateContext?
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      VStack {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 50 + third)
+
+        LayerNode()
+          .frame(width: .flexible, height: 50)
+          .onUpdate { _, context in updateContext = context }
+
+        ColorNode(.blue)
+          .frame(width: .flexible, height: 450)
+      }
+    }
+    view.contentScaleFactor = 3
+    view.refresh(animated: false)
+
+    let appliedFrame = try unwrap(updateContext?.newFrame)
+
+    // when: scroll past the first row, which leaves the visible bounds, so the layer row is reused at another index
+    view.contentOffset = CGPoint(x: 0, y: 60)
+    view.layoutIfNeeded()
+
+    // then: the old frame is the frame that the previous pass applied to the layer row, equal to the new frame
+    expect(updateContext?.updateType) == .boundsChange
+    expect(updateContext?.oldFrame) == appliedFrame
+    expect(updateContext?.newFrame) == appliedFrame
+  }
+
+  func test_reusedRenderable_oldFrameIsThePreviousFrame_afterScaleChange() throws {
+    // given: a 3x content view with a layer row at a third-pixel offset, rendered
+    let third: CGFloat = 1 / 3
+    var updateContext: RenderableUpdateContext?
+    let view = makeLayerContentView(spacerHeight: { 10 + third }, update: { _, context in updateContext = context }, captureLayer: { _ in })
+    view.contentScaleFactor = 3
+    view.refresh(animated: false)
+
+    let appliedFrame = try unwrap(updateContext?.newFrame)
+
+    // when: the scale changes to 2x, and the view refreshes
+    view.contentScaleFactor = 2
+    view.refresh(animated: false)
+
+    // then: the old frame is the frame that the previous pass applied at 3x, and the new frame is on the 2x pixel grid
+    expect(updateContext?.oldFrame) == appliedFrame
+    expect(updateContext?.newFrame) == CGRect(x: 0, y: 10.5, width: 100, height: 50)
+  }
+
+  func test_reusedRenderable_oldFrameIsThePreviousFrame_whenUpdateMovedTheRenderable() throws {
+    // given: a content view with a layer row whose `update` moves the layer 5 points down when it's inserted, rendered
+    var updateContext: RenderableUpdateContext?
+    var trackingLayer: FrameTrackingLayer?
+    let view = makeLayerContentView(
+      update: { renderable, context in
+        updateContext = context
+        switch context.updateType {
+        case .insert:
+          renderable.layer.frame = context.newFrame.offsetBy(dx: 0, dy: 5)
+        case .refresh,
+             .boundsChange:
+          break
+        }
+      },
+      captureLayer: { trackingLayer = $0 }
+    )
+    view.refresh(animated: false)
+
+    let tracked = try unwrap(trackingLayer)
+    let appliedFrame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    expect(tracked.frame) == appliedFrame.offsetBy(dx: 0, dy: 5)
+
+    // when: scroll a little, which keeps the row's frame
+    view.contentOffset = CGPoint(x: 0, y: 10)
+    view.layoutIfNeeded()
+
+    // then: the old frame is the frame that the previous pass applied, not where `update` moved the layer, and the pass
+    // moves the layer back to it
+    expect(updateContext?.oldFrame) == appliedFrame
+    expect(updateContext?.newFrame) == appliedFrame
+    expect(tracked.frame) == appliedFrame
+  }
+
+  func test_removedRenderable_oldFrameIsThePreviousFrame_thirdPixelFrame() throws {
+    // given: a 3x content view with a layer row at a third-pixel offset, rendered, whose layer derives a frame that
+    // differs from the frame that the render pass applied
+    let third: CGFloat = 1 / 3
+    var appliedFrame: CGRect?
+    var willRemoveContext: RenderableRemoveContext?
+    var didRemoveContext: RenderableRemoveContext?
+    var trackingLayer: FrameTrackingLayer?
+    let view = makeLayerContentView(
+      spacerHeight: { 10 + third },
+      update: { _, context in appliedFrame = context.newFrame },
+      willRemove: { _, context in willRemoveContext = context },
+      didRemove: { _, context in didRemoveContext = context },
+      captureLayer: { trackingLayer = $0 }
+    )
+    view.contentScaleFactor = 3
+    view.refresh(animated: false)
+
+    let tracked = try unwrap(trackingLayer)
+    let frame = try unwrap(appliedFrame)
+    expect(tracked.frame) != frame
+
+    // when: scroll the row out of the visible bounds
+    view.contentOffset = CGPoint(x: 0, y: 200)
+    view.layoutIfNeeded()
+
+    // then: both remove blocks get the frame that the previous pass applied as the old frame
+    expect(willRemoveContext?.oldFrame) == frame
+    expect(didRemoveContext?.oldFrame) == frame
+  }
+
+  func test_removedRenderable_oldFrameIsThePreviousFrame_afterScaleChange() throws {
+    // given: a 3x content view with a layer row at a third-pixel offset, rendered
+    let third: CGFloat = 1 / 3
+    var appliedFrame: CGRect?
+    var removeContext: RenderableRemoveContext?
+    let view = makeLayerContentView(
+      spacerHeight: { 10 + third },
+      update: { _, context in appliedFrame = context.newFrame },
+      willRemove: { _, context in removeContext = context },
+      captureLayer: { _ in }
+    )
+    view.contentScaleFactor = 3
+    view.refresh(animated: false)
+
+    let frame = try unwrap(appliedFrame)
+
+    // when: the scale changes to 2x, and the row scrolls out of the visible bounds in the same pass
+    view.contentScaleFactor = 2
+    view.contentOffset = CGPoint(x: 0, y: 200)
+    view.layoutIfNeeded()
+
+    // then: the old frame is the frame that the previous pass applied at 3x
+    expect(removeContext?.oldFrame) == frame
+  }
+
   // MARK: - Helpers
 
   /// A content view with a flexible-width tracking-view row below a spacer in a scrollable stack.
@@ -583,6 +779,8 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
                                     willInsert: @escaping (Renderable, RenderableInsertContext) -> Void = { _, _ in },
                                     willUpdate: @escaping (Renderable, RenderableUpdateContext) -> Void = { _, _ in },
                                     update: @escaping (Renderable, RenderableUpdateContext) -> Void = { _, _ in },
+                                    willRemove: @escaping (Renderable, RenderableRemoveContext) -> Void = { _, _ in },
+                                    didRemove: @escaping (Renderable, RenderableRemoveContext) -> Void = { _, _ in },
                                     captureLayer: @escaping (FrameTrackingLayer) -> Void) -> ComposeView
   {
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
@@ -602,6 +800,8 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
         .willInsert(willInsert)
         .willUpdate(willUpdate)
         .onUpdate(update)
+        .willRemove(willRemove)
+        .onRemove(didRemove)
 
         ColorNode(.blue)
           .frame(width: .flexible, height: 450)

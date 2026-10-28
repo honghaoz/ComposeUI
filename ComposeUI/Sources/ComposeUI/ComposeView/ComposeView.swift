@@ -143,6 +143,9 @@ open class ComposeView: BaseScrollView {
   /// The content insets from the last completed render pass, or nil before the first render.
   private var lastRenderInsets: EdgeInsets?
 
+  /// The scale factor that the last render pass rounded the renderables' frames with.
+  private var lastRenderScaleFactor: CGFloat = 1
+
   /// The ids of the renderable items that are being rendered.
   private var renderableItemIds: [ComposeNodeId] = []
 
@@ -151,6 +154,10 @@ open class ComposeView: BaseScrollView {
 
   /// The indices of the renderable items in `renderableItems`, by their ids.
   private var renderableItemIndexMap: [ComposeNodeId: Int] = [:]
+
+  /// The buffer that a render pass fills with the index that each item it reuses had in the last pass, by the item's
+  /// index in the pass, kept between passes so that a pass doesn't allocate it.
+  private var reusedItemOldIndices: [Int] = []
 
   /// The map of the renderables that are being rendered.
   private var renderableMap: [ComposeNodeId: Renderable] = [:]
@@ -1358,6 +1365,13 @@ open class ComposeView: BaseScrollView {
     // the removals below can keep their reusable views in place, for the insertions after them
     inPlaceReuse.startKeeping(hasPool: renderablePool != nil)
 
+    // the old index of each reused item, by its new index, for the old frame that the reuse hands out. the buffer is
+    // taken out of the view, so that it's the array's only reference and refills without allocating
+    var reusedOldIndices = reusedItemOldIndices
+    reusedItemOldIndices = []
+    reusedOldIndices.removeAll(keepingCapacity: true)
+    reusedOldIndices.append(contentsOf: repeatElement(0, count: newRenderableItemsCount))
+
     // the old and new items are read in place from their arrays, by index, since looking them up in a map of items
     // would copy each item, which retains and releases its references
     for oldIndex in oldRenderableItemIds.indices {
@@ -1368,6 +1382,7 @@ open class ComposeView: BaseScrollView {
         if oldRenderableItems[oldIndex].hasSameRenderableType(as: newRenderableItems[newIndex]) {
           // this renderable item is still in the content, plan to reuse it
           zOrder.recordReuse(oldIndex: oldIndex, newIndex: newIndex)
+          reusedOldIndices[newIndex] = oldIndex
           continue
         } else {
           // an item can only update a renderable of its own type, so when its type changed, the old renderable is
@@ -1388,7 +1403,10 @@ open class ComposeView: BaseScrollView {
 
       if let oldRenderable = oldRenderableMap[oldId] {
         let oldRenderableItem = oldRenderableItems[oldIndex]
-        let oldFrame = oldRenderable.frame
+        // the frame that the last pass applied, worked out from its item instead of read back from the renderable,
+        // since the frame that a layer derives from its position can differ from the frame set on it by floating-point
+        // noise, for example on a 3x display
+        let oldFrame = oldRenderableItem.frame.rounded(scaleFactor: lastRenderScaleFactor)
         oldRenderableItem.performWillRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: self))
 
         let removeTransition = !isReplaced && animationDecision.allowsTransitions ? oldRenderableItem.transition?.remove : nil
@@ -1507,6 +1525,9 @@ open class ComposeView: BaseScrollView {
     zPositionKeyOffset = zOrder.keyOffset
     zOrder.moveKeys(ofRemovingRenderables: &removingRenderableMap)
 
+    // the pass rounds every frame with one scale factor, which it records for the next pass to work out the frames that
+    // this pass applied
+    let scaleFactor = contentScaleFactor
     for (itemIndex, renderableItem) in newRenderableItems.enumerated() {
       let id = renderableItem.id
 
@@ -1529,8 +1550,15 @@ open class ComposeView: BaseScrollView {
           updateType = .boundsChange
         }
 
-        let oldFrame = renderable.frame
-        let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
+        // the frame that the last pass applied, worked out as for a removal
+        let oldIndex = reusedOldIndices[itemIndex]
+        #if DEBUG && !COMPOSEUI_BENCHMARK
+        // the reuse detection has to record the old index of every renderable that the old map keeps, since an index it
+        // missed hands out another item's frame without failing
+        ComposeUI.assert(oldRenderableItemIds[oldIndex] == id, "missing old index of reused renderable: \(id.id)")
+        #endif
+        let oldFrame = oldRenderableItems[oldIndex].frame.rounded(scaleFactor: lastRenderScaleFactor)
+        let newFrame = renderableItem.frame.rounded(scaleFactor: scaleFactor)
 
         let animationTiming: AnimationTiming?
         if animationDecision.allowsAnimations, let renderableItemAnimationTiming = renderableItem.animationTiming {
@@ -1567,10 +1595,15 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.performUpdate(renderable, renderableUpdateContext)
 
-        // a nested `ComposeView` this pass resized renders its content for the new size within this render pass,
-        // instead of on its own later, so its animations are capped by this pass's animation decision
-        if oldFrame.size != newFrame.size {
-          (renderable.view as? ComposeView)?.renderBoundsChangeIfNeeded()
+        // render a resized nested `ComposeView` now, within this pass, so that its animations follow this pass's
+        // animation decision instead of its own. compare the view's size with the size it last rendered at, not
+        // `oldFrame` with `newFrame`, since `willUpdate`, `update` and app code can resize it too. skip a view whose
+        // size didn't change, because the call would also run its pending refresh now, with this pass's animation
+        // decision instead of its own
+        if let composeView = renderable.view as? ComposeView,
+           composeView.bounds.size != (composeView.lastBoundsSize ?? .zero)
+        {
+          composeView.renderBoundsChangeIfNeeded()
         }
 
         #if DEBUG
@@ -1579,7 +1612,7 @@ open class ComposeView: BaseScrollView {
 
       } else {
         // [3/3] 🆕 insert the renderable item that is new
-        let newFrame = renderableItem.frame.rounded(scaleFactor: contentScaleFactor)
+        let newFrame = renderableItem.frame.rounded(scaleFactor: scaleFactor)
 
         // the insert transition that will animate this insertion, if any. a renderable that replaces one of another type
         // isn't animated in, since its item stays in the content.
@@ -1729,6 +1762,8 @@ open class ComposeView: BaseScrollView {
     lastRenderBounds = renderBounds
     lastBoundsSize = context.bounds.size
     lastRenderInsets = insets
+    lastRenderScaleFactor = scaleFactor
+    reusedItemOldIndices = reusedOldIndices
   }
 
   /// Performs the layout for a content update, which also updates the scroll indicators.
