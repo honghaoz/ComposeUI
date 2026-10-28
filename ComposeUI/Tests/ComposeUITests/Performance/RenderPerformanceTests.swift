@@ -967,6 +967,10 @@ class RenderPerformanceTests: BenchmarkTestCase {
     runFrameUpdateBenchmark(name: "updateFrame.view.changedWithOtherAnimation", renderable: .view(Self.makeLayerBackedView()), state: .changedWithOtherAnimation)
   }
 
+  func test_updateFrame_nonAnimated_view_changedUnderATransform() {
+    runFrameUpdateBenchmark(name: "updateFrame.view.changedUnderATransform", renderable: .view(Self.makeLayerBackedView()), state: .changedUnderATransform)
+  }
+
   func test_updateFrame_animated_layer() {
     runAnimatedFrameUpdateBenchmark(name: "updateFrame.layer.animated", renderable: .layer(CALayer()))
   }
@@ -984,6 +988,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let scrollStep: CGFloat = 137 // a non-multiple of row height for varied row churn
     static let resizeStep: CGFloat = 300 // about a keyboard's height
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
+    static let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1) // a transform that a node sets
     static let reorderRowCount = 16 // rows that all show, so that reversing them keeps the same items
     static let subviewsPerRow = 30
     static let labelImageCacheEntryCount = 200
@@ -1264,6 +1269,9 @@ class RenderPerformanceTests: BenchmarkTestCase {
 
     /// The frame changes on every update while an animation of another property is in flight, as a fade does.
     case changedWithOtherAnimation
+
+    /// The frame changes on every update under a rotation that a node set, which a view's layer keeps on AppKit.
+    case changedUnderATransform
   }
 
   private func runFrameUpdateBenchmark(name: String, renderable: Renderable, state: FrameUpdateState) {
@@ -1286,6 +1294,10 @@ class RenderPerformanceTests: BenchmarkTestCase {
       fade.toValue = 0.5
       fade.duration = 1
       renderable.layer.add(fade, forKey: "opacity")
+    case .changedUnderATransform:
+      renderable.performWithTransformKeeping {
+        renderable.layer.transform = Constants.rotation
+      }
     }
 
     // when: measuring batches of non-animated frame updates, alternating between the frames unless unchanged. the clock

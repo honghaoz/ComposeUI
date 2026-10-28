@@ -40,6 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   private var shadowLabWindow: ShadowLabWindow?
   private var nestedScrollLabWindow: NestedScrollLabWindow?
   private var labelDrawingLabWindow: LabelDrawingLabWindow?
+  private var transformLabWindow: TransformLabWindow?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
 
@@ -93,6 +94,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     labelDrawingLabItem.target = self
     demosMenu.addItem(labelDrawingLabItem)
 
+    let transformLabItem = NSMenuItem(title: "Transform Lab", action: #selector(showTransformLab), keyEquivalent: "")
+    transformLabItem.target = self
+    demosMenu.addItem(transformLabItem)
+
     let demosMenuItem = NSMenuItem()
     demosMenuItem.submenu = demosMenu
     NSApp.mainMenu?.addItem(demosMenuItem)
@@ -138,6 +143,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       labelDrawingLabWindow = LabelDrawingLabWindow()
     }
     labelDrawingLabWindow?.window?.makeKeyAndOrderFront(nil)
+  }
+
+  @objc private func showTransformLab() {
+    if transformLabWindow == nil {
+      transformLabWindow = TransformLabWindow()
+    }
+    transformLabWindow?.window?.makeKeyAndOrderFront(nil)
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {
