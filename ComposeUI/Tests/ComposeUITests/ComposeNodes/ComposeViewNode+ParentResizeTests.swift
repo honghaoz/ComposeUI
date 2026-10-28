@@ -627,6 +627,67 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     }
   }
 
+  func test_parentResize_capsTheNestedLayoutAfterAWillUpdateCallbackAppliedTheNewFrame() throws {
+    // given: a parent without animations and a nested view whose dynamic behavior always animates, with a will-update
+    // callback that applies the new frame itself, before the parent applies it
+    let timing = AnimationTiming.linear(duration: 10)
+    var childView: ComposeView?
+    var childRenderTypes: [ComposeView.RenderType] = []
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    let parent = ComposeView {
+      ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 100)
+          .animation(timing)
+          .onUpdate { renderable, context in
+            layer = renderable.layer
+            layerContexts.append(context)
+          }
+      }
+      .flexibleSize()
+      .frame(width: .flexible, height: 100)
+      .willInsert { renderable, _ in
+        childView = renderable.view as? ComposeView
+        childView?.renderablePool = nil
+        childView?.animationBehavior = .dynamic { _, _ in true }
+        childView?.onDidRender { _, context in
+          childRenderTypes.append(context.renderType)
+        }
+      }
+      .willUpdate { renderable, context in
+        renderable.setFrame(context.newFrame)
+      }
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let child = try unwrap(childView)
+    let row = try unwrap(layer)
+    childRenderTypes.removeAll()
+    layerContexts.removeAll()
+
+    // when: the parent resizes the nested view
+    parent.frame.size.width = 160
+    parent.setNeedsLayout()
+    parent.layoutIfNeeded()
+
+    // then: the parent's frame update finds the new frame applied, but the layout changed the nested view's size, so
+    // the nested view lays out within the parent's pass, capped by the parent's decision, and the row snaps
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    let boundsChange = ComposeView.RenderType.boundsChange(
+      previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100),
+      bounds: CGRect(x: 0, y: 0, width: 160, height: 100)
+    )
+    expect(childRenderTypes) == [boundsChange]
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    expect(row.animationKeys()) == nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.animationTiming) == nil
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+  }
+
   func test_parentRefresh_resizingAViewNodeHostedView_laysItOutWithinTheParentPass() throws {
     // given: a parent without animations hosting a rendered view through a view node, whose dynamic behavior always
     // animates

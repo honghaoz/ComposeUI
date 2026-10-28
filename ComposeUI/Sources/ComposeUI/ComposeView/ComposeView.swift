@@ -1589,10 +1589,11 @@ open class ComposeView: BaseScrollView {
 
         renderableItem.performUpdate(renderable, renderableUpdateContext)
 
-        // a nested `ComposeView` this pass resized, also back to its layout size after something else resized it,
-        // renders its content for the new size within this render pass, instead of on its own later, so its animations
-        // are capped by this pass's animation decision
-        if isResized {
+        // a nested `ComposeView` this pass resized renders its content for the new size within this render pass,
+        // instead of on its own later, so its animations are capped by this pass's animation decision. a size change of
+        // the layout counts even when `willUpdate` applied the new frame first, and a resize by the update counts even
+        // when it only moves the view back to its layout size after something else resized it
+        if isResized || oldFrame.size != newFrame.size {
           (renderable.view as? ComposeView)?.renderBoundsChangeIfNeeded()
         }
 
