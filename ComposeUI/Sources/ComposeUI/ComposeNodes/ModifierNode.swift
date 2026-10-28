@@ -286,6 +286,11 @@ extension RenderablePropertyUpdate {
         guard context.oldFrame.size != context.newFrame.size else {
           return
         }
+      case .transform:
+        // the transform's anchor moves with the layer's size, so the transform updates when the size changes
+        guard context.oldFrame.size != context.newFrame.size else {
+          return
+        }
       case .backgroundColor,
            .opacity,
            .border,
@@ -445,6 +450,24 @@ extension RenderablePropertyUpdate {
         layer.shouldRasterize = false
         layer.rasterizationScale = 1
       }
+    case .transform(let transform, let anchor):
+      let layer = renderable.layer
+      let transform = layer.anchoredTransform(transform, about: anchor, size: context.newFrame.size)
+      let value = NSValue(caTransform3D: transform)
+      if let animationTiming = context.animationTiming {
+        if !CATransform3DEqualToTransform(layer.transform, transform) {
+          // the shown transform is unknown while a transform animation is in flight on a layer without a presentation
+          // layer, so the start stays unresolved, which Core Animation fills with the transform shown when it starts
+          layer.animate(
+            keyPath: "transform",
+            timing: animationTiming,
+            from: { $0.shownValue(forKeyPath: "transform") ?? NSNull() },
+            to: { _ in value as Any }
+          )
+        }
+      } else {
+        layer.retarget(keyPath: "transform", to: value)
+      }
     }
   }
 }
@@ -529,6 +552,8 @@ extension RenderableUpdateKey {
       if layer.rasterizationScale != 1 {
         layer.rasterizationScale = 1
       }
+    case .transform:
+      renderable.layer.restoreIdentityTransformIfNeeded()
     }
   }
 }
@@ -883,6 +908,30 @@ public extension ComposeNode {
       update: RenderableItem.AdditionalUpdate(.rasterize(scale: scale))
     )
   }
+
+  /// Set the transform of the node's renderables, which applies about a point of each renderable.
+  ///
+  /// The transform changes how a renderable shows, not its layout: the renderable keeps its frame, which the transform
+  /// applies to. An animated update animates the transform from the one shown.
+  ///
+  /// - Note: All renderables provided by the node will have the transform set, each about its own anchor.
+  /// - Note: The outermost transform wins, the inner ones are not applied.
+  /// - Note: It doesn't combine with `RenderableTransition.scale`, which owns the transform.
+  /// - Note: A renderable shows while its frame is in the visible bounds, so a transform that moves it past its frame
+  ///   can show it appearing or disappearing at the edges of the visible bounds.
+  ///
+  /// - Parameters:
+  ///   - transform: The transform to set.
+  ///   - anchor: The point of the renderable that the transform applies about, in the unit space of its bounds with
+  ///     the origin at the top left. Defaults to `.center`.
+  /// - Returns: A new node with the transform set.
+  @inlinable
+  func transform(_ transform: CATransform3D, anchor: UnitPoint = .center) -> some ComposeNode {
+    ModifierNode(
+      node: self,
+      update: RenderableItem.AdditionalUpdate(.transform(transform, anchor: anchor))
+    )
+  }
 }
 
 private extension CALayer {
@@ -893,5 +942,27 @@ private extension CALayer {
 
   var defaultShadowColor: CGColor {
     CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
+  }
+
+  /// The transform that applies a transform about a point of the layer, as Core Animation applies a transform about the
+  /// layer's anchor point.
+  ///
+  /// - Parameters:
+  ///   - transform: The transform to apply.
+  ///   - anchor: The point of the layer to apply the transform about, in the unit space of its bounds with the origin
+  ///     at the top left.
+  ///   - size: The layer's size.
+  /// - Returns: The transform to set on the layer.
+  func anchoredTransform(_ transform: CATransform3D, about anchor: UnitPoint, size: CGSize) -> CATransform3D {
+    // Core Animation transforms about the anchor point, which an AppKit view's layer has at a corner, so the pivot
+    // moves to the anchor point, the transform applies, and the pivot moves back, for the same pivot on every platform
+    let anchorPoint = self.anchorPoint
+    let offsetX = (CGFloat(anchor.x) - anchorPoint.x) * size.width
+    let offsetY = (CGFloat(anchor.y) - anchorPoint.y) * size.height
+    guard offsetX != 0 || offsetY != 0 else {
+      return transform
+    }
+    let pivoted = CATransform3DConcat(CATransform3DMakeTranslation(-offsetX, -offsetY, 0), transform)
+    return CATransform3DConcat(pivoted, CATransform3DMakeTranslation(offsetX, offsetY, 0))
   }
 }

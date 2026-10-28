@@ -67,6 +67,7 @@ enum RenderableUpdateKey: UInt64 {
   case shadow
   case interactive
   case rasterize
+  case transform
 }
 
 // MARK: - RenderablePropertyUpdate
@@ -87,6 +88,7 @@ enum RenderablePropertyUpdate {
   indirect case shadow(color: ThemedColor, opacity: Themed<CGFloat>, radius: Themed<CGFloat>, offset: Themed<CGSize>, path: ((Renderable) -> CGPath)?)
   case interactive(Bool)
   case rasterize(scale: CGFloat?)
+  indirect case transform(CATransform3D, anchor: UnitPoint)
 
   /// The renderable property the update sets.
   var key: RenderableUpdateKey {
@@ -107,6 +109,8 @@ enum RenderablePropertyUpdate {
       return .interactive
     case .rasterize:
       return .rasterize
+    case .transform:
+      return .transform
     }
   }
 }

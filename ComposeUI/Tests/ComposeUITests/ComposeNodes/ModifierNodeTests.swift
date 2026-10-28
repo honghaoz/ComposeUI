@@ -2871,7 +2871,518 @@ class ModifierNodeTests: XCTestCase {
     expect(try colorValue(animation.fromValue)) == Color.clear.cgColor
   }
 
+  // MARK: - Transform
+
+  func test_transform_appliesAboutTheCenter() throws {
+    // given: a layer node and a view node, each turned a quarter turn
+    var layers: [CALayer] = []
+    let layerContentView = ComposeView {
+      LayerNode()
+        .transform(Constants.quarterTurn)
+        .onInsert { renderable, _ in
+          layers.append(renderable.layer)
+        }
+    }
+    let viewContentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(Constants.quarterTurn)
+        .onInsert { renderable, _ in
+          layers.append(renderable.layer)
+        }
+    }
+
+    // when: the views are sized and refreshed
+    for contentView in [layerContentView, viewContentView] {
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+    }
+
+    // then: each renderable keeps its frame and turns about its center, which stays in place, while its top left
+    // corner turns to the right of the center, above it
+    expect(layers.count) == 2
+    for layer in layers {
+      expect(layer.untransformedFrame) == CGRect(x: 0, y: 0, width: 100, height: 50)
+      expectPoint(layer.convert(point(at: .center, of: layer), to: layer.superlayer), CGPoint(x: 50, y: 25))
+      expectPoint(layer.convert(point(at: .topLeft, of: layer), to: layer.superlayer), CGPoint(x: 75, y: -25))
+    }
+  }
+
+  func test_transform_anchor_appliesAboutTheAnchor() throws {
+    // given: a layer node and a view node, each turned a quarter turn about its top left corner
+    var layers: [CALayer] = []
+    let layerContentView = ComposeView {
+      LayerNode()
+        .transform(Constants.quarterTurn, anchor: .topLeft)
+        .onInsert { renderable, _ in
+          layers.append(renderable.layer)
+        }
+    }
+    let viewContentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(Constants.quarterTurn, anchor: .topLeft)
+        .onInsert { renderable, _ in
+          layers.append(renderable.layer)
+        }
+    }
+
+    // when: the views are sized and refreshed
+    for contentView in [layerContentView, viewContentView] {
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      contentView.refresh()
+    }
+
+    // then: each renderable turns about its top left corner, which stays in place, while its center turns below the
+    // corner, to the left
+    expect(layers.count) == 2
+    for layer in layers {
+      expectPoint(layer.convert(point(at: .topLeft, of: layer), to: layer.superlayer), CGPoint(x: 0, y: 0))
+      expectPoint(layer.convert(point(at: .center, of: layer), to: layer.superlayer), CGPoint(x: -25, y: 50))
+    }
+  }
+
+  func test_transform_animatedUpdate_animatesFromTheShownTransform() throws {
+    // given: a layer turned a quarter turn
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    try refresh(renderable, with: transformItem(Constants.quarterTurn), animationTiming: nil)
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.quarterTurn)) == true
+    expect(layer.animationKeys()) == nil
+
+    // when: an animated update scales it instead
+    try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: .linear(duration: 1))
+
+    // then: the transform animates from the quarter turn to the scale, which the model has
+    let animation = try (layer.animation(forKey: "transform") as? CABasicAnimation).unwrap()
+    expect(try CATransform3DEqualToTransform(transformValue(animation.fromValue), Constants.quarterTurn)) == true
+    expect(try CATransform3DEqualToTransform(transformValue(animation.toValue), Constants.doubleScale)) == true
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.doubleScale)) == true
+
+    // when: an animated update keeps the scale
+    layer.removeAllAnimations()
+    try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: .linear(duration: 1))
+
+    // then: there is nothing to animate
+    expect(layer.animationKeys()) == nil
+  }
+
+  func test_transform_animatedUpdate_duringAnAnimation_replacesTheAnimation() throws {
+    // given: a layer halfway through an animation from a quarter turn to a scale, not yet shown, so it has no
+    // presentation layer for the transform between them
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: nil)
+    addInFlightTransformAnimation(to: layer, from: Constants.quarterTurn, to: Constants.doubleScale, progress: 0.5, duration: 10)
+
+    // when: an animated update moves it instead
+    try refresh(renderable, with: transformItem(Constants.translation), animationTiming: .linear(duration: 1))
+
+    // then: one animation replaces the scale's, to the translation, which the model has, from an unresolved start,
+    // which Core Animation resolves to the transform shown when the animation starts
+    let animations = layer.basicAnimations(forKeyPath: "transform")
+    expect(animations.count) == 1
+    let animation = try animations.first.unwrap()
+    expect(animation.fromValue is NSNull) == true
+    expect(try CATransform3DEqualToTransform(transformValue(animation.toValue), Constants.translation)) == true
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.translation)) == true
+  }
+
+  func test_transform_nonAnimatedUpdate_continuesTheInFlightAnimation() throws {
+    // given: a layer animating from a quarter turn to a scale over 10 s
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    try refresh(renderable, with: transformItem(Constants.quarterTurn), animationTiming: nil)
+    try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: .linear(duration: 10))
+
+    // when: a non-animated update moves it instead
+    try refresh(renderable, with: transformItem(Constants.translation), animationTiming: nil)
+
+    // then: one ease-out glide replaces the animation, landing at the translation when the animation would have, and
+    // the model has the translation
+    let animations = layer.basicAnimations(forKeyPath: "transform")
+    expect(animations.count) == 1
+    let glide = try animations.first.unwrap()
+    expect(try CATransform3DEqualToTransform(transformValue(glide.toValue), Constants.translation)) == true
+    expect(glide.duration).to(beApproximatelyEqual(to: 10, within: 0.05))
+    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.translation)) == true
+  }
+
+  func test_transform_boundsChange_updatesTheTransformForAResize() throws {
+    // given: a scrollable view whose top row is turned a quarter turn about its top left corner
+    var rowLayer: CALayer?
+    let contentView = ComposeView {
+      VStack {
+        LayerNode()
+          .frame(width: .flexible, height: 50)
+          .transform(Constants.quarterTurn, anchor: .topLeft)
+          .onInsert { renderable, _ in
+            rowLayer = renderable.layer
+          }
+        ColorNode(.blue)
+          .frame(width: .flexible, height: 450)
+      }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    contentView.refresh()
+    let layer = try unwrap(rowLayer)
+    let transformAtTheFirstWidth = layer.transform
+    layer.transform = CATransform3DIdentity
+
+    // when: a scroll keeps the row's size
+    contentView.contentOffset = CGPoint(x: 0, y: 10)
+    contentView.layoutIfNeeded()
+
+    // then: the transform isn't set again
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+
+    // when: a resize makes the row wider
+    contentView.frame.size.width = 200
+    contentView.layoutIfNeeded()
+
+    // then: the transform is set again for the new width, about the row's top left corner
+    expect(CATransform3DIsIdentity(layer.transform)) == false
+    expect(CATransform3DEqualToTransform(layer.transform, transformAtTheFirstWidth)) == false
+    expectPoint(layer.convert(point(at: .topLeft, of: layer), to: layer.superlayer), CGPoint(x: 0, y: 0))
+  }
+
+  func test_transform_resetForReuse_restoresTheIdentityTransform() throws {
+    // given: a view-backed renderable that the transform modifier turned
+    let view = BaseView()
+    let renderable = Renderable.view(view)
+    let item = try firstRenderableItem(of: ViewNode(view).transform(Constants.quarterTurn)).unwrap()
+    refresh(renderable, with: item, animationTiming: nil)
+    expect(CATransform3DIsIdentity(view.layer().transform)) == false
+
+    // when: the reset for reuse block runs
+    item.resetForReuse?(renderable)
+
+    // then: the transform is identity, so a reuse without the modifier isn't turned
+    expect(CATransform3DIsIdentity(view.layer().transform)) == true
+
+    #if canImport(AppKit)
+    // when: the transform changes, then becomes identity
+    view.layer().transform = Constants.quarterTurn
+    view.layer().transform = CATransform3DIdentity
+
+    // then: the transform stays identity, since the layer no longer keeps the modifier's transform
+    expect(CATransform3DIsIdentity(view.layer().transform)) == true
+    #endif
+  }
+
+  func test_transform_stacked_theOutermostWins() throws {
+    // given: a layer and a node with two transforms
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    let item = try firstRenderableItem(of: LayerNode().transform(Constants.quarterTurn).transform(Constants.doubleScale)).unwrap()
+
+    // when: the node updates the layer
+    refresh(renderable, with: item, animationTiming: nil)
+
+    // then: the outermost transform is set
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.doubleScale)) == true
+  }
+
+  #if canImport(AppKit)
+  func test_transform_appKitView_keepsTheTransformThroughTheCommitAfterJoiningAWindow() throws {
+    // given: a view in a window, whose content turns a view with the modifier, next to a plain turned view, rendered
+    let window = makeWindow()
+    var viewLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(Constants.quarterTurn)
+        .onInsert { renderable, _ in
+          viewLayer = renderable.layer
+        }
+    }
+    let (container, plainView) = makeContainer(of: contentView)
+    window.contentView = container
+    contentView.refresh()
+    let layer = try unwrap(viewLayer)
+    let transform = layer.transform
+
+    // when: the transaction commits, where AppKit resets the transform of a view that joined the window
+    CATransaction.flush()
+
+    // then: AppKit reset the plain view's transform, while the modifier's transform stays, so no frame shows the view
+    // without it
+    expect(CATransform3DIsIdentity(plainView.layer().transform)) == true
+    expect(CATransform3DEqualToTransform(layer.transform, transform)) == true
+  }
+
+  func test_transform_appKitView_insertedOutsideARunLoopBlock_keepsTheTransform() throws {
+    // given: a view in a window, whose content turns a view with the modifier, next to a plain turned view, rendered
+    // outside a run loop block, as an event handler renders
+    let window = makeWindow()
+    var viewLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(Constants.quarterTurn)
+        .onInsert { renderable, _ in
+          viewLayer = renderable.layer
+        }
+    }
+    let (container, plainView) = makeContainer(of: contentView)
+    window.contentView = container
+    contentView.refresh()
+    let layer = try unwrap(viewLayer)
+    let transform = layer.transform
+
+    // when: the run loop turns, which runs its blocks, then commits, where AppKit resets the transform of a view that
+    // joined the window
+    RunLoop.main.run(until: Date())
+
+    // then: AppKit reset the plain view's transform, while the modifier's transform stays
+    expect(CATransform3DIsIdentity(plainView.layer().transform)) == true
+    expect(CATransform3DEqualToTransform(layer.transform, transform)) == true
+  }
+
+  func test_transform_appKitView_renderedOutsideAWindow_keepsTheTransformAfterJoiningOne() throws {
+    // given: a view outside a window, whose content turns a view with the modifier, next to a plain turned view,
+    // rendered, with the run loop turned
+    var viewLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(Constants.quarterTurn)
+        .onInsert { renderable, _ in
+          viewLayer = renderable.layer
+        }
+    }
+    let (container, plainView) = makeContainer(of: contentView)
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+    let layer = try unwrap(viewLayer)
+    let transform = layer.transform
+
+    // when: the views join a window, and the run loop turns
+    let window = makeWindow()
+    window.contentView = container
+    RunLoop.main.run(until: Date())
+
+    // then: AppKit reset the plain view's transform, while the modifier's transform stays
+    expect(CATransform3DIsIdentity(plainView.layer().transform)) == true
+    expect(CATransform3DEqualToTransform(layer.transform, transform)) == true
+  }
+
+  func test_transform_appKitView_changedToIdentity_staysIdentity() throws {
+    // given: a view in a window, whose content turns a view, rendered, with the run loop turned
+    let window = makeWindow()
+    var transform = Constants.quarterTurn
+    var viewLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(transform)
+        .onInsert { renderable, _ in
+          viewLayer = renderable.layer
+        }
+    }
+    window.contentView = contentView
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+    let layer = try unwrap(viewLayer)
+    expect(CATransform3DIsIdentity(layer.transform)) == false
+
+    // when: the content changes the transform to identity
+    transform = CATransform3DIdentity
+    contentView.refresh()
+
+    // then: the view has the identity transform, which the layer doesn't replace with the quarter turn it kept
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+
+  func test_transform_appKitView_moveAndResize_keepsTheTransformForTheNewFrame() throws {
+    // given: a view in a window, whose content turns a view about its center, which an AppKit view's layer doesn't have
+    // as its anchor point, so the transform depends on the view's size, rendered, with the run loop turned
+    let window = makeWindow()
+    var inset: CGFloat = 0
+    var turnedView: View?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(Constants.quarterTurn)
+        .onInsert { renderable, _ in
+          turnedView = renderable.view
+        }
+        .padding(left: inset)
+    }
+    window.contentView = contentView
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+    let view = try unwrap(turnedView)
+    let layer = view.layer()
+    let transformAtTheFirstFrame = layer.transform
+
+    // when: the content moves the view and makes it narrower, and the run loop turns
+    inset = 20
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+
+    // then: the view is at its new frame, turned about its new center by the transform for its new width, which turns
+    // its top left corner to the right of the center, above it
+    expect(view.frame) == CGRect(x: 20, y: 0, width: 80, height: 50)
+    expect(CATransform3DEqualToTransform(layer.transform, transformAtTheFirstFrame)) == false
+    expectPoint(layer.convert(point(at: .center, of: layer), to: layer.superlayer), CGPoint(x: 60, y: 25))
+    expectPoint(layer.convert(point(at: .topLeft, of: layer), to: layer.superlayer), CGPoint(x: 85, y: -15))
+  }
+
+  func test_transform_appKitView_keepsTheLatestTransform() throws {
+    // given: a view in a window, whose content turns a view, rendered, and rendered again with a scale before the
+    // transaction commits
+    let window = makeWindow()
+    var transform = Constants.quarterTurn
+    var viewLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(transform)
+        .onInsert { renderable, _ in
+          viewLayer = renderable.layer
+        }
+    }
+    window.contentView = contentView
+    contentView.refresh()
+    transform = Constants.doubleScale
+    contentView.refresh()
+    let layer = try unwrap(viewLayer)
+    let scale = layer.transform
+
+    // when: the run loop turns, which commits, where AppKit resets the transform of a view that joined the window
+    RunLoop.main.run(until: Date())
+
+    // then: the view has the scale, not the quarter turn of the insertion
+    expect(CATransform3DEqualToTransform(layer.transform, scale)) == true
+  }
+
+  func test_transform_appKitView_outsideAWindow_keepsTheTransform() throws {
+    // given: a view outside a window, whose content turns a view, and another with the identity transform, rendered
+    var viewLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(Constants.quarterTurn)
+        .onInsert { renderable, _ in
+          viewLayer = renderable.layer
+        }
+    }
+    let identityContentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transform(CATransform3DIdentity)
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    identityContentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh()
+    identityContentView.refresh()
+    let layer = try unwrap(viewLayer)
+    let quarterTurn = layer.transform
+
+    // when: the transaction commits and the run loop turns
+    CATransaction.flush()
+    RunLoop.main.run(until: Date())
+
+    // then: AppKit kept the transform, which stays
+    expect(CATransform3DEqualToTransform(layer.transform, quarterTurn)) == true
+  }
+
+  func test_transform_appKitView_pooled_doesNotKeepTheTransform() throws {
+    // given: a view in a window, whose content turns a pooled view, rendered, and rendered again without the view in
+    // the same run loop turn, which pools the view
+    let window = makeWindow()
+    var showsView = true
+    var viewLayer: CALayer?
+    let contentView = ComposeView {
+      if showsView {
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .reuseId("view")
+          .transform(Constants.quarterTurn)
+          .onInsert { renderable, _ in
+            viewLayer = renderable.layer
+          }
+      }
+    }
+    window.contentView = contentView
+    contentView.refresh()
+    showsView = false
+    contentView.refresh()
+    let layer = try unwrap(viewLayer)
+
+    // when: the run loop turns, which commits
+    RunLoop.main.run(until: Date())
+
+    // then: the pooled view stays without the transform
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+
+    // when: the pooled view's transform changes, then becomes identity
+    layer.transform = Constants.quarterTurn
+    layer.transform = CATransform3DIdentity
+
+    // then: the transform stays identity, since the layer no longer keeps the modifier's transform
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+  #endif
+
   // MARK: - Helpers
+
+  /// Expects a point to be within a tolerance of another.
+  private func expectPoint(_ point: CGPoint, _ expected: CGPoint, file: StaticString = #filePath, line: UInt = #line) {
+    expect(point.x, file: file, line: line).to(beApproximatelyEqual(to: expected.x, within: 1e-9))
+    expect(point.y, file: file, line: line).to(beApproximatelyEqual(to: expected.y, within: 1e-9))
+  }
+
+  /// The point of a layer, in its own coordinates, that shows at a unit point of its bounds with the origin at the top
+  /// left, since an AppKit view's layer has flipped geometry, whose origin shows at the bottom left.
+  private func point(at unitPoint: UnitPoint, of layer: CALayer) -> CGPoint {
+    let bounds = layer.bounds
+    let y = layer.isGeometryFlipped ? 1 - unitPoint.y : unitPoint.y
+    return CGPoint(x: bounds.minX + CGFloat(unitPoint.x) * bounds.width, y: bounds.minY + CGFloat(y) * bounds.height)
+  }
+
+  /// The renderable item of a layer node with a transform modifier.
+  private func transformItem(_ transform: CATransform3D) throws -> RenderableItem {
+    try firstRenderableItem(of: LayerNode().transform(transform)).unwrap()
+  }
+
+  /// Adds a linear transform animation that is `progress` of the way through.
+  private func addInFlightTransformAnimation(to layer: CALayer, from: CATransform3D, to: CATransform3D, progress: Double, duration: TimeInterval) {
+    let animation = CABasicAnimation(keyPath: "transform")
+    animation.fromValue = NSValue(caTransform3D: from)
+    animation.toValue = NSValue(caTransform3D: to)
+    animation.duration = duration
+    animation.timingFunction = CAMediaTimingFunction(name: .linear)
+    animation.beginTime = layer.currentTime - duration * progress
+    layer.add(animation, forKey: "transform")
+  }
+
+  /// The transform in an animation value.
+  private func transformValue(_ value: Any?) throws -> CATransform3D {
+    try (value as? NSValue).unwrap().caTransform3DValue
+  }
+
+  #if canImport(AppKit)
+  /// A window to show a view in.
+  private func makeWindow() -> NSWindow {
+    NSWindow(contentRect: CGRect(x: 0, y: 0, width: 100, height: 50), styleMask: [.titled], backing: .buffered, defer: false)
+  }
+
+  /// A container of the content view, sized as the window, and of a plain view that the test turns a quarter turn
+  /// outside any node's blocks, so that AppKit's resets of a view's layer transform undo the turn, which tells that a
+  /// reset happened.
+  private func makeContainer(of contentView: ComposeView) -> (container: BaseView, plainView: BaseView) {
+    let container = BaseView(frame: CGRect(x: 0, y: 0, width: 100, height: 50))
+    contentView.frame = container.bounds
+    container.addSubview(contentView)
+    let plainView = BaseView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    plainView.layer().transform = Constants.quarterTurn
+    container.addSubview(plainView)
+    return (container, plainView)
+  }
+  #endif
 
   /// The renderable item of a layer node with every layer modifier, with the given values.
   private func styledItem(backgroundColor: Color = .red,
@@ -2902,7 +3413,7 @@ class ModifierNodeTests: XCTestCase {
     // the context holds the content view weakly, so the view is kept alive through the update
     let contentView = ComposeView()
     withExtendedLifetime(contentView) {
-      item.update(renderable, RenderableUpdateContext(
+      item.performUpdate(renderable, RenderableUpdateContext(
         updateType: .refresh,
         oldFrame: item.frame,
         newFrame: item.frame,
@@ -2960,6 +3471,20 @@ class ModifierNodeTests: XCTestCase {
     animation.isAdditive = true
     animation.beginTime = layer.currentTime - duration * progress
     layer.add(animation, forKey: "opacity")
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// A quarter turn, clockwise on screen.
+    static let quarterTurn = CATransform3DMakeRotation(CGFloat.pi / 2, 0, 0, 1)
+
+    /// A scale to twice the size.
+    static let doubleScale = CATransform3DMakeScale(2, 2, 1)
+
+    /// A move to the right.
+    static let translation = CATransform3DMakeTranslation(20, 0, 0)
   }
 }
 
