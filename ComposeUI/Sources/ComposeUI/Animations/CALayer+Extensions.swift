@@ -42,24 +42,20 @@ extension CALayer {
     delegate as? View
   }
 
-  /// Get the layer's `position` from its `frame`, based on its `anchorPoint`.
+  /// Get the layer's `position` for a frame, based on its `anchorPoint`.
   ///
-  /// - Precondition: The layer's transform must be identity.
+  /// The frame is where the position and bounds size place the layer before its transform applies, so the transform
+  /// doesn't matter.
   ///
   /// - Parameters:
-  ///   - frame: The layer's frame.
+  ///   - frame: The frame for the layer.
   /// - Returns: The layer's position.
   @_spi(Private)
   public func position(from frame: CGRect) -> CGPoint {
-    // a layer's `frame` is undefined under a non-identity transform, so a frame read from such a layer is meaningless
-    ComposeUI.assert(CATransform3DEqualToTransform(transform, CATransform3DIdentity), "CALayer.position(from:frame:) only works with identity transform.")
-    return anchoredPosition(in: frame)
+    anchoredPosition(in: frame)
   }
 
   /// The position the layer has when its bounds fill the frame, based on its `anchorPoint`.
-  ///
-  /// Unlike `position(from:)`, the frame is a layout-space target, not the layer's own frame, so the transform doesn't
-  /// matter: the model `position` is the layout position the transform is applied around.
   private func anchoredPosition(in frame: CGRect) -> CGPoint {
     // `origin + anchorPoint * size` rounds twice and can differ by an ulp from Core Animation's fused result for
     // anchor points other than 0, 0.5, and 1, so a fused multiply-add is used to match it
@@ -67,6 +63,21 @@ extension CALayer {
     return CGPoint(
       x: frame.origin.x.addingProduct(anchorPoint.x, frame.width),
       y: frame.origin.y.addingProduct(anchorPoint.y, frame.height)
+    )
+  }
+
+  /// The frame where the layer's position and bounds size place it, before its transform applies.
+  ///
+  /// It's the frame that a layout gives the layer, which `frame` is too, but only under an identity transform.
+  var untransformedFrame: CGRect {
+    let size = bounds.size
+    let position = self.position
+    let anchorPoint = self.anchorPoint
+    return CGRect(
+      x: position.x.addingProduct(-anchorPoint.x, size.width),
+      y: position.y.addingProduct(-anchorPoint.y, size.height),
+      width: size.width,
+      height: size.height
     )
   }
 
@@ -96,11 +107,15 @@ extension CALayer {
       && position.y.isApproximatelyEqual(to: targetPosition.y, absoluteTolerance: tolerance)
   }
 
-  /// Restores the layer's model transform to identity.
+  /// Restores the layer's model transform to identity, and on AppKit, stops keeping the transform, see `keepTransform(_:)`.
   func restoreIdentityTransformIfNeeded() {
     guard !CATransform3DIsIdentity(transform) else {
       return
     }
+    #if canImport(AppKit)
+    // the transform's owner drops the transform, which a kept transform would put back
+    stopKeepingTransform()
+    #endif
     disableActions(for: "transform") {
       transform = CATransform3DIdentity
     }

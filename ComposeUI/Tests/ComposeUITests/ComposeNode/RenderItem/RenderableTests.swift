@@ -188,7 +188,66 @@ class RenderableTests: XCTestCase {
     #endif
   }
 
+  func test_view_case_updateFrame_underATransform_keepsTheTransform() {
+    // given: a view-backed renderable at a frame, whose layer is rotated
+    let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
+    let view = FrameTrackingView(frame: CGRect(x: 10, y: 20, width: 100, height: 200))
+    view.layer().transform = rotation
+    let renderable = Renderable.view(view)
+    view.resetFrameSetCount()
+
+    // when: updating to the same frame
+    renderable.updateFrame(CGRect(x: 10, y: 20, width: 100, height: 200), animationTiming: nil)
+
+    // then: the frame is recognized as unchanged under the transform and not re-applied
+    expect(view.frameSetCount) == 0
+
+    // when: updating to a new frame without animation
+    renderable.updateFrame(CGRect(x: 30, y: 40, width: 300, height: 400), animationTiming: nil)
+
+    // then: the frame is set once, through the view's frame setter, as where the position and bounds size place the
+    // view, and the view keeps its transform, which AppKit resets when the view moves or resizes, without animating it
+    expect(view.frameSetCount) == 1
+    expect(renderable.frame) == CGRect(x: 30, y: 40, width: 300, height: 400)
+    expect(view.layer().hasFrame(CGRect(x: 30, y: 40, width: 300, height: 400))) == true
+    expect(CATransform3DEqualToTransform(view.layer().transform, rotation)) == true
+    expect(view.layer().animationKeys()) == nil
+
+    // when: updating to another frame with animation
+    renderable.updateFrame(CGRect(x: 50, y: 60, width: 500, height: 600), animationTiming: .easeInEaseOut(duration: 1))
+
+    // then: the position and size animate to the new frame, and the transform stays
+    expect(view.layer().animationKeys()) == ["position", "bounds.size"]
+    expect(renderable.frame) == CGRect(x: 50, y: 60, width: 500, height: 600)
+    expect(CATransform3DEqualToTransform(view.layer().transform, rotation)) == true
+  }
+
   #if canImport(AppKit)
+  func test_view_case_setFrame_underAKeptTransform_writesTheTransformOnlyAroundTheFrame() {
+    // given: a view-backed renderable whose layer keeps its rotation, as a node's transform is kept, and a count of the
+    // layer's transform writes
+    let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
+    let view = FrameTrackingView(frame: CGRect(x: 10, y: 20, width: 100, height: 200))
+    let layer = view.layer()
+    layer.transform = rotation
+    layer.keepTransform(rotation)
+    let renderable = Renderable.view(view)
+    var transformWrites = 0
+    let observation = layer.observe(\.transform) { _, _ in
+      transformWrites += 1
+    }
+
+    // when: setting a new frame
+    renderable.setFrame(CGRect(x: 30, y: 40, width: 300, height: 400))
+
+    // then: the transform is written twice, to identity for the frame and back, as for a view that doesn't keep its
+    // transform, and the view has the frame and the rotation
+    expect(transformWrites) == 2
+    expect(renderable.frame) == CGRect(x: 30, y: 40, width: 300, height: 400)
+    expect(CATransform3DEqualToTransform(layer.transform, rotation)) == true
+    observation.invalidate()
+  }
+
   func test_view_case_updateFrame_resyncsViewDriftedFromLayer() {
     // given: a view-backed renderable whose backing layer was moved directly to the target frame, leaving the view behind
     let targetFrame = CGRect(x: 30, y: 40, width: 100, height: 200)
@@ -455,31 +514,48 @@ class RenderableTests: XCTestCase {
     expect(layer.animationKeys()) == nil
   }
 
-  #if DEBUG && !COMPOSEUI_BENCHMARK
-  func test_layer_case_updateFrame_nonIdentityTransform_asserts() {
-    // given: a layer-backed renderable at a frame, with a non-identity transform, and a test assertion failure handler
+  func test_layer_case_updateFrame_underATransform_keepsTheTransform() {
+    // given: a layer-backed renderable at a frame, rotated
+    let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
     let layer = FrameTrackingLayer()
     layer.frame = CGRect(x: 10, y: 20, width: 100, height: 200)
-    layer.transform = CATransform3DMakeTranslation(20, 0, 0)
+    layer.transform = rotation
     let renderable = Renderable.layer(layer)
     layer.resetFrameSetCount()
-
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      expect(message) == "the renderable's transform must be identity when its frame is applied, set a transform in `update` instead of `willInsert` or `willUpdate`"
-      assertionCount += 1
-    }
-    defer { Assert.resetTestAssertionFailureHandler() }
 
     // when: updating to the same frame
     renderable.updateFrame(CGRect(x: 10, y: 20, width: 100, height: 200), animationTiming: nil)
 
-    // then: the transform is asserted even though the frame is unchanged, and the frame is not re-applied
-    expect(assertionCount) == 1
+    // then: the frame is recognized as unchanged under the transform and not re-applied
     expect(layer.frameSetCount) == 0
-    expect(CATransform3DEqualToTransform(layer.transform, CATransform3DMakeTranslation(20, 0, 0))) == true
+
+    // when: updating to a new frame without animation
+    renderable.updateFrame(CGRect(x: 30, y: 40, width: 300, height: 400), animationTiming: nil)
+
+    // then: the frame is set once, through the frame setter, as where the position and bounds size place the layer,
+    // and the layer keeps its transform without animating it
+    expect(layer.frameSetCount) == 1
+    expect(renderable.frame) == CGRect(x: 30, y: 40, width: 300, height: 400)
+    expect(layer.hasFrame(CGRect(x: 30, y: 40, width: 300, height: 400))) == true
+    expect(CATransform3DEqualToTransform(layer.transform, rotation)) == true
+    expect(layer.animationKeys()) == nil
+
+    // when: updating to another frame with animation
+    renderable.updateFrame(CGRect(x: 50, y: 60, width: 500, height: 600), animationTiming: .easeInEaseOut(duration: 1))
+
+    // then: the position and size animate to the new frame, and the transform stays
+    expect(layer.animationKeys()) == ["position", "bounds.size"]
+    expect(renderable.frame) == CGRect(x: 50, y: 60, width: 500, height: 600)
+    expect(CATransform3DEqualToTransform(layer.transform, rotation)) == true
+
+    // when: updating to a frame without animation while the frame animations are in flight
+    renderable.updateFrame(CGRect(x: 70, y: 80, width: 700, height: 800), animationTiming: nil)
+
+    // then: the animations glide to the new frame, and the transform stays
+    expect(renderable.frame) == CGRect(x: 70, y: 80, width: 700, height: 800)
+    expect(CATransform3DEqualToTransform(layer.transform, rotation)) == true
+    expect(layer.animation(forKey: "transform")) == nil
   }
-  #endif
 
   func test_layer_case_updateFrame_changed() {
     // given: a layer-backed renderable at a frame

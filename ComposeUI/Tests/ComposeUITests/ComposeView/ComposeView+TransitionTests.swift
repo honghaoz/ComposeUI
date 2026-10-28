@@ -591,6 +591,85 @@ class ComposeView_TransitionTests: XCTestCase {
     expect(layer.position) == layer.position(from: CGRect(x: 0, y: 0, width: 100, height: 100))
   }
 
+  func test_reinsertRemovingRenderable_keepsTheTransformThatTheNodeSet() throws {
+    // given: a compose view showing content with a slow opacity transition, which its node rotates when it first
+    // inserts it
+    let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    var insertOldFrames: [CGRect] = []
+    let makeContent: () -> ComposeContent = {
+      ColorNode(.red)
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .willInsert { renderable, context in
+          if insertOldFrames.isEmpty {
+            renderable.layer.transform = rotation
+          }
+          insertOldFrames.append(context.oldFrame)
+        }
+        .frame(width: 100, height: 100)
+    }
+
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+
+    // when: the content is removed with animation, and revived while its removal is in flight
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: the revived renderable keeps the rotation that its node set, at its frame, and its insertion hands out its
+    // frame before the rotation as the old frame
+    expect(CATransform3DEqualToTransform(layer.transform, rotation)) == true
+    expect(layer.hasFrame(CGRect(x: 0, y: 0, width: 100, height: 100))) == true
+    expect(insertOldFrames) == [CGRect(x: 0, y: 0, width: 100, height: 100), CGRect(x: 0, y: 0, width: 100, height: 100)]
+  }
+
+  func test_reinsertRemovingRenderable_scaleTransition_insertContinuesFromTheRemovalScale() throws {
+    // given: a compose view showing content with a slow scale transition, and a test assertion failure handler
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer { Assert.resetTestAssertionFailureHandler() }
+
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let makeContent: () -> ComposeContent = {
+      ColorNode(.red)
+        .transition(.scale(timing: .linear(duration: 10)))
+        .frame(width: 100, height: 100)
+    }
+
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: false)
+
+    // when: the content is removed with animation
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    // then: the removal holds its end scale in the model transform
+    let layer = try unwrap(contentView.test.removingRenderableMap.values.first?.renderable.layer)
+    expect(layer.value(forKeyPath: "transform.scale") as? CGFloat) == 0
+
+    // when: the content is revived while its removal is in flight
+    contentView.setContent(content: makeContent)
+    contentView.refresh(animated: true)
+
+    // then: the insertion takes the model transform back to identity without asserting, and continues from the
+    // removal's scale with an additive animation on top of the removal's
+    expect(assertionMessages) == []
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+    let scaleAnimations = layer.basicAnimations(forKeyPath: "transform.scale")
+    expect(scaleAnimations.count) == 2
+    expect(scaleAnimations.last?.fromValue as? CGFloat) == -1
+    expect(scaleAnimations.last?.isAdditive) == true
+  }
+
   func test_reinsertRemovingRenderable_crossSideSlideTransition_insertContinuesFromRemovalPosition() throws {
     // given: a compose view showing content with a slow cross-side slide transition
     let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))

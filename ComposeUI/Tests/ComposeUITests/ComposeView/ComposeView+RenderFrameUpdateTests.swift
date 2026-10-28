@@ -40,12 +40,13 @@ import QuartzCore
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 /// Tests for the steady-state per-item frame/transform update behavior in the render pass.
 ///
 /// These tests pin down three properties of the reuse path:
-/// - Correctness: a reused renderable always ends a render pass with the correct frame and an identity transform.
+/// - Correctness: a reused renderable always ends a render pass with the correct frame, and with the transform that its
+///   node set.
 /// - Efficiency: a reused renderable whose frame is unchanged (the common case while scrolling) is neither re-framed
 ///   nor frame-animated, including at third-pixel frames on 3x displays where the derived frame is imprecise.
 /// - Exactness: a reused renderable's update context, and its remove context when it leaves, hand out the frame that
@@ -355,29 +356,32 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(tracked.layer().animationKeys()) == nil
   }
 
-  // MARK: - transform reset
+  // MARK: - transform ownership
 
-  func test_reusedRenderable_resetsNonIdentityTransform_onReuse() {
-    // given: a content view with a captured layer row, rendered, with a leftover transform on the layer
-    var capturedLayer: CALayer?
-    let view = makeLayerContentView(captureLayer: { capturedLayer = $0 })
+  func test_reusedRenderable_keepsATransformSetOnce() {
+    // given: a rendered layer row whose `willInsert` rotates it once
+    var trackingLayer: FrameTrackingLayer?
+    let view = makeLayerContentView(
+      willInsert: { renderable, _ in renderable.layer.transform = Constants.rotation },
+      captureLayer: { trackingLayer = $0 }
+    )
     view.refresh(animated: false)
 
-    guard let layer = capturedLayer else {
-      fail("layer should be created")
+    guard let tracked = trackingLayer else {
+      fail("tracking layer should be created")
       return
     }
+    tracked.resetFrameSetCount()
 
-    // simulate a leftover transform (e.g. from an interrupted transition).
-    layer.transform = CATransform3DMakeScale(2, 2, 1)
-    expect(CATransform3DIsIdentity(layer.transform)) == false
-
-    // when: the layer is reused via scroll
+    // when: the row is reused by a scroll and by a refresh, which don't rotate it again
     view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
+    view.refresh(animated: false)
 
-    // then: the render pass resets the transform to identity before applying the frame
-    expect(CATransform3DIsIdentity(layer.transform)) == true
+    // then: the row keeps the rotation and its layout frame, without frame updates
+    expect(CATransform3DEqualToTransform(tracked.transform, Constants.rotation)) == true
+    expect(tracked.hasFrame(CGRect(x: 0, y: 0, width: 100, height: 50))) == true
+    expect(tracked.frameSetCount) == 0
   }
 
   func test_reusedRenderable_keepsIdentityTransform_afterScroll() {
@@ -400,19 +404,13 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(CATransform3DIsIdentity(layer.transform)) == true
   }
 
-  // MARK: - transform ownership
-
-  #if DEBUG && !COMPOSEUI_BENCHMARK
-  func test_reusedLayer_assertsWhenWillUpdateSetsTransform() {
-    // given: a rendered layer row whose `willUpdate` starts setting a transform, and a test assertion failure handler
-    var appliesTransform = false
+  func test_reusedLayer_appliesAFrameChange_underATransformSetInWillUpdate() {
+    // given: a rendered layer row whose `willUpdate` rotates it, below a spacer that a refresh can grow
+    var spacerHeight: CGFloat = 0
     var trackingLayer: FrameTrackingLayer?
     let view = makeLayerContentView(
-      willUpdate: { renderable, _ in
-        if appliesTransform {
-          renderable.layer.transform = Constants.translation
-        }
-      },
+      spacerHeight: { spacerHeight },
+      willUpdate: { renderable, _ in renderable.layer.transform = Constants.rotation },
       captureLayer: { trackingLayer = $0 }
     )
     view.refresh(animated: false)
@@ -423,34 +421,31 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     }
     tracked.resetFrameSetCount()
 
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      expect(message) == Constants.identityTransformAssertionMessage
-      assertionCount += 1
-    }
-    defer { Assert.resetTestAssertionFailureHandler() }
-
-    // when: a non-animated refresh reuses the row at the same frame, with `willUpdate` setting the transform
-    appliesTransform = true
+    // when: a refresh keeps the row's frame
     view.refresh(animated: false)
 
-    // then: the render pass asserts once, and leaves the row alone since its frame is unchanged
-    expect(assertionCount) == 1
+    // then: the frame is recognized as unchanged under the rotation, which the row keeps
     expect(tracked.frameSetCount) == 0
+    expect(CATransform3DEqualToTransform(tracked.transform, Constants.rotation)) == true
+
+    // when: a refresh moves the row down
+    spacerHeight = 20
+    view.refresh(animated: false)
+
+    // then: the new frame is set once, as where the position and bounds size place the row, which keeps the rotation
+    expect(tracked.frameSetCount) == 1
+    expect(tracked.hasFrame(CGRect(x: 0, y: 20, width: 100, height: 50))) == true
+    expect(CATransform3DEqualToTransform(tracked.transform, Constants.rotation)) == true
     expect(tracked.animationKeys()) == nil
-    expect(CATransform3DEqualToTransform(tracked.transform, Constants.translation)) == true
   }
 
-  func test_reusedView_assertsWhenWillUpdateSetsTransform() {
-    // given: a rendered view row whose `willUpdate` starts setting a transform, and a test assertion failure handler
-    var appliesTransform = false
+  func test_reusedView_appliesAFrameChange_underATransformSetInWillUpdate() {
+    // given: a rendered view row whose `willUpdate` rotates it, with a height that a refresh can change
+    var rowHeight: CGFloat = 50
     var trackingView: FrameTrackingView?
     let view = makeContentView(
-      willUpdate: { renderable, _ in
-        if appliesTransform {
-          renderable.layer.transform = Constants.translation
-        }
-      },
+      rowHeight: { rowHeight },
+      willUpdate: { renderable, _ in renderable.layer.transform = Constants.rotation },
       captureView: { trackingView = $0 }
     )
     view.refresh(animated: false)
@@ -461,44 +456,69 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     }
     tracked.resetFrameSetCount()
 
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      expect(message) == Constants.identityTransformAssertionMessage
-      assertionCount += 1
-    }
-    defer { Assert.resetTestAssertionFailureHandler() }
-
-    // when: a non-animated refresh reuses the row at the same frame, with `willUpdate` setting the transform
-    appliesTransform = true
+    // when: a refresh keeps the row's frame
     view.refresh(animated: false)
 
-    // then: the render pass asserts once, and leaves the row alone since its frame is unchanged
-    expect(assertionCount) == 1
+    // then: the frame is recognized as unchanged under the rotation, which the row keeps
     expect(tracked.frameSetCount) == 0
+    expect(CATransform3DEqualToTransform(tracked.layer().transform, Constants.rotation)) == true
+
+    // when: a refresh makes the row taller
+    rowHeight = 60
+    view.refresh(animated: false)
+
+    // then: the new frame is set once, as where the position and bounds size place the row, which keeps the rotation
+    expect(tracked.frameSetCount) == 1
+    expect(Renderable.view(tracked).frame) == CGRect(x: 0, y: 0, width: 100, height: 60)
+    expect(tracked.layer().hasFrame(CGRect(x: 0, y: 0, width: 100, height: 60))) == true
+    expect(CATransform3DEqualToTransform(tracked.layer().transform, Constants.rotation)) == true
     expect(tracked.layer().animationKeys()) == nil
-    expect(CATransform3DEqualToTransform(tracked.layer().transform, Constants.translation)) == true
   }
 
-  func test_insertedRenderable_assertsWhenWillInsertSetsTransform() {
-    // given: layer and view rows whose `willInsert` sets a transform, and a test assertion failure handler
-    let layerView = makeLayerContentView(willInsert: { renderable, _ in renderable.layer.transform = Constants.translation }, captureLayer: { _ in })
-    let viewView = makeContentView(willInsert: { renderable, _ in renderable.layer.transform = Constants.translation }, captureView: { _ in })
-
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, _, _, _ in
-      expect(message) == Constants.identityTransformAssertionMessage
-      assertionCount += 1
-    }
-    defer { Assert.resetTestAssertionFailureHandler() }
+  func test_insertedRenderable_appliesTheFrame_underATransformSetInWillInsert() throws {
+    // given: layer and view rows whose `willInsert` rotates them
+    var trackingLayer: FrameTrackingLayer?
+    var trackingView: FrameTrackingView?
+    let layerView = makeLayerContentView(willInsert: { renderable, _ in renderable.layer.transform = Constants.rotation }, captureLayer: { trackingLayer = $0 })
+    let viewView = makeContentView(willInsert: { renderable, _ in renderable.layer.transform = Constants.rotation }, captureView: { trackingView = $0 })
 
     // when: rendering inserts the rows
     layerView.refresh(animated: false)
     viewView.refresh(animated: false)
 
-    // then: each insertion asserts once before the frame is applied
-    expect(assertionCount) == 2
+    // then: each row is where its position and bounds size place it, which keeps the rotation
+    let layer = try unwrap(trackingLayer)
+    let viewLayer = try unwrap(trackingView).layer()
+    expect(layer.hasFrame(CGRect(x: 0, y: 0, width: 100, height: 50))) == true
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+    expect(viewLayer.hasFrame(CGRect(x: 0, y: 0, width: 100, height: 50))) == true
+    expect(CATransform3DEqualToTransform(viewLayer.transform, Constants.rotation)) == true
   }
-  #endif
+
+  func test_reusedRenderable_animatesAFrameChange_underATransform() throws {
+    // given: a rendered view row with an animation timing, which its `willInsert` rotates once, below a spacer that a
+    // refresh can grow
+    var spacerHeight: CGFloat = 0
+    var trackingView: FrameTrackingView?
+    let view = makeContentView(
+      spacerHeight: { spacerHeight },
+      animationTiming: Constants.animationTiming,
+      willInsert: { renderable, _ in renderable.layer.transform = Constants.rotation },
+      captureView: { trackingView = $0 }
+    )
+    view.refresh(animated: false)
+    let layer = try unwrap(trackingView).layer()
+
+    // when: an animated refresh moves the row down
+    spacerHeight = 20
+    view.refresh(animated: true)
+
+    // then: the row animates to where its new frame places it, and keeps the rotation without animating it
+    expect(layer.animation(forKey: "position")) != nil
+    expect(layer.animation(forKey: "transform")) == nil
+    expect(layer.hasFrame(CGRect(x: 0, y: 20, width: 100, height: 50))) == true
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+  }
 
   func test_reusedRenderable_keepsTransformSetInUpdate() {
     // given: a rendered layer row whose `update` sets a transform, and a test assertion failure handler
@@ -528,13 +548,240 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     view.layoutIfNeeded()
     view.refresh(animated: false)
 
-    // then: the transform is reset for the frame check and re-applied by `update` on each pass, without assertions or
-    // redundant frame updates, and the row keeps its layout frame
+    // then: the row keeps the transform that `update` sets again on each pass, without assertions or redundant frame
+    // updates, and keeps its layout frame
     expect(assertionCount) == 0
     expect(tracked.frameSetCount) == 0
     expect(CATransform3DEqualToTransform(tracked.transform, Constants.translation)) == true
     expect(tracked.hasFrame(CGRect(x: 0, y: 0, width: 100, height: 50))) == true
   }
+
+  func test_reusedRenderable_animatesATransformFromTheTransformItKept() throws {
+    // given: a layer row whose `update` animates its rotation to an angle, rendered, which animates the rotation from
+    // none
+    let angle = CGFloat.pi / 6
+    var trackingLayer: FrameTrackingLayer?
+    let view = makeLayerContentView(
+      update: { renderable, _ in
+        renderable.layer.animate(keyPath: "transform.rotation.z", to: angle, timing: .linear(duration: 10))
+      },
+      captureLayer: { trackingLayer = $0 }
+    )
+    view.refresh(animated: false)
+
+    let layer = try unwrap(trackingLayer)
+    expect(layer.basicAnimations(forKeyPath: "transform.rotation.z").last?.fromValue as? CGFloat) == -angle
+    layer.removeAllAnimations()
+
+    // when: a refresh animates the rotation to the same angle again
+    view.refresh(animated: false)
+
+    // then: the animation starts from the rotation that the row kept, so the row stays at the angle instead of
+    // turning from none again
+    let fromValue = try unwrap(layer.basicAnimations(forKeyPath: "transform.rotation.z").last?.fromValue as? CGFloat)
+    expect(abs(fromValue)) < 1e-9
+  }
+
+  #if canImport(AppKit)
+  func test_insertedView_keepsATransformSetOnce_throughTheFirstWindowCommit() throws {
+    // given: a view in a window, whose content turns a view once in each of `willInsert`, `update` and `didInsert`,
+    // rendered outside a run loop block, as an event handler renders, and a plain view in the window that the test
+    // turns directly
+    let window = makeWindow()
+    var turnedLayers: [CALayer] = []
+    let contentView = ComposeView {
+      HStack {
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .willInsert { renderable, _ in
+            renderable.layer.transform = Constants.rotation
+            turnedLayers.append(renderable.layer)
+          }
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .onUpdate { renderable, context in
+            guard context.updateType == .insert else {
+              return
+            }
+            renderable.layer.transform = Constants.rotation
+            turnedLayers.append(renderable.layer)
+          }
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .onInsert { renderable, _ in
+            renderable.layer.transform = Constants.rotation
+            turnedLayers.append(renderable.layer)
+          }
+      }
+    }
+    let container = BaseView(frame: CGRect(x: 0, y: 0, width: 300, height: 100))
+    window.contentView = container
+    contentView.frame = container.bounds
+    container.addSubview(contentView)
+    let plainView = BaseView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    container.addSubview(plainView)
+    plainView.layer().transform = Constants.rotation
+    contentView.refresh()
+    expect(turnedLayers.count) == 3
+
+    // when: the run loop turns, which runs its blocks, then commits, where AppKit resets the transform of a view that
+    // joined the window
+    RunLoop.main.run(until: Date())
+
+    // then: AppKit reset the plain view's transform, while the content's views keep the transforms that their blocks set
+    expect(CATransform3DIsIdentity(plainView.layer().transform)) == true
+    for layer in turnedLayers {
+      expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+    }
+  }
+
+  func test_reusedView_droppingATransform_isNotPutBack() throws {
+    // given: a view in a window, whose content turns a view while a flag is set, rendered, with the run loop turned
+    let window = makeWindow()
+    var isTurned = true
+    var turnedLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .onUpdate { renderable, _ in
+          renderable.layer.transform = isTurned ? Constants.rotation : CATransform3DIdentity
+        }
+        .onInsert { renderable, _ in
+          turnedLayer = renderable.layer
+        }
+    }
+    window.contentView = contentView
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+    let layer = try unwrap(turnedLayer)
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+
+    // when: the content drops the transform, and the run loop turns
+    isTurned = false
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+
+    // then: the view has the identity transform, which its layer doesn't replace with the rotation it kept
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+
+  func test_view_renderedOutsideAWindow_keepsATransformSetOnce_afterJoiningOne() throws {
+    // given: a view outside a window, whose content turns a view once in `willInsert`, rendered, with the run loop
+    // turned
+    var turnedLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .willInsert { renderable, _ in
+          renderable.layer.transform = Constants.rotation
+          turnedLayer = renderable.layer
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+    let layer = try unwrap(turnedLayer)
+
+    // when: the view joins a window, and the run loop turns
+    let window = makeWindow()
+    window.contentView = contentView
+    RunLoop.main.run(until: Date())
+
+    // then: the view keeps the rotation
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+  }
+
+  func test_insertedView_changingTheTransformInATransitionedDidInsert_keepsTheChange() throws {
+    // given: a view in a window, whose content rotates two views when it inserts them, then, in `didInsert`, which runs
+    // when their insert transition completes after the render pass, drops the rotation of one and translates the
+    // other, rendered with the transitions
+    let window = makeWindow()
+    let transition = RenderableTransition(
+      insert: RenderableTransition.InsertTransition { renderable, context, completion in
+        renderable.setFrame(context.targetFrame)
+        RunLoop.main.perform(completion)
+      },
+      remove: nil
+    )
+    var droppingLayer: CALayer?
+    var translatedView: View?
+    let rotateOnInsert: (Renderable, RenderableUpdateContext) -> Void = { renderable, context in
+      guard context.updateType == .insert else {
+        return
+      }
+      renderable.layer.transform = Constants.rotation
+    }
+    let contentView = ComposeView {
+      HStack {
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .transition(transition)
+          .onUpdate(rotateOnInsert)
+          .onInsert { renderable, _ in
+            renderable.layer.transform = CATransform3DIdentity
+            droppingLayer = renderable.layer
+          }
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .transition(transition)
+          .onUpdate(rotateOnInsert)
+          .onInsert { renderable, _ in
+            renderable.layer.transform = Constants.translation
+            translatedView = renderable.view
+          }
+      }
+    }
+    window.contentView = contentView
+    contentView.refresh(animated: true)
+    expect(droppingLayer).to(beNil())
+
+    // when: the run loop turns, which completes the transitions
+    RunLoop.main.run(until: Date())
+
+    // then: the view whose `didInsert` dropped the rotation has the identity transform
+    let layer = try unwrap(droppingLayer)
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+
+    // when: the translated view moves, which makes AppKit reset its transform
+    let view = try unwrap(translatedView)
+    view.setFrameOrigin(CGPoint(x: view.frame.origin.x + 10, y: view.frame.origin.y))
+
+    // then: the view has the translation back, instead of the rotation that it had before `didInsert`
+    expect(CATransform3DEqualToTransform(view.layer().transform, Constants.translation)) == true
+  }
+
+  func test_removedView_droppingTheTransformInWillRemove_isNotPutBack() throws {
+    // given: a view whose content rotates a view and drops the rotation in `willRemove`, before the view fades out,
+    // rendered
+    var turnedLayer: CALayer?
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 50))
+    contentView.setContent {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .onUpdate { renderable, _ in
+          renderable.layer.transform = Constants.rotation
+          turnedLayer = renderable.layer
+        }
+        .willRemove { renderable, _ in
+          renderable.layer.transform = CATransform3DIdentity
+        }
+    }
+    contentView.refresh(animated: false)
+    let layer = try unwrap(turnedLayer)
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+
+    // when: the content removes the view with its transition
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    // then: the view fades out with the identity transform, which its layer doesn't replace with the rotation it kept
+    expect(contentView.test.removingRenderableMap.count) == 1
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+  #endif
 
   // MARK: - old frame
 
@@ -732,6 +979,13 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
 
   // MARK: - Helpers
 
+  #if canImport(AppKit)
+  /// A window to show a view in.
+  private func makeWindow() -> NSWindow {
+    NSWindow(contentRect: CGRect(x: 0, y: 0, width: 300, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
+  }
+  #endif
+
   /// A content view with a flexible-width tracking-view row below a spacer in a scrollable stack.
   ///
   /// The heights are read on every refresh, so a refresh can keep, move, or resize the row. The animation timing, if
@@ -820,9 +1074,8 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     /// A non-identity transform set on the tracking row in the transform ownership tests.
     static let translation = CATransform3DMakeTranslation(20, 0, 0)
 
-    #if DEBUG && !COMPOSEUI_BENCHMARK
-    /// The message of the render pass's identity transform assertion.
-    static let identityTransformAssertionMessage = "the renderable's transform must be identity when its frame is applied, set a transform in `update` instead of `willInsert` or `willUpdate`"
-    #endif
+    /// A rotation set on the tracking row in the transform ownership tests, which a frame set through `frame` would
+    /// resize as well as move.
+    static let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
   }
 }

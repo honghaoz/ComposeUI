@@ -398,6 +398,46 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(enqueued?.layer.cornerRadius) == 0
   }
 
+  func test_colorNode_recycledLayer_resetsTheTransformFromPreviousUse() throws {
+    // given: a recording pool and a rendered color node whose node rotates its layer
+    let pool = RecordingRenderablePool()
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.renderablePool = pool
+
+    view.setContent {
+      ColorNode(.red)
+        .onUpdate { renderable, _ in
+          renderable.layer.transform = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
+        }
+        .frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+    let layer = try firstColorLayer(in: view).unwrap()
+    expect(CATransform3DIsIdentity(layer.transform)) == false
+
+    // when: the node is removed so its layer is enqueued to the pool
+    view.setContent {
+      Empty()
+    }
+    view.refresh(animated: false)
+
+    // then: the rotated layer is enqueued with an identity transform, since the next node may not set one
+    let enqueued = pool.lastEnqueuedRenderable
+    expect(enqueued?.layer) === layer
+    expect(enqueued.map { CATransform3DIsIdentity($0.layer.transform) }) == true
+
+    // when: a plain color node reuses the pooled layer
+    view.setContent {
+      ColorNode(.blue).frame(width: 100, height: 100)
+    }
+    view.refresh(animated: false)
+
+    // then: the plain ColorNode reused the very same enqueued layer, unrotated, at its frame
+    expect(pool.lastDequeuedRenderable?.layer) === enqueued?.layer
+    expect(enqueued.map { CATransform3DIsIdentity($0.layer.transform) }) == true
+    expect(enqueued?.layer.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+  }
+
   func test_innerShadowNode_poolsByDefault_acrossScroll() {
     // given: a recording pool and a list of inner shadow rows, rendered for the initial fill
     let pool = RecordingRenderablePool()

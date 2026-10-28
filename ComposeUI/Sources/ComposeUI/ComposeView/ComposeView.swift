@@ -1448,6 +1448,9 @@ open class ComposeView: BaseScrollView {
               }
             }
 
+            // the item's node owns the transform, and the next item's node may not set one
+            oldRenderable.layer.restoreIdentityTransformIfNeeded()
+
             if keepsInPlace {
               contentView.inPlaceReuse.keep(oldRenderable, key: reuseKey)
             } else {
@@ -1540,8 +1543,6 @@ open class ComposeView: BaseScrollView {
         debug?.onEvent(.renderWillReuseRenderable(item: renderableItem, renderable: renderable))
         #endif
 
-        renderable.layer.restoreIdentityTransformIfNeeded()
-
         let updateType: RenderableUpdateType
         switch context.updateType {
         case .refresh:
@@ -1619,8 +1620,7 @@ open class ComposeView: BaseScrollView {
         let insertTransition = animationDecision.allowsTransitions && !replacedIds.contains(id) ? renderableItem.transition?.insert : nil
 
         // the root-layer model position and transform the removal left behind, captured before this pass applies the
-        // target frame and resets the transform to identity, so a taking-over insert transition can anchor its
-        // animation to the removal's live state.
+        // target frame, so a taking-over insert transition can anchor its animation to the removal's live state.
         var revivalPosition: CGPoint?
         var revivalTransform: CATransform3D?
 
@@ -1654,8 +1654,6 @@ open class ComposeView: BaseScrollView {
         debug?.onEvent(.renderWillInsertRenderable(item: renderableItem, renderable: renderable))
         #endif
 
-        renderable.layer.restoreIdentityTransformIfNeeded()
-
         let frameBeforeWillInsert = renderable.frame
         renderableItem.performWillInsert(renderable, RenderableInsertContext(oldFrame: frameBeforeWillInsert, newFrame: newFrame, contentView: self))
         let frameAfterWillInsert = renderable.frame
@@ -1675,9 +1673,6 @@ open class ComposeView: BaseScrollView {
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
         zOrder.insert(renderable, at: itemIndex, into: contentContainerView, ids: renderableItemIds, reusedRenderables: oldRenderableMap)
-        #if DEBUG && !COMPOSEUI_BENCHMARK
-        renderable.assertIdentityTransform()
-        #endif
         renderable.setFrame(newFrame)
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)

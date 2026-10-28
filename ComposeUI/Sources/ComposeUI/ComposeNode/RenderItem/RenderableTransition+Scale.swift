@@ -38,9 +38,10 @@ public extension RenderableTransition {
   /// the renderable scales from its current scale down to `from`. The scaling pivots about `anchor` for any layer
   /// anchor point.
   ///
-  /// The transition owns the layer's transform and assumes no other writer touches it. Reviving a renderable while its
-  /// scale-out is in flight continues the motion from the removal's in-flight state. A zero-duration timing applies the
-  /// end state and completes immediately, or right after the delay window when the timing has a delay.
+  /// The transition owns the layer's transform, so it doesn't combine with a transform that the node sets. Reviving a
+  /// renderable while its scale-out is in flight continues the motion from the removal's in-flight state. A
+  /// zero-duration timing applies the end state and completes immediately, or right after the delay window when the
+  /// timing has a delay.
   ///
   /// - Parameters:
   ///   - from: The scale to insert from and remove to. Values above 1 zoom down into place. Defaults to 0.
@@ -56,6 +57,11 @@ public extension RenderableTransition {
     RenderableTransition(
       insert: options.contains(.insert) ? InsertTransition(
         takesOverKeyPaths: Constants.animatedKeyPaths,
+        prepareForTakeover: { renderable in
+          // the removal left its end scale in the model transform, which goes back to identity as a fresh insertion's
+          // is, since the insertion's offsets from the revival transform cancel the change
+          renderable.layer.restoreIdentityTransformIfNeeded()
+        },
         animate: { renderable, context, completion in
           let layer = renderable.layer
           ComposeUI.assert(CATransform3DIsIdentity(layer.transform), "scale insert transition requires an identity model transform")

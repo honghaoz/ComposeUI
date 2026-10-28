@@ -81,6 +81,9 @@ public extension RenderableTransition {
             return
           }
 
+          // the renderable goes to its target frame first, where what it shows tells where the slide starts
+          renderable.setFrame(targetFrame)
+
           let startPosition: CGPoint
           if let revivalPosition = context.revivalPosition {
             // a revival continues from the removal's model position: the offset from that position cancels the model
@@ -88,11 +91,9 @@ public extension RenderableTransition {
             // offset keeps decaying on top
             startPosition = revivalPosition
           } else {
-            let startFrame = frame(targetFrame, outsideVisibleAreaOf: context.contentView, on: fromSide, overshoot: overshoot)
+            let startFrame = frame(of: renderable, at: targetFrame, outsideVisibleAreaOf: context.contentView, on: fromSide, overshoot: overshoot)
             startPosition = layer.position(from: startFrame)
           }
-
-          renderable.setFrame(targetFrame)
 
           layer.animate(
             keyPath: "position",
@@ -113,7 +114,13 @@ public extension RenderableTransition {
         animatedKeyPaths: ["position"],
         animate: { renderable, context, completion in
           let layer = renderable.layer
-          let targetFrame = frame(layer.frame, outsideVisibleAreaOf: context.contentView, on: toSide ?? fromSide, overshoot: overshoot)
+          let targetFrame = frame(
+            of: renderable,
+            at: renderable.frame,
+            outsideVisibleAreaOf: context.contentView,
+            on: toSide ?? fromSide,
+            overshoot: overshoot
+          )
 
           guard timing.timing.duration > 0 || timing.delay > 0 else {
             renderable.setFrame(targetFrame)
@@ -124,7 +131,7 @@ public extension RenderableTransition {
           layer.animate(
             keyPath: "position",
             timing: timing,
-            from: { $0.position(from: $0.frame) - $0.position(from: targetFrame) },
+            from: { $0.position - $0.position(from: targetFrame) },
             to: { _ in .zero },
             model: { $0.position(from: targetFrame) },
             updateAnimation: {
@@ -139,28 +146,40 @@ public extension RenderableTransition {
     )
   }
 
-  /// Returns the frame moved along the side's axis to just outside the compose view's visible area on that side.
+  /// Returns the renderable's frame moved along the side's axis until what the renderable shows is just outside the
+  /// compose view's visible area on that side.
   ///
   /// Renderable frames are in content coordinates, so the visible area is the rect at the content offset, which moves
   /// as the view scrolls.
   ///
   /// - Parameters:
-  ///   - frame: The frame to move.
-  ///   - contentView: The compose view whose visible area the frame moves outside of.
-  ///   - side: The side to move the frame to.
+  ///   - renderable: The renderable, at the frame.
+  ///   - frame: The renderable's frame.
+  ///   - contentView: The compose view whose visible area the renderable moves outside of.
+  ///   - side: The side to move the renderable to.
   ///   - overshoot: The extra distance past the edge of the visible area.
   /// - Returns: The moved frame.
-  private static func frame(_ frame: CGRect, outsideVisibleAreaOf contentView: ComposeView, on side: SlideSide, overshoot: CGFloat) -> CGRect {
+  private static func frame(of renderable: Renderable,
+                            at frame: CGRect,
+                            outsideVisibleAreaOf contentView: ComposeView,
+                            on side: SlideSide,
+                            overshoot: CGFloat) -> CGRect
+  {
+    // a transform can show the renderable past its frame, so the frame moves until what shows is outside. a layer
+    // without a superlayer, such as an AppKit view's layer before AppKit adds it to its superview's, converts to `nil`
+    // as it would to a superlayer
+    let layer = renderable.layer
+    let shownFrame = CATransform3DIsIdentity(layer.transform) ? frame : layer.convert(layer.bounds, to: layer.superlayer)
     let visibleArea = CGRect(origin: contentView.contentOffset, size: contentView.visibleSize)
     switch side {
     case .top:
-      return frame.translate(dy: visibleArea.minY - frame.maxY - overshoot)
+      return frame.translate(dy: visibleArea.minY - shownFrame.maxY - overshoot)
     case .bottom:
-      return frame.translate(dy: visibleArea.maxY - frame.minY + overshoot)
+      return frame.translate(dy: visibleArea.maxY - shownFrame.minY + overshoot)
     case .left:
-      return frame.translate(dx: visibleArea.minX - frame.maxX - overshoot)
+      return frame.translate(dx: visibleArea.minX - shownFrame.maxX - overshoot)
     case .right:
-      return frame.translate(dx: visibleArea.maxX - frame.minX + overshoot)
+      return frame.translate(dx: visibleArea.maxX - shownFrame.minX + overshoot)
     }
   }
 }
