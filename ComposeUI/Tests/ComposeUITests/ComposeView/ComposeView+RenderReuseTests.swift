@@ -398,7 +398,7 @@ class ComposeView_RenderReuseTests: XCTestCase {
     expect(enqueued?.layer.cornerRadius) == 0
   }
 
-  func test_colorNode_recycledLayer_resetsTheTransformFromPreviousUse() {
+  func test_colorNode_recycledLayer_resetsTheTransformFromPreviousUse() throws {
     // given: a recording pool and a rendered color node whose node rotates its layer
     let pool = RecordingRenderablePool()
     let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
@@ -412,6 +412,8 @@ class ComposeView_RenderReuseTests: XCTestCase {
         .frame(width: 100, height: 100)
     }
     view.refresh(animated: false)
+    let layer = try firstColorLayer(in: view).unwrap()
+    expect(CATransform3DIsIdentity(layer.transform)) == false
 
     // when: the node is removed so its layer is enqueued to the pool
     view.setContent {
@@ -419,8 +421,9 @@ class ComposeView_RenderReuseTests: XCTestCase {
     }
     view.refresh(animated: false)
 
-    // then: the layer is enqueued with an identity transform, since the next node may not set one
+    // then: the rotated layer is enqueued with an identity transform, since the next node may not set one
     let enqueued = pool.lastEnqueuedRenderable
+    expect(enqueued?.layer) === layer
     expect(enqueued.map { CATransform3DIsIdentity($0.layer.transform) }) == true
 
     // when: a plain color node reuses the pooled layer
