@@ -63,7 +63,8 @@ extension CALayer {
   private func anchoredPosition(in frame: CGRect) -> CGPoint {
     // `origin + anchorPoint * size` rounds twice and can differ by an ulp from Core Animation's fused result for
     // anchor points other than 0, 0.5, and 1, so a fused multiply-add is used to match it
-    CGPoint(
+    let anchorPoint = self.anchorPoint
+    return CGPoint(
       x: frame.origin.x.addingProduct(anchorPoint.x, frame.width),
       y: frame.origin.y.addingProduct(anchorPoint.y, frame.height)
     )
@@ -74,17 +75,37 @@ extension CALayer {
   /// - Parameter frame: The frame to compare with.
   /// - Returns: `true` if the layer's position and size match the frame's.
   func hasFrame(_ frame: CGRect) -> Bool {
+    compareGeometry(to: frame) == .sameFrame
+  }
+
+  /// Compares the layer's model geometry with the frame, within `Constants.geometryTolerance`.
+  ///
+  /// - Parameter frame: The frame to compare with.
+  /// - Returns: How the layer's position and size compare with the frame's.
+  func compareGeometry(to frame: CGRect) -> FrameComparison {
     // the model `position` and `bounds.size` are compared instead of `frame`, because `frame` is derived from them and
     // does not round-trip exactly for third-pixel values (frames rounded for a 3x display), which would report an
     // unchanged frame as changed. they are also independent of the transform, so no identity precondition here.
     // the tolerance covers geometry written by other arithmetic than `anchoredPosition(in:)`, for example by AppKit
     // deriving a layer-backed view's geometry from its frame.
-    let targetPosition = anchoredPosition(in: frame)
+    // each read is an Objective-C call, so each property is read once, and the size goes first, so that a frame of
+    // another size takes one read.
     let tolerance = Constants.geometryTolerance
-    return position.x.isApproximatelyEqual(to: targetPosition.x, absoluteTolerance: tolerance)
-      && position.y.isApproximatelyEqual(to: targetPosition.y, absoluteTolerance: tolerance)
-      && bounds.width.isApproximatelyEqual(to: frame.width, absoluteTolerance: tolerance)
-      && bounds.height.isApproximatelyEqual(to: frame.height, absoluteTolerance: tolerance)
+    let size = bounds.size
+    guard size.width.isApproximatelyEqual(to: frame.width, absoluteTolerance: tolerance),
+          size.height.isApproximatelyEqual(to: frame.height, absoluteTolerance: tolerance)
+    else {
+      return .otherSize
+    }
+
+    let targetPosition = anchoredPosition(in: frame)
+    let position = self.position
+    guard position.x.isApproximatelyEqual(to: targetPosition.x, absoluteTolerance: tolerance),
+          position.y.isApproximatelyEqual(to: targetPosition.y, absoluteTolerance: tolerance)
+    else {
+      return .otherPosition
+    }
+    return .sameFrame
   }
 
   /// Restores the layer's model transform to identity.
@@ -109,4 +130,17 @@ extension CALayer {
     // count does, without reading `sublayers` for the count, which copies the array
     addSublayer(sublayer)
   }
+}
+
+/// How a layer's or a renderable's geometry compares with a frame.
+enum FrameComparison {
+
+  /// The geometry has another size than the frame, whatever its position.
+  case otherSize
+
+  /// The geometry has the frame's size at another position.
+  case otherPosition
+
+  /// The geometry matches the frame.
+  case sameFrame
 }

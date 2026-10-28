@@ -1585,13 +1585,14 @@ open class ComposeView: BaseScrollView {
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
-        renderable.updateFrame(newFrame, animationTiming: animationTiming)
+        let isResized = renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
         renderableItem.performUpdate(renderable, renderableUpdateContext)
 
-        // a nested `ComposeView` this pass resized renders its content for the new size within this render pass,
-        // instead of on its own later, so its animations are capped by this pass's animation decision
-        if oldFrame.size != newFrame.size {
+        // a nested `ComposeView` this pass resized, also back to its layout size after something else resized it,
+        // renders its content for the new size within this render pass, instead of on its own later, so its animations
+        // are capped by this pass's animation decision
+        if isResized {
           (renderable.view as? ComposeView)?.renderBoundsChangeIfNeeded()
         }
 
