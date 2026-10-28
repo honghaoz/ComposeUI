@@ -28,6 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
+import QuartzCore
+
 #if canImport(AppKit)
 import AppKit
 
@@ -94,7 +96,7 @@ extension CALayer {
 ///
 /// It's kept on the layer as an associated object, since a layer holds a value that it stores for a key until the
 /// transaction commits, which would keep a removed keeper putting the transform back.
-private final class TransformKeeper {
+private final class TransformKeeper: NSObject {
 
   /// The key of the keeper on a layer, a stable address.
   static let key = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
@@ -110,8 +112,8 @@ private final class TransformKeeper {
   /// Whether the keeper leaves the transform alone, see `CALayer.pauseKeepingTransform()`.
   var isPaused = false
 
-  /// The observation of the layer's transform.
-  private var observation: NSKeyValueObservation?
+  /// The layer whose transform the keeper observes.
+  private weak var layer: CALayer?
 
   /// Creates a keeper that keeps the layer's transform.
   ///
@@ -119,21 +121,65 @@ private final class TransformKeeper {
   ///   - layer: The layer, which keeps the keeper.
   ///   - transform: The transform to keep.
   init(layer: CALayer, transform: CATransform3D) {
+    self.layer = layer
     self.transform = transform
+
+    super.init()
+
     Self.count += 1
 
-    // AppKit resets the transform through its setter, which the observation sees, and only to identity, so only
-    // identity is put back, which leaves a transform that other code sets, such as a scale transition's
-    observation = layer.observe(\.transform) { [weak self] layer, _ in
-      guard let self, !isPaused, CATransform3DIsIdentity(layer.transform) else {
-        return
-      }
-      layer.setKeyPathValue("transform", NSValue(caTransform3D: self.transform))
-    }
+    // AppKit resets the transform through its setter, which the observation sees. every transform write notifies the
+    // keeper, and Foundation's observer API notifies in about half the time of a Swift observation block
+    layer.addObserver(self, forKeyPath: "transform", options: [], context: nil)
   }
 
   deinit {
     Self.count -= 1
+
+    // a layer that deallocates releases its keeper when its weak references already read nil, and Foundation removes
+    // the observations of an object that deallocates
+    layer?.removeObserver(self, forKeyPath: "transform", context: nil)
+  }
+
+  // swiftlint:disable:next block_based_kvo
+  override func observeValue(forKeyPath keyPath: String?,
+                             of object: Any?,
+                             change: [NSKeyValueChangeKey: Any]?,
+                             context: UnsafeMutableRawPointer?)
+  {
+    // AppKit resets the transform only to identity, so only identity is put back, which leaves a transform that other
+    // code sets, such as a scale transition's
+    guard !isPaused, let layer, CATransform3DIsIdentity(layer.transform) else {
+      return
+    }
+    layer.setKeyPathValue("transform", NSValue(caTransform3D: transform))
   }
 }
 #endif
+
+extension CALayer {
+
+  /// Runs the work without putting back the transform that the layer keeps, see `keepTransform(_:)`, for work that sets
+  /// the identity transform for a moment and puts the transform back itself.
+  ///
+  /// UIKit doesn't reset a view's layer transform, so there the work just runs.
+  ///
+  /// - Parameter work: The work to run.
+  @inline(__always)
+  func withTransformKeepingPaused(_ work: () -> Void) {
+    #if canImport(AppKit)
+    guard TransformKeeper.count > 0, let keeper = objc_getAssociatedObject(self, TransformKeeper.key) as? TransformKeeper else {
+      work()
+      return
+    }
+
+    // a node's block can be running with the keeping paused, which stays paused after the work
+    let wasPaused = keeper.isPaused
+    keeper.isPaused = true
+    work()
+    keeper.isPaused = wasPaused
+    #else
+    work()
+    #endif
+  }
+}

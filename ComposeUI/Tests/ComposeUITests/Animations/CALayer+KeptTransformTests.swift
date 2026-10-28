@@ -106,6 +106,19 @@ class CALayer_KeptTransformTests: XCTestCase {
     expect(CATransform3DIsIdentity(layer.transform)) == true
   }
 
+  func test_stopKeepingTransform_removesTheObservation() {
+    // given: a layer that keeps its quarter turn, which observes the layer's transform
+    let layer = CALayer()
+    layer.keepTransform(Constants.quarterTurn)
+    expect(layer.observationInfo) != nil
+
+    // when: the layer stops keeping its transform
+    layer.stopKeepingTransform()
+
+    // then: no observation of the layer is left, which would notify the keeper that went
+    expect(layer.observationInfo) == nil
+  }
+
   func test_stopKeepingTransform_withoutAKeptTransform_leavesTheTransform() {
     // given: a layer with a quarter turn that it doesn't keep
     let layer = CALayer()
@@ -263,6 +276,61 @@ class CALayer_KeptTransformTests: XCTestCase {
 
     // then: the transform stays identity
     expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+
+  func test_withTransformKeepingPaused_leavesTheIdentityToTheWork() {
+    // given: a layer that keeps its quarter turn
+    let layer = CALayer()
+    layer.keepTransform(Constants.quarterTurn)
+    layer.transform = Constants.quarterTurn
+
+    // when: the work sets identity, then puts the quarter turn back
+    var isIdentityInTheWork = false
+    layer.withTransformKeepingPaused {
+      layer.transform = CATransform3DIdentity
+      isIdentityInTheWork = CATransform3DIsIdentity(layer.transform)
+      layer.transform = Constants.quarterTurn
+    }
+
+    // then: the identity stayed in the work
+    expect(isIdentityInTheWork) == true
+
+    // when: the transform becomes identity after the work
+    layer.transform = CATransform3DIdentity
+
+    // then: the layer has the quarter turn back, since the keeping goes on after the work
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.quarterTurn)) == true
+  }
+
+  func test_withTransformKeepingPaused_whilePaused_leavesTheKeepingPaused() {
+    // given: a layer that keeps its quarter turn, paused
+    let layer = CALayer()
+    layer.keepTransform(Constants.quarterTurn)
+    layer.transform = Constants.quarterTurn
+    _ = layer.pauseKeepingTransform()
+
+    // when: work runs with the keeping paused, then the transform becomes identity
+    layer.withTransformKeepingPaused {}
+    layer.transform = CATransform3DIdentity
+
+    // then: the transform stays identity, since the keeping is still paused
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+
+  func test_withTransformKeepingPaused_withoutAKeptTransform_runsTheWork() {
+    // given: a layer that keeps no transform, while another layer keeps one
+    let keepingLayer = CALayer()
+    keepingLayer.keepTransform(Constants.quarterTurn)
+    let layer = CALayer()
+
+    // when: the work turns the layer
+    layer.withTransformKeepingPaused {
+      layer.transform = Constants.quarterTurn
+    }
+
+    // then: the layer has the quarter turn
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.quarterTurn)) == true
+    withExtendedLifetime(keepingLayer) {}
   }
 
   // MARK: - Constants

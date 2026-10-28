@@ -104,9 +104,12 @@ public enum Renderable {
     // view's layer transform when the view moves or resizes, so the frame is set at identity and the transform is put
     // back. setting `frame` instead of the position and bounds keeps the subclass overrides of the `frame` setter.
     layer.disableActions(for: "transform") {
-      layer.transform = CATransform3DIdentity
-      setUntransformedFrame(frame)
-      layer.transform = transform
+      // a layer that keeps its transform would put it back over the identity before the frame is set
+      layer.withTransformKeepingPaused {
+        layer.transform = CATransform3DIdentity
+        setUntransformedFrame(frame)
+        layer.transform = transform
+      }
     }
   }
 

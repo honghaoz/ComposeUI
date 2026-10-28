@@ -223,6 +223,31 @@ class RenderableTests: XCTestCase {
   }
 
   #if canImport(AppKit)
+  func test_view_case_setFrame_underAKeptTransform_writesTheTransformOnlyAroundTheFrame() {
+    // given: a view-backed renderable whose layer keeps its rotation, as a node's transform is kept, and a count of the
+    // layer's transform writes
+    let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
+    let view = FrameTrackingView(frame: CGRect(x: 10, y: 20, width: 100, height: 200))
+    let layer = view.layer()
+    layer.transform = rotation
+    layer.keepTransform(rotation)
+    let renderable = Renderable.view(view)
+    var transformWrites = 0
+    let observation = layer.observe(\.transform) { _, _ in
+      transformWrites += 1
+    }
+
+    // when: setting a new frame
+    renderable.setFrame(CGRect(x: 30, y: 40, width: 300, height: 400))
+
+    // then: the transform is written twice, to identity for the frame and back, as for a view that doesn't keep its
+    // transform, and the view has the frame and the rotation
+    expect(transformWrites) == 2
+    expect(renderable.frame) == CGRect(x: 30, y: 40, width: 300, height: 400)
+    expect(CATransform3DEqualToTransform(layer.transform, rotation)) == true
+    observation.invalidate()
+  }
+
   func test_view_case_updateFrame_resyncsViewDriftedFromLayer() {
     // given: a view-backed renderable whose backing layer was moved directly to the target frame, leaving the view behind
     let targetFrame = CGRect(x: 30, y: 40, width: 100, height: 200)
