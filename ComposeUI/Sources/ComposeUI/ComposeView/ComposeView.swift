@@ -1551,7 +1551,13 @@ open class ComposeView: BaseScrollView {
         }
 
         // the frame that the last pass applied, worked out as for a removal
-        let oldFrame = oldRenderableItems[reusedOldIndices[itemIndex]].frame.rounded(scaleFactor: lastRenderScaleFactor)
+        let oldIndex = reusedOldIndices[itemIndex]
+        #if DEBUG && !COMPOSEUI_BENCHMARK
+        // the reuse detection has to record the old index of every renderable that the old map keeps, since an index it
+        // missed hands out another item's frame without failing
+        ComposeUI.assert(oldRenderableItemIds[oldIndex] == id, "missing old index of reused renderable: \(id.id)")
+        #endif
+        let oldFrame = oldRenderableItems[oldIndex].frame.rounded(scaleFactor: lastRenderScaleFactor)
         let newFrame = renderableItem.frame.rounded(scaleFactor: scaleFactor)
 
         let animationTiming: AnimationTiming?
