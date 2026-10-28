@@ -369,6 +369,39 @@ class RenderItemTests: XCTestCase {
     }
   }
 
+  #if canImport(AppKit)
+  func test_performBlock_view_keepsTheTransformThatTheBlockLeaves() {
+    for block in TransformingBlock.allCases {
+      for isErased in [false, true] {
+        let description = "\(block), erased: \(isErased)"
+        withContexts { contexts in
+          // given: a view whose layer keeps a quarter turn, and an item whose block of the kind drops the transform,
+          // either the item's own block or the block of the view item that it was erased from
+          let view = Self.makeView()
+          let layer = view.layer()
+          layer.transform = Constants.quarterTurn
+          layer.keepTransform(Constants.quarterTurn)
+          let droppingItem = makeTransformingItem(block, isErased: isErased, view: view, transform: CATransform3DIdentity)
+
+          // when: the render pass runs the block
+          perform(block, of: droppingItem, on: .view(view), contexts)
+
+          // then: the layer has the identity transform, which it doesn't replace with the quarter turn that it kept
+          expect(CATransform3DIsIdentity(layer.transform), description) == true
+
+          // when: the render pass runs the block of an item whose block sets a scale, then AppKit resets the transform
+          let scalingItem = makeTransformingItem(block, isErased: isErased, view: view, transform: Constants.doubleScale)
+          perform(block, of: scalingItem, on: .view(view), contexts)
+          layer.transform = CATransform3DIdentity
+
+          // then: the layer has the scale back
+          expect(CATransform3DEqualToTransform(layer.transform, Constants.doubleScale), description) == true
+        }
+      }
+    }
+  }
+  #endif
+
   func test_eraseToRenderableItem_readingTheBlocks_runsTheItemsBlocks() {
     for (kind, item) in erasedTokenItems {
       withContexts { contexts in
@@ -790,6 +823,77 @@ class RenderItemTests: XCTestCase {
     renderable.layer.name?.components(separatedBy: ",") ?? []
   }
 
+  #if canImport(AppKit)
+  /// The blocks that the render pass runs through a `RenderableItem`'s `perform` methods, other than `resetForReuse`.
+  private enum TransformingBlock: CaseIterable {
+    case willInsert
+    case didInsert
+    case willUpdate
+    case update
+    case willRemove
+    case didRemove
+  }
+
+  /// An item for the view whose block of the kind sets the view's layer transform, either the item's own block or the
+  /// block of the view item that it was erased from.
+  private func makeTransformingItem(_ block: TransformingBlock,
+                                    isErased: Bool,
+                                    view: BaseView,
+                                    transform: CATransform3D) -> RenderableItem
+  {
+    if isErased {
+      func transformingBlock<Context>(_ kind: TransformingBlock) -> ((BaseView, Context) -> Void)? {
+        kind == block ? { view, _ in view.layer().transform = transform } : nil
+      }
+      return ViewItem<BaseView>(
+        id: .custom("item"),
+        frame: .zero,
+        make: { _ in view },
+        willInsert: transformingBlock(.willInsert),
+        didInsert: transformingBlock(.didInsert),
+        willUpdate: transformingBlock(.willUpdate),
+        update: transformingBlock(.update) ?? { _, _ in },
+        willRemove: transformingBlock(.willRemove),
+        didRemove: transformingBlock(.didRemove)
+      )
+      .eraseToRenderableItem()
+    } else {
+      func transformingBlock<Context>(_ kind: TransformingBlock) -> ((Renderable, Context) -> Void)? {
+        kind == block ? { renderable, _ in renderable.layer.transform = transform } : nil
+      }
+      return RenderableItem(
+        id: .custom("item"),
+        frame: .zero,
+        make: { _ in .view(view) },
+        willInsert: transformingBlock(.willInsert),
+        didInsert: transformingBlock(.didInsert),
+        willUpdate: transformingBlock(.willUpdate),
+        update: transformingBlock(.update) ?? { _, _ in },
+        willRemove: transformingBlock(.willRemove),
+        didRemove: transformingBlock(.didRemove)
+      )
+    }
+  }
+
+  /// Runs the item's block of the kind on the renderable, as the render pass runs it.
+  private func perform(_ block: TransformingBlock, of item: RenderableItem, on renderable: Renderable, _ contexts: Contexts) {
+    switch block {
+    case .willInsert:
+      item.performWillInsert(renderable, contexts.insert)
+    case .didInsert:
+      item.performDidInsert(renderable, contexts.insert)
+    case .willUpdate:
+      item.performWillUpdate(renderable, contexts.update)
+    case .update:
+      item.performUpdate(renderable, contexts.update)
+    case .willRemove:
+      item.performWillRemove(renderable, contexts.remove)
+    case .didRemove:
+      item.performDidRemove(renderable, contexts.remove)
+    }
+  }
+  #endif
+
   /// Runs the item's blocks other than `make` through the methods the render pass calls.
   private func runBlocksAsTheRenderPass(of item: RenderableItem, with renderable: Renderable, _ contexts: Contexts) {
     item.performWillInsert(renderable, contexts.insert)
@@ -885,4 +989,18 @@ class RenderItemTests: XCTestCase {
       ))
     }
   }
+
+  #if canImport(AppKit)
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// A quarter turn about the z axis.
+    static let quarterTurn = CATransform3DMakeRotation(.pi / 2, 0, 0, 1)
+
+    /// A scale that doubles the width and the height.
+    static let doubleScale = CATransform3DMakeScale(2, 2, 1)
+  }
+  #endif
 }

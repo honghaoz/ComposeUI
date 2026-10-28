@@ -317,36 +317,52 @@ public struct RenderItem<T> {
   }
 
   /// Runs the `willInsert` block, if any.
-  func performWillInsert(_ renderable: T, _ context: RenderableInsertContext) {
-    storage.performWillInsert(renderable, context)
+  func performWillInsert(_ renderable: T, _ context: RenderableInsertContext) where T == Renderable {
+    // a block that the item doesn't have changes no transform, so skipping it skips the keeping too
+    guard storage.hasWillInsert else {
+      return
+    }
+    renderable.performWithTransformKeeping { storage.performWillInsert(renderable, context) }
   }
 
   /// Runs the `didInsert` block, if any.
-  func performDidInsert(_ renderable: T, _ context: RenderableInsertContext) {
-    storage.performDidInsert(renderable, context)
+  func performDidInsert(_ renderable: T, _ context: RenderableInsertContext) where T == Renderable {
+    guard storage.hasDidInsert else {
+      return
+    }
+    renderable.performWithTransformKeeping { storage.performDidInsert(renderable, context) }
   }
 
   /// Runs the `willUpdate` block, if any.
-  func performWillUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
-    storage.performWillUpdate(renderable, context)
+  func performWillUpdate(_ renderable: T, _ context: RenderableUpdateContext) where T == Renderable {
+    guard storage.hasWillUpdate else {
+      return
+    }
+    renderable.performWithTransformKeeping { storage.performWillUpdate(renderable, context) }
   }
 
   /// Runs `update`, then the additional update blocks in the order they were added.
   ///
   /// The render pass calls this instead of reading `update`, which builds a new block for an item with additional
   /// update blocks.
-  func performUpdate(_ renderable: T, _ context: RenderableUpdateContext) {
-    storage.performUpdate(renderable, context)
+  func performUpdate(_ renderable: T, _ context: RenderableUpdateContext) where T == Renderable {
+    renderable.performWithTransformKeeping { storage.performUpdate(renderable, context) }
   }
 
   /// Runs the `willRemove` block, if any.
-  func performWillRemove(_ renderable: T, _ context: RenderableRemoveContext) {
-    storage.performWillRemove(renderable, context)
+  func performWillRemove(_ renderable: T, _ context: RenderableRemoveContext) where T == Renderable {
+    guard storage.hasWillRemove else {
+      return
+    }
+    renderable.performWithTransformKeeping { storage.performWillRemove(renderable, context) }
   }
 
   /// Runs the `didRemove` block, if any.
-  func performDidRemove(_ renderable: T, _ context: RenderableRemoveContext) {
-    storage.performDidRemove(renderable, context)
+  func performDidRemove(_ renderable: T, _ context: RenderableRemoveContext) where T == Renderable {
+    guard storage.hasDidRemove else {
+      return
+    }
+    renderable.performWithTransformKeeping { storage.performDidRemove(renderable, context) }
   }
 
   /// Runs the `resetForReuse` block, if any.
@@ -627,6 +643,67 @@ public struct RenderItem<T> {
         return nil
       case .typedItem(let typedItem, let blocks):
         return blocks.contains(block) ? typedItem : nil
+      }
+    }
+
+    /// Whether the typed item that the item was erased from has a lifecycle block of the kind.
+    func typedItemHas(_ block: TypedItemBlocks) -> Bool {
+      switch source {
+      case .make:
+        return false
+      case .typedItem(_, let blocks):
+        return blocks.contains(block)
+      }
+    }
+
+    /// Whether the item has a `willInsert` block, its own or its typed item's.
+    var hasWillInsert: Bool {
+      // a switch reads the block in place, instead of copying it to compare it with nil
+      switch willInsert {
+      case .none:
+        return typedItemHas(.willInsert)
+      case .some:
+        return true
+      }
+    }
+
+    /// Whether the item has a `didInsert` block, its own or its typed item's.
+    var hasDidInsert: Bool {
+      switch didInsert {
+      case .none:
+        return typedItemHas(.didInsert)
+      case .some:
+        return true
+      }
+    }
+
+    /// Whether the item has a `willUpdate` block, its own or its typed item's.
+    var hasWillUpdate: Bool {
+      switch willUpdate {
+      case .none:
+        return typedItemHas(.willUpdate)
+      case .some:
+        return true
+      }
+    }
+
+    /// Whether the item has a `willRemove` block, its own or its typed item's.
+    var hasWillRemove: Bool {
+      switch willRemove {
+      case .none:
+        return typedItemHas(.willRemove)
+      case .some:
+        return true
+      }
+    }
+
+    /// Whether the item has a `didRemove` block, its own or its typed item's.
+    var hasDidRemove: Bool {
+      switch didRemove {
+      case .none:
+        return typedItemHas(.didRemove)
+      case .some:
+        return true
       }
     }
 

@@ -1580,12 +1580,6 @@ open class ComposeView: BaseScrollView {
           animationDecision: animationDecision
         )
 
-        #if canImport(AppKit)
-        // a view's layer keeps the transform that the node sets through AppKit's resets, but not while the node's
-        // blocks run, see `Renderable.pauseKeepingTransform()`
-        let mayKeepTransform = renderable.pauseKeepingTransform()
-        #endif
-
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
         if zOrder.restacksViews, let view = renderable.view, !ZOrderPass.passesClicksThrough(view) {
@@ -1601,10 +1595,6 @@ open class ComposeView: BaseScrollView {
         renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
         renderableItem.performUpdate(renderable, renderableUpdateContext)
-
-        #if canImport(AppKit)
-        renderable.resumeKeepingTransform(mayBeKeeping: mayKeepTransform)
-        #endif
 
         // render a resized nested `ComposeView` now, within this pass, so that its animations follow this pass's
         // animation decision instead of its own. compare the view's size with the size it last rendered at, not
@@ -1662,11 +1652,6 @@ open class ComposeView: BaseScrollView {
 
         #if DEBUG
         debug?.onEvent(.renderWillInsertRenderable(item: renderableItem, renderable: renderable))
-        #endif
-
-        #if canImport(AppKit)
-        // as for a reused renderable, since a revived view's layer can be keeping a transform
-        let mayKeepTransform = renderable.pauseKeepingTransform()
         #endif
 
         let frameBeforeWillInsert = renderable.frame
@@ -1742,12 +1727,6 @@ open class ComposeView: BaseScrollView {
           debug?.onEvent(.renderDidInsertRenderable(item: renderableItem, renderable: renderable))
           #endif
         }
-
-        #if canImport(AppKit)
-        // after a `didInsert` that runs now, which can change the transform too, and before the commit, where AppKit
-        // resets the transform of a view that joined a window
-        renderable.resumeKeepingTransform(mayBeKeeping: mayKeepTransform)
-        #endif
       }
 
       renderableMap[id] = renderable

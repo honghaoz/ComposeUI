@@ -690,6 +690,97 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     // then: the view keeps the rotation
     expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
   }
+
+  func test_insertedView_changingTheTransformInATransitionedDidInsert_keepsTheChange() throws {
+    // given: a view in a window, whose content rotates two views when it inserts them, then, in `didInsert`, which runs
+    // when their insert transition completes after the render pass, drops the rotation of one and translates the
+    // other, rendered with the transitions
+    let window = makeWindow()
+    let transition = RenderableTransition(
+      insert: RenderableTransition.InsertTransition { renderable, context, completion in
+        renderable.setFrame(context.targetFrame)
+        RunLoop.main.perform(completion)
+      },
+      remove: nil
+    )
+    var droppingLayer: CALayer?
+    var translatedView: View?
+    let rotateOnInsert: (Renderable, RenderableUpdateContext) -> Void = { renderable, context in
+      guard context.updateType == .insert else {
+        return
+      }
+      renderable.layer.transform = Constants.rotation
+    }
+    let contentView = ComposeView {
+      HStack {
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .transition(transition)
+          .onUpdate(rotateOnInsert)
+          .onInsert { renderable, _ in
+            renderable.layer.transform = CATransform3DIdentity
+            droppingLayer = renderable.layer
+          }
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .transition(transition)
+          .onUpdate(rotateOnInsert)
+          .onInsert { renderable, _ in
+            renderable.layer.transform = Constants.translation
+            translatedView = renderable.view
+          }
+      }
+    }
+    window.contentView = contentView
+    contentView.refresh(animated: true)
+    expect(droppingLayer).to(beNil())
+
+    // when: the run loop turns, which completes the transitions
+    RunLoop.main.run(until: Date())
+
+    // then: the view whose `didInsert` dropped the rotation has the identity transform
+    let layer = try unwrap(droppingLayer)
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+
+    // when: the translated view moves, which makes AppKit reset its transform
+    let view = try unwrap(translatedView)
+    view.setFrameOrigin(CGPoint(x: view.frame.origin.x + 10, y: view.frame.origin.y))
+
+    // then: the view has the translation back, instead of the rotation that it had before `didInsert`
+    expect(CATransform3DEqualToTransform(view.layer().transform, Constants.translation)) == true
+  }
+
+  func test_removedView_droppingTheTransformInWillRemove_isNotPutBack() throws {
+    // given: a view whose content rotates a view and drops the rotation in `willRemove`, before the view fades out,
+    // rendered
+    var turnedLayer: CALayer?
+    let contentView = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 50))
+    contentView.setContent {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .transition(.opacity(timing: .linear(duration: 10)))
+        .onUpdate { renderable, _ in
+          renderable.layer.transform = Constants.rotation
+          turnedLayer = renderable.layer
+        }
+        .willRemove { renderable, _ in
+          renderable.layer.transform = CATransform3DIdentity
+        }
+    }
+    contentView.refresh(animated: false)
+    let layer = try unwrap(turnedLayer)
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+
+    // when: the content removes the view with its transition
+    contentView.setContent {
+      Empty()
+    }
+    contentView.refresh(animated: true)
+
+    // then: the view fades out with the identity transform, which its layer doesn't replace with the rotation it kept
+    expect(contentView.test.removingRenderableMap.count) == 1
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
   #endif
 
   // MARK: - old frame
