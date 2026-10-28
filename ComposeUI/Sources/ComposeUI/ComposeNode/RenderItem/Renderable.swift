@@ -37,13 +37,6 @@ import UIKit
 #endif
 
 /// A renderable that is either a view or a layer.
-///
-/// The render pass owns the renderable's frame: it applies the frame after the `willInsert` or `willUpdate` block, and
-/// calls the `update` block last. The node owns the renderable's transform, which any of the blocks can set: the frame
-/// is where the position and bounds size place the renderable, before the transform applies, and the render pass
-/// leaves the transform as the node set it, so a node that stops using a transform resets it. A renderable that the
-/// render pass reuses for another item starts with an identity transform. On AppKit, a view's layer transform is reset
-/// by AppKit when the render pass that adds the view to a window ends.
 public enum Renderable {
 
   case view(View)

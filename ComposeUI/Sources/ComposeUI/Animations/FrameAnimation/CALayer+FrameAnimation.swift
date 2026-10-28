@@ -100,8 +100,6 @@ public extension CALayer {
   ///   settles folds whole instead, as a path that follows the layer's size, such as a shadow's, can't keep it next to a
   ///   glide, see the `retargetPath(keyPath:to:)` that takes the path for a size.
   ///
-  /// - Precondition: The layer's transform must be identity.
-  ///
   /// - Parameter frame: The frame to set.
   @_spi(Private)
   func retargetFrame(to frame: CGRect) {

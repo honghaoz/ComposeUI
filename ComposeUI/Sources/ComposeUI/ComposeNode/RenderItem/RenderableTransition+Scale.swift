@@ -38,10 +38,10 @@ public extension RenderableTransition {
   /// the renderable scales from its current scale down to `from`. The scaling pivots about `anchor` for any layer
   /// anchor point.
   ///
-  /// The transition owns the layer's transform, so it doesn't combine with a transform that the node sets, see
-  /// `Renderable`. Reviving a renderable while its scale-out is in flight continues the motion from the removal's
-  /// in-flight state. A zero-duration timing applies the end state and completes immediately, or right after the delay
-  /// window when the timing has a delay.
+  /// The transition owns the layer's transform, so it doesn't combine with a transform that the node sets. Reviving a
+  /// renderable while its scale-out is in flight continues the motion from the removal's in-flight state. A
+  /// zero-duration timing applies the end state and completes immediately, or right after the delay window when the
+  /// timing has a delay.
   ///
   /// - Parameters:
   ///   - from: The scale to insert from and remove to. Values above 1 zoom down into place. Defaults to 0.

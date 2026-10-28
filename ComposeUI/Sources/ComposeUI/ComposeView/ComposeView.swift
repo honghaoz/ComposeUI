@@ -1448,7 +1448,7 @@ open class ComposeView: BaseScrollView {
               }
             }
 
-            // the item's node owns the transform (see `Renderable`), and the next item's node may not set one
+            // the item's node owns the transform, and the next item's node may not set one
             oldRenderable.layer.restoreIdentityTransformIfNeeded()
 
             if keepsInPlace {
