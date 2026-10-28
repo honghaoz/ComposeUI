@@ -2942,71 +2942,129 @@ class ModifierNodeTests: XCTestCase {
     }
   }
 
-  func test_transform_animatedUpdate_animatesFromTheShownTransform() throws {
+  func test_transform_animatedUpdate_ofTheTransform_setsItAtOnce() throws {
     // given: a layer turned a quarter turn
     let layer = CALayer()
     let renderable = Renderable.layer(layer)
     try refresh(renderable, with: transformItem(Constants.quarterTurn), animationTiming: nil)
     expect(CATransform3DEqualToTransform(layer.transform, Constants.quarterTurn)) == true
-    expect(layer.animationKeys()) == nil
 
     // when: an animated update scales it instead
     try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: .linear(duration: 1))
 
-    // then: the transform animates from the quarter turn to the scale, which the model has
-    let animation = try (layer.animation(forKey: "transform") as? CABasicAnimation).unwrap()
-    expect(try CATransform3DEqualToTransform(transformValue(animation.fromValue), Constants.quarterTurn)) == true
-    expect(try CATransform3DEqualToTransform(transformValue(animation.toValue), Constants.doubleScale)) == true
+    // then: the layer has the scale at once, without an animation, which would move the anchor off its place
     expect(CATransform3DEqualToTransform(layer.transform, Constants.doubleScale)) == true
-
-    // when: an animated update keeps the scale
-    layer.removeAllAnimations()
-    try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: .linear(duration: 1))
-
-    // then: there is nothing to animate
     expect(layer.animationKeys()) == nil
   }
 
-  func test_transform_animatedUpdate_duringAnAnimation_replacesTheAnimation() throws {
-    // given: a layer halfway through an animation from a quarter turn to a scale, not yet shown, so it has no
-    // presentation layer for the transform between them
+  func test_transform_unchangedUpdate_doesNotSetTheTransformAgain() throws {
+    // given: a layer turned a quarter turn, and a count of its transform writes
     let layer = CALayer()
     let renderable = Renderable.layer(layer)
-    try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: nil)
-    addInFlightTransformAnimation(to: layer, from: Constants.quarterTurn, to: Constants.doubleScale, progress: 0.5, duration: 10)
+    let item = try transformItem(Constants.quarterTurn)
+    refresh(renderable, with: item, animationTiming: nil)
+    var transformWrites = 0
+    let observation = layer.observe(\.transform) { _, _ in
+      transformWrites += 1
+    }
 
-    // when: an animated update moves it instead
-    try refresh(renderable, with: transformItem(Constants.translation), animationTiming: .linear(duration: 1))
+    // when: an update and an animated update keep the quarter turn
+    refresh(renderable, with: item, animationTiming: nil)
+    refresh(renderable, with: item, animationTiming: .linear(duration: 1))
 
-    // then: one animation replaces the scale's, to the translation, which the model has, from an unresolved start,
-    // which Core Animation resolves to the transform shown when the animation starts
+    // then: the transform isn't written, and nothing animates
+    expect(transformWrites) == 0
+    expect(layer.animationKeys()) == nil
+    observation.invalidate()
+  }
+
+  func test_transform_animatedResize_animatesTheTransformWithTheFrame() throws {
+    // given: a layer turned a quarter turn about its top left corner, whose offset from the layer's anchor point
+    // depends on the layer's size
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    let smallItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 40, height: 20))
+    let largeItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 80, height: 40))
+    refresh(renderable, with: smallItem, animationTiming: nil)
+    let smallTransform = layer.transform
+
+    // when: an animated update makes the layer larger
+    refresh(renderable, with: largeItem, oldFrame: smallItem.frame, animationTiming: .linear(duration: 1))
+
+    // then: the transform animates with the frame's timing, from the one for the small size to the one for the large
+    // size, which the model has, since only the anchor's offset changes, along a straight line as the frame does
+    let animations = layer.basicAnimations(forKeyPath: "transform")
+    expect(animations.count) == 1
+    let animation = try animations.first.unwrap()
+    expect(try CATransform3DEqualToTransform(transformValue(animation.fromValue), smallTransform)) == true
+    expect(try CATransform3DEqualToTransform(transformValue(animation.toValue), layer.transform)) == true
+    expect(CATransform3DEqualToTransform(layer.transform, smallTransform)) == false
+    expect(animation.duration) == 1
+  }
+
+  func test_transform_animatedResize_duringAnAnimation_replacesTheAnimation() throws {
+    // given: a layer turned about its top left corner, halfway through an animation to its transform, not yet shown, so
+    // it has no presentation layer for the transform in between
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    let mediumItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 60, height: 30))
+    let largeItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 80, height: 40))
+    refresh(renderable, with: mediumItem, animationTiming: nil)
+    addInFlightTransformAnimation(to: layer, from: Constants.doubleScale, to: layer.transform, progress: 0.5, duration: 10)
+
+    // when: an animated update makes the layer larger
+    refresh(renderable, with: largeItem, oldFrame: mediumItem.frame, animationTiming: .linear(duration: 1))
+
+    // then: one animation replaces the one in flight, to the transform for the large size, which the model has, from an
+    // unresolved start, which Core Animation resolves to the transform shown when the animation starts
     let animations = layer.basicAnimations(forKeyPath: "transform")
     expect(animations.count) == 1
     let animation = try animations.first.unwrap()
     expect(animation.fromValue is NSNull) == true
-    expect(try CATransform3DEqualToTransform(transformValue(animation.toValue), Constants.translation)) == true
-    expect(CATransform3DEqualToTransform(layer.transform, Constants.translation)) == true
+    expect(try CATransform3DEqualToTransform(transformValue(animation.toValue), layer.transform)) == true
   }
 
-  func test_transform_nonAnimatedUpdate_continuesTheInFlightAnimation() throws {
-    // given: a layer animating from a quarter turn to a scale over 10 s
+  func test_transform_nonAnimatedResize_continuesTheInFlightAnimation() throws {
+    // given: a layer turned about its top left corner, which an animated update made larger over 10 s
     let layer = CALayer()
     let renderable = Renderable.layer(layer)
-    try refresh(renderable, with: transformItem(Constants.quarterTurn), animationTiming: nil)
-    try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: .linear(duration: 10))
+    let smallItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 40, height: 20))
+    let mediumItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 60, height: 30))
+    let largeItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 80, height: 40))
+    refresh(renderable, with: smallItem, animationTiming: nil)
+    refresh(renderable, with: mediumItem, oldFrame: smallItem.frame, animationTiming: .linear(duration: 10))
 
-    // when: a non-animated update moves it instead
-    try refresh(renderable, with: transformItem(Constants.translation), animationTiming: nil)
+    // when: a non-animated update makes it larger still
+    refresh(renderable, with: largeItem, oldFrame: mediumItem.frame, animationTiming: nil)
 
-    // then: one ease-out glide replaces the animation, landing at the translation when the animation would have, and
-    // the model has the translation
+    // then: one ease-out glide replaces the animation, landing at the transform for the large size when the animation
+    // would have, as the frame's glide does, and the model has the transform
     let animations = layer.basicAnimations(forKeyPath: "transform")
     expect(animations.count) == 1
     let glide = try animations.first.unwrap()
-    expect(try CATransform3DEqualToTransform(transformValue(glide.toValue), Constants.translation)) == true
+    expect(try CATransform3DEqualToTransform(transformValue(glide.toValue), layer.transform)) == true
     expect(glide.duration).to(beApproximatelyEqual(to: 10, within: 0.05))
     expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
-    expect(CATransform3DEqualToTransform(layer.transform, Constants.translation)) == true
+  }
+
+  func test_transform_changedDuringAResizeAnimation_removesTheAnimation() throws {
+    // given: a layer turned about its top left corner, which an animated update is making larger
+    let layer = CALayer()
+    let renderable = Renderable.layer(layer)
+    let smallItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 40, height: 20))
+    let largeItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 80, height: 40))
+    refresh(renderable, with: smallItem, animationTiming: nil)
+    refresh(renderable, with: largeItem, oldFrame: smallItem.frame, animationTiming: .linear(duration: 10))
+    expect(layer.basicAnimations(forKeyPath: "transform").count) == 1
+
+    // when: an animated update scales it instead
+    let scaledItem = try transformItem(Constants.doubleScale, anchor: .topLeft, size: CGSize(width: 80, height: 40))
+    refresh(renderable, with: scaledItem, animationTiming: .linear(duration: 1))
+
+    // then: the layer has the scale at once, and the animation to the turn is gone, which would show the turn until it
+    // ended
+    expect(layer.basicAnimations(forKeyPath: "transform").isEmpty) == true
+    expect(layer.transform.m11) == 2
   }
 
   func test_transform_boundsChange_updatesTheTransformForAResize() throws {
@@ -3348,6 +3406,11 @@ class ModifierNodeTests: XCTestCase {
     try firstRenderableItem(of: LayerNode().transform(transform)).unwrap()
   }
 
+  /// The renderable item of a layer node of the size, transformed about the anchor.
+  private func transformItem(_ transform: CATransform3D, anchor: UnitPoint, size: CGSize) throws -> RenderableItem {
+    try firstRenderableItem(of: LayerNode().transform(transform, anchor: anchor).frame(width: size.width, height: size.height)).unwrap()
+  }
+
   /// Adds a linear transform animation that is `progress` of the way through.
   private func addInFlightTransformAnimation(to layer: CALayer, from: CATransform3D, to: CATransform3D, progress: Double, duration: TimeInterval) {
     let animation = CABasicAnimation(keyPath: "transform")
@@ -3409,13 +3472,13 @@ class ModifierNodeTests: XCTestCase {
   }
 
   /// Updates the renderable with the item for a refresh with the animation timing.
-  private func refresh(_ renderable: Renderable, with item: RenderableItem, animationTiming: AnimationTiming?) {
+  private func refresh(_ renderable: Renderable, with item: RenderableItem, oldFrame: CGRect? = nil, animationTiming: AnimationTiming?) {
     // the context holds the content view weakly, so the view is kept alive through the update
     let contentView = ComposeView()
     withExtendedLifetime(contentView) {
       item.performUpdate(renderable, RenderableUpdateContext(
         updateType: .refresh,
-        oldFrame: item.frame,
+        oldFrame: oldFrame ?? item.frame,
         newFrame: item.frame,
         previousRenderBounds: .zero,
         renderBounds: .zero,
