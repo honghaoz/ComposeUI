@@ -160,6 +160,54 @@ class CALayer_KeptTransformTests: XCTestCase {
     expect(weakLayer) == nil
   }
 
+  func test_keepTransform_layersThatDeallocate_leaveNoObservationBehind() {
+    // given: a way to make layers and views' layers that keep their quarter turn and release them, run once so that
+    // the heap settles
+    func makeAndReleaseKeepingLayers() {
+      var index = 0
+      while index < Constants.deallocatingLayerCount {
+        autoreleasepool {
+          CALayer().keepTransform(Constants.quarterTurn)
+          let view = NSView()
+          view.wantsLayer = true
+          view.layer?.keepTransform(Constants.quarterTurn)
+        }
+        index += 1
+      }
+      // the transaction holds the layers it changes until it commits
+      CATransaction.flush()
+    }
+    makeAndReleaseKeepingLayers()
+
+    // when: making and releasing them again
+    let memory = MemoryUsage.retained(by: makeAndReleaseKeepingLayers)
+
+    // then: the layers leave no heap blocks behind, where each would leave the observation state that it keeps
+    expect(memory.blocks) < Constants.deallocatingLayerCount / 10
+  }
+
+  func test_keepTransform_viewInAWindowThatCloses_deallocates() throws {
+    // given: a turned view that keeps its transform in a window, which closes, released
+    weak var weakLayer: CALayer?
+    try autoreleasepool {
+      let window = NSWindow(contentRect: Constants.windowFrame, styleMask: [.titled], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      let view = NSView(frame: Constants.viewFrame)
+      view.wantsLayer = true
+      try unwrap(window.contentView).addSubview(view)
+      let layer = try unwrap(view.layer)
+      layer.transform = Constants.quarterTurn
+      layer.keepTransform(Constants.quarterTurn)
+      weakLayer = layer
+      CATransaction.flush()
+      window.close()
+    }
+    CATransaction.flush()
+
+    // then: the view's layer is released
+    expect(weakLayer) == nil
+  }
+
   func test_keepTransform_viewInAWindow_keepsTheTransformThroughAppKitsResets() throws {
     // given: two turned views that joined a window, one of which keeps its transform
     let window = NSWindow(contentRect: Constants.windowFrame, styleMask: [.titled], backing: .buffered, defer: false)
@@ -348,6 +396,9 @@ class CALayer_KeptTransformTests: XCTestCase {
 
     /// A frame at another origin and size, off the pixel grid.
     static let movedViewFrame = CGRect(x: 7.5, y: 3.25, width: 61, height: 33)
+
+    /// The number of layers, and of views' layers, that the deallocation test makes and releases.
+    static let deallocatingLayerCount = 1000
   }
 }
 #endif

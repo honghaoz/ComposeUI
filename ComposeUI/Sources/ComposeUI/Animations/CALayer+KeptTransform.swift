@@ -112,8 +112,8 @@ private final class TransformKeeper: NSObject {
   /// Whether the keeper leaves the transform alone, see `CALayer.pauseKeepingTransform()`.
   var isPaused = false
 
-  /// The layer whose transform the keeper observes.
-  private weak var layer: CALayer?
+  /// The layer whose transform the keeper observes, which keeps the keeper, so it's there when the keeper goes.
+  private unowned(unsafe) let layer: CALayer
 
   /// Creates a keeper that keeps the layer's transform.
   ///
@@ -136,9 +136,10 @@ private final class TransformKeeper: NSObject {
   deinit {
     Self.count -= 1
 
-    // a layer that deallocates releases its keeper when its weak references already read nil, and Foundation removes
-    // the observations of an object that deallocates
-    layer?.removeObserver(self, forKeyPath: "transform", context: nil)
+    // a layer keeps its own observation state, which Foundation doesn't clean up when the layer deallocates, so an
+    // observation left behind leaks. a deallocating layer releases its keeper when a weak reference to it already
+    // reads nil, so the keeper reaches it through an unretained reference
+    layer.removeObserver(self, forKeyPath: "transform", context: nil)
   }
 
   // swiftlint:disable:next block_based_kvo
@@ -149,7 +150,7 @@ private final class TransformKeeper: NSObject {
   {
     // AppKit resets the transform only to identity, so only identity is put back, which leaves a transform that other
     // code sets, such as a scale transition's
-    guard !isPaused, let layer, CATransform3DIsIdentity(layer.transform) else {
+    guard !isPaused, CATransform3DIsIdentity(layer.transform) else {
       return
     }
     layer.setKeyPathValue("transform", NSValue(caTransform3D: transform))
