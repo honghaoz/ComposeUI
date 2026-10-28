@@ -107,11 +107,15 @@ extension CALayer {
       && position.y.isApproximatelyEqual(to: targetPosition.y, absoluteTolerance: tolerance)
   }
 
-  /// Restores the layer's model transform to identity.
+  /// Restores the layer's model transform to identity, and on AppKit, stops keeping the transform, see `keepTransform(_:)`.
   func restoreIdentityTransformIfNeeded() {
     guard !CATransform3DIsIdentity(transform) else {
       return
     }
+    #if canImport(AppKit)
+    // the transform's owner drops the transform, which a kept transform would put back
+    stopKeepingTransform()
+    #endif
     disableActions(for: "transform") {
       transform = CATransform3DIdentity
     }

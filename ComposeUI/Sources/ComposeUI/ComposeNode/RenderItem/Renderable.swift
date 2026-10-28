@@ -119,6 +119,35 @@ public enum Renderable {
     }
   }
 
+  #if canImport(AppKit)
+  /// Stops a view's layer from putting back the transform that it keeps through AppKit's resets, see
+  /// `CALayer.keepTransform(_:)`, while the node's blocks run, since they can change the transform, to identity too.
+  ///
+  /// AppKit resets only a view's layer transform, so a layer renderable keeps no transform.
+  ///
+  /// - Returns: Whether the view's layer can be keeping a transform.
+  func pauseKeepingTransform() -> Bool {
+    switch self {
+    case .view(let view):
+      return view.layer().pauseKeepingTransform()
+    case .layer:
+      return false
+    }
+  }
+
+  /// Keeps the transform that the node's blocks left on a view's layer through AppKit's resets, see `pauseKeepingTransform()`.
+  ///
+  /// - Parameter mayBeKeeping: What `pauseKeepingTransform()` returned.
+  func resumeKeepingTransform(mayBeKeeping: Bool) {
+    switch self {
+    case .view(let view):
+      view.layer().resumeKeepingTransform(mayBeKeeping: mayBeKeeping)
+    case .layer:
+      return
+    }
+  }
+  #endif
+
   /// Whether every copy of the renderable's geometry already matches the frame, within `Constants.geometryTolerance`.
   ///
   /// - Parameter frame: The frame to compare with.

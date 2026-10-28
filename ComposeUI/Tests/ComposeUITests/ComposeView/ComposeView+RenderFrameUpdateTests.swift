@@ -582,6 +582,116 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(abs(fromValue)) < 1e-9
   }
 
+  #if canImport(AppKit)
+  func test_insertedView_keepsATransformSetOnce_throughTheFirstWindowCommit() throws {
+    // given: a view in a window, whose content turns a view once in each of `willInsert`, `update` and `didInsert`,
+    // rendered outside a run loop block, as an event handler renders, and a plain view in the window that the test
+    // turns directly
+    let window = makeWindow()
+    var turnedLayers: [CALayer] = []
+    let contentView = ComposeView {
+      HStack {
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .willInsert { renderable, _ in
+            renderable.layer.transform = Constants.rotation
+            turnedLayers.append(renderable.layer)
+          }
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .onUpdate { renderable, context in
+            guard context.updateType == .insert else {
+              return
+            }
+            renderable.layer.transform = Constants.rotation
+            turnedLayers.append(renderable.layer)
+          }
+        ViewNode<BaseView>()
+          .flexibleSize()
+          .onInsert { renderable, _ in
+            renderable.layer.transform = Constants.rotation
+            turnedLayers.append(renderable.layer)
+          }
+      }
+    }
+    let container = BaseView(frame: CGRect(x: 0, y: 0, width: 300, height: 100))
+    window.contentView = container
+    contentView.frame = container.bounds
+    container.addSubview(contentView)
+    let plainView = BaseView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    container.addSubview(plainView)
+    plainView.layer().transform = Constants.rotation
+    contentView.refresh()
+    expect(turnedLayers.count) == 3
+
+    // when: the run loop turns, which runs its blocks, then commits, where AppKit resets the transform of a view that
+    // joined the window
+    RunLoop.main.run(until: Date())
+
+    // then: AppKit reset the plain view's transform, while the content's views keep the transforms that their blocks set
+    expect(CATransform3DIsIdentity(plainView.layer().transform)) == true
+    for layer in turnedLayers {
+      expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+    }
+  }
+
+  func test_reusedView_droppingATransform_isNotPutBack() throws {
+    // given: a view in a window, whose content turns a view while a flag is set, rendered, with the run loop turned
+    let window = makeWindow()
+    var isTurned = true
+    var turnedLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .onUpdate { renderable, _ in
+          renderable.layer.transform = isTurned ? Constants.rotation : CATransform3DIdentity
+        }
+        .onInsert { renderable, _ in
+          turnedLayer = renderable.layer
+        }
+    }
+    window.contentView = contentView
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+    let layer = try unwrap(turnedLayer)
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+
+    // when: the content drops the transform, and the run loop turns
+    isTurned = false
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+
+    // then: the view has the identity transform, which its layer doesn't replace with the rotation it kept
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+
+  func test_view_renderedOutsideAWindow_keepsATransformSetOnce_afterJoiningOne() throws {
+    // given: a view outside a window, whose content turns a view once in `willInsert`, rendered, with the run loop
+    // turned
+    var turnedLayer: CALayer?
+    let contentView = ComposeView {
+      ViewNode<BaseView>()
+        .flexibleSize()
+        .willInsert { renderable, _ in
+          renderable.layer.transform = Constants.rotation
+          turnedLayer = renderable.layer
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    contentView.refresh()
+    RunLoop.main.run(until: Date())
+    let layer = try unwrap(turnedLayer)
+
+    // when: the view joins a window, and the run loop turns
+    let window = makeWindow()
+    window.contentView = contentView
+    RunLoop.main.run(until: Date())
+
+    // then: the view keeps the rotation
+    expect(CATransform3DEqualToTransform(layer.transform, Constants.rotation)) == true
+  }
+  #endif
+
   // MARK: - old frame
 
   func test_reusedRenderable_oldFrameIsThePreviousFrame_thirdPixelFrame() throws {
@@ -777,6 +887,13 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
   }
 
   // MARK: - Helpers
+
+  #if canImport(AppKit)
+  /// A window to show a view in.
+  private func makeWindow() -> NSWindow {
+    NSWindow(contentRect: CGRect(x: 0, y: 0, width: 300, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
+  }
+  #endif
 
   /// A content view with a flexible-width tracking-view row below a spacer in a scrollable stack.
   ///
