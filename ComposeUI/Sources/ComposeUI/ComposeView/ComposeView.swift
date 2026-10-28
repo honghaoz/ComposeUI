@@ -1591,16 +1591,19 @@ open class ComposeView: BaseScrollView {
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
-        let isResized = renderable.updateFrame(newFrame, animationTiming: animationTiming)
+        renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
         renderableItem.performUpdate(renderable, renderableUpdateContext)
 
-        // a nested `ComposeView` this pass resized renders its content for the new size within this render pass,
-        // instead of on its own later, so its animations are capped by this pass's animation decision. a size change of
-        // the layout counts even when `willUpdate` applied the new frame first, and a resize by the update counts even
-        // when it only moves the view back to its layout size after something else resized it
-        if isResized || oldFrame.size != newFrame.size {
-          (renderable.view as? ComposeView)?.renderBoundsChangeIfNeeded()
+        // render a resized nested `ComposeView` now, within this pass, so that its animations follow this pass's
+        // animation decision instead of its own. compare the view's size with the size it last rendered at, not
+        // `oldFrame` with `newFrame`, since `willUpdate`, `update` and app code can resize it too. skip a view whose
+        // size didn't change, because the call would also run its pending refresh now, with this pass's animation
+        // decision instead of its own
+        if let composeView = renderable.view as? ComposeView,
+           composeView.bounds.size != (composeView.lastBoundsSize ?? .zero)
+        {
+          composeView.renderBoundsChangeIfNeeded()
         }
 
         #if DEBUG

@@ -800,6 +800,172 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
   }
 
+  func test_parentRefresh_restoringAHostedViewThatAppCodeResized_fromAWillUpdateCallback_laysItOutWithinTheParentPass() throws {
+    // given: a parent without animations hosting a rendered view through a view node, whose `willUpdate` applies the
+    // new frame itself, and whose dynamic behavior always animates. app code resized the hosted view since the
+    // parent's last pass, and the hosted view rendered on its own for that size
+    let timing = AnimationTiming.linear(duration: 10)
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var childRenderTypes: [ComposeView.RenderType] = []
+    let child = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 100)
+        .animation(timing)
+        .onUpdate { renderable, context in
+          layer = renderable.layer
+          layerContexts.append(context)
+        }
+    }
+    child.renderablePool = nil
+    child.animationBehavior = .dynamic { _, _ in true }
+    child.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    child.refresh(animated: false)
+    child.onDidRender { _, context in
+      childRenderTypes.append(context.renderType)
+    }
+    let parent = ComposeView {
+      ViewNode<ComposeView>(child)
+        .flexibleSize()
+        .willUpdate { renderable, context in
+          renderable.setFrame(context.newFrame)
+        }
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+
+    child.frame.size.width = 160
+    child.layoutIfNeeded()
+    let row = try unwrap(layer)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    row.removeAllAnimations()
+    layerContexts.removeAll()
+    childRenderTypes.removeAll()
+
+    // when: a refresh of the parent, whose layout still gives the hosted view its old width, resizes it back in
+    // `willUpdate`, before the render pass applies the frame
+    parent.refresh(animated: false)
+
+    // then: the hosted view lays out within the parent's pass, capped by the parent's decision, so the row follows the
+    // restored size at once and snaps
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(childRenderTypes) == [.boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 160, height: 100), bounds: CGRect(x: 0, y: 0, width: 100, height: 100))]
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(row.animationKeys()) == nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+  }
+
+  func test_parentRefresh_resizingAHostedViewFromAnUpdateCallback_laysItOutWithinTheParentPass() throws {
+    // given: a parent without animations hosting a rendered view through a view node, whose dynamic behavior always
+    // animates, and whose node can widen it in an update callback, after the render pass applied the layout frame
+    let timing = AnimationTiming.linear(duration: 10)
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var childRenderTypes: [ComposeView.RenderType] = []
+    let child = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 100)
+        .animation(timing)
+        .onUpdate { renderable, context in
+          layer = renderable.layer
+          layerContexts.append(context)
+        }
+    }
+    child.renderablePool = nil
+    child.animationBehavior = .dynamic { _, _ in true }
+    child.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    child.refresh(animated: false)
+    child.onDidRender { _, context in
+      childRenderTypes.append(context.renderType)
+    }
+    var widensChild = false
+    let parent = ComposeView {
+      ViewNode<ComposeView>(child)
+        .flexibleSize()
+        .onUpdate { renderable, context in
+          if widensChild {
+            renderable.setFrame(CGRect(x: 0, y: 0, width: 160, height: context.newFrame.height))
+          }
+        }
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let row = try unwrap(layer)
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    layerContexts.removeAll()
+    childRenderTypes.removeAll()
+
+    // when: a refresh of the parent, whose layout keeps the hosted view's size, widens it in the update callback
+    widensChild = true
+    parent.refresh(animated: false)
+
+    // then: the hosted view lays out for the new width within the parent's pass, capped by the parent's decision, so
+    // the row follows at once and snaps
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    expect(childRenderTypes) == [.boundsChange(previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100), bounds: CGRect(x: 0, y: 0, width: 160, height: 100))]
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
+    expect(row.animationKeys()) == nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+  }
+
+  func test_parentRefresh_keepingAHostedViewSize_leavesItsPendingRefreshToIt() throws {
+    // given: a parent without animations hosting a rendered view through a view node, whose dynamic behavior always
+    // animates, with an animated refresh pending that makes its row shorter
+    let timing = AnimationTiming.linear(duration: 10)
+    var layer: CALayer?
+    var childRenderTypes: [ComposeView.RenderType] = []
+    var rowHeight: CGFloat = 100
+    let child = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: rowHeight)
+        .animation(timing)
+        .onUpdate { renderable, _ in
+          layer = renderable.layer
+        }
+    }
+    child.renderablePool = nil
+    child.animationBehavior = .dynamic { _, _ in true }
+    child.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    child.refresh(animated: false)
+    child.onDidRender { _, context in
+      childRenderTypes.append(context.renderType)
+    }
+    let parent = ComposeView {
+      ViewNode<ComposeView>(child).flexibleSize()
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    let row = try unwrap(layer)
+    childRenderTypes.removeAll()
+    rowHeight = 50
+    child.setNeedsRefresh(animated: true)
+
+    // when: a refresh of the parent keeps the hosted view's size
+    parent.refresh(animated: false)
+
+    // then: the hosted view has no new size to render within the parent's pass, so its refresh stays pending
+    expect(childRenderTypes) == []
+    expect(row.bounds.size) == CGSize(width: 100, height: 100)
+
+    // when: the hosted view lays out on its own
+    child.setNeedsLayout()
+    child.layoutIfNeeded()
+
+    // then: it performs the refresh with its own decision, which animates the row
+    expect(childRenderTypes) == [.refresh(isAnimated: true)]
+    expect(row.bounds.size) == CGSize(width: 100, height: 50)
+    expect(row.animation(forKey: "bounds.size")) != nil
+    row.removeAllAnimations()
+  }
+
   func test_parentInsert_ofAViewNodeHostedView_rendersItWithinTheParentPass() throws {
     // given: a parent without animations whose content can host a view, not rendered yet, through a view node. the
     // hosted view's dynamic behavior always animates and its row has an insert transition.
@@ -842,6 +1008,61 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
 
     // then: the hosted view renders within the parent's pass, capped by the parent's decision, so its content is there
     // at once and the row's insert transition does not run
+    let row = try unwrap(layer)
+    expect(child.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(childRenderTypes) == [.boundsChange(previousBounds: nil, bounds: CGRect(x: 0, y: 0, width: 100, height: 100))]
+    expect(row.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
+    expect(row.animationKeys()) == nil
+    expect(layerContexts.count) == 1
+    expect(layerContexts.first?.updateType) == .insert
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.disabled
+  }
+
+  func test_parentRefresh_sizingAHostedViewThatNeverRendered_rendersItWithinTheParentPass() throws {
+    // given: a parent without animations hosting a view through a view node at zero size, so the hosted view has never
+    // rendered. the hosted view's dynamic behavior always animates and its row has an insert transition.
+    let timing = AnimationTiming.linear(duration: 10)
+    var layer: CALayer?
+    var layerContexts: [RenderableUpdateContext] = []
+    var childRenderTypes: [ComposeView.RenderType] = []
+    let child = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 100)
+        .transition(.opacity(timing: timing))
+        .animation(timing)
+        .onUpdate { renderable, context in
+          layer = renderable.layer
+          layerContexts.append(context)
+        }
+    }
+    child.renderablePool = nil
+    child.animationBehavior = .dynamic { _, _ in true }
+    child.onDidRender { _, context in
+      childRenderTypes.append(context.renderType)
+    }
+    var childSide: CGFloat = 0
+    let parent = ComposeView {
+      ViewNode<ComposeView>(child).flexibleSize().frame(width: childSide, height: childSide)
+    }
+    parent.animationBehavior = .disabled
+    parent.renderablePool = nil
+    parent.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    parent.refresh(animated: false)
+    expect(child.frame.size) == .zero
+
+    // when: a refresh of the parent keeps the hosted view at zero size
+    parent.refresh(animated: false)
+
+    // then: the hosted view still has nothing to render
+    expect(childRenderTypes) == []
+    expect(layer) == nil
+
+    // when: a refresh of the parent gives the hosted view a size
+    childSide = 100
+    parent.refresh(animated: false)
+
+    // then: the hosted view renders for the first time within the parent's pass, capped by the parent's decision, so
+    // its content is there at once and the row's insert transition does not run
     let row = try unwrap(layer)
     expect(child.frame) == CGRect(x: 0, y: 0, width: 100, height: 100)
     expect(childRenderTypes) == [.boundsChange(previousBounds: nil, bounds: CGRect(x: 0, y: 0, width: 100, height: 100))]

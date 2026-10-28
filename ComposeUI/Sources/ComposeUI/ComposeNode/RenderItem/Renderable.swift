@@ -105,14 +105,6 @@ public enum Renderable {
   /// - Parameter frame: The frame to compare with.
   /// - Returns: `true` if the renderable is already at the frame.
   func hasFrame(_ frame: CGRect) -> Bool {
-    compareGeometry(to: frame) == .sameFrame
-  }
-
-  /// Compares every copy of the renderable's geometry with the frame, within `Constants.geometryTolerance`.
-  ///
-  /// - Parameter frame: The frame to compare with.
-  /// - Returns: How the renderable's position and size compare with the frame's.
-  func compareGeometry(to frame: CGRect) -> FrameComparison {
     switch self {
     case .view(let view):
       #if canImport(AppKit)
@@ -123,23 +115,17 @@ public enum Renderable {
       // a UIKit view's frame is the layer's, so comparing it would be redundant.
       let viewFrame = view.frame
       let tolerance = Constants.geometryTolerance
-      guard viewFrame.width.isApproximatelyEqual(to: frame.width, absoluteTolerance: tolerance),
+      guard viewFrame.origin.x.isApproximatelyEqual(to: frame.origin.x, absoluteTolerance: tolerance),
+            viewFrame.origin.y.isApproximatelyEqual(to: frame.origin.y, absoluteTolerance: tolerance),
+            viewFrame.width.isApproximatelyEqual(to: frame.width, absoluteTolerance: tolerance),
             viewFrame.height.isApproximatelyEqual(to: frame.height, absoluteTolerance: tolerance)
       else {
-        return .otherSize
+        return false
       }
-      guard viewFrame.origin.x.isApproximatelyEqual(to: frame.origin.x, absoluteTolerance: tolerance),
-            viewFrame.origin.y.isApproximatelyEqual(to: frame.origin.y, absoluteTolerance: tolerance)
-      else {
-        return .otherPosition
-      }
-      // the view has the frame, so a layer that differs only needs a re-sync, which leaves the view's size as it is
-      return view.layer().hasFrame(frame) ? .sameFrame : .otherPosition
-      #else
-      return view.layer().compareGeometry(to: frame)
       #endif
+      return view.layer().hasFrame(frame)
     case .layer(let layer):
-      return layer.compareGeometry(to: frame)
+      return layer.hasFrame(frame)
     }
   }
 
@@ -151,24 +137,16 @@ public enum Renderable {
   /// - Parameters:
   ///   - frame: The frame to apply.
   ///   - animationTiming: The timing to animate the change with, or `nil` to apply it without starting an animation.
-  /// - Returns: Whether the update changed the renderable's size.
-  @discardableResult
-  func updateFrame(_ frame: CGRect, animationTiming: AnimationTiming?) -> Bool {
+  func updateFrame(_ frame: CGRect, animationTiming: AnimationTiming?) {
     #if DEBUG && !COMPOSEUI_BENCHMARK
     assertIdentityTransform()
     #endif
 
-    let isResized: Bool
-    switch compareGeometry(to: frame) {
-    case .sameFrame:
-      // re-applying an unchanged frame is wasteful: without a timing it dirties the renderable and on AppKit posts a
-      // frame-change notification that forces a layout pass, with a timing it adds zero-delta animations that live for
-      // the timing's duration and pile up under repeated passes.
-      return false
-    case .otherPosition:
-      isResized = false
-    case .otherSize:
-      isResized = true
+    // re-applying an unchanged frame is wasteful: without a timing it dirties the renderable and on AppKit posts a
+    // frame-change notification that forces a layout pass, with a timing it adds zero-delta animations that live for
+    // the timing's duration and pile up under repeated passes.
+    guard !hasFrame(frame) else {
+      return
     }
 
     // the layer is animated only when it moves. when it already has the frame and only an AppKit view's own frame
@@ -178,14 +156,13 @@ public enum Renderable {
     if let animationTiming {
       if !layer.hasFrame(frame) {
         layer.animateFrame(to: frame, timing: animationTiming)
-        return isResized
+        return
       }
     } else if let animationKeys = layer.unbridgedAnimationKeys {
       layer.retargetFrame(to: frame, animationKeys: animationKeys)
-      return isResized
+      return
     }
     setFrame(frame)
-    return isResized
   }
 
   #if DEBUG && !COMPOSEUI_BENCHMARK

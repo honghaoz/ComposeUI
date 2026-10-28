@@ -188,40 +188,6 @@ class RenderableTests: XCTestCase {
     #endif
   }
 
-  func test_view_case_updateFrame_returnsWhetherItResized() {
-    // given: a view-backed renderable at a frame
-    let view = BaseView(frame: CGRect(x: 10, y: 20, width: 100, height: 200))
-    let renderable = Renderable.view(view)
-    defer { view.layer().removeAllAnimations() }
-
-    // when: updating to the same frame, then moving it, then resizing it, without animation
-    let unchanged = renderable.updateFrame(CGRect(x: 10, y: 20, width: 100, height: 200), animationTiming: nil)
-    let moved = renderable.updateFrame(CGRect(x: 30, y: 40, width: 100, height: 200), animationTiming: nil)
-    let resized = renderable.updateFrame(CGRect(x: 30, y: 40, width: 300, height: 200), animationTiming: nil)
-
-    // then: only the resize reports a size change
-    expect(unchanged) == false
-    expect(moved) == false
-    expect(resized) == true
-
-    // when: moving it, then resizing it, with animation
-    let animatedMove = renderable.updateFrame(CGRect(x: 50, y: 60, width: 300, height: 200), animationTiming: .easeInEaseOut(duration: 1))
-    let animatedResize = renderable.updateFrame(CGRect(x: 50, y: 60, width: 300, height: 400), animationTiming: .easeInEaseOut(duration: 1))
-
-    // then: only the resize reports a size change
-    expect(animatedMove) == false
-    expect(animatedResize) == true
-
-    // when: moving it, then resizing it, without animation while its frame animations are in flight
-    let retargetedMove = renderable.updateFrame(CGRect(x: 70, y: 80, width: 300, height: 400), animationTiming: nil)
-    let retargetedResize = renderable.updateFrame(CGRect(x: 70, y: 80, width: 500, height: 400), animationTiming: nil)
-
-    // then: only the resize reports a size change, and the view lands at the last frame
-    expect(retargetedMove) == false
-    expect(retargetedResize) == true
-    expect(view.frame) == CGRect(x: 70, y: 80, width: 500, height: 400)
-  }
-
   #if canImport(AppKit)
   func test_view_case_updateFrame_resyncsViewDriftedFromLayer() {
     // given: a view-backed renderable whose backing layer was moved directly to the target frame, leaving the view behind
@@ -232,29 +198,25 @@ class RenderableTests: XCTestCase {
     view.resetFrameSetCount()
 
     // when: updating to the target frame without animation
-    let isResized = renderable.updateFrame(targetFrame, animationTiming: nil)
+    renderable.updateFrame(targetFrame, animationTiming: nil)
 
-    // then: the layer already matched but the view didn't, so the frame is applied and the view follows, without a
-    // change of size
+    // then: the layer already matched but the view didn't, so the frame is applied and the view follows
     expect(view.frameSetCount) == 1
     expect(view.frame) == targetFrame
     expect(view.layer().frame) == targetFrame
-    expect(isResized) == false
 
     // given: the layer drifts again, this time to be re-synced with animation
     view.layer().frame = CGRect(x: 50, y: 60, width: 100, height: 200)
     view.resetFrameSetCount()
 
     // when: updating to the layer's frame with animation
-    let isAnimatedResize = renderable.updateFrame(CGRect(x: 50, y: 60, width: 100, height: 200), animationTiming: .easeInEaseOut(duration: 1))
+    renderable.updateFrame(CGRect(x: 50, y: 60, width: 100, height: 200), animationTiming: .easeInEaseOut(duration: 1))
 
-    // then: the layer already has the frame, so the view is re-synced by setting the frame, without animations or a
-    // change of size
+    // then: the layer already has the frame, so the view is re-synced by setting the frame, without animations
     expect(view.frame) == CGRect(x: 50, y: 60, width: 100, height: 200)
     expect(view.layer().frame) == CGRect(x: 50, y: 60, width: 100, height: 200)
     expect(view.frameSetCount) == 1
     expect(view.layer().animationKeys()) == nil
-    expect(isAnimatedResize) == false
   }
   #endif
 
@@ -541,41 +503,6 @@ class RenderableTests: XCTestCase {
     expect(layer.animationKeys()) == ["position", "bounds.size"]
     expect(layer.frame) == CGRect(x: 50, y: 60, width: 500, height: 600)
     expect(layer.frameSetCount) == 1 // animated through position and bounds.size, not through frame
-  }
-
-  func test_layer_case_updateFrame_returnsWhetherItResized() {
-    // given: a layer-backed renderable at a frame
-    let layer = CALayer()
-    layer.frame = CGRect(x: 10, y: 20, width: 100, height: 200)
-    let renderable = Renderable.layer(layer)
-    defer { layer.removeAllAnimations() }
-
-    // when: updating to the same frame, then moving it, then resizing it, without animation
-    let unchanged = renderable.updateFrame(CGRect(x: 10, y: 20, width: 100, height: 200), animationTiming: nil)
-    let moved = renderable.updateFrame(CGRect(x: 30, y: 40, width: 100, height: 200), animationTiming: nil)
-    let resized = renderable.updateFrame(CGRect(x: 30, y: 40, width: 300, height: 200), animationTiming: nil)
-
-    // then: only the resize reports a size change
-    expect(unchanged) == false
-    expect(moved) == false
-    expect(resized) == true
-
-    // when: moving it, then resizing it, with animation
-    let animatedMove = renderable.updateFrame(CGRect(x: 50, y: 60, width: 300, height: 200), animationTiming: .easeInEaseOut(duration: 1))
-    let animatedResize = renderable.updateFrame(CGRect(x: 50, y: 60, width: 300, height: 400), animationTiming: .easeInEaseOut(duration: 1))
-
-    // then: only the resize reports a size change
-    expect(animatedMove) == false
-    expect(animatedResize) == true
-
-    // when: moving it, then resizing it, without animation while its frame animations are in flight
-    let retargetedMove = renderable.updateFrame(CGRect(x: 70, y: 80, width: 300, height: 400), animationTiming: nil)
-    let retargetedResize = renderable.updateFrame(CGRect(x: 70, y: 80, width: 500, height: 400), animationTiming: nil)
-
-    // then: only the resize reports a size change, and the layer lands at the last frame
-    expect(retargetedMove) == false
-    expect(retargetedResize) == true
-    expect(layer.frame) == CGRect(x: 70, y: 80, width: 500, height: 400)
   }
 
   func test_layer_case_addToParent() {
