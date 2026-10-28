@@ -150,9 +150,6 @@ public struct RenderItem<T> {
   /// The passed in context contains the old frame before the insertion and the new frame that the renderable should be
   /// set to after the insertion.
   ///
-  /// The block must not change the renderable's transform, the frame is applied right after it and requires an identity
-  /// transform, see `Renderable`. Set a transform in `update` instead.
-  ///
   /// This is guaranteed to be the first call for the renderable's lifecycle in the renderable hierarchy.
   public var willInsert: ((T, RenderableInsertContext) -> Void)? {
     let storage = storage
@@ -187,9 +184,6 @@ public struct RenderItem<T> {
   /// including its frame, are not updated yet. You can use this block to get the properties of the renderable before
   /// the update and use the information to help renderable content update. For example, to get the old properties for
   /// animating the renderable's changes.
-  ///
-  /// The block must not change the renderable's transform, the frame is applied right after it and requires an identity
-  /// transform, see `Renderable`. Set a transform in `update` instead.
   public var willUpdate: ((T, RenderableUpdateContext) -> Void)? {
     let storage = storage
     guard storage.typedItem(with: .willUpdate) != nil else {

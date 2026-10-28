@@ -47,8 +47,8 @@ public struct RenderableTransition {
       /// `nil` for a fresh insertion, or a revival that was reset.
       public let revivalPosition: CGPoint?
 
-      /// The renderable's root-layer model transform before the render pass reset it to identity, set when this
-      /// insertion revives a removing renderable and takes over its residue (see `takesOverKeyPaths`).
+      /// The renderable's root-layer model transform that the removal left, set when this insertion revives a removing
+      /// renderable and takes over its residue (see `takesOverKeyPaths`).
       /// `nil` for a fresh insertion, or a revival that was reset.
       public let revivalTransform: CATransform3D?
 
@@ -78,8 +78,8 @@ public struct RenderableTransition {
     /// The renderable's content update runs before this transition, so content-written model values of the taken-over
     /// properties land before this transition observes the state. The transition can prepare the renderable before the
     /// content update, see `prepareForTakeover(renderable:)`. The insertion context's `revivalPosition` and
-    /// `revivalTransform` are captured earlier, before the render pass applies the target frame and resets the
-    /// transform to identity.
+    /// `revivalTransform` are captured earlier, before the preparation and before the render pass applies the target
+    /// frame.
     public let takesOverKeyPaths: Set<String>
 
     private let prepareForTakeover: ((Renderable) -> Void)?

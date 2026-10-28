@@ -169,6 +169,7 @@ The performance learnings are in `docs/performance.md`. Read it before changing 
 ## Cross-platform
 
 - Do not ship platform-dependent rendered output with a doc note. When a platform primitive differs (for example AppKit anchors view-backing layers at the bottom left corner while everything else anchors at the center), compensate in the implementation so the visual result matches across platforms, instead of documenting the difference.
+- AppKit owns a layer-backed view's layer transform: it resets the transform when the view moves or resizes, and at the first commit after the view joins a window's view hierarchy, which only a commit or a window display settles, so a transform set before then is lost. A view outside a window keeps its transform through both, so check a view's layer transform on macOS with the view in a window. Verified with Xcode 27.1 on macOS 26.7.
 - Measure a performance change on each platform whose code it changes. AppKit and UIKit implement the same TextKit operations separately, so a cost measured on one tells nothing about the other, such as keeping a reused text view's text through a resize, which saves work in an `NSTextView` but costs more in a `UITextView`, where resizing lays the text out again at once.
 
 ## Scripts

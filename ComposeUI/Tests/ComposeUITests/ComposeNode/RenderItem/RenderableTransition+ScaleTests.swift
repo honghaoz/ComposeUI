@@ -94,25 +94,27 @@ class RenderableTransition_ScaleTests: XCTestCase {
   }
 
   func test_insertTransition_revival_continuesFromRevivalTransform() throws {
-    // given: a layer mid-removal in the framework flow: the model transform is already reset to identity, with a
-    // leftover additive scale animation attached and the removal's model scale captured in the revival transform
+    // given: a layer mid-removal, with the removal's scale in its model transform, which the revival transform
+    // captures, and a leftover additive scale animation attached
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let targetFrame = Constants.targetFrame
     let layer = TestLayer()
+    let revivalScale = Constants.revivalScale
+    let revivalTransform = CATransform3DMakeScale(revivalScale, revivalScale, revivalScale)
+    layer.transform = revivalTransform
 
     addLeftoverAnimation(to: layer, keyPath: "transform.scale", from: CGFloat(1) - Constants.revivalScale, to: CGFloat(0))
 
-    // the framework applies the target frame as the model value before the transition runs
+    // when: an insert transition takes over the removal, which the framework prepares the renderable for, then
+    // applies the target frame as the model value, before the transition animates with the revival transform
+    let insertTransition = try RenderableTransition.scale(timing: Constants.timing, options: .insert).insert.unwrap()
+    insertTransition.prepareForTakeover(renderable: .layer(layer))
     layer.frame = targetFrame
-
-    // when: an insert transition animates with a revival transform
-    let transition = RenderableTransition.scale(timing: Constants.timing, options: .insert)
-    let revivalScale = Constants.revivalScale
-    try transition.insert.unwrap().animate(
+    insertTransition.animate(
       renderable: .layer(layer),
       context: RenderableTransition.InsertTransition.Context(
         targetFrame: targetFrame,
-        revivalTransform: CATransform3DMakeScale(revivalScale, revivalScale, revivalScale),
+        revivalTransform: revivalTransform,
         contentView: contentView
       ),
       completion: {}

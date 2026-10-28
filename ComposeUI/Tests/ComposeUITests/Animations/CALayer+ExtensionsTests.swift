@@ -193,23 +193,38 @@ class CALayer_ExtensionsTests: XCTestCase {
   }
 
   func test_positionFromFrame_nonIdentityTransform() {
-    // given: a layer with a non-identity transform and a test assertion failure handler
+    // given: a rotated layer, with the center anchor point and then with a custom one
     let layer = CALayer()
     layer.transform = CATransform3DMakeRotation(CGFloat.pi / 4, 0, 0, 1)
     let frame = CGRect(x: 10, y: 20, width: 30, height: 40)
-    layer.frame = frame
-    layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
 
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "CALayer.position(from:frame:) only works with identity transform."
-      assertionCount += 1
-    }
-
-    // then: computing the position triggers an assertion and still returns the position
+    // then: the position for a frame is where its anchor point falls in it, whatever the transform
     expect(layer.position(from: frame)) == CGPoint(x: 25, y: 40)
-    expect(assertionCount) == 1
+    layer.anchorPoint = CGPoint(x: 0, y: 1)
+    expect(layer.position(from: frame)) == CGPoint(x: 10, y: 60)
+  }
 
-    Assert.resetTestAssertionFailureHandler()
+  func test_untransformedFrame() {
+    // given: a layer at a frame
+    let layer = CALayer()
+    layer.frame = CGRect(x: 10, y: 20, width: 30, height: 40)
+
+    // then: without a transform, it's the frame
+    expect(layer.untransformedFrame) == CGRect(x: 10, y: 20, width: 30, height: 40)
+
+    // when: the layer rotates, scales about its center, and then about a custom anchor point
+    layer.transform = CATransform3DMakeRotation(CGFloat.pi / 4, 0, 0, 1)
+    let rotatedFrame = layer.untransformedFrame
+    layer.transform = CATransform3DMakeScale(2, 3, 1)
+    let scaledFrame = layer.untransformedFrame
+    layer.anchorPoint = CGPoint(x: 0, y: 0)
+    let scaledFromTheCornerFrame = layer.untransformedFrame
+
+    // then: it's where the position and bounds size place the layer, which the transform doesn't change, while
+    // `frame` bounds the transformed layer
+    expect(rotatedFrame) == CGRect(x: 10, y: 20, width: 30, height: 40)
+    expect(scaledFrame) == CGRect(x: 10, y: 20, width: 30, height: 40)
+    expect(layer.frame) != scaledFrame
+    expect(scaledFromTheCornerFrame) == CGRect(x: 25, y: 40, width: 30, height: 40)
   }
 }

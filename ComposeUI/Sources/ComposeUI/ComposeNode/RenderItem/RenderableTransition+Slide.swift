@@ -113,7 +113,7 @@ public extension RenderableTransition {
         animatedKeyPaths: ["position"],
         animate: { renderable, context, completion in
           let layer = renderable.layer
-          let targetFrame = frame(layer.frame, outsideVisibleAreaOf: context.contentView, on: toSide ?? fromSide, overshoot: overshoot)
+          let targetFrame = frame(renderable.frame, outsideVisibleAreaOf: context.contentView, on: toSide ?? fromSide, overshoot: overshoot)
 
           guard timing.timing.duration > 0 || timing.delay > 0 else {
             renderable.setFrame(targetFrame)
@@ -124,7 +124,7 @@ public extension RenderableTransition {
           layer.animate(
             keyPath: "position",
             timing: timing,
-            from: { $0.position(from: $0.frame) - $0.position(from: targetFrame) },
+            from: { $0.position - $0.position(from: targetFrame) },
             to: { _ in .zero },
             model: { $0.position(from: targetFrame) },
             updateAnimation: {

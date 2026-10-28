@@ -495,6 +495,42 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
+  func test_removeTransition_left_underATransform_slidesTheFrameBeforeTheTransformOut() throws {
+    // given: a layer at its current frame, rotated and shifted, and a slide-out transition towards the left
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let rotation = CATransform3DTranslate(CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1), 10, 0, 0)
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    layer.transform = rotation
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .left,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try transition.remove.unwrap()
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    // when: the remove transition animates the renderable
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    // then: the frame before the rotation, not the rotated layer's bounding box, moves off-screen left from the
+    // current position, and the layer keeps its rotation
+    let expectedTargetFrame = CGRect(
+      x: -currentFrame.width - Constants.overshoot,
+      y: currentFrame.origin.y,
+      width: currentFrame.width,
+      height: currentFrame.height
+    )
+    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+    expect(animation.fromValue as? CGPoint) == layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame)
+    expect(renderable.frame) == expectedTargetFrame
+    expect(CATransform3DEqualToTransform(layer.transform, rotation)) == true
+  }
+
   func test_removeTransition_right() throws {
     // given: a layer at its current frame and a slide-out transition towards the right
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))

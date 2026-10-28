@@ -38,11 +38,12 @@ import UIKit
 
 /// A renderable that is either a view or a layer.
 ///
-/// The render pass owns the renderable's frame and transform: it resets the transform to identity at the start of the
-/// pass, applies the frame after the `willInsert` or `willUpdate` block, and calls the `update` block last. A layer's
-/// frame is undefined under a non-identity transform, so the transform must still be identity when the frame is
-/// applied: `willInsert` and `willUpdate` must not change it. Set a transform in `update`, it is reset and re-applied
-/// on every pass.
+/// The render pass owns the renderable's frame: it applies the frame after the `willInsert` or `willUpdate` block, and
+/// calls the `update` block last. The node owns the renderable's transform, which any of the blocks can set: the frame
+/// is where the position and bounds size place the renderable, before the transform applies, and the render pass
+/// leaves the transform as the node set it, so a node that stops using a transform resets it. A renderable that the
+/// render pass reuses for another item starts with an identity transform. On AppKit, a view's layer transform is reset
+/// by AppKit when the render pass that adds the view to a window ends.
 public enum Renderable {
 
   case view(View)
@@ -78,20 +79,45 @@ public enum Renderable {
     }
   }
 
-  /// The frame of the renderable.
+  /// The frame of the renderable, where its position and bounds size place it, before its transform applies.
   public var frame: CGRect {
     switch self {
     case .view(let view):
+      #if canImport(AppKit)
+      // an AppKit view keeps a frame of its own, which its layer's transform doesn't change
       return view.frame
+      #else
+      // a UIKit view's frame is its layer's, which is undefined under a non-identity transform
+      let layer = view.layer
+      return CATransform3DIsIdentity(layer.transform) ? view.frame : layer.untransformedFrame
+      #endif
     case .layer(let layer):
-      return layer.frame
+      return CATransform3DIsIdentity(layer.transform) ? layer.frame : layer.untransformedFrame
     }
   }
 
-  /// Set the frame of the renderable.
+  /// Set the frame of the renderable, where its position and bounds size place it, keeping its transform.
   ///
   /// - Parameter frame: The frame to set.
   public func setFrame(_ frame: CGRect) {
+    let layer = self.layer
+    let transform = layer.transform
+    guard !CATransform3DIsIdentity(transform) else {
+      setUntransformedFrame(frame)
+      return
+    }
+
+    // setting `frame` under a non-identity transform fits the transformed bounds into the frame, and AppKit resets a
+    // view's layer transform when the view moves or resizes, so the frame is set at identity and the transform is put
+    // back. setting `frame` instead of the position and bounds keeps the subclass overrides of the `frame` setter.
+    layer.disableActions(for: "transform") {
+      layer.transform = CATransform3DIdentity
+      setUntransformedFrame(frame)
+      layer.transform = transform
+    }
+  }
+
+  private func setUntransformedFrame(_ frame: CGRect) {
     switch self {
     case .view(let view):
       view.frame = frame
@@ -132,16 +158,10 @@ public enum Renderable {
   /// Applies the frame unless the renderable already has it, animating the change with the timing if given. Without a
   /// timing, the frame animations in flight glide to the new frame, see `CALayer.retargetFrame(to:)`.
   ///
-  /// - Precondition: The renderable layer's transform must be identity, see `Renderable`.
-  ///
   /// - Parameters:
   ///   - frame: The frame to apply.
   ///   - animationTiming: The timing to animate the change with, or `nil` to apply it without starting an animation.
   func updateFrame(_ frame: CGRect, animationTiming: AnimationTiming?) {
-    #if DEBUG && !COMPOSEUI_BENCHMARK
-    assertIdentityTransform()
-    #endif
-
     // re-applying an unchanged frame is wasteful: without a timing it dirties the renderable and on AppKit posts a
     // frame-change notification that forces a layout pass, with a timing it adds zero-delta animations that live for
     // the timing's duration and pile up under repeated passes.
@@ -164,17 +184,6 @@ public enum Renderable {
     }
     setFrame(frame)
   }
-
-  #if DEBUG && !COMPOSEUI_BENCHMARK
-  /// Asserts that the renderable's transform is identity, as the render pass requires when it applies the frame, see
-  /// `Renderable`.
-  ///
-  /// Benchmark builds leave the check out, since reading the transform costs more than the rest of a frame update that
-  /// keeps the frame, so the frame update benchmarks would measure the check instead of the update.
-  func assertIdentityTransform() {
-    ComposeUI.assert(CATransform3DIsIdentity(layer.transform), "the renderable's transform must be identity when its frame is applied, set a transform in `update` instead of `willInsert` or `willUpdate`")
-  }
-  #endif
 
   /// Add the renderable as a sublayer to the parent view.
   ///
