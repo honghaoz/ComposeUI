@@ -202,6 +202,38 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(animation.fillMode) == .both
   }
 
+  func test_insertTransition_right_underAScale_startsWithWhatShowsOutside() throws {
+    // given: a layer in a layer tree, scaled to twice its size about its center, and a slide-in transition from the
+    // right
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let targetFrame = Constants.targetFrame
+    let hostLayer = CALayer()
+    let layer = TestLayer()
+    hostLayer.addSublayer(layer)
+    layer.transform = CATransform3DMakeScale(2, 2, 1)
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .right,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .insert
+    )
+
+    let insertTransition = try transition.insert.unwrap()
+    let context = RenderableTransition.InsertTransition.Context(targetFrame: targetFrame, contentView: contentView)
+
+    // when: the insert transition animates the renderable
+    insertTransition.animate(renderable: renderable, context: context, completion: {})
+
+    // then: the layer lands at the target frame, and the slide starts where the scaled layer's left edge is just
+    // off-screen, past where the frame alone would start
+    let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
+    let startOffset = try (animation.fromValue as? CGPoint).unwrap()
+    expect(renderable.frame) == targetFrame
+    expect(layer.convert(layer.bounds, to: hostLayer).minX + startOffset.x) == Constants.contentSize.width + Constants.overshoot
+    expect(startOffset.y) == 0
+  }
+
   func test_insertTransition_scrolled_startsJustOutsideTheVisibleArea() throws {
     // the visible area spans x 300 to 500 and y 400 to 520 of the content
     let expectedInitialFrames: [(RenderableTransition.SlideSide, CGRect)] = [
@@ -495,14 +527,18 @@ class RenderableTransition_SlideTests: XCTestCase {
     expect(layer.frame) == expectedTargetFrame
   }
 
-  func test_removeTransition_left_underATransform_slidesTheFrameBeforeTheTransformOut() throws {
-    // given: a layer at its current frame, rotated and shifted, and a slide-out transition towards the left
+  func test_removeTransition_left_underATransform_slidesWhatShowsOut() throws {
+    // given: a layer in a layer tree at its current frame, rotated and shifted, and a slide-out transition towards the
+    // left
     let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
     let currentFrame = Constants.targetFrame
     let rotation = CATransform3DTranslate(CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1), 10, 0, 0)
+    let hostLayer = CALayer()
     let layer = TestLayer()
+    hostLayer.addSublayer(layer)
     layer.frame = currentFrame
     layer.transform = rotation
+    let shownFrame = layer.convert(layer.bounds, to: hostLayer)
     let renderable = Renderable.layer(layer)
     let transition = RenderableTransition.slide(
       from: .left,
@@ -517,18 +553,99 @@ class RenderableTransition_SlideTests: XCTestCase {
     // when: the remove transition animates the renderable
     removeTransition.animate(renderable: renderable, context: context, completion: {})
 
-    // then: the frame before the rotation, not the rotated layer's bounding box, moves off-screen left from the
-    // current position, and the layer keeps its rotation
-    let expectedTargetFrame = CGRect(
-      x: -currentFrame.width - Constants.overshoot,
-      y: currentFrame.origin.y,
-      width: currentFrame.width,
-      height: currentFrame.height
-    )
+    // then: the frame moves left from the current position until the rotated layer's bounding box is just off-screen,
+    // and the layer keeps its rotation
+    let expectedTargetFrame = currentFrame.translate(dx: -Constants.overshoot - shownFrame.maxX)
     let animation = try (layer.addedAnimation as? CABasicAnimation).unwrap()
     expect(animation.fromValue as? CGPoint) == layer.position(from: currentFrame) - layer.position(from: expectedTargetFrame)
-    expect(renderable.frame) == expectedTargetFrame
+    expect(layer.position) == layer.position(from: expectedTargetFrame)
+    expect(layer.convert(layer.bounds, to: hostLayer).maxX).to(beApproximatelyEqual(to: -Constants.overshoot, within: 1e-9))
     expect(CATransform3DEqualToTransform(layer.transform, rotation)) == true
+  }
+
+  func test_removeTransition_right_underAScale_slidesWhatShowsOut() throws {
+    // given: a layer in a layer tree at its current frame, scaled to twice its size about its center, and a slide-out
+    // transition towards the right
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let hostLayer = CALayer()
+    let layer = TestLayer()
+    hostLayer.addSublayer(layer)
+    layer.frame = currentFrame
+    layer.transform = CATransform3DMakeScale(2, 2, 1)
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .right,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try transition.remove.unwrap()
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    // when: the remove transition animates the renderable
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    // then: the frame moves right until the scaled layer's left edge is just off-screen, past where the frame alone
+    // would leave half of the layer's extra width on-screen
+    expect(renderable.frame) == currentFrame.translate(dx: Constants.contentSize.width + Constants.overshoot)
+    expect(layer.convert(layer.bounds, to: hostLayer).minX) == Constants.contentSize.width + Constants.overshoot
+  }
+
+  func test_removeTransition_view_underAScale_slidesWhatShowsOut() throws {
+    // given: a view in a superview at its current frame, scaled to twice its size about its layer's anchor point, which
+    // is at a corner on AppKit and at the center on UIKit, and a slide-out transition towards the left. AppKit adds the
+    // view's layer to its superview's later, so on AppKit the layer has no superlayer yet
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let superview = BaseView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let view = BaseView(frame: Constants.targetFrame)
+    superview.addSubview(view)
+    let layer = view.layer()
+    let scale = CATransform3DMakeScale(2, 2, 1)
+    layer.transform = scale
+    let renderable = Renderable.view(view)
+    let transition = RenderableTransition.slide(
+      from: .left,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try transition.remove.unwrap()
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    // when: the remove transition animates the renderable
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    // then: the view moves left until its scaled layer's right edge is just off-screen, and keeps its scale
+    expect(layer.convert(layer.bounds, to: layer.superlayer).maxX).to(beApproximatelyEqual(to: -Constants.overshoot, within: 1e-9))
+    expect(CATransform3DEqualToTransform(layer.transform, scale)) == true
+  }
+
+  func test_removeTransition_underATransform_outsideALayerTree_slidesWhatShowsOut() throws {
+    // given: a rotated layer that isn't in a layer tree, and a slide-out transition towards the left
+    let contentView = ComposeView(frame: CGRect(origin: .zero, size: Constants.contentSize))
+    let currentFrame = Constants.targetFrame
+    let layer = TestLayer()
+    layer.frame = currentFrame
+    layer.transform = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
+    let renderable = Renderable.layer(layer)
+    let transition = RenderableTransition.slide(
+      from: .left,
+      overshoot: Constants.overshoot,
+      timing: Constants.timing,
+      options: .remove
+    )
+
+    let removeTransition = try transition.remove.unwrap()
+    let context = RenderableTransition.RemoveTransition.Context(contentView: contentView)
+
+    // when: the remove transition animates the renderable
+    removeTransition.animate(renderable: renderable, context: context, completion: {})
+
+    // then: the frame moves left until the rotated layer's bounding box, in the space of its frame, is just off-screen
+    expect(layer.convert(layer.bounds, to: nil).maxX).to(beApproximatelyEqual(to: -Constants.overshoot, within: 1e-9))
   }
 
   func test_removeTransition_right() throws {
