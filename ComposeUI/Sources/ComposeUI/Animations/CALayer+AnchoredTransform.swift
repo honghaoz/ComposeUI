@@ -196,8 +196,8 @@ extension CALayer {
   ///   - timing: The timing of the change.
   ///   - now: The layer's current time.
   /// - Returns: The changes, or `nil` when the change starts over from the transform shown: no change of the transform
-  ///   about the point moves, a change in flight or the new one never finishes, or the transforms don't interpolate or
-  ///   invert.
+  ///   about the point moves, a change in flight or the new one never finishes, the transforms don't interpolate or
+  ///   invert, or the keyframes would stop following the changes before they end.
   private func stackedChanges(on anchoredAnimation: (any AnchoredTransformAnimation)?,
                               to transform: CATransform3D,
                               pivotOffset: SIMD2<Double>,
@@ -208,11 +208,17 @@ extension CALayer {
           anchoredAnimation.pivotOffset == pivotOffset,
           let changes = anchoredAnimation.changes,
           changes.endTime > now,
-          let interpolator = TransformInterpolator(from: anchoredAnimation.transform, to: transform)
+          let interpolator = TransformInterpolator(from: anchoredAnimation.transform, to: transform),
+          let stackedChanges = changes.stacking(TransformMotion(interpolator: interpolator, timing: timing, at: now), at: now)
     else {
       return nil
     }
-    return changes.stacking(TransformMotion(interpolator: interpolator, timing: timing, at: now), at: now)
+    // the keyframes of a stack begin with the changes in flight, which a delayed change can spread past the most time
+    // that keyframes follow, so the change starts over instead of jumping to its end at that time
+    guard !TransformKeyframeSampler.cutsOff(stackedChanges, at: now) else {
+      return nil
+    }
+    return stackedChanges
   }
 
   /// The timing of a glide to a new transform from a transform animation in flight: an ease out over the time that the
@@ -507,6 +513,16 @@ private struct TransformKeyframeSampler {
     modelSize = SIMD2(Double(layer.bounds.size.width), Double(layer.bounds.size.height))
     self.newTransform = newTransform
     self.newSize = newSize
+  }
+
+  /// Whether keyframes stop following changes before they end, at the most time that they follow.
+  ///
+  /// - Parameters:
+  ///   - changes: The changes.
+  ///   - now: The layer's current time.
+  /// - Returns: `true` if the changes move for longer than the keyframes follow from now.
+  static func cutsOff(_ changes: TransformChanges, at now: TimeInterval) -> Bool {
+    changes.endTime - max(now, changes.beginTime) > Constants.maxSampledDuration
   }
 
   /// The keyframes' transforms, at 60 per second, and more where Core Animation's interpolation between two of them

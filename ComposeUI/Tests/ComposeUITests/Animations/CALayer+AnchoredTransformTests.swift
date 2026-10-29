@@ -848,6 +848,27 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     }
   }
 
+  func test_updateTransform_changeDuringAChangeThatStacksPastTenSeconds_startsFromTheTransformShown() throws {
+    // given: a layer turning a quarter turn about its top left corner over 9 seconds
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 9))
+
+    // when: a second in, an animated update turns it to the half turn after a delay of 2 seconds, over 9 seconds, which
+    // would stack the turns over the next 11 seconds, past the 10 seconds that keyframes follow
+    timeline.move(to: 101)
+    layer.updateTransform(Constants.halfTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 9, delay: 2))
+
+    // then: the turn starts over from the transform shown, which it holds through the delay, and lands at its end
+    let start = interpolated(from: CATransform3DIdentity, to: Constants.quarterTurn, progress: 1.0 / 9)
+    for time in [101, 103, 107.5, 111.5, 112] {
+      timeline.show(at: time)
+      let shown = interpolated(from: start, to: Constants.halfTurn, progress: min(max((time - 103) / 9, 0), 1))
+      try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "at \(time)")
+    }
+  }
+
   func test_updateTransform_resizeDuringStackedChanges_keepsTheirCourses() throws {
     // given: a layer of 40 x 20 turning a quarter turn about its top left corner over 2 seconds, with a turn to the half
     // turn stacked on it a second in, over 2 seconds
