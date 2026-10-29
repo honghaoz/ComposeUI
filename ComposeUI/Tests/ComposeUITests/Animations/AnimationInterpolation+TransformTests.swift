@@ -123,6 +123,7 @@ class AnimationInterpolation_TransformTests: XCTestCase {
       ("2D to 3D", CATransform3DMakeRotation(20 * Constants.degree, 0, 0, 1), Constants.perspectiveTurn),
       ("turns about two axes", CATransform3DMakeRotation(40 * Constants.degree, 1, 1, 0), CATransform3DMakeRotation(100 * Constants.degree, 0, 1, 1)),
       ("projective", Constants.projective, CATransform3DConcat(Constants.skewedTurnAndMove, Constants.projective)),
+      ("homogeneous scale without perspective, which goes in between", CATransform3DIdentity, Constants.homogeneousScale),
     ]
     let layers = cases.map { testCase -> CALayer in
       let layer = CALayer()
@@ -199,6 +200,13 @@ class AnimationInterpolation_TransformTests: XCTestCase {
 
     /// A flip of the x axis.
     static let flip = CATransform3DMakeScale(-1, 1, 1)
+
+    /// A last element of 2 without perspective, which halves the size through the divide by it.
+    static let homogeneousScale: CATransform3D = {
+      var transform = CATransform3DIdentity
+      transform.m44 = 2
+      return transform
+    }()
 
     /// A move in depth seen in perspective, whose last element isn't 1.
     static let projective: CATransform3D = {
