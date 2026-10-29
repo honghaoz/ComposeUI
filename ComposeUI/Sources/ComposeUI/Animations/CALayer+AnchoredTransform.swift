@@ -337,97 +337,25 @@ extension CALayer {
                                     newSize: CGSize,
                                     at now: TimeInterval)
   {
-    var startTime = sizeTimes.start
-    var endTime = sizeTimes.end
-    if let motion, motion.endTime > now {
-      startTime = min(startTime, max(now, motion.beginTime))
-      endTime = max(endTime, motion.endTime)
-    }
-    let duration = min(endTime - startTime, Constants.maxSampledDuration)
-    // a change cut off at the most time followed jumps to its end over the last interval, which more keyframes don't
-    // shorten, so the deviation leaves that interval out
-    let isCutOff = endTime - startTime > duration
-
-    let frameSizeChanges = sizeAnimations.isEmpty ? nil : FrameSizeChange.changes(of: sizeAnimations)
-    let modelSize = SIMD2(Double(bounds.size.width), Double(bounds.size.height))
-    func size(at time: TimeInterval) -> CGSize {
-      if sizeAnimations.isEmpty {
-        return newSize
-      } else if let frameSizeChanges {
-        var size = modelSize
-        var index = 0
-        while index < frameSizeChanges.count {
-          size += frameSizeChanges[index].offset(at: time)
-          index += 1
-        }
-        return CGSize(width: size.x, height: size.y)
-      } else {
-        return shownValue(forKeyPath: "bounds.size", animations: sizeAnimations, at: time) as? CGSize ?? newSize
-      }
-    }
-
-    func keyframeTransform(at time: TimeInterval, size: CGSize) -> CATransform3D {
-      // a spring ends close to its target rather than on it, so the transform is the target itself once its change ends
-      if let motion, time < motion.endTime {
-        return Self.anchoredTransform(motion.transform(atProgress: motion.progress(at: time)), pivotOffset: pivotOffset, size: size)
-      } else {
-        return Self.anchoredTransform(transform, pivotOffset: pivotOffset, size: size)
-      }
-    }
-
-    // Core Animation interpolates between two keyframes as between any two transforms, which moves the point off its
-    // place the farthest about halfway between them, so that's where the deviation is measured, as an estimate misses
-    // the curves that a turn, a scale during a resize or perspective each make
-    func deviation(of transforms: [CATransform3D], count: Int) -> Double {
-      let measuredCount = isCutOff ? count - 1 : count
-      var deviation = 0.0
-      var index = 0
-      while index < measuredCount {
-        if let interpolator = TransformInterpolator(from: transforms[index], to: transforms[index + 1]) {
-          let time = startTime + duration * ((Double(index) + 0.5) / Double(count))
-          let size = size(at: time)
-          let point = pivotOffset * SIMD2(Double(size.width), Double(size.height))
-          let shownPoint = Self.project(point, interpolator.transform(atProgress: 0.5))
-          deviation = max(deviation, length(shownPoint - Self.project(point, keyframeTransform(at: time, size: size))))
-        }
-        index += 1
-      }
-      return deviation
-    }
-
-    // the transforms of the keyframes, unboxed, so that a count that turns out too low throws away only them
-    func keyframeTransforms(count: Int) -> (transforms: [CATransform3D], deviation: Double) {
-      var transforms: [CATransform3D] = []
-      transforms.reserveCapacity(count + 1)
-      var index = 0
-      while index <= count {
-        let time = startTime + duration * (Double(index) / Double(count))
-        // the last keyframe is the model transform, which shows once the animation ends
-        transforms.append(index == count ? newTransform : keyframeTransform(at: time, size: size(at: time)))
-        index += 1
-      }
-      return (transforms, deviation(of: transforms, count: count))
-    }
-
-    var count = max(1, Int((duration * Constants.samplesPerSecond).rounded(.up)))
-    let maxCount = max(count, Int((duration * Constants.samplesPerSecond * Constants.maxDensityFactor).rounded(.up)))
-    var (transforms, deviation) = keyframeTransforms(count: count)
-    while deviation > Constants.pointTolerance, count < maxCount {
-      // a fast change about a far point takes more keyframes, as the deviation shrinks with about the square of the time
-      // between them, up to a rate that keeps an absurd change from building a huge animation
-      let denserCount = (Double(count) * (deviation / Constants.pointTolerance).squareRoot()).rounded(.up)
-      // a point at the depth of the eye projects to infinity, so the count is capped while it's a `Double`
-      count = Int(min(max(denserCount, Double(count + 1)), Double(maxCount)))
-      (transforms, deviation) = keyframeTransforms(count: count)
-    }
+    let sampler = TransformKeyframeSampler(
+      layer: self,
+      transform: transform,
+      pivotOffset: pivotOffset,
+      motion: motion,
+      sizeAnimations: sizeAnimations,
+      sizeTimes: sizeTimes,
+      newTransform: newTransform,
+      newSize: newSize,
+      at: now
+    )
 
     let animation = AnchoredTransformKeyframeAnimation()
     animation.keyPath = "transform"
-    animation.values = transforms.map { NSValue(caTransform3D: $0) }
-    animation.duration = duration
+    animation.values = sampler.keyframes().map { NSValue(caTransform3D: $0) }
+    animation.duration = sampler.duration
     // backwards fill holds the first keyframe until the transform or the size begins to move
     animation.fillMode = .both
-    animation.beginTime = CAAnimation.beginTime(at: startTime)
+    animation.beginTime = CAAnimation.beginTime(at: sampler.startTime)
     animation.transform = transform
     animation.pivotOffset = pivotOffset
     animation.motion = motion
@@ -445,19 +373,6 @@ extension CALayer {
     disableActions(for: "transform") {
       transform = newTransform
     }
-  }
-
-  /// Where a transform puts a point of the layer, with its perspective.
-  ///
-  /// - Parameters:
-  ///   - point: The point, from the layer's anchor point.
-  ///   - transform: The transform.
-  /// - Returns: The point that the transform puts the point at, from the layer's position.
-  private static func project(_ point: SIMD2<Double>, _ transform: CATransform3D) -> SIMD2<Double> {
-    let x = point.x * Double(transform.m11) + point.y * Double(transform.m21) + Double(transform.m41)
-    let y = point.x * Double(transform.m12) + point.y * Double(transform.m22) + Double(transform.m42)
-    let w = point.x * Double(transform.m14) + point.y * Double(transform.m24) + Double(transform.m44)
-    return SIMD2(x, y) / w
   }
 
   /// The transform that applies a transform about a point of the layer.
@@ -480,6 +395,187 @@ extension CALayer {
     }
     let pivoted = CATransform3DConcat(CATransform3DMakeTranslation(-offsetX, -offsetY, 0), transform)
     return CATransform3DConcat(pivoted, CATransform3DMakeTranslation(offsetX, offsetY, 0))
+  }
+}
+
+/// The keyframes of a transform about a point of a layer, at the size that the layer shows at each keyframe, from when
+/// the transform or the size first moves to when the last of them stops, see
+/// `CALayer.updateTransform(_:anchor:oldSize:newSize:animationTiming:)`.
+private struct TransformKeyframeSampler {
+
+  /// The time the keyframes begin, in the layer's time space.
+  let startTime: TimeInterval
+
+  /// The time from the first keyframe to the last.
+  let duration: TimeInterval
+
+  private let layer: CALayer
+  private let transform: CATransform3D
+  private let pivotOffset: SIMD2<Double>
+  private let motion: TransformMotion?
+  private let sizeAnimations: [KeyPathAnimation]
+  private let frameSizeChanges: [FrameSizeChange]?
+  private let modelSize: SIMD2<Double>
+  private let newTransform: CATransform3D
+  private let newSize: CGSize
+
+  /// Whether the keyframes stop following a change before it ends, at the most time that they follow.
+  private let isCutOff: Bool
+
+  /// Creates the sampler of the keyframes of a change of a layer's transform, its size, or both.
+  ///
+  /// - Parameters:
+  ///   - layer: The layer.
+  ///   - transform: The transform that the layer ends at, before it applies about the point.
+  ///   - pivotOffset: The point's offset from the anchor point, in the unit space of the layer's bounds.
+  ///   - motion: The transform's change, or `nil` when the transform stays.
+  ///   - sizeAnimations: The animations of the layer's size in flight.
+  ///   - sizeTimes: The time from which the animations of the size move it, and the time the last of them ends.
+  ///   - newTransform: The transform about the point at the new size, the model transform.
+  ///   - newSize: The layer's size.
+  ///   - now: The layer's current time.
+  init(layer: CALayer,
+       transform: CATransform3D,
+       pivotOffset: SIMD2<Double>,
+       motion: TransformMotion?,
+       sizeAnimations: [KeyPathAnimation],
+       sizeTimes: (start: TimeInterval, end: TimeInterval),
+       newTransform: CATransform3D,
+       newSize: CGSize,
+       at now: TimeInterval)
+  {
+    var startTime = sizeTimes.start
+    var endTime = sizeTimes.end
+    if let motion, motion.endTime > now {
+      startTime = min(startTime, max(now, motion.beginTime))
+      endTime = max(endTime, motion.endTime)
+    }
+    self.startTime = startTime
+    duration = min(endTime - startTime, Constants.maxSampledDuration)
+    // a change cut off at the most time followed jumps to its end over the last interval, which more keyframes don't
+    // shorten, so the deviation leaves that interval out
+    isCutOff = endTime - startTime > duration
+
+    self.layer = layer
+    self.transform = transform
+    self.pivotOffset = pivotOffset
+    self.motion = motion
+    self.sizeAnimations = sizeAnimations
+    frameSizeChanges = sizeAnimations.isEmpty ? nil : FrameSizeChange.changes(of: sizeAnimations)
+    modelSize = SIMD2(Double(layer.bounds.size.width), Double(layer.bounds.size.height))
+    self.newTransform = newTransform
+    self.newSize = newSize
+  }
+
+  /// The keyframes' transforms, at 60 per second, and more where Core Animation's interpolation between two of them
+  /// would move the point off its place by more than a quarter point.
+  ///
+  /// - Returns: The transforms, the last of which is the model transform.
+  func keyframes() -> [CATransform3D] {
+    var count = max(1, Int((duration * Constants.samplesPerSecond).rounded(.up)))
+    let maxCount = max(count, Int((duration * Constants.samplesPerSecond * Constants.maxDensityFactor).rounded(.up)))
+    var (transforms, deviation) = keyframes(count: count)
+    while deviation > Constants.pointTolerance, count < maxCount {
+      // a fast change about a far point takes more keyframes, as the deviation shrinks with about the square of the time
+      // between them, up to a rate that keeps an absurd change from building a huge animation
+      let denserCount = (Double(count) * (deviation / Constants.pointTolerance).squareRoot()).rounded(.up)
+      // a point at the depth of the eye projects to infinity, so the count is capped while it's a `Double`
+      count = Int(min(max(denserCount, Double(count + 1)), Double(maxCount)))
+      (transforms, deviation) = keyframes(count: count)
+    }
+    return transforms
+  }
+
+  /// The keyframes' transforms for a number of intervals between them, unboxed, so that a number that turns out too low
+  /// throws away only them, and the farthest that Core Animation's interpolation between them moves the point.
+  ///
+  /// - Parameter count: The number of intervals.
+  /// - Returns: The transforms, and the farthest that the interpolation moves the point, in points.
+  private func keyframes(count: Int) -> (transforms: [CATransform3D], deviation: Double) {
+    var transforms: [CATransform3D] = []
+    transforms.reserveCapacity(count + 1)
+    var index = 0
+    while index <= count {
+      let time = startTime + duration * (Double(index) / Double(count))
+      // the last keyframe is the model transform, which shows once the animation ends
+      transforms.append(index == count ? newTransform : transform(at: time, size: size(at: time)))
+      index += 1
+    }
+    return (transforms, deviation(of: transforms, count: count))
+  }
+
+  /// The farthest that Core Animation's interpolation between keyframes moves the point off its place.
+  ///
+  /// - Parameters:
+  ///   - transforms: The keyframes' transforms.
+  ///   - count: The number of intervals between them.
+  /// - Returns: The distance, in points.
+  private func deviation(of transforms: [CATransform3D], count: Int) -> Double {
+    // Core Animation interpolates between two keyframes as between any two transforms, which moves the point off its
+    // place the farthest about halfway between them, so that's where the deviation is measured, as an estimate misses
+    // the curves that a turn, a scale during a resize or perspective each make
+    let measuredCount = isCutOff ? count - 1 : count
+    var deviation = 0.0
+    var index = 0
+    while index < measuredCount {
+      if let interpolator = TransformInterpolator(from: transforms[index], to: transforms[index + 1]) {
+        let time = startTime + duration * ((Double(index) + 0.5) / Double(count))
+        let size = size(at: time)
+        let point = pivotOffset * SIMD2(Double(size.width), Double(size.height))
+        let shownPoint = Self.project(point, interpolator.transform(atProgress: 0.5))
+        deviation = max(deviation, length(shownPoint - Self.project(point, transform(at: time, size: size))))
+      }
+      index += 1
+    }
+    return deviation
+  }
+
+  /// The transform about the point at a time, at a size.
+  ///
+  /// - Parameters:
+  ///   - time: The time, in the layer's time space.
+  ///   - size: The size that the layer shows then.
+  /// - Returns: The transform to set on the layer.
+  private func transform(at time: TimeInterval, size: CGSize) -> CATransform3D {
+    // a spring ends close to its target rather than on it, so the transform is the target itself once its change ends
+    if let motion, time < motion.endTime {
+      return CALayer.anchoredTransform(motion.transform(atProgress: motion.progress(at: time)), pivotOffset: pivotOffset, size: size)
+    } else {
+      return CALayer.anchoredTransform(transform, pivotOffset: pivotOffset, size: size)
+    }
+  }
+
+  /// The size that the layer shows at a time.
+  ///
+  /// - Parameter time: The time, in the layer's time space.
+  /// - Returns: The size.
+  private func size(at time: TimeInterval) -> CGSize {
+    if sizeAnimations.isEmpty {
+      return newSize
+    } else if let frameSizeChanges {
+      var size = modelSize
+      var index = 0
+      while index < frameSizeChanges.count {
+        size += frameSizeChanges[index].offset(at: time)
+        index += 1
+      }
+      return CGSize(width: size.x, height: size.y)
+    } else {
+      return layer.shownValue(forKeyPath: "bounds.size", animations: sizeAnimations, at: time) as? CGSize ?? newSize
+    }
+  }
+
+  /// Where a transform puts a point of the layer, with its perspective.
+  ///
+  /// - Parameters:
+  ///   - point: The point, from the layer's anchor point.
+  ///   - transform: The transform.
+  /// - Returns: The point that the transform puts the point at, from the layer's position.
+  private static func project(_ point: SIMD2<Double>, _ transform: CATransform3D) -> SIMD2<Double> {
+    let x = point.x * Double(transform.m11) + point.y * Double(transform.m21) + Double(transform.m41)
+    let y = point.x * Double(transform.m12) + point.y * Double(transform.m22) + Double(transform.m42)
+    let w = point.x * Double(transform.m14) + point.y * Double(transform.m24) + Double(transform.m44)
+    return SIMD2(x, y) / w
   }
 
   // MARK: - Constants
