@@ -997,6 +997,10 @@ class RenderPerformanceTests: BenchmarkTestCase {
     runTransformUpdateBenchmark(name: "updateTransform.view.animatedResize", state: .animatedResize)
   }
 
+  func test_updateTransform_view_animatedInPerspective() {
+    runTransformUpdateBenchmark(name: "updateTransform.view.animatedInPerspective", state: .animatedInPerspective)
+  }
+
   // MARK: - Helpers
 
   private enum Constants {
@@ -1008,6 +1012,12 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
     static let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1) // a transform that a node sets
     static let secondRotation = CATransform3DMakeRotation(CGFloat.pi / 3, 0, 0, 1) // a transform that a node changes to
+    static let perspective: CATransform3D = { // a perspective with the eye 500 points away
+      var perspective = CATransform3DIdentity
+      perspective.m34 = -1 / 500
+      return perspective
+    }()
+
     static let transformUpdatesPerIteration = 100 // an animated update builds its keyframes, which takes about 10 microseconds
     static let reorderRowCount = 16 // rows that all show, so that reversing them keeps the same items
     static let subviewsPerRow = 30
@@ -1370,6 +1380,9 @@ class RenderPerformanceTests: BenchmarkTestCase {
 
     /// The frame changes on every update, with a timing, and the transform follows the frame's size.
     case animatedResize
+
+    /// A transform in perspective changes on every update, with a timing.
+    case animatedInPerspective
   }
 
   private func runTransformUpdateBenchmark(name: String, state: TransformUpdateState) {
@@ -1377,21 +1390,29 @@ class RenderPerformanceTests: BenchmarkTestCase {
     let renderable = Renderable.view(Self.makeLayerBackedView())
     let contentView = ComposeView()
     let size = CGSize(width: 100, height: 50)
-    let firstItem = Self.transformItem(Constants.rotation, size: size)
+    let firstItem: RenderableItem
     let secondItem: RenderableItem
     let timing: AnimationTiming?
     switch state {
     case .unchanged:
+      firstItem = Self.transformItem(Constants.rotation, size: size)
       secondItem = firstItem
       timing = nil
     case .changed:
+      firstItem = Self.transformItem(Constants.rotation, size: size)
       secondItem = Self.transformItem(Constants.secondRotation, size: size)
       timing = nil
     case .animated:
+      firstItem = Self.transformItem(Constants.rotation, size: size)
       secondItem = Self.transformItem(Constants.secondRotation, size: size)
       timing = .linear(duration: 0.3)
     case .animatedResize:
+      firstItem = Self.transformItem(Constants.rotation, size: size)
       secondItem = Self.transformItem(Constants.rotation, size: CGSize(width: 160, height: 80))
+      timing = .linear(duration: 0.3)
+    case .animatedInPerspective:
+      firstItem = Self.transformItem(CATransform3DRotate(Constants.perspective, CGFloat.pi / 6, 0, 1, 0), size: size)
+      secondItem = Self.transformItem(CATransform3DRotate(Constants.perspective, CGFloat.pi / 3, 0, 1, 0), size: size)
       timing = .linear(duration: 0.3)
     }
     Self.update(renderable, with: firstItem, contentView: contentView, animationTiming: nil)
