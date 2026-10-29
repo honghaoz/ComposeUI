@@ -1,5 +1,5 @@
 //
-//  AnimationInterpolation+TransformTests.swift
+//  TransformInterpolatorTests.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 10/28/26.
@@ -34,7 +34,7 @@ import ChouTiTest
 
 @_spi(Private) @testable import ComposeUI
 
-class AnimationInterpolation_TransformTests: XCTestCase {
+class TransformInterpolatorTests: XCTestCase {
 
   func test_transform_endpoints_areTheTransformsThemselves() throws {
     // given: a transform with perspective and one without, which a decomposition gives back only within rounding
