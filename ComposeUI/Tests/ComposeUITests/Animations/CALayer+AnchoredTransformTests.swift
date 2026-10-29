@@ -539,7 +539,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     layer.retargetFrame(to: CGRect(origin: .zero, size: Constants.largeSize))
     layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.largeSize, animationTiming: nil)
 
-    // then: the scale keeps its course about the corner at the new size, instead of the size that its keyframes had
+    // then: the scale keeps its course about the corner at the new size
     for time in [101.0, 101.5] {
       timeline.show(at: time)
       try expectShownTransform(of: layer, interpolated(from: Constants.doubleScale, to: CATransform3DIdentity, progress: (time - 100) / 2), about: .topLeft, within: 0.01)
@@ -650,8 +650,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     // when: an animated update turns it about its top left corner instead, over a second
     layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: Constants.largeSize, newSize: Constants.largeSize, animationTiming: .linear(duration: 1))
 
-    // then: the layer shows the same at first, at the size it shows rather than the size it grows to, then lands at the
-    // turn about the corner
+    // then: the layer shows the same at first, then lands at the turn about the corner
     timeline.show(at: 100.5)
     try expectShownTransform(of: layer, Constants.quarterTurn, about: .center, within: 0.01)
     timeline.show(at: 101.5)

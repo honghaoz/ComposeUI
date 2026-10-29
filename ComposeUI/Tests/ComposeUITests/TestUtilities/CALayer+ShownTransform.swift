@@ -54,7 +54,6 @@ func expectShownTransform(of layer: CALayer,
   let bounds = presentation.bounds
   let size = bounds.size
 
-  // the frame that the layer shows without its transform, and the point in it
   let originX = presentation.position.x - presentation.anchorPoint.x * size.width
   let originY = presentation.position.y - presentation.anchorPoint.y * size.height
   let pivotX = originX + CGFloat(anchor.x) * size.width
@@ -65,7 +64,6 @@ func expectShownTransform(of layer: CALayer,
       CGPoint(x: bounds.minX + CGFloat(point.x) * size.width, y: bounds.minY + CGFloat(point.y) * size.height),
       to: superlayer
     )
-    // the transform applies to the point's offset from the pivot, and projects it with its perspective
     let offsetX = CGFloat(point.x - anchor.x) * size.width
     let offsetY = CGFloat(point.y - anchor.y) * size.height
     let x = offsetX * transform.m11 + offsetY * transform.m21 + transform.m41

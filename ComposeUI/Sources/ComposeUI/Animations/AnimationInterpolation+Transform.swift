@@ -194,8 +194,7 @@ private struct AffineDecomposition {
       from.angle += from.angle < 0 ? .pi : -.pi
     }
 
-    // a zero angle counts as a full turn, and an angle moves by a full turn when the other is more than a half turn
-    // away
+    // a zero angle counts as a full turn
     if from.angle == 0 {
       from.angle = 2 * .pi
     }

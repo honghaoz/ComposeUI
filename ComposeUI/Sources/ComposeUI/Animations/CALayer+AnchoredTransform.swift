@@ -60,8 +60,8 @@ extension CALayer {
     let newTransform = Self.anchoredTransform(transform, pivotOffset: pivotOffset, size: newSize)
 
     if CATransform3DEqualToTransform(self.transform, newTransform) {
-      // a refresh mostly keeps the transform, which then isn't set again. the keyframes of a change in flight follow
-      // the size, even to a transform that doesn't, such as the identity, so a resize still samples them again
+      // the keyframes of a change in flight follow the size, even to a transform that doesn't, such as the identity, so
+      // a resize still samples them again
       guard oldSize != newSize, animation(forKey: "transform") is AnchoredTransformAnimation else {
         return
       }
@@ -101,7 +101,6 @@ extension CALayer {
     let timing = animationTiming.flatMap { $0.timing.duration > 0 || $0.delay > 0 ? $0 : nil }
     let keys = unbridgedAnimationKeys
     guard keys != nil || timing != nil else {
-      // a layer usually has nothing animating, and then nothing moves the transform
       setModelTransform(newTransform)
       return
     }
@@ -111,8 +110,6 @@ extension CALayer {
       $0.remainingTime(at: now) == nil ? nil : $0
     }
 
-    // the size that the layer shows moves the point only while an animation of the size is in flight, from when the
-    // first of them begins to when the last of them ends
     var sizeAnimations: [KeyPathAnimation] = []
     var sizeStartTime = TimeInterval.infinity
     var sizeEndTime = now
@@ -127,7 +124,6 @@ extension CALayer {
       }
     }
 
-    // the transform keeps the course of its change in flight when only the size changed
     let keepsCourse: Bool
     if let keyframeAnimation {
       keepsCourse = keyframeAnimation.pivotOffset == pivotOffset && CATransform3DEqualToTransform(keyframeAnimation.transform, transform)
@@ -157,7 +153,7 @@ extension CALayer {
     }
 
     guard motion.map({ $0.endTime > now }) == true || !sizeAnimations.isEmpty else {
-      // nothing moves the transform, which changes at once, and an animation in flight would show over it until it ends
+      // an animation in flight would show over the transform until it ends
       removeAnimations(forKeyPath: "transform")
       setModelTransform(newTransform)
       return
@@ -197,7 +193,6 @@ extension CALayer {
       remainingTime = motion.endTime - now
       neverFinishes = motion.neverFinishes
     } else {
-      // a basic animation of the transform, as one of a point at the anchor point, glides as `retarget(keyPath:to:)` does
       guard let keys, let animations = animationSequence(forKeyPath: "transform", keys: keys) else {
         return nil
       }
@@ -252,7 +247,7 @@ extension CALayer {
     }
 
     // the first keyframe applies the transform about the new point at the size shown, so the change starts from the
-    // transform about the new point that shows the same at that size, whatever size the transform shown was set for
+    // transform about the new point that shows the same at that size
     let size = hasAnimations ? shownValue(forKeyPath: "bounds.size") as? CGSize ?? bounds.size : bounds.size
     let anchoredTransform = Self.anchoredTransform(shown, pivotOffset: shownPivotOffset, size: size)
     return Self.anchoredTransform(anchoredTransform, pivotOffset: -pivotOffset, size: size)
@@ -285,14 +280,11 @@ extension CALayer {
       startTime = min(startTime, max(now, motion.beginTime))
       endTime = max(endTime, motion.endTime)
     }
-    // an animation that never finishes, as a spring without damping doesn't, can't be followed forever
     let duration = min(endTime - startTime, Constants.maxSampledDuration)
     // a change cut off at the most time followed jumps to its end over the last interval, which more keyframes don't
     // shorten, so the deviation leaves that interval out
     let isCutOff = endTime - startTime > duration
 
-    // the frame's own animations of the size are read once, while another animation of the size takes a read of each
-    // animation's timing and values at each keyframe
     let frameSizeChanges = sizeAnimations.isEmpty ? nil : FrameSizeChange.changes(of: sizeAnimations)
     let modelSize = SIMD2(Double(bounds.size.width), Double(bounds.size.height))
     func size(at time: TimeInterval) -> CGSize {
@@ -311,7 +303,6 @@ extension CALayer {
       }
     }
 
-    // the transform about the point at a time, at the size shown then
     func keyframeTransform(at time: TimeInterval, size: CGSize) -> CATransform3D {
       // a spring ends close to its target rather than on it, so the transform is the target itself once its change ends
       if let motion, time < motion.endTime {
@@ -322,9 +313,8 @@ extension CALayer {
     }
 
     // Core Animation interpolates between two keyframes as between any two transforms, which moves the point off its
-    // place the farthest about halfway between them. that's where the farthest is measured, by projecting the point
-    // with the interpolated transform and with the transform there, as an estimate misses the curves that a turn, a
-    // scale during a resize or perspective each make
+    // place the farthest about halfway between them, so that's where the deviation is measured, as an estimate misses
+    // the curves that a turn, a scale during a resize or perspective each make
     func deviation(of transforms: [CATransform3D], count: Int) -> Double {
       let measuredCount = isCutOff ? count - 1 : count
       var deviation = 0.0
