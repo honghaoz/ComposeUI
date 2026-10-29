@@ -42,17 +42,20 @@ import ChouTiTest
 ///   - transform: The transform that the layer should show.
 ///   - anchor: The point that the transform applies about, in the unit space of the layer's bounds.
 ///   - tolerance: The distance within which a point is where the transform puts it, in points.
+///   - description: A description of the case, which the failures start with.
 func expectShownTransform(of layer: CALayer,
                           _ transform: CATransform3D,
                           about anchor: UnitPoint,
                           within tolerance: CGFloat,
+                          _ description: String = "",
                           file: StaticString = #filePath,
                           line: UInt = #line) throws
 {
-  let presentation = try unwrap(layer.presentation(), file: file, line: line)
+  let presentation = try unwrap(layer.presentation(), description, file: file, line: line)
   let superlayer = try unwrap(presentation.superlayer, file: file, line: line)
   let bounds = presentation.bounds
   let size = bounds.size
+  let prefix = description.isEmpty ? "" : "\(description): "
 
   let originX = presentation.position.x - presentation.anchorPoint.x * size.width
   let originY = presentation.position.y - presentation.anchorPoint.y * size.height
@@ -69,7 +72,7 @@ func expectShownTransform(of layer: CALayer,
     let x = offsetX * transform.m11 + offsetY * transform.m21 + transform.m41
     let y = offsetX * transform.m12 + offsetY * transform.m22 + transform.m42
     let w = offsetX * transform.m14 + offsetY * transform.m24 + transform.m44
-    expect(shown.x, "x of \(point)", file: file, line: line).to(beApproximatelyEqual(to: pivotX + x / w, within: tolerance))
-    expect(shown.y, "y of \(point)", file: file, line: line).to(beApproximatelyEqual(to: pivotY + y / w, within: tolerance))
+    expect(shown.x, "\(prefix)x of \(point)", file: file, line: line).to(beApproximatelyEqual(to: pivotX + x / w, within: tolerance))
+    expect(shown.y, "\(prefix)y of \(point)", file: file, line: line).to(beApproximatelyEqual(to: pivotY + y / w, within: tolerance))
   }
 }

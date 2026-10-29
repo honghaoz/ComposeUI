@@ -62,6 +62,10 @@ struct TransformInterpolator {
   private let to: CATransform3D
   private let decompositions: Decompositions
 
+  /// Whether the transforms are affine and differ only in their scale and translation, so that the interpolation blends
+  /// their matrices linearly.
+  let isLinear: Bool
+
   /// Creates an interpolator from one transform to another.
   ///
   /// - Parameters:
@@ -74,11 +78,13 @@ struct TransformInterpolator {
     if CATransform3DIsAffine(from), CATransform3DIsAffine(to) {
       let (fromDecomposition, toDecomposition) = AffineDecomposition.aligned(AffineDecomposition(from), AffineDecomposition(to))
       decompositions = .affine(from: fromDecomposition, to: toDecomposition)
+      isLinear = fromDecomposition.hasSameRotationAndRest(as: toDecomposition)
     } else {
       guard let fromDecomposition = Decomposition(from), let toDecomposition = Decomposition(to) else {
         return nil
       }
       decompositions = .general(from: fromDecomposition, to: toDecomposition)
+      isLinear = false
     }
   }
 
@@ -179,6 +185,15 @@ private struct AffineDecomposition {
     matrix.m41 = CGFloat(translationX)
     matrix.m42 = CGFloat(translationY)
     return matrix
+  }
+
+  /// Whether the decomposition has the same angle and rest of the matrix as another, so that only the scale and the
+  /// translation change between them, each linearly.
+  ///
+  /// - Parameter other: The other decomposition, aligned with this one, see `aligned(_:_:)`.
+  /// - Returns: `true` if they have the same angle and rest of the matrix.
+  func hasSameRotationAndRest(as other: AffineDecomposition) -> Bool {
+    angle == other.angle && m11 == other.m11 && m12 == other.m12 && m21 == other.m21 && m22 == other.m22
   }
 
   /// The decompositions with their flips and angles made comparable, so that they interpolate without a flip and the
