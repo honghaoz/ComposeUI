@@ -130,6 +130,21 @@ class AnimationInterpolation_TransformTests: XCTestCase {
     }
   }
 
+  func test_transformInterpolator_isLinear_forAScaleUnderAnyTurn() throws {
+    // given: a press effect's scale and a scale of each axis by its own factor, under a turn of each whole degree, which
+    // rounding gives decompositions that differ in their last digits
+    for degree in 1 ..< 360 {
+      let turn = CATransform3DMakeRotation(CGFloat(degree) * Constants.degree, 0, 0, 1)
+      for scaled in [CATransform3DScale(turn, 0.95, 0.95, 1), CATransform3DScale(turn, 1.2, 0.8, 1)] {
+        // when: interpolating from the turn to the scale under it
+        let interpolator = try unwrap(TransformInterpolator(from: turn, to: scaled), "\(degree)°")
+
+        // then: the interpolation is linear
+        expect(interpolator.isLinear, "\(degree)°") == true
+      }
+    }
+  }
+
   // MARK: - Core Animation
 
   func test_transform_matchesCoreAnimation() throws {
