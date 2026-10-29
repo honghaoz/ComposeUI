@@ -287,6 +287,9 @@ extension CALayer {
     }
     // an animation that never finishes, as a spring without damping doesn't, can't be followed forever
     let duration = min(endTime - startTime, Constants.maxSampledDuration)
+    // a change cut off at the most time followed jumps to its end over the last interval, which more keyframes don't
+    // shorten, so the deviation leaves that interval out
+    let isCutOff = endTime - startTime > duration
 
     // the frame's own animations of the size are read once, while another animation of the size takes a read of each
     // animation's timing and values at each keyframe
@@ -323,9 +326,10 @@ extension CALayer {
     // with the interpolated transform and with the transform there, as an estimate misses the curves that a turn, a
     // scale during a resize or perspective each make
     func deviation(of transforms: [CATransform3D], count: Int) -> Double {
+      let measuredCount = isCutOff ? count - 1 : count
       var deviation = 0.0
       var index = 0
-      while index < count {
+      while index < measuredCount {
         if let interpolator = TransformInterpolator(from: transforms[index], to: transforms[index + 1]) {
           let time = startTime + duration * ((Double(index) + 0.5) / Double(count))
           let size = size(at: time)

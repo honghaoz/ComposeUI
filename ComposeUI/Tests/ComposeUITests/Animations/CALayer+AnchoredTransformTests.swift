@@ -389,6 +389,23 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     expect(animation.values?.count) == 601
   }
 
+  func test_updateTransform_slowTurnWithASpringWithoutDamping_followsTenSecondsAtTheRate() throws {
+    // given: a layer at rest
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+
+    // when: an eighth turn about its top left corner animates with a slow spring without damping, which never finishes,
+    // and turns slowly enough that 60 keyframes per second keep the corner in place between them
+    layer.updateTransform(Constants.eighthTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .spring(dampingRatio: 0, response: 2))
+
+    // then: the keyframes follow the spring for 10 seconds at 60 per second, as the jump to the eighth turn at the end,
+    // which no number of keyframes shortens, doesn't make them denser
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
+    expect(animation.duration) == 10
+    expect(animation.values?.count) == 601
+  }
+
   // MARK: - Changes in Flight
 
   func test_updateTransform_withATimingDuringAChange_startsFromTheShownTransform() throws {
