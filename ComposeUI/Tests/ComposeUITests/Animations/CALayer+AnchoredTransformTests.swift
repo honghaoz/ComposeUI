@@ -468,6 +468,26 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     }
   }
 
+  func test_updateTransform_resizeWithoutATimingDuringAChangeToATransformThatTheSizeDoesntMove_followsTheResize() throws {
+    // given: a layer of 40 x 20 scaling back from twice its size to no scale about its top left corner over 2 seconds,
+    // whose transform at the end, the identity, the size doesn't move
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: nil)
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: .linear(duration: 2))
+
+    // when: a second in, an update without a timing makes it 80 x 40, keeping the transform
+    timeline.move(to: 101)
+    layer.retargetFrame(to: CGRect(origin: .zero, size: Constants.largeSize))
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.largeSize, animationTiming: nil)
+
+    // then: the scale keeps its course about the corner at the new size, instead of the size that its keyframes had
+    for time in [101.0, 101.5] {
+      timeline.show(at: time)
+      try expectShownTransform(of: layer, interpolated(from: Constants.doubleScale, to: CATransform3DIdentity, progress: (time - 100) / 2), about: .topLeft, within: 0.01)
+    }
+  }
+
   func test_updateTransform_resizeWithoutATimingDuringAChange_keepsTheCourse() throws {
     // given: a layer of 40 x 20 turning a quarter turn about its top left corner over 4 seconds
     let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)

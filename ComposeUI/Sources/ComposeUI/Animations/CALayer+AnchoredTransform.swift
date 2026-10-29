@@ -59,9 +59,12 @@ extension CALayer {
     let pivotOffset = SIMD2(anchor.x - Double(anchorPoint.x), anchor.y - Double(anchorPoint.y))
     let newTransform = Self.anchoredTransform(transform, pivotOffset: pivotOffset, size: newSize)
 
-    // a refresh mostly keeps the transform, which then isn't set again
-    guard !CATransform3DEqualToTransform(self.transform, newTransform) else {
-      return
+    if CATransform3DEqualToTransform(self.transform, newTransform) {
+      // a refresh mostly keeps the transform, which then isn't set again. the keyframes of a change in flight follow
+      // the size, even to a transform that doesn't, such as the identity, so a resize still samples them again
+      guard oldSize != newSize, animation(forKey: "transform") is AnchoredTransformAnimation else {
+        return
+      }
     }
 
     changeTransform(
