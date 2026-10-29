@@ -305,40 +305,30 @@ extension CALayer {
       }
     }
 
-    // the transform about the point at a time, at the size shown then, and the change's progress then
-    func keyframe(at time: TimeInterval, size: CGSize) -> (transform: CATransform3D, progress: Double) {
+    // the transform about the point at a time, at the size shown then
+    func keyframeTransform(at time: TimeInterval, size: CGSize) -> CATransform3D {
       // a spring ends close to its target rather than on it, so the transform is the target itself once its change ends
       if let motion, time < motion.endTime {
-        let progress = motion.progress(at: time)
-        return (Self.anchoredTransform(motion.transform(atProgress: progress), pivotOffset: pivotOffset, size: size), progress)
+        return Self.anchoredTransform(motion.transform(atProgress: motion.progress(at: time)), pivotOffset: pivotOffset, size: size)
       } else {
-        return (Self.anchoredTransform(transform, pivotOffset: pivotOffset, size: size), 1)
+        return Self.anchoredTransform(transform, pivotOffset: pivotOffset, size: size)
       }
     }
 
-    // the estimate of how far Core Animation's interpolation between keyframes moves the point covers a transform in the
-    // plane, which turns by the angle in the plane, while perspective and turns out of the plane take a measure of it
-    let planeAngle: Double?
-    if !CATransform3DIsAffine(transform) {
-      planeAngle = nil
-    } else if let motion {
-      planeAngle = motion.planeAngle
-    } else {
-      planeAngle = 0
-    }
-
-    // the farthest that Core Animation's interpolation moves the point off its place halfway between two keyframes, where
-    // it's about the farthest, measured by projecting the point with the interpolated transform and the one sampled
-    func measuredDeviation(of transforms: [CATransform3D], count: Int) -> Double {
+    // Core Animation interpolates between two keyframes as between any two transforms, which moves the point off its
+    // place the farthest about halfway between them. that's where the farthest is measured, by projecting the point
+    // with the interpolated transform and with the transform there, as an estimate misses the curves that a turn, a
+    // scale during a resize or perspective each make
+    func deviation(of transforms: [CATransform3D], count: Int) -> Double {
       var deviation = 0.0
       var index = 0
       while index < count {
-        let time = startTime + duration * ((Double(index) + 0.5) / Double(count))
-        let size = size(at: time)
         if let interpolator = TransformInterpolator(from: transforms[index], to: transforms[index + 1]) {
+          let time = startTime + duration * ((Double(index) + 0.5) / Double(count))
+          let size = size(at: time)
           let point = pivotOffset * SIMD2(Double(size.width), Double(size.height))
           let shownPoint = Self.project(point, interpolator.transform(atProgress: 0.5))
-          deviation = max(deviation, length(shownPoint - Self.project(point, keyframe(at: time, size: size).transform)))
+          deviation = max(deviation, length(shownPoint - Self.project(point, keyframeTransform(at: time, size: size))))
         }
         index += 1
       }
@@ -349,28 +339,14 @@ extension CALayer {
     func keyframeTransforms(count: Int) -> (transforms: [CATransform3D], deviation: Double) {
       var transforms: [CATransform3D] = []
       transforms.reserveCapacity(count + 1)
-      var largestStep = 0.0
-      var largestDistance = 0.0
-      var previousProgress = motion?.progress(at: startTime) ?? 1
       var index = 0
       while index <= count {
         let time = startTime + duration * (Double(index) / Double(count))
-        let size = size(at: time)
-        largestDistance = max(largestDistance, length(pivotOffset * SIMD2(Double(size.width), Double(size.height))))
-        let (keyframeTransform, progress) = keyframe(at: time, size: size)
-        largestStep = max(largestStep, abs(progress - previousProgress))
-        previousProgress = progress
         // the last keyframe is the model transform, which shows once the animation ends
-        transforms.append(index == count ? newTransform : keyframeTransform)
+        transforms.append(index == count ? newTransform : keyframeTransform(at: time, size: size(at: time)))
         index += 1
       }
-      guard let planeAngle else {
-        return (transforms, measuredDeviation(of: transforms, count: count))
-      }
-      // Core Animation interpolates the translation between two keyframes along a straight line, which moves the point
-      // off its place by its distance from the anchor point times one minus the cosine of half the turn between them
-      let turn = planeAngle * largestStep
-      return (transforms, largestDistance * (1 - cos(turn / 2)))
+      return (transforms, deviation(of: transforms, count: count))
     }
 
     var count = max(1, Int((duration * Constants.samplesPerSecond).rounded(.up)))
@@ -582,11 +558,6 @@ struct TransformMotion {
   /// Whether the change never ends, as a spring without damping doesn't.
   var neverFinishes: Bool {
     CAAnimation.neverFinishes(duration: curve.duration)
-  }
-
-  /// The angle that the change turns through in the plane, in radians, see `TransformInterpolator.planeAngle`.
-  var planeAngle: Double? {
-    interpolator.planeAngle
   }
 
   /// The change's progress at a time: 0 until it begins, 1 once it ends, and past 1 while a spring overshoots.

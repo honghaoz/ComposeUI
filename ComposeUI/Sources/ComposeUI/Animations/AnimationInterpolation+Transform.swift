@@ -82,17 +82,6 @@ struct TransformInterpolator {
     }
   }
 
-  /// The angle that the rotation turns through in the plane from the from transform to the to transform, in radians, or
-  /// `nil` when a transform isn't affine, as one that turns out of the plane or has perspective isn't.
-  var planeAngle: Double? {
-    switch decompositions {
-    case .affine(let from, let to):
-      return abs(to.angle - from.angle)
-    case .general:
-      return nil
-    }
-  }
-
   /// The transform a progress of the way.
   ///
   /// - Parameter progress: The progress: 0 at the from transform, 1 at the to transform, and past them for a spring's
