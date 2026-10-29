@@ -213,8 +213,8 @@ extension CALayer {
     else {
       return nil
     }
-    // the keyframes of a stack begin with the changes in flight, which a delayed change can spread past the most time
-    // that keyframes follow, so the change starts over instead of jumping to its end at that time
+    // keyframes follow a bounded time from when they begin, and a stack's begin with the changes in flight, so a change
+    // stacks only when they follow the stack to its end, and otherwise starts over, which never stops sooner
     guard !TransformKeyframeSampler.cutsOff(stackedChanges, at: now) else {
       return nil
     }
