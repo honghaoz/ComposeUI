@@ -2942,19 +2942,24 @@ class ModifierNodeTests: XCTestCase {
     }
   }
 
-  func test_transform_animatedUpdate_ofTheTransform_setsItAtOnce() throws {
-    // given: a layer turned a quarter turn
-    let layer = CALayer()
-    let renderable = Renderable.layer(layer)
-    try refresh(renderable, with: transformItem(Constants.quarterTurn), animationTiming: nil)
-    expect(CATransform3DEqualToTransform(layer.transform, Constants.quarterTurn)) == true
+  func test_transform_animatedUpdate_ofTheTransform_turnsAboutTheAnchor() throws {
+    // given: a layer of 100 x 50 on a paused timeline, anchored at its corner, as an AppKit view's layer is, or at its
+    // center, as other layers are
+    let size = CGSize(width: 100, height: 50)
+    for anchorPoint in [CGPoint.zero, CGPoint(x: 0.5, y: 0.5)] {
+      let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: size), anchorPoint: anchorPoint)
+      let renderable = Renderable.layer(timeline.layer)
 
-    // when: an animated update scales it instead
-    try refresh(renderable, with: transformItem(Constants.doubleScale), animationTiming: .linear(duration: 1))
+      // when: an animated update turns it a quarter turn about its top left corner over a second
+      try render(renderable, with: transformItem(Constants.quarterTurn, anchor: .topLeft, size: size), animationTiming: .linear(duration: 1))
 
-    // then: the layer has the scale at once, without an animation, which would move the anchor off its place
-    expect(CATransform3DEqualToTransform(layer.transform, Constants.doubleScale)) == true
-    expect(layer.animationKeys()) == nil
+      // then: the layer shows the turn so far about its top left corner, which stays in place
+      for time in [0.25, 0.5, 0.75] {
+        timeline.show(at: 100 + time)
+        let shownTurn = try unwrap(AnimationInterpolation.transform(from: CATransform3DIdentity, to: Constants.quarterTurn, progress: time))
+        try expectShownTransform(of: timeline.layer, shownTurn, about: .topLeft, within: 0.01)
+      }
+    }
   }
 
   func test_transform_unchangedUpdate_doesNotSetTheTransformAgain() throws {
@@ -2978,93 +2983,44 @@ class ModifierNodeTests: XCTestCase {
     observation.invalidate()
   }
 
-  func test_transform_animatedResize_animatesTheTransformWithTheFrame() throws {
-    // given: a layer turned a quarter turn about its top left corner, whose offset from the layer's anchor point
-    // depends on the layer's size
-    let layer = CALayer()
-    let renderable = Renderable.layer(layer)
-    let smallItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 40, height: 20))
-    let largeItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 80, height: 40))
-    refresh(renderable, with: smallItem, animationTiming: nil)
-    let smallTransform = layer.transform
+  func test_transform_animatedResize_followsTheFrame() throws {
+    // given: a layer of 40 x 20 on a paused timeline, anchored at its corner as an AppKit view's layer is, turned a
+    // quarter turn about its center, whose offset from the anchor point follows the layer's size
+    let smallSize = CGSize(width: 40, height: 20)
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: smallSize), anchorPoint: .zero)
+    let renderable = Renderable.layer(timeline.layer)
+    try render(renderable, with: transformItem(Constants.quarterTurn, anchor: .center, size: smallSize), animationTiming: nil)
 
-    // when: an animated update makes the layer larger
-    refresh(renderable, with: largeItem, oldFrame: smallItem.frame, animationTiming: .linear(duration: 1))
+    // when: an animated update makes it 80 x 40 over a second
+    try render(renderable, with: transformItem(Constants.quarterTurn, anchor: .center, size: CGSize(width: 80, height: 40)), animationTiming: .linear(duration: 1))
 
-    // then: the transform animates with the frame's timing, from the one for the small size to the one for the large
-    // size, which the model has, since only the anchor's offset changes, along a straight line as the frame does
-    let animations = layer.basicAnimations(forKeyPath: "transform")
-    expect(animations.count) == 1
-    let animation = try animations.first.unwrap()
-    expect(try CATransform3DEqualToTransform(transformValue(animation.fromValue), smallTransform)) == true
-    expect(try CATransform3DEqualToTransform(transformValue(animation.toValue), layer.transform)) == true
-    expect(CATransform3DEqualToTransform(layer.transform, smallTransform)) == false
-    expect(animation.duration) == 1
+    // then: the layer shows the turn about its center at the size that the frame's animation shows, so the center
+    // stays in place
+    for time in [0.25, 0.5, 0.75] {
+      timeline.show(at: 100 + time)
+      try expectShownTransform(of: timeline.layer, Constants.quarterTurn, about: .center, within: 0.01)
+    }
   }
 
-  func test_transform_animatedResize_duringAnAnimation_replacesTheAnimation() throws {
-    // given: a layer turned about its top left corner, halfway through an animation to its transform, not yet shown, so
-    // it has no presentation layer for the transform in between
-    let layer = CALayer()
-    let renderable = Renderable.layer(layer)
-    let mediumItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 60, height: 30))
-    let largeItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 80, height: 40))
-    refresh(renderable, with: mediumItem, animationTiming: nil)
-    addInFlightTransformAnimation(to: layer, from: Constants.doubleScale, to: layer.transform, progress: 0.5, duration: 10)
+  func test_transform_nonAnimatedResizeDuringAnAnimatedResize_followsTheFrame() throws {
+    // given: a layer of 40 x 20 on a paused timeline, anchored at its corner as an AppKit view's layer is, turned a
+    // quarter turn about its center, which an animated update makes 60 x 30 over 10 seconds
+    let smallSize = CGSize(width: 40, height: 20)
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: smallSize), anchorPoint: .zero)
+    let renderable = Renderable.layer(timeline.layer)
+    try render(renderable, with: transformItem(Constants.quarterTurn, anchor: .center, size: smallSize), animationTiming: nil)
+    try render(renderable, with: transformItem(Constants.quarterTurn, anchor: .center, size: CGSize(width: 60, height: 30)), animationTiming: .linear(duration: 10))
 
-    // when: an animated update makes the layer larger
-    refresh(renderable, with: largeItem, oldFrame: mediumItem.frame, animationTiming: .linear(duration: 1))
+    // when: 2 seconds in, an update without a timing makes it 80 x 40, which the frame glides to
+    timeline.move(to: 102)
+    try render(renderable, with: transformItem(Constants.quarterTurn, anchor: .center, size: CGSize(width: 80, height: 40)), animationTiming: nil)
 
-    // then: one animation replaces the one in flight, to the transform for the large size, which the model has, from an
-    // unresolved start, which Core Animation resolves to the transform shown when the animation starts
-    let animations = layer.basicAnimations(forKeyPath: "transform")
-    expect(animations.count) == 1
-    let animation = try animations.first.unwrap()
-    expect(animation.fromValue is NSNull) == true
-    expect(try CATransform3DEqualToTransform(transformValue(animation.toValue), layer.transform)) == true
-  }
-
-  func test_transform_nonAnimatedResize_continuesTheInFlightAnimation() throws {
-    // given: a layer turned about its top left corner, which an animated update made larger over 10 s
-    let layer = CALayer()
-    let renderable = Renderable.layer(layer)
-    let smallItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 40, height: 20))
-    let mediumItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 60, height: 30))
-    let largeItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 80, height: 40))
-    refresh(renderable, with: smallItem, animationTiming: nil)
-    refresh(renderable, with: mediumItem, oldFrame: smallItem.frame, animationTiming: .linear(duration: 10))
-
-    // when: a non-animated update makes it larger still
-    refresh(renderable, with: largeItem, oldFrame: mediumItem.frame, animationTiming: nil)
-
-    // then: one ease-out glide replaces the animation, landing at the transform for the large size when the animation
-    // would have, as the frame's glide does, and the model has the transform
-    let animations = layer.basicAnimations(forKeyPath: "transform")
-    expect(animations.count) == 1
-    let glide = try animations.first.unwrap()
-    expect(try CATransform3DEqualToTransform(transformValue(glide.toValue), layer.transform)) == true
-    expect(glide.duration).to(beApproximatelyEqual(to: 10, within: 0.05))
-    expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
-  }
-
-  func test_transform_changedDuringAResizeAnimation_removesTheAnimation() throws {
-    // given: a layer turned about its top left corner, which an animated update is making larger
-    let layer = CALayer()
-    let renderable = Renderable.layer(layer)
-    let smallItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 40, height: 20))
-    let largeItem = try transformItem(Constants.quarterTurn, anchor: .topLeft, size: CGSize(width: 80, height: 40))
-    refresh(renderable, with: smallItem, animationTiming: nil)
-    refresh(renderable, with: largeItem, oldFrame: smallItem.frame, animationTiming: .linear(duration: 10))
-    expect(layer.basicAnimations(forKeyPath: "transform").count) == 1
-
-    // when: an animated update scales it instead
-    let scaledItem = try transformItem(Constants.doubleScale, anchor: .topLeft, size: CGSize(width: 80, height: 40))
-    refresh(renderable, with: scaledItem, animationTiming: .linear(duration: 1))
-
-    // then: the layer has the scale at once, and the animation to the turn is gone, which would show the turn until it
-    // ended
-    expect(layer.basicAnimations(forKeyPath: "transform").isEmpty) == true
-    expect(layer.transform.m11) == 2
+    // then: the layer shows the turn about its center at the size that the frame's glide shows, so the center stays
+    // in place
+    for time in [102, 104, 107, 112] {
+      timeline.show(at: TimeInterval(time))
+      try expectShownTransform(of: timeline.layer, Constants.quarterTurn, about: .center, within: 0.01)
+    }
   }
 
   func test_transform_boundsChange_updatesTheTransformForAResize() throws {
@@ -3411,22 +3367,6 @@ class ModifierNodeTests: XCTestCase {
     try firstRenderableItem(of: LayerNode().transform(transform, anchor: anchor).frame(width: size.width, height: size.height)).unwrap()
   }
 
-  /// Adds a linear transform animation that is `progress` of the way through.
-  private func addInFlightTransformAnimation(to layer: CALayer, from: CATransform3D, to: CATransform3D, progress: Double, duration: TimeInterval) {
-    let animation = CABasicAnimation(keyPath: "transform")
-    animation.fromValue = NSValue(caTransform3D: from)
-    animation.toValue = NSValue(caTransform3D: to)
-    animation.duration = duration
-    animation.timingFunction = CAMediaTimingFunction(name: .linear)
-    animation.beginTime = layer.currentTime - duration * progress
-    layer.add(animation, forKey: "transform")
-  }
-
-  /// The transform in an animation value.
-  private func transformValue(_ value: Any?) throws -> CATransform3D {
-    try (value as? NSValue).unwrap().caTransform3DValue
-  }
-
   #if canImport(AppKit)
   /// A window to show a view in.
   private func makeWindow() -> NSWindow {
@@ -3469,6 +3409,14 @@ class ModifierNodeTests: XCTestCase {
           CGPath(rect: renderable.layer.bounds.insetBy(dx: shadowPathInset, dy: shadowPathInset), transform: nil)
         })
     ).unwrap()
+  }
+
+  /// Updates the renderable with the item as the render pass does: its frame first, with the animation timing, then the
+  /// item's update.
+  private func render(_ renderable: Renderable, with item: RenderableItem, animationTiming: AnimationTiming?) {
+    let oldFrame = renderable.frame
+    renderable.updateFrame(item.frame, animationTiming: animationTiming)
+    refresh(renderable, with: item, oldFrame: oldFrame, animationTiming: animationTiming)
   }
 
   /// Updates the renderable with the item for a refresh with the animation timing.

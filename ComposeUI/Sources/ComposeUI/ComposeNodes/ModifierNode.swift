@@ -451,39 +451,13 @@ extension RenderablePropertyUpdate {
         layer.rasterizationScale = 1
       }
     case .transform(let transform, let anchor):
-      let layer = renderable.layer
-      let anchoredTransform = layer.anchoredTransform(transform, about: anchor, size: context.newFrame.size)
-      // a refresh mostly keeps the transform, which then isn't set again
-      guard !CATransform3DEqualToTransform(layer.transform, anchoredTransform) else {
-        return
-      }
-
-      // Core Animation interpolates a transform's translation along a straight line, which keeps the anchor in place
-      // only while the rest of the transform stays the same, as it does when only the renderable's size moves the
-      // anchor. so the transform follows the frame's animation when only the size changed, and changes at once
-      // otherwise, since an animation would move the anchor off its place
-      let oldAnchoredTransform = layer.anchoredTransform(transform, about: anchor, size: context.oldFrame.size)
-      if CATransform3DEqualToTransform(layer.transform, oldAnchoredTransform) {
-        let value = NSValue(caTransform3D: anchoredTransform)
-        if let animationTiming = context.animationTiming {
-          // the shown transform is unknown while a transform animation is in flight on a layer without a presentation
-          // layer, so the start stays unresolved, which Core Animation fills with the transform shown when it starts
-          layer.animate(
-            keyPath: "transform",
-            timing: animationTiming,
-            from: { $0.shownValue(forKeyPath: "transform") ?? NSNull() },
-            to: { _ in value as Any }
-          )
-        } else {
-          layer.retarget(keyPath: "transform", to: value)
-        }
-      } else {
-        // an animation in flight would show the transform that it animates to until it ends
-        layer.removeAnimations(forKeyPath: "transform")
-        layer.disableActions(for: "transform") {
-          layer.transform = anchoredTransform
-        }
-      }
+      renderable.layer.updateTransform(
+        transform,
+        anchor: anchor,
+        oldSize: context.oldFrame.size,
+        newSize: context.newFrame.size,
+        animationTiming: context.animationTiming
+      )
     }
   }
 }
@@ -925,13 +899,13 @@ public extension ComposeNode {
     )
   }
 
-  /// Set the transform of the node's renderables, which applies about a point of each renderable.
+  /// Set the transform of the node's renderables, each around its anchor.
   ///
   /// The transform changes how a renderable shows, not its layout: the renderable keeps its frame, which the transform
-  /// applies to. A new transform applies at once, in an animated update too, and the transform follows an animated
-  /// change of the renderable's size, which moves the point that it applies about.
+  /// applies to. A change animates in an animated update, and the transform follows the renderable's size while its
+  /// frame animates, so the anchor stays in place.
   ///
-  /// - Note: All renderables provided by the node will have the transform set, each about its own anchor.
+  /// - Note: All renderables provided by the node will have the transform set.
   /// - Note: The outermost transform wins, the inner ones are not applied.
   /// - Note: It doesn't combine with `RenderableTransition.scale`, which owns the transform.
   /// - Note: A renderable shows while its frame is in the visible bounds, so a transform that moves it past its frame
@@ -961,27 +935,5 @@ private extension CALayer {
 
   var defaultShadowColor: CGColor {
     CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
-  }
-
-  /// The transform that applies a transform about a point of the layer, as Core Animation applies a transform about the
-  /// layer's anchor point.
-  ///
-  /// - Parameters:
-  ///   - transform: The transform to apply.
-  ///   - anchor: The point of the layer to apply the transform about, in the unit space of its bounds with the origin
-  ///     at the top left.
-  ///   - size: The layer's size.
-  /// - Returns: The transform to set on the layer.
-  func anchoredTransform(_ transform: CATransform3D, about anchor: UnitPoint, size: CGSize) -> CATransform3D {
-    // Core Animation transforms about the anchor point, which an AppKit view's layer has at a corner, so the pivot
-    // moves to the anchor point, the transform applies, and the pivot moves back, for the same pivot on every platform
-    let anchorPoint = self.anchorPoint
-    let offsetX = (CGFloat(anchor.x) - anchorPoint.x) * size.width
-    let offsetY = (CGFloat(anchor.y) - anchorPoint.y) * size.height
-    guard offsetX != 0 || offsetY != 0 else {
-      return transform
-    }
-    let pivoted = CATransform3DConcat(CATransform3DMakeTranslation(-offsetX, -offsetY, 0), transform)
-    return CATransform3DConcat(pivoted, CATransform3DMakeTranslation(offsetX, offsetY, 0))
   }
 }
