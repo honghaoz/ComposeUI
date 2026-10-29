@@ -979,6 +979,24 @@ class RenderPerformanceTests: BenchmarkTestCase {
     runAnimatedFrameUpdateBenchmark(name: "updateFrame.view.animated", renderable: .view(Self.makeLayerBackedView()))
   }
 
+  // MARK: - Transform Update (a transform modifier's update after the frame's, as the render pass does)
+
+  func test_updateTransform_view_unchanged() {
+    runTransformUpdateBenchmark(name: "updateTransform.view.unchanged", state: .unchanged)
+  }
+
+  func test_updateTransform_view_changed() {
+    runTransformUpdateBenchmark(name: "updateTransform.view.changed", state: .changed)
+  }
+
+  func test_updateTransform_view_animated() {
+    runTransformUpdateBenchmark(name: "updateTransform.view.animated", state: .animated)
+  }
+
+  func test_updateTransform_view_animatedResize() {
+    runTransformUpdateBenchmark(name: "updateTransform.view.animatedResize", state: .animatedResize)
+  }
+
   // MARK: - Helpers
 
   private enum Constants {
@@ -989,6 +1007,8 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let resizeStep: CGFloat = 300 // about a keyboard's height
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
     static let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1) // a transform that a node sets
+    static let secondRotation = CATransform3DMakeRotation(CGFloat.pi / 3, 0, 0, 1) // a transform that a node changes to
+    static let transformUpdatesPerIteration = 100 // an animated update builds its keyframes, which takes about 10 microseconds
     static let reorderRowCount = 16 // rows that all show, so that reversing them keeps the same items
     static let subviewsPerRow = 30
     static let labelImageCacheEntryCount = 200
@@ -1333,6 +1353,86 @@ class RenderPerformanceTests: BenchmarkTestCase {
 
     // then: report the timings
     report(name: name, result: result, extra: "updates per iteration: \(Constants.frameUpdatesPerIteration)")
+  }
+
+  /// The state a transform update benchmark updates a view in, with a transform about its bottom right corner, which is
+  /// off the layer's anchor point on every platform, so that the transform follows the layer's size.
+  private enum TransformUpdateState {
+
+    /// Neither the transform nor the frame changes, so the update returns early, as it mostly does in a refresh.
+    case unchanged
+
+    /// The transform changes on every update, without a timing.
+    case changed
+
+    /// The transform changes on every update, with a timing.
+    case animated
+
+    /// The frame changes on every update, with a timing, and the transform follows the frame's size.
+    case animatedResize
+  }
+
+  private func runTransformUpdateBenchmark(name: String, state: TransformUpdateState) {
+    // given: a view, and the items of a node with a transform at two sizes or with two transforms
+    let renderable = Renderable.view(Self.makeLayerBackedView())
+    let contentView = ComposeView()
+    let size = CGSize(width: 100, height: 50)
+    let firstItem = Self.transformItem(Constants.rotation, size: size)
+    let secondItem: RenderableItem
+    let timing: AnimationTiming?
+    switch state {
+    case .unchanged:
+      secondItem = firstItem
+      timing = nil
+    case .changed:
+      secondItem = Self.transformItem(Constants.secondRotation, size: size)
+      timing = nil
+    case .animated:
+      secondItem = Self.transformItem(Constants.secondRotation, size: size)
+      timing = .linear(duration: 0.3)
+    case .animatedResize:
+      secondItem = Self.transformItem(Constants.rotation, size: CGSize(width: 160, height: 80))
+      timing = .linear(duration: 0.3)
+    }
+    Self.update(renderable, with: firstItem, contentView: contentView, animationTiming: nil)
+
+    // when: measuring batches of updates, alternating between the items, each followed by removing the animations, so
+    // they don't pile up
+    let result = measure(warmup: 20, iterations: 200) { _ in
+      for index in 0 ..< Constants.transformUpdatesPerIteration {
+        Self.update(renderable, with: index.isMultiple(of: 2) ? secondItem : firstItem, contentView: contentView, animationTiming: timing)
+        if timing != nil {
+          renderable.layer.removeAllAnimations()
+        }
+      }
+    }
+
+    // then: report the timings
+    report(name: name, result: result, extra: "updates per iteration: \(Constants.transformUpdatesPerIteration)")
+  }
+
+  /// The renderable item of a layer node of the size with a transform about its bottom right corner.
+  private static func transformItem(_ transform: CATransform3D, size: CGSize) -> RenderableItem {
+    var node = LayerNode().transform(transform, anchor: .bottomRight).frame(width: size.width, height: size.height)
+    _ = node.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 2))
+    return node.renderableItems(in: CGRect(origin: .zero, size: size))[0]
+  }
+
+  /// Updates the renderable with the item as the render pass does: the frame first, then the item's update.
+  private static func update(_ renderable: Renderable, with item: RenderableItem, contentView: ComposeView, animationTiming: AnimationTiming?) {
+    let oldFrame = renderable.frame
+    renderable.updateFrame(item.frame, animationTiming: animationTiming)
+    item.performUpdate(renderable, RenderableUpdateContext(
+      updateType: .refresh,
+      oldFrame: oldFrame,
+      newFrame: item.frame,
+      previousRenderBounds: .zero,
+      renderBounds: .zero,
+      animationTiming: animationTiming,
+      contentView: contentView,
+      contentEvaluation: nil,
+      animationDecision: animationTiming == nil ? ComposeView.AnimationDecision.disabled : ComposeView.AnimationDecision.all
+    ))
   }
 
   private static func makeLayerBackedView() -> View {
