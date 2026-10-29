@@ -103,4 +103,15 @@ enum AnimationInterpolation {
     }
     return from.adding(to.subtracting(from), multipliedBy: CGFloat(progress)).path
   }
+
+  /// The transform a progress of the way from one transform to another, see `TransformInterpolator`.
+  ///
+  /// - Parameters:
+  ///   - from: The from transform.
+  ///   - to: The to transform.
+  ///   - progress: The progress: 0 at the from transform, 1 at the to transform, and past them for a spring's overshoot.
+  /// - Returns: The transform, or `nil` when the transforms don't interpolate, see `TransformInterpolator.init(from:to:)`.
+  static func transform(from: CATransform3D, to: CATransform3D, progress: Double) -> CATransform3D? {
+    TransformInterpolator(from: from, to: to)?.transform(atProgress: progress)
+  }
 }

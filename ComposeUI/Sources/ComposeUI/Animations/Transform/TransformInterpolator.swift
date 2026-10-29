@@ -1,5 +1,5 @@
 //
-//  AnimationInterpolation+Transform.swift
+//  TransformInterpolator.swift
 //  ComposéUI
 //
 //  Created by Honghao Zhang on 10/28/26.
@@ -30,20 +30,6 @@
 
 import QuartzCore
 import simd
-
-extension AnimationInterpolation {
-
-  /// The transform a progress of the way from one transform to another, see `TransformInterpolator`.
-  ///
-  /// - Parameters:
-  ///   - from: The from transform.
-  ///   - to: The to transform.
-  ///   - progress: The progress: 0 at the from transform, 1 at the to transform, and past them for a spring's overshoot.
-  /// - Returns: The transform, or `nil` when the transforms don't interpolate, see `TransformInterpolator.init(from:to:)`.
-  static func transform(from: CATransform3D, to: CATransform3D, progress: Double) -> CATransform3D? {
-    TransformInterpolator(from: from, to: to)?.transform(atProgress: progress)
-  }
-}
 
 /// Interpolates from one transform to another as Core Animation interpolates transforms, decomposing them once for any
 /// number of progresses.
