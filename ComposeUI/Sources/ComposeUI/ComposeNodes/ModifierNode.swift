@@ -455,7 +455,6 @@ extension RenderablePropertyUpdate {
         transform,
         anchor: anchor,
         oldSize: context.oldFrame.size,
-        newSize: context.newFrame.size,
         animationTiming: context.animationTiming
       )
     }

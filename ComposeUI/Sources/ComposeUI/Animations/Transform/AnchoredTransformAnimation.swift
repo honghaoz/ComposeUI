@@ -32,7 +32,7 @@ import QuartzCore
 
 // MARK: - AnchoredTransformAnimation
 
-/// An animation of a layer's transform about a point of the layer, see `CALayer.updateTransform(_:anchor:oldSize:newSize:animationTiming:)`.
+/// An animation of a layer's transform about a point of the layer, see `CALayer.updateTransform(_:anchor:oldSize:animationTiming:)`.
 ///
 /// It keeps the transform and its changes, so that a later update computes the transform that it shows instead of
 /// reading it back. They're stored properties of the animation's class, as a key-value mark on an animation costs about
