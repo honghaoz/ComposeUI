@@ -139,7 +139,7 @@ extension CALayer {
     }
 
     var motion = keepsCourse ? keyframeAnimation?.motion : nil
-    if !keepsCourse, let motionTiming = timing ?? glideTiming(keyframeAnimation: keyframeAnimation, keys: keys, at: now) {
+    if !keepsCourse, let motionTiming = animationTiming == nil ? glideTiming(keyframeAnimation: keyframeAnimation, keys: keys, at: now) : timing {
       let start = shownTransform(pivotOffset: pivotOffset, keyframeAnimation: keyframeAnimation, hasAnimations: keys != nil, at: now)
       if pivotOffset == .zero, keyframeAnimation == nil {
         // the point is the anchor point, which the size doesn't move, so Core Animation interpolates the transform itself

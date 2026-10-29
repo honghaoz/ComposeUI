@@ -466,6 +466,23 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     try expectShownTransform(of: layer, Constants.tripleScale, about: .topLeft, within: 0.01)
   }
 
+  func test_updateTransform_zeroDurationDuringAChange_appliesAtOnce() throws {
+    // given: a layer turning a quarter turn about its top left corner over 10 seconds
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 10))
+
+    // when: 2 seconds in, an update with a timing of no duration scales it instead
+    timeline.move(to: 102)
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 0))
+
+    // then: the layer shows the scale at once, and the turn's animation is gone
+    expect(layer.animation(forKey: "transform")) == nil
+    timeline.show(at: 102)
+    try expectShownTransform(of: layer, Constants.doubleScale, about: .topLeft, within: 1e-9)
+  }
+
   func test_updateTransform_resizeDuringAChange_keepsTheCourse() throws {
     // given: a layer of 40 x 20 turning a quarter turn about its top left corner over 4 seconds
     let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
@@ -702,6 +719,23 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     let glide = try unwrap(layer.animation(forKey: "transform") as? CABasicAnimation)
     expect(glide.duration) == Animations.defaultAnimationDuration
     expect(glide.timingFunction) == CAMediaTimingFunction(name: .easeOut)
+  }
+
+  func test_updateTransform_pointAtTheAnchorPoint_zeroDurationDuringAChange_appliesAtOnce() throws {
+    // given: a layer whose anchor point is at its center, turning a quarter turn about its center over 2 seconds
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.quarterTurn, anchor: .center, oldSize: size, newSize: size, animationTiming: .linear(duration: 2))
+
+    // when: a second in, an update with a timing of no duration scales it instead
+    timeline.move(to: 101)
+    layer.updateTransform(Constants.doubleScale, anchor: .center, oldSize: size, newSize: size, animationTiming: .linear(duration: 0))
+
+    // then: the layer shows the scale at once, and the turn's animation is gone
+    expect(layer.animation(forKey: "transform")) == nil
+    timeline.show(at: 101)
+    try expectShownTransform(of: layer, Constants.doubleScale, about: .center, within: 1e-9)
   }
 
   func test_updateTransform_withoutATimingDuringABasicAnimation_glidesFromTheShownTransform() throws {
