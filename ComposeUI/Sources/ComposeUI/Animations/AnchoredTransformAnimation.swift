@@ -30,11 +30,13 @@
 
 import QuartzCore
 
+// MARK: - AnchoredTransformAnimation
+
 /// An animation of a layer's transform about a point of the layer, see `CALayer.updateTransform(_:anchor:oldSize:newSize:animationTiming:)`.
 ///
-/// It keeps the transform and its change, so that a later update computes the transform that it shows instead of reading
-/// it back. They're stored properties of the animation's class, as a key-value mark on an animation costs about as much
-/// as making the animation, see `FrameAnimation`.
+/// It keeps the transform and its changes, so that a later update computes the transform that it shows instead of
+/// reading it back. They're stored properties of the animation's class, as a key-value mark on an animation costs about
+/// as much as making the animation, see `FrameAnimation`.
 protocol AnchoredTransformAnimation: CAPropertyAnimation {
 
   /// The transform that the animation ends at, before it applies about the point.
@@ -43,8 +45,8 @@ protocol AnchoredTransformAnimation: CAPropertyAnimation {
   /// The point's offset from the layer's anchor point, in the unit space of the layer's bounds.
   var pivotOffset: SIMD2<Double> { get set }
 
-  /// The transform's change, or `nil` when the transform stays while the layer's size animates.
-  var motion: TransformMotion? { get set }
+  /// The transform's changes, or `nil` when the transform stays while the layer's size animates.
+  var changes: TransformChanges? { get }
 }
 
 /// An anchored transform animation of keyframes, at the size that the layer shows at each keyframe.
@@ -52,20 +54,40 @@ final class AnchoredTransformKeyframeAnimation: CAKeyframeAnimation, AnchoredTra
 
   var transform = CATransform3DIdentity
   var pivotOffset = SIMD2<Double>.zero
-  var motion: TransformMotion?
+  var changes: TransformChanges?
 
   override func copy(with zone: NSZone? = nil) -> Any {
     // Core Animation copies an animation when it's added, without the Swift properties, so the copy takes them here
     let copy = super.copy(with: zone) as! AnchoredTransformKeyframeAnimation // swiftlint:disable:this force_cast
     copy.transform = transform
     copy.pivotOffset = pivotOffset
-    copy.motion = motion
+    copy.changes = changes
     return copy
   }
 }
 
+// MARK: - AnchoredTransformMotionAnimation
+
+/// An anchored transform animation of one change, from one transform about the point to another, which Core Animation
+/// interpolates.
+///
+/// It keeps its change as a motion rather than changes, which hold an array, so that copying and freeing the animation
+/// retain and release nothing.
+protocol AnchoredTransformMotionAnimation: AnchoredTransformAnimation {
+
+  /// The transform's change.
+  var motion: TransformMotion? { get set }
+}
+
+extension AnchoredTransformMotionAnimation {
+
+  var changes: TransformChanges? {
+    motion.map { TransformChanges($0) }
+  }
+}
+
 /// An anchored transform animation of a timing function, from one transform about the point to another.
-final class AnchoredTransformBasicAnimation: CABasicAnimation, AnchoredTransformAnimation {
+final class AnchoredTransformBasicAnimation: CABasicAnimation, AnchoredTransformMotionAnimation {
 
   var transform = CATransform3DIdentity
   var pivotOffset = SIMD2<Double>.zero
@@ -82,7 +104,7 @@ final class AnchoredTransformBasicAnimation: CABasicAnimation, AnchoredTransform
 }
 
 /// An anchored transform animation of a spring, from one transform about the point to another.
-final class AnchoredTransformSpringAnimation: CASpringAnimation, AnchoredTransformAnimation {
+final class AnchoredTransformSpringAnimation: CASpringAnimation, AnchoredTransformMotionAnimation {
 
   var transform = CATransform3DIdentity
   var pivotOffset = SIMD2<Double>.zero

@@ -90,17 +90,19 @@ class CALayer_AnchoredTransformTests: XCTestCase {
   }
 
   func test_updateTransform_transformsThatDontInterpolate_applyAtOnce() throws {
-    // given: a layer at rest
-    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
-    let layer = timeline.layer
-    let size = layer.bounds.size
+    // given: a layer at rest, whose anchor point is at its center, and a point off the anchor point and the anchor point
+    for (anchor, pivotOffset) in [(UnitPoint.topLeft, SIMD2(-0.5, -0.5)), (.center, .zero)] {
+      let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+      let layer = timeline.layer
+      let size = layer.bounds.size
 
-    // when: a transform that flattens the depth, which doesn't decompose, applies about the top left corner with a timing
-    layer.updateTransform(Constants.flat, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+      // when: a transform that flattens the depth, which doesn't decompose, applies about the point with a timing
+      layer.updateTransform(Constants.flat, anchor: anchor, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
 
-    // then: the layer has the transform about the corner at once, without an animation
-    expect(layer.animationKeys()) == nil
-    expectTransform(layer.transform, CALayer.anchoredTransform(Constants.flat, pivotOffset: SIMD2(-0.5, -0.5), size: size))
+      // then: the layer has the transform about the point at once, without an animation
+      expect(layer.animationKeys()) == nil
+      expectTransform(layer.transform, CALayer.anchoredTransform(Constants.flat, pivotOffset: pivotOffset, size: size))
+    }
   }
 
   func test_updateTransform_sizeChangedWithoutASizeAnimation_appliesAtOnce() throws {
@@ -417,7 +419,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
 
   // MARK: - Changes in Flight
 
-  func test_updateTransform_withATimingDuringAChange_startsFromTheShownTransform() throws {
+  func test_updateTransform_withATimingDuringAChange_stacksOnIt() throws {
     // given: a layer turning a quarter turn about its top left corner over 10 seconds
     let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
     let layer = timeline.layer
@@ -428,12 +430,20 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     timeline.move(to: 102)
     layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
 
-    // then: the scale starts from the turn shown, without a jump, and lands a second later
-    let start = interpolated(from: CATransform3DIdentity, to: Constants.quarterTurn, progress: 0.2)
-    for time in [0, 0.5, 1] {
-      timeline.show(at: 102 + time)
-      try expectShownTransform(of: layer, interpolated(from: start, to: Constants.doubleScale, progress: time), about: .topLeft, within: 0.01)
+    // then: the turn goes on over its 10 seconds, followed by the scale's way from the quarter turn over its second, so
+    // the layer starts from the turn shown, without a jump, and lands at the scale when the turn ends
+    timeline.show(at: 102)
+    try expectShownTransform(of: layer, interpolated(from: CATransform3DIdentity, to: Constants.quarterTurn, progress: 0.2), about: .topLeft, within: 0.01)
+    for time in [102.5, 103, 106] {
+      timeline.show(at: time)
+      let shown = stacked([
+        (CATransform3DIdentity, Constants.quarterTurn, (time - 100) / 10),
+        (Constants.quarterTurn, Constants.doubleScale, min(time - 102, 1)),
+      ])
+      try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "at \(time)")
     }
+    timeline.show(at: 110)
+    try expectShownTransform(of: layer, Constants.doubleScale, about: .topLeft, within: 0.01)
   }
 
   func test_updateTransform_withoutATimingDuringAChange_glidesToTheNewTransform() throws {
@@ -682,6 +692,214 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     }
   }
 
+  // MARK: - Stacking
+
+  func test_updateTransform_turnDuringATurn_keepsItsSpeed() throws {
+    // given: a layer halfway through a quarter turn about its top left corner, eased in and out over a second, where the
+    // turn is the fastest
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .easeInEaseOut(duration: 1))
+    timeline.show(at: 100.45)
+    let angleBefore = try shownAngle(of: layer)
+
+    // when: an animated update turns it a quarter turn further, eased in and out over a second
+    timeline.move(to: 100.5)
+    layer.updateTransform(Constants.halfTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .easeInEaseOut(duration: 1))
+
+    // then: the turn keeps its speed through the update instead of stopping, and lands at the half turn
+    timeline.show(at: 100.5)
+    let angleAtUpdate = try shownAngle(of: layer)
+    timeline.show(at: 100.55)
+    let angleAfter = try shownAngle(of: layer)
+    expect((angleAfter - angleAtUpdate) / (angleAtUpdate - angleBefore)).to(beApproximatelyEqual(to: 1, within: 0.1))
+    timeline.show(at: 101.5)
+    try expectShownTransform(of: layer, Constants.halfTurn, about: .topLeft, within: 0.01)
+  }
+
+  func test_updateTransform_changeDuringAChange_followsBothCourses() throws {
+    // given: changes made during a change in flight: a turn further, a turn back, a scale on a scale, a tilt in
+    // perspective on a turn, a tilt on a tilt, and a turn that waits out a delay
+    let tilt = CATransform3DRotate(Constants.perspective, .pi / 6, 0, 1, 0)
+    let cases: [(name: String, first: CATransform3D, second: CATransform3D, delay: TimeInterval)] = [
+      ("turn further", Constants.quarterTurn, Constants.halfTurn, 0),
+      ("turn back", Constants.quarterTurn, CATransform3DIdentity, 0),
+      ("scale on a scale", Constants.doubleScale, Constants.tripleScale, 0),
+      ("tilt on a turn", Constants.quarterTurn, tilt, 0),
+      ("tilt on a tilt", tilt, Constants.perspectiveTurn, 0),
+      ("delayed turn", Constants.quarterTurn, Constants.halfTurn, 0.25),
+    ]
+
+    for testCase in cases {
+      // when: halfway through the first change about the top left corner, linear over a second, the second is made,
+      // linear over a second too
+      let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+      let layer = timeline.layer
+      let size = layer.bounds.size
+      layer.updateTransform(testCase.first, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+      timeline.move(to: 100.5)
+      layer.updateTransform(testCase.second, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1, delay: testCase.delay))
+
+      // then: the first change goes on along its course, followed by the second's way from the first's end, until the
+      // second lands
+      for time in [100.5, 100.75, 101, 101.25, 101.5 + testCase.delay] {
+        timeline.show(at: time)
+        let shown = stacked([
+          (CATransform3DIdentity, testCase.first, min(time - 100, 1)),
+          (testCase.first, testCase.second, min(max(time - 100.5 - testCase.delay, 0), 1)),
+        ])
+        try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "\(testCase.name) at \(time)")
+      }
+    }
+  }
+
+  func test_updateTransform_changeAfterStackedChangesLanded_leavesThemOut() throws {
+    // given: changes stacked about the top left corner, of which one has landed: the first, one in the middle, the first
+    // two, or the last, which the next change starts from
+    let cases: [(name: String, changes: [(transform: CATransform3D, time: TimeInterval, duration: TimeInterval)])] = [
+      ("first", [(Constants.quarterTurn, 100, 0.5), (Constants.halfTurn, 100.25, 2)]),
+      ("middle", [(Constants.quarterTurn, 100, 3), (Constants.halfTurn, 100.25, 0.5), (Constants.threeQuarterTurn, 100.5, 2)]),
+      ("first two", [(Constants.quarterTurn, 100, 0.25), (Constants.halfTurn, 100.25, 0.5), (Constants.threeQuarterTurn, 100.5, 2)]),
+      ("last", [(Constants.quarterTurn, 100, 3), (Constants.halfTurn, 100.25, 0.5)]),
+    ]
+
+    for testCase in cases {
+      let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+      let layer = timeline.layer
+      let size = layer.bounds.size
+      for change in testCase.changes {
+        timeline.move(to: change.time)
+        layer.updateTransform(change.transform, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: change.duration))
+      }
+
+      // when: at 101, a change turns the layer back to no turn over a second
+      timeline.move(to: 101)
+      layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+
+      // then: the changes in flight go on along their courses, followed by the new change's way, as with the landed
+      // changes at their ends, until the last of them lands
+      let changes = testCase.changes + [(CATransform3DIdentity, 101, 1)]
+      let landingTime = changes.map { $0.time + $0.duration }.max() ?? 0
+      for time in [101, 101.5, 102, landingTime] {
+        timeline.show(at: time)
+        var from = CATransform3DIdentity
+        let courses = changes.map { change -> (from: CATransform3D, to: CATransform3D, progress: Double) in
+          defer { from = change.transform }
+          return (from, change.transform, min(max((time - change.time) / change.duration, 0), 1))
+        }
+        try expectShownTransform(of: layer, stacked(courses), about: .topLeft, within: 0.01, "\(testCase.name) at \(time)")
+      }
+    }
+  }
+
+  func test_updateTransform_changeDuringAChangeThatNeverFinishes_startsFromTheTransformShown() throws {
+    // given: a change that never finishes in flight, a turn about the top left corner with a spring without damping, alone
+    // or stacked on a turn
+    let spring = AnimationTiming.spring(dampingRatio: 0, response: 0.5)
+    let springCurve = AnimationCurve(CABasicAnimation.makeAnimation(spring))
+    let target = CATransform3DMakeRotation(.pi / 3, 0, 0, 1)
+    for isStacked in [false, true] {
+      let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+      let layer = timeline.layer
+      let size = layer.bounds.size
+      let start: CATransform3D
+      if isStacked {
+        layer.updateTransform(Constants.eighthTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 2))
+        timeline.move(to: 100.25)
+        layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: spring)
+        start = stacked([
+          (CATransform3DIdentity, Constants.eighthTurn, 0.5),
+          (Constants.eighthTurn, Constants.quarterTurn, springCurve.progress(forElapsedTime: 0.75)),
+        ])
+      } else {
+        layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: spring)
+        start = interpolated(from: CATransform3DIdentity, to: Constants.quarterTurn, progress: springCurve.progress(forElapsedTime: 1))
+      }
+
+      // when: at 101, an animated update turns it to 60° instead over a second
+      timeline.move(to: 101)
+      layer.updateTransform(target, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+
+      // then: the turn starts over from the transform shown, as the spring can't keep going next to it, and lands a
+      // second later
+      for time in [101, 101.5, 102] {
+        timeline.show(at: time)
+        let shown = interpolated(from: start, to: target, progress: time - 101)
+        try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "stacked \(isStacked) at \(time)")
+      }
+    }
+  }
+
+  func test_updateTransform_changeDuringAChangeToATransformWithoutAnInverse_startsFromTheTransformShown() throws {
+    // given: a layer scaling to nothing about its top left corner over 2 seconds, an end that has no inverse to take off
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(CATransform3DMakeScale(0, 0, 1), anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 2))
+
+    // when: a second in, an animated update scales it to twice its size instead over a second
+    timeline.move(to: 101)
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+
+    // then: the scale starts over from the transform shown, and lands a second later
+    let start = interpolated(from: CATransform3DIdentity, to: CATransform3DMakeScale(0, 0, 1), progress: 0.5)
+    for time in [101, 101.5, 102] {
+      timeline.show(at: time)
+      try expectShownTransform(of: layer, interpolated(from: start, to: Constants.doubleScale, progress: time - 101), about: .topLeft, within: 0.01, "at \(time)")
+    }
+  }
+
+  func test_updateTransform_resizeDuringStackedChanges_keepsTheirCourses() throws {
+    // given: a layer of 40 x 20 turning a quarter turn about its top left corner over 2 seconds, with a turn to the half
+    // turn stacked on it a second in, over 2 seconds
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: .linear(duration: 2))
+    timeline.move(to: 101)
+    layer.updateTransform(Constants.halfTurn, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: .linear(duration: 2))
+
+    // when: half a second later, an animated update grows it to 80 x 40 over a second, keeping the transform
+    timeline.move(to: 101.5)
+    layer.animateFrame(to: CGRect(origin: .zero, size: Constants.largeSize), timing: .linear(duration: 1))
+    layer.updateTransform(Constants.halfTurn, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.largeSize, animationTiming: .linear(duration: 1))
+
+    // then: both turns keep their courses, about the corner at the size that the layer shows
+    for time in [101.5, 102, 102.5, 103] {
+      timeline.show(at: time)
+      let shown = stacked([
+        (CATransform3DIdentity, Constants.quarterTurn, min((time - 100) / 2, 1)),
+        (Constants.quarterTurn, Constants.halfTurn, min((time - 101) / 2, 1)),
+      ])
+      try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "at \(time)")
+    }
+  }
+
+  func test_updateTransform_withoutATimingDuringStackedChanges_glidesOverTheTimeTheyHaveLeft() throws {
+    // given: a layer turning a quarter turn about its top left corner over 2 seconds, with a turn to the half turn stacked
+    // on it a second in, over 2 seconds, which ends last
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 2))
+    timeline.move(to: 101)
+    layer.updateTransform(Constants.halfTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 2))
+
+    // when: at 102, an update without a timing scales it instead
+    timeline.move(to: 102)
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: nil)
+
+    // then: the layer glides from the transform shown to the scale with an ease out, over the second that the stacked
+    // turn has left
+    let start = stacked([(CATransform3DIdentity, Constants.quarterTurn, 1), (Constants.quarterTurn, Constants.halfTurn, 0.5)])
+    let easeOut = AnimationCurve(timingFunction: CAMediaTimingFunction(name: .easeOut))
+    for time in [0, 0.5, 1] {
+      timeline.show(at: 102 + time)
+      let progress = easeOut.progress(atFraction: time)
+      try expectShownTransform(of: layer, interpolated(from: start, to: Constants.doubleScale, progress: progress), about: .topLeft, within: 0.01, "at \(time)")
+    }
+  }
+
   // MARK: - One Animation
 
   func test_updateTransform_changesThatBlendLinearly_animateAsOneAnimationAboutThePoint() throws {
@@ -733,7 +951,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     }
   }
 
-  func test_updateTransform_animatedUpdateDuringTheDelayOfAScale_startsFromTheTransformShown() throws {
+  func test_updateTransform_animatedUpdateDuringTheDelayOfAScale_stacksOnTheScaleToCome() throws {
     // given: a layer scaling to twice its size about its top left corner over a second, after a second, in one animation
     let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
     let layer = timeline.layer
@@ -744,11 +962,18 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     timeline.move(to: 100.5)
     layer.updateTransform(Constants.tripleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
 
-    // then: the new scale starts from no scale, which the layer shows during the delay
-    for time in [0.0, 0.5, 1] {
-      timeline.show(at: 100.5 + time)
-      try expectShownTransform(of: layer, interpolated(from: CATransform3DIdentity, to: Constants.tripleScale, progress: time), about: .topLeft, within: 0.01)
+    // then: the layer starts from no scale, which it shows during the delay, and the new scale's way from twice the size
+    // follows the scale to come, which still begins after its delay, so the layer lands at three times its size when it ends
+    for time in [100.5, 101, 101.5] {
+      timeline.show(at: time)
+      let shown = stacked([
+        (CATransform3DIdentity, Constants.doubleScale, min(max(time - 101, 0), 1)),
+        (Constants.doubleScale, Constants.tripleScale, time - 100.5),
+      ])
+      try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "at \(time)")
     }
+    timeline.show(at: 102)
+    try expectShownTransform(of: layer, Constants.tripleScale, about: .topLeft, within: 0.01)
   }
 
   func test_updateTransform_scaleWithASpringWithoutDamping_followsTheSpringPastTenSeconds() throws {
@@ -919,6 +1144,30 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     try expectShownTransform(of: layer, Constants.doubleScale, about: .center, within: 1e-9)
   }
 
+  func test_updateTransform_pointAtTheAnchorPoint_turnDuringATurn_stacksOnIt() throws {
+    // given: a layer whose anchor point is at its center, turning a quarter turn about its center over a second, in one
+    // animation
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.quarterTurn, anchor: .center, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+    expect(layer.animation(forKey: "transform") is AnchoredTransformBasicAnimation) == true
+
+    // when: halfway, an animated update turns it to the half turn over a second
+    timeline.move(to: 100.5)
+    layer.updateTransform(Constants.halfTurn, anchor: .center, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+
+    // then: the first turn goes on along its course, followed by the second's way, until the second lands
+    for time in [100.5, 100.75, 101, 101.5] {
+      timeline.show(at: time)
+      let shown = stacked([
+        (CATransform3DIdentity, Constants.quarterTurn, min(time - 100, 1)),
+        (Constants.quarterTurn, Constants.halfTurn, time - 100.5),
+      ])
+      try expectShownTransform(of: layer, shown, about: .center, within: 0.01, "at \(time)")
+    }
+  }
+
   func test_updateTransform_withoutATimingDuringABasicAnimation_glidesFromTheShownTransform() throws {
     // given: a layer whose anchor point is at its center, which a basic animation turns a quarter turn over 2 seconds
     let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
@@ -1000,6 +1249,23 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     AnimationInterpolation.transform(from: from, to: to, progress: progress) ?? to
   }
 
+  /// The angle of the turn that a layer shows, in radians.
+  private func shownAngle(of layer: CALayer) throws -> Double {
+    let transform = try unwrap(layer.presentation()).transform
+    return atan2(Double(transform.m12), Double(transform.m11))
+  }
+
+  /// The transform of changes stacked on one another, each a progress of the way from the transform that the one before
+  /// it ends at: the first change's transform so far, followed by each later change's way so far, see `TransformChanges`.
+  private func stacked(_ changes: [(from: CATransform3D, to: CATransform3D, progress: Double)]) -> CATransform3D {
+    var transform = interpolated(from: changes[0].from, to: changes[0].to, progress: changes[0].progress)
+    for change in changes.dropFirst() {
+      let changeTransform = interpolated(from: change.from, to: change.to, progress: change.progress)
+      transform = CATransform3DConcat(CATransform3DConcat(transform, CATransform3DInvert(change.from)), changeTransform)
+    }
+    return transform
+  }
+
   private func expectTransform(_ transform: CATransform3D, _ expected: CATransform3D, file: StaticString = #filePath, line: UInt = #line) {
     expect(CATransform3DEqualToTransform(transform, expected), file: file, line: line) == true
   }
@@ -1025,6 +1291,9 @@ class CALayer_AnchoredTransformTests: XCTestCase {
 
     /// A turn of 180°.
     static let halfTurn = CATransform3DMakeRotation(.pi, 0, 0, 1)
+
+    /// A turn of 270°.
+    static let threeQuarterTurn = CATransform3DMakeRotation(.pi * 1.5, 0, 0, 1)
 
     /// A scale to twice the size.
     static let doubleScale = CATransform3DMakeScale(2, 2, 1)

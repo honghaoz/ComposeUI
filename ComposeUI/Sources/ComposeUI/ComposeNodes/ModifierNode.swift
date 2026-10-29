@@ -902,8 +902,8 @@ public extension ComposeNode {
   /// Set the transform of the node's renderables, each around its anchor.
   ///
   /// The transform changes how a renderable shows, not its layout: the renderable keeps its frame, which the transform
-  /// applies to. A change animates in an animated update, and the transform follows the renderable's size while its
-  /// frame animates, so the anchor stays in place.
+  /// applies to. A change animates in an animated update, and stacks on a change in flight as a frame change does. The
+  /// transform follows the renderable's size while its frame animates, so the anchor stays in place.
   ///
   /// - Note: All renderables provided by the node will have the transform set.
   /// - Note: The outermost transform wins, the inner ones are not applied.
