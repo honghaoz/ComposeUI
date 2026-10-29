@@ -137,13 +137,7 @@ extension CALayer {
 
     var motion = keepsCourse ? keyframeAnimation?.motion : nil
     if !keepsCourse, let motionTiming = timing ?? glideTiming(keyframeAnimation: keyframeAnimation, keys: keys, at: now) {
-      let start = shownTransform(
-        pivotOffset: pivotOffset,
-        keyframeAnimation: keyframeAnimation,
-        hasAnimations: keys != nil,
-        oldSize: oldSize,
-        at: now
-      )
+      let start = shownTransform(pivotOffset: pivotOffset, keyframeAnimation: keyframeAnimation, hasAnimations: keys != nil, at: now)
       if pivotOffset == .zero, keyframeAnimation == nil {
         // the point is the anchor point, which the size doesn't move, so Core Animation interpolates the transform itself
         removeAnimations(forKeyPath: "transform")
@@ -154,8 +148,9 @@ extension CALayer {
           to: { _ in NSValue(caTransform3D: newTransform) }
         )
         return
+      } else {
+        motion = TransformMotion(from: start, to: transform, timing: motionTiming, at: now)
       }
-      motion = TransformMotion(from: start, to: transform, timing: motionTiming, at: now)
     }
 
     guard motion.map({ $0.endTime > now }) == true || !sizeAnimations.isEmpty else {
@@ -229,33 +224,34 @@ extension CALayer {
   ///   - pivotOffset: The point's offset from the anchor point, in the unit space of the layer's bounds.
   ///   - keyframeAnimation: The keyframe animation of the transform in flight, if any.
   ///   - hasAnimations: Whether the layer has animations.
-  ///   - oldSize: The layer's size before the update.
   ///   - now: The layer's current time.
   /// - Returns: The transform.
   private func shownTransform(pivotOffset: SIMD2<Double>,
                               keyframeAnimation: AnchoredTransformAnimation?,
                               hasAnimations: Bool,
-                              oldSize: CGSize,
                               at now: TimeInterval) -> CATransform3D
   {
-    guard let keyframeAnimation else {
-      // a basic animation of the transform, as one of a point at the anchor point, changes the transform about the point
-      // at the size that it was set for
-      let shown = hasAnimations ? (shownValue(forKeyPath: "transform") as? CATransform3D) ?? transform : transform
-      return Self.anchoredTransform(shown, pivotOffset: -pivotOffset, size: oldSize)
+    let shown: CATransform3D
+    let shownPivotOffset: SIMD2<Double>
+    if let keyframeAnimation {
+      // the keyframes show the transform's change, which gives the transform exactly, unlike the keyframes in between,
+      // and the transform is the target once its change ends, see `addKeyframeAnimation`
+      let motion = keyframeAnimation.motion.flatMap { now < $0.endTime ? $0 : nil }
+      shown = motion.map { $0.transform(atProgress: $0.progress(at: now)) } ?? keyframeAnimation.transform
+      shownPivotOffset = keyframeAnimation.pivotOffset
+    } else {
+      // the layer's own transform, which a basic animation of it may change, applies about the anchor point
+      shown = hasAnimations ? (shownValue(forKeyPath: "transform") as? CATransform3D) ?? transform : transform
+      shownPivotOffset = .zero
     }
-
-    // the keyframes show the transform's change, which gives the transform exactly, unlike the keyframes in between,
-    // and the transform is the target once its change ends, see `addKeyframeAnimation`
-    let motion = keyframeAnimation.motion.flatMap { now < $0.endTime ? $0 : nil }
-    let shown = motion.map { $0.transform(atProgress: $0.progress(at: now)) } ?? keyframeAnimation.transform
-    guard keyframeAnimation.pivotOffset != pivotOffset else {
+    guard shownPivotOffset != pivotOffset else {
       return shown
     }
 
-    // the point moved, so the change starts from the transform about the new point that shows the same
-    let size = shownValue(forKeyPath: "bounds.size") as? CGSize ?? bounds.size
-    let anchoredTransform = Self.anchoredTransform(shown, pivotOffset: keyframeAnimation.pivotOffset, size: size)
+    // the first keyframe applies the transform about the new point at the size shown, so the change starts from the
+    // transform about the new point that shows the same at that size, whatever size the transform shown was set for
+    let size = hasAnimations ? shownValue(forKeyPath: "bounds.size") as? CGSize ?? bounds.size : bounds.size
+    let anchoredTransform = Self.anchoredTransform(shown, pivotOffset: shownPivotOffset, size: size)
     return Self.anchoredTransform(anchoredTransform, pivotOffset: -pivotOffset, size: size)
   }
 
@@ -309,9 +305,50 @@ extension CALayer {
       }
     }
 
-    func keyframes(count: Int) -> (values: [NSValue], deviation: Double) {
-      var values: [NSValue] = []
-      values.reserveCapacity(count + 1)
+    // the transform about the point at a time, at the size shown then, and the change's progress then
+    func keyframe(at time: TimeInterval, size: CGSize) -> (transform: CATransform3D, progress: Double) {
+      // a spring ends close to its target rather than on it, so the transform is the target itself once its change ends
+      if let motion, time < motion.endTime {
+        let progress = motion.progress(at: time)
+        return (Self.anchoredTransform(motion.transform(atProgress: progress), pivotOffset: pivotOffset, size: size), progress)
+      } else {
+        return (Self.anchoredTransform(transform, pivotOffset: pivotOffset, size: size), 1)
+      }
+    }
+
+    // the estimate of how far Core Animation's interpolation between keyframes moves the point covers a transform in the
+    // plane, which turns by the angle in the plane, while perspective and turns out of the plane take a measure of it
+    let planeAngle: Double?
+    if !CATransform3DIsAffine(transform) {
+      planeAngle = nil
+    } else if let motion {
+      planeAngle = motion.planeAngle
+    } else {
+      planeAngle = 0
+    }
+
+    // the farthest that Core Animation's interpolation moves the point off its place halfway between two keyframes, where
+    // it's about the farthest, measured by projecting the point with the interpolated transform and the one sampled
+    func measuredDeviation(of transforms: [CATransform3D], count: Int) -> Double {
+      var deviation = 0.0
+      var index = 0
+      while index < count {
+        let time = startTime + duration * ((Double(index) + 0.5) / Double(count))
+        let size = size(at: time)
+        if let interpolator = TransformInterpolator(from: transforms[index], to: transforms[index + 1]) {
+          let point = pivotOffset * SIMD2(Double(size.width), Double(size.height))
+          let shownPoint = Self.project(point, interpolator.transform(atProgress: 0.5))
+          deviation = max(deviation, length(shownPoint - Self.project(point, keyframe(at: time, size: size).transform)))
+        }
+        index += 1
+      }
+      return deviation
+    }
+
+    // the transforms of the keyframes, unboxed, so that a count that turns out too low throws away only them
+    func keyframeTransforms(count: Int) -> (transforms: [CATransform3D], deviation: Double) {
+      var transforms: [CATransform3D] = []
+      transforms.reserveCapacity(count + 1)
       var largestStep = 0.0
       var largestDistance = 0.0
       var previousProgress = motion?.progress(at: startTime) ?? 1
@@ -320,45 +357,36 @@ extension CALayer {
         let time = startTime + duration * (Double(index) / Double(count))
         let size = size(at: time)
         largestDistance = max(largestDistance, length(pivotOffset * SIMD2(Double(size.width), Double(size.height))))
-
-        // a spring ends close to its target rather than on it, so the transform is the target itself once its change ends
-        let progress: Double
-        let keyframeTransform: CATransform3D
-        if let motion, time < motion.endTime {
-          progress = motion.progress(at: time)
-          keyframeTransform = motion.transform(atProgress: progress)
-        } else {
-          progress = 1
-          keyframeTransform = transform
-        }
+        let (keyframeTransform, progress) = keyframe(at: time, size: size)
         largestStep = max(largestStep, abs(progress - previousProgress))
         previousProgress = progress
-
         // the last keyframe is the model transform, which shows once the animation ends
-        let value = index == count ? newTransform : Self.anchoredTransform(keyframeTransform, pivotOffset: pivotOffset, size: size)
-        values.append(NSValue(caTransform3D: value))
+        transforms.append(index == count ? newTransform : keyframeTransform)
         index += 1
+      }
+      guard let planeAngle else {
+        return (transforms, measuredDeviation(of: transforms, count: count))
       }
       // Core Animation interpolates the translation between two keyframes along a straight line, which moves the point
       // off its place by its distance from the anchor point times one minus the cosine of half the turn between them
-      let turn = (motion?.angle ?? 0) * largestStep
-      return (values, largestDistance * (1 - cos(turn / 2)))
+      let turn = planeAngle * largestStep
+      return (transforms, largestDistance * (1 - cos(turn / 2)))
     }
 
     var count = max(1, Int((duration * Constants.samplesPerSecond).rounded(.up)))
     let maxCount = max(count, Int((duration * Constants.samplesPerSecond * Constants.maxDensityFactor).rounded(.up)))
-    var (values, deviation) = keyframes(count: count)
+    var (transforms, deviation) = keyframeTransforms(count: count)
     while deviation > Constants.pointTolerance, count < maxCount {
-      // a fast turn about a far point takes more keyframes, as the deviation shrinks with about the square of the turn
-      // between them, up to a rate that keeps an absurd turn from building a huge animation
+      // a fast change about a far point takes more keyframes, as the deviation shrinks with about the square of the time
+      // between them, up to a rate that keeps an absurd change from building a huge animation
       let denserCount = Int((Double(count) * (deviation / Constants.pointTolerance).squareRoot()).rounded(.up))
       count = min(max(denserCount, count + 1), maxCount)
-      (values, deviation) = keyframes(count: count)
+      (transforms, deviation) = keyframeTransforms(count: count)
     }
 
     let animation = AnchoredTransformAnimation()
     animation.keyPath = "transform"
-    animation.values = values
+    animation.values = transforms.map { NSValue(caTransform3D: $0) }
     animation.duration = duration
     // backwards fill holds the first keyframe until the transform or the size begins to move
     animation.fillMode = .both
@@ -380,6 +408,19 @@ extension CALayer {
     disableActions(for: "transform") {
       transform = newTransform
     }
+  }
+
+  /// Where a transform puts a point of the layer, with its perspective.
+  ///
+  /// - Parameters:
+  ///   - point: The point, from the layer's anchor point.
+  ///   - transform: The transform.
+  /// - Returns: The point that the transform puts the point at, from the layer's position.
+  private static func project(_ point: SIMD2<Double>, _ transform: CATransform3D) -> SIMD2<Double> {
+    let x = point.x * Double(transform.m11) + point.y * Double(transform.m21) + Double(transform.m41)
+    let y = point.x * Double(transform.m12) + point.y * Double(transform.m22) + Double(transform.m42)
+    let w = point.x * Double(transform.m14) + point.y * Double(transform.m24) + Double(transform.m44)
+    return SIMD2(x, y) / w
   }
 
   /// The transform that applies a transform about a point of the layer.
@@ -413,10 +454,10 @@ extension CALayer {
     static let samplesPerSecond: TimeInterval = 60
 
     /// The farthest that Core Animation's interpolation between two keyframes may move the point off its place, in
-    /// points, beyond which a turn takes more keyframes.
+    /// points, beyond which a change takes more keyframes.
     static let pointTolerance: Double = 0.25
 
-    /// The most keyframes a turn takes, as a multiple of the keyframes at the rate.
+    /// The most keyframes that a change takes, as a multiple of the keyframes at the rate.
     static let maxDensityFactor: Double = 8
 
     /// The most time that the keyframes follow, so that an animation that never finishes builds a bounded animation,
@@ -543,9 +584,9 @@ struct TransformMotion {
     CAAnimation.neverFinishes(duration: curve.duration)
   }
 
-  /// The angle that the change turns through, in radians.
-  var angle: Double {
-    interpolator.angle
+  /// The angle that the change turns through in the plane, in radians, see `TransformInterpolator.planeAngle`.
+  var planeAngle: Double? {
+    interpolator.planeAngle
   }
 
   /// The change's progress at a time: 0 until it begins, 1 once it ends, and past 1 while a spring overshoots.

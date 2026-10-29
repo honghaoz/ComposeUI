@@ -82,15 +82,14 @@ struct TransformInterpolator {
     }
   }
 
-  /// The angle that the rotation turns through from the from transform to the to transform, in radians.
-  var angle: Double {
+  /// The angle that the rotation turns through in the plane from the from transform to the to transform, in radians, or
+  /// `nil` when a transform isn't affine, as one that turns out of the plane or has perspective isn't.
+  var planeAngle: Double? {
     switch decompositions {
     case .affine(let from, let to):
       return abs(to.angle - from.angle)
-    case .general(let from, let to):
-      // the slerp goes along the shorter arc between the quaternions, which is half the turn between their rotations,
-      // and the absolute value of their dot product is the arc's cosine
-      return 2 * acos(min(1, abs(dot(from.quaternion, to.quaternion))))
+    case .general:
+      return nil
     }
   }
 
