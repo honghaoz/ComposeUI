@@ -43,8 +43,8 @@ extension Playground {
   /// A lab for the `transform(_:anchor:)` modifier.
   ///
   /// Each section transforms renderables in one case. A tile outlines the frame that the layout gives its renderable,
-  /// which the transform doesn't change. The controls change the transforms, which apply at once, insert and remove
-  /// renderables and resize them, animated or not, and rebuild a compose view that renders before it joins the window.
+  /// which the transform doesn't change. The controls change the transforms, insert and remove renderables and resize
+  /// them, animated or not, and rebuild a compose view that renders before it joins the window.
   final class TransformLab: ComposeView {
 
     /// The rotation about the z axis, in degrees.

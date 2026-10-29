@@ -30,9 +30,9 @@
 
 import QuartzCore
 
-/// Interpolates animation values the way Core Animation does: numbers, sizes and points component by component,
-/// colors component by component in extended sRGB with straight alpha, see `ExtendedSRGB`, and paths with the same
-/// segments point by point, see `PathPoints`.
+/// Interpolates animation values the way Core Animation does: numbers, sizes and points component by component, colors
+/// component by component in extended sRGB with straight alpha, see `ExtendedSRGB`, paths with the same segments point
+/// by point, see `PathPoints`, and transforms by their decompositions, see `TransformInterpolator`.
 ///
 /// It gives the value for a progress, which `AnimationCurve` gives for a time.
 enum AnimationInterpolation {
@@ -40,13 +40,13 @@ enum AnimationInterpolation {
   /// The value a progress of the way from one animation value to another.
   ///
   /// - Parameters:
-  ///   - from: The from value, as Core Animation keeps it: an `NSNumber`, an `NSValue` of a size or a point, a color or
-  ///     a path.
+  ///   - from: The from value, as Core Animation keeps it: an `NSNumber`, an `NSValue` of a size, a point or a
+  ///     transform, a color or a path.
   ///   - to: The to value.
   ///   - progress: The progress: 0 at the from value, 1 at the to value, and past them for a spring's overshoot.
   /// - Returns: The value, the from or to value itself at a progress of 0 or 1. `nil` for values that aren't numbers,
-  ///   sizes, points, colors or paths of the same kind, paths with other segments, or colors that don't convert to
-  ///   extended sRGB.
+  ///   sizes, points, transforms, colors or paths of the same kind, paths with other segments, transforms that don't
+  ///   decompose, or colors that don't convert to extended sRGB.
   static func value(from: AnyObject, to: AnyObject, progress: Double) -> Any? {
     switch progress {
     case 0:
@@ -63,10 +63,13 @@ enum AnimationInterpolation {
     case (CGPath.typeID, CGPath.typeID):
       return path(from: unsafeDowncast(from, to: CGPath.self), to: unsafeDowncast(to, to: CGPath.self), progress: progress)
     default:
-      guard let from = AdditiveValue(from), let to = AdditiveValue(to), from.isSameKind(as: to) else {
+      if let from = AdditiveValue(from), let to = AdditiveValue(to), from.isSameKind(as: to) {
+        return (from + (to - from).scaled(by: progress)).value
+      } else if let from = from as? CATransform3D, let to = to as? CATransform3D {
+        return transform(from: from, to: to, progress: progress).map { NSValue(caTransform3D: $0) }
+      } else {
         return nil
       }
-      return (from + (to - from).scaled(by: progress)).value
     }
   }
 
