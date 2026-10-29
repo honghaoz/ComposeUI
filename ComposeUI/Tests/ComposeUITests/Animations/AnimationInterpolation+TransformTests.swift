@@ -145,6 +145,39 @@ class AnimationInterpolation_TransformTests: XCTestCase {
     }
   }
 
+  func test_transformInterpolator_isLinear_onlyForDifferencesWithinRounding() throws {
+    // given: a scale to twice the size under a turn or a skew of 1e-11, ten times the rounding tolerance, and of 1e-13,
+    // a tenth of it, built by hand, as `CATransform3DMakeRotation` makes a turn this small the identity
+    func doubleScale(underTurn angle: CGFloat) -> CATransform3D {
+      var transform = CATransform3DIdentity
+      transform.m11 = 2 * cos(angle)
+      transform.m12 = 2 * sin(angle)
+      transform.m21 = -2 * sin(angle)
+      transform.m22 = 2 * cos(angle)
+      return transform
+    }
+    func doubleScale(underSkew skew: CGFloat) -> CATransform3D {
+      var transform = CATransform3DMakeScale(2, 2, 1)
+      transform.m21 = 2 * skew
+      return transform
+    }
+    let cases: [(name: String, to: CATransform3D, isLinear: Bool)] = [
+      ("turn of 1e-11", doubleScale(underTurn: 1e-11), false),
+      ("skew of 1e-11", doubleScale(underSkew: 1e-11), false),
+      ("turn of 1e-13", doubleScale(underTurn: 1e-13), true),
+      ("skew of 1e-13", doubleScale(underSkew: 1e-13), true),
+    ]
+
+    for testCase in cases {
+      // when: interpolating from no transform to the scale
+      let interpolator = try unwrap(TransformInterpolator(from: CATransform3DIdentity, to: testCase.to), testCase.name)
+
+      // then: a turn or a skew ten times the tolerance makes the interpolation not linear, and one a tenth of it counts
+      // as rounding
+      expect(interpolator.isLinear, testCase.name) == testCase.isLinear
+    }
+  }
+
   // MARK: - Core Animation
 
   func test_transform_matchesCoreAnimation() throws {
