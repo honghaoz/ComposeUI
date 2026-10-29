@@ -362,8 +362,9 @@ extension CALayer {
     while deviation > Constants.pointTolerance, count < maxCount {
       // a fast change about a far point takes more keyframes, as the deviation shrinks with about the square of the time
       // between them, up to a rate that keeps an absurd change from building a huge animation
-      let denserCount = Int((Double(count) * (deviation / Constants.pointTolerance).squareRoot()).rounded(.up))
-      count = min(max(denserCount, count + 1), maxCount)
+      let denserCount = (Double(count) * (deviation / Constants.pointTolerance).squareRoot()).rounded(.up)
+      // a point at the depth of the eye projects to infinity, so the count is capped while it's a `Double`
+      count = Int(min(max(denserCount, Double(count + 1)), Double(maxCount)))
       (transforms, deviation) = keyframeTransforms(count: count)
     }
 

@@ -406,6 +406,30 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     expect(animation.values?.count) == 601
   }
 
+  func test_updateTransform_changeThatTakesThePointToTheDepthOfTheEye_takesTheMostKeyframes() throws {
+    // given: a layer whose anchor point is at its center, in perspective about its top left corner
+    let smallSize = CGSize(width: 128, height: 128)
+    let largeSize = CGSize(width: 384, height: 384)
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    var perspective = CATransform3DIdentity
+    perspective.m34 = -1 / 512
+    layer.updateTransform(perspective, anchor: .topLeft, oldSize: smallSize, newSize: smallSize, animationTiming: nil)
+
+    // when: during a fast resize, a change moves the corner behind the eye, which projects it to infinity halfway
+    // between two keyframes, where it's at the depth of the eye
+    let target = CATransform3DConcat(CATransform3DMakeTranslation(-1, -1, 2048), perspective)
+    layer.animateFrame(to: CGRect(origin: .zero, size: largeSize), timing: .linear(duration: 1 / 32))
+    layer.updateTransform(target, anchor: .topLeft, oldSize: smallSize, newSize: largeSize, animationTiming: .linear(duration: 1 / 32))
+
+    // then: the keyframes stop at the most for the 1/32 second, 15 intervals at 8 times 60 per second, and land at the
+    // transform about the corner at the new size
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
+    let values = try unwrap(animation.values as? [NSValue])
+    expect(values.count) == 16
+    try expectTransform(unwrap(values.last).caTransform3DValue, CALayer.anchoredTransform(target, pivotOffset: SIMD2(-0.5, -0.5), size: largeSize))
+  }
+
   // MARK: - Changes in Flight
 
   func test_updateTransform_withATimingDuringAChange_startsFromTheShownTransform() throws {
