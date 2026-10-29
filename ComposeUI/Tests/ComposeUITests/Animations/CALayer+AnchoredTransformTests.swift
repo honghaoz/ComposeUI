@@ -328,28 +328,28 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     // a far point, a flip in perspective about a far edge and back, a turn in perspective during a large resize, and a
     // scale during a larger resize, each about a point that the transform keeps in place
     let flip = CATransform3DRotate(Constants.perspective, .pi, 0, 1, 0)
-    let cases: [(name: String, frame: CGRect, anchorPoint: CGPoint, anchor: UnitPoint, change: (CALayer) -> Void)] = [
-      ("fast turn", CGRect(x: 0, y: 0, width: 400, height: 400), .zero, .center, { layer in
+    let cases: [(name: String, frame: CGRect, anchorPoint: CGPoint, anchor: UnitPoint, bound: CGFloat, change: (CALayer) -> Void)] = [
+      ("fast turn", CGRect(x: 0, y: 0, width: 400, height: 400), .zero, .center, 0.25, { layer in
         let size = layer.bounds.size
         layer.updateTransform(Constants.halfTurn, anchor: .center, oldSize: size, newSize: size, animationTiming: .easeInEaseOut(duration: 0.3))
       }),
-      ("perspective flip", CGRect(x: 0, y: 0, width: 800, height: 400), Constants.center, .left, { layer in
+      ("perspective flip", CGRect(x: 0, y: 0, width: 800, height: 400), Constants.center, .left, 0.25, { layer in
         let size = layer.bounds.size
         layer.updateTransform(flip, anchor: .left, oldSize: size, newSize: size, animationTiming: .easeInEaseOut(duration: 0.25))
       }),
-      ("perspective flip back to flat", CGRect(x: 0, y: 0, width: 800, height: 400), Constants.center, .left, { layer in
+      ("perspective flip back to flat", CGRect(x: 0, y: 0, width: 800, height: 400), Constants.center, .left, 0.25, { layer in
         let size = layer.bounds.size
         layer.updateTransform(flip, anchor: .left, oldSize: size, newSize: size, animationTiming: nil)
         layer.updateTransform(CATransform3DIdentity, anchor: .left, oldSize: size, newSize: size, animationTiming: .easeInEaseOut(duration: 0.25))
       }),
-      ("perspective turn during a resize", CGRect(x: 0, y: 0, width: 100, height: 50), .zero, .center, { layer in
+      ("perspective turn during a resize", CGRect(x: 0, y: 0, width: 100, height: 50), .zero, .center, 0.27, { layer in
         let size = layer.bounds.size
         let largeSize = CGSize(width: 600, height: 300)
         layer.updateTransform(Constants.perspectiveTurn, anchor: .center, oldSize: size, newSize: size, animationTiming: nil)
         layer.animateFrame(to: CGRect(origin: .zero, size: largeSize), timing: .easeInEaseOut(duration: 0.3))
         layer.updateTransform(Constants.perspectiveTurn, anchor: .center, oldSize: size, newSize: largeSize, animationTiming: .easeInEaseOut(duration: 0.3))
       }),
-      ("scale during a resize", CGRect(x: 0, y: 0, width: 100, height: 100), .zero, .center, { layer in
+      ("scale during a resize", CGRect(x: 0, y: 0, width: 100, height: 100), .zero, .center, 0.27, { layer in
         let size = layer.bounds.size
         let largeSize = CGSize(width: 1000, height: 1000)
         layer.animateFrame(to: CGRect(origin: .zero, size: largeSize), timing: .linear(duration: 0.25))
@@ -363,13 +363,13 @@ class CALayer_AnchoredTransformTests: XCTestCase {
       testCase.change(timeline.layer)
 
       // then: halfway between each two keyframes, where the interpolation moves the point the most, the layer shows the
-      // point within a quarter point of its place, give or take the hundredth that Core Animation adds to a large resize
-      // by solving the frame animation's timing in single precision
+      // point within a quarter point of its place, and during a large resize within the hundredth or two more that Core
+      // Animation adds by solving the frame animation's timing in single precision
       let animation = try unwrap(timeline.layer.animation(forKey: "transform") as? AnchoredTransformAnimation, testCase.name)
       let intervals = try unwrap(animation.values?.count, testCase.name) - 1
       for index in 0 ..< intervals {
         timeline.show(at: animation.beginTime + animation.duration * (Double(index) + 0.5) / Double(intervals))
-        expect(try drift(of: timeline.layer, at: testCase.anchor), "\(testCase.name) at \(index)") <= 0.27
+        expect(try drift(of: timeline.layer, at: testCase.anchor), "\(testCase.name) at \(index)") <= testCase.bound
       }
     }
   }
