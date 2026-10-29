@@ -997,6 +997,10 @@ class RenderPerformanceTests: BenchmarkTestCase {
     runTransformUpdateBenchmark(name: "updateTransform.view.animatedScale", state: .animatedScale)
   }
 
+  func test_updateTransform_view_animatedDuringAChange() {
+    runTransformUpdateBenchmark(name: "updateTransform.view.animatedDuringAChange", state: .animatedDuringAChange)
+  }
+
   func test_updateTransform_view_animatedResize() {
     runTransformUpdateBenchmark(name: "updateTransform.view.animatedResize", state: .animatedResize)
   }
@@ -1016,6 +1020,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
     static let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1) // a transform that a node sets
     static let secondRotation = CATransform3DMakeRotation(CGFloat.pi / 3, 0, 0, 1) // a transform that a node changes to
+    static let thirdRotation = CATransform3DMakeRotation(CGFloat.pi / 2, 0, 0, 1) // a transform that a node changes to during a change
     static let pressScale = CATransform3DMakeScale(0.95, 0.95, 1) // the scale of a press effect
     static let perspective: CATransform3D = { // a perspective with the eye 500 points away
       var perspective = CATransform3DIdentity
@@ -1386,6 +1391,11 @@ class RenderPerformanceTests: BenchmarkTestCase {
     /// A scale changes on every update, with a timing, which Core Animation interpolates about the corner.
     case animatedScale
 
+    /// The transform changes on every update, with a timing, and every other update during the change before it, which
+    /// the update stacks on. No time passes between the updates, so the change still shows the transform that it starts
+    /// from, and the update changes to another transform, as one to the transform shown wouldn't change what shows.
+    case animatedDuringAChange
+
     /// The frame changes on every update, with a timing, and the transform follows the frame's size.
     case animatedResize
 
@@ -1394,7 +1404,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
   }
 
   private func runTransformUpdateBenchmark(name: String, state: TransformUpdateState) {
-    // given: a view, and the items of a node with a transform at two sizes or with two transforms
+    // given: a view, and the items of a node with a transform at two sizes or with two or three transforms
     let renderable = Renderable.view(Self.makeLayerBackedView())
     let contentView = ComposeView()
     let size = CGSize(width: 100, height: 50)
@@ -1418,6 +1428,10 @@ class RenderPerformanceTests: BenchmarkTestCase {
       firstItem = Self.transformItem(CATransform3DIdentity, size: size)
       secondItem = Self.transformItem(Constants.pressScale, size: size)
       timing = .linear(duration: 0.3)
+    case .animatedDuringAChange:
+      firstItem = Self.transformItem(Constants.rotation, size: size)
+      secondItem = Self.transformItem(Constants.secondRotation, size: size)
+      timing = .linear(duration: 0.3)
     case .animatedResize:
       firstItem = Self.transformItem(Constants.rotation, size: size)
       secondItem = Self.transformItem(Constants.rotation, size: CGSize(width: 160, height: 80))
@@ -1427,14 +1441,18 @@ class RenderPerformanceTests: BenchmarkTestCase {
       secondItem = Self.transformItem(CATransform3DRotate(Constants.perspective, CGFloat.pi / 3, 0, 1, 0), size: size)
       timing = .linear(duration: 0.3)
     }
+    // the updates during a change go to the third transform and the first in turns, so that none goes to the transform
+    // that the change it stacks on starts from
+    let thirdItem = state == .animatedDuringAChange ? Self.transformItem(Constants.thirdRotation, size: size) : firstItem
     Self.update(renderable, with: firstItem, contentView: contentView, animationTiming: nil)
 
     // when: measuring batches of updates, alternating between the items, each followed by removing the animations, so
-    // they don't pile up
+    // they don't pile up, other than an update that the next update stacks on
     let result = measure(warmup: 20, iterations: 200) { _ in
       for index in 0 ..< Constants.transformUpdatesPerIteration {
-        Self.update(renderable, with: index.isMultiple(of: 2) ? secondItem : firstItem, contentView: contentView, animationTiming: timing)
-        if timing != nil {
+        let item = index.isMultiple(of: 2) ? secondItem : index % 4 == 1 ? thirdItem : firstItem
+        Self.update(renderable, with: item, contentView: contentView, animationTiming: timing)
+        if timing != nil, state != .animatedDuringAChange || !index.isMultiple(of: 2) {
           renderable.layer.removeAllAnimations()
         }
       }

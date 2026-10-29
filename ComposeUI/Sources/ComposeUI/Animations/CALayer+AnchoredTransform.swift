@@ -36,10 +36,12 @@ extension CALayer {
   /// Applies a transform about a point of the layer unless the layer already has it, animating a change with the timing
   /// if given, and keeps the point in place while the transform changes and while the layer's size animates.
   ///
-  /// A changed transform animates from the transform that the layer shows. Without a timing, a transform animation in
-  /// flight glides to the new transform over the time that its change has left, as `retarget(keyPath:to:)` does, and a
-  /// transform at rest changes at once. While the layer's size animates, the transform follows the size that the layer
-  /// shows, however the size's animations stack.
+  /// A changed transform animates from the transform that the layer shows, and a change during another one about the
+  /// same point stacks on it, as frame changes do: each change goes on along its own timing, so the motion of the change
+  /// in flight carries on, see `TransformChanges`. Without a timing, a transform animation in flight glides to the new
+  /// transform over the time that its changes have left, as `retarget(keyPath:to:)` does, and a transform at rest changes
+  /// at once. While the layer's size animates, the transform follows the size that the layer shows, however the size's
+  /// animations stack.
   ///
   /// - Parameters:
   ///   - transform: The transform to apply.
@@ -134,41 +136,35 @@ extension CALayer {
       )
     }
 
-    var motion = keepsCourse ? anchoredAnimation?.motion : nil
+    var changes = keepsCourse ? anchoredAnimation?.changes : nil
     if !keepsCourse, let motionTiming = animationTiming == nil ? glideTiming(anchoredAnimation: anchoredAnimation, keys: keys, at: now) : timing {
-      let start = shownTransform(pivotOffset: pivotOffset, anchoredAnimation: anchoredAnimation, hasAnimations: keys != nil, at: now)
-      if pivotOffset == .zero, anchoredAnimation == nil {
-        // the point is the anchor point, which the size doesn't move, so Core Animation interpolates the transform itself
-        removeAnimations(forKeyPath: "transform")
-        animate(
-          keyPath: "transform",
-          timing: motionTiming,
-          from: { _ in NSValue(caTransform3D: start) },
-          to: { _ in NSValue(caTransform3D: newTransform) }
-        )
-        return
-      } else if let interpolator = TransformInterpolator(from: start, to: transform) {
-        if interpolator.isLinear, sizeAnimations.isEmpty {
-          // the point's translation is linear in the matrix, so Core Animation's linear blend of the transforms about
-          // the point keeps it in place while the size stays
-          addBasicAnimation(
-            transform: transform,
-            pivotOffset: pivotOffset,
-            interpolator: interpolator,
-            from: start,
-            to: newTransform,
-            size: newSize,
-            timing: motionTiming,
-            at: now
-          )
-          return
-        } else {
-          motion = TransformMotion(interpolator: interpolator, timing: motionTiming, at: now)
+      if animationTiming != nil, let stackedChanges = stackedChanges(on: anchoredAnimation, to: transform, pivotOffset: pivotOffset, timing: motionTiming, at: now) {
+        changes = stackedChanges
+      } else {
+        let start = shownTransform(pivotOffset: pivotOffset, anchoredAnimation: anchoredAnimation, hasAnimations: keys != nil, at: now)
+        if let interpolator = TransformInterpolator(from: start, to: transform) {
+          if sizeAnimations.isEmpty, pivotOffset == .zero || interpolator.isLinear {
+            // Core Animation's interpolation keeps the point in place while the size stays, when the point is the anchor
+            // point or the change blends linearly, as the point's translation is linear in the matrix
+            addBasicAnimation(
+              transform: transform,
+              pivotOffset: pivotOffset,
+              interpolator: interpolator,
+              from: start,
+              to: newTransform,
+              size: newSize,
+              timing: motionTiming,
+              at: now
+            )
+            return
+          } else {
+            changes = TransformChanges(TransformMotion(interpolator: interpolator, timing: motionTiming, at: now))
+          }
         }
       }
     }
 
-    guard motion.map({ $0.endTime > now }) == true || !sizeAnimations.isEmpty else {
+    guard changes.map({ $0.endTime > now }) == true || !sizeAnimations.isEmpty else {
       // an animation in flight would show over the transform until it ends
       removeAnimations(forKeyPath: "transform")
       setModelTransform(newTransform)
@@ -181,13 +177,48 @@ extension CALayer {
     addKeyframeAnimation(
       transform: transform,
       pivotOffset: pivotOffset,
-      motion: motion,
+      changes: changes,
       sizeAnimations: sizeAnimations,
       sizeTimes: (sizeStartTime, sizeEndTime),
       newTransform: newTransform,
       newSize: newSize,
       at: now
     )
+  }
+
+  /// The changes of the transform in flight with a change to a transform stacked on them, as frame changes stack, so
+  /// that the changes in flight keep their motion instead of starting over from the transform shown.
+  ///
+  /// - Parameters:
+  ///   - anchoredAnimation: The anchored transform animation in flight, if any.
+  ///   - transform: The transform to change to, before it applies about the point.
+  ///   - pivotOffset: The point's offset from the anchor point, in the unit space of the layer's bounds.
+  ///   - timing: The timing of the change.
+  ///   - now: The layer's current time.
+  /// - Returns: The changes, or `nil` when the change starts over from the transform shown: no change of the transform
+  ///   about the point moves, a change in flight or the new one never finishes, the transforms don't interpolate or
+  ///   invert, or the keyframes would stop following the changes before they end.
+  private func stackedChanges(on anchoredAnimation: (any AnchoredTransformAnimation)?,
+                              to transform: CATransform3D,
+                              pivotOffset: SIMD2<Double>,
+                              timing: AnimationTiming,
+                              at now: TimeInterval) -> TransformChanges?
+  {
+    guard let anchoredAnimation,
+          anchoredAnimation.pivotOffset == pivotOffset,
+          let changes = anchoredAnimation.changes,
+          changes.endTime > now,
+          let interpolator = TransformInterpolator(from: anchoredAnimation.transform, to: transform),
+          let stackedChanges = changes.stacking(TransformMotion(interpolator: interpolator, timing: timing, at: now), at: now)
+    else {
+      return nil
+    }
+    // keyframes follow a bounded time from when they begin, and a stack's begin with the changes in flight, so a change
+    // stacks only when they follow the stack to its end, and otherwise starts over, which never stops sooner
+    guard !TransformKeyframeSampler.cutsOff(stackedChanges, at: now) else {
+      return nil
+    }
+    return stackedChanges
   }
 
   /// The timing of a glide to a new transform from a transform animation in flight: an ease out over the time that the
@@ -202,12 +233,12 @@ extension CALayer {
     let remainingTime: TimeInterval
     let neverFinishes: Bool
     if let anchoredAnimation {
-      // keyframes outlast the transform's change while the size animates, and the transform is at rest after it
-      guard let motion = anchoredAnimation.motion, motion.endTime > now else {
+      // keyframes outlast the transform's changes while the size animates, and the transform is at rest after them
+      guard let changes = anchoredAnimation.changes, changes.endTime > now else {
         return nil
       }
-      remainingTime = motion.endTime - now
-      neverFinishes = motion.neverFinishes
+      remainingTime = changes.endTime - now
+      neverFinishes = changes.neverFinishes
     } else {
       guard let keys, let animations = animationSequence(forKeyPath: "transform", keys: keys) else {
         return nil
@@ -248,10 +279,10 @@ extension CALayer {
     let shown: CATransform3D
     let shownPivotOffset: SIMD2<Double>
     if let anchoredAnimation {
-      // the animation shows the transform's change, which gives the transform exactly, unlike keyframes in between, and
-      // the transform is the target once its change ends, see `addKeyframeAnimation`
-      let motion = anchoredAnimation.motion.flatMap { now < $0.endTime ? $0 : nil }
-      shown = motion.map { $0.transform(atProgress: $0.progress(at: now)) } ?? anchoredAnimation.transform
+      // the animation shows the transform's changes, which give the transform exactly, unlike keyframes in between, and
+      // the transform is the target once its changes end, see `addKeyframeAnimation`
+      let changes = anchoredAnimation.changes.flatMap { now < $0.endTime ? $0 : nil }
+      shown = changes.map { $0.transform(at: now) } ?? anchoredAnimation.transform
       shownPivotOffset = anchoredAnimation.pivotOffset
     } else {
       // the layer's own transform, which a basic animation of it may change, applies about the anchor point
@@ -300,7 +331,7 @@ extension CALayer {
     animation.fromValue = NSValue(caTransform3D: Self.anchoredTransform(start, pivotOffset: pivotOffset, size: size))
     animation.toValue = NSValue(caTransform3D: newTransform)
     animation.beginTime = beginTime
-    let anchoredAnimation = animation as! any AnchoredTransformAnimation // swiftlint:disable:this force_cast
+    let anchoredAnimation = animation as! any AnchoredTransformMotionAnimation // swiftlint:disable:this force_cast
     anchoredAnimation.transform = transform
     anchoredAnimation.pivotOffset = pivotOffset
     anchoredAnimation.motion = TransformMotion(interpolator: interpolator, animation: animation, beginTime: beginTime)
@@ -322,7 +353,7 @@ extension CALayer {
   /// - Parameters:
   ///   - transform: The transform that the layer ends at, before it applies about the point.
   ///   - pivotOffset: The point's offset from the anchor point, in the unit space of the layer's bounds.
-  ///   - motion: The transform's change, or `nil` when the transform stays.
+  ///   - changes: The transform's changes, or `nil` when the transform stays.
   ///   - sizeAnimations: The animations of the layer's size in flight.
   ///   - sizeTimes: The time from which the animations of the size move it, and the time the last of them ends.
   ///   - newTransform: The transform about the point at the new size, the model transform.
@@ -330,7 +361,7 @@ extension CALayer {
   ///   - now: The layer's current time.
   private func addKeyframeAnimation(transform: CATransform3D,
                                     pivotOffset: SIMD2<Double>,
-                                    motion: TransformMotion?,
+                                    changes: TransformChanges?,
                                     sizeAnimations: [KeyPathAnimation],
                                     sizeTimes: (start: TimeInterval, end: TimeInterval),
                                     newTransform: CATransform3D,
@@ -341,7 +372,7 @@ extension CALayer {
       layer: self,
       transform: transform,
       pivotOffset: pivotOffset,
-      motion: motion,
+      changes: changes,
       sizeAnimations: sizeAnimations,
       sizeTimes: sizeTimes,
       newTransform: newTransform,
@@ -358,7 +389,7 @@ extension CALayer {
     animation.beginTime = CAAnimation.beginTime(at: sampler.startTime)
     animation.transform = transform
     animation.pivotOffset = pivotOffset
-    animation.motion = motion
+    animation.changes = changes
 
     // an animation of the transform in flight would show over the keyframes, or after them when it ends later
     removeAnimations(forKeyPath: "transform")
@@ -412,7 +443,15 @@ private struct TransformKeyframeSampler {
   private let layer: CALayer
   private let transform: CATransform3D
   private let pivotOffset: SIMD2<Double>
-  private let motion: TransformMotion?
+
+  /// The transform's changes, or changes that ended before any time when the transform stays.
+  ///
+  /// They aren't optional, since reading an optional's value copies it, which would copy the changes for each keyframe.
+  private let changes: TransformChanges
+
+  /// The time the transform's changes end, until which the keyframes follow them, in the layer's time space.
+  private let changesEndTime: TimeInterval
+
   private let sizeAnimations: [KeyPathAnimation]
   private let frameSizeChanges: [FrameSizeChange]?
   private let modelSize: SIMD2<Double>
@@ -422,13 +461,21 @@ private struct TransformKeyframeSampler {
   /// Whether the keyframes stop following a change before it ends, at the most time that they follow.
   private let isCutOff: Bool
 
+  /// Changes that ended before any time, which the keyframes of a transform that stays hold in place of changes.
+  private static let endedChanges = TransformChanges(TransformMotion(
+    // two affine transforms always interpolate
+    interpolator: TransformInterpolator(from: CATransform3DIdentity, to: CATransform3DIdentity)!, // swiftlint:disable:this force_unwrapping
+    timing: .linear(duration: 1),
+    at: -.infinity
+  ))
+
   /// Creates the sampler of the keyframes of a change of a layer's transform, its size, or both.
   ///
   /// - Parameters:
   ///   - layer: The layer.
   ///   - transform: The transform that the layer ends at, before it applies about the point.
   ///   - pivotOffset: The point's offset from the anchor point, in the unit space of the layer's bounds.
-  ///   - motion: The transform's change, or `nil` when the transform stays.
+  ///   - changes: The transform's changes, or `nil` when the transform stays.
   ///   - sizeAnimations: The animations of the layer's size in flight.
   ///   - sizeTimes: The time from which the animations of the size move it, and the time the last of them ends.
   ///   - newTransform: The transform about the point at the new size, the model transform.
@@ -437,7 +484,7 @@ private struct TransformKeyframeSampler {
   init(layer: CALayer,
        transform: CATransform3D,
        pivotOffset: SIMD2<Double>,
-       motion: TransformMotion?,
+       changes: TransformChanges?,
        sizeAnimations: [KeyPathAnimation],
        sizeTimes: (start: TimeInterval, end: TimeInterval),
        newTransform: CATransform3D,
@@ -446,9 +493,9 @@ private struct TransformKeyframeSampler {
   {
     var startTime = sizeTimes.start
     var endTime = sizeTimes.end
-    if let motion, motion.endTime > now {
-      startTime = min(startTime, max(now, motion.beginTime))
-      endTime = max(endTime, motion.endTime)
+    if let changes, changes.endTime > now {
+      startTime = min(startTime, max(now, changes.beginTime))
+      endTime = max(endTime, changes.endTime)
     }
     self.startTime = startTime
     duration = min(endTime - startTime, Constants.maxSampledDuration)
@@ -459,12 +506,23 @@ private struct TransformKeyframeSampler {
     self.layer = layer
     self.transform = transform
     self.pivotOffset = pivotOffset
-    self.motion = motion
+    self.changes = changes ?? Self.endedChanges
+    changesEndTime = self.changes.endTime
     self.sizeAnimations = sizeAnimations
     frameSizeChanges = sizeAnimations.isEmpty ? nil : FrameSizeChange.changes(of: sizeAnimations)
     modelSize = SIMD2(Double(layer.bounds.size.width), Double(layer.bounds.size.height))
     self.newTransform = newTransform
     self.newSize = newSize
+  }
+
+  /// Whether keyframes stop following changes before they end, at the most time that they follow.
+  ///
+  /// - Parameters:
+  ///   - changes: The changes.
+  ///   - now: The layer's current time.
+  /// - Returns: `true` if the changes move for longer than the keyframes follow from now.
+  static func cutsOff(_ changes: TransformChanges, at now: TimeInterval) -> Bool {
+    changes.endTime - max(now, changes.beginTime) > Constants.maxSampledDuration
   }
 
   /// The keyframes' transforms, at 60 per second, and more where Core Animation's interpolation between two of them
@@ -537,9 +595,8 @@ private struct TransformKeyframeSampler {
   ///   - size: The size that the layer shows then.
   /// - Returns: The transform to set on the layer.
   private func transform(at time: TimeInterval, size: CGSize) -> CATransform3D {
-    // a spring ends close to its target rather than on it, so the transform is the target itself once its change ends
-    if let motion, time < motion.endTime {
-      return CALayer.anchoredTransform(motion.transform(atProgress: motion.progress(at: time)), pivotOffset: pivotOffset, size: size)
+    if time < changesEndTime {
+      return CALayer.anchoredTransform(changes.transform(at: time), pivotOffset: pivotOffset, size: size)
     } else {
       return CALayer.anchoredTransform(transform, pivotOffset: pivotOffset, size: size)
     }
@@ -708,6 +765,11 @@ struct TransformMotion {
     beginTime + curve.duration / speed
   }
 
+  /// The transform the change ends at.
+  var target: CATransform3D {
+    interpolator.transform(atProgress: 1)
+  }
+
   /// Whether the change never ends, as a spring without damping doesn't.
   var neverFinishes: Bool {
     CAAnimation.neverFinishes(duration: curve.duration)
@@ -721,11 +783,20 @@ struct TransformMotion {
     curve.progress(forElapsedTime: (time - beginTime) * speed)
   }
 
-  /// The transform at a progress of the change, see `progress(at:)`.
+  /// The transform at a time.
   ///
-  /// - Parameter progress: The progress.
-  /// - Returns: The transform.
-  func transform(atProgress progress: Double) -> CATransform3D {
-    interpolator.transform(atProgress: progress)
+  /// It's always inlined, since the change is too big for registers, so a call would copy it to pass it, for each
+  /// keyframe that follows it.
+  ///
+  /// - Parameter time: The time, in the layer's time space.
+  /// - Returns: The transform, the change's target itself once it ends.
+  @inline(__always)
+  func transform(at time: TimeInterval) -> CATransform3D {
+    // a spring ends close to its target rather than on it, so the change shows its target itself once it ends
+    if time < endTime {
+      return interpolator.transform(atProgress: progress(at: time))
+    } else {
+      return target
+    }
   }
 }
