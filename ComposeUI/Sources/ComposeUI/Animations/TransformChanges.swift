@@ -80,9 +80,9 @@ struct TransformChanges {
     rest.reduce(first.motion.endTime) { max($0, $1.motion.endTime) }
   }
 
-  /// Whether a change never ends, as a spring without damping doesn't.
+  /// Whether the changes never end, as a spring without damping doesn't, which only a change alone can, see `stacking(_:at:)`.
   var neverFinishes: Bool {
-    first.motion.neverFinishes || rest.contains { $0.motion.neverFinishes }
+    first.motion.neverFinishes
   }
 
   /// The transform at a time: the first change's transform so far, followed by each later change's way so far from
@@ -111,9 +111,11 @@ struct TransformChanges {
   /// - Parameters:
   ///   - motion: The change's motion, from the transform that the last change ends at.
   ///   - time: The time the change is made at, in the layer's time space.
-  /// - Returns: The changes, or `nil` when the transform that the last change ends at has no inverse.
+  /// - Returns: The changes, or `nil` when a change in flight or the new one never ends, or the transform that the last
+  ///   change ends at has no inverse.
   func stacking(_ motion: TransformMotion, at time: TimeInterval) -> TransformChanges? {
-    guard let inverseStart = Self.inverse(of: (rest.last ?? first).motion.target) else {
+    // a change that never finishes can't keep going next to another, as an additive path's can't
+    guard !neverFinishes, !motion.neverFinishes, let inverseStart = Self.inverse(of: (rest.last ?? first).motion.target) else {
       return nil
     }
 

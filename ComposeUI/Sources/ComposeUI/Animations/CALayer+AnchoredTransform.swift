@@ -196,19 +196,18 @@ extension CALayer {
   ///   - timing: The timing of the change.
   ///   - now: The layer's current time.
   /// - Returns: The changes, or `nil` when the change starts over from the transform shown: no change of the transform
-  ///   about the point moves, one never finishes, or the transforms don't interpolate or invert.
+  ///   about the point moves, a change in flight or the new one never finishes, or the transforms don't interpolate or
+  ///   invert.
   private func stackedChanges(on anchoredAnimation: (any AnchoredTransformAnimation)?,
                               to transform: CATransform3D,
                               pivotOffset: SIMD2<Double>,
                               timing: AnimationTiming,
                               at now: TimeInterval) -> TransformChanges?
   {
-    // a change that never finishes can't keep going next to another, as an additive path's can't
     guard let anchoredAnimation,
           anchoredAnimation.pivotOffset == pivotOffset,
           let changes = anchoredAnimation.changes,
           changes.endTime > now,
-          !changes.neverFinishes,
           let interpolator = TransformInterpolator(from: anchoredAnimation.transform, to: transform)
     else {
       return nil

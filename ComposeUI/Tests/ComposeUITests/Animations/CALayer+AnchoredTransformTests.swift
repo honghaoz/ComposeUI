@@ -794,24 +794,22 @@ class CALayer_AnchoredTransformTests: XCTestCase {
   }
 
   func test_updateTransform_changeDuringAChangeThatNeverFinishes_startsFromTheTransformShown() throws {
-    // given: a change that never finishes in flight, a turn about the top left corner with a spring without damping, alone
-    // or stacked on a turn
+    // given: a change that never finishes in flight, a turn about the top left corner with a spring without damping, made
+    // at rest, or during a turn, where it starts from the transform shown instead of stacking on the turn
     let spring = AnimationTiming.spring(dampingRatio: 0, response: 0.5)
     let springCurve = AnimationCurve(CABasicAnimation.makeAnimation(spring))
     let target = CATransform3DMakeRotation(.pi / 3, 0, 0, 1)
-    for isStacked in [false, true] {
+    for isDuringATurn in [false, true] {
       let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
       let layer = timeline.layer
       let size = layer.bounds.size
       let start: CATransform3D
-      if isStacked {
+      if isDuringATurn {
         layer.updateTransform(Constants.eighthTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 2))
         timeline.move(to: 100.25)
         layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: spring)
-        start = stacked([
-          (CATransform3DIdentity, Constants.eighthTurn, 0.5),
-          (Constants.eighthTurn, Constants.quarterTurn, springCurve.progress(forElapsedTime: 0.75)),
-        ])
+        let springStart = interpolated(from: CATransform3DIdentity, to: Constants.eighthTurn, progress: 0.125)
+        start = interpolated(from: springStart, to: Constants.quarterTurn, progress: springCurve.progress(forElapsedTime: 0.75))
       } else {
         layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: spring)
         start = interpolated(from: CATransform3DIdentity, to: Constants.quarterTurn, progress: springCurve.progress(forElapsedTime: 1))
@@ -826,7 +824,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
       for time in [101, 101.5, 102] {
         timeline.show(at: time)
         let shown = interpolated(from: start, to: target, progress: time - 101)
-        try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "stacked \(isStacked) at \(time)")
+        try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "during a turn \(isDuringATurn) at \(time)")
       }
     }
   }
@@ -977,22 +975,31 @@ class CALayer_AnchoredTransformTests: XCTestCase {
   }
 
   func test_updateTransform_scaleWithASpringWithoutDamping_followsTheSpringPastTenSeconds() throws {
-    // given: a layer at rest
-    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
-    let layer = timeline.layer
-    let size = layer.bounds.size
+    for isDuringAScale in [false, true] {
+      // given: a layer at rest, or a quarter of the way through a scale to three times its size about its top left
+      // corner over 2 seconds
+      let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+      let layer = timeline.layer
+      let size = layer.bounds.size
+      if isDuringAScale {
+        layer.updateTransform(Constants.tripleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 2))
+        timeline.move(to: 100.5)
+      }
 
-    // when: a scale about its top left corner animates with a spring without damping, which never finishes
-    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .spring(dampingRatio: 0, response: 0.5))
+      // when: a scale about its top left corner animates with a spring without damping, which never finishes
+      layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .spring(dampingRatio: 0, response: 0.5))
 
-    // then: one spring animation scales it, and the layer shows the scale that the spring gives about the corner, past
-    // the 10 seconds that keyframes follow
-    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformSpringAnimation)
-    let curve = AnimationCurve(animation)
-    for time in [0.1, 0.3, 12.1] {
-      timeline.show(at: 100 + time)
-      let progress = curve.progress(forElapsedTime: time)
-      try expectShownTransform(of: layer, interpolated(from: CATransform3DIdentity, to: Constants.doubleScale, progress: progress), about: .topLeft, within: 0.01)
+      // then: one spring animation scales it from the transform shown, as it doesn't stack on the scale in flight, and the
+      // layer shows the scale that the spring gives about the corner, past the 10 seconds that keyframes follow
+      let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformSpringAnimation, "during a scale \(isDuringAScale)")
+      let curve = AnimationCurve(animation)
+      let start = isDuringAScale ? interpolated(from: CATransform3DIdentity, to: Constants.tripleScale, progress: 0.25) : CATransform3DIdentity
+      let updateTime = isDuringAScale ? 100.5 : 100
+      for time in [0.1, 0.3, 12.1] {
+        timeline.show(at: updateTime + time)
+        let shown = interpolated(from: start, to: Constants.doubleScale, progress: curve.progress(forElapsedTime: time))
+        try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "during a scale \(isDuringAScale) at \(time)")
+      }
     }
   }
 
