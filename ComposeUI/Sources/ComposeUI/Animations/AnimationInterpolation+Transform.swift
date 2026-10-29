@@ -62,6 +62,10 @@ struct TransformInterpolator {
   private let to: CATransform3D
   private let decompositions: Decompositions
 
+  /// Whether the transforms are affine and differ only in their scale and translation, within rounding, so that the
+  /// interpolation blends their matrices linearly.
+  let isLinear: Bool
+
   /// Creates an interpolator from one transform to another.
   ///
   /// - Parameters:
@@ -74,11 +78,13 @@ struct TransformInterpolator {
     if CATransform3DIsAffine(from), CATransform3DIsAffine(to) {
       let (fromDecomposition, toDecomposition) = AffineDecomposition.aligned(AffineDecomposition(from), AffineDecomposition(to))
       decompositions = .affine(from: fromDecomposition, to: toDecomposition)
+      isLinear = fromDecomposition.hasSameRotationAndRest(as: toDecomposition)
     } else {
       guard let fromDecomposition = Decomposition(from), let toDecomposition = Decomposition(to) else {
         return nil
       }
       decompositions = .general(from: fromDecomposition, to: toDecomposition)
+      isLinear = false
     }
   }
 
@@ -181,6 +187,20 @@ private struct AffineDecomposition {
     return matrix
   }
 
+  /// Whether the decomposition has the same angle and rest of the matrix as another, within rounding, so that only the
+  /// scale and the translation change between them, each linearly.
+  ///
+  /// - Parameter other: The other decomposition, aligned with this one, see `aligned(_:_:)`.
+  /// - Returns: `true` if they have the same angle and rest of the matrix, within rounding.
+  func hasSameRotationAndRest(as other: AffineDecomposition) -> Bool {
+    let tolerance = Constants.roundingTolerance
+    return angle.isApproximatelyEqual(to: other.angle, absoluteTolerance: tolerance)
+      && m11.isApproximatelyEqual(to: other.m11, absoluteTolerance: tolerance)
+      && m12.isApproximatelyEqual(to: other.m12, absoluteTolerance: tolerance)
+      && m21.isApproximatelyEqual(to: other.m21, absoluteTolerance: tolerance)
+      && m22.isApproximatelyEqual(to: other.m22, absoluteTolerance: tolerance)
+  }
+
   /// The decompositions with their flips and angles made comparable, so that they interpolate without a flip and the
   /// rotation goes the short way around.
   static func aligned(_ from: AffineDecomposition, _ to: AffineDecomposition) -> (AffineDecomposition, AffineDecomposition) {
@@ -228,6 +248,16 @@ private struct AffineDecomposition {
     result.m21 = blend(from.m21, to.m21)
     result.m22 = blend(from.m22, to.m22)
     return result
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// The difference within which two decompositions have the same angle, in radians, or element of the rest of the
+    /// matrix: rounding makes those of transforms under the same turn differ by less than 1e-15, and a real difference
+    /// this small moves a point by far less than a pixel.
+    static let roundingTolerance: Double = 1e-12
   }
 }
 

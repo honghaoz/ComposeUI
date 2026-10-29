@@ -154,7 +154,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     }
 
     // then: the keyframes come at 60 per second
-    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
     expect(animation.values?.count) == 61
     expect(animation.duration) == 1
     expect(animation.beginTime) == 100
@@ -310,7 +310,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
 
     // then: on each keyframe, the layer shows the turn that the spring gives, past the eighth turn while it overshoots
     let curve = AnimationCurve(CABasicAnimation.makeAnimation(timing))
-    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
     let intervals = try unwrap(animation.values?.count) - 1
     var overshoots = false
     for index in stride(from: 1, to: intervals, by: 3) {
@@ -365,28 +365,13 @@ class CALayer_AnchoredTransformTests: XCTestCase {
       // then: halfway between each two keyframes, where the interpolation moves the point the most, the layer shows the
       // point within a quarter point of its place, and during a large resize within the hundredth or two more that Core
       // Animation adds by solving the frame animation's timing in single precision
-      let animation = try unwrap(timeline.layer.animation(forKey: "transform") as? AnchoredTransformAnimation, testCase.name)
+      let animation = try unwrap(timeline.layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation, testCase.name)
       let intervals = try unwrap(animation.values?.count, testCase.name) - 1
       for index in 0 ..< intervals {
         timeline.show(at: animation.beginTime + animation.duration * (Double(index) + 0.5) / Double(intervals))
         expect(try drift(of: timeline.layer, at: testCase.anchor), "\(testCase.name) at \(index)") <= testCase.bound
       }
     }
-  }
-
-  func test_updateTransform_springWithoutDamping_followsTenSeconds() throws {
-    // given: a layer at rest
-    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
-    let layer = timeline.layer
-    let size = layer.bounds.size
-
-    // when: a scale about its top left corner animates with a spring without damping, which never finishes
-    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .spring(dampingRatio: 0, response: 0.5))
-
-    // then: the keyframes follow the spring for 10 seconds at 60 per second
-    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
-    expect(animation.duration) == 10
-    expect(animation.values?.count) == 601
   }
 
   func test_updateTransform_slowTurnWithASpringWithoutDamping_followsTenSecondsAtTheRate() throws {
@@ -401,7 +386,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
 
     // then: the keyframes follow the spring for 10 seconds at 60 per second, as the jump to the eighth turn at the end,
     // which no number of keyframes shortens, doesn't make them denser
-    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
     expect(animation.duration) == 10
     expect(animation.values?.count) == 601
   }
@@ -424,7 +409,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
 
     // then: the keyframes stop at the most for the 1/32 second, 15 intervals at 8 times 60 per second, and land at the
     // transform about the corner at the new size
-    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
     let values = try unwrap(animation.values as? [NSValue])
     expect(values.count) == 16
     try expectTransform(unwrap(values.last).caTransform3DValue, CALayer.anchoredTransform(target, pivotOffset: SIMD2(-0.5, -0.5), size: largeSize))
@@ -484,7 +469,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     layer.updateTransform(Constants.tripleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: nil)
 
     // then: the glide lands after the default duration, as a change that never finishes has no landing to glide to
-    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformBasicAnimation)
     expect(animation.duration).to(beApproximatelyEqual(to: Animations.defaultAnimationDuration, within: 1e-9))
     timeline.show(at: 101 + Animations.defaultAnimationDuration)
     try expectShownTransform(of: layer, Constants.tripleScale, about: .topLeft, within: 0.01)
@@ -527,11 +512,11 @@ class CALayer_AnchoredTransformTests: XCTestCase {
   }
 
   func test_updateTransform_resizeWithoutATimingDuringAChangeToATransformThatTheSizeDoesntMove_followsTheResize() throws {
-    // given: a layer of 40 x 20 scaling back from twice its size to no scale about its top left corner over 2 seconds,
+    // given: a layer of 40 x 20 turning back from a quarter turn to no turn about its top left corner over 2 seconds,
     // whose transform at the end, the identity, the size doesn't move
     let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
     let layer = timeline.layer
-    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: nil)
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: nil)
     layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: .linear(duration: 2))
 
     // when: a second in, an update without a timing makes it 80 x 40, keeping the transform
@@ -539,10 +524,10 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     layer.retargetFrame(to: CGRect(origin: .zero, size: Constants.largeSize))
     layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.largeSize, animationTiming: nil)
 
-    // then: the scale keeps its course about the corner at the new size
+    // then: the turn keeps its course about the corner at the new size
     for time in [101.0, 101.5] {
       timeline.show(at: time)
-      try expectShownTransform(of: layer, interpolated(from: Constants.doubleScale, to: CATransform3DIdentity, progress: (time - 100) / 2), about: .topLeft, within: 0.01)
+      try expectShownTransform(of: layer, interpolated(from: Constants.quarterTurn, to: CATransform3DIdentity, progress: (time - 100) / 2), about: .topLeft, within: 0.01)
     }
   }
 
@@ -677,7 +662,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
 
     // then: the change starts from the model transform, at the layer's size, as nothing tells what the layer shows
-    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformAnimation)
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
     let values = try unwrap(animation.values as? [NSValue])
     try expectTransform(unwrap(values.first).caTransform3DValue, modelTransform)
     try expectTransform(unwrap(values.last).caTransform3DValue, layer.transform)
@@ -687,7 +672,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     layer.updateTransform(Constants.doubleScale, anchor: .bottomRight, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
 
     // then: the change starts from the transform that the scale shows, about the new corner at the layer's size
-    let newValues = try unwrap((layer.animation(forKey: "transform") as? AnchoredTransformAnimation)?.values as? [NSValue])
+    let newValues = try unwrap((layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)?.values as? [NSValue])
     let firstTransform = try unwrap(newValues.first).caTransform3DValue
     for (value, expected) in zip(
       [firstTransform.m11, firstTransform.m12, firstTransform.m21, firstTransform.m22, firstTransform.m41, firstTransform.m42],
@@ -695,6 +680,179 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     ) {
       expect(value).to(beApproximatelyEqual(to: expected, within: 1e-9))
     }
+  }
+
+  // MARK: - One Animation
+
+  func test_updateTransform_changesThatBlendLinearly_animateAsOneAnimationAboutThePoint() throws {
+    // given: changes that Core Animation blends linearly, as only their scale and translation differ: a scale, a move, a
+    // scale and a move, a scale under a turn, and a flip of an axis
+    let turn = CATransform3DMakeRotation(.pi / 6, 0, 0, 1)
+    let cases: [(name: String, from: CATransform3D, to: CATransform3D)] = [
+      ("scale", CATransform3DIdentity, Constants.doubleScale),
+      ("move", CATransform3DIdentity, CATransform3DMakeTranslation(30, -20, 0)),
+      ("scale and move", CATransform3DMakeTranslation(10, 10, 0), CATransform3DTranslate(Constants.doubleScale, -5, 5, 0)),
+      ("scale under a turn", turn, CATransform3DScale(turn, 0.5, 2, 1)),
+      ("flip of an axis", CATransform3DIdentity, CATransform3DMakeScale(-1, 1, 1)),
+    ]
+
+    for testCase in cases {
+      // when: the change about the top left corner animates over a second
+      let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+      let layer = timeline.layer
+      let size = layer.bounds.size
+      layer.updateTransform(testCase.from, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: nil)
+      layer.updateTransform(testCase.to, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+
+      // then: one animation of a timing function changes the transform, and the layer shows the change so far about the
+      // corner
+      expect(layer.animation(forKey: "transform") is AnchoredTransformBasicAnimation, testCase.name) == true
+      for time in [0.25, 0.5, 0.75] {
+        timeline.show(at: 100 + time)
+        let shown = interpolated(from: testCase.from, to: testCase.to, progress: time)
+        try expectShownTransform(of: layer, shown, about: .topLeft, within: 0.01, "\(testCase.name) at \(time)")
+      }
+    }
+  }
+
+  func test_updateTransform_scaleWithADelayedTiming_holdsTheTransformUntilTheDelayPasses() throws {
+    // given: a layer at rest
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+
+    // when: a scale to twice its size about its top left corner animates over a second, after half a second
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1, delay: 0.5))
+
+    // then: one animation begins after the delay, and the layer shows no scale until then, then the scale so far
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformBasicAnimation)
+    expect(animation.beginTime) == 100.5
+    for (time, progress) in [(100.25, 0.0), (101, 0.5), (101.5, 1)] {
+      timeline.show(at: time)
+      try expectShownTransform(of: layer, interpolated(from: CATransform3DIdentity, to: Constants.doubleScale, progress: progress), about: .topLeft, within: 0.01)
+    }
+  }
+
+  func test_updateTransform_animatedUpdateDuringTheDelayOfAScale_startsFromTheTransformShown() throws {
+    // given: a layer scaling to twice its size about its top left corner over a second, after a second, in one animation
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1, delay: 1))
+
+    // when: half a second in, before the scale begins, an animated update scales it to three times its size instead
+    timeline.move(to: 100.5)
+    layer.updateTransform(Constants.tripleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+
+    // then: the new scale starts from no scale, which the layer shows during the delay
+    for time in [0.0, 0.5, 1] {
+      timeline.show(at: 100.5 + time)
+      try expectShownTransform(of: layer, interpolated(from: CATransform3DIdentity, to: Constants.tripleScale, progress: time), about: .topLeft, within: 0.01)
+    }
+  }
+
+  func test_updateTransform_scaleWithASpringWithoutDamping_followsTheSpringPastTenSeconds() throws {
+    // given: a layer at rest
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+
+    // when: a scale about its top left corner animates with a spring without damping, which never finishes
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .spring(dampingRatio: 0, response: 0.5))
+
+    // then: one spring animation scales it, and the layer shows the scale that the spring gives about the corner, past
+    // the 10 seconds that keyframes follow
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformSpringAnimation)
+    let curve = AnimationCurve(animation)
+    for time in [0.1, 0.3, 12.1] {
+      timeline.show(at: 100 + time)
+      let progress = curve.progress(forElapsedTime: time)
+      try expectShownTransform(of: layer, interpolated(from: CATransform3DIdentity, to: Constants.doubleScale, progress: progress), about: .topLeft, within: 0.01)
+    }
+  }
+
+  func test_updateTransform_resizeDuringAScale_keepsTheCourse() throws {
+    // given: a layer of 40 x 20 scaling to twice its size about its top left corner over 4 seconds, in one animation
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: .linear(duration: 4))
+    expect(layer.animation(forKey: "transform") is AnchoredTransformBasicAnimation) == true
+
+    // when: a second in, an animated update grows it to 80 x 40 over a second, keeping the transform
+    timeline.move(to: 101)
+    layer.animateFrame(to: CGRect(origin: .zero, size: Constants.largeSize), timing: .linear(duration: 1))
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.largeSize, animationTiming: .linear(duration: 1))
+
+    // then: the scale keeps its course over its 4 seconds, about the corner at the size the layer shows
+    for time in [101, 101.5, 102, 103, 105] {
+      timeline.show(at: time)
+      let progress = min((time - 100) / 4, 1)
+      try expectShownTransform(of: layer, interpolated(from: CATransform3DIdentity, to: Constants.doubleScale, progress: progress), about: .topLeft, within: 0.01)
+    }
+  }
+
+  func test_updateTransform_resizeWithoutATimingDuringAScaleToTheIdentity_followsTheResize() throws {
+    // given: a layer of 40 x 20 scaling back from twice its size to no scale about its top left corner over 2 seconds,
+    // in one animation, whose transform at the end, the identity, the size doesn't move
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: nil)
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.smallSize, animationTiming: .linear(duration: 2))
+    expect(layer.animation(forKey: "transform") is AnchoredTransformBasicAnimation) == true
+
+    // when: a second in, an update without a timing makes it 80 x 40, keeping the transform
+    timeline.move(to: 101)
+    layer.retargetFrame(to: CGRect(origin: .zero, size: Constants.largeSize))
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: Constants.smallSize, newSize: Constants.largeSize, animationTiming: nil)
+
+    // then: the scale keeps its course about the corner at the new size
+    for time in [101.0, 101.5] {
+      timeline.show(at: time)
+      try expectShownTransform(of: layer, interpolated(from: Constants.doubleScale, to: CATransform3DIdentity, progress: (time - 100) / 2), about: .topLeft, within: 0.01)
+    }
+  }
+
+  func test_updateTransform_withoutATimingDuringAScale_glidesToTheNewTransform() throws {
+    // given: a layer scaling to twice its size about its top left corner over 10 seconds, in one animation
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 10))
+
+    // when: 2 seconds in, an update without a timing scales it to three times its size instead
+    timeline.move(to: 102)
+    layer.updateTransform(Constants.tripleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: nil)
+
+    // then: one animation glides from the scale shown to the new one with an ease out, over the 8 seconds the scale had
+    // left
+    expect(layer.animation(forKey: "transform") is AnchoredTransformBasicAnimation) == true
+    let start = interpolated(from: CATransform3DIdentity, to: Constants.doubleScale, progress: 0.2)
+    let easeOut = AnimationCurve(timingFunction: CAMediaTimingFunction(name: .easeOut))
+    for time in [0.0, 2, 4, 8] {
+      timeline.show(at: 102 + time)
+      let progress = easeOut.progress(atFraction: time / 8)
+      try expectShownTransform(of: layer, interpolated(from: start, to: Constants.tripleScale, progress: progress), about: .topLeft, within: 0.01)
+    }
+  }
+
+  func test_updateTransform_turnAboutAnotherPointDuringAScale_startsFromTheShownTransform() throws {
+    // given: a layer scaling to twice its size about its top left corner over 10 seconds, in one animation, 2 seconds in
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    let size = layer.bounds.size
+    layer.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: size, newSize: size, animationTiming: .linear(duration: 10))
+    timeline.show(at: 102)
+    let shownScale = interpolated(from: CATransform3DIdentity, to: Constants.doubleScale, progress: 0.2)
+    try expectShownTransform(of: layer, shownScale, about: .topLeft, within: 0.01)
+
+    // when: an animated update turns it a quarter turn about its bottom right corner instead, over a second
+    layer.updateTransform(Constants.quarterTurn, anchor: .bottomRight, oldSize: size, newSize: size, animationTiming: .linear(duration: 1))
+
+    // then: the layer shows the same at first, then lands at the turn about the new corner
+    timeline.show(at: 102)
+    try expectShownTransform(of: layer, shownScale, about: .topLeft, within: 0.01)
+    timeline.show(at: 103)
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .bottomRight, within: 0.01)
   }
 
   // MARK: - Point at the Anchor Point

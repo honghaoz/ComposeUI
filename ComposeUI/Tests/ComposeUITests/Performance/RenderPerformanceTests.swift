@@ -993,6 +993,10 @@ class RenderPerformanceTests: BenchmarkTestCase {
     runTransformUpdateBenchmark(name: "updateTransform.view.animated", state: .animated)
   }
 
+  func test_updateTransform_view_animatedScale() {
+    runTransformUpdateBenchmark(name: "updateTransform.view.animatedScale", state: .animatedScale)
+  }
+
   func test_updateTransform_view_animatedResize() {
     runTransformUpdateBenchmark(name: "updateTransform.view.animatedResize", state: .animatedResize)
   }
@@ -1012,6 +1016,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let frameUpdatesPerIteration = 1000 // one update takes about a microsecond, too short to time alone
     static let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1) // a transform that a node sets
     static let secondRotation = CATransform3DMakeRotation(CGFloat.pi / 3, 0, 0, 1) // a transform that a node changes to
+    static let pressScale = CATransform3DMakeScale(0.95, 0.95, 1) // the scale of a press effect
     static let perspective: CATransform3D = { // a perspective with the eye 500 points away
       var perspective = CATransform3DIdentity
       perspective.m34 = -1 / 500
@@ -1378,6 +1383,9 @@ class RenderPerformanceTests: BenchmarkTestCase {
     /// The transform changes on every update, with a timing.
     case animated
 
+    /// A scale changes on every update, with a timing, which Core Animation interpolates about the corner.
+    case animatedScale
+
     /// The frame changes on every update, with a timing, and the transform follows the frame's size.
     case animatedResize
 
@@ -1405,6 +1413,10 @@ class RenderPerformanceTests: BenchmarkTestCase {
     case .animated:
       firstItem = Self.transformItem(Constants.rotation, size: size)
       secondItem = Self.transformItem(Constants.secondRotation, size: size)
+      timing = .linear(duration: 0.3)
+    case .animatedScale:
+      firstItem = Self.transformItem(CATransform3DIdentity, size: size)
+      secondItem = Self.transformItem(Constants.pressScale, size: size)
       timing = .linear(duration: 0.3)
     case .animatedResize:
       firstItem = Self.transformItem(Constants.rotation, size: size)

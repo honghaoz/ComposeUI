@@ -60,9 +60,9 @@ extension CALayer {
     let newTransform = Self.anchoredTransform(transform, pivotOffset: pivotOffset, size: newSize)
 
     if CATransform3DEqualToTransform(self.transform, newTransform) {
-      // the keyframes of a change in flight follow the size, even to a transform that doesn't, such as the identity, so
-      // a resize still samples them again
-      guard oldSize != newSize, animation(forKey: "transform") is AnchoredTransformAnimation else {
+      // a change in flight follows the size, even to a transform that doesn't, such as the identity, so a resize still
+      // updates its animation
+      guard oldSize != newSize, animation(forKey: "transform") is any AnchoredTransformAnimation else {
         return
       }
     }
@@ -106,7 +106,7 @@ extension CALayer {
     }
 
     let now = currentTime
-    let keyframeAnimation = keys == nil ? nil : (animation(forKey: "transform") as? AnchoredTransformAnimation).flatMap {
+    let anchoredAnimation = keys == nil ? nil : (animation(forKey: "transform") as? any AnchoredTransformAnimation).flatMap {
       $0.remainingTime(at: now) == nil ? nil : $0
     }
 
@@ -125,8 +125,8 @@ extension CALayer {
     }
 
     let keepsCourse: Bool
-    if let keyframeAnimation {
-      keepsCourse = keyframeAnimation.pivotOffset == pivotOffset && CATransform3DEqualToTransform(keyframeAnimation.transform, transform)
+    if let anchoredAnimation {
+      keepsCourse = anchoredAnimation.pivotOffset == pivotOffset && CATransform3DEqualToTransform(anchoredAnimation.transform, transform)
     } else {
       keepsCourse = CATransform3DEqualToTransform(
         self.transform,
@@ -134,10 +134,10 @@ extension CALayer {
       )
     }
 
-    var motion = keepsCourse ? keyframeAnimation?.motion : nil
-    if !keepsCourse, let motionTiming = animationTiming == nil ? glideTiming(keyframeAnimation: keyframeAnimation, keys: keys, at: now) : timing {
-      let start = shownTransform(pivotOffset: pivotOffset, keyframeAnimation: keyframeAnimation, hasAnimations: keys != nil, at: now)
-      if pivotOffset == .zero, keyframeAnimation == nil {
+    var motion = keepsCourse ? anchoredAnimation?.motion : nil
+    if !keepsCourse, let motionTiming = animationTiming == nil ? glideTiming(anchoredAnimation: anchoredAnimation, keys: keys, at: now) : timing {
+      let start = shownTransform(pivotOffset: pivotOffset, anchoredAnimation: anchoredAnimation, hasAnimations: keys != nil, at: now)
+      if pivotOffset == .zero, anchoredAnimation == nil {
         // the point is the anchor point, which the size doesn't move, so Core Animation interpolates the transform itself
         removeAnimations(forKeyPath: "transform")
         animate(
@@ -147,8 +147,24 @@ extension CALayer {
           to: { _ in NSValue(caTransform3D: newTransform) }
         )
         return
-      } else {
-        motion = TransformMotion(from: start, to: transform, timing: motionTiming, at: now)
+      } else if let interpolator = TransformInterpolator(from: start, to: transform) {
+        if interpolator.isLinear, sizeAnimations.isEmpty {
+          // the point's translation is linear in the matrix, so Core Animation's linear blend of the transforms about
+          // the point keeps it in place while the size stays
+          addBasicAnimation(
+            transform: transform,
+            pivotOffset: pivotOffset,
+            interpolator: interpolator,
+            from: start,
+            to: newTransform,
+            size: newSize,
+            timing: motionTiming,
+            at: now
+          )
+          return
+        } else {
+          motion = TransformMotion(interpolator: interpolator, timing: motionTiming, at: now)
+        }
       }
     }
 
@@ -178,16 +194,16 @@ extension CALayer {
   /// animation's change of the transform has left, as `retarget(keyPath:to:)` glides.
   ///
   /// - Parameters:
-  ///   - keyframeAnimation: The keyframe animation of the transform in flight, if any.
+  ///   - anchoredAnimation: The anchored transform animation in flight, if any.
   ///   - keys: The layer's animation keys.
   ///   - now: The layer's current time.
   /// - Returns: The timing, or `nil` when the transform is at rest.
-  private func glideTiming(keyframeAnimation: AnchoredTransformAnimation?, keys: AnimationKeys?, at now: TimeInterval) -> AnimationTiming? {
+  private func glideTiming(anchoredAnimation: (any AnchoredTransformAnimation)?, keys: AnimationKeys?, at now: TimeInterval) -> AnimationTiming? {
     let remainingTime: TimeInterval
     let neverFinishes: Bool
-    if let keyframeAnimation {
-      // the keyframes outlast the transform's change while the size animates, and the transform is at rest after it
-      guard let motion = keyframeAnimation.motion, motion.endTime > now else {
+    if let anchoredAnimation {
+      // keyframes outlast the transform's change while the size animates, and the transform is at rest after it
+      guard let motion = anchoredAnimation.motion, motion.endTime > now else {
         return nil
       }
       remainingTime = motion.endTime - now
@@ -220,23 +236,23 @@ extension CALayer {
   ///
   /// - Parameters:
   ///   - pivotOffset: The point's offset from the anchor point, in the unit space of the layer's bounds.
-  ///   - keyframeAnimation: The keyframe animation of the transform in flight, if any.
+  ///   - anchoredAnimation: The anchored transform animation in flight, if any.
   ///   - hasAnimations: Whether the layer has animations.
   ///   - now: The layer's current time.
   /// - Returns: The transform.
   private func shownTransform(pivotOffset: SIMD2<Double>,
-                              keyframeAnimation: AnchoredTransformAnimation?,
+                              anchoredAnimation: (any AnchoredTransformAnimation)?,
                               hasAnimations: Bool,
                               at now: TimeInterval) -> CATransform3D
   {
     let shown: CATransform3D
     let shownPivotOffset: SIMD2<Double>
-    if let keyframeAnimation {
-      // the keyframes show the transform's change, which gives the transform exactly, unlike the keyframes in between,
-      // and the transform is the target once its change ends, see `addKeyframeAnimation`
-      let motion = keyframeAnimation.motion.flatMap { now < $0.endTime ? $0 : nil }
-      shown = motion.map { $0.transform(atProgress: $0.progress(at: now)) } ?? keyframeAnimation.transform
-      shownPivotOffset = keyframeAnimation.pivotOffset
+    if let anchoredAnimation {
+      // the animation shows the transform's change, which gives the transform exactly, unlike keyframes in between, and
+      // the transform is the target once its change ends, see `addKeyframeAnimation`
+      let motion = anchoredAnimation.motion.flatMap { now < $0.endTime ? $0 : nil }
+      shown = motion.map { $0.transform(atProgress: $0.progress(at: now)) } ?? anchoredAnimation.transform
+      shownPivotOffset = anchoredAnimation.pivotOffset
     } else {
       // the layer's own transform, which a basic animation of it may change, applies about the anchor point
       shown = hasAnimations ? (shownValue(forKeyPath: "transform") as? CATransform3D) ?? transform : transform
@@ -246,11 +262,58 @@ extension CALayer {
       return shown
     }
 
-    // the first keyframe applies the transform about the new point at the size shown, so the change starts from the
+    // the animation applies its first transform about the new point at the size shown, so the change starts from the
     // transform about the new point that shows the same at that size
     let size = hasAnimations ? shownValue(forKeyPath: "bounds.size") as? CGSize ?? bounds.size : bounds.size
     let anchoredTransform = Self.anchoredTransform(shown, pivotOffset: shownPivotOffset, size: size)
     return Self.anchoredTransform(anchoredTransform, pivotOffset: -pivotOffset, size: size)
+  }
+
+  /// Adds one animation of the transform about the point, from the transform shown, which Core Animation interpolates
+  /// about the point, and sets the model transform.
+  ///
+  /// - Parameters:
+  ///   - transform: The transform that the layer ends at, before it applies about the point.
+  ///   - pivotOffset: The point's offset from the anchor point, in the unit space of the layer's bounds.
+  ///   - interpolator: The interpolator from the transform shown to the transform, which blends them linearly.
+  ///   - start: The transform shown, before it applies about the point.
+  ///   - newTransform: The transform about the point at the layer's size, the model transform.
+  ///   - size: The layer's size, which no animation changes.
+  ///   - timing: The timing of the change.
+  ///   - now: The layer's current time.
+  private func addBasicAnimation(transform: CATransform3D,
+                                 pivotOffset: SIMD2<Double>,
+                                 interpolator: TransformInterpolator,
+                                 from start: CATransform3D,
+                                 to newTransform: CATransform3D,
+                                 size: CGSize,
+                                 timing: AnimationTiming,
+                                 at now: TimeInterval)
+  {
+    let animation = CABasicAnimation.makeAnimation(
+      timing,
+      basicAnimation: { AnchoredTransformBasicAnimation() },
+      springAnimation: { AnchoredTransformSpringAnimation() }
+    )
+    let beginTime = CAAnimation.beginTime(at: now, delay: timing.delay)
+    animation.keyPath = "transform"
+    animation.fromValue = NSValue(caTransform3D: Self.anchoredTransform(start, pivotOffset: pivotOffset, size: size))
+    animation.toValue = NSValue(caTransform3D: newTransform)
+    animation.beginTime = beginTime
+    let anchoredAnimation = animation as! any AnchoredTransformAnimation // swiftlint:disable:this force_cast
+    anchoredAnimation.transform = transform
+    anchoredAnimation.pivotOffset = pivotOffset
+    anchoredAnimation.motion = TransformMotion(interpolator: interpolator, animation: animation, beginTime: beginTime)
+
+    // an animation of the transform in flight would show over the animation, or after it when it ends later
+    removeAnimations(forKeyPath: "transform")
+    add(animation, forKey: "transform")
+
+    #if DEBUG
+    WorkCounter.count(.animation)
+    #endif
+
+    setModelTransform(newTransform)
   }
 
   /// Adds the keyframe animation of the transform about the point, from when the transform or the size first moves to
@@ -358,7 +421,7 @@ extension CALayer {
       (transforms, deviation) = keyframeTransforms(count: count)
     }
 
-    let animation = AnchoredTransformAnimation()
+    let animation = AnchoredTransformKeyframeAnimation()
     animation.keyPath = "transform"
     animation.values = transforms.map { NSValue(caTransform3D: $0) }
     animation.duration = duration
@@ -440,33 +503,6 @@ extension CALayer {
   }
 }
 
-/// A keyframe animation of a layer's transform about a point of the layer, at the size that the layer shows at each
-/// keyframe, see `CALayer.updateTransform(_:anchor:oldSize:newSize:animationTiming:)`.
-///
-/// It keeps the transform and its change, so that a later update computes the transform that the keyframes show instead
-/// of reading it back from them. They're stored properties of the animation's class, as a key-value mark on an animation
-/// costs about as much as making the animation, see `FrameAnimation`.
-final class AnchoredTransformAnimation: CAKeyframeAnimation {
-
-  /// The transform that the keyframes end at, before it applies about the point.
-  var transform = CATransform3DIdentity
-
-  /// The point's offset from the layer's anchor point, in the unit space of the layer's bounds.
-  var pivotOffset = SIMD2<Double>.zero
-
-  /// The transform's change, or `nil` when the transform stays while the layer's size animates.
-  var motion: TransformMotion?
-
-  override func copy(with zone: NSZone? = nil) -> Any {
-    // Core Animation copies an animation when it's added, without the Swift properties, so the copy takes them here
-    let copy = super.copy(with: zone) as! AnchoredTransformAnimation // swiftlint:disable:this force_cast
-    copy.transform = transform
-    copy.pivotOffset = pivotOffset
-    copy.motion = motion
-    return copy
-  }
-}
-
 /// A frame animation's change of a layer's size, read once, which gives the part of the change that the animation shows
 /// at any time, as `CALayer.shownValue(forKeyPath:animations:at:)` gives it, see `CALayer.animateFrame(to:timing:)`.
 private struct FrameSizeChange {
@@ -531,21 +567,29 @@ struct TransformMotion {
   /// Creates a change that begins at a time, after the timing's delay.
   ///
   /// - Parameters:
-  ///   - from: The transform to change from.
-  ///   - to: The transform to change to.
+  ///   - interpolator: The interpolator between the transforms that the change goes from and to.
   ///   - timing: The timing.
   ///   - time: The time the change is made at, in the layer's time space.
-  /// - Returns: `nil` when the transforms don't interpolate, see `TransformInterpolator.init(from:to:)`.
-  init?(from: CATransform3D, to: CATransform3D, timing: AnimationTiming, at time: TimeInterval) {
-    guard let interpolator = TransformInterpolator(from: from, to: to) else {
-      return nil
-    }
+  init(interpolator: TransformInterpolator, timing: AnimationTiming, at time: TimeInterval) {
     // the timing's animation has the curve, the duration and the speed that an animation of the transform would have
-    let animation = CABasicAnimation.makeAnimation(timing)
+    self.init(
+      interpolator: interpolator,
+      animation: CABasicAnimation.makeAnimation(timing),
+      beginTime: CAAnimation.beginTime(at: time, delay: timing.delay)
+    )
+  }
+
+  /// Creates the change that an animation of the transform shows.
+  ///
+  /// - Parameters:
+  ///   - interpolator: The interpolator between the transforms that the change goes from and to.
+  ///   - animation: The animation, whose curve, duration and speed the change has.
+  ///   - beginTime: The time the change begins, in the layer's time space.
+  init(interpolator: TransformInterpolator, animation: CABasicAnimation, beginTime: TimeInterval) {
     self.interpolator = interpolator
     curve = AnimationCurve(animation)
     speed = Double(animation.speed)
-    beginTime = CAAnimation.beginTime(at: time, delay: timing.delay)
+    self.beginTime = beginTime
   }
 
   /// The time the change ends, in the layer's time space.

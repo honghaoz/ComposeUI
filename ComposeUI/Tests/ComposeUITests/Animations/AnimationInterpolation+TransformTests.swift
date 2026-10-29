@@ -92,6 +92,92 @@ class AnimationInterpolation_TransformTests: XCTestCase {
     expect(AnimationInterpolation.transform(from: CATransform3DIdentity, to: flat, progress: 0.5)) == nil
   }
 
+  func test_transformInterpolator_isLinear_forAffineTransformsThatDifferOnlyInScaleAndTranslation() throws {
+    // given: affine transforms that differ only in their scale and translation, under the same turn or none, and
+    // transforms that differ in their turn or skew, flips that make a half turn, and transforms in 3D
+    let turn = CATransform3DMakeRotation(30 * Constants.degree, 0, 0, 1)
+    var skew = CATransform3DIdentity
+    skew.m21 = 0.5
+    let linearCases: [(name: String, from: CATransform3D, to: CATransform3D)] = [
+      ("scale", CATransform3DIdentity, CATransform3DMakeScale(0.95, 0.95, 1)),
+      ("move", CATransform3DMakeTranslation(5, 7, 0), CATransform3DMakeTranslation(-3, 11, 0)),
+      ("scale and move", CATransform3DMakeTranslation(5, 7, 0), CATransform3DTranslate(CATransform3DMakeScale(1.2, 0.8, 1), 4, 4, 0)),
+      ("scale under a turn", turn, CATransform3DScale(turn, 0.5, 2, 1)),
+      ("flip of an axis", CATransform3DIdentity, Constants.flip),
+    ]
+    let otherCases: [(name: String, from: CATransform3D, to: CATransform3D)] = [
+      ("turn", CATransform3DIdentity, turn),
+      ("skew", CATransform3DIdentity, skew),
+      ("flip to the other flip", Constants.flip, CATransform3DMakeScale(1, -1, 1)),
+      ("flip of both axes", CATransform3DIdentity, CATransform3DMakeScale(-1, -1, 1)),
+      ("scale in perspective", Constants.perspective, CATransform3DConcat(CATransform3DMakeScale(2, 2, 1), Constants.perspective)),
+    ]
+
+    for testCase in linearCases {
+      // when: interpolating between transforms that differ only in their scale and translation
+      let interpolator = try unwrap(TransformInterpolator(from: testCase.from, to: testCase.to), testCase.name)
+
+      // then: the interpolation is linear, and blends the matrices element by element
+      expect(interpolator.isLinear, testCase.name) == true
+      expectTransform(interpolator.transform(atProgress: 0.3), toBe: linearBlend(from: testCase.from, to: testCase.to, progress: 0.3), within: 1e-9, testCase.name)
+    }
+    for testCase in otherCases {
+      // when: interpolating between other transforms
+      let interpolator = try unwrap(TransformInterpolator(from: testCase.from, to: testCase.to), testCase.name)
+
+      // then: the interpolation isn't linear
+      expect(interpolator.isLinear, testCase.name) == false
+    }
+  }
+
+  func test_transformInterpolator_isLinear_forAScaleUnderAnyTurn() throws {
+    // given: a press effect's scale and a scale of each axis by its own factor, under a turn of each whole degree, which
+    // rounding gives decompositions that differ in their last digits
+    for degree in 1 ..< 360 {
+      let turn = CATransform3DMakeRotation(CGFloat(degree) * Constants.degree, 0, 0, 1)
+      for scaled in [CATransform3DScale(turn, 0.95, 0.95, 1), CATransform3DScale(turn, 1.2, 0.8, 1)] {
+        // when: interpolating from the turn to the scale under it
+        let interpolator = try unwrap(TransformInterpolator(from: turn, to: scaled), "\(degree)°")
+
+        // then: the interpolation is linear
+        expect(interpolator.isLinear, "\(degree)°") == true
+      }
+    }
+  }
+
+  func test_transformInterpolator_isLinear_onlyForDifferencesWithinRounding() throws {
+    // given: a scale to twice the size under a turn or a skew of 1e-11, ten times the rounding tolerance, and of 1e-13,
+    // a tenth of it, built by hand, as `CATransform3DMakeRotation` makes a turn this small the identity
+    func doubleScale(underTurn angle: CGFloat) -> CATransform3D {
+      var transform = CATransform3DIdentity
+      transform.m11 = 2 * cos(angle)
+      transform.m12 = 2 * sin(angle)
+      transform.m21 = -2 * sin(angle)
+      transform.m22 = 2 * cos(angle)
+      return transform
+    }
+    func doubleScale(underSkew skew: CGFloat) -> CATransform3D {
+      var transform = CATransform3DMakeScale(2, 2, 1)
+      transform.m21 = 2 * skew
+      return transform
+    }
+    let cases: [(name: String, to: CATransform3D, isLinear: Bool)] = [
+      ("turn of 1e-11", doubleScale(underTurn: 1e-11), false),
+      ("skew of 1e-11", doubleScale(underSkew: 1e-11), false),
+      ("turn of 1e-13", doubleScale(underTurn: 1e-13), true),
+      ("skew of 1e-13", doubleScale(underSkew: 1e-13), true),
+    ]
+
+    for testCase in cases {
+      // when: interpolating from no transform to the scale
+      let interpolator = try unwrap(TransformInterpolator(from: CATransform3DIdentity, to: testCase.to), testCase.name)
+
+      // then: a turn or a skew ten times the tolerance makes the interpolation not linear, and one a tenth of it counts
+      // as rounding
+      expect(interpolator.isLinear, testCase.name) == testCase.isLinear
+    }
+  }
+
   // MARK: - Core Animation
 
   func test_transform_matchesCoreAnimation() throws {
@@ -158,6 +244,19 @@ class AnimationInterpolation_TransformTests: XCTestCase {
   }
 
   // MARK: - Helpers
+
+  /// The transform a progress of the way from one transform to another, blending their elements one by one.
+  private func linearBlend(from: CATransform3D, to: CATransform3D, progress: CGFloat) -> CATransform3D {
+    func blend(_ from: CGFloat, _ to: CGFloat) -> CGFloat {
+      from + (to - from) * progress
+    }
+    return CATransform3D(
+      m11: blend(from.m11, to.m11), m12: blend(from.m12, to.m12), m13: blend(from.m13, to.m13), m14: blend(from.m14, to.m14),
+      m21: blend(from.m21, to.m21), m22: blend(from.m22, to.m22), m23: blend(from.m23, to.m23), m24: blend(from.m24, to.m24),
+      m31: blend(from.m31, to.m31), m32: blend(from.m32, to.m32), m33: blend(from.m33, to.m33), m34: blend(from.m34, to.m34),
+      m41: blend(from.m41, to.m41), m42: blend(from.m42, to.m42), m43: blend(from.m43, to.m43), m44: blend(from.m44, to.m44)
+    )
+  }
 
   private func expectTransform(_ transform: CATransform3D,
                                toBe expected: CATransform3D,
