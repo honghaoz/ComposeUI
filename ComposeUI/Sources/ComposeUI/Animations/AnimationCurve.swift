@@ -69,11 +69,13 @@ struct AnimationCurve {
     }
   }
 
-  /// Reads the curve of a timing function, to evaluate it at fractions.
+  /// Reads the curve of a timing function, to evaluate it at fractions, or at times within a duration.
   ///
-  /// - Parameter timingFunction: The timing function.
-  init(timingFunction: CAMediaTimingFunction) {
-    duration = 1
+  /// - Parameters:
+  ///   - timingFunction: The timing function.
+  ///   - duration: The duration of the curve, in seconds.
+  init(timingFunction: CAMediaTimingFunction, duration: TimeInterval = 1) {
+    self.duration = duration
     shape = Self.timingFunctionShape(of: timingFunction)
   }
 

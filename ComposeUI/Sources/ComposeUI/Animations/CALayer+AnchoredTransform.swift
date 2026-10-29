@@ -667,12 +667,23 @@ struct TransformMotion {
   ///   - timing: The timing.
   ///   - time: The time the change is made at, in the layer's time space.
   init(interpolator: TransformInterpolator, timing: AnimationTiming, at time: TimeInterval) {
-    // the timing's animation has the curve, the duration and the speed that an animation of the transform would have
-    self.init(
-      interpolator: interpolator,
-      animation: CABasicAnimation.makeAnimation(timing),
-      beginTime: CAAnimation.beginTime(at: time, delay: timing.delay)
-    )
+    let beginTime = CAAnimation.beginTime(at: time, delay: timing.delay)
+    switch timing.timing {
+    case .timingFunction(let duration, let timingFunction) where duration > 0:
+      // making the timing's animation allocates, so the curve, the duration and the speed, which an animation keeps as a
+      // `Float`, come from the timing as `CABasicAnimation.makeAnimation(_:)` sets them
+      self.init(
+        interpolator: interpolator,
+        curve: AnimationCurve(timingFunction: timingFunction, duration: duration),
+        speed: Double(Float(timing.speed)),
+        beginTime: beginTime
+      )
+    case .timingFunction,
+         .spring:
+      // Core Animation gives a spring its duration, and a zero duration makes a snap, so the timing's animation has the
+      // curve, the duration and the speed that an animation of the transform would have
+      self.init(interpolator: interpolator, animation: CABasicAnimation.makeAnimation(timing), beginTime: beginTime)
+    }
   }
 
   /// Creates the change that an animation of the transform shows.
@@ -682,9 +693,13 @@ struct TransformMotion {
   ///   - animation: The animation, whose curve, duration and speed the change has.
   ///   - beginTime: The time the change begins, in the layer's time space.
   init(interpolator: TransformInterpolator, animation: CABasicAnimation, beginTime: TimeInterval) {
+    self.init(interpolator: interpolator, curve: AnimationCurve(animation), speed: Double(animation.speed), beginTime: beginTime)
+  }
+
+  private init(interpolator: TransformInterpolator, curve: AnimationCurve, speed: Double, beginTime: TimeInterval) {
     self.interpolator = interpolator
-    curve = AnimationCurve(animation)
-    speed = Double(animation.speed)
+    self.curve = curve
+    self.speed = speed
     self.beginTime = beginTime
   }
 
