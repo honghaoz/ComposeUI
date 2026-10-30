@@ -1298,8 +1298,9 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
     let turnAtTheOldSize = layer.transform
 
-    // when: the transaction commits, the first since the view joined the window, and the view grows to 80 x 40
-    CATransaction.flush()
+    // when: the run loop turns, committing the transaction, the first since the view joined the window, and the view
+    // grows to 80 x 40
+    RunLoop.main.run(until: Date())
     let transformAfterTheFirstCommit = layer.transform
     view.frame = CGRect(origin: .zero, size: Constants.largeSize)
 
@@ -1310,7 +1311,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     // when: an update keeps the transform, and the view moves
     layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
     view.frame = CGRect(origin: CGPoint(x: 10, y: 10), size: Constants.largeSize)
-    CATransaction.flush()
+    RunLoop.main.run(until: Date())
 
     // then: the turn applies about the corner at the new size, through AppKit's reset on the move
     try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 0.01)
