@@ -74,6 +74,19 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 1e-9)
   }
 
+  func test_updateTransform_withoutAnAnchor_appliesAboutTheCenter() throws {
+    // given: a layer whose anchor point is at its top left corner
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: .zero)
+    let layer = timeline.layer
+
+    // when: a quarter turn applies without an anchor
+    layer.updateTransform(Constants.quarterTurn, oldSize: layer.bounds.size, animationTiming: nil)
+
+    // then: the layer shows the turn about its center
+    timeline.show(at: 100)
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .center, within: 1e-9)
+  }
+
   func test_updateTransform_zeroDuration_appliesAtOnce() throws {
     // given: a layer at rest
     let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
@@ -1222,6 +1235,94 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     timeline.show(at: 102)
     try expectShownTransform(of: layer, Constants.doubleScale, about: .topLeft, within: 0.01)
   }
+
+  // MARK: - Without an Old Size
+
+  func test_updateTransform_withoutAnOldSize_withoutAnAnchor_appliesAboutTheCenter() throws {
+    // given: a layer whose anchor point is at its top left corner
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: .zero)
+    let layer = timeline.layer
+
+    // when: a quarter turn applies without an anchor
+    layer.updateTransform(Constants.quarterTurn, animationTiming: nil)
+
+    // then: the layer shows the turn about its center
+    timeline.show(at: 100)
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .center, within: 1e-9)
+  }
+
+  func test_updateTransform_withoutAnOldSize_resizeAtRest_appliesTheTransformAtTheNewSizeAtOnce() throws {
+    // given: a layer of 40 x 20 turned a quarter turn about its top left corner, which remembers its size then
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+
+    // when: the layer grows to 80 x 40 at once, and an animated update keeps the transform
+    layer.retargetFrame(to: CGRect(origin: .zero, size: Constants.largeSize))
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: .linear(duration: 1))
+
+    // then: the turn applies about the corner at the new size at once, as only the size changed
+    expect(layer.animation(forKey: "transform")) == nil
+    timeline.show(at: 100)
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 0.01)
+  }
+
+  func test_updateTransform_withoutAnOldSize_resizeDuringAChangeToATransformThatTheSizeDoesntMove_followsTheResize() throws {
+    // given: a layer of 40 x 20 turning back from a quarter turn to no turn about its top left corner over 2 seconds,
+    // whose transform at the end, the identity, the size doesn't move
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, animationTiming: .linear(duration: 2))
+
+    // when: a second in, an update without a timing makes it 80 x 40, keeping the transform
+    timeline.move(to: 101)
+    layer.retargetFrame(to: CGRect(origin: .zero, size: Constants.largeSize))
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, animationTiming: nil)
+
+    // then: the turn keeps its course about the corner at the new size
+    for time in [101.0, 101.5] {
+      timeline.show(at: time)
+      try expectShownTransform(of: layer, interpolated(from: Constants.quarterTurn, to: CATransform3DIdentity, progress: (time - 100) / 2), about: .topLeft, within: 0.01)
+    }
+  }
+
+  #if canImport(AppKit)
+  func test_updateTransform_withoutAnOldSize_appKitViewInAWindow_keepsTheTransformThroughAppKitsResets() throws {
+    // given: a layer-backed view of 40 x 20 in a window, turned a quarter turn about its top left corner
+    let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 200, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+    let view = NSView(frame: CGRect(origin: .zero, size: Constants.smallSize))
+    view.wantsLayer = true
+    try unwrap(window.contentView).addSubview(view)
+    let layer = try unwrap(view.layer)
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+    let turnAtTheOldSize = layer.transform
+
+    // when: the transaction commits, the first since the view joined the window, and the view grows to 80 x 40
+    CATransaction.flush()
+    let transformAfterTheFirstCommit = layer.transform
+    view.frame = CGRect(origin: .zero, size: Constants.largeSize)
+
+    // then: AppKit's resets leave the turn about the corner at the old size
+    expect(CATransform3DEqualToTransform(transformAfterTheFirstCommit, turnAtTheOldSize)) == true
+    expect(CATransform3DEqualToTransform(layer.transform, turnAtTheOldSize)) == true
+
+    // when: an update keeps the transform, and the view moves
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+    view.frame = CGRect(origin: CGPoint(x: 10, y: 10), size: Constants.largeSize)
+    CATransaction.flush()
+
+    // then: the turn applies about the corner at the new size, through AppKit's reset on the move
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 0.01)
+
+    // when: an update turns it back to no turn, and the view moves again
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, animationTiming: nil)
+    view.frame = CGRect(origin: CGPoint(x: 20, y: 20), size: Constants.largeSize)
+
+    // then: the view's layer stays at no turn, as the update stopped keeping the turn
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+  #endif
 
   // MARK: - Helpers
 
