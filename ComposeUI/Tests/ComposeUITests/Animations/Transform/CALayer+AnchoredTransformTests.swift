@@ -1223,6 +1223,151 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     try expectShownTransform(of: layer, Constants.doubleScale, about: .topLeft, within: 0.01)
   }
 
+  // MARK: - Without an Old Size
+
+  func test_updateTransform_withoutAnOldSize_withoutAnAnchor_appliesAboutTheCenter() throws {
+    // given: a layer whose anchor point is at its top left corner
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: .zero)
+    let layer = timeline.layer
+
+    // when: a quarter turn applies without an anchor
+    layer.updateTransform(Constants.quarterTurn, animationTiming: nil)
+
+    // then: the layer shows the turn about its center
+    timeline.show(at: 100)
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .center, within: 1e-9)
+  }
+
+  func test_updateTransform_withoutAnOldSize_resizeAtRest_appliesTheTransformAtTheNewSizeAtOnce() throws {
+    // given: a layer of 40 x 20 turned a quarter turn about its top left corner, which remembers its size then
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+
+    // when: the layer grows to 80 x 40 at once, and an animated update keeps the transform
+    layer.retargetFrame(to: CGRect(origin: .zero, size: Constants.largeSize))
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: .linear(duration: 1))
+
+    // then: the turn applies about the corner at the new size at once, as only the size changed
+    expect(layer.animation(forKey: "transform")) == nil
+    timeline.show(at: 100)
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 0.01)
+  }
+
+  func test_updateTransform_withoutAnOldSize_resizeDuringAChangeToATransformThatTheSizeDoesntMove_followsTheResize() throws {
+    // given: a layer of 40 x 20 turning back from a quarter turn to no turn about its top left corner over 2 seconds,
+    // whose transform at the end, the identity, the size doesn't move
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, animationTiming: .linear(duration: 2))
+
+    // when: a second in, an update without a timing makes it 80 x 40, keeping the transform
+    timeline.move(to: 101)
+    layer.retargetFrame(to: CGRect(origin: .zero, size: Constants.largeSize))
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, animationTiming: nil)
+
+    // then: the turn keeps its course about the corner at the new size
+    for time in [101.0, 101.5] {
+      timeline.show(at: time)
+      try expectShownTransform(of: layer, interpolated(from: Constants.quarterTurn, to: CATransform3DIdentity, progress: (time - 100) / 2), about: .topLeft, within: 0.01)
+    }
+  }
+
+  func test_updateTransform_withoutAnOldSize_afterTheTransformWasSetAnotherWay_asserts() throws {
+    // given: the ways to set a layer's transform other than the function, and a handler that records the assertions
+    let setTransformAnotherWay: [(CALayer) -> Void] = [
+      { $0.transform = Constants.doubleScale },
+      { $0.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: $0.bounds.size, animationTiming: nil) },
+    ]
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    for setTransform in setTransformAnotherWay {
+      // given: a layer turned a quarter turn about its top left corner by the function, then updated with the same turn
+      let layer = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center).layer
+      layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+      layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+      expect(assertionMessages) == []
+
+      // when: the transform is set another way, and the function updates the layer
+      setTransform(layer)
+      layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+
+      // then: the update asserts
+      expect(assertionMessages) == ["the layer's transform was set other than through updateTransform(_:anchor:animationTiming:)"]
+      assertionMessages.removeAll()
+    }
+  }
+
+  func test_updateTransform_withoutAnOldSize_afterTheFrameworkRestoresTheIdentity_doesNotAssert() throws {
+    // given: a layer turned a quarter turn about its top left corner by the function, whose transform the framework then
+    // restores to the identity, as for a renderable going back to the reuse pool, and a handler that records the
+    // assertions
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+    layer.restoreIdentityTransformIfNeeded()
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the function turns it again
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+
+    // then: nothing asserts, and the layer shows the turn about the corner
+    expect(assertionMessages) == []
+    timeline.show(at: 100)
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 1e-9)
+  }
+
+  #if canImport(AppKit)
+  func test_updateTransform_withoutAnOldSize_appKitViewInAWindow_keepsTheTransformThroughAppKitsResets() throws {
+    // given: a layer-backed view of 40 x 20 in a window, turned a quarter turn about its top left corner
+    let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 200, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+    let view = NSView(frame: CGRect(origin: .zero, size: Constants.smallSize))
+    view.wantsLayer = true
+    try unwrap(window.contentView).addSubview(view)
+    let layer = try unwrap(view.layer)
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+    let turnAtTheOldSize = layer.transform
+
+    // when: the run loop turns, committing the transaction, the first since the view joined the window, and the view
+    // grows to 80 x 40
+    RunLoop.main.run(until: Date())
+    let transformAfterTheFirstCommit = layer.transform
+    view.frame = CGRect(origin: .zero, size: Constants.largeSize)
+
+    // then: AppKit's resets leave the turn about the corner at the old size
+    expect(CATransform3DEqualToTransform(transformAfterTheFirstCommit, turnAtTheOldSize)) == true
+    expect(CATransform3DEqualToTransform(layer.transform, turnAtTheOldSize)) == true
+
+    // when: an update keeps the transform, and the view moves
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+    view.frame = CGRect(origin: CGPoint(x: 10, y: 10), size: Constants.largeSize)
+    RunLoop.main.run(until: Date())
+
+    // then: the turn applies about the corner at the new size, through AppKit's reset on the move
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 0.01)
+
+    // when: an update turns it back to no turn, and the view moves again
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, animationTiming: nil)
+    view.frame = CGRect(origin: CGPoint(x: 20, y: 20), size: Constants.largeSize)
+
+    // then: the view's layer stays at no turn, as the update stopped keeping the turn
+    expect(CATransform3DIsIdentity(layer.transform)) == true
+  }
+  #endif
+
   // MARK: - Helpers
 
   /// The distance between where a layer shows a point of it and the point's place in the frame that it shows, which a

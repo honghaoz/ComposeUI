@@ -30,23 +30,90 @@
 
 import QuartzCore
 
-extension CALayer {
+public extension CALayer {
 
-  /// Applies a transform about a point of the layer unless the layer already has it, animating a change with the timing
-  /// if given, and keeps the point in place while the transform changes and while the layer's size animates.
+  /// Applies a transform about a point of the layer, animating a change with the timing if given, and keeps the point in
+  /// place while the transform changes and while the layer's size animates.
   ///
-  /// A changed transform animates from the transform that the layer shows, and a change during another one about the
-  /// same point stacks on it, as frame changes do: each change goes on along its own timing, so the motion of the change
-  /// in flight carries on, see `TransformChanges`. Without a timing, a transform animation in flight glides to the new
-  /// transform over the time that its changes have left, as `retarget(keyPath:to:)` does, and a transform at rest changes
-  /// at once. While the layer's size animates, the transform follows the size that the layer shows, however the size's
-  /// animations stack.
+  /// A change animates from the transform that the layer shows, and a change made during another one about the same
+  /// point adds to it, so that the motion in flight carries on. Without a timing, a transform animation in flight glides
+  /// to the new transform over the time that it has left, and a layer at rest takes the new transform at once.
+  ///
+  /// The layer remembers its size on each call, so that the next call tells a resize from a change of the transform.
+  /// After the layer's size changes, call it again with the same transform, as a layout pass does, and the transform
+  /// applies about the point at the new size, following the size's animations.
+  ///
+  /// Set the layer's transform only through this function: it remembers the size it set the transform at, which a
+  /// transform set another way, such as through the `transform` property or the transform modifier, leaves out of date.
+  /// Debug builds assert when the layer's transform isn't the one that the function last set.
+  ///
+  /// On AppKit, a view's layer keeps the transform when AppKit resets it to the identity, as AppKit does when the view
+  /// moves or resizes, which also undoes setting the `transform` property to the identity.
   ///
   /// - Parameters:
   ///   - transform: The transform to apply.
   ///   - anchor: The point of the layer to apply the transform about, in the unit space of its bounds with the origin
   ///     at the top left.
-  ///   - oldSize: The layer's size before the update, which the layer's transform applies about the point at.
+  ///   - animationTiming: The timing to animate a changed transform with, or `nil` to apply it without starting an
+  ///     animation.
+  @_spi(Private)
+  func updateTransform(_ transform: CATransform3D, anchor: UnitPoint = .center, animationTiming: AnimationTiming?) {
+    let transformSize = self.transformSize
+    #if DEBUG
+    if let transformSize {
+      ComposeUI.assert(
+        CATransform3DEqualToTransform(self.transform, transformSize.transform),
+        "the layer's transform was set other than through updateTransform(_:anchor:animationTiming:)"
+      )
+    }
+    #endif
+    // the first call has no size to tell a resize by, so the layer's transform counts as set at the layer's size
+    let oldSize = transformSize?.size ?? bounds.size
+
+    #if canImport(AppKit)
+    // AppKit resets only a view's layer transform, which the next call would take for a change
+    let keepsTransform = backedView != nil
+    let mayBeKeeping = keepsTransform && pauseKeepingTransform()
+    #endif
+
+    updateTransform(transform, anchor: anchor, oldSize: oldSize, animationTiming: animationTiming)
+
+    #if canImport(AppKit)
+    if keepsTransform {
+      resumeKeepingTransform(mayBeKeeping: mayBeKeeping)
+    }
+    #endif
+
+    let rememberedSize: TransformSize
+    if let transformSize {
+      transformSize.size = bounds.size
+      rememberedSize = transformSize
+    } else {
+      rememberedSize = TransformSize(bounds.size)
+      self.transformSize = rememberedSize
+    }
+    #if DEBUG
+    rememberedSize.transform = self.transform
+    #endif
+  }
+}
+
+extension CALayer {
+
+  /// Applies a transform about a point of the layer, animating a change with the timing if given, and keeps the point in
+  /// place while the transform changes and while the layer's size animates, given the size that the layer's transform
+  /// was set at.
+  ///
+  /// It works as `updateTransform(_:anchor:animationTiming:)` does, for a caller that knows the size that the layer's
+  /// transform was set at, such as the size of the layer's previous frame in a layout pass: the size tells a resize from
+  /// a change of the transform. Unlike that function, it doesn't remember the size, and it doesn't keep a view's layer
+  /// transform through AppKit's resets.
+  ///
+  /// - Parameters:
+  ///   - transform: The transform to apply.
+  ///   - anchor: The point of the layer to apply the transform about, in the unit space of its bounds with the origin
+  ///     at the top left.
+  ///   - oldSize: The layer's size when its transform was set, before the update.
   ///   - animationTiming: The timing to animate a changed transform with, or `nil` to apply it without starting an
   ///     animation.
   func updateTransform(_ transform: CATransform3D,
@@ -424,5 +491,62 @@ extension CALayer {
     }
     let pivoted = CATransform3DConcat(CATransform3DMakeTranslation(-offsetX, -offsetY, 0), transform)
     return CATransform3DConcat(pivoted, CATransform3DMakeTranslation(offsetX, offsetY, 0))
+  }
+}
+
+extension CALayer {
+
+  /// Restores the layer's model transform to identity, forgets the size that `updateTransform(_:anchor:animationTiming:)`
+  /// remembers, and on AppKit, stops keeping the transform, see `keepTransform(_:)`.
+  func restoreIdentityTransformIfNeeded() {
+    guard !CATransform3DIsIdentity(transform) else {
+      return
+    }
+
+    #if canImport(AppKit)
+    // the transform's owner drops the transform, which a kept transform would put back
+    stopKeepingTransform()
+    #endif
+
+    // what `updateTransform(_:anchor:animationTiming:)` remembers would make its next call assert on this identity
+    transformSize = nil
+    disableActions(for: "transform") {
+      transform = CATransform3DIdentity
+    }
+  }
+}
+
+// MARK: - TransformSize
+
+/// The layer's size at the last call of `CALayer.updateTransform(_:anchor:animationTiming:)`, the size that the layer's
+/// transform applies about the point at.
+private final class TransformSize {
+
+  /// The layer's size at the function's last call.
+  var size: CGSize
+
+  #if DEBUG
+  /// The layer's transform after the function's last call, which the layer has until something else sets its transform.
+  var transform = CATransform3DIdentity
+  #endif
+
+  init(_ size: CGSize) {
+    self.size = size
+  }
+}
+
+private extension CALayer {
+
+  static let transformSizeKey = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
+
+  /// The layer's size at the last call of `updateTransform(_:anchor:animationTiming:)`, or `nil` before the first call
+  /// and after the framework resets the transform.
+  var transformSize: TransformSize? {
+    get {
+      objc_getAssociatedObject(self, CALayer.transformSizeKey) as? TransformSize
+    }
+    set {
+      objc_setAssociatedObject(self, CALayer.transformSizeKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
   }
 }
