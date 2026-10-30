@@ -47,15 +47,14 @@ extension CALayer {
   ///   - anchor: The point of the layer to apply the transform about, in the unit space of its bounds with the origin
   ///     at the top left.
   ///   - oldSize: The layer's size before the update, which the layer's transform applies about the point at.
-  ///   - newSize: The layer's size.
   ///   - animationTiming: The timing to animate a changed transform with, or `nil` to apply it without starting an
   ///     animation.
   func updateTransform(_ transform: CATransform3D,
                        anchor: UnitPoint,
                        oldSize: CGSize,
-                       newSize: CGSize,
                        animationTiming: AnimationTiming?)
   {
+    let newSize = bounds.size
     let anchorPoint = self.anchorPoint
     let pivotOffset = SIMD2(anchor.x - Double(anchorPoint.x), anchor.y - Double(anchorPoint.y))
     let newTransform = Self.anchoredTransform(transform, pivotOffset: pivotOffset, size: newSize)
@@ -78,7 +77,7 @@ extension CALayer {
     )
   }
 
-  /// Changes the transform to a transform about a point, see `updateTransform(_:anchor:oldSize:newSize:animationTiming:)`.
+  /// Changes the transform to a transform about a point, see `updateTransform(_:anchor:oldSize:animationTiming:)`.
   ///
   /// It's never inlined, since most updates keep the transform and return before reaching it, while its body would make
   /// every update save and restore more registers.

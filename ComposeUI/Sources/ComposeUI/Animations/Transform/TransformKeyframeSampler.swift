@@ -33,7 +33,7 @@ import simd
 
 /// The keyframes of a transform about a point of a layer, at the size that the layer shows at each keyframe, from when
 /// the transform or the size first moves to when the last of them stops, see
-/// `CALayer.updateTransform(_:anchor:oldSize:newSize:animationTiming:)`.
+/// `CALayer.updateTransform(_:anchor:oldSize:animationTiming:)`.
 struct TransformKeyframeSampler {
 
   /// The time the keyframes begin, in the layer's time space.
