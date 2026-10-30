@@ -182,8 +182,8 @@ class CALayer_KeptTransformTests: XCTestCase {
     // when: making and releasing them again
     let memory = MemoryUsage.retained(by: makeAndReleaseKeepingLayers)
 
-    // then: the layers leave no heap blocks behind, where each would leave the observation state that it keeps
-    expect(memory.blocks) < Constants.deallocatingLayerCount / 10
+    // then: the layers leave no observation state behind
+    expect(memory.bytes) < Constants.deallocatingLayersHeapLimit
   }
 
   func test_keepTransform_viewInAWindowThatCloses_deallocates() throws {
@@ -399,6 +399,11 @@ class CALayer_KeptTransformTests: XCTestCase {
 
     /// The number of layers, and of views' layers, that the deallocation test makes and releases.
     static let deallocatingLayerCount = 1000
+
+    /// The heap growth, in bytes, below which the deallocation test's layers leave nothing behind. The process's other
+    /// allocations move the heap by up to about 40 KB a run, and by over a thousand small blocks, while observations
+    /// left on the layers leave at least about 250 KB, so bytes tell the two apart where a count of blocks doesn't.
+    static let deallocatingLayersHeapLimit = 100000
   }
 }
 #endif
