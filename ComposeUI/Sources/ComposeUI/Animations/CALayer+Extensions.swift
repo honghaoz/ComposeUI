@@ -116,6 +116,8 @@ extension CALayer {
     // the transform's owner drops the transform, which a kept transform would put back
     stopKeepingTransform()
     #endif
+    // and the size that `updateTransform(_:anchor:animationTiming:)` set it at, so that its next call starts afresh
+    forgetTransformSize()
     disableActions(for: "transform") {
       transform = CATransform3DIdentity
     }

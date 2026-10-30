@@ -533,3 +533,12 @@ private extension CALayer {
     }
   }
 }
+
+extension CALayer {
+
+  /// Forgets the size that `updateTransform(_:anchor:animationTiming:)` set the transform at, for a transform that the
+  /// framework resets, so that the function's next call takes the layer's transform as set at the layer's size.
+  func forgetTransformSize() {
+    transformSize = nil
+  }
+}

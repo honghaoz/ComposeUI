@@ -1318,6 +1318,31 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     }
   }
 
+  func test_updateTransform_withoutAnOldSize_afterTheFrameworkRestoresTheIdentity_doesNotAssert() throws {
+    // given: a layer turned a quarter turn about its top left corner by the function, whose transform the framework then
+    // restores to the identity, as for a renderable going back to the reuse pool, and a handler that records the
+    // assertions
+    let timeline = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+    layer.restoreIdentityTransformIfNeeded()
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the function turns it again
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+
+    // then: nothing asserts, and the layer shows the turn about the corner
+    expect(assertionMessages) == []
+    timeline.show(at: 100)
+    try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 1e-9)
+  }
+
   #if canImport(AppKit)
   func test_updateTransform_withoutAnOldSize_appKitViewInAWindow_keepsTheTransformThroughAppKitsResets() throws {
     // given: a layer-backed view of 40 x 20 in a window, turned a quarter turn about its top left corner
