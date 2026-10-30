@@ -49,12 +49,11 @@ extension CALayer {
       return
     }
 
-    if let keeper = objc_getAssociatedObject(self, TransformKeeper.key) as? TransformKeeper {
-      keeper.transform = transform
-      keeper.isPaused = false
+    if let transformKeeper {
+      transformKeeper.transform = transform
+      transformKeeper.isPaused = false
     } else {
-      let keeper = TransformKeeper(layer: self, transform: transform)
-      objc_setAssociatedObject(self, TransformKeeper.key, keeper, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+      transformKeeper = TransformKeeper(layer: self, transform: transform)
     }
   }
 
@@ -69,7 +68,7 @@ extension CALayer {
     guard TransformKeeper.count > 0, !CATransform3DIsIdentity(transform) else {
       return false
     }
-    (objc_getAssociatedObject(self, TransformKeeper.key) as? TransformKeeper)?.isPaused = true
+    transformKeeper?.isPaused = true
     return true
   }
 
@@ -88,7 +87,7 @@ extension CALayer {
   /// Stops keeping the layer's transform, see `keepTransform(_:)`.
   func stopKeepingTransform() {
     // the layer has the only reference to its keeper, so the keeper goes, and its observation with it
-    objc_setAssociatedObject(self, TransformKeeper.key, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    transformKeeper = nil
   }
 }
 
@@ -97,9 +96,6 @@ extension CALayer {
 /// It's kept on the layer as an associated object, since a layer holds a value that it stores for a key until the
 /// transaction commits, which would keep a removed keeper putting the transform back.
 private final class TransformKeeper: NSObject {
-
-  /// The key of the keeper on a layer, a stable address.
-  static let key = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
 
   /// The number of keepers alive.
   ///
@@ -156,6 +152,21 @@ private final class TransformKeeper: NSObject {
     layer.setKeyPathValue("transform", NSValue(caTransform3D: transform))
   }
 }
+
+private extension CALayer {
+
+  static let transformKeeperKey = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
+
+  /// The keeper that puts the layer's kept transform back, or `nil` when the layer keeps none, see `keepTransform(_:)`.
+  var transformKeeper: TransformKeeper? {
+    get {
+      objc_getAssociatedObject(self, CALayer.transformKeeperKey) as? TransformKeeper
+    }
+    set {
+      objc_setAssociatedObject(self, CALayer.transformKeeperKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
+  }
+}
 #endif
 
 extension CALayer {
@@ -169,7 +180,7 @@ extension CALayer {
   @inline(__always)
   func withTransformKeepingPaused(_ work: () -> Void) {
     #if canImport(AppKit)
-    guard TransformKeeper.count > 0, let keeper = objc_getAssociatedObject(self, TransformKeeper.key) as? TransformKeeper else {
+    guard TransformKeeper.count > 0, let keeper = transformKeeper else {
       work()
       return
     }

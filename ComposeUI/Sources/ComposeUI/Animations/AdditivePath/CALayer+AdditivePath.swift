@@ -129,7 +129,7 @@ public extension CALayer {
   ///     was made for, and the new width with the old height, too.
   @_spi(Private)
   func animatePath(keyPath: String, timing: AnimationTiming, to path: (CGSize) -> CGPath) {
-    let pathSizes = PathSizes.of(self)
+    let pathSizes = self.pathSizes
     let newPath = animatePath(keyPath: keyPath, timing: timing, resizingFrom: { pathSizes.size(forKeyPath: keyPath, of: $0) }, to: path)
     pathSizes.remember(newPath, size: bounds.size, forKeyPath: keyPath)
   }
@@ -161,7 +161,7 @@ public extension CALayer {
   ///     the size the current path was made for, and the new width with the old height, too.
   @_spi(Private)
   func retargetPath(keyPath: String, to path: (CGSize) -> CGPath) {
-    let pathSizes = PathSizes.of(self)
+    let pathSizes = self.pathSizes
     let newPath = retargetPath(keyPath: keyPath, resizingFrom: { pathSizes.size(forKeyPath: keyPath, of: $0) }, to: path)
     pathSizes.remember(newPath, size: bounds.size, forKeyPath: keyPath)
   }
@@ -406,8 +406,7 @@ private final class PathChangesBox {
 }
 
 /// The sizes a layer's paths were made for, by the functions that take the path for a size, such as
-/// `CALayer.animatePath(keyPath:timing:to:)`. An extension can't add stored properties to a layer, so they're kept on it
-/// as an associated object.
+/// `CALayer.animatePath(keyPath:timing:to:)`.
 private final class PathSizes {
 
   /// A path made for a size.
@@ -423,24 +422,8 @@ private final class PathSizes {
     var size: CGSize
   }
 
-  /// The key of the sizes on a layer, a stable address.
-  private static let key = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
-
   /// The paths made for a size, one for each key path.
   private var entries: [Entry] = []
-
-  /// The sizes of a layer's paths, kept on the layer from its first path made for a size.
-  ///
-  /// - Parameter layer: The layer.
-  /// - Returns: The sizes.
-  static func of(_ layer: CALayer) -> PathSizes {
-    if let pathSizes = objc_getAssociatedObject(layer, key) as? PathSizes {
-      return pathSizes
-    }
-    let pathSizes = PathSizes()
-    objc_setAssociatedObject(layer, key, pathSizes, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-    return pathSizes
-  }
 
   /// The size the current path at a key path was made for.
   ///
@@ -468,5 +451,21 @@ private final class PathSizes {
     } else {
       entries.append(Entry(keyPath: keyPath, path: path, size: size))
     }
+  }
+}
+
+private extension CALayer {
+
+  static let pathSizesKey = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
+
+  /// The sizes that the layer's paths were made for, kept on the layer from its first path made for a size.
+  var pathSizes: PathSizes {
+    if let pathSizes = objc_getAssociatedObject(self, CALayer.pathSizesKey) as? PathSizes {
+      return pathSizes
+    }
+
+    let pathSizes = PathSizes()
+    objc_setAssociatedObject(self, CALayer.pathSizesKey, pathSizes, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    return pathSizes
   }
 }
