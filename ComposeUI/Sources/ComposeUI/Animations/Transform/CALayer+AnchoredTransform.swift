@@ -39,8 +39,9 @@ public extension CALayer {
   /// point adds to it, so that the motion in flight carries on. Without a timing, a transform animation in flight glides
   /// to the new transform over the time that it has left, and a layer at rest takes the new transform at once.
   ///
-  /// The layer remembers its size on each call, so that the next call tells a resize from a change of the transform. After the layer's size changes, call it again with the same transform, as a layout pass
-  /// does, and the transform applies about the point at the new size, following the size's animations.
+  /// The layer remembers its size on each call, so that the next call tells a resize from a change of the transform.
+  /// After the layer's size changes, call it again with the same transform, as a layout pass does, and the transform
+  /// applies about the point at the new size, following the size's animations.
   ///
   /// Set the layer's transform only through this function: it remembers the size it set the transform at, which a
   /// transform set another way, such as through the `transform` property or the transform modifier, leaves out of date.
