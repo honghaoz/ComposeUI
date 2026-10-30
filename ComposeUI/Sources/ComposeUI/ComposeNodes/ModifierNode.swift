@@ -586,6 +586,7 @@ public extension ComposeNode {
   /// Execute a block when the renderables provided by the node are updated.
   ///
   /// - Note: All renderables provided by the node will have the block executed.
+  /// - Note: The block must keep the renderable's frame, which the render pass sets before the update.
   ///
   /// - Parameter update: The block to execute.
   /// - Returns: A new node with the block added.

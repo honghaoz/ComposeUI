@@ -887,20 +887,13 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(updateContext?.newFrame) == CGRect(x: 0, y: 10.5, width: 100, height: 50)
   }
 
-  func test_reusedRenderable_oldFrameIsThePreviousFrame_whenUpdateMovedTheRenderable() throws {
-    // given: a content view with a layer row whose `update` moves the layer 5 points down when it's inserted, rendered
+  func test_reusedRenderable_oldFrameIsThePreviousFrame_whenAppCodeMovedTheRenderable() throws {
+    // given: a content view with a layer row, rendered, whose layer app code then moves 5 points down
     var updateContext: RenderableUpdateContext?
     var trackingLayer: FrameTrackingLayer?
     let view = makeLayerContentView(
-      update: { renderable, context in
+      update: { _, context in
         updateContext = context
-        switch context.updateType {
-        case .insert:
-          renderable.layer.frame = context.newFrame.offsetBy(dx: 0, dy: 5)
-        case .refresh,
-             .boundsChange:
-          break
-        }
       },
       captureLayer: { trackingLayer = $0 }
     )
@@ -908,13 +901,13 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
 
     let tracked = try unwrap(trackingLayer)
     let appliedFrame = CGRect(x: 0, y: 0, width: 100, height: 50)
-    expect(tracked.frame) == appliedFrame.offsetBy(dx: 0, dy: 5)
+    tracked.frame = appliedFrame.offsetBy(dx: 0, dy: 5)
 
     // when: scroll a little, which keeps the row's frame
     view.contentOffset = CGPoint(x: 0, y: 10)
     view.layoutIfNeeded()
 
-    // then: the old frame is the frame that the previous pass applied, not where `update` moved the layer, and the pass
+    // then: the old frame is the frame that the previous pass applied, not where app code moved the layer, and the pass
     // moves the layer back to it
     expect(updateContext?.oldFrame) == appliedFrame
     expect(updateContext?.newFrame) == appliedFrame
@@ -975,6 +968,76 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
 
     // then: the old frame is the frame that the previous pass applied at 3x
     expect(removeContext?.oldFrame) == frame
+  }
+
+  // MARK: - frame kept by the updates
+
+  func test_update_changingTheFrame_asserts() throws {
+    // given: a content view with a layer row whose `update` moves the layer 5 points down while a flag is set, and a
+    // handler that records the assertions
+    var movesLayer = true
+    var trackingLayer: FrameTrackingLayer?
+    let view = makeLayerContentView(
+      update: { renderable, context in
+        if movesLayer {
+          renderable.layer.frame = context.newFrame.offsetBy(dx: 0, dy: 5)
+        }
+      },
+      captureLayer: { trackingLayer = $0 }
+    )
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view renders, inserting the row, then refreshes, reusing it
+    view.refresh(animated: false)
+    view.refresh(animated: false)
+
+    // then: the update asserts on the insertion and on the reuse
+    expect(assertionMessages.count) == 2
+    expect(assertionMessages.allSatisfy { $0.hasPrefix("an update changed the frame of renderable: ") }) == true
+
+    // when: the update keeps the frame, and the view refreshes
+    movesLayer = false
+    assertionMessages.removeAll()
+    view.refresh(animated: false)
+
+    // then: nothing asserts, and the pass moved the layer back to its frame
+    expect(assertionMessages) == []
+    expect(try unwrap(trackingLayer).frame) == CGRect(x: 0, y: 0, width: 100, height: 50)
+  }
+
+  func test_update_ofAViewThatRefusesItsFrame_doesNotAssert() throws {
+    // given: a content view with a row of a view that keeps a 40 x 40 size, laid out at 100 x 50, and a handler that
+    // records the assertions
+    var refusingView: SizeKeepingView?
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      ViewNode<SizeKeepingView>()
+        .frame(width: .flexible, height: 50)
+        .onUpdate { renderable, _ in
+          refusingView = renderable.view as? SizeKeepingView
+        }
+    }
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view renders, inserting the row, then refreshes, reusing it
+    view.refresh(animated: false)
+    view.refresh(animated: false)
+
+    // then: the view kept its size, and nothing asserts, since the updates kept the frame that the view has
+    expect(try unwrap(refusingView).frame.size) == SizeKeepingView.size
+    expect(assertionMessages) == []
   }
 
   // MARK: - Helpers
@@ -1078,4 +1141,28 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     /// resize as well as move.
     static let rotation = CATransform3DMakeRotation(CGFloat.pi / 6, 0, 0, 1)
   }
+}
+
+// MARK: - SizeKeepingView
+
+/// A view that keeps a fixed size whatever frame it's given, as `UISwitch` does.
+private final class SizeKeepingView: BaseView {
+
+  /// The size that the view keeps.
+  static let size = CGSize(width: 40, height: 40)
+
+  #if canImport(AppKit)
+  override func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(Self.size)
+  }
+  #else
+  override var frame: CGRect {
+    get {
+      super.frame
+    }
+    set {
+      super.frame = CGRect(origin: newValue.origin, size: Self.size)
+    }
+  }
+  #endif
 }

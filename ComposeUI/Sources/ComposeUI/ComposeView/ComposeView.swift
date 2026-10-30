@@ -1594,11 +1594,19 @@ open class ComposeView: BaseScrollView {
 
         renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
+        #if DEBUG && !COMPOSEUI_BENCHMARK
+        let hadFrame = renderable.hasFrame(newFrame)
+        #endif
         renderableItem.performUpdate(renderable, renderableUpdateContext)
+        #if DEBUG && !COMPOSEUI_BENCHMARK
+        // the updates rely on the frame that the pass applied, such as a transform about a point of the renderable, so
+        // they must not change it. a view that refuses the frame lacks it before the updates too, which this doesn't check
+        ComposeUI.assert(!hadFrame || renderable.hasFrame(newFrame), "an update changed the frame of renderable: \(id.id)")
+        #endif
 
         // render a resized nested `ComposeView` now, within this pass, so that its animations follow this pass's
         // animation decision instead of its own. compare the view's size with the size it last rendered at, not
-        // `oldFrame` with `newFrame`, since `willUpdate`, `update` and app code can resize it too. skip a view whose
+        // `oldFrame` with `newFrame`, since `willUpdate` and app code can resize it too. skip a view whose
         // size didn't change, because the call would also run its pending refresh now, with this pass's animation
         // decision instead of its own
         if let composeView = renderable.view as? ComposeView,
@@ -1677,7 +1685,13 @@ open class ComposeView: BaseScrollView {
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
+        #if DEBUG && !COMPOSEUI_BENCHMARK
+        let hadFrame = renderable.hasFrame(newFrame)
+        #endif
         renderableItem.performUpdate(renderable, renderableUpdateContext)
+        #if DEBUG && !COMPOSEUI_BENCHMARK
+        ComposeUI.assert(!hadFrame || renderable.hasFrame(newFrame), "an update changed the frame of renderable: \(id.id)")
+        #endif
 
         // a nested `ComposeView` this pass inserted renders now, within this pass, for the same reasons as a resized one
         (renderable.view as? ComposeView)?.renderBoundsChangeIfNeeded()

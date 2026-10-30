@@ -89,7 +89,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
-  ///   - update: A closure to update the view.
+  ///   - update: A closure to update the view, which must keep the view's frame that the render pass sets.
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
   public init(_ view: T,
@@ -137,7 +137,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
-  ///   - update: A closure to update the view.
+  ///   - update: A closure to update the view, which must keep the view's frame that the render pass sets.
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
   public init(make: ((_ context: RenderableMakeContext) -> T)? = { ViewNode.makeView($0) },
