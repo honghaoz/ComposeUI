@@ -65,7 +65,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the layer is about to be updated.
-  ///   - update: A closure to update the layer.
+  ///   - update: A closure to update the layer, which must keep the layer's frame that the render pass sets.
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
   public init(_ layer: T,
@@ -109,7 +109,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
   ///   - willInsert: A closure to be called when the layer is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the layer is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the layer is about to be updated.
-  ///   - update: A closure to update the layer.
+  ///   - update: A closure to update the layer, which must keep the layer's frame that the render pass sets.
   ///   - willRemove: A closure to be called when the layer is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the layer is removed from the renderable hierarchy.
   public init(make: ((_ context: RenderableMakeContext) -> T)? = { LayerNode.makeLayer($0) },

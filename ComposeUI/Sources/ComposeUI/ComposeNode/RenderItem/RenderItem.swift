@@ -204,6 +204,9 @@ public struct RenderItem<T> {
   /// In the block, the renderable should be updated to reflect its intended content. For example, if the renderable is
   /// for a `ColorNode`, the renderable should render the specified color.
   ///
+  /// The block must keep the renderable's frame, which the render pass sets before the update, since the item's other
+  /// update blocks rely on it. Debug builds assert when an update changes it.
+  ///
   /// Note that it is possible that when a renderable is being inserted into the renderable hierarchy with a transition
   /// animation, a new update, which is triggered by a `refresh()`, is called on the renderable. In this case, an update
   /// call with `RenderableUpdateType.refresh` type will be called before the update call with
