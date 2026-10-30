@@ -1287,6 +1287,37 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     }
   }
 
+  func test_updateTransform_withoutAnOldSize_afterTheTransformWasSetAnotherWay_asserts() throws {
+    // given: the ways to set a layer's transform other than the function, and a handler that records the assertions
+    let setTransformAnotherWay: [(CALayer) -> Void] = [
+      { $0.transform = Constants.doubleScale },
+      { $0.updateTransform(Constants.doubleScale, anchor: .topLeft, oldSize: $0.bounds.size, animationTiming: nil) },
+    ]
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    for setTransform in setTransformAnotherWay {
+      // given: a layer turned a quarter turn about its top left corner by the function, then updated with the same turn
+      let layer = PausedTimeline(frame: CGRect(origin: .zero, size: Constants.smallSize), anchorPoint: Constants.center).layer
+      layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+      layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+      expect(assertionMessages) == []
+
+      // when: the transform is set another way, and the function updates the layer
+      setTransform(layer)
+      layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, animationTiming: nil)
+
+      // then: the update asserts
+      expect(assertionMessages) == ["the layer's transform was set other than through updateTransform(_:anchor:animationTiming:)"]
+      assertionMessages.removeAll()
+    }
+  }
+
   #if canImport(AppKit)
   func test_updateTransform_withoutAnOldSize_appKitViewInAWindow_keepsTheTransformThroughAppKitsResets() throws {
     // given: a layer-backed view of 40 x 20 in a window, turned a quarter turn about its top left corner

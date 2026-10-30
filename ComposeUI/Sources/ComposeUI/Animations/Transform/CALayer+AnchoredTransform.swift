@@ -47,6 +47,10 @@ public extension CALayer {
   /// a change of the transform. After the layer's size changes, call it again with the same transform, as a layout pass
   /// does, and the transform applies about the point at the new size, following the size's animations.
   ///
+  /// Set the layer's transform only through this function: it remembers the size it set the transform at, which a
+  /// transform set another way, such as through the `transform` property or the transform modifier, leaves out of date.
+  /// Debug builds assert when the layer's transform isn't the one that the function last set.
+  ///
   /// On AppKit, a view's layer keeps the transform when AppKit resets it to the identity, as AppKit does when the view
   /// moves or resizes. So set a view's layer back to the identity through this function rather than its `transform`
   /// property, which would get the transform back.
@@ -60,6 +64,14 @@ public extension CALayer {
   @_spi(Private)
   func updateTransform(_ transform: CATransform3D, anchor: UnitPoint = .center, animationTiming: AnimationTiming?) {
     let transformSize = self.transformSize
+    #if DEBUG
+    if let transformSize {
+      ComposeUI.assert(
+        CATransform3DEqualToTransform(self.transform, transformSize.transform),
+        "the layer's transform was set other than through updateTransform(_:anchor:animationTiming:)"
+      )
+    }
+    #endif
     // the first call has no size to tell a resize by, so the layer's transform counts as set at the layer's size
     let oldSize = transformSize?.size ?? bounds.size
 
@@ -79,8 +91,11 @@ public extension CALayer {
 
     if let transformSize {
       transformSize.size = bounds.size
+      #if DEBUG
+      transformSize.transform = self.transform
+      #endif
     } else {
-      self.transformSize = TransformSize(bounds.size)
+      self.transformSize = TransformSize(bounds.size, transform: self.transform)
     }
   }
 
@@ -491,8 +506,16 @@ private final class TransformSize {
   /// The layer's size when the function last set its transform.
   var size: CGSize
 
-  init(_ size: CGSize) {
+  #if DEBUG
+  /// The transform that the function last set, which the layer has until something else sets its transform.
+  var transform: CATransform3D
+  #endif
+
+  init(_ size: CGSize, transform: CATransform3D) {
     self.size = size
+    #if DEBUG
+    self.transform = transform
+    #endif
   }
 }
 
