@@ -107,7 +107,8 @@ extension CALayer {
       && position.y.isApproximatelyEqual(to: targetPosition.y, absoluteTolerance: tolerance)
   }
 
-  /// Restores the layer's model transform to identity, and on AppKit, stops keeping the transform, see `keepTransform(_:)`.
+  /// Restores the layer's model transform to identity, forgets the size that `updateTransform(_:anchor:animationTiming:)`
+  /// remembers, and on AppKit, stops keeping the transform, see `keepTransform(_:)`.
   func restoreIdentityTransformIfNeeded() {
     guard !CATransform3DIsIdentity(transform) else {
       return
@@ -116,7 +117,7 @@ extension CALayer {
     // the transform's owner drops the transform, which a kept transform would put back
     stopKeepingTransform()
     #endif
-    // and the size that `updateTransform(_:anchor:animationTiming:)` set it at, so that its next call starts afresh
+    // what `updateTransform(_:anchor:animationTiming:)` remembers would make its next call assert on this identity
     forgetTransformSize()
     disableActions(for: "transform") {
       transform = CATransform3DIdentity

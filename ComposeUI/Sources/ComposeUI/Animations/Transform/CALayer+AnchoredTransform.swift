@@ -30,10 +30,6 @@
 
 import QuartzCore
 
-#if canImport(AppKit)
-import AppKit
-#endif
-
 public extension CALayer {
 
   /// Applies a transform about a point of the layer, animating a change with the timing if given, and keeps the point in
@@ -43,8 +39,7 @@ public extension CALayer {
   /// point adds to it, so that the motion in flight carries on. Without a timing, a transform animation in flight glides
   /// to the new transform over the time that it has left, and a layer at rest takes the new transform at once.
   ///
-  /// The layer remembers its size each time the function sets its transform, so that the next call tells a resize from
-  /// a change of the transform. After the layer's size changes, call it again with the same transform, as a layout pass
+  /// The layer remembers its size on each call, so that the next call tells a resize from a change of the transform. After the layer's size changes, call it again with the same transform, as a layout pass
   /// does, and the transform applies about the point at the new size, following the size's animations.
   ///
   /// Set the layer's transform only through this function: it remembers the size it set the transform at, which a
@@ -52,8 +47,7 @@ public extension CALayer {
   /// Debug builds assert when the layer's transform isn't the one that the function last set.
   ///
   /// On AppKit, a view's layer keeps the transform when AppKit resets it to the identity, as AppKit does when the view
-  /// moves or resizes. So set a view's layer back to the identity through this function rather than its `transform`
-  /// property, which would get the transform back.
+  /// moves or resizes, which also undoes setting the `transform` property to the identity.
   ///
   /// - Parameters:
   ///   - transform: The transform to apply.
@@ -77,7 +71,7 @@ public extension CALayer {
 
     #if canImport(AppKit)
     // AppKit resets only a view's layer transform, which the next call would take for a change
-    let keepsTransform = delegate is NSView
+    let keepsTransform = backedView != nil
     let mayBeKeeping = keepsTransform && pauseKeepingTransform()
     #endif
 
@@ -89,15 +83,21 @@ public extension CALayer {
     }
     #endif
 
+    let rememberedSize: TransformSize
     if let transformSize {
       transformSize.size = bounds.size
-      #if DEBUG
-      transformSize.transform = self.transform
-      #endif
+      rememberedSize = transformSize
     } else {
-      self.transformSize = TransformSize(bounds.size, transform: self.transform)
+      rememberedSize = TransformSize(bounds.size)
+      self.transformSize = rememberedSize
     }
+    #if DEBUG
+    rememberedSize.transform = self.transform
+    #endif
   }
+}
+
+extension CALayer {
 
   /// Applies a transform about a point of the layer, animating a change with the timing if given, and keeps the point in
   /// place while the transform changes and while the layer's size animates, given the size that the layer's transform
@@ -115,9 +115,8 @@ public extension CALayer {
   ///   - oldSize: The layer's size when its transform was set, before the update.
   ///   - animationTiming: The timing to animate a changed transform with, or `nil` to apply it without starting an
   ///     animation.
-  @_spi(Private)
   func updateTransform(_ transform: CATransform3D,
-                       anchor: UnitPoint = .center,
+                       anchor: UnitPoint,
                        oldSize: CGSize,
                        animationTiming: AnimationTiming?)
   {
@@ -143,9 +142,6 @@ public extension CALayer {
       animationTiming: animationTiming
     )
   }
-}
-
-extension CALayer {
 
   /// Changes the transform to a transform about a point, see `updateTransform(_:anchor:oldSize:animationTiming:)`.
   ///
@@ -499,23 +495,20 @@ extension CALayer {
 
 // MARK: - TransformSize
 
-/// The layer's size when `CALayer.updateTransform(_:anchor:animationTiming:)` last set its transform, the size that the
+/// The layer's size at the last call of `CALayer.updateTransform(_:anchor:animationTiming:)`, the size that the layer's
 /// transform applies about the point at.
 private final class TransformSize {
 
-  /// The layer's size when the function last set its transform.
+  /// The layer's size at the function's last call.
   var size: CGSize
 
   #if DEBUG
-  /// The transform that the function last set, which the layer has until something else sets its transform.
-  var transform: CATransform3D
+  /// The layer's transform after the function's last call, which the layer has until something else sets its transform.
+  var transform = CATransform3DIdentity
   #endif
 
-  init(_ size: CGSize, transform: CATransform3D) {
+  init(_ size: CGSize) {
     self.size = size
-    #if DEBUG
-    self.transform = transform
-    #endif
   }
 }
 
@@ -523,7 +516,8 @@ private extension CALayer {
 
   static let transformSizeKey = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
 
-  /// The layer's size when `updateTransform(_:anchor:animationTiming:)` last set its transform, or `nil` until it does.
+  /// The layer's size at the last call of `updateTransform(_:anchor:animationTiming:)`, or `nil` before the first call
+  /// and after the framework resets the transform.
   var transformSize: TransformSize? {
     get {
       objc_getAssociatedObject(self, CALayer.transformSizeKey) as? TransformSize

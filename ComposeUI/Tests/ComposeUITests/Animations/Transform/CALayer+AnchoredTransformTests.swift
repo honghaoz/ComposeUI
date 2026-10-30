@@ -74,19 +74,6 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     try expectShownTransform(of: layer, Constants.quarterTurn, about: .topLeft, within: 1e-9)
   }
 
-  func test_updateTransform_withoutAnAnchor_appliesAboutTheCenter() throws {
-    // given: a layer whose anchor point is at its top left corner
-    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: .zero)
-    let layer = timeline.layer
-
-    // when: a quarter turn applies without an anchor
-    layer.updateTransform(Constants.quarterTurn, oldSize: layer.bounds.size, animationTiming: nil)
-
-    // then: the layer shows the turn about its center
-    timeline.show(at: 100)
-    try expectShownTransform(of: layer, Constants.quarterTurn, about: .center, within: 1e-9)
-  }
-
   func test_updateTransform_zeroDuration_appliesAtOnce() throws {
     // given: a layer at rest
     let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
