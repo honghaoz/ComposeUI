@@ -107,23 +107,6 @@ extension CALayer {
       && position.y.isApproximatelyEqual(to: targetPosition.y, absoluteTolerance: tolerance)
   }
 
-  /// Restores the layer's model transform to identity, forgets the size that `updateTransform(_:anchor:animationTiming:)`
-  /// remembers, and on AppKit, stops keeping the transform, see `keepTransform(_:)`.
-  func restoreIdentityTransformIfNeeded() {
-    guard !CATransform3DIsIdentity(transform) else {
-      return
-    }
-    #if canImport(AppKit)
-    // the transform's owner drops the transform, which a kept transform would put back
-    stopKeepingTransform()
-    #endif
-    // what `updateTransform(_:anchor:animationTiming:)` remembers would make its next call assert on this identity
-    forgetTransformSize()
-    disableActions(for: "transform") {
-      transform = CATransform3DIdentity
-    }
-  }
-
   /// Moves the sublayer to the front.
   ///
   /// - Parameter sublayer: The sublayer to move to the front.

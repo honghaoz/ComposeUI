@@ -494,6 +494,28 @@ extension CALayer {
   }
 }
 
+extension CALayer {
+
+  /// Restores the layer's model transform to identity, forgets the size that `updateTransform(_:anchor:animationTiming:)`
+  /// remembers, and on AppKit, stops keeping the transform, see `keepTransform(_:)`.
+  func restoreIdentityTransformIfNeeded() {
+    guard !CATransform3DIsIdentity(transform) else {
+      return
+    }
+
+    #if canImport(AppKit)
+    // the transform's owner drops the transform, which a kept transform would put back
+    stopKeepingTransform()
+    #endif
+
+    // what `updateTransform(_:anchor:animationTiming:)` remembers would make its next call assert on this identity
+    transformSize = nil
+    disableActions(for: "transform") {
+      transform = CATransform3DIdentity
+    }
+  }
+}
+
 // MARK: - TransformSize
 
 /// The layer's size at the last call of `CALayer.updateTransform(_:anchor:animationTiming:)`, the size that the layer's
@@ -526,14 +548,5 @@ private extension CALayer {
     set {
       objc_setAssociatedObject(self, CALayer.transformSizeKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
-  }
-}
-
-extension CALayer {
-
-  /// Forgets the size that `updateTransform(_:anchor:animationTiming:)` set the transform at, for a transform that the
-  /// framework resets, so that the function's next call takes the layer's transform as set at the layer's size.
-  func forgetTransformSize() {
-    transformSize = nil
   }
 }
