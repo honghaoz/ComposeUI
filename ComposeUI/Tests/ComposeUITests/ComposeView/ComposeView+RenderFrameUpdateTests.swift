@@ -972,6 +972,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
 
   // MARK: - frame kept by the updates
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_update_changingTheFrame_asserts() throws {
     // given: a content view with a layer row whose `update` moves the layer 5 points down while a flag is set, and a
     // handler that records the assertions
@@ -1039,6 +1040,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(try unwrap(refusingView).frame.size) == SizeKeepingView.size
     expect(assertionMessages) == []
   }
+  #endif
 
   // MARK: - Helpers
 
@@ -1145,6 +1147,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
 
 // MARK: - SizeKeepingView
 
+#if DEBUG && !COMPOSEUI_BENCHMARK
 /// A view that keeps a fixed size whatever frame it's given, as `UISwitch` does.
 private final class SizeKeepingView: BaseView {
 
@@ -1166,3 +1169,4 @@ private final class SizeKeepingView: BaseView {
   }
   #endif
 }
+#endif
