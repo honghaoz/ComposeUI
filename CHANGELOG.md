@@ -64,6 +64,7 @@
 - Changing the view or layer type of an item under the same id replaces its renderable instead of crashing. ([#179](https://github.com/honghaoz/ComposeUI/pull/179))
 - A `ComposeView` released while its items animate out deallocates right away, without calling their `onRemove` blocks. ([#182](https://github.com/honghaoz/ComposeUI/pull/182))
 - Fixed `CALayer.animate` crashing, losing the change or dropping the layer's transform for a geometry key path, such as `position.x`, on a view-backed layer on macOS. ([#63](https://github.com/honghaoz/ComposeUI/pull/63))
+- On visionOS, a view whose layer UIKit moves into a wrapper layer, such as a label, an image view with an image or a button, takes its frame changes without animating them, where an animated refresh drew it away from its frame. ([#290](https://github.com/honghaoz/ComposeUI/pull/290))
 
 ### Performance
 

@@ -79,6 +79,11 @@ public enum Renderable {
       #if canImport(AppKit)
       // an AppKit view keeps a frame of its own, which its layer's transform doesn't change
       return view.frame
+      #elseif os(visionOS)
+      // a view's frame is its layer's, which is undefined under a non-identity transform, or its wrapper layer's, which
+      // the layer's transform doesn't change, see `hasFrame(_:)`
+      let layer = view.layer
+      return CATransform3DIsIdentity(layer.transform) || view.wrapperLayer != nil ? view.frame : layer.untransformedFrame
       #else
       // a UIKit view's frame is its layer's, which is undefined under a non-identity transform
       let layer = view.layer
@@ -165,8 +170,30 @@ public enum Renderable {
       else {
         return false
       }
-      #endif
       return view.layer().hasFrame(frame)
+      #elseif os(visionOS)
+      // in a window, visionOS moves the layers of some views, such as labels, into wrapper layers that hold the views'
+      // frames, and keeps each layer filling its wrapper from the wrapper's bounds center, whatever its anchor point. a
+      // write to the layer's geometry moves the layer in its wrapper, which setting the view's frame undoes.
+      if let wrapper = view.wrapperLayer {
+        guard wrapper.hasFrame(frame) else {
+          return false
+        }
+
+        let layer = view.layer
+        let size = layer.bounds.size
+        let position = layer.position
+        let tolerance = Constants.geometryTolerance
+        return size.width.isApproximatelyEqual(to: frame.width, absoluteTolerance: tolerance)
+          && size.height.isApproximatelyEqual(to: frame.height, absoluteTolerance: tolerance)
+          && position.x.isApproximatelyEqual(to: frame.width / 2, absoluteTolerance: tolerance)
+          && position.y.isApproximatelyEqual(to: frame.height / 2, absoluteTolerance: tolerance)
+      } else {
+        return view.layer.hasFrame(frame)
+      }
+      #else
+      return view.layer().hasFrame(frame)
+      #endif
     case .layer(let layer):
       return layer.hasFrame(frame)
     }
@@ -185,6 +212,20 @@ public enum Renderable {
     guard !hasFrame(frame) else {
       return
     }
+
+    #if os(visionOS)
+    // the layer's frame animations and retargets would move a layer in a wrapper layer without moving the wrapper, so a
+    // view in a wrapper takes its frame through UIKit, which places both, without animating it
+    switch self {
+    case .view(let view):
+      guard view.wrapperLayer == nil else {
+        setFrame(frame)
+        return
+      }
+    case .layer:
+      break
+    }
+    #endif
 
     // the layer is animated only when it moves. when it already has the frame and only an AppKit view's own frame
     // copy is out of sync, setting the frame re-syncs the copy without adding zero-delta animations, and a retarget
@@ -261,3 +302,15 @@ public enum Renderable {
     }
   }
 }
+
+#if os(visionOS)
+private extension View {
+
+  /// The layer that visionOS moved the view's layer into, which holds the view's frame, or `nil` if the view's layer is
+  /// in its superview's layer, or in no layer.
+  var wrapperLayer: CALayer? {
+    let superlayer = layer.superlayer
+    return superlayer === superview?.layer ? nil : superlayer
+  }
+}
+#endif
