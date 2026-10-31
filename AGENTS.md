@@ -215,6 +215,10 @@ The performance learnings are in `docs/performance.md`. Read it before changing 
 
 - Measure a size from the parts' own extents, not from the union of their placed frames: the frames depend on the space the parts are placed in, such as lines aligned to opposite edges of a wider container, so their union spans more than the parts need. Text measurement takes the widest line for this reason.
 
+## Text
+
+- A UIKit text view that scrolls doesn't make its text container taller when the view gets taller: it changes the container's height only when scrolling turns on or off, or when the width changes. So a container made as tall as the frame cuts off the text once the view grows, such as when it's reused for a taller text. Give the container an unlimited height, as UIKit's own text views have and `BaseTextView` does. A text view that scrolls also has non-contiguous layout on, which breaks a line limit in that unlimited height, so turn it off while the text has a line limit. Verified with Xcode 27.1 on iOS 26.5 and 27, unverified on tvOS and visionOS.
+
 ## Result builders
 
 - A generic type with a parameter pack needs the Swift 5.9 runtime, which macOS 14, iOS 17 and tvOS 17 have, while a function with a parameter pack runs on older systems. To take any number of components on older systems, take them as a pack in a function, as `ComposeContentBuilder.buildBlock` does, instead of returning a type that holds them.

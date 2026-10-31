@@ -1538,7 +1538,7 @@ class TextNodeTests: XCTestCase {
 
   func test_notEditable_textViewStopsTheTextAtItsBounds() throws {
     // given: a compose view showing a text node that isn't editable, in a frame smaller than its text, whose frame then
-    // changes, after which a UIKit text view that scrolls lays out its whole text
+    // changes
     var width: CGFloat = 120
     var renderedView: BaseTextView?
     let contentView = ComposeView {
@@ -1589,25 +1589,55 @@ class TextNodeTests: XCTestCase {
     expect(textView.contentSize.height) > textView.bounds.height
   }
 
+  func test_reuse_editable_tallerTextInTheSameWidth_laysOutTheWholeText() throws {
+    // given: a compose view with its own pool, showing a one-line editable text node as wide as the view
+    var id = "first"
+    var numberOfLines = 1
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
+        .numberOfLines(numberOfLines)
+        .editable()
+        .fixedSize(width: false, height: true)
+        .id(id)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.renderablePool = RenderablePool()
+    contentView.frame = CGRect(x: 0, y: 0, width: 120, height: 400)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let firstSize = textView.frame.size
+
+    // when: a taller editable text node of the same width replaces it, which reuses its text view
+    id = "second"
+    numberOfLines = 0
+    contentView.refresh(animated: false)
+
+    // then: the text view lays out the whole text, not just the one line that fit before
+    expect(renderedView) === textView
+    expect(textView.frame.width) == firstSize.width
+    expect(textView.frame.height) > firstSize.height
+    expect(Self.laidOutGlyphCount(of: textView)) == textView.layoutManager.numberOfGlyphs
+  }
+
   func test_editableChangedToNotEditable_scrolledTextView_showsTheTextFromItsTop() throws {
-    // given: a compose view showing an editable text node, in a frame smaller than its text, whose frame changed, so
-    // that its text view laid out its whole text, and which the user scrolled down
+    // given: a compose view showing an editable text node in a frame smaller than its text, which the user scrolled down
     var isEditable = true
-    var width: CGFloat = 120
     var renderedView: BaseTextView?
     let contentView = ComposeView {
       TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
         .editable(isEditable)
-        .frame(width: width, height: 40)
+        .frame(width: 120, height: 40)
         .onUpdate { renderable, _ in
           renderedView = renderable.view as? BaseTextView
         }
     }
     contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
     contentView.refresh(animated: false)
-    width = 140
-    contentView.refresh(animated: false)
     let textView = try unwrap(renderedView)
+    expect(Self.laidOutGlyphCount(of: textView)) == textView.layoutManager.numberOfGlyphs
     textView.contentOffset = CGPoint(x: 0, y: 30)
     expect(textView.contentOffset) == CGPoint(x: 0, y: 30)
 
