@@ -1040,7 +1040,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(try unwrap(refusingView).frame.size) == SizeKeepingView.size
     expect(assertionMessages.count) == 2
     expect(assertionMessages.allSatisfy {
-      $0.hasPrefix("a renderable doesn't take its frame (a view that keeps its own size needs a fixed-size node): ")
+      $0.hasPrefix("a renderable doesn't take the frame the render pass gives. a view that keeps its own size needs a fixed-size node, such as with ViewNode's fixedSize(): ")
     }) == true
   }
 
