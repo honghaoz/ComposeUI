@@ -258,21 +258,22 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   }
 
   #if DEBUG && !COMPOSEUI_BENCHMARK
-  /// Returns the update, followed by a check that the view still has the size measured from a plain view.
+  /// Returns the update, followed by a check that the update keeps the view's size.
   ///
   /// - Parameter proposedSize: The proposed size that the plain view was measured with.
   /// - Returns: The update that checks the size.
   private func sizeCheckedUpdate(proposedSize: CGSize) -> (T, RenderableUpdateContext) -> Void {
     let update = update
-    let size = size
     let isFixedWidth = isFixedWidth
     let isFixedHeight = isFixedHeight
     return { view, context in
+      // compares the view with itself, since a plain view outside a window can round its size differently
+      let oldSize = view.intrinsicSize(for: proposedSize)
       update(view, context)
-      let ownSize = view.intrinsicSize(for: proposedSize)
+      let newSize = view.intrinsicSize(for: proposedSize)
       ComposeUI.assert(
-        (!isFixedWidth || ownSize.width == size.width) && (!isFixedHeight || ownSize.height == size.height),
-        "ViewNode<\(T.self)>'s view is \(ownSize) after update, not the plain view's \(size): provide intrinsicSize"
+        (!isFixedWidth || newSize.width == oldSize.width) && (!isFixedHeight || newSize.height == oldSize.height),
+        "ViewNode<\(T.self)>'s update changes its view's size from \(oldSize) to \(newSize): provide intrinsicSize"
       )
     }
   }

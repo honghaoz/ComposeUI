@@ -510,8 +510,33 @@ class ViewNodeTests: XCTestCase {
 
     // then: the update asserts
     expect(assertionMessages) == [
-      "ViewNode<SideView>'s view is (30.0, 30.0) after update, not the plain view's (10.0, 10.0): provide intrinsicSize",
+      "ViewNode<SideView>'s update changes its view's size from (10.0, 10.0) to (30.0, 30.0): provide intrinsicSize",
     ]
+  }
+
+  func test_fixedSize_defaultMake_viewWhoseSizeDiffersInAWindow_doesNotAssert() {
+    // given: a fixed-size node of a view that's 65 x 24 outside a window and 64.5 x 24 in one, as an AppKit control can
+    // round its size to a window's pixels, in a window, and a handler that records the assertions
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+    let window = TestWindow()
+    let contentView = ComposeView {
+      ViewNode<WindowRoundedView>().fixedSize()
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    window.contentView().addSubview(contentView)
+
+    // when: the view renders, inserting the node's view, then refreshes, reusing it
+    contentView.refresh(animated: false)
+    contentView.refresh(animated: false)
+
+    // then: nothing asserts, since the update doesn't change the view's size
+    expect(assertionMessages) == []
   }
   #endif
 
@@ -880,6 +905,24 @@ private final class CountedFixedSizeView: BaseView {
   #else
   override func sizeThatFits(_ size: CGSize) -> CGSize {
     CGSize(width: 80, height: 60)
+  }
+  #endif
+}
+
+/// A view that's 65 x 24 outside a window and 64.5 x 24 in one.
+private final class WindowRoundedView: BaseView {
+
+  private var ownSize: CGSize {
+    CGSize(width: window == nil ? 65 : 64.5, height: 24)
+  }
+
+  #if canImport(AppKit)
+  override var fittingSize: NSSize {
+    ownSize
+  }
+  #else
+  override func sizeThatFits(_ size: CGSize) -> CGSize {
+    ownSize
   }
   #endif
 }
