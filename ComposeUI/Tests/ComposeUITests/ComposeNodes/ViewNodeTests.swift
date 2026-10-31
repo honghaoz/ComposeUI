@@ -374,6 +374,7 @@ class ViewNodeTests: XCTestCase {
     }
   }
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_fixedSize_withoutIntrinsicSize_measuresAViewOrAssertsForACustomMake() {
     // given: a handler that records the assertions
     var assertionMessages: [String] = []
@@ -402,19 +403,25 @@ class ViewNodeTests: XCTestCase {
 
     // fixed size (width: true, height: true)
     do {
-      // given: a fixed size factory node for a fixed size view, with a make call counter
+      // given: a factory node for a fixed size view, with a make call counter
       var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
         make: { _ in
           makeCallCount += 1
           return FixedSizeView()
         }
-      ).fixedSize()
+      )
+
+      // when: fixing the node's size
+      node = node.fixedSize()
+
+      // then: fixing it asserts, while the code that fixes it runs
+      expect(assertionMessages) == [customMakeMessage]
 
       // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-      // then: the layout asserts, and measures a view that make makes
+      // then: the layout measures a view that make makes, without asserting again
       expect(assertionMessages) == [customMakeMessage]
       expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .fixed(60))
       expect(node.size) == CGSize(width: 80, height: 60)
@@ -424,19 +431,25 @@ class ViewNodeTests: XCTestCase {
 
     // fixed width only (width: true, height: false)
     do {
-      // given: a fixed width factory node for a fixed size view, with a make call counter
+      // given: a factory node for a fixed size view, with a make call counter
       var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
         make: { _ in
           makeCallCount += 1
           return FixedSizeView()
         }
-      ).fixedSize(width: true, height: false)
+      )
+
+      // when: fixing the node's width
+      node = node.fixedSize(width: true, height: false)
+
+      // then: fixing it asserts
+      expect(assertionMessages) == [customMakeMessage]
 
       // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-      // then: the layout asserts, the width is the measured view's, and the height fills the container
+      // then: the width is the measured view's, and the height fills the container, without asserting again
       expect(assertionMessages) == [customMakeMessage]
       expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .flexible)
       expect(node.size) == CGSize(width: 80, height: 200)
@@ -446,25 +459,68 @@ class ViewNodeTests: XCTestCase {
 
     // fixed height only (width: false, height: true)
     do {
-      // given: a fixed height factory node for a fixed size view, with a make call counter
+      // given: a factory node for a fixed size view, with a make call counter
       var makeCallCount = 0
       var node = ViewNode<FixedSizeView>(
         make: { _ in
           makeCallCount += 1
           return FixedSizeView()
         }
-      ).fixedSize(width: false, height: true)
+      )
+
+      // when: fixing the node's height
+      node = node.fixedSize(width: false, height: true)
+
+      // then: fixing it asserts
+      expect(assertionMessages) == [customMakeMessage]
 
       // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-      // then: the layout asserts, the height is the measured view's, and the width fills the container
+      // then: the height is the measured view's, and the width fills the container, without asserting again
       expect(assertionMessages) == [customMakeMessage]
       expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(60))
       expect(node.size) == CGSize(width: 200, height: 60)
       expect(makeCallCount) == 1
     }
   }
+
+  func test_fixedSize_assertsOnceWhenANodeThatCantMeasureTurnsFixed() {
+    // given: a handler that counts the assertions, and sizing changes of a node with a custom make and no intrinsic
+    // size, which can't measure its view, and of nodes that can, each with the assertions it makes
+    var assertionCount = 0
+    ComposeUI.Assert.setTestAssertionFailureHandler { _, _, _, _ in
+      assertionCount += 1
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+    let customMake = ViewNode(make: { _ in View() })
+    let changes: [(name: String, node: ViewNode<View>, change: (ViewNode<View>) -> ViewNode<View>, assertionCount: Int)] = [
+      ("fixed", customMake, { $0.fixedSize() }, 1),
+      ("fixed in width", customMake, { $0.fixedSize(width: true, height: false) }, 1),
+      ("fixed in height", customMake, { $0.fixedSize(width: false, height: true) }, 1),
+      ("fixed in neither length", customMake, { $0.fixedSize(width: false, height: false) }, 0),
+      ("fixed twice", customMake, { $0.fixedSize().fixedSize() }, 1),
+      ("fixed in width twice", customMake, { $0.fixedSize(width: true, height: false).fixedSize(width: true, height: false) }, 1),
+      ("fixed in height twice", customMake, { $0.fixedSize(width: false, height: true).fixedSize(width: false, height: true) }, 1),
+      ("fixed in width, then in both lengths", customMake, { $0.fixedSize(width: true, height: false).fixedSize() }, 1),
+      ("fixed in height, then in both lengths", customMake, { $0.fixedSize(width: false, height: true).fixedSize() }, 1),
+      ("fixed with an intrinsic size", ViewNode(make: { _ in View() }, intrinsicSize: { _ in .zero }), { $0.fixedSize() }, 0),
+      ("fixed with the default make", ViewNode<View>(), { $0.fixedSize() }, 0),
+      ("of an external view, made flexible, then fixed", ViewNode(View()), { $0.flexibleSize().fixedSize() }, 0),
+    ]
+
+    for (name, node, change, expectedAssertionCount) in changes {
+      // when: changing the node's sizing, without laying it out
+      assertionCount = 0
+      _ = change(node)
+
+      // then: a node that can't measure its view asserts once when it turns fixed, while the change runs
+      expect(assertionCount, name) == expectedAssertionCount
+    }
+  }
+  #endif
 
   func test_fixedSize_defaultMake_measuresOnePlainViewOfItsType() {
     // given: two fixed-size nodes of a view type that counts the views made of it, with the default view factory

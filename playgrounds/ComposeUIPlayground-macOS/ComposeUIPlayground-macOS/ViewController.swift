@@ -37,6 +37,20 @@ class ViewController: NSViewController {
   private class ViewState {
 
     lazy var transitionRevivalView = Playground.TransitionRevivalView(frame: .zero)
+
+    lazy var textWithScrollBarsView: ComposeView = {
+      let view = ComposeView(content: {
+        LabelNode("Text with Scroll Bars")
+          .font(Font.systemFont(ofSize: 14, weight: .regular))
+          .background {
+            ColorNode(.red)
+          }
+      })
+      view.frame.size = view.sizeThatFits(
+        CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+      )
+      return view
+    }()
   }
 
   private let state = ViewState()
@@ -212,22 +226,7 @@ class ViewController: NSViewController {
 
       Spacer().height(20)
 
-      ViewNode(
-        make: { _ in
-          let view = ComposeView(content: {
-            LabelNode("Text with Scroll Bars")
-              .font(Font.systemFont(ofSize: 14, weight: .regular))
-              .background {
-                ColorNode(.red)
-              }
-          })
-          view.frame.size = view.sizeThatFits(
-            CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-          )
-          return view
-        }
-      )
-      .fixedSize()
+      ViewNode(state.textWithScrollBarsView)
 
       Spacer().height(20)
 
