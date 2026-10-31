@@ -197,9 +197,11 @@ class ViewLayerWrappingTests: XCTestCase {
     label.frame = Constants.frame
 
     // when: transforming the label's layer
-    label.layer.transform = CATransform3DMakeScale(2, 2, 1)
+    let transform = CATransform3DMakeScale(2, 2, 1)
+    label.layer.transform = transform
 
     // then: the transform stays on the layer, and the wrapper and the label's frame don't change
+    expect(CATransform3DEqualToTransform(label.layer.transform, transform)) == true
     expect(CATransform3DIsIdentity(wrapper.transform)) == true
     expect(label.frame) == Constants.frame
     expect(label.center) == Constants.frameCenter

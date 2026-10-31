@@ -100,15 +100,17 @@ jobs:
       - name: Pick simulator
         run: make test-ci OS=${{ matrix.platform }} PHASE=pick -C ComposeUI
       - name: Build for testing
+        id: build-for-testing
         run: make test-ci OS=${{ matrix.platform }} PHASE=build -C ComposeUI
       - name: Test
         run: make test-ci OS=${{ matrix.platform }} PHASE=test -C ComposeUI
 
       # The hosted tests run in an app with a window scene, on the simulator that the Test step booted.
-      # They run after a failed Test step too, since they test other behavior.
+      # They run after a failed Test step too, since they test other behavior, but not after a failed
+      # build, which would fail them for the same reason.
       - name: Build hosted tests
         id: build-hosted-tests
-        if: ${{ !cancelled() && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) }}
+        if: ${{ !cancelled() && steps.build-for-testing.outcome == 'success' && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) }}
         run: make test-hosted-ci OS=${{ matrix.platform }} PHASE=build -C ComposeUI
       - name: Test hosted
         if: ${{ !cancelled() && steps.build-hosted-tests.outcome == 'success' }}
