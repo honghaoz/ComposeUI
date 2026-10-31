@@ -594,6 +594,40 @@ class RenderPerformanceTests: BenchmarkTestCase {
     report(name: "refresh.externalViews.200", result: result)
   }
 
+  func test_refresh_viewRows_defaultFactory_200() {
+    runViewRowRefreshBenchmark(name: "refresh.views.defaultFactory.200") {
+      ViewNode<View>()
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+  }
+
+  func test_refresh_viewRows_customFactory_200() {
+    runViewRowRefreshBenchmark(name: "refresh.views.customFactory.200") {
+      ViewNode<View>(make: { context in
+        let view = View(frame: context.initialFrame ?? .zero)
+        #if canImport(AppKit)
+        view.wantsLayer = true
+        #endif
+        return view
+      })
+      .frame(width: .flexible, height: Constants.rowHeight)
+    }
+  }
+
+  func test_refresh_viewRows_fixedSizeWithIntrinsicSize_200() {
+    runViewRowRefreshBenchmark(name: "refresh.views.fixedSize.intrinsicSize.200") {
+      ViewNode<View>(intrinsicSize: { _ in CGSize(width: 100, height: Constants.rowHeight) })
+        .fixedSize()
+    }
+  }
+
+  func test_refresh_viewRows_fixedSizeOfAPlainView_200() {
+    runViewRowRefreshBenchmark(name: "refresh.views.fixedSize.plainView.200") {
+      ViewNode<FixedSizeRowView>()
+        .fixedSize()
+    }
+  }
+
   @MainActor
   func test_refresh_labelRows_200_inATask() async {
     // given: a compose view with 200 rows of a label each laid out, which a loop builds as blocks of one node
@@ -1036,6 +1070,33 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let titleFont = Font.boldSystemFont(ofSize: 15)
     static let subtitleFont = Font.systemFont(ofSize: 13)
     static let subtitleColor = Color.gray
+  }
+
+  /// Measures repeated non-animated refreshes of a compose view with 200 rows that `row` makes, laid out, which each
+  /// refresh makes and lays out again.
+  ///
+  /// - Parameters:
+  ///   - name: The benchmark's name.
+  ///   - row: The block that makes a row.
+  private func runViewRowRefreshBenchmark(name: String, row: @escaping () -> some ComposeNode) {
+    // given: a compose view with 200 rows laid out
+    let view = ComposeView {
+      VStack {
+        for _ in 0 ..< 200 {
+          row()
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    view.layoutIfNeeded()
+
+    // when: measuring repeated non-animated refreshes
+    let result = measure(warmup: 3, iterations: 30) { _ in
+      view.refresh(animated: false)
+    }
+
+    // then: report the timings
+    report(name: name, result: result)
   }
 
   /// A plain view-backed row, optionally opted into the recycle pool via `reuseId`.
@@ -1503,4 +1564,20 @@ class RenderPerformanceTests: BenchmarkTestCase {
   private func format(_ value: Double) -> String {
     String(format: "%.3f", value)
   }
+}
+
+// MARK: - FixedSizeRowView
+
+/// A view with a 100 x 50 size of its own, which a fixed-size node measures.
+private final class FixedSizeRowView: BaseView {
+
+  #if canImport(AppKit)
+  override var fittingSize: NSSize {
+    CGSize(width: 100, height: 50)
+  }
+  #else
+  override func sizeThatFits(_ size: CGSize) -> CGSize {
+    CGSize(width: 100, height: 50)
+  }
+  #endif
 }
