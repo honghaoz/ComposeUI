@@ -487,9 +487,15 @@ class ViewNodeTests: XCTestCase {
   }
 
   #if DEBUG && !COMPOSEUI_BENCHMARK
-  func test_fixedSize_defaultMake_viewWhoseSizeFollowsItsUpdate_asserts() {
-    // given: a fixed-size node of a view whose update changes its size from 10 x 10 to 30 x 30, and a handler that
-    // records the assertions
+  func test_fixedSize_defaultMake_viewWhoseSizeItsBlocksChange_asserts() {
+    // given: fixed-size nodes of a view that's 10 x 10 plain, each with a block that changes its size, and a handler
+    // that records the assertions
+    let nodes: [(node: ViewNode<SideView>, side: CGFloat)] = [
+      (ViewNode<SideView>(willInsert: { view, _ in view.side = 30 }), 30),
+      (ViewNode<SideView>(willUpdate: { view, _ in view.side = 30 }), 30),
+      (ViewNode<SideView>(update: { view, _ in view.side = 30 }), 30),
+      (ViewNode<SideView>(update: { view, _ in view.side = 11 }), 11),
+    ]
     var assertionMessages: [String] = []
     ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
       assertionMessages.append(message)
@@ -497,21 +503,22 @@ class ViewNodeTests: XCTestCase {
     defer {
       ComposeUI.Assert.resetTestAssertionFailureHandler()
     }
-    let contentView = ComposeView {
-      ViewNode<SideView>(update: { view, _ in
-        view.side = 30
-      })
-      .fixedSize()
+
+    for (node, side) in nodes {
+      let contentView = ComposeView {
+        node.fixedSize()
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+      // when: the view renders
+      contentView.refresh(animated: false)
+
+      // then: the update asserts with the view's size, even a point off
+      expect(assertionMessages) == [
+        "ViewNode<SideView>'s view is (\(side), \(side)), not the node's size (10.0, 10.0): provide intrinsicSize",
+      ]
+      assertionMessages.removeAll()
     }
-    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-
-    // when: the view renders
-    contentView.refresh(animated: false)
-
-    // then: the update asserts
-    expect(assertionMessages) == [
-      "ViewNode<SideView>'s update changes its view's size from (10.0, 10.0) to (30.0, 30.0): provide intrinsicSize",
-    ]
   }
 
   func test_fixedSize_defaultMake_viewWhoseSizeDiffersInAWindow_doesNotAssert() {
