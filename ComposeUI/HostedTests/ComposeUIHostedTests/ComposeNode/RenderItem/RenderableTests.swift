@@ -162,19 +162,29 @@ class RenderableTests: XCTestCase {
   }
 
   func test_render_viewInWrapperLayer() throws {
-    // given: a compose view in a window, which shows a label at a frame
+    // given: a compose view in a window, which shows a label and a plain view at frames
     let window = try makeHostWindow()
     var left: CGFloat = 10
     var shownLabel: FrameCountingLabel?
+    var shownView: UIView?
     let composeView = ComposeView {
-      ViewNode(make: { context in
-        let label = FrameCountingLabel(frame: context.initialFrame ?? .zero)
-        label.text = "label"
-        shownLabel = label
-        return label
-      })
-      .animation(.linear(duration: 1))
-      .frame(width: 80, height: 40)
+      HStack {
+        ViewNode(make: { context in
+          let label = FrameCountingLabel(frame: context.initialFrame ?? .zero)
+          label.text = "label"
+          shownLabel = label
+          return label
+        })
+        .animation(.linear(duration: 1))
+        .frame(width: 80, height: 40)
+        ViewNode(make: { context in
+          let view = UIView(frame: context.initialFrame ?? .zero)
+          shownView = view
+          return view
+        })
+        .animation(.linear(duration: 1))
+        .frame(width: 40, height: 40)
+      }
       .padding(top: 20, left: left)
       .frame(width: .flexible, height: .flexible, alignment: .topLeft)
     }
@@ -184,11 +194,14 @@ class RenderableTests: XCTestCase {
     // when: rendering
     composeView.refresh(animated: false)
 
-    // then: the label's layer is in a wrapper layer, and the label is at its frame
+    // then: the label's layer is in a wrapper layer, the plain view's isn't, and both are at their frames
     let label = try unwrap(shownLabel)
+    let view = try unwrap(shownView)
     expect(label.layer.superlayer) !== label.superview?.layer
     expect(label.frame) == CGRect(x: 10, y: 20, width: 80, height: 40)
     expect(label.layer.position) == Constants.boundsCenter
+    expect(view.layer.superlayer) === composeView.layer
+    expect(view.frame) == CGRect(x: 90, y: 20, width: 40, height: 40)
 
     // when: rendering again, unchanged
     let frameSetCount = label.frameSetCount
@@ -202,10 +215,13 @@ class RenderableTests: XCTestCase {
     left = 50
     composeView.refresh(animated: true)
 
-    // then: the label takes its frame without animating it, with its layer filling the wrapper
+    // then: the label takes its frame without animating it, with its layer filling the wrapper, while the plain view
+    // animates to its frame
     expect(label.frame) == CGRect(x: 50, y: 20, width: 80, height: 40)
     expect(label.layer.position) == Constants.boundsCenter
     expect(label.layer.animationKeys()) == nil
+    expect(view.frame) == CGRect(x: 130, y: 20, width: 40, height: 40)
+    expect(view.layer.animationKeys()?.contains("position")) == true
   }
 
   // MARK: - Constants
