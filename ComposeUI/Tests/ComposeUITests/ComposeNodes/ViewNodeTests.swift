@@ -374,8 +374,16 @@ class ViewNodeTests: XCTestCase {
     }
   }
 
-  func test_factoryView_fixedSize_fallbackToMeasurementView() {
-    // when a factory ViewNode has fixedSize but no intrinsicSize provider, it falls back to creating a throwaway view via `make` and using its `intrinsicSize(for:)`.
+  func test_fixedSize_withoutIntrinsicSize_measuresAViewOrAssertsForACustomMake() {
+    // given: a handler that records the assertions
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+    let customMakeMessage = "ViewNode<FixedSizeView> with a custom make needs an intrinsicSize closure for fixed sizing"
 
     // empty view
     do {
@@ -386,9 +394,10 @@ class ViewNodeTests: XCTestCase {
       // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-      // then: the sizing and size are zero
+      // then: the size is a plain view's, zero, without an assertion
       expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
       expect(node.size) == .zero
+      expect(assertionMessages) == []
     }
 
     // fixed size (width: true, height: true)
@@ -405,10 +414,12 @@ class ViewNodeTests: XCTestCase {
       // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-      // then: the measurement view provides the fixed size and make is called once
+      // then: the layout asserts, and measures a view that make makes
+      expect(assertionMessages) == [customMakeMessage]
       expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .fixed(60))
       expect(node.size) == CGSize(width: 80, height: 60)
       expect(makeCallCount) == 1
+      assertionMessages.removeAll()
     }
 
     // fixed width only (width: true, height: false)
@@ -425,10 +436,12 @@ class ViewNodeTests: XCTestCase {
       // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-      // then: the width uses the measurement view and the height fills the container
+      // then: the layout asserts, the width is the measured view's, and the height fills the container
+      expect(assertionMessages) == [customMakeMessage]
       expect(sizing) == ComposeNodeSizing(width: .fixed(80), height: .flexible)
       expect(node.size) == CGSize(width: 80, height: 200)
       expect(makeCallCount) == 1
+      assertionMessages.removeAll()
     }
 
     // fixed height only (width: false, height: true)
@@ -445,12 +458,107 @@ class ViewNodeTests: XCTestCase {
       // when: laying out the node
       let sizing = node.layout(containerSize: CGSize(width: 200, height: 200), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-      // then: the height uses the measurement view and the width fills the container
+      // then: the layout asserts, the height is the measured view's, and the width fills the container
+      expect(assertionMessages) == [customMakeMessage]
       expect(sizing) == ComposeNodeSizing(width: .flexible, height: .fixed(60))
       expect(node.size) == CGSize(width: 200, height: 60)
       expect(makeCallCount) == 1
     }
   }
+
+  func test_fixedSize_defaultMake_measuresOnePlainViewOfItsType() {
+    // given: two fixed-size nodes of a view type that counts the views made of it, with the default view factory
+    let madeCountBefore = CountedFixedSizeView.madeCount
+    var node = ViewNode<CountedFixedSizeView>().fixedSize()
+    var heightNode = ViewNode<CountedFixedSizeView>().fixedSize(width: false, height: true)
+    let containerSize = CGSize(width: 200, height: 200)
+
+    // when: the nodes lay out, the first one twice
+    _ = node.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    let madeByTheFirstLayout = CountedFixedSizeView.madeCount - madeCountBefore
+    _ = heightNode.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 1))
+    _ = node.layout(containerSize: containerSize, context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+    // then: the nodes take the plain view's size in their fixed dimensions, and at most the first layout made a view
+    expect(node.size) == CGSize(width: 80, height: 60)
+    expect(heightNode.size) == CGSize(width: 200, height: 60)
+    expect(madeByTheFirstLayout <= 1) == true
+    expect(CountedFixedSizeView.madeCount - madeCountBefore) == madeByTheFirstLayout
+  }
+
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  func test_fixedSize_defaultMake_viewWhoseSizeFollowsItsUpdate_asserts() {
+    // given: a fixed-size node of a view whose update changes its size from 10 x 10 to 30 x 30, and a handler that
+    // records the assertions
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+    let contentView = ComposeView {
+      ViewNode<SideView>(update: { view, _ in
+        view.side = 30
+      })
+      .fixedSize()
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    // when: the view renders
+    contentView.refresh(animated: false)
+
+    // then: the update asserts
+    expect(assertionMessages) == [
+      "ViewNode<SideView>'s view is (30.0, 30.0) after update, not the plain view's (10.0, 10.0): provide intrinsicSize",
+    ]
+  }
+  #endif
+
+  #if os(iOS) || os(visionOS)
+  func test_fixedSize_systemControlsThatKeepTheirOwnSize_takeTheirFrames() throws {
+    // given: a switch, a stepper and a progress view in fixed-size nodes, each in a 100 x 50 frame, and a handler that
+    // records the assertions
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+    var height: CGFloat = 50
+    var controls: [String: UIView] = [:]
+    let contentView = ComposeView {
+      VStack {
+        ViewNode<UISwitch>(update: { view, _ in controls["switch"] = view })
+          .fixedSize()
+          .frame(width: 100, height: height)
+        ViewNode<UIStepper>(update: { view, _ in controls["stepper"] = view })
+          .fixedSize()
+          .frame(width: 100, height: height)
+        ViewNode<UIProgressView>(update: { view, _ in controls["progress"] = view })
+          .fixedSize(width: false, height: true)
+          .frame(width: 100, height: height)
+      }
+      .animation(.linear(duration: 10))
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 400)
+
+    // when: the view renders, then an animated refresh makes the frames taller
+    contentView.refresh(animated: false)
+    height = 70
+    contentView.refresh(animated: true)
+
+    // then: nothing asserts, and each control has its own size, in the dimensions that it keeps
+    expect(assertionMessages) == []
+    let toggle = try unwrap(controls["switch"])
+    let stepper = try unwrap(controls["stepper"])
+    let progress = try unwrap(controls["progress"])
+    expect(toggle.bounds.size) == UISwitch().sizeThatFits(.zero)
+    expect(stepper.bounds.size) == UIStepper().sizeThatFits(.zero)
+    expect(progress.bounds.size) == CGSize(width: 100, height: UIProgressView().sizeThatFits(.zero).height)
+  }
+  #endif
 
   func test_make_default_makesTheViewTypeAtTheInitialFrame() throws {
     // given: a node of a view subclass with the default view factory
@@ -747,6 +855,50 @@ private class ConstraintBasedView: View {
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
   }
+}
+
+/// A view that reports an 80 x 60 size and counts the views made of it.
+private final class CountedFixedSizeView: BaseView {
+
+  /// The number of views made of the type.
+  static var madeCount = 0
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    Self.madeCount += 1
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is unavailable") // swiftlint:disable:this fatal_error
+  }
+
+  #if canImport(AppKit)
+  override var fittingSize: NSSize {
+    CGSize(width: 80, height: 60)
+  }
+  #else
+  override func sizeThatFits(_ size: CGSize) -> CGSize {
+    CGSize(width: 80, height: 60)
+  }
+  #endif
+}
+
+/// A square view whose size follows its side length.
+private final class SideView: BaseView {
+
+  /// The side length of the view's size.
+  var side: CGFloat = 10
+
+  #if canImport(AppKit)
+  override var fittingSize: NSSize {
+    CGSize(width: side, height: side)
+  }
+  #else
+  override func sizeThatFits(_ size: CGSize) -> CGSize {
+    CGSize(width: side, height: side)
+  }
+  #endif
 }
 
 private class FixedSizeView: BaseView {

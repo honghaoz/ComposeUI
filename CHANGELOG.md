@@ -32,6 +32,8 @@
 - Renamed `ComposeNode.renderableItemsBoundingRect` to `renderableItemsBounds`. To migrate a node, rename its implementation: one under the old name still builds, but isn't read, so items that the node places outside its bounds can be left out of a render. ([#251](https://github.com/honghaoz/ComposeUI/pull/251))
 - The node owns its renderable's transform: the render pass no longer resets it to identity on each pass, so a transform set in any block stays until the node changes it. A node that sets a transform only while a condition holds sets the identity transform when it doesn't. The frame is where the position and bounds size place the renderable, before the transform applies, which `Renderable.frame` returns, and a renderable that the render pass reuses for another item starts with an identity transform. ([#270](https://github.com/honghaoz/ComposeUI/pull/270))
 - An update block, such as `onUpdate` or a node's `update` closure, must keep the renderable's frame, which the render pass sets before the updates, and debug builds assert when one changes it. Change a renderable's frame through the node's layout. ([#283](https://github.com/honghaoz/ComposeUI/pull/283))
+- A renderable must take the frame that the render pass gives it, and debug builds assert when one doesn't. A view that keeps its own size needs a fixed-size node, such as `ViewNode<UISwitch>().fixedSize()`.
+- A fixed-size `ViewNode` needs `intrinsicSize` when `make` is custom or `update` changes the view's size, and debug builds assert without it.
 
 ### Changes
 

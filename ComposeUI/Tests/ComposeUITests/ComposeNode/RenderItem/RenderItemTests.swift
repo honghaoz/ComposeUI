@@ -542,6 +542,45 @@ class RenderItemTests: XCTestCase {
     expect(view.layer().name) == "update"
   }
 
+  // MARK: - Default View
+
+  func test_viewItem_withoutMake_makesPlainViewsOfItsType() throws {
+    // given: a view item of a view subclass without a make block, with an insertion block
+    var insertedView: View?
+    let item = ViewItem<PlainItemView>(
+      id: .standard(.view),
+      frame: .zero,
+      make: nil,
+      willInsert: { view, _ in insertedView = view },
+      didInsert: nil,
+      willUpdate: nil,
+      update: { _, _ in },
+      willRemove: nil,
+      didRemove: nil
+    )
+    let makeContext = RenderableMakeContext(initialFrame: CGRect(x: 1, y: 2, width: 3, height: 4), contentView: nil)
+
+    // when: making a view through the item, and through the item erased
+    let view = item.make(makeContext)
+    let erasedView = try unwrap(item.eraseToRenderableItem().make(makeContext).view)
+
+    // then: each is a new plain view of the item's type at the initial frame, which lays out by its frame
+    expect(erasedView is PlainItemView) == true
+    expect(erasedView) !== view
+    for madeView in [view, erasedView] {
+      expect(madeView.frame) == CGRect(x: 1, y: 2, width: 3, height: 4)
+      expect(madeView.translatesAutoresizingMaskIntoConstraints) == true
+    }
+
+    withContexts { contexts in
+      // when: running the item's insertion block
+      item.willInsert?(view, contexts.insert)
+
+      // then: the item's own block runs on the view
+      expect(insertedView) === view
+    }
+  }
+
   // MARK: - Prefetch
 
   func test_prefetch_publicInit_hasNone() {
@@ -1004,3 +1043,8 @@ class RenderItemTests: XCTestCase {
   }
   #endif
 }
+
+// MARK: - PlainItemView
+
+/// A view subclass that a view item without a `make` block makes.
+private final class PlainItemView: View {}

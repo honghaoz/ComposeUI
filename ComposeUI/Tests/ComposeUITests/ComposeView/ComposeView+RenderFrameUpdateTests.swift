@@ -1012,7 +1012,7 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     expect(try unwrap(trackingLayer).frame) == CGRect(x: 0, y: 0, width: 100, height: 50)
   }
 
-  func test_update_ofAViewThatRefusesItsFrame_doesNotAssert() throws {
+  func test_viewThatRefusesItsFrame_asserts() throws {
     // given: a content view with a row of a view that keeps a 40 x 40 size, laid out at 100 x 50, and a handler that
     // records the assertions
     var refusingView: SizeKeepingView?
@@ -1036,8 +1036,41 @@ class ComposeView_RenderFrameUpdateTests: XCTestCase {
     view.refresh(animated: false)
     view.refresh(animated: false)
 
-    // then: the view kept its size, and nothing asserts, since the updates kept the frame that the view has
+    // then: the view keeps its size, and the insertion and the reuse each assert that it doesn't take its frame
     expect(try unwrap(refusingView).frame.size) == SizeKeepingView.size
+    expect(assertionMessages.count) == 2
+    expect(assertionMessages.allSatisfy {
+      $0.hasPrefix("a renderable doesn't take its frame (a view that keeps its own size needs a fixed-size node): ")
+    }) == true
+  }
+
+  func test_viewThatKeepsItsOwnSize_inAFixedSizeNode_takesItsFrame() throws {
+    // given: a content view with a fixed-size node of a view that keeps a 40 x 40 size, in a row 50 points tall, and a
+    // handler that records the assertions
+    var keepingView: SizeKeepingView?
+    let view = ComposeView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    view.setContent {
+      ViewNode<SizeKeepingView>()
+        .fixedSize()
+        .onUpdate { renderable, _ in
+          keepingView = renderable.view as? SizeKeepingView
+        }
+        .frame(width: .flexible, height: 50)
+    }
+    var assertionMessages: [String] = []
+    ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      ComposeUI.Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: the view renders, inserting the row, then refreshes, reusing it
+    view.refresh(animated: false)
+    view.refresh(animated: false)
+
+    // then: the node lays the view out at its own size, which the view takes, and nothing asserts
+    expect(try unwrap(keepingView).frame.size) == SizeKeepingView.size
     expect(assertionMessages) == []
   }
   #endif
@@ -1155,6 +1188,10 @@ private final class SizeKeepingView: BaseView {
   static let size = CGSize(width: 40, height: 40)
 
   #if canImport(AppKit)
+  override var fittingSize: NSSize {
+    Self.size
+  }
+
   override func setFrameSize(_ newSize: NSSize) {
     super.setFrameSize(Self.size)
   }
