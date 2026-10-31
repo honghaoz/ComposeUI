@@ -51,8 +51,8 @@ class LayerNodeTests: XCTestCase {
 
   func test_fixedSize() {
     do {
-      // given: a node using layer factory
-      var node = LayerNode<CALayer>()
+      // given: a node using layer factory, with an intrinsic size for fixed sizing
+      var node = LayerNode<CALayer>(intrinsicSize: { _ in CGSize(width: 10, height: 10) })
 
       // then: the size is flexible
       expect(node.isFixedWidth) == false
@@ -345,27 +345,69 @@ class LayerNodeTests: XCTestCase {
     expect(allocations) == 0
   }
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
   func test_factoryLayer_requiresIntrinsicSizeForFixedSizing() {
-    // given: a fixed size layer node with a layer factory and no intrinsic size
-    var node = LayerNode()
-      .fixedSize()
-
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "LayerNode<CALayer> with a layer factory needs an intrinsicSize closure for fixed sizing"
-      assertionCount += 1
+    // given: a handler that records the assertions, and a layer node with a layer factory and no intrinsic size
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
     }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+    let message = "LayerNode<CALayer> with a layer factory needs an intrinsicSize closure for fixed sizing"
+    var node = LayerNode()
+
+    // when: fixing the node's size
+    node = node.fixedSize()
+
+    // then: fixing it asserts, while the code that fixes it runs
+    expect(assertionMessages) == [message]
 
     // when: laying out in a 100x100 container
     let sizing = node.layout(containerSize: CGSize(width: 100, height: 100), context: ComposeNodeLayoutContext(scaleFactor: 1))
 
-    // then: the assertion is triggered and the size falls back to zero
+    // then: the size falls back to zero, without asserting again
     expect(sizing) == ComposeNodeSizing(width: .fixed(0), height: .fixed(0))
     expect(node.size) == .zero
-    expect(assertionCount) == 1
-
-    Assert.resetTestAssertionFailureHandler()
+    expect(assertionMessages) == [message]
   }
+
+  func test_fixedSize_assertsOnceWhenANodeThatCantMeasureTurnsFixed() {
+    // given: a handler that counts the assertions, and sizing changes of a node with a layer factory and no intrinsic
+    // size, which can't measure its layer, and of nodes that can, each with the assertions it makes
+    var assertionCount = 0
+    Assert.setTestAssertionFailureHandler { _, _, _, _ in
+      assertionCount += 1
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+    let factory = LayerNode()
+    let changes: [(name: String, node: LayerNode<CALayer>, change: (LayerNode<CALayer>) -> LayerNode<CALayer>, assertionCount: Int)] = [
+      ("fixed", factory, { $0.fixedSize() }, 1),
+      ("fixed in width", factory, { $0.fixedSize(width: true, height: false) }, 1),
+      ("fixed in height", factory, { $0.fixedSize(width: false, height: true) }, 1),
+      ("fixed in neither length", factory, { $0.fixedSize(width: false, height: false) }, 0),
+      ("fixed twice", factory, { $0.fixedSize().fixedSize() }, 1),
+      ("fixed in width twice", factory, { $0.fixedSize(width: true, height: false).fixedSize(width: true, height: false) }, 1),
+      ("fixed in height twice", factory, { $0.fixedSize(width: false, height: true).fixedSize(width: false, height: true) }, 1),
+      ("fixed in width, then in both lengths", factory, { $0.fixedSize(width: true, height: false).fixedSize() }, 1),
+      ("fixed in height, then in both lengths", factory, { $0.fixedSize(width: false, height: true).fixedSize() }, 1),
+      ("fixed with an intrinsic size", LayerNode(intrinsicSize: { _ in .zero }), { $0.fixedSize() }, 0),
+      ("of an external layer, made flexible, then fixed", LayerNode(CALayer()), { $0.flexibleSize().fixedSize() }, 0),
+    ]
+
+    for (name, node, change, expectedAssertionCount) in changes {
+      // when: changing the node's sizing, without laying it out
+      assertionCount = 0
+      _ = change(node)
+
+      // then: a node that can't measure its layer asserts once when it turns fixed, while the change runs
+      expect(assertionCount, name) == expectedAssertionCount
+    }
+  }
+  #endif
 
   func test_renderableItems() throws {
     // given: a laid out layer node

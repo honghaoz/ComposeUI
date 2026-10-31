@@ -178,14 +178,37 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 
   // MARK: - IntrinsicSizableComposeNode
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  public var isFixedWidth: Bool {
+    didSet {
+      if !oldValue, isFixedWidth, !isFixedHeight {
+        assertIntrinsicSizeForFixedSizing()
+      }
+    }
+  }
+
+  public var isFixedHeight: Bool {
+    didSet {
+      if !oldValue, isFixedHeight, !isFixedWidth {
+        assertIntrinsicSizeForFixedSizing()
+      }
+    }
+  }
+  #else
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
+  #endif
+
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  private func assertIntrinsicSizeForFixedSizing() {
+    ComposeUI.assert(make == nil || intrinsicSizeProvider != nil, "ViewNode<\(T.self)> with a custom make needs an intrinsicSize closure for fixed sizing")
+  }
+  #endif
 
   private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
     if let intrinsicSizeProvider {
       return intrinsicSizeProvider(proposedSize)
     } else if let make {
-      ComposeUI.assertFailure("ViewNode<\(T.self)> with a custom make needs an intrinsicSize closure for fixed sizing")
       return make(RenderableMakeContext(initialFrame: .zero)).intrinsicSize(for: proposedSize)
     } else {
       return MeasuringViews.view(of: T.self).intrinsicSize(for: proposedSize)

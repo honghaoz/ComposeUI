@@ -158,12 +158,35 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
   // MARK: - IntrinsicSizableComposeNode
 
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  public var isFixedWidth: Bool {
+    didSet {
+      if !oldValue, isFixedWidth, !isFixedHeight {
+        assertIntrinsicSizeForFixedSizing()
+      }
+    }
+  }
+
+  public var isFixedHeight: Bool {
+    didSet {
+      if !oldValue, isFixedHeight, !isFixedWidth {
+        assertIntrinsicSizeForFixedSizing()
+      }
+    }
+  }
+  #else
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
+  #endif
+
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  private func assertIntrinsicSizeForFixedSizing() {
+    ComposeUI.assert(intrinsicSizeProvider != nil, "LayerNode<\(T.self)> with a layer factory needs an intrinsicSize closure for fixed sizing")
+  }
+  #endif
 
   private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
     guard let intrinsicSizeProvider else {
-      ComposeUI.assertFailure("LayerNode<\(T.self)> with a layer factory needs an intrinsicSize closure for fixed sizing")
       return .zero
     }
 
