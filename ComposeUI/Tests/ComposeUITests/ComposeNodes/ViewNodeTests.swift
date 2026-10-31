@@ -550,7 +550,8 @@ class ViewNodeTests: XCTestCase {
   #if os(iOS) || os(visionOS)
   func test_fixedSize_systemControlsThatKeepTheirOwnSize_takeTheirFrames() throws {
     // given: a switch, a stepper and a progress view in fixed-size nodes, each in a 100 x 50 frame, and a handler that
-    // records the assertions
+    // records the assertions. a switch on visionOS throws when it's measured without a window scene, which tests don't
+    // have
     var assertionMessages: [String] = []
     ComposeUI.Assert.setTestAssertionFailureHandler { message, _, _, _ in
       assertionMessages.append(message)
@@ -562,9 +563,11 @@ class ViewNodeTests: XCTestCase {
     var controls: [String: UIView] = [:]
     let contentView = ComposeView {
       VStack {
+        #if os(iOS)
         ViewNode<UISwitch>(update: { view, _ in controls["switch"] = view })
           .fixedSize()
           .frame(width: 100, height: height)
+        #endif
         ViewNode<UIStepper>(update: { view, _ in controls["stepper"] = view })
           .fixedSize()
           .frame(width: 100, height: height)
@@ -583,10 +586,12 @@ class ViewNodeTests: XCTestCase {
 
     // then: nothing asserts, and each control has its own size, in the dimensions that it keeps
     expect(assertionMessages) == []
+    #if os(iOS)
     let toggle = try unwrap(controls["switch"])
+    expect(toggle.bounds.size) == UISwitch().sizeThatFits(.zero)
+    #endif
     let stepper = try unwrap(controls["stepper"])
     let progress = try unwrap(controls["progress"])
-    expect(toggle.bounds.size) == UISwitch().sizeThatFits(.zero)
     expect(stepper.bounds.size) == UIStepper().sizeThatFits(.zero)
     expect(progress.bounds.size) == CGSize(width: 100, height: UIProgressView().sizeThatFits(.zero).height)
   }
