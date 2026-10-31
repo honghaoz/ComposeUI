@@ -272,8 +272,9 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     let isFixedHeight = isFixedHeight
     return { view, context in
       update(view, context)
-      // checked after `willInsert`, `willUpdate` and `update`, any of which can change the size. a plain view outside a
-      // window can round its size to other pixels, so less than a point of difference passes
+      // checked after the node's own `willInsert`, `willUpdate` and `update`, any of which can change the size, so a size
+      // that a modifier's block changes shows on the next update. a plain view outside a window can round its size to
+      // other pixels, so less than a point of difference passes
       let ownSize = view.intrinsicSize(for: proposedSize)
       ComposeUI.assert(
         (!isFixedWidth || abs(ownSize.width - size.width) < 1) && (!isFixedHeight || abs(ownSize.height - size.height) < 1),
