@@ -51,6 +51,18 @@ test-visionOS: # Run tests on visionOS.
 test-ci: # Run tests with CI-optimized caching path. Usage: make test-ci OS=iOS [PHASE=pick|boot|build|test].
 	@$(REPO_ROOT)/scripts/swift-package/test-package-xcodebuild.sh --package "$(MAKEFILE_DIR)" --os "$(OS)" --derived-data-path "$(CURDIR)/.derived-data" $(if $(PHASE),--phase $(PHASE),)
 
+.PHONY: test-hosted-iOS
+test-hosted-iOS: # Run the hosted tests, which run in an app with a window scene, on iOS.
+	@$(REPO_ROOT)/scripts/hosted-tests/test-hosted-xcodebuild.sh --os iOS
+
+.PHONY: test-hosted-visionOS
+test-hosted-visionOS: # Run the hosted tests, which run in an app with a window scene, on visionOS.
+	@$(REPO_ROOT)/scripts/hosted-tests/test-hosted-xcodebuild.sh --os visionOS
+
+.PHONY: test-hosted-ci
+test-hosted-ci: # Run the hosted tests with CI's DerivedData path. Usage: make test-hosted-ci OS=visionOS [PHASE=build|test].
+	@$(REPO_ROOT)/scripts/hosted-tests/test-hosted-xcodebuild.sh --os "$(OS)" --derived-data-path "$(CURDIR)/.derived-data-hosted" $(if $(PHASE),--phase $(PHASE),)
+
 .PHONY: benchmark
 benchmark: # Run the benchmarks in release configuration. Usage: make benchmark [PLATFORM=iOS] [FILTER=RenderPerformanceTests].
 	@"$(REPO_ROOT)/scripts/benchmark/benchmark-run.sh" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",)

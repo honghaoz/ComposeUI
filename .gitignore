@@ -46,6 +46,7 @@ playground.xcworkspace
 
 ## Custom derived data
 **/.derived-data/
+**/.derived-data-hosted/
 
 # ===== Swift Package Manager =====
 #
@@ -109,6 +110,7 @@ scripts/*
 !scripts/bootstrap.sh
 !scripts/download-scripts.sh
 !scripts/benchmark/
+!scripts/hosted-tests/
 
 # ===== Binaries =====
 bin/jq

@@ -19,7 +19,7 @@ A cross-platform declarative UI framework built directly on UIKit/AppKit and Cor
 
 - Root-level tooling and metadata live in `Makefile`, `scripts/`, `configs/`, and `bin/`.
 - Main framework code is in `ComposeUI/Sources/ComposeUI`.
-- Tests are in `ComposeUI/Tests/ComposeUITests`.
+- Tests are in `ComposeUI/Tests/ComposeUITests`. Tests that need an app with a window scene are in `ComposeUI/HostedTests`, an Xcode project whose app hosts them on iOS and visionOS.
 - Playgrounds live in `playgrounds/` with separate projects for macOS and iOS.
 - Development docs, such as the performance learnings, live in `docs/`.
 - Root `Package.swift` is for public package consumption. Internal day-to-day development and tests run from `ComposeUI/`.
@@ -46,6 +46,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 - `make -C ComposeUI build-release-<platform>`: release build per platform.
 - `make -C ComposeUI test-macOS` / `test-iOS` / `test-tvOS` / `test-visionOS`: run platform tests.
 - `make -C ComposeUI test-codecov`: run SwiftPM tests with coverage output.
+- `make -C ComposeUI test-hosted-iOS` / `test-hosted-visionOS`: run the hosted tests.
 - `cd ComposeUI && swift test --filter <TestCase>.<test_name>`: run a focused test quickly (always from `ComposeUI/`, not the root package).
 - `make -C ComposeUI benchmark [PLATFORM=iOS] [FILTER=<regex>]`: run the benchmarks once in release, on macOS by default or on an iOS or tvOS simulator. Make expands a `$` in `FILTER`, so write it as `$$`.
 - `make -C ComposeUI benchmark-compare [BASE=origin/master] [PLATFORM=iOS] [FILTER=<regex>]`: compare the working tree's benchmarks against a base revision on this machine, failing on more allocations or more than 1% more instructions.
