@@ -43,9 +43,12 @@ import UIKit
 /// - **Factory-created view**: Flexible size. By default, the node adapts to container size.
 ///
 /// Use `fixedSize(width:height:)` to control whether the node uses the view's intrinsic size or adapts to the container size for each dimension.
+///
+/// A view that always keeps its own size, such as `UISwitch`, needs a node that's fixed in the size, such as
+/// `ViewNode<UISwitch>().fixedSize()`.
 public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 
-  private let make: (RenderableMakeContext) -> T
+  private let make: ((RenderableMakeContext) -> T)?
   private let intrinsicSizeProvider: ((_ proposedSize: CGSize) -> CGSize)?
   private let willInsert: ((T, RenderableInsertContext) -> Void)?
   private let didInsert: ((T, RenderableInsertContext) -> Void)?
@@ -56,6 +59,11 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 
   /// The node's slot in the item cache of its content, so scroll render passes reuse its item instead of rebuilding it.
   private var itemSlot = RenderableItemCache.Slot.unassigned
+
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  /// The proposed size that the layout measured a plain view with, or `nil` when it measured none.
+  private var plainViewProposedSize: CGSize?
+  #endif
 
   /// Make a view node with an external view.
   ///
@@ -128,19 +136,23 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// The node has a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
   ///
+  /// - Note: A view that always keeps its own size, such as `UISwitch`, requires a fixed size, such as
+  ///   `ViewNode<UISwitch>().fixedSize()`.
+  ///
   /// - Parameters:
-  ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with with frame set to `context.initialFrame` if it's provided.
-  ///     The default, also used for `nil`, makes a `T` with its frame set to `context.initialFrame`.
-  ///   - intrinsicSize: A closure that returns the intrinsic size from the proposed container size.
-  ///     **Important** when using fixed sizing (via `fixedSize(width:height:)`). If `nil`, the node falls back to creating a measurement view via `make` (without `update` configuration),
-  ///     which is inefficient and may produce wrong sizes for views whose size depends on configuration applied via `update` (e.g., a label with text).
+  ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with
+  ///     frame set to `context.initialFrame` if it's provided. The default value is `nil`, which makes a plain `T` with
+  ///     its frame set to `context.initialFrame`.
+  ///   - intrinsicSize: A closure that returns the view's size for a proposed size, for fixed sizing (see
+  ///     `fixedSize(width:height:)`). Provide it when `make` is custom or `update` changes the view's size. Otherwise,
+  ///     `nil` measures a plain `T`, which may produce wrong sizes.
   ///   - willInsert: A closure to be called when the view is about to be inserted into the renderable hierarchy.
   ///   - didInsert: A closure to be called when the view is inserted into the renderable hierarchy.
   ///   - willUpdate: A closure to be called when the view is about to be updated.
   ///   - update: A closure to update the view, which must keep the view's frame that the render pass sets.
   ///   - willRemove: A closure to be called when the view is about to be removed from the renderable hierarchy.
   ///   - didRemove: A closure to be called when the view is removed from the renderable hierarchy.
-  public init(make: ((_ context: RenderableMakeContext) -> T)? = { ViewNode.makeView($0) },
+  public init(make: ((_ context: RenderableMakeContext) -> T)? = nil,
               intrinsicSize: ((_ proposedSize: CGSize) -> CGSize)? = nil,
               willInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
               didInsert: ((_ view: T, _ context: RenderableInsertContext) -> Void)? = nil,
@@ -149,14 +161,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
               willRemove: ((_ view: T, _ context: RenderableRemoveContext) -> Void)? = nil,
               didRemove: ((_ view: T, _ context: RenderableRemoveContext) -> Void)? = nil)
   {
-    // the default `make` is made at the call site, which an optimized build specializes for `T`, so it captures
-    // nothing, while a closure made here keeps `T` in an allocated context, which only an explicit `nil` pays for.
-    // `make` isn't passed through `??`, whose generic operands take a closure through allocated reabstraction thunks.
-    if let make {
-      self.make = make
-    } else {
-      self.make = { Self.makeView($0) }
-    }
+    self.make = make
     self.intrinsicSizeProvider = intrinsicSize
     self.willInsert = willInsert
     self.didInsert = didInsert
@@ -171,48 +176,20 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     id = .standard(.view)
   }
 
-  /// Makes a view with its frame set to the context's initial frame, the default `make`.
-  ///
-  /// - Parameter context: The make context.
-  /// - Returns: The new view.
-  @usableFromInline
-  static func makeView(_ context: RenderableMakeContext) -> T {
-    let view: T
-    if let initialFrame = context.initialFrame {
-      view = T(frame: initialFrame)
-    } else {
-      view = T()
-    }
-    #if canImport(AppKit)
-    if T.self == View.self {
-      view.wantsLayer = true
-    }
-    #endif
-    view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
-    return view
-  }
-
   // MARK: - IntrinsicSizableComposeNode
 
   public var isFixedWidth: Bool
   public var isFixedHeight: Bool
 
   private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
-    guard let intrinsicSizeProvider else {
-      #if DEBUG
-      print(
-        """
-        [ComposeUI] Warning: ViewNode<\(T.self)> uses fixed sizing without an `intrinsicSize` closure. Falling back to a measurement view created via `make` (without `update` applied). This is inefficient and may produce wrong sizes if the size depends on `update`. Provide an `intrinsicSize` closure to fix this.
-        """
-      )
-      #endif
-
-      // fallback to make a throwaway view and get the size that fits the container size
-      let view = make(RenderableMakeContext(initialFrame: .zero))
-      return view.intrinsicSize(for: proposedSize)
+    if let intrinsicSizeProvider {
+      return intrinsicSizeProvider(proposedSize)
+    } else if let make {
+      ComposeUI.assertFailure("ViewNode<\(T.self)> with a custom make needs an intrinsicSize closure for fixed sizing")
+      return make(RenderableMakeContext(initialFrame: .zero)).intrinsicSize(for: proposedSize)
+    } else {
+      return MeasuringViews.view(of: T.self).intrinsicSize(for: proposedSize)
     }
-
-    return intrinsicSizeProvider(proposedSize)
   }
 
   // MARK: - ComposeNode
@@ -223,6 +200,11 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
 
   public mutating func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
     RenderableItemCache.updateSlot(&itemSlot)
+
+    #if DEBUG && !COMPOSEUI_BENCHMARK
+    let measuresPlainView = make == nil && intrinsicSizeProvider == nil && (isFixedWidth || isFixedHeight)
+    plainViewProposedSize = measuresPlainView ? containerSize : nil
+    #endif
 
     // the intrinsic size comes from the app, which can read both lengths of the proposed size, so every mode reads both
     switch (isFixedWidth, isFixedHeight) {
@@ -250,7 +232,18 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     }
 
     let item = RenderableItemCache.item(in: itemSlot, id: id, frame: frame) {
-      ViewItem<T>(
+      let update: (T, RenderableUpdateContext) -> Void
+      #if DEBUG && !COMPOSEUI_BENCHMARK
+      if let plainViewProposedSize {
+        update = sizeCheckedUpdate(proposedSize: plainViewProposedSize)
+      } else {
+        update = self.update
+      }
+      #else
+      update = self.update
+      #endif
+
+      return ViewItem<T>(
         id: id,
         frame: frame,
         make: make,
@@ -265,6 +258,54 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
     }
 
     items.append(item)
+  }
+
+  #if DEBUG && !COMPOSEUI_BENCHMARK
+  /// Returns the update, followed by a check that the view has the node's size, which a plain view measured.
+  ///
+  /// - Parameter proposedSize: The proposed size that the plain view was measured with.
+  /// - Returns: The update that checks the size.
+  private func sizeCheckedUpdate(proposedSize: CGSize) -> (T, RenderableUpdateContext) -> Void {
+    let update = update
+    let size = size
+    let isFixedWidth = isFixedWidth
+    let isFixedHeight = isFixedHeight
+    return { view, context in
+      update(view, context)
+      // checked after the node's own `willInsert`, `willUpdate` and `update`, any of which can change the size, so a size
+      // that a modifier's block changes shows on the next update. a plain view outside a window can round its size to
+      // other pixels, so less than a point of difference passes
+      let ownSize = view.intrinsicSize(for: proposedSize)
+      ComposeUI.assert(
+        (!isFixedWidth || abs(ownSize.width - size.width) < 1) && (!isFixedHeight || abs(ownSize.height - size.height) < 1),
+        "ViewNode<\(T.self)>'s view is \(ownSize), not the node's size \(size): provide intrinsicSize"
+      )
+    }
+  }
+  #endif
+}
+
+// MARK: - MeasuringViews
+
+/// The plain views that fixed-size `ViewNode`s with the default `make` measure, one per view type.
+private enum MeasuringViews {
+
+  /// The views by type, used on the main thread only.
+  private static var views: [ObjectIdentifier: View] = [:]
+
+  /// Returns the plain view of the type, making it on the first call.
+  ///
+  /// - Parameter type: The view type.
+  /// - Returns: The plain view of the type.
+  static func view(of type: View.Type) -> View {
+    let key = ObjectIdentifier(type)
+    if let view = views[key] {
+      return view
+    } else {
+      let view = DefaultView.make(type, RenderableMakeContext(initialFrame: .zero))
+      views[key] = view
+      return view
+    }
   }
 }
 

@@ -140,7 +140,8 @@ public struct RenderItem<T> {
     switch storage.source {
     case .make(let make):
       return make
-    case .typedItem:
+    case .defaultView,
+         .typedItem:
       return { storage.makeRenderable($0) }
     }
   }
@@ -581,6 +582,9 @@ public struct RenderItem<T> {
       /// The item's own `make` block, with the item's own lifecycle blocks.
       case make((RenderableMakeContext) -> T)
 
+      /// A plain view of the type, for a view item without a `make` block, with the item's own lifecycle blocks.
+      case defaultView(View.Type)
+
       /// The storage of the view or layer item that the item was erased from, which makes the renderable and runs its
       /// lifecycle blocks, of the kinds in `blocks`, see `eraseToRenderableItem()`. Only a `RenderableItem` has one.
       case typedItem(any TypedItemStorage, blocks: TypedItemBlocks)
@@ -646,7 +650,8 @@ public struct RenderItem<T> {
     /// The storage of the typed item that the item was erased from, if it has a lifecycle block of the kind.
     func typedItem(with block: TypedItemBlocks) -> (any TypedItemStorage)? {
       switch source {
-      case .make:
+      case .make,
+           .defaultView:
         return nil
       case .typedItem(let typedItem, let blocks):
         return blocks.contains(block) ? typedItem : nil
@@ -656,7 +661,8 @@ public struct RenderItem<T> {
     /// Whether the typed item that the item was erased from has a lifecycle block of the kind.
     func typedItemHas(_ block: TypedItemBlocks) -> Bool {
       switch source {
-      case .make:
+      case .make,
+           .defaultView:
         return false
       case .typedItem(_, let blocks):
         return blocks.contains(block)
@@ -718,6 +724,8 @@ public struct RenderItem<T> {
       switch source {
       case .make(let make):
         return make(context)
+      case .defaultView(let viewType):
+        return DefaultView.make(viewType, context) as! T // swiftlint:disable:this force_cast
       case .typedItem(let typedItem, _):
         return Self.fromRenderable(typedItem.makeErased(context))
       }
@@ -1260,6 +1268,59 @@ private extension RenderItem {
         animationTiming: storage.animationTiming ?? animationTiming,
         zIndex: zIndex ?? storage.zIndex
       )
+    )
+  }
+}
+
+extension ViewItem {
+
+  /// Makes a view item, which makes plain views of its type when `make` is `nil`.
+  ///
+  /// - Parameters:
+  ///   - id: The item's id.
+  ///   - frame: The frame of the view.
+  ///   - make: The block that makes a view, or `nil` for a plain view of the item's type.
+  ///   - willInsert: The block to call when the view is about to be inserted.
+  ///   - didInsert: The block to call when the view is inserted.
+  ///   - willUpdate: The block to call when the view is about to be updated.
+  ///   - update: The block to update the view.
+  ///   - willRemove: The block to call when the view is about to be removed.
+  ///   - didRemove: The block to call when the view is removed.
+  init(id: ComposeNodeId,
+       frame: CGRect,
+       make: ((RenderableMakeContext) -> T)?,
+       willInsert: ((T, RenderableInsertContext) -> Void)?,
+       didInsert: ((T, RenderableInsertContext) -> Void)?,
+       willUpdate: ((T, RenderableUpdateContext) -> Void)?,
+       update: @escaping (T, RenderableUpdateContext) -> Void,
+       willRemove: ((T, RenderableRemoveContext) -> Void)?,
+       didRemove: ((T, RenderableRemoveContext) -> Void)?)
+  {
+    let source: Storage.Source
+    if let make {
+      source = .make(make)
+    } else {
+      source = .defaultView(T.self)
+    }
+
+    self.id = id
+    self.frame = frame
+    self.storage = Storage(
+      source: source,
+      prefetch: nil,
+      willInsert: willInsert,
+      didInsert: didInsert,
+      willUpdate: willUpdate,
+      update: update,
+      additionalUpdates: .none,
+      willRemove: willRemove,
+      didRemove: didRemove,
+      reuseId: nil,
+      renderableType: ObjectIdentifier(T.self),
+      resetForReuse: nil,
+      transition: nil,
+      animationTiming: nil,
+      zIndex: nil
     )
   }
 }

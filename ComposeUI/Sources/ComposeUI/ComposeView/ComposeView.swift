@@ -1595,12 +1595,15 @@ open class ComposeView: BaseScrollView {
         renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
         #if DEBUG && !COMPOSEUI_BENCHMARK
+        // the updates rely on the frame that the pass applied, so the renderable must take it, and the updates must
+        // keep it
         let hadFrame = renderable.hasFrame(newFrame)
+        ComposeUI.assert(hadFrame, "a renderable doesn't take the frame the render pass gives. a view that keeps its own size needs a fixed-size node, such as with ViewNode's fixedSize(): \(id.id)")
         #endif
+
         renderableItem.performUpdate(renderable, renderableUpdateContext)
+
         #if DEBUG && !COMPOSEUI_BENCHMARK
-        // the updates rely on the frame that the pass applied, such as a transform about a point of the renderable, so
-        // they must not change it. a view that refuses the frame lacks it before the updates too, which this doesn't check
         ComposeUI.assert(!hadFrame || renderable.hasFrame(newFrame), "an update changed the frame of renderable: \(id.id)")
         #endif
 
@@ -1687,6 +1690,7 @@ open class ComposeView: BaseScrollView {
 
         #if DEBUG && !COMPOSEUI_BENCHMARK
         let hadFrame = renderable.hasFrame(newFrame)
+        ComposeUI.assert(hadFrame, "a renderable doesn't take the frame the render pass gives. a view that keeps its own size needs a fixed-size node, such as with ViewNode's fixedSize(): \(id.id)")
         #endif
         renderableItem.performUpdate(renderable, renderableUpdateContext)
         #if DEBUG && !COMPOSEUI_BENCHMARK

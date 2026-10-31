@@ -163,7 +163,7 @@ public struct LayerNode<T: CALayer>: ComposeNode, IntrinsicSizableComposeNode {
 
   private func intrinsicSize(for proposedSize: CGSize) -> CGSize {
     guard let intrinsicSizeProvider else {
-      ComposeUI.assertFailure("LayerNode requires `intrinsicSize` when using fixed size with a layer factory.")
+      ComposeUI.assertFailure("LayerNode<\(T.self)> with a layer factory needs an intrinsicSize closure for fixed sizing")
       return .zero
     }
 
