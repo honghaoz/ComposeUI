@@ -1,0 +1,399 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		C0DE0000000000000000B001 /* ComposeUI in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE0000000000000000D001 /* ComposeUI */; };
+		C0DE0000000000000000B002 /* ChouTiTest in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE0000000000000000D002 /* ChouTiTest */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C0DE0000000000000000C001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C0DE0000000000000000A001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C0DE0000000000000000E001;
+			remoteInfo = ComposeUIHostApp;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		C0DE0000000000000000F001 /* ComposeUIHostApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ComposeUIHostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0DE0000000000000000F002 /* ComposeUIHostedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ComposeUIHostedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		C0DE0000000000000000A101 /* HostApp */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = HostApp;
+			sourceTree = "<group>";
+		};
+		C0DE0000000000000000A102 /* ComposeUIHostedTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ComposeUIHostedTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C0DE0000000000000000A201 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0DE0000000000000000A202 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0DE0000000000000000B001 /* ComposeUI in Frameworks */,
+				C0DE0000000000000000B002 /* ChouTiTest in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C0DE0000000000000000A301 = {
+			isa = PBXGroup;
+			children = (
+				C0DE0000000000000000A101 /* HostApp */,
+				C0DE0000000000000000A102 /* ComposeUIHostedTests */,
+				C0DE0000000000000000A302 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C0DE0000000000000000A302 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C0DE0000000000000000F001 /* ComposeUIHostApp.app */,
+				C0DE0000000000000000F002 /* ComposeUIHostedTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C0DE0000000000000000E001 /* ComposeUIHostApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0DE0000000000000000A802 /* Build configuration list for PBXNativeTarget "ComposeUIHostApp" */;
+			buildPhases = (
+				C0DE0000000000000000A501 /* Sources */,
+				C0DE0000000000000000A201 /* Frameworks */,
+				C0DE0000000000000000A601 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C0DE0000000000000000A101 /* HostApp */,
+			);
+			name = ComposeUIHostApp;
+			packageProductDependencies = (
+			);
+			productName = ComposeUIHostApp;
+			productReference = C0DE0000000000000000F001 /* ComposeUIHostApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C0DE0000000000000000E002 /* ComposeUIHostedTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0DE0000000000000000A803 /* Build configuration list for PBXNativeTarget "ComposeUIHostedTests" */;
+			buildPhases = (
+				C0DE0000000000000000A502 /* Sources */,
+				C0DE0000000000000000A202 /* Frameworks */,
+				C0DE0000000000000000A602 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C0DE0000000000000000A701 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C0DE0000000000000000A102 /* ComposeUIHostedTests */,
+			);
+			name = ComposeUIHostedTests;
+			packageProductDependencies = (
+				C0DE0000000000000000D001 /* ComposeUI */,
+				C0DE0000000000000000D002 /* ChouTiTest */,
+			);
+			productName = ComposeUIHostedTests;
+			productReference = C0DE0000000000000000F002 /* ComposeUIHostedTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C0DE0000000000000000A001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2710;
+				LastUpgradeCheck = 2710;
+				TargetAttributes = {
+					C0DE0000000000000000E001 = {
+						CreatedOnToolsVersion = 27.1;
+					};
+					C0DE0000000000000000E002 = {
+						CreatedOnToolsVersion = 27.1;
+						TestTargetID = C0DE0000000000000000E001;
+					};
+				};
+			};
+			buildConfigurationList = C0DE0000000000000000A801 /* Build configuration list for PBXProject "ComposeUIHostedTests" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = C0DE0000000000000000A301;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C0DE0000000000000000D101 /* XCLocalSwiftPackageReference ".." */,
+				C0DE0000000000000000D102 /* XCRemoteSwiftPackageReference "ChouTi" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = C0DE0000000000000000A302 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C0DE0000000000000000E001 /* ComposeUIHostApp */,
+				C0DE0000000000000000E002 /* ComposeUIHostedTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C0DE0000000000000000A601 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0DE0000000000000000A602 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C0DE0000000000000000A501 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0DE0000000000000000A502 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C0DE0000000000000000A701 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C0DE0000000000000000E001 /* ComposeUIHostApp */;
+			targetProxy = C0DE0000000000000000C001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		C0DE0000000000000000A901 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 1.0;
+			};
+			name = Debug;
+		};
+		C0DE0000000000000000A902 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 1.0;
+			};
+			name = Release;
+		};
+		C0DE0000000000000000A903 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.chouti.ComposeUIHostApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		C0DE0000000000000000A904 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.chouti.ComposeUIHostApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		C0DE0000000000000000A905 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.chouti.ComposeUIHostedTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ComposeUIHostApp.app/ComposeUIHostApp";
+			};
+			name = Debug;
+		};
+		C0DE0000000000000000A906 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.chouti.ComposeUIHostedTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ComposeUIHostApp.app/ComposeUIHostApp";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C0DE0000000000000000A801 /* Build configuration list for PBXProject "ComposeUIHostedTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0DE0000000000000000A901 /* Debug */,
+				C0DE0000000000000000A902 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0DE0000000000000000A802 /* Build configuration list for PBXNativeTarget "ComposeUIHostApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0DE0000000000000000A903 /* Debug */,
+				C0DE0000000000000000A904 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0DE0000000000000000A803 /* Build configuration list for PBXNativeTarget "ComposeUIHostedTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0DE0000000000000000A905 /* Debug */,
+				C0DE0000000000000000A906 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		C0DE0000000000000000D101 /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C0DE0000000000000000D102 /* XCRemoteSwiftPackageReference "ChouTi" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/honghaoz/ChouTi";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0DE0000000000000000D001 /* ComposeUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ComposeUI;
+		};
+		C0DE0000000000000000D002 /* ChouTiTest */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0DE0000000000000000D102 /* XCRemoteSwiftPackageReference "ChouTi" */;
+			productName = ChouTiTest;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = C0DE0000000000000000A001 /* Project object */;
+}
