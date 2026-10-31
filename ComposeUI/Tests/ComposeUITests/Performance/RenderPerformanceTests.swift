@@ -148,6 +148,14 @@ class RenderPerformanceTests: BenchmarkTestCase {
     }
   }
 
+  func test_scroll_viewRowsOfTheDefaultFactory_5000() {
+    // when: scrolling through 5000 unpooled rows of a plain view, which each node's default factory makes
+    runScrollBenchmark(name: "scroll.viewRows.defaultFactory.5000", rowCount: 5000) { _ in
+      ViewNode<View>()
+        .frame(width: .flexible, height: Constants.rowHeight)
+    }
+  }
+
   func test_scroll_viewRowsPooled_5000() {
     // when: scrolling through 5000 pooled view rows
     runScrollBenchmark(name: "scroll.viewRows.pooled.5000", rowCount: 5000) { _ in
