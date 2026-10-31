@@ -352,7 +352,7 @@ class LayerNodeTests: XCTestCase {
 
     var assertionCount = 0
     Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "LayerNode requires `intrinsicSize` when using fixed size with a layer factory."
+      expect(message) == "LayerNode<CALayer> with a layer factory needs an intrinsicSize closure for fixed sizing"
       assertionCount += 1
     }
 
