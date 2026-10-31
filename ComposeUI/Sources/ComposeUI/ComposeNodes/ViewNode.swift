@@ -136,6 +136,9 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// The node has a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
   ///
+  /// - Note: A view that always keeps its own size, such as `UISwitch`, requires a fixed size, such as
+  ///   `ViewNode<UISwitch>().fixedSize()`.
+  ///
   /// - Parameters:
   ///   - make: A closure to create a view. To avoid incorrect transition animation, the view should be created with
   ///     frame set to `context.initialFrame` if it's provided. The default value is `nil`, which makes a plain `T` with
