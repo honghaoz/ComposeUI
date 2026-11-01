@@ -1685,6 +1685,7 @@ class TextNodeTests: XCTestCase {
     let shownLines = Self.linesInBounds(of: textView)
     expect(shownLines.isEmpty) == false
     for line in shownLines {
+      expect(line.rect.intersects(textView.bounds)) == true
       expect(line.number) <= 30
       expect(line.text) == "Paragraph \(line.number)\n"
     }
@@ -2088,16 +2089,17 @@ class TextNodeTests: XCTestCase {
     textView.layoutManager.glyphRange(for: textView.textContainer).length
   }
 
-  /// Returns the lines that the text view's bounds show, read as drawing reads them, without laying out the rest of the
-  /// text, each with its line number from its position, for a text whose lines are all the same height.
-  private static func linesInBounds(of textView: BaseTextView) -> [(number: Int, text: String)] {
+  /// Returns the lines that the text view lays out for its bounds, read as drawing reads them, without laying out the
+  /// rest of the text, each with its rect, and its line number from its position, for a text whose lines are all the
+  /// same height.
+  private static func linesInBounds(of textView: BaseTextView) -> [(number: Int, text: String, rect: CGRect)] {
     let layoutManager = textView.layoutManager
     let text = textView.textStorage.string as NSString
     let glyphRange = layoutManager.glyphRange(forBoundingRect: textView.bounds, in: textView.textContainer)
-    var lines: [(number: Int, text: String)] = []
+    var lines: [(number: Int, text: String, rect: CGRect)] = []
     layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { rect, _, _, lineGlyphRange, _ in
       let characterRange = layoutManager.characterRange(forGlyphRange: lineGlyphRange, actualGlyphRange: nil)
-      lines.append((Int((rect.minY / rect.height).rounded()) + 1, text.substring(with: characterRange)))
+      lines.append((Int((rect.minY / rect.height).rounded()) + 1, text.substring(with: characterRange), rect))
     }
     return lines
   }
