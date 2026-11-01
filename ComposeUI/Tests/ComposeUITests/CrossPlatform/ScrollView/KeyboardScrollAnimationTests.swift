@@ -280,6 +280,50 @@ class KeyboardScrollAnimationTests: XCTestCase {
     expect(scrollView.contentOffset) == CGPoint(x: 0, y: 50)
   }
 
+  func test_step_contentShrinksDuringTheScroll_keepsTheContentInTheNewRangeOnEachFrame() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // each case shrinks the content while it moves toward the new end of the range fast enough that the spring would
+    // carry it past the end
+    let cases: [(key: ScrollingKey, contentSize: CGSize, shrinkingFrame: Int, shrunkContentSize: CGSize, axis: KeyPath<CGPoint, CGFloat>, end: CGFloat)] = [
+      (.pageDown, CGSize(width: 100, height: 1000), 18, CGSize(width: 100, height: 150), \.y, 50),
+      (.right, CGSize(width: 1000, height: 100), 12, CGSize(width: 115, height: 100), \.x, 15),
+    ]
+    for (key, contentSize, shrinkingFrame, shrunkContentSize, axis, end) in cases {
+      // given: a scroll view, in a scroll for the key, with the content short of where the new end of the range will be
+      let (window, scrollView) = makeScrollView(contentHeight: 100)
+      scrollView.contentSize = contentSize
+      window.makeFirstResponder(scrollView)
+      press(key, in: window, at: Constants.startTime)
+      let animation = try unwrap(scrollView.keyboardScrollAnimation)
+      for frame in 1 ... shrinkingFrame {
+        animation.step(at: Constants.startTime + TimeInterval(frame) * Constants.frameDuration)
+      }
+      expect(scrollView.contentOffset[keyPath: axis]) < end
+
+      // when: the content shrinks, so the range ends before the target, and frames step the animation until it stops,
+      // for up to a second
+      scrollView.contentSize = shrunkContentSize
+      var offsets: [CGFloat] = []
+      var frame = shrinkingFrame
+      while animation.isRunning, frame < shrinkingFrame + Constants.framesPerSecond {
+        frame += 1
+        animation.step(at: Constants.startTime + TimeInterval(frame) * Constants.frameDuration)
+        offsets.append(scrollView.contentOffset[keyPath: axis])
+      }
+
+      // then: the content reaches the end without passing it on any frame, and the scroll stops within a frame of
+      // showing the end, instead of the spring going on past it out of view
+      expect(offsets.max()) == end
+      let firstFrameAtTheEnd = try unwrap(offsets.firstIndex(of: end))
+      expect(offsets.count - 1 - firstFrameAtTheEnd) <= 1
+      expect(scrollView.contentOffset[keyPath: axis]) == end
+      expect(animation.isRunning) == false
+    }
+  }
+
   func test_scroll_scrollViewLeavesTheWindow_stopsTheScroll() throws {
     guard #available(macOS 14.0, *) else {
       return

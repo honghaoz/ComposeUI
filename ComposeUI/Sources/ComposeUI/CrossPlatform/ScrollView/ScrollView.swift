@@ -733,18 +733,27 @@ open class ScrollView: NSScrollView {
     animation.scroll(by: distance, at: AnimationClock.now)
   }
 
-  /// Returns where a keyboard scroll to an offset comes to rest: on whole pixels, in the scrollable range, where AppKit's
-  /// own scrolling rests.
+  /// Returns the content offset that a keyboard scroll shows for an offset: on whole pixels, in the scrollable range,
+  /// where AppKit's own scrolling shows the content.
   ///
-  /// - Parameter offset: The content offset that the scroll goes to.
-  /// - Returns: The content offset that the scroll comes to rest at.
-  func keyboardScrollRestingOffset(for offset: CGPoint) -> CGPoint {
+  /// - Parameter offset: The content offset that the scroll is at, or goes to.
+  /// - Returns: The content offset that the scroll shows.
+  func keyboardScrollOffset(for offset: CGPoint) -> CGPoint {
     let pixelSize = self.pixelSize
-    let pixelOffset = CGPoint(
-      x: (offset.x / pixelSize.width).rounded() * pixelSize.width,
-      y: (offset.y / pixelSize.height).rounded() * pixelSize.height
+    return contentOffsetInScrollableRange(
+      CGPoint(
+        x: (offset.x / pixelSize.width).rounded() * pixelSize.width,
+        y: (offset.y / pixelSize.height).rounded() * pixelSize.height
+      )
     )
-    return contentView.constrainBoundsRect(CGRect(origin: pixelOffset, size: contentView.bounds.size)).origin
+  }
+
+  /// Returns the content offset in the scrollable range that's nearest to an offset.
+  ///
+  /// - Parameter offset: The content offset.
+  /// - Returns: The content offset in the scrollable range.
+  func contentOffsetInScrollableRange(_ offset: CGPoint) -> CGPoint {
+    contentView.constrainBoundsRect(CGRect(origin: offset, size: contentView.bounds.size)).origin
   }
 
   // MARK: - Constants

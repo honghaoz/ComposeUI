@@ -86,9 +86,9 @@ final class KeyboardScrollAnimation: NSObject {
     // scroll view since its last frame, which ends it
     let contentOffset = scrollView.contentOffset
     if isRunning, contentOffset == lastContentOffset {
-      retarget(to: scrollView.keyboardScrollRestingOffset(for: CGPoint(x: target.x + distance.x, y: target.y + distance.y)), at: time)
+      retarget(to: scrollView.keyboardScrollOffset(for: CGPoint(x: target.x + distance.x, y: target.y + distance.y)), at: time)
     } else {
-      target = scrollView.keyboardScrollRestingOffset(for: CGPoint(x: contentOffset.x + distance.x, y: contentOffset.y + distance.y))
+      target = scrollView.keyboardScrollOffset(for: CGPoint(x: contentOffset.x + distance.x, y: contentOffset.y + distance.y))
       startTime = time
       startDisplacement = CGPoint(x: contentOffset.x - target.x, y: contentOffset.y - target.y)
       startVelocity = .zero
@@ -109,12 +109,28 @@ final class KeyboardScrollAnimation: NSObject {
 
     // the scrollable range can change during the scroll, such as when the content changes size, so the target moves
     // back into it, and the content turns to it from where it is
-    let restingTarget = scrollView.keyboardScrollRestingOffset(for: target)
+    let restingTarget = scrollView.keyboardScrollOffset(for: target)
     if restingTarget != target {
       retarget(to: restingTarget, at: time)
     }
 
-    let motion = self.motion(at: time)
+    var motion = self.motion(at: time)
+
+    // the content stays in the scrollable range on each frame, as AppKit's own scrolling keeps it, so where the spring
+    // would carry it past an end, such as after the range shrinks during the scroll, it stops at the end and loses its
+    // speed along that axis, instead of showing what's past the end and turning back from out of view
+    let position = CGPoint(x: target.x + motion.displacement.x, y: target.y + motion.displacement.y)
+    let positionInRange = scrollView.contentOffsetInScrollableRange(position)
+    if positionInRange != position {
+      startTime = time
+      startDisplacement = CGPoint(x: positionInRange.x - target.x, y: positionInRange.y - target.y)
+      startVelocity = CGPoint(
+        x: positionInRange.x == position.x ? motion.velocity.x : 0,
+        y: positionInRange.y == position.y ? motion.velocity.y : 0
+      )
+      motion = (startDisplacement, startVelocity)
+    }
+
     let pixelSize = scrollView.pixelSize
     let isAtRest = hypot(motion.velocity.x, motion.velocity.y) < Constants.restingSpeed &&
       abs(motion.displacement.x) < pixelSize.width / 2 &&
@@ -125,10 +141,7 @@ final class KeyboardScrollAnimation: NSObject {
     } else {
       // the content shows on whole pixels on each frame, as AppKit's own scrolling shows it, so that text stays sharp
       scrollView.setContentOffsetExactly(
-        CGPoint(
-          x: ((target.x + motion.displacement.x) / pixelSize.width).rounded() * pixelSize.width,
-          y: ((target.y + motion.displacement.y) / pixelSize.height).rounded() * pixelSize.height
-        )
+        scrollView.keyboardScrollOffset(for: CGPoint(x: target.x + motion.displacement.x, y: target.y + motion.displacement.y))
       )
       lastContentOffset = scrollView.contentOffset
     }
