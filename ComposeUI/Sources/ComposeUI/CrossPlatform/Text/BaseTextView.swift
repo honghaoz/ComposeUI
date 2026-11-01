@@ -136,7 +136,7 @@ open class BaseTextView: TextView {
   /// other modes set how the last line ends. Default is `byWordWrapping`.
   ///
   /// While the line break mode is `.byCharWrapping`, the text view uses its layout manager's delegate, so the layout
-  /// manager must have no other delegate.
+  /// manager must have no other delegate, and no text container but the text view's.
   open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
       if let layoutManager, let textContainer {
@@ -529,8 +529,8 @@ open class BaseTextView: UITextView {
   /// other modes set how the last line ends. Default is `byWordWrapping`.
   ///
   /// While the line break mode is `.byCharWrapping`, the text view uses its layout manager's delegate, so the layout
-  /// manager must have no other delegate. A text view with a TextKit 2 text container breaks its lines between words
-  /// also with `.byCharWrapping`, as TextKit 2 does.
+  /// manager must have no other delegate, and no text container but the text view's. A text view with a TextKit 2 text
+  /// container breaks its lines between words also with `.byCharWrapping`, as TextKit 2 does.
   open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
       updateLineBreakMode()

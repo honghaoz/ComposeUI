@@ -175,6 +175,28 @@ class NSLayoutManager_LineBreakModeTests: XCTestCase {
     expect(system.lines) == ["Lorem Ipsum is simply du", "mmy text of the printing a"]
   }
 
+  func test_setLineBreakMode_byCharWrapping_givenAnotherTextContainer_asserts() {
+    // given: a text system whose layout manager has a second text container
+    let system = TextSystem(text: Constants.sentence, numberOfLines: 2)
+    system.layoutManager.addTextContainer(NSTextContainer(size: CGSize(width: 160, height: 100)))
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: setting character wrapping in its first text container
+    system.layoutManager.setLineBreakMode(.byCharWrapping, in: system.textContainer)
+
+    // then: it asserts, since the delegate breaks the lines of the other text container too, and breaks the lines of
+    // the first one between characters
+    expect(assertionMessages) == ["a layout manager that breaks its lines between characters must have only one text container, since its delegate breaks the lines of all of them"]
+    expect(system.lines) == ["Lorem Ipsum is simply du", "mmy text of the printing a"]
+  }
+
   func test_setLineBreakMode_otherModes_givenAnotherDelegate_keepTheDelegate() {
     for lineBreakMode in [NSLineBreakMode.byWordWrapping, .byTruncatingTail] {
       // given: a text system whose layout manager has a delegate of its own

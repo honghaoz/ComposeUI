@@ -41,8 +41,8 @@ extension NSLayoutManager {
   /// Lays out the text in a text container with a line break mode, as a label does: `.byCharWrapping` breaks every
   /// line between characters, and the other modes set how the last line ends.
   ///
-  /// While the line break mode is `.byCharWrapping`, the layout manager's delegate breaks the lines, so the layout
-  /// manager must have no other delegate.
+  /// While the line break mode is `.byCharWrapping`, the layout manager's delegate breaks the lines of all its text
+  /// containers, so the layout manager must have no other delegate, and no other text container.
   ///
   /// - Parameters:
   ///   - lineBreakMode: The line break mode.
@@ -55,6 +55,7 @@ extension NSLayoutManager {
     let wrapsCharacters = lineBreakMode == .byCharWrapping
     let isDelegateChanged: Bool
     if wrapsCharacters {
+      ComposeUI.assert(textContainers.count == 1, "a layout manager that breaks its lines between characters must have only one text container, since its delegate breaks the lines of all of them")
       isDelegateChanged = delegate !== CharacterWrappingDelegate.shared
       if isDelegateChanged {
         ComposeUI.assert(delegate == nil, "a layout manager that breaks its lines between characters must have no other delegate")
