@@ -32,6 +32,8 @@
 import AppKit
 import Carbon.HIToolbox.Events
 
+@testable import ComposeUI
+
 /// A key that scrolls, with the key code and the character of its key events.
 enum ScrollingKey {
 
@@ -80,11 +82,30 @@ enum ScrollingKey {
 
 extension NSWindow {
 
-  /// Presses a key in the window, which sends its key down event to the first responder.
+  /// Presses a key in the window, which sends its key down event to the first responder, and settles the keyboard scrolls
+  /// that it starts, as their animations do over time.
   ///
   /// - Parameter key: The key.
   func press(_ key: ScrollingKey) {
     sendEvent(key.keyDownEvent(in: self))
+    settleKeyboardScrolls()
+  }
+
+  /// Settles the keyboard scrolls in flight in the window, as their animations do over time.
+  func settleKeyboardScrolls() {
+    guard #available(macOS 14.0, *), let contentView else {
+      return
+    }
+
+    func settle(in view: NSView) {
+      if let scrollView = view as? ScrollView, let animation = scrollView.keyboardScrollAnimation, animation.isRunning {
+        animation.step(at: CACurrentMediaTime() + Constants.settlingTime)
+      }
+      for subview in view.subviews {
+        settle(in: subview)
+      }
+    }
+    settle(in: contentView)
   }
 
   /// Clicks at a point in the window as AppKit handles a mouse down: the view under the point becomes the first responder
@@ -126,6 +147,14 @@ extension NSWindow {
   @discardableResult
   func click(_ view: NSView) -> NSView? {
     click(at: view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: nil))
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// How long after a key a keyboard scroll's spring has long come to rest, which takes it about a second.
+    static let settlingTime: TimeInterval = 10
   }
 }
 #endif

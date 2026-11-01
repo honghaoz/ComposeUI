@@ -142,6 +142,20 @@ open class ScrollView: NSScrollView {
 
   deinit {
     stopObservingBoundsChange()
+
+    // a display link keeps a keyboard scroll in flight alive, and the scroll can't go on without the scroll view
+    if #available(macOS 14.0, *) {
+      keyboardScrollAnimation?.stop()
+    }
+  }
+
+  override open func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+
+    // the display link of a keyboard scroll in flight follows the window's screen, so the scroll stops with the window
+    if window == nil, #available(macOS 14.0, *) {
+      keyboardScrollAnimation?.stop()
+    }
   }
 
   /// Returns a new view to hold the scroll view's content, which the scroll view makes once, when it's made.
@@ -584,7 +598,11 @@ open class ScrollView: NSScrollView {
   /// Scrolls the content up by a page, or passes the action on when the scroll view can't scroll up.
   override open func pageUp(_ sender: Any?) {
     if isScrollEnabled, canScrollToTop {
-      super.pageUp(sender)
+      if scrollsWithKeyboardOnSpring, #available(macOS 14.0, *) {
+        animateKeyboardScroll(by: CGPoint(x: 0, y: -keyboardPageScrollDistance))
+      } else {
+        super.pageUp(sender)
+      }
     } else {
       nextResponder?.tryToPerform(#selector(pageUp(_:)), with: sender)
     }
@@ -593,7 +611,11 @@ open class ScrollView: NSScrollView {
   /// Scrolls the content down by a page, or passes the action on when the scroll view can't scroll down.
   override open func pageDown(_ sender: Any?) {
     if isScrollEnabled, canScrollToBottom {
-      super.pageDown(sender)
+      if scrollsWithKeyboardOnSpring, #available(macOS 14.0, *) {
+        animateKeyboardScroll(by: CGPoint(x: 0, y: keyboardPageScrollDistance))
+      } else {
+        super.pageDown(sender)
+      }
     } else {
       nextResponder?.tryToPerform(#selector(pageDown(_:)), with: sender)
     }
@@ -638,20 +660,91 @@ open class ScrollView: NSScrollView {
     window.makeFirstResponder(documentView)
   }
 
-  /// Scrolls the content by a distance from the content offset, as AppKit scrolls for the keyboard.
-  ///
-  /// AppKit animates a scroll that `NSView.scroll(_:)` makes while it handles a key that scrolls, unless the user reduces
-  /// motion, and moves a scroll made during the animation from where the animation goes, so that each press of a key
-  /// held down scrolls by the whole distance. The scroll stops at the ends of the scrollable range, on whole pixels.
+  /// Scrolls the content by a distance for an arrow key, on a spring as UIKit's keyboard scrolling does, or as AppKit
+  /// scrolls for the keyboard.
   ///
   /// - Parameter distance: The distance to scroll by, in content coordinates.
   private func scrollContent(by distance: CGPoint) {
-    // `NSView.scroll(_:)` scrolls the clip view around the view it's called on, so it's called on the document view, with
-    // the offset in the document view's coordinates
-    let documentView = contentContainerView
-    let offset = contentOffset
-    let target = CGPoint(x: offset.x + distance.x, y: offset.y + distance.y)
-    documentView.scroll(documentView.convert(target, from: contentView)) // TODO: consider spring effect scrolling
+    if scrollsWithKeyboardOnSpring, #available(macOS 14.0, *) {
+      animateKeyboardScroll(by: distance)
+    } else {
+      // AppKit animates a scroll that `NSView.scroll(_:)` makes while it handles a key that scrolls, unless the user
+      // reduces motion, and moves a scroll made during the animation from where the animation goes, so that each press
+      // of a key held down scrolls by the whole distance. `NSView.scroll(_:)` scrolls the clip view around the view it's
+      // called on, so it's called on the document view, with the offset in the document view's coordinates
+      let documentView = contentContainerView
+      let offset = contentOffset
+      let target = CGPoint(x: offset.x + distance.x, y: offset.y + distance.y)
+      documentView.scroll(documentView.convert(target, from: contentView))
+    }
+  }
+
+  // MARK: - Keyboard Scroll Animation
+
+  /// The animation that moves the content for the keys on a spring, `nil` before the first key that moves it.
+  ///
+  /// It's kept as `AnyObject`, since its type is available from macOS 14, where the display link that it runs on is.
+  private var keyboardScrollAnimationStorage: AnyObject?
+
+  /// The animation that moves the content for the keys on a spring, `nil` before the first key that moves it.
+  @available(macOS 14.0, *)
+  var keyboardScrollAnimation: KeyboardScrollAnimation? {
+    keyboardScrollAnimationStorage as? KeyboardScrollAnimation
+  }
+
+  /// Whether the keys scroll the content on a spring: not when the user reduces motion, for which AppKit's own scrolling
+  /// doesn't animate either.
+  private var scrollsWithKeyboardOnSpring: Bool {
+    #if DEBUG
+    if let scrollsWithKeyboardOnSpringForTesting = Self.scrollsWithKeyboardOnSpringForTesting {
+      return scrollsWithKeyboardOnSpringForTesting
+    }
+    #endif
+
+    return !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+  }
+
+  #if DEBUG
+  /// Whether the keys scroll the content on a spring in tests, which overrides the user's reduced motion when set.
+  static var scrollsWithKeyboardOnSpringForTesting: Bool?
+  #endif
+
+  /// The distance that a page key scrolls the content, as AppKit's own page scrolling scrolls it: the visible height
+  /// between the insets, less the overlap that `verticalPageScroll` keeps in view, or half that height when it's shorter
+  /// than the overlap.
+  private var keyboardPageScrollDistance: CGFloat {
+    let insets = adjustedContentInset
+    let height = contentView.bounds.height - insets.top - insets.bottom
+    return height < verticalPageScroll ? height / 2 : height - verticalPageScroll
+  }
+
+  /// Moves the content by a distance for a key on a spring, as UIKit's keyboard scrolling moves it on iPad.
+  ///
+  /// - Parameter distance: The distance to scroll by, in content coordinates.
+  @available(macOS 14.0, *)
+  private func animateKeyboardScroll(by distance: CGPoint) {
+    let animation: KeyboardScrollAnimation
+    if let keyboardScrollAnimation {
+      animation = keyboardScrollAnimation
+    } else {
+      animation = KeyboardScrollAnimation(scrollView: self)
+      keyboardScrollAnimationStorage = animation
+    }
+    animation.scroll(by: distance, at: AnimationClock.now)
+  }
+
+  /// Returns where a keyboard scroll to an offset comes to rest: on whole pixels, in the scrollable range, where AppKit's
+  /// own scrolling rests.
+  ///
+  /// - Parameter offset: The content offset that the scroll goes to.
+  /// - Returns: The content offset that the scroll comes to rest at.
+  func keyboardScrollRestingOffset(for offset: CGPoint) -> CGPoint {
+    let pixelSize = self.pixelSize
+    let pixelOffset = CGPoint(
+      x: (offset.x / pixelSize.width).rounded() * pixelSize.width,
+      y: (offset.y / pixelSize.height).rounded() * pixelSize.height
+    )
+    return contentView.constrainBoundsRect(CGRect(origin: pixelOffset, size: contentView.bounds.size)).origin
   }
 
   // MARK: - Constants

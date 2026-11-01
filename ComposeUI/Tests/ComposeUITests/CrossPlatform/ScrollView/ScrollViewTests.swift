@@ -1565,16 +1565,21 @@ class ScrollViewTests: XCTestCase {
     expect(scrollView.contentOffset) == CGPoint(x: 200, y: 200)
   }
 
-  func test_keyboardScroll_duringTheKeyEvent_animatesAndAddsUpTheKeys() throws {
-    // given: a 100 × 100 scroll view in a window, showing content 1000 tall, with the focus in it
+  #if DEBUG
+  func test_keyboardScroll_withoutTheSpring_animatesAsAppKitAndAddsUpTheKeys() throws {
+    // given: a 100 × 100 scroll view in a window, showing content 1000 tall, with the focus in it, whose keys don't scroll
+    // on the spring, as when the user reduces motion, or before macOS 14
     let window = TestWindow()
     let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     scrollView.contentSize = CGSize(width: 100, height: 1000)
     window.contentView().addSubview(scrollView)
     window.makeFirstResponder(scrollView)
+    ScrollView.scrollsWithKeyboardOnSpringForTesting = false
     let application = NSApplication.shared
     let otherEvent = try unwrap(NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, subtype: 0, data1: 0, data2: 0))
     defer {
+      ScrollView.scrollsWithKeyboardOnSpringForTesting = nil
+
       // the application keeps the latest event that it dequeued as its current event, which AppKit's keyboard scrolling
       // reads, so another event replaces the key event for the tests after this one
       application.postEvent(otherEvent, atStart: false)
@@ -1585,12 +1590,15 @@ class ScrollViewTests: XCTestCase {
     application.postEvent(ScrollingKey.down.keyDownEvent(in: window), atStart: false)
     try window.sendEvent(unwrap(application.nextEvent(matching: .keyDown, until: Date(timeIntervalSinceNow: 1), inMode: .default, dequeue: true)))
 
-    // then: AppKit animates the scroll, unless the user reduces motion
+    // then: AppKit animates the scroll, unless the user reduces motion, and no spring moves it
     let reducesMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     if reducesMotion {
       expect(scrollView.contentOffset.y) == 40
     } else {
       expect(scrollView.contentOffset.y) < 40
+    }
+    if #available(macOS 14.0, *) {
+      expect(scrollView.keyboardScrollAnimation) == nil
     }
 
     // when: the application dispatches another press during the animation
@@ -1599,7 +1607,53 @@ class ScrollViewTests: XCTestCase {
 
     // then: the second press scrolls from where the animation goes, so the content scrolls by both presses
     expect(scrollView.contentOffset.y).toEventually(beEqual(to: 80))
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: AppKit scrolls by its page, the visible height less 10 points
+    expect(scrollView.contentOffset.y).toEventually(beEqual(to: 170))
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: AppKit scrolls back up by its page
+    expect(scrollView.contentOffset.y).toEventually(beEqual(to: 80))
   }
+
+  func test_pageKeys_withInsetsOrAnOverlapTallerThanTheView_scrollByAppKitsPage() {
+    for scrollsOnSpring in [true, false] {
+      // given: a 100 × 100 scroll view in a window, showing content 1000 tall below a 20 point top inset, scrolled to the
+      // top of the content, with the focus in it, whose keys scroll on the spring, or as AppKit scrolls for them
+      let window = TestWindow()
+      let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      scrollView.automaticallyAdjustsContentInsets = false
+      scrollView.contentInset = EdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+      scrollView.contentSize = CGSize(width: 100, height: 1000)
+      window.contentView().addSubview(scrollView)
+      window.makeFirstResponder(scrollView)
+      scrollView.contentOffset = .zero
+      ScrollView.scrollsWithKeyboardOnSpringForTesting = scrollsOnSpring
+      defer {
+        ScrollView.scrollsWithKeyboardOnSpringForTesting = nil
+      }
+
+      // when: pressing the page down key
+      window.press(.pageDown)
+
+      // then: the page is the 80 point height below the inset, less the 10 points that AppKit keeps in view
+      expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 70)))
+
+      // when: the overlap that AppKit keeps in view is taller than the height below the inset, and the page down key is
+      // pressed
+      scrollView.verticalPageScroll = 100
+      window.press(.pageDown)
+
+      // then: the page is half the height below the inset
+      expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 110)))
+    }
+  }
+  #endif
 
   func test_arrowKeys_nested_atTheEnd_scrollTheParent() {
     // given: a scroll view at the bottom end of its range, with the focus in it, nested in a parent scroll view that
