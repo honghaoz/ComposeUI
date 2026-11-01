@@ -59,11 +59,11 @@ final class KeyboardScrollAnimation: NSObject {
   /// The display link that moves the content on each frame, while the content moves.
   private var displayLink: CADisplayLink?
 
-  /// The push of a key and the spring that brings the content to rest once the key goes up, `nil` if no key has pushed
-  /// the content since it last came to rest.
+  /// The push of a key and the spring that brings the content to rest once the key goes up, `nil` while the content
+  /// rests.
   ///
-  /// While a glide runs, they move the content only along the other axis, and they take the glide's axis over from where
-  /// it leaves the content, at rest.
+  /// While a glide runs, they move the content only along the other axis, where the spring brings content outside the
+  /// range back into it, and they take the glide's axis over from where the glide leaves the content, at rest.
   private var physics: KeyboardScrollPhysics?
 
   /// The glide of a page key, `nil` while no glide moves the content.
@@ -98,7 +98,7 @@ final class KeyboardScrollAnimation: NSObject {
       stop()
     }
 
-    if let glide, glide.isVertical == direction.isVertical {
+    if glide?.isVertical == direction.isVertical {
       endGlide(at: contentOffset)
     }
 
@@ -144,11 +144,21 @@ final class KeyboardScrollAnimation: NSObject {
     let isGliding = glide?.isVertical == direction.isVertical
     endGlide(at: contentOffset)
 
+    let isVertical = direction.isVertical
     let unitVector = direction.unitVector
     let destination = scrollView.keyboardScrollRange.restingOffset(
       for: CGPoint(x: contentOffset.x + unitVector.x * distance, y: contentOffset.y + unitVector.y * distance)
     )
-    glide = Glide(from: contentOffset, to: destination, isVertical: direction.isVertical, at: time, easesIn: !isGliding)
+    glide = Glide(
+      alongVerticalAxis: isVertical,
+      from: contentOffset.coordinate(alongVerticalAxis: isVertical),
+      to: destination.coordinate(alongVerticalAxis: isVertical),
+      at: time,
+      easesIn: !isGliding
+    )
+    // the spring holds the content along the other axis, and brings it back into the range when something else left it
+    // outside, as it does content stretched past an end
+    physics = physics ?? KeyboardScrollPhysics(position: contentOffset, time: time)
     lastContentOffset = contentOffset
     startDisplayLink()
   }
@@ -158,7 +168,7 @@ final class KeyboardScrollAnimation: NSObject {
   ///
   /// - Parameter time: The time of the frame that shows the content.
   func step(at time: CFTimeInterval) {
-    guard physics != nil || glide != nil, scrollView.contentOffset == lastContentOffset else {
+    guard var physics, scrollView.contentOffset == lastContentOffset else {
       stop()
       return
     }
@@ -171,49 +181,38 @@ final class KeyboardScrollAnimation: NSObject {
       return
     }
 
-    var offset = lastContentOffset
-    if var physics {
-      physics.advance(to: time, in: range)
-      if physics.push != nil, !scrollViewHasFocus {
-        physics.endPush(in: range)
-        stopObservingKeyWindow()
-      }
-      offset = physics.position(at: time)
-      self.physics = physics
+    physics.advance(to: time, in: range)
+    if physics.push != nil, !scrollViewHasFocus {
+      physics.endPush(in: range)
+      stopObservingKeyWindow()
     }
+    var offset = physics.position(at: time)
 
     if var glide {
       // the range can change during the glide, such as when the content shrinks, so a glide whose end leaves the range
       // turns to the new end from where it has the content at this frame, instead of from the last frame, which would
       // show the last frame again and hold the content still while the range changes on each frame
-      let destination = range.restingOffset(for: glide.destination)
+      let isVertical = glide.isVertical
+      let destination = range.restingOffset(for: offset.with(glide.destination, alongVerticalAxis: isVertical))
+        .coordinate(alongVerticalAxis: isVertical)
       if destination != glide.destination {
-        glide = Glide(
-          from: range.constrained(glide.offset(at: time)),
-          to: destination,
-          isVertical: glide.isVertical,
-          at: time,
-          easesIn: false
-        )
+        let start = range.constrained(offset.with(glide.offset(at: time), alongVerticalAxis: isVertical))
+        glide = Glide(alongVerticalAxis: isVertical, from: start.coordinate(alongVerticalAxis: isVertical), to: destination, at: time, easesIn: false)
       }
 
-      let glideOffset: CGPoint
       if glide.hasEnded(at: time) {
-        glideOffset = glide.destination
-        endGlide(at: glide.destination)
+        offset = offset.with(glide.destination, alongVerticalAxis: isVertical)
+        physics.rest(at: offset, alongVerticalAxis: isVertical)
+        self.glide = nil
       } else {
-        glideOffset = glide.offset(at: time)
+        offset = offset.with(glide.offset(at: time), alongVerticalAxis: isVertical)
         self.glide = glide
       }
-      if glide.isVertical {
-        offset.y = glideOffset.y
-      } else {
-        offset.x = glideOffset.x
-      }
     }
+    self.physics = physics
 
-    if self.glide == nil, physics?.isAtRest(in: range) ?? true {
-      scrollView.setContentOffsetExactly(physics?.restingOffset(in: range) ?? offset)
+    if self.glide == nil, physics.isAtRest(in: range) {
+      scrollView.setContentOffsetExactly(physics.restingOffset(in: range))
       stop()
     } else {
       // the content shows on whole pixels on each frame, as AppKit's own scrolling shows it, so that text stays sharp,
@@ -302,14 +301,17 @@ final class KeyboardScrollAnimation: NSObject {
 
   // MARK: - Glide
 
-  /// A glide of the content to a destination along a timing curve, which moves the content along one axis.
+  /// A glide of the content to a destination along a timing curve, along one axis.
   private struct Glide {
 
-    /// The content offset that the glide starts from.
-    let start: CGPoint
+    /// Whether the glide moves the content along the vertical axis, rather than the horizontal one.
+    let isVertical: Bool
 
-    /// The content offset that the glide ends at.
-    let destination: CGPoint
+    /// The content offset along the glide's axis that the glide starts from.
+    let start: CGFloat
+
+    /// The content offset along the glide's axis that the glide ends at.
+    let destination: CGFloat
 
     /// The time that the glide starts at.
     let startTime: CFTimeInterval
@@ -317,23 +319,20 @@ final class KeyboardScrollAnimation: NSObject {
     /// The timing curve of the glide, with its duration.
     let curve: AnimationCurve
 
-    /// Whether the glide moves the content along the vertical axis, rather than the horizontal one.
-    let isVertical: Bool
-
     /// Makes a glide at 1000 points per second, for up to 200 ms.
     ///
     /// - Parameters:
-    ///   - start: The content offset that the glide starts from.
-    ///   - destination: The content offset that the glide ends at.
     ///   - isVertical: Whether the glide moves the content along the vertical axis, rather than the horizontal one.
+    ///   - start: The content offset along the axis that the glide starts from.
+    ///   - destination: The content offset along the axis that the glide ends at.
     ///   - startTime: The time that the glide starts at.
     ///   - easesIn: Whether the glide eases in as well as out, which a glide that starts from rest does.
-    init(from start: CGPoint, to destination: CGPoint, isVertical: Bool, at startTime: CFTimeInterval, easesIn: Bool) {
+    init(alongVerticalAxis isVertical: Bool, from start: CGFloat, to destination: CGFloat, at startTime: CFTimeInterval, easesIn: Bool) {
+      self.isVertical = isVertical
       self.start = start
       self.destination = destination
-      self.isVertical = isVertical
       self.startTime = startTime
-      let length = hypot(destination.x - start.x, destination.y - start.y)
+      let length = abs(destination - start)
       let duration = min(TimeInterval(length) / Constants.glideSpeed, Constants.maximumGlideDuration)
       curve = AnimationCurve(timingFunction: CAMediaTimingFunction(name: easesIn ? .easeInEaseOut : .easeOut), duration: duration)
     }
@@ -346,13 +345,12 @@ final class KeyboardScrollAnimation: NSObject {
       time - startTime >= curve.duration
     }
 
-    /// Returns where the glide has the content at a time, between pixels.
+    /// Returns where the glide has the content along its axis at a time, between pixels.
     ///
     /// - Parameter time: The time.
-    /// - Returns: The content offset.
-    func offset(at time: CFTimeInterval) -> CGPoint {
-      let progress = CGFloat(curve.progress(forElapsedTime: time - startTime))
-      return CGPoint(x: start.x + (destination.x - start.x) * progress, y: start.y + (destination.y - start.y) * progress)
+    /// - Returns: The content offset along the glide's axis.
+    func offset(at time: CFTimeInterval) -> CGFloat {
+      start + (destination - start) * CGFloat(curve.progress(forElapsedTime: time - startTime))
     }
   }
 
@@ -365,6 +363,27 @@ final class KeyboardScrollAnimation: NSObject {
 
     /// The longest duration of a glide, in seconds.
     static let maximumGlideDuration: TimeInterval = 0.2
+  }
+}
+
+private extension CGPoint {
+
+  /// Returns the coordinate of the point along an axis.
+  ///
+  /// - Parameter isVertical: Whether the axis is the vertical one, rather than the horizontal one.
+  /// - Returns: The coordinate.
+  func coordinate(alongVerticalAxis isVertical: Bool) -> CGFloat {
+    isVertical ? y : x
+  }
+
+  /// Returns the point with its coordinate along an axis replaced.
+  ///
+  /// - Parameters:
+  ///   - coordinate: The coordinate along the axis.
+  ///   - isVertical: Whether the axis is the vertical one, rather than the horizontal one.
+  /// - Returns: The point with the coordinate.
+  func with(_ coordinate: CGFloat, alongVerticalAxis isVertical: Bool) -> CGPoint {
+    isVertical ? CGPoint(x: x, y: coordinate) : CGPoint(x: coordinate, y: y)
   }
 }
 #endif
