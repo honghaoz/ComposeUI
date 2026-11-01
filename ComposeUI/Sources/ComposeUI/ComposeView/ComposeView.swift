@@ -1425,7 +1425,7 @@ open class ComposeView: BaseScrollView {
             keepsInPlace = false
           }
           if !keepsInPlace {
-            oldRenderable.removeFromParent()
+            contentView.removeFromContent(oldRenderable)
           }
           oldRenderableItem.performDidRemove(oldRenderable, RenderableRemoveContext(oldFrame: oldFrame, contentView: contentView))
 
@@ -1777,6 +1777,21 @@ open class ComposeView: BaseScrollView {
     lastRenderInsets = insets
     lastRenderScaleFactor = scaleFactor
     reusedItemOldIndices = reusedOldIndices
+  }
+
+  /// Removes the renderable of an item that left the content.
+  ///
+  /// On macOS, the keyboard focus in the renderable's view stays in the scroll views, see
+  /// `ScrollDocumentView.keepKeyboardFocus(leaving:)`.
+  ///
+  /// - Parameter renderable: The renderable.
+  private func removeFromContent(_ renderable: Renderable) {
+    #if canImport(AppKit)
+    if let view = renderable.view, let documentView = contentContainerView as? ScrollDocumentView {
+      documentView.keepKeyboardFocus(leaving: view)
+    }
+    #endif
+    renderable.removeFromParent()
   }
 
   /// Performs the layout for a content update, which also updates the scroll indicators.

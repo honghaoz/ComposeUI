@@ -371,6 +371,51 @@ open class BaseTextView: TextView {
       typingAttributes = [:]
     }
   }
+
+  // MARK: - Keyboard Scrolling
+
+  // A text view that isn't editable scrolls the scroll view that it's in by itself on the up and down arrow keys and the
+  // page keys, even when that scroll view can't scroll, such as a compose view that fits its content, nested in one that
+  // scrolls. In a ComposeUI scroll view, it passes these keys on instead, so that the innermost scroll view that can
+  // scroll toward the key scrolls, as for the other views in the content.
+
+  override open func moveUp(_ sender: Any?) {
+    if passesKeyboardScrollingOn {
+      nextResponder?.tryToPerform(#selector(moveUp(_:)), with: sender)
+    } else {
+      super.moveUp(sender)
+    }
+  }
+
+  override open func moveDown(_ sender: Any?) {
+    if passesKeyboardScrollingOn {
+      nextResponder?.tryToPerform(#selector(moveDown(_:)), with: sender)
+    } else {
+      super.moveDown(sender)
+    }
+  }
+
+  override open func scrollPageUp(_ sender: Any?) {
+    if passesKeyboardScrollingOn {
+      nextResponder?.tryToPerform(#selector(scrollPageUp(_:)), with: sender)
+    } else {
+      super.scrollPageUp(sender)
+    }
+  }
+
+  override open func scrollPageDown(_ sender: Any?) {
+    if passesKeyboardScrollingOn {
+      nextResponder?.tryToPerform(#selector(scrollPageDown(_:)), with: sender)
+    } else {
+      super.scrollPageDown(sender)
+    }
+  }
+
+  /// Whether the text view passes the up and down arrow keys and the page keys on to the ComposeUI scroll view that
+  /// it's in, instead of scrolling the scroll view by itself, which it does when it isn't editable.
+  private var passesKeyboardScrollingOn: Bool {
+    !isEditable && enclosingScrollView is ScrollView
+  }
 }
 
 #endif

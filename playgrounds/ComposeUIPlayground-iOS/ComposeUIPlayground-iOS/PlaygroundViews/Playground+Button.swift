@@ -61,7 +61,7 @@ extension Playground {
           onTap: {}
         )
         .shouldPerformKeyEquivalent { event in
-          event.keyCode == UInt16(kVK_UpArrow) && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.numericPad, .function]
+          event.keyCode == UInt16(kVK_Space) && event.modifierFlags.isDisjoint(with: .deviceIndependentFlagsMask)
         }
       }
     }
@@ -162,7 +162,7 @@ func DownloadButton(hasDoubleTap: Bool) -> ComposeNode {
     }
   }
   .shouldPerformKeyEquivalent { event in
-    event.keyCode == UInt16(kVK_DownArrow) && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.numericPad, .function]
+    event.keyCode == UInt16(kVK_Space) && event.modifierFlags.isDisjoint(with: .deviceIndependentFlagsMask)
   }
   .frame(width: 88, height: 44)
 }

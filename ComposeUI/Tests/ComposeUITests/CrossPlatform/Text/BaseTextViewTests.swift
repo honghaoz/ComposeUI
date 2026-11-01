@@ -74,6 +74,127 @@ class BaseTextViewTests: XCTestCase {
   }
   #endif
 
+  // MARK: - Keyboard Scrolling
+
+  #if canImport(AppKit)
+  func test_scrollingKeys_notEditable_inAScrollViewThatCanNotScroll_scrollTheScrollViewAroundIt() {
+    // given: a text view that isn't editable, with the focus, in a scroll view whose content fits it, nested in a parent
+    // scroll view that scrolls
+    let window = TestWindow()
+    let parent = ScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    parent.contentSize = CGSize(width: 200, height: 1000)
+    parent.contentOffset = CGPoint(x: 0, y: 400)
+    window.contentView().addSubview(parent)
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 400, width: 200, height: 100))
+    scrollView.contentSize = CGSize(width: 200, height: 100)
+    parent.contentContainerView.addSubview(scrollView)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+    textView.attributedString = NSAttributedString(string: "A text that isn't editable")
+    scrollView.contentContainerView.addSubview(textView)
+    window.makeFirstResponder(textView)
+
+    // when: pressing the down arrow
+    window.press(.down)
+
+    // then: the scroll view around the text view can't scroll, so the parent scrolls down by a line
+    expect(parent.contentOffset) == CGPoint(x: 0, y: 440)
+    expect(scrollView.contentOffset) == .zero
+
+    // when: pressing the up arrow
+    window.press(.up)
+
+    // then: the parent scrolls back up
+    expect(parent.contentOffset) == CGPoint(x: 0, y: 400)
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: the parent scrolls down by its page, its height less 10 points
+    expect(parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 590)))
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the parent scrolls back up by its page
+    expect(parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 400)))
+    expect(window.firstResponder) === textView
+  }
+
+  func test_arrowKeys_editable_moveTheInsertionPoint() {
+    // given: an editable text view of two lines, with the focus and the insertion point at its start, in a scroll view
+    // that scrolls
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    scrollView.contentSize = CGSize(width: 200, height: 1000)
+    window.contentView().addSubview(scrollView)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+    textView.isEditable = true
+    textView.attributedString = NSAttributedString(string: "First line\nSecond line")
+    scrollView.contentContainerView.addSubview(textView)
+    window.makeFirstResponder(textView)
+    textView.setSelectedRange(NSRange(location: 0, length: 0))
+
+    // when: pressing the down arrow
+    window.press(.down)
+
+    // then: the insertion point moves to the second line, and the scroll view stays
+    expect(textView.selectedRange().location) == ("First line\n" as NSString).length
+    expect(scrollView.contentOffset) == .zero
+
+    // when: pressing the up arrow
+    window.press(.up)
+
+    // then: the insertion point moves back to the first line, and the scroll view stays
+    expect(textView.selectedRange().location) == 0
+    expect(scrollView.contentOffset) == .zero
+  }
+
+  func test_scrollingKeys_notEditable_inAPlainScrollView_scrollItAsAppKitDoes() throws {
+    // given: a text view that isn't editable, taller than a scroll view of AppKit's that it's the document of, nested in
+    // a ComposeUI scroll view that scrolls, with the focus
+    let window = TestWindow()
+    let parent = ScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    parent.contentSize = CGSize(width: 200, height: 1000)
+    window.contentView().addSubview(parent)
+    let plainScrollView = NSScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+    parent.contentContainerView.addSubview(plainScrollView)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 1000))
+    textView.attributedString = NSAttributedString(string: (1 ... 60).map { "Line \($0)" }.joined(separator: "\n"))
+    plainScrollView.documentView = textView
+    window.makeFirstResponder(textView)
+    let clipView = plainScrollView.contentView
+
+    // when: pressing the down arrow
+    window.press(.down)
+
+    // then: the text view scrolls the scroll view that it's in by itself, and the ComposeUI scroll view stays
+    expect(clipView.bounds.origin.y) > 0
+    expect(parent.contentOffset) == .zero
+
+    // when: pressing the page down key
+    let lineOffset = clipView.bounds.origin.y
+    window.press(.pageDown)
+
+    // then: the text view scrolls the scroll view that it's in by a page
+    expect(clipView.bounds.origin.y).toEventually(beGreaterThan(lineOffset + 50))
+    expect(parent.contentOffset) == .zero
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the text view scrolls the scroll view that it's in back up by a page
+    expect(clipView.bounds.origin.y).toEventually(beEqual(to: lineOffset))
+    expect(parent.contentOffset) == .zero
+
+    // when: pressing the up arrow
+    window.press(.up)
+
+    // then: the text view scrolls the scroll view that it's in back to the top
+    expect(clipView.bounds.origin.y) == 0
+    expect(parent.contentOffset) == .zero
+  }
+  #endif
+
   #if canImport(UIKit) && !os(tvOS)
   func test_removeFromSuperview_whenFirstResponder_resignsFirstResponder() {
     // given: an editable text view that is the first responder in a key window

@@ -39,7 +39,7 @@ extension ComposeView {
   /// AppKit tells a view's children in the subview order, while a render pass leaves a view that passes every click
   /// through anywhere in it, see `ClickThroughView`, so the views of the items among AppKit's children come in the items
   /// order instead, as the subview order would have them if the pass kept every view in the items order.
-  final class DocumentView: BaseView {
+  final class DocumentView: ScrollDocumentView {
 
     override func accessibilityChildren() -> [Any]? {
       let children = super.accessibilityChildren()

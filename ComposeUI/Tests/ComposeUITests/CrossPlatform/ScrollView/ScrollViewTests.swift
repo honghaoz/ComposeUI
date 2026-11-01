@@ -1478,6 +1478,486 @@ class ScrollViewTests: XCTestCase {
   }
   #endif
 
+  // MARK: - Keyboard
+
+  #if canImport(AppKit)
+  func test_canScrollWithKeyboard() {
+    // given: a 100 × 100 scroll view showing content as large as it
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 100)
+
+    // then: it has no room to scroll, so the keys can't scroll it, and it doesn't take the focus
+    expect(scrollView.canScrollWithKeyboard) == false
+    expect(scrollView.acceptsFirstResponder) == false
+
+    // when: the content is taller than the scroll view
+    scrollView.contentSize = CGSize(width: 100, height: 300)
+
+    // then: the keys can scroll it, and it takes the focus
+    expect(scrollView.canScrollWithKeyboard) == true
+    expect(scrollView.acceptsFirstResponder) == true
+
+    // when: the content is wider than the scroll view, and as tall as it
+    scrollView.contentSize = CGSize(width: 300, height: 100)
+
+    // then: the keys can scroll it
+    expect(scrollView.canScrollWithKeyboard) == true
+    expect(scrollView.acceptsFirstResponder) == true
+
+    // when: scrolling is disabled
+    scrollView.isScrollEnabled = false
+
+    // then: the keys can't scroll it, and it doesn't take the focus
+    expect(scrollView.canScrollWithKeyboard) == false
+    expect(scrollView.acceptsFirstResponder) == false
+  }
+
+  func test_arrowKeys_scrollByALineTowardTheKey() {
+    // given: a 100 × 100 scroll view in a window, showing 300 × 300 content, so it scrolls from 0 to 200 along both axes,
+    // with the focus in it
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 300, height: 300)
+    window.contentView().addSubview(scrollView)
+    window.makeFirstResponder(scrollView)
+    expect(window.firstResponder) === scrollView.documentView
+
+    // when: pressing the down arrow
+    window.press(.down)
+
+    // then: the content scrolls down by 40 points, as UIKit's keyboard scrolling does
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 40)
+
+    // when: pressing the right arrow
+    window.press(.right)
+
+    // then: the content scrolls right by 40 points
+    expect(scrollView.contentOffset) == CGPoint(x: 40, y: 40)
+
+    // when: pressing the up arrow
+    window.press(.up)
+
+    // then: the content scrolls up by 40 points
+    expect(scrollView.contentOffset) == CGPoint(x: 40, y: 0)
+
+    // when: pressing the left arrow
+    window.press(.left)
+
+    // then: the content scrolls left by 40 points
+    expect(scrollView.contentOffset) == .zero
+  }
+
+  func test_arrowKeys_nearTheEnd_stopAtTheEnd() {
+    // given: a 100 × 100 scroll view in a window, showing 300 × 300 content, scrolled 10 points short of the bottom right
+    // end, with the focus in it
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 300, height: 300)
+    window.contentView().addSubview(scrollView)
+    window.makeFirstResponder(scrollView)
+    scrollView.contentOffset = CGPoint(x: 190, y: 190)
+
+    // when: pressing the down and right arrows
+    window.press(.down)
+    window.press(.right)
+
+    // then: the content scrolls to the end, not past it
+    expect(scrollView.contentOffset) == CGPoint(x: 200, y: 200)
+  }
+
+  func test_keyboardScroll_duringTheKeyEvent_animatesAndAddsUpTheKeys() throws {
+    // given: a 100 × 100 scroll view in a window, showing content 1000 tall, with the focus in it
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 1000)
+    window.contentView().addSubview(scrollView)
+    window.makeFirstResponder(scrollView)
+    let application = NSApplication.shared
+    let otherEvent = try unwrap(NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, subtype: 0, data1: 0, data2: 0))
+    defer {
+      // the application keeps the latest event that it dequeued as its current event, which AppKit's keyboard scrolling
+      // reads, so another event replaces the key event for the tests after this one
+      application.postEvent(otherEvent, atStart: false)
+      _ = application.nextEvent(matching: .applicationDefined, until: Date(timeIntervalSinceNow: 1), inMode: .default, dequeue: true)
+    }
+
+    // when: the application dispatches a press of the down arrow, as it dispatches the events of a key held down
+    application.postEvent(ScrollingKey.down.keyDownEvent(in: window), atStart: false)
+    try window.sendEvent(unwrap(application.nextEvent(matching: .keyDown, until: Date(timeIntervalSinceNow: 1), inMode: .default, dequeue: true)))
+
+    // then: AppKit animates the scroll, unless the user reduces motion
+    let reducesMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    if reducesMotion {
+      expect(scrollView.contentOffset.y) == 40
+    } else {
+      expect(scrollView.contentOffset.y) < 40
+    }
+
+    // when: the application dispatches another press during the animation
+    application.postEvent(ScrollingKey.down.keyDownEvent(in: window), atStart: false)
+    try window.sendEvent(unwrap(application.nextEvent(matching: .keyDown, until: Date(timeIntervalSinceNow: 1), inMode: .default, dequeue: true)))
+
+    // then: the second press scrolls from where the animation goes, so the content scrolls by both presses
+    expect(scrollView.contentOffset.y).toEventually(beEqual(to: 80))
+  }
+
+  func test_arrowKeys_nested_atTheEnd_scrollTheParent() {
+    // given: a scroll view at the bottom end of its range, with the focus in it, nested in a parent scroll view that
+    // scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 200)
+    window.makeFirstResponder(views.scrollView)
+
+    // when: pressing the down arrow
+    window.press(.down)
+
+    // then: the scroll view can't scroll down, so the parent scrolls down by 40 points
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 200)
+    expect(views.parent.contentOffset) == CGPoint(x: 400, y: 440)
+
+    // when: pressing the up arrow
+    window.press(.up)
+
+    // then: the scroll view scrolls up, and the parent stays
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 160)
+    expect(views.parent.contentOffset) == CGPoint(x: 400, y: 440)
+  }
+
+  func test_arrowKeys_nested_alongAnAxisTheScrollViewDoesNotScroll_scrollTheParent() {
+    // given: a scroll view that scrolls only horizontally, with the focus in it, nested in a parent scroll view that
+    // scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    views.scrollView.contentSize = CGSize(width: 300, height: 100)
+    window.makeFirstResponder(views.scrollView)
+
+    // when: pressing the down and up arrows
+    window.press(.down)
+    window.press(.down)
+    window.press(.up)
+
+    // then: the parent scrolls vertically, and the scroll view stays
+    expect(views.parent.contentOffset) == CGPoint(x: 400, y: 440)
+    expect(views.scrollView.contentOffset) == .zero
+
+    // when: pressing the right and left arrows
+    window.press(.right)
+    window.press(.right)
+    window.press(.left)
+
+    // then: the scroll view scrolls horizontally, and the parent stays
+    expect(views.scrollView.contentOffset) == CGPoint(x: 40, y: 0)
+    expect(views.parent.contentOffset) == CGPoint(x: 400, y: 440)
+  }
+
+  func test_arrowKeys_nested_scrollDisabled_scrollTheParent() {
+    // given: a scroll view whose scrolling is disabled, with the focus in a view in its content, nested in a parent scroll
+    // view that scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    views.scrollView.contentOffset = CGPoint(x: 100, y: 100)
+    views.scrollView.isScrollEnabled = false
+    let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    views.scrollView.documentView?.addSubview(focusableView)
+    window.makeFirstResponder(focusableView)
+
+    // when: pressing each arrow
+    window.press(.down)
+    window.press(.right)
+    window.press(.down)
+    window.press(.up)
+    window.press(.right)
+    window.press(.left)
+
+    // then: the scroll view stays, and the parent scrolls toward each key
+    expect(views.scrollView.contentOffset) == CGPoint(x: 100, y: 100)
+    expect(views.parent.contentOffset) == CGPoint(x: 440, y: 440)
+  }
+
+  func test_pageKeys_scrollByAPage() {
+    // given: a 100 × 100 scroll view in a window, showing content 1000 tall, with the focus in it
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 1000)
+    window.contentView().addSubview(scrollView)
+    window.makeFirstResponder(scrollView)
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: the content scrolls down by AppKit's page, the visible height less the 10 points that AppKit keeps in view
+    expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 90)))
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the content scrolls back up by a page
+    expect(scrollView.contentOffset).toEventually(beEqual(to: .zero))
+  }
+
+  func test_pageKeys_nested_atTheEnd_scrollTheParent() {
+    // given: a scroll view at the top end of its range, with the focus in it, nested in a parent scroll view that scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    window.makeFirstResponder(views.scrollView)
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the scroll view can't scroll up, so the parent scrolls up by its page, its height less 10 points
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 210)))
+    expect(views.scrollView.contentOffset) == .zero
+
+    // when: the scroll view is at the bottom end of its range, and the page down key is pressed
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 200)
+    window.press(.pageDown)
+
+    // then: the parent scrolls down by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 400)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 200)
+  }
+
+  func test_pageKeys_nested_scrollDisabled_scrollTheParent() {
+    // given: a scroll view whose scrolling is disabled, scrolled to the middle of its range, with the focus in a view in its
+    // content, nested in a parent scroll view that scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 100)
+    views.scrollView.isScrollEnabled = false
+    let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    views.scrollView.documentView?.addSubview(focusableView)
+    window.makeFirstResponder(focusableView)
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: the scroll view stays, and the parent scrolls down by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 590)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 100)
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the parent scrolls back up by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 400)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 100)
+  }
+
+  func test_pageKeys_fromAViewThatInterpretsItsKeys_scrollByAPage() {
+    // given: a 100 × 100 scroll view in a window, showing content 1000 tall, with the focus in a view in its content that
+    // interprets its keys, which turns the page keys into the scroll page actions
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 1000)
+    window.contentView().addSubview(scrollView)
+    let keyInterpretingView = KeyInterpretingView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    scrollView.documentView?.addSubview(keyInterpretingView)
+    window.makeFirstResponder(keyInterpretingView)
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: the content scrolls down by AppKit's page
+    expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 90)))
+    expect(keyInterpretingView.interpretedKeyCount) == 1
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the content scrolls back up by a page
+    expect(scrollView.contentOffset).toEventually(beEqual(to: .zero))
+    expect(keyInterpretingView.interpretedKeyCount) == 2
+  }
+
+  func test_pageKeys_fromAViewThatInterpretsItsKeys_nested_scrollTheParentWhenTheScrollViewCanNot() {
+    // given: a scroll view at the top end of its range, with the focus in a view in its content that interprets its keys,
+    // nested in a parent scroll view that scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    let keyInterpretingView = KeyInterpretingView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    views.scrollView.documentView?.addSubview(keyInterpretingView)
+    window.makeFirstResponder(keyInterpretingView)
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the scroll view can't scroll up, so the parent scrolls up by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 210)))
+    expect(views.scrollView.contentOffset) == .zero
+
+    // when: the scroll view is at the bottom end of its range, and the page down key is pressed
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 200)
+    window.press(.pageDown)
+
+    // then: the parent scrolls down by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 400)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 200)
+
+    // when: the scroll view is in the middle of its range with its scrolling disabled, and the page keys are pressed
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 100)
+    views.scrollView.isScrollEnabled = false
+    window.press(.pageDown)
+
+    // then: the scroll view stays, and the parent scrolls down by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 590)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 100)
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the parent scrolls back up by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 400)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 100)
+  }
+
+  func test_pageKeys_fromAViewThatInterpretsItsKeys_inAScrollViewThatCanNotScroll_scrollAnAppKitScrollViewAroundIt() {
+    // given: a scroll view whose content fits it, in a plain AppKit scroll view that scrolls, in a window, with the focus
+    // in a view in its content that interprets its keys
+    let window = TestWindow()
+    let outerScrollView = NSScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    outerScrollView.documentView = FlippedView(frame: CGRect(x: 0, y: 0, width: 200, height: 2000))
+    window.contentView().addSubview(outerScrollView)
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 100)
+    outerScrollView.documentView?.addSubview(scrollView)
+    let keyInterpretingView = KeyInterpretingView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    scrollView.documentView?.addSubview(keyInterpretingView)
+    window.makeFirstResponder(keyInterpretingView)
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: the scroll view passes the key on as the page action, which AppKit's scroll view handles, so it scrolls down
+    // by its page, its height less 10 points
+    expect(outerScrollView.contentView.bounds.origin).toEventually(beEqual(to: CGPoint(x: 0, y: 190)))
+    expect(scrollView.contentOffset) == .zero
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: AppKit's scroll view scrolls back up by its page
+    expect(outerScrollView.contentView.bounds.origin).toEventually(beEqual(to: .zero))
+  }
+
+  func test_click_onTheContent_focusesIt() {
+    // given: a scroll view in a window, showing content taller than it, with a view in its content that doesn't take the
+    // focus
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 300)
+    window.contentView().addSubview(scrollView)
+    let view = NSView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
+    scrollView.documentView?.addSubview(view)
+    expect(window.firstResponder) === window
+
+    // when: clicking the view
+    let clickedView = window.click(view)
+
+    // then: the click passes up from the view, and focuses the content
+    expect(clickedView) === view
+    expect(window.firstResponder) === scrollView.documentView
+
+    // when: the focus moves out of the scroll view, and the content is clicked where no view is
+    window.makeFirstResponder(nil)
+    window.click(at: scrollView.convert(CGPoint(x: 75, y: 75), to: nil))
+
+    // then: the content takes the focus as the clicked view
+    expect(window.firstResponder) === scrollView.documentView
+
+    // when: the arrow keys are pressed
+    window.press(.down)
+
+    // then: the scroll view scrolls
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 40)
+  }
+
+  func test_click_whenTheKeysCanNotScroll_keepsTheFocusWhereItIs() {
+    // given: a scroll view in a window, showing content as large as it, with a view in its content, and the focus in a
+    // view outside the scroll view
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 100)
+    window.contentView().addSubview(scrollView)
+    let view = NSView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
+    scrollView.documentView?.addSubview(view)
+    let outsideView = FocusableView(frame: CGRect(x: 200, y: 200, width: 10, height: 10))
+    window.contentView().addSubview(outsideView)
+    window.makeFirstResponder(outsideView)
+
+    // when: clicking the view
+    window.click(view)
+
+    // then: the keys can't scroll the scroll view, so it doesn't take the focus
+    expect(window.firstResponder) === outsideView
+  }
+
+  func test_click_onAFocusedViewInTheContent_keepsItsFocus() {
+    // given: a scroll view in a window, showing content taller than it, with a view that takes the focus and passes
+    // clicks up, and another view, in its content
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 300)
+    window.contentView().addSubview(scrollView)
+    let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
+    scrollView.documentView?.addSubview(focusableView)
+    let otherView = NSView(frame: CGRect(x: 50, y: 0, width: 50, height: 50))
+    scrollView.documentView?.addSubview(otherView)
+
+    // when: clicking the view that takes the focus, which AppKit focuses before the click passes up from it
+    window.click(focusableView)
+
+    // then: the view keeps the focus
+    expect(window.firstResponder) === focusableView
+
+    // when: clicking the other view
+    window.click(otherView)
+
+    // then: the click landed outside the focused view, so the content takes the focus from it
+    expect(window.firstResponder) === scrollView.documentView
+  }
+
+  func test_click_nested_focusesTheInnermostScrollViewThatTheKeysScroll() {
+    // given: a scroll view nested in a parent scroll view that scrolls, beside a view of the parent's own content
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+
+    // when: clicking the scroll view's content
+    window.click(at: views.scrollView.convert(CGPoint(x: 50, y: 50), to: nil))
+
+    // then: the scroll view gets the click first, and keeps the focus as the click passes up to the parent
+    expect(window.firstResponder) === views.scrollView.documentView
+
+    // when: clicking the parent's own content
+    window.click(views.parentContent)
+
+    // then: the parent's content takes the focus from the scroll view
+    expect(window.firstResponder) === views.parent.documentView
+
+    // when: the scroll view's content fits it, and its content is clicked
+    views.scrollView.contentSize = CGSize(width: 100, height: 100)
+    window.click(at: views.scrollView.convert(CGPoint(x: 50, y: 50), to: nil))
+
+    // then: the keys can't scroll the scroll view, so the parent's content keeps the focus
+    expect(window.firstResponder) === views.parent.documentView
+  }
+
+  func test_click_outsideAWindow_passesUp() throws {
+    // given: a scroll view showing content taller than it, outside a window, inside a view that records the clicks it gets
+    let container = MouseDownRecordingView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 300)
+    container.addSubview(scrollView)
+    let event = try unwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+
+    // when: the scroll view is clicked
+    scrollView.mouseDown(with: event)
+
+    // then: without a window to focus in, the click passes up
+    expect(container.mouseDownCount) == 1
+  }
+  #endif
+
   // MARK: - Helpers
 
   /// The insets as `[top, left, bottom, right]`, since `NSEdgeInsets` isn't `Equatable`.
@@ -1639,6 +2119,46 @@ private struct ScrollingNestedScrollViews {
   let parent: ScrollWheelCountingScrollView
   let scrollView: ScrollView
   let parentContent: NSView
+}
+
+/// A view that takes the keyboard focus, and passes clicks and keys up the responder chain.
+private final class FocusableView: NSView {
+
+  override var acceptsFirstResponder: Bool {
+    true
+  }
+}
+
+/// A view that takes the keyboard focus, and interprets its keys, as a text view does.
+private final class KeyInterpretingView: NSView {
+
+  private(set) var interpretedKeyCount = 0
+
+  override var acceptsFirstResponder: Bool {
+    true
+  }
+
+  override func keyDown(with event: NSEvent) {
+    interpretedKeyCount += 1
+    interpretKeyEvents([event])
+  }
+}
+
+/// A view whose coordinates go down from the top, as a ComposeUI scroll view's content does.
+private final class FlippedView: NSView {
+
+  override var isFlipped: Bool {
+    true
+  }
+}
+
+private final class MouseDownRecordingView: NSView {
+
+  private(set) var mouseDownCount = 0
+
+  override func mouseDown(with event: NSEvent) {
+    mouseDownCount += 1
+  }
 }
 #endif
 
