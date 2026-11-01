@@ -104,6 +104,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///     - Use `.byWordWrapping` or `.byCharWrapping`, it will render the text as multiple lines.
   ///     - Don't use `.byClipping`, `.byTruncatingHead`, `.byTruncatingTail`, and `.byTruncatingMiddle` as it makes the text render as a **single line**.
   ///   - Set text node's line break mode to `.byTruncatingHead`, `.byTruncatingTail`, or `.byTruncatingMiddle` so that the last line of the text is truncated with ellipsis.
+  ///   - Set text node's line break mode to `.byCharWrapping` so that every line breaks between characters.
   ///
   /// Example:
   /// ```swift
@@ -392,7 +393,11 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       rawIntrinsicSize = entry.singleLineSize { entry.string.boundingRectSize(numberOfLines: 1, layoutWidth: layoutWidth) }
     case .attributedString,
          .simpleText:
-      rawIntrinsicSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: layoutWidth)
+      rawIntrinsicSize = attributedString.boundingRectSize(
+        numberOfLines: numberOfLines,
+        layoutWidth: layoutWidth,
+        lineBreakMode: lineBreakMode.measuringLineBreakMode
+      )
     }
     let sizeAdjustment = adjustIntrinsicTextSize?(rawIntrinsicSize) ?? .zero
     let intrinsicSize = CGSize(
@@ -710,6 +715,9 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   }
 
   /// Set the line break mode of the text.
+  ///
+  /// As in a label, `.byCharWrapping` breaks every line between characters, and the other modes set how the last line
+  /// ends.
   ///
   /// - Parameter value: The line break mode to set.
   /// - Returns: A new text node with the updated line break mode.

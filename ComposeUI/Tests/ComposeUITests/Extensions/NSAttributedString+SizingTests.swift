@@ -673,13 +673,13 @@ class NSAttributedString_SizingTests: XCTestCase {
     // when: measuring the size for 2 lines with .byCharWrapping
     let size = attributedString.boundingRectSize(numberOfLines: 2, layoutWidth: 100, lineBreakMode: .byCharWrapping)
 
-    // then: the size matches the expected size
+    // then: the size is the first two lines', which break between characters
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 99.45, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 144, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 99.10, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 36, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 99.45, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 152.75, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 99.10, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 38.19, within: 1e-1))
     #endif
   }
 
@@ -690,13 +690,13 @@ class NSAttributedString_SizingTests: XCTestCase {
     // when: measuring the size for 2 lines with .byCharWrapping
     let size = attributedString.boundingRectSize(numberOfLines: 2, layoutWidth: 100, lineBreakMode: .byCharWrapping)
 
-    // then: the size matches the expected size
+    // then: the size is the first two lines', which break between characters
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 97.78, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 147.59, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 98.06, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 36.90, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 97.78, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 152.70, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 98.06, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 38.18, within: 1e-1))
     #endif
   }
 
@@ -707,13 +707,13 @@ class NSAttributedString_SizingTests: XCTestCase {
     // when: measuring the size for 2 lines with .byCharWrapping
     let size = attributedString.boundingRectSize(numberOfLines: 2, layoutWidth: 100, lineBreakMode: .byCharWrapping)
 
-    // then: the size matches the expected size
+    // then: the size is the first two lines', which break between characters
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 99.63, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 126, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 99.10, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 36, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 99.63, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 133.66, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 99.10, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 38.19, within: 1e-1))
     #endif
   }
 
@@ -724,13 +724,13 @@ class NSAttributedString_SizingTests: XCTestCase {
     // when: measuring the size for 2 lines with .byCharWrapping
     let size = attributedString.boundingRectSize(numberOfLines: 2, layoutWidth: 100, lineBreakMode: .byCharWrapping)
 
-    // then: the size matches the expected size
+    // then: the size is the first two lines', which break between characters
     #if os(macOS)
-    expect(size.width).to(beApproximatelyEqual(to: 98.96, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 147.59, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 98.06, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 36.90, within: 1e-1))
     #else
-    expect(size.width).to(beApproximatelyEqual(to: 98.96, within: 1e-1))
-    expect(size.height).to(beApproximatelyEqual(to: 152.70, within: 1e-1))
+    expect(size.width).to(beApproximatelyEqual(to: 98.06, within: 1e-1))
+    expect(size.height).to(beApproximatelyEqual(to: 38.18, within: 1e-1))
     #endif
   }
 

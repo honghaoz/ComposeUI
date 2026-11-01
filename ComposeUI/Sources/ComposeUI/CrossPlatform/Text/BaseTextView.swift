@@ -132,10 +132,16 @@ open class BaseTextView: TextView {
     }
   }
 
-  /// The line break mode to use for the text view. Default is `byWordWrapping`.
+  /// The line break mode of the text, as in a label: `.byCharWrapping` breaks every line between characters, and the
+  /// other modes set how the last line ends. Default is `byWordWrapping`.
+  ///
+  /// While the line break mode is `.byCharWrapping`, the text view uses its layout manager's delegate, so the layout
+  /// manager must have no other delegate, and no text container but the text view's.
   open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
-      textContainer?.lineBreakMode = lineBreakMode
+      if let layoutManager, let textContainer {
+        layoutManager.setLineBreakMode(lineBreakMode, in: textContainer)
+      }
 
       invalidateIntrinsicContentSize()
     }
@@ -170,7 +176,7 @@ open class BaseTextView: TextView {
     updateCommonSettings()
 
     textContainer.maximumNumberOfLines = numberOfLines
-    textContainer.lineBreakMode = lineBreakMode
+    layoutManager.setLineBreakMode(lineBreakMode, in: textContainer)
 
     isEditable = false
     isSelectable = true
@@ -193,7 +199,7 @@ open class BaseTextView: TextView {
     // the text lays out inside the inset, so it's measured in the width inside it, and the inset adds to the size on
     // each side, as in a UIKit text view's intrinsic content size
     let inset = textContainerInset
-    let textSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: frame.width - inset.width * 2)
+    let textSize = attributedString.boundingRectSize(numberOfLines: numberOfLines, layoutWidth: frame.width - inset.width * 2, lineBreakMode: lineBreakMode.measuringLineBreakMode)
     return NSSize(width: textSize.width + inset.width * 2, height: textSize.height + inset.height * 2).roundedUp(scaleFactor: 1)
   }
 
@@ -519,10 +525,15 @@ open class BaseTextView: UITextView {
     }
   }
 
-  /// The line break mode to use for the text view. Default is `byWordWrapping`.
+  /// The line break mode of the text, as in a label: `.byCharWrapping` breaks every line between characters, and the
+  /// other modes set how the last line ends. Default is `byWordWrapping`.
+  ///
+  /// While the line break mode is `.byCharWrapping`, the text view uses its layout manager's delegate, so the layout
+  /// manager must have no other delegate, and no text container but the text view's. A text view with a TextKit 2 text
+  /// container breaks its lines between words also with `.byCharWrapping`, as TextKit 2 does.
   open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
-      textContainer.lineBreakMode = lineBreakMode
+      updateLineBreakMode()
     }
   }
 
@@ -559,7 +570,7 @@ open class BaseTextView: UITextView {
     }
 
     self.textContainer.maximumNumberOfLines = numberOfLines
-    self.textContainer.lineBreakMode = lineBreakMode
+    updateLineBreakMode()
 
     contentInsetAdjustmentBehavior = .never
 
@@ -587,6 +598,17 @@ open class BaseTextView: UITextView {
     clipsToBounds = true
     if #available(iOS 16.0, *) {
       subviews.first(where: { String(cString: object_getClassName($0)) == "_UITextContainerView" }).assertNotNil()?.clipsToBounds = true
+    }
+  }
+
+  /// Lays out the text with the line break mode.
+  private func updateLineBreakMode() {
+    // a TextKit 2 text view gets the line break mode in its text container, since accessing `layoutManager` below would
+    // switch it to TextKit 1
+    if #available(iOS 16.0, tvOS 16.0, *), textLayoutManager != nil {
+      textContainer.lineBreakMode = lineBreakMode
+    } else {
+      layoutManager.setLineBreakMode(lineBreakMode, in: textContainer)
     }
   }
 

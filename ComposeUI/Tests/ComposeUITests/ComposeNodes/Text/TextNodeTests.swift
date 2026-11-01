@@ -1939,6 +1939,38 @@ class TextNodeTests: XCTestCase {
     expect(lineCount) == 1
   }
 
+  func test_lineBreakMode_byCharWrapping_sizesTheNodeToItsLines() throws {
+    // given: a compose view with a text node of a sentence with character wrapping, as tall as its text in the view's
+    // width
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(NSAttributedString(string: "Lorem Ipsum is simply dummy text of the printing and typesetting industry.", attributes: [.font: Font.systemFont(ofSize: 13)]))
+        .lineBreakMode(.byCharWrapping)
+        .fixedSize(width: false, height: true)
+        .onUpdate { item, _ in
+          renderedView = item.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 160, height: 300)
+
+    // when: rendering it
+    contentView.refresh(animated: false)
+
+    // then: the text view is as tall as the three lines that break between characters, instead of the four lines that
+    // break between words
+    let textView = try renderedView.unwrap()
+    #if canImport(AppKit)
+    let layoutManager = try textView.layoutManager.unwrap()
+    let textContainer = try textView.textContainer.unwrap()
+    #endif
+    #if canImport(UIKit)
+    let layoutManager = textView.layoutManager
+    let textContainer = textView.textContainer
+    #endif
+    expect(layoutManager.laidOutLines(in: textContainer)) == ["Lorem Ipsum is simply du", "mmy text of the printing a", "nd typesetting industry."]
+    expect(textView.frame.height) == layoutManager.usedRect(for: textContainer).height.rounded(.up)
+  }
+
   func test_renderableItems_doesNotRetainNodeThroughItemCache() {
     // The cached item's `update` closure must not capture `self` (the node holds the item cache), else
     // itemCache -> cachedItem -> update -> self -> itemCache leaks the node when the tree is replaced.

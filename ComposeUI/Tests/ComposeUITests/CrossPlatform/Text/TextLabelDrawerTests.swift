@@ -110,6 +110,26 @@ class TextLabelDrawerTests: XCTestCase {
     expect(drawer.textContainer.lineBreakMode) == .byTruncatingMiddle
   }
 
+  func test_lineBreakMode_byCharWrapping_breaksEveryLineBetweenCharactersUpToTheLimit() {
+    // given: a drawer, and a sentence that breaks differently between characters than between words
+    let drawer = TextLabelDrawer()
+    let text = NSAttributedString(string: "Lorem Ipsum is simply dummy text of the printing and typesetting industry.", attributes: [.font: Font.systemFont(ofSize: 13)])
+
+    // when: laying out the sentence in two lines with character wrapping, in a size taller than the lines
+    Self.layOut(drawer, text: text, numberOfLines: 2, lineBreakMode: .byCharWrapping, size: CGSize(width: 160, height: 200))
+
+    // then: the drawer has the line break mode, and lays out the first two lines, each breaking between characters
+    expect(drawer.lineBreakMode) == .byCharWrapping
+    expect(drawer.layoutManager.laidOutLines(in: drawer.textContainer)) == ["Lorem Ipsum is simply du", "mmy text of the printing a"]
+
+    // when: laying out the kept sentence with word wrapping
+    Self.layOut(drawer, text: nil, numberOfLines: 2, lineBreakMode: .byWordWrapping, size: CGSize(width: 160, height: 200))
+
+    // then: the lines break between words
+    expect(drawer.lineBreakMode) == .byWordWrapping
+    expect(drawer.layoutManager.laidOutLines(in: drawer.textContainer)) == ["Lorem Ipsum is simply ", "dummy text of the "]
+  }
+
   // MARK: - Update
 
   func test_update_givesTheTextTheSettingsAndTheSize() {

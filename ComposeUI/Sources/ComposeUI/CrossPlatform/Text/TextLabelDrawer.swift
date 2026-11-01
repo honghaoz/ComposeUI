@@ -93,15 +93,13 @@ final class TextLabelDrawer {
     }
   }
 
-  /// The line break mode of the text's last line.
-  var lineBreakMode: NSLineBreakMode {
-    get {
-      textContainer.lineBreakMode
-    }
-    set {
+  /// The line break mode of the text: `.byCharWrapping` breaks every line between characters, and the other modes set
+  /// how the last line ends.
+  var lineBreakMode: NSLineBreakMode = .byWordWrapping {
+    didSet {
       // a change lays the text out again, so an unchanged value isn't set
-      if textContainer.lineBreakMode != newValue {
-        textContainer.lineBreakMode = newValue
+      if lineBreakMode != oldValue {
+        layoutManager.setLineBreakMode(lineBreakMode, in: textContainer)
       }
     }
   }
@@ -115,7 +113,7 @@ final class TextLabelDrawer {
   /// - Parameters:
   ///   - text: The text to lay out, or `nil` to keep the drawer's text.
   ///   - numberOfLines: The maximum number of lines that the text lays out in, 0 for no limit.
-  ///   - lineBreakMode: The line break mode of the text's last line.
+  ///   - lineBreakMode: The line break mode of the text, see `lineBreakMode`.
   ///   - size: The size that the text lays out in, with the inset.
   ///   - inset: The inset of the text, the width from the left and right edges and the height from the top and bottom.
   /// - Returns: Whether the container has room to show the text.
