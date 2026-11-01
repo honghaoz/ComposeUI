@@ -57,13 +57,17 @@ class ComposeView_ScrollReuseTests: XCTestCase {
       scrolledView.contentOffset = CGPoint(x: 0, y: offset)
       scrolledView.layoutIfNeeded()
 
-      // then: it renders the same as a new view that renders at the offset first
+      // then: it renders the same as a new view that renders at the offset first, and shows nothing else, such as a
+      // view of a row that scrolled out
       let newView = Self.makeView()
       let newRecorder = RenderRecorder(newView)
       newView.contentOffset = CGPoint(x: 0, y: offset)
       newView.refresh(animated: false)
       expect(recorder.rendered.isEmpty, "offset \(offset)") == false
       expect(recorder.rendered, "offset \(offset)") == newRecorder.rendered
+      let shownContent = Self.shownContent(of: scrolledView)
+      expect(shownContent.isEmpty, "offset \(offset)") == false
+      expect(shownContent, "offset \(offset)") == Self.shownContent(of: newView)
     }
 
     // then: the scroll reused label views, text views and layers
@@ -135,15 +139,37 @@ class ComposeView_ScrollReuseTests: XCTestCase {
     }
   }
 
-  /// Returns a text node of a kind, with a text whose length differs from row to row, sized to its text.
+  /// Returns a text node of a kind, with a text whose length, font size and color differ from row to row, sized to its
+  /// text.
   private static func text(_ index: Int, kind: TextKind, numberOfLines: Int, lineBreakMode: NSLineBreakMode) -> some ComposeNode {
     let string = (0 ... (index * 7) % 23).map { "word\($0)" }.joined(separator: " ") + " end of row \(index)"
-    return TextNode(string, font: Font.systemFont(ofSize: 13))
+    let fontSize: CGFloat = [13, 15, 11][index % 3]
+    let color: Color = [.black, .red, .blue][index / 3 % 3]
+    return TextNode(string, font: Font.systemFont(ofSize: fontSize), foregroundColor: ThemedColor(color))
       .numberOfLines(numberOfLines)
       .lineBreakMode(lineBreakMode)
       .editable(kind == .editable)
       .selectable(kind != .label)
       .fixedSize(width: false, height: true)
+  }
+
+  /// Describes what a compose view's content container shows: its subviews and its layers of their own that aren't
+  /// hidden, sorted, without UIKit's private subviews, such as the scroll indicators.
+  private static func shownContent(of view: ComposeView) -> [String] {
+    let container = view.contentContainerView
+    #if canImport(AppKit)
+    let containerLayer = container.layer
+    let viewLayers = container.subviews.compactMap(\.layer)
+    #endif
+    #if canImport(UIKit)
+    let containerLayer: CALayer? = container.layer
+    let viewLayers = container.subviews.map(\.layer)
+    #endif
+    let subviews = container.subviews.filter { !$0.isHidden && !String(describing: type(of: $0)).hasPrefix("_") }
+    let layers = (containerLayer?.sublayers ?? []).filter { layer in
+      !layer.isHidden && !viewLayers.contains { $0 === layer }
+    }
+    return (subviews.map { "view \(type(of: $0)) \($0.frame)" } + layers.map { "layer \(type(of: $0)) \($0.frame)" }).sorted()
   }
 }
 
@@ -213,7 +239,7 @@ private final class RenderRecorder {
   }
 
   /// Describes what a renderable shows: its type and frame, whether it shows, and for a text, the lines that it lays
-  /// out, and a text view's scroll offset.
+  /// out, its font and color, and a text view's scroll offset.
   private static func describe(_ renderable: Renderable) -> String {
     var parts = [typeName(of: renderable), "frame \(renderable.frame)"]
     let layer = renderable.layer
@@ -225,19 +251,29 @@ private final class RenderRecorder {
     case let textView as BaseTextView:
       #if canImport(AppKit)
       if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
-        parts.append("lines \(layoutManager.laidOutLines(in: textContainer))")
+        parts.append("lines \(layoutManager.laidOutLines(in: textContainer)), \(describeStyle(of: layoutManager.textStorage))")
       }
       #endif
       #if canImport(UIKit)
-      parts.append("lines \(textView.layoutManager.laidOutLines(in: textView.textContainer)), offset \(textView.contentOffset)")
+      parts.append("lines \(textView.layoutManager.laidOutLines(in: textView.textContainer)), \(describeStyle(of: textView.textStorage)), offset \(textView.contentOffset)")
       #endif
     case let labelView as TextLabelView:
       // a label lays out its text when it draws
       labelView.layer().displayIfNeeded()
-      parts.append("lines \(labelView.test.layoutManager.laidOutLines(in: labelView.test.textContainer))")
+      parts.append("lines \(labelView.test.layoutManager.laidOutLines(in: labelView.test.textContainer)), \(describeStyle(of: labelView.test.layoutManager.textStorage))")
     default:
       break
     }
     return parts.joined(separator: ", ")
+  }
+
+  /// Describes the font and the color of a text's first character.
+  private static func describeStyle(of textStorage: NSTextStorage?) -> String {
+    guard let textStorage, textStorage.length > 0 else {
+      return "no text"
+    }
+    let font = textStorage.attribute(.font, at: 0, effectiveRange: nil) as? Font
+    let color = textStorage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? Color
+    return "font \(font?.fontName ?? "none") \(font?.pointSize ?? 0), color \(color?.cgColor.components ?? [])"
   }
 }
