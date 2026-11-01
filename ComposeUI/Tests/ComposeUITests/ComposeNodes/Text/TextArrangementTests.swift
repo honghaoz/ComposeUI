@@ -61,7 +61,7 @@ class TextArrangementTests: XCTestCase {
 
   // MARK: - Changes
 
-  func test_lines_afterAChange_areTheLinesOfANewView() throws {
+  func test_lines_afterAChange_areTheLinesOfANewView() {
     for state in Self.finalStates {
       for kind in Kind.allCases {
         let newLines = Harness(state: state, kind: kind).render()
@@ -78,8 +78,10 @@ class TextArrangementTests: XCTestCase {
           // when: the change brings it to the state
           change.apply(to: harness, state: state, kind: kind)
 
-          // then: its view, the first one, lays out the same lines as a new view in the state
+          // then: its view, the first one, lays out the same lines as a new view in the state, which shows the text
+          expect(firstView, scenario) != nil
           expect(harness.model.view === firstView, scenario) == true
+          expect(newLines.isEmpty, scenario) == false
           expect(Harness.lines(of: harness.model.view), scenario) == newLines
         }
       }
