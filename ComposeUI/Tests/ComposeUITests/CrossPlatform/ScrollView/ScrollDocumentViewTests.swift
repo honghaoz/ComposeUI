@@ -97,21 +97,23 @@ class ScrollDocumentViewTests: XCTestCase {
     expect(textField.currentEditor()) != nil
   }
 
-  // MARK: - Removing a Subview
+  // MARK: - Keeping the Focus
 
-  func test_focusedSubviewRemoved_focusMovesToTheContent() {
+  func test_keepKeyboardFocus_focusInTheSubview_movesTheFocusToTheContent() {
     // given: a scroll view that the keys scroll, in a window, with the focus in a view in its content
     let window = TestWindow()
     let scrollView = makeScrollView(contentSize: CGSize(width: 100, height: 300), in: window.contentView())
+    let documentView = scrollView.contentContainerView as! ScrollDocumentView // swiftlint:disable:this force_cast
     let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(focusableView)
+    documentView.addSubview(focusableView)
     window.makeFirstResponder(focusableView)
 
-    // when: the view is removed from the content
+    // when: the view leaves the window, keeping the focus in the scroll views, as a render pass removes a view
+    documentView.keepKeyboardFocus(leaving: focusableView)
     focusableView.removeFromSuperview()
 
-    // then: the content keeps the focus, instead of the window
-    expect(window.firstResponder) === scrollView.contentContainerView
+    // then: the content takes the focus, instead of the window
+    expect(window.firstResponder) === documentView
 
     // when: the arrow keys are pressed
     window.press(.down)
@@ -120,112 +122,135 @@ class ScrollDocumentViewTests: XCTestCase {
     expect(scrollView.contentOffset) == CGPoint(x: 0, y: 40)
   }
 
-  func test_subviewWithTheFocusInsideRemoved_focusMovesToTheContent() {
+  func test_keepKeyboardFocus_focusInsideTheSubview_movesTheFocusToTheContent() {
     // given: a scroll view that the keys scroll, in a window, with the focus in a view inside a container in its content
     let window = TestWindow()
     let scrollView = makeScrollView(contentSize: CGSize(width: 100, height: 300), in: window.contentView())
+    let documentView = scrollView.contentContainerView as! ScrollDocumentView // swiftlint:disable:this force_cast
     let container = NSView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(container)
+    documentView.addSubview(container)
     let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
     container.addSubview(focusableView)
     window.makeFirstResponder(focusableView)
 
-    // when: the container is removed from the content
+    // when: the container leaves the window, keeping the focus in the scroll views
+    documentView.keepKeyboardFocus(leaving: container)
     container.removeFromSuperview()
 
-    // then: the content keeps the focus
-    expect(window.firstResponder) === scrollView.contentContainerView
+    // then: the content takes the focus
+    expect(window.firstResponder) === documentView
   }
 
-  func test_focusedSubviewRemoved_scrollViewThatTheKeysCanNotScroll_focusMovesToTheScrollViewAroundIt() {
+  func test_keepKeyboardFocus_scrollViewThatTheKeysCanNotScroll_movesTheFocusToTheScrollViewAroundIt() {
     // given: a scroll view whose content fits it, nested in a parent scroll view that the keys scroll, in a window, with
     // the focus in a view in the scroll view's content
     let window = TestWindow()
     let parent = makeScrollView(contentSize: CGSize(width: 1000, height: 1000), in: window.contentView())
     let scrollView = makeScrollView(contentSize: CGSize(width: 100, height: 100), in: parent.contentContainerView)
+    let documentView = scrollView.contentContainerView as! ScrollDocumentView // swiftlint:disable:this force_cast
     let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(focusableView)
+    documentView.addSubview(focusableView)
     window.makeFirstResponder(focusableView)
 
-    // when: the view is removed from the scroll view's content
+    // when: the view leaves the window, keeping the focus in the scroll views
+    documentView.keepKeyboardFocus(leaving: focusableView)
     focusableView.removeFromSuperview()
 
     // then: the keys can't scroll the scroll view, so the parent's content takes the focus
     expect(window.firstResponder) === parent.contentContainerView
   }
 
-  func test_focusedSubviewRemoved_noScrollViewThatTheKeysScroll_focusGoesToTheWindow() {
+  func test_keepKeyboardFocus_noScrollViewThatTheKeysScroll_leavesTheFocusToAppKit() {
     // given: a scroll view whose content fits it, in a window, with the focus in a view in its content
     let window = TestWindow()
     let scrollView = makeScrollView(contentSize: CGSize(width: 100, height: 100), in: window.contentView())
+    let documentView = scrollView.contentContainerView as! ScrollDocumentView // swiftlint:disable:this force_cast
     let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(focusableView)
+    documentView.addSubview(focusableView)
     window.makeFirstResponder(focusableView)
 
-    // when: the view is removed from the content
+    // when: the view leaves the window, keeping the focus in the scroll views
+    documentView.keepKeyboardFocus(leaving: focusableView)
     focusableView.removeFromSuperview()
 
     // then: no scroll view takes the focus, so the window gets it, as AppKit gives it
     expect(window.firstResponder) === window
   }
 
-  func test_subviewRemoved_focusOutsideIt_staysWhereItIs() {
-    // given: a scroll view that the keys scroll, in a window, with two views in its content
+  func test_keepKeyboardFocus_focusOutsideTheSubview_staysWhereItIs() {
+    // given: a scroll view that the keys scroll, in a window, with a view that takes the focus and another view in its
+    // content
     let window = TestWindow()
     let scrollView = makeScrollView(contentSize: CGSize(width: 100, height: 300), in: window.contentView())
+    let documentView = scrollView.contentContainerView as! ScrollDocumentView // swiftlint:disable:this force_cast
     let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(focusableView)
+    documentView.addSubview(focusableView)
     let otherView = NSView(frame: CGRect(x: 50, y: 0, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(otherView)
-    let otherView2 = NSView(frame: CGRect(x: 0, y: 50, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(otherView2)
-    let otherView3 = NSView(frame: CGRect(x: 50, y: 50, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(otherView3)
+    documentView.addSubview(otherView)
 
-    // when: the focus is in one view, and the other view is removed
+    // when: the focus is in the view that takes it, and the other view is about to leave
     window.makeFirstResponder(focusableView)
-    otherView.removeFromSuperview()
+    documentView.keepKeyboardFocus(leaving: otherView)
 
     // then: the focused view keeps the focus
     expect(window.firstResponder) === focusableView
 
-    // when: the focus is in the content itself, and a view is removed
+    // when: the focus is in the content itself, and the other view is about to leave
     window.makeFirstResponder(scrollView)
-    otherView2.removeFromSuperview()
+    documentView.keepKeyboardFocus(leaving: otherView)
 
     // then: the content keeps the focus
-    expect(window.firstResponder) === scrollView.contentContainerView
+    expect(window.firstResponder) === documentView
 
-    // when: the window has the focus, and a view is removed
+    // when: the window has the focus, and the other view is about to leave
     window.makeFirstResponder(nil)
-    otherView3.removeFromSuperview()
+    documentView.keepKeyboardFocus(leaving: otherView)
 
     // then: the window keeps the focus
     expect(window.firstResponder) === window
 
-    // when: the scroll view leaves the window, and a view is removed from its content
+    // when: the scroll view leaves the window, and the view that takes the focus is about to leave its content
     scrollView.removeFromSuperview()
-    focusableView.removeFromSuperview()
+    documentView.keepKeyboardFocus(leaving: focusableView)
 
-    // then: the view leaves without a window to focus in
-    expect(focusableView.superview) == nil
+    // then: the view has no window to focus in
+    expect(focusableView.window) == nil
   }
 
-  func test_focusedSubviewRestacked_keepsTheFocus() {
-    // given: a scroll view that the keys scroll, in a window, with the focus in a view behind another view in its content
-    let window = TestWindow()
-    let scrollView = makeScrollView(contentSize: CGSize(width: 100, height: 300), in: window.contentView())
-    let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-    scrollView.contentContainerView.addSubview(focusableView)
-    scrollView.contentContainerView.addSubview(NSView(frame: CGRect(x: 0, y: 0, width: 50, height: 50)))
-    window.makeFirstResponder(focusableView)
+  func test_focusedViewMovedOrRemovedByAppCode_getsAppKitsFocus() {
+    // a compose view's content is a document view of its own, which takes the focus as a scroll view's does
+    let plainScrollView = ScrollView()
+    plainScrollView.contentSize = CGSize(width: 100, height: 300)
+    let composeView = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 1000)
+    }
+    for scrollView in [plainScrollView, composeView] {
+      // given: a scroll view that the keys scroll, in a window, with the focus in a view in its content, beside an overlay
+      let window = TestWindow()
+      scrollView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+      window.contentView().addSubview(scrollView)
+      (scrollView as? ComposeView)?.refresh(animated: false)
+      expect(scrollView.contentContainerView.acceptsFirstResponder) == true
+      let focusableView = FocusableView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+      scrollView.contentContainerView.addSubview(focusableView)
+      let overlay = NSView(frame: CGRect(x: 200, y: 200, width: 100, height: 100))
+      window.contentView().addSubview(overlay)
+      window.makeFirstResponder(focusableView)
 
-    // when: the focused view moves to the front, as a render pass restacks the views
-    scrollView.contentContainerView.bringSubviewToFront(focusableView)
+      // when: app code moves the focused view into the overlay
+      overlay.addSubview(focusableView)
 
-    // then: the view stays in the content, so it keeps the focus
-    expect(scrollView.contentContainerView.subviews.last) === focusableView
-    expect(window.firstResponder) === focusableView
+      // then: the view keeps the focus, as AppKit keeps it for a view that moves within its window
+      expect(window.firstResponder) === focusableView
+
+      // when: app code moves the view back into the content, and removes it from there
+      scrollView.contentContainerView.addSubview(focusableView)
+      focusableView.removeFromSuperview()
+
+      // then: the window gets the focus, as AppKit gives it, since only a render pass keeps the focus in the content
+      expect(window.firstResponder) === window
+    }
   }
 
   // MARK: - Helpers

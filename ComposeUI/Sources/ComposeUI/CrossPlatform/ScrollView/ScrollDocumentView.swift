@@ -48,20 +48,15 @@ class ScrollDocumentView: BaseView {
     false
   }
 
-  override func willRemoveSubview(_ subview: NSView) {
-    super.willRemoveSubview(subview)
-
-    keepKeyboardFocus(leaving: subview)
-  }
-
   /// Gives the keyboard focus to the content of the nearest scroll view that takes it, when the focus is in a subview
-  /// that's about to leave the content.
+  /// that's about to leave the window.
   ///
   /// AppKit gives the focus to the window when a view with it leaves the window, which leaves the keys without a scroll
-  /// view to scroll, such as when a render pass removes a text view that scrolled out of view.
+  /// view to scroll, such as when a render pass removes a text view that scrolled out of view. Call it only for a
+  /// subview that leaves the window, since AppKit keeps the focus in a view that moves elsewhere in the window.
   ///
-  /// - Parameter subview: The subview that's about to leave the content.
-  private func keepKeyboardFocus(leaving subview: NSView) {
+  /// - Parameter subview: The subview that's about to leave the window.
+  func keepKeyboardFocus(leaving subview: NSView) {
     // a render pass removes views on each scroll, while the content has the focus after a click, so the content is ruled
     // out without walking up the views from it
     guard let window, let firstResponder = window.firstResponder as? NSView, firstResponder !== self, firstResponder.isDescendant(of: subview) else {
