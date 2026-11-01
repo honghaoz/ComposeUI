@@ -32,6 +32,8 @@
 import AppKit
 import Carbon.HIToolbox.Events
 
+@testable import ComposeUI
+
 /// A key that scrolls, with the key code and the character of its key events.
 enum ScrollingKey {
 
@@ -44,9 +46,32 @@ enum ScrollingKey {
 
   /// Returns a key down event of the key in the window.
   ///
-  /// - Parameter window: The window.
+  /// - Parameters:
+  ///   - window: The window.
+  ///   - isARepeat: Whether the event repeats a key held down.
+  ///   - modifierFlags: The modifier keys that are down with the key.
   /// - Returns: The key down event.
-  func keyDownEvent(in window: NSWindow) -> NSEvent {
+  func keyDownEvent(in window: NSWindow, isARepeat: Bool = false, modifierFlags: NSEvent.ModifierFlags = []) -> NSEvent {
+    event(.keyDown, in: window, isARepeat: isARepeat, modifierFlags: modifierFlags)
+  }
+
+  /// Returns a key up event of the key in the window.
+  ///
+  /// - Parameter window: The window.
+  /// - Returns: The key up event.
+  func keyUpEvent(in window: NSWindow) -> NSEvent {
+    event(.keyUp, in: window, isARepeat: false, modifierFlags: [])
+  }
+
+  /// Returns a key event of the key in the window.
+  ///
+  /// - Parameters:
+  ///   - type: The type of the event, key down or key up.
+  ///   - window: The window.
+  ///   - isARepeat: Whether the event repeats a key held down.
+  ///   - otherModifierFlags: The modifier keys that are down with the key.
+  /// - Returns: The key event.
+  private func event(_ type: NSEvent.EventType, in window: NSWindow, isARepeat: Bool, modifierFlags otherModifierFlags: NSEvent.ModifierFlags) -> NSEvent {
     let (keyCode, character, modifierFlags): (Int, Int, NSEvent.ModifierFlags)
     switch self {
     case .up:
@@ -64,15 +89,15 @@ enum ScrollingKey {
     }
     let characters = String(utf16CodeUnits: [unichar(character)], count: 1)
     return NSEvent.keyEvent(
-      with: .keyDown,
+      with: type,
       location: .zero,
-      modifierFlags: modifierFlags,
+      modifierFlags: modifierFlags.union(otherModifierFlags),
       timestamp: ProcessInfo.processInfo.systemUptime,
       windowNumber: window.windowNumber,
       context: nil,
       characters: characters,
       charactersIgnoringModifiers: characters,
-      isARepeat: false,
+      isARepeat: isARepeat,
       keyCode: UInt16(keyCode)
     )! // swiftlint:disable:this force_unwrapping
   }
@@ -80,11 +105,106 @@ enum ScrollingKey {
 
 extension NSWindow {
 
-  /// Presses a key in the window, which sends its key down event to the first responder.
+  /// Presses a key in the window and lets it go at once, as a tap, and settles the keyboard scrolls that it starts, as
+  /// their animations do over time.
   ///
   /// - Parameter key: The key.
   func press(_ key: ScrollingKey) {
-    sendEvent(key.keyDownEvent(in: self))
+    keyDown(key)
+    keyUp(key)
+    settleKeyboardScrolls()
+  }
+
+  /// Sends a key down event of a key to the first responder, as the application dispatches it: as its current event,
+  /// which tells a scroll view that the key goes up later.
+  ///
+  /// - Parameters:
+  ///   - key: The key.
+  ///   - isARepeat: Whether the event repeats a key held down.
+  ///   - modifierFlags: The modifier keys that are down with the key.
+  func keyDown(_ key: ScrollingKey, isARepeat: Bool = false, modifierFlags: NSEvent.ModifierFlags = []) {
+    let application = NSApplication.shared
+    application.postEvent(key.keyDownEvent(in: self, isARepeat: isARepeat, modifierFlags: modifierFlags), atStart: false)
+    let event = application.nextEvent(matching: .keyDown, until: Date(timeIntervalSinceNow: 1), inMode: .default, dequeue: true)! // swiftlint:disable:this force_unwrapping
+    sendEvent(event)
+
+    // the application keeps the latest event that it dequeued as its current event, so another event replaces the key
+    // event, for the code that runs after it
+    let otherEvent = NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, subtype: 0, data1: 0, data2: 0)! // swiftlint:disable:this force_unwrapping
+    application.postEvent(otherEvent, atStart: false)
+    _ = application.nextEvent(matching: .applicationDefined, until: Date(timeIntervalSinceNow: 1), inMode: .default, dequeue: true)
+  }
+
+  /// Sends a key up event of a key to the first responder.
+  ///
+  /// - Parameter key: The key.
+  func keyUp(_ key: ScrollingKey) {
+    sendEvent(key.keyUpEvent(in: self))
+  }
+
+  /// Sends an event of the Command key going down or up to the first responder.
+  ///
+  /// - Parameter isDown: Whether the key goes down, or up.
+  func commandKey(isDown: Bool) {
+    let event = NSEvent.keyEvent(
+      with: .flagsChanged,
+      location: .zero,
+      modifierFlags: isDown ? [.command] : [],
+      timestamp: ProcessInfo.processInfo.systemUptime,
+      windowNumber: windowNumber,
+      context: nil,
+      characters: "",
+      charactersIgnoringModifiers: "",
+      isARepeat: false,
+      keyCode: UInt16(kVK_Command)
+    )! // swiftlint:disable:this force_unwrapping
+    sendEvent(event)
+  }
+
+  /// Sends a key down event of a key to the first responder at a time, which the keyboard scrolls take as the time of the
+  /// key, see `keyDown(_:isARepeat:)`.
+  ///
+  /// - Parameters:
+  ///   - key: The key.
+  ///   - time: The time of the key.
+  ///   - isARepeat: Whether the event repeats a key held down.
+  ///   - modifierFlags: The modifier keys that are down with the key.
+  func keyDown(_ key: ScrollingKey, at time: CFTimeInterval, isARepeat: Bool = false, modifierFlags: NSEvent.ModifierFlags = []) {
+    AnimationClock.sharingTime(at: time) {
+      keyDown(key, isARepeat: isARepeat, modifierFlags: modifierFlags)
+    }
+  }
+
+  /// Sends a key up event of a key to the first responder at a time, which the keyboard scrolls take as the time of the
+  /// key going up.
+  ///
+  /// - Parameters:
+  ///   - key: The key.
+  ///   - time: The time of the key going up.
+  func keyUp(_ key: ScrollingKey, at time: CFTimeInterval) {
+    AnimationClock.sharingTime(at: time) {
+      keyUp(key)
+    }
+  }
+
+  /// Settles the keyboard scrolls in flight in the window, as their animations do over time.
+  ///
+  /// - Parameter time: The time of the latest key, the current time by default. A test that presses keys at times of
+  ///   its own passes the latest one, which can be past the current time.
+  func settleKeyboardScrolls(after time: CFTimeInterval = CACurrentMediaTime()) {
+    guard #available(macOS 14.0, *), let contentView else {
+      return
+    }
+
+    func settle(in view: NSView) {
+      if let scrollView = view as? ScrollView, let animation = scrollView.keyboardScrollAnimation, animation.isRunning {
+        animation.step(at: time + Constants.settlingTime)
+      }
+      for subview in view.subviews {
+        settle(in: subview)
+      }
+    }
+    settle(in: contentView)
   }
 
   /// Clicks at a point in the window as AppKit handles a mouse down: the view under the point becomes the first responder
@@ -126,6 +246,14 @@ extension NSWindow {
   @discardableResult
   func click(_ view: NSView) -> NSView? {
     click(at: view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: nil))
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// How long after a key a keyboard scroll has long come to rest, which takes it under a second once the key goes up.
+    static let settlingTime: TimeInterval = 10
   }
 }
 #endif

@@ -40,4 +40,15 @@ extension CGPoint {
   static func - (left: CGPoint, right: CGPoint) -> CGPoint {
     CGPoint(x: left.x - right.x, y: left.y - right.y)
   }
+
+  /// Returns the point rounded to the nearest pixel along each axis.
+  ///
+  /// - Parameter pixelSize: The size of a pixel along each axis.
+  /// - Returns: The point on whole pixels.
+  func rounded(toPixelSize pixelSize: CGSize) -> CGPoint {
+    CGPoint(
+      x: (x / pixelSize.width).rounded() * pixelSize.width,
+      y: (y / pixelSize.height).rounded() * pixelSize.height
+    )
+  }
 }
