@@ -1677,9 +1677,17 @@ class TextNodeTests: XCTestCase {
     textView.contentOffset = CGPoint(x: 0, y: 200)
     textView.layoutIfNeeded()
 
-    // then: the same text view lays out the first 30 paragraphs, one on each line
+    // then: the same text view, with non-contiguous layout on, shows the right paragraph on each line in its bounds, read
+    // as drawing reads them, before the whole text is laid out, and lays out the first 30 paragraphs in all
     expect(renderedView) === textView
     expect(textView.isScrollEnabled) == true
+    expect(textView.layoutManager.allowsNonContiguousLayout) == true
+    let shownLines = Self.linesInBounds(of: textView)
+    expect(shownLines.isEmpty) == false
+    for line in shownLines {
+      expect(line.number) <= 30
+      expect(line.text) == "Paragraph \(line.number)\n"
+    }
     expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == (1 ... 30).map { "Paragraph \($0)\n" }
   }
 
@@ -2078,6 +2086,20 @@ class TextNodeTests: XCTestCase {
   /// Returns the number of glyphs that the text view lays out in its text container.
   private static func laidOutGlyphCount(of textView: BaseTextView) -> Int {
     textView.layoutManager.glyphRange(for: textView.textContainer).length
+  }
+
+  /// Returns the lines that the text view's bounds show, read as drawing reads them, without laying out the rest of the
+  /// text, each with its line number from its position, for a text whose lines are all the same height.
+  private static func linesInBounds(of textView: BaseTextView) -> [(number: Int, text: String)] {
+    let layoutManager = textView.layoutManager
+    let text = textView.textStorage.string as NSString
+    let glyphRange = layoutManager.glyphRange(forBoundingRect: textView.bounds, in: textView.textContainer)
+    var lines: [(number: Int, text: String)] = []
+    layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { rect, _, _, lineGlyphRange, _ in
+      let characterRange = layoutManager.characterRange(forGlyphRange: lineGlyphRange, actualGlyphRange: nil)
+      lines.append((Int((rect.minY / rect.height).rounded()) + 1, text.substring(with: characterRange)))
+    }
+    return lines
   }
   #endif
 
