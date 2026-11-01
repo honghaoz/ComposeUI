@@ -28,7 +28,7 @@
 //  IN THE SOFTWARE.
 //
 
-#if canImport(AppKit)
+#if canImport(AppKit) && DEBUG
 import AppKit
 
 import ChouTiTest
@@ -40,6 +40,19 @@ import ChouTiTest
 /// The display link of a window that isn't on screen doesn't fire, so the tests step the animation at the times that they
 /// choose, except for the test of the display link.
 class KeyboardScrollAnimationTests: XCTestCase {
+
+  override func setUp() {
+    super.setUp()
+
+    // the keys scroll with AppKit's animation instead of the spring when the user reduces motion, as the machine that
+    // runs the tests may
+    ScrollView.scrollsWithKeyboardOnSpringForTesting = true
+  }
+
+  override func tearDown() {
+    ScrollView.scrollsWithKeyboardOnSpringForTesting = nil
+    super.tearDown()
+  }
 
   func test_scroll_followsTheSpringOfUIKitsKeyboardScrolling() throws {
     guard #available(macOS 14.0, *) else {
