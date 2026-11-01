@@ -124,6 +124,34 @@ class KeyboardScrollPhysicsTests: XCTestCase {
     expect(physics.position.y) > 500
   }
 
+  func test_push_duringTheSpringOfATapOnTheOtherAxis_movesTheContentOnToTheTapsStep() {
+    for gap in [0.02, 0.1, 0.2] {
+      // given: a tap of a key that pushes the content to the right, whose spring takes it a step to the right
+      var physics = KeyboardScrollPhysics(position: .zero, time: 0)
+      physics.startPush(toward: .right, step: 40)
+      physics.endPush(in: Self.planeRange)
+      physics.advance(to: gap, in: Self.planeRange)
+      expect(physics.position.x) < 39
+
+      // when: before the content rests, a key pushes it down for 0.3 s
+      physics.startPush(toward: .down, step: 40)
+      physics.advance(to: gap + 0.3, in: Self.planeRange)
+
+      // then: the spring moves the content on to the tap's step while the key pushes it down
+      expect(physics.position.x).to(beApproximatelyEqual(to: 40, within: 0.5))
+      expect(physics.position.y) > 100
+
+      // when: the key goes up
+      physics.endPush(in: Self.planeRange)
+      settle(&physics, in: Self.planeRange)
+
+      // then: the content comes to rest down, and a whole step to the right
+      expect(physics.isAtRest(in: Self.planeRange)) == true
+      expect(physics.restingOffset(in: Self.planeRange).x) == 40
+      expect(physics.restingOffset(in: Self.planeRange).y) > 200
+    }
+  }
+
   // MARK: - End of a Push
 
   func test_endPush_afterATap_bringsTheContentAStepAway() {
@@ -160,6 +188,30 @@ class KeyboardScrollPhysicsTests: XCTestCase {
     expect(restingY) > 40
     expect(physics.restingOffset(in: Self.range)) == CGPoint(x: 0, y: restingY)
     expect(positions.map(\.y).max()) <= restingY + 0.5
+  }
+
+  func test_endPush_duringTheSpringOfATapOnTheOtherAxis_leavesTheTapItsStep() {
+    for gap in [0.02, 0.1, 0.2] {
+      // given: a tap of a key that pushes the content to the right, whose spring takes it a step to the right, and before
+      // the content rests, a key that pushes it down for 20 ms
+      var physics = KeyboardScrollPhysics(position: .zero, time: 0)
+      physics.startPush(toward: .right, step: 40)
+      physics.endPush(in: Self.planeRange)
+      physics.advance(to: gap, in: Self.planeRange)
+      physics.startPush(toward: .down, step: 40)
+      physics.advance(to: gap + 0.02, in: Self.planeRange)
+      expect(physics.position.x) < 39
+      expect(physics.velocity.x) > 10
+
+      // when: the key goes up while the content still moves to the right, and the motion goes on until the content rests
+      physics.endPush(in: Self.planeRange)
+      settle(&physics, in: Self.planeRange)
+
+      // then: the content comes to rest a whole step to the right, as well as a step down
+      expect(physics.isAtRest(in: Self.planeRange)) == true
+      expect(physics.restingOffset(in: Self.planeRange)) == CGPoint(x: 40, y: 40)
+      expect(physics.position.x).to(beApproximatelyEqual(to: 40, within: 1))
+    }
   }
 
   func test_endPush_withoutAPush_leavesTheMotion() {
@@ -313,6 +365,9 @@ class KeyboardScrollPhysicsTests: XCTestCase {
 
   /// A range that scrolls down from 0 to 10000, at 2x.
   private static let range = KeyboardScrollRange(minimum: .zero, maximum: CGPoint(x: 0, y: 10000), pixelSize: CGSize(width: 0.5, height: 0.5))
+
+  /// A range that scrolls both ways from 0 to 10000, at 2x.
+  private static let planeRange = KeyboardScrollRange(minimum: .zero, maximum: CGPoint(x: 10000, y: 10000), pixelSize: CGSize(width: 0.5, height: 0.5))
 
   /// Advances a motion in frames of 1/120 s until the content rests, for up to two seconds.
   ///

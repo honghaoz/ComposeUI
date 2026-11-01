@@ -149,7 +149,7 @@ struct KeyboardScrollPhysics {
   /// The offset a step from where the push started, which the content comes to rest at least as far as.
   private var minimumTravelPosition: CGPoint
 
-  /// The offset that the spring brings the content to once the key goes up.
+  /// The offset that the spring brings the content to, once the key goes up, and across the push while it's down.
   private var restingPosition: CGPoint
 
   /// Makes a motion of content at rest.
@@ -185,21 +185,20 @@ struct KeyboardScrollPhysics {
       return
     }
 
-    // the content comes to rest as far as the spring would take its kinetic energy as elastic energy,
+    // along the push, the content comes to rest as far as the spring would take its kinetic energy as elastic energy,
     // 1/2 m v² = 1/2 k x², so that it slows down from the speed it has, and at least a step from where the push started,
-    // so that a short tap moves it by a whole step
-    let travelX = (velocity.x * velocity.x * Constants.mass / Constants.stiffness).squareRoot()
-    let travelY = (velocity.y * velocity.y * Constants.mass / Constants.stiffness).squareRoot()
-    var restingPosition = CGPoint(x: position.x + copysign(travelX, velocity.x), y: position.y + copysign(travelY, velocity.y))
+    // so that a short tap moves it by a whole step. across the push, it still comes to rest where an earlier key brings
+    // it, so that a press on one axis doesn't stop a tap on the other short of its step
+    var restingPosition = self.restingPosition
     switch push.direction {
     case .up:
-      restingPosition.y = min(restingPosition.y, minimumTravelPosition.y)
+      restingPosition.y = min(position.y + Self.springTravel(forVelocity: velocity.y), minimumTravelPosition.y)
     case .down:
-      restingPosition.y = max(restingPosition.y, minimumTravelPosition.y)
+      restingPosition.y = max(position.y + Self.springTravel(forVelocity: velocity.y), minimumTravelPosition.y)
     case .left:
-      restingPosition.x = min(restingPosition.x, minimumTravelPosition.x)
+      restingPosition.x = min(position.x + Self.springTravel(forVelocity: velocity.x), minimumTravelPosition.x)
     case .right:
-      restingPosition.x = max(restingPosition.x, minimumTravelPosition.x)
+      restingPosition.x = max(position.x + Self.springTravel(forVelocity: velocity.x), minimumTravelPosition.x)
     }
 
     self.restingPosition = range.constrained(restingPosition)
@@ -278,12 +277,22 @@ struct KeyboardScrollPhysics {
     var force = CGPoint.zero
     var springsAlongX = true
     var springsAlongY = true
+    var target = range.restingOffset(for: restingPosition)
 
     if let push {
       let unitVector = push.direction.unitVector
+
+      // along the push, the spring only pulls the content back into the range
+      let pushTarget = range.restingOffset(for: position)
+      if push.direction.isVertical {
+        target.y = pushTarget.y
+      } else {
+        target.x = pushTarget.x
+      }
+
       let pushForce: CGFloat
       if canMove(toward: push.direction, in: range) {
-        // the spring would drag against the push, so it only holds the content across it
+        // the spring would drag against the push, so it only acts across it
         if push.direction.isVertical {
           springsAlongY = false
         } else {
@@ -303,9 +312,6 @@ struct KeyboardScrollPhysics {
       }
     }
 
-    // while a key pushes, the spring pulls the content into the range only, and holds it on whole pixels across the
-    // push. once the key goes up, it pulls the content to its resting offset
-    let target = range.restingOffset(for: push == nil ? restingPosition : position)
     let displacement = CGPoint(x: position.x - target.x, y: position.y - target.y)
     if springsAlongX {
       force.x -= Constants.stiffness * displacement.x + Constants.damping * velocity.x
@@ -327,6 +333,14 @@ struct KeyboardScrollPhysics {
     if springsAlongY, displacement.y * (position.y - target.y) < 0 {
       velocity.y = 0
     }
+  }
+
+  /// Returns how far the spring takes content that moves at a velocity along an axis.
+  ///
+  /// - Parameter velocity: The velocity along the axis.
+  /// - Returns: The distance, signed as the velocity.
+  private static func springTravel(forVelocity velocity: CGFloat) -> CGFloat {
+    copysign((velocity * velocity * Constants.mass / Constants.stiffness).squareRoot(), velocity)
   }
 
   /// Returns whether the content can move toward a direction without passing an end of the range.
