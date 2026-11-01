@@ -199,7 +199,7 @@ class KeyboardScrollAnimationTests: XCTestCase {
     // then: the content moves to the whole pixel nearest to 40 points from where it is, and rests there
     let animation = try unwrap(scrollView.keyboardScrollAnimation)
     expect(animation.target) == CGPoint(x: 0, y: ((40 + pixel / 4) / pixel).rounded() * pixel)
-    window.settleKeyboardScrolls()
+    window.settleKeyboardScrolls(after: Constants.startTime)
     expect(scrollView.contentOffset) == animation.target
   }
 
@@ -232,7 +232,7 @@ class KeyboardScrollAnimationTests: XCTestCase {
     // then: the key starts the scroll over from where the content is, instead of from the target of the scroll in flight
     expect(animation.isRunning) == true
     expect(animation.target) == CGPoint(x: 0, y: 140)
-    window.settleKeyboardScrolls()
+    window.settleKeyboardScrolls(after: Constants.startTime + 1.06)
     expect(scrollView.contentOffset) == CGPoint(x: 0, y: 140)
   }
 
@@ -276,7 +276,7 @@ class KeyboardScrollAnimationTests: XCTestCase {
 
     // then: the target moves to the end of the new range, and the content rests there
     expect(animation.target) == CGPoint(x: 0, y: 50)
-    window.settleKeyboardScrolls()
+    window.settleKeyboardScrolls(after: Constants.startTime + 0.1)
     expect(scrollView.contentOffset) == CGPoint(x: 0, y: 50)
   }
 

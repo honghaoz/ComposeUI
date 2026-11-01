@@ -92,14 +92,17 @@ extension NSWindow {
   }
 
   /// Settles the keyboard scrolls in flight in the window, as their animations do over time.
-  func settleKeyboardScrolls() {
+  ///
+  /// - Parameter time: The time of the latest key, the current time by default. A test that presses keys at times of
+  ///   its own passes the latest one, which can be past the current time.
+  func settleKeyboardScrolls(after time: CFTimeInterval = CACurrentMediaTime()) {
     guard #available(macOS 14.0, *), let contentView else {
       return
     }
 
     func settle(in view: NSView) {
       if let scrollView = view as? ScrollView, let animation = scrollView.keyboardScrollAnimation, animation.isRunning {
-        animation.step(at: CACurrentMediaTime() + Constants.settlingTime)
+        animation.step(at: time + Constants.settlingTime)
       }
       for subview in view.subviews {
         settle(in: subview)
