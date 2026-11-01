@@ -161,6 +161,7 @@ extension NSWindow {
     sendEvent(event)
   }
 
+  #if DEBUG
   /// Sends a key down event of a key to the first responder at a time, which the keyboard scrolls take as the time of the
   /// key, see `keyDown(_:isARepeat:)`.
   ///
@@ -186,6 +187,7 @@ extension NSWindow {
       keyUp(key)
     }
   }
+  #endif
 
   /// Settles the keyboard scrolls in flight in the window, as their animations do over time.
   ///
