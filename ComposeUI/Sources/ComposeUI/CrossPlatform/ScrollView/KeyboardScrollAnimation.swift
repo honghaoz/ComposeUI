@@ -149,12 +149,7 @@ final class KeyboardScrollAnimation: NSObject {
     let destination = scrollView.keyboardScrollRange.restingOffset(
       for: CGPoint(x: contentOffset.x + distance.x, y: contentOffset.y + distance.y)
     )
-    let length = hypot(destination.x - contentOffset.x, destination.y - contentOffset.y)
-    let timingFunction = CAMediaTimingFunction(name: isGliding ? .easeOut : .easeInEaseOut)
-    let duration = min(TimeInterval(length) / Constants.glideSpeed, Constants.maximumGlideDuration)
-    motion = .glide(
-      Glide(start: contentOffset, destination: destination, startTime: time, curve: AnimationCurve(timingFunction: timingFunction, duration: duration))
-    )
+    motion = .glide(Glide(from: contentOffset, to: destination, at: time, easesIn: !isGliding))
     lastContentOffset = contentOffset
     stopObservingKeyWindow()
     startDisplayLink()
@@ -196,7 +191,15 @@ final class KeyboardScrollAnimation: NSObject {
         lastContentOffset = scrollView.contentOffset
         self.motion = .push(physics)
       }
-    case .glide(let glide):
+    case .glide(var glide):
+      // the range can change during the glide, such as when the content shrinks, so a glide whose end leaves the range
+      // turns to the new end from where the content is
+      let destination = range.restingOffset(for: glide.destination)
+      if destination != glide.destination {
+        glide = Glide(from: lastContentOffset, to: destination, at: time, easesIn: false)
+        self.motion = .glide(glide)
+      }
+
       if glide.hasEnded(at: time) {
         scrollView.setContentOffsetExactly(glide.destination)
         stop()
@@ -291,6 +294,22 @@ final class KeyboardScrollAnimation: NSObject {
 
     /// The timing curve of the glide, with its duration.
     let curve: AnimationCurve
+
+    /// Makes a glide at 1000 points per second, for up to 200 ms.
+    ///
+    /// - Parameters:
+    ///   - start: The content offset that the glide starts from.
+    ///   - destination: The content offset that the glide ends at.
+    ///   - startTime: The time that the glide starts at.
+    ///   - easesIn: Whether the glide eases in as well as out, which a glide that starts from rest does.
+    init(from start: CGPoint, to destination: CGPoint, at startTime: CFTimeInterval, easesIn: Bool) {
+      self.start = start
+      self.destination = destination
+      self.startTime = startTime
+      let length = hypot(destination.x - start.x, destination.y - start.y)
+      let duration = min(TimeInterval(length) / Constants.glideSpeed, Constants.maximumGlideDuration)
+      curve = AnimationCurve(timingFunction: CAMediaTimingFunction(name: easesIn ? .easeInEaseOut : .easeOut), duration: duration)
+    }
 
     /// Returns whether the glide has ended at a time.
     ///

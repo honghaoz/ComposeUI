@@ -582,6 +582,30 @@ class KeyboardScrollAnimationTests: XCTestCase {
     expect(scrollView.contentOffset.y) >= 160
   }
 
+  func test_contentShrinksDuringAGlide_endingAheadOfTheContent_glidesToTheNewEnd() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view, a quarter of the way through the glide of the page down key to 80
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1000))
+    window.keyDown(.pageDown, at: Constants.startTime)
+    window.keyUp(.pageDown, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.02)
+    expect(scrollView.contentOffset.y) < 40
+
+    // when: the content shrinks, so that the range ends at 40, short of the glide's end, and frames step the animation
+    // until it stops
+    scrollView.contentSize = CGSize(width: 100, height: 140)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.02)
+
+    // then: the glide turns to the new end from where the content is, and stops there without passing it
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 40)
+    expect(offsets.map(\.y).max()) == 40
+    expect(animation.isRunning) == false
+  }
+
   func test_arrowKey_duringAGlide_pushesFromWhereTheContentIs() throws {
     guard #available(macOS 14.0, *) else {
       return
