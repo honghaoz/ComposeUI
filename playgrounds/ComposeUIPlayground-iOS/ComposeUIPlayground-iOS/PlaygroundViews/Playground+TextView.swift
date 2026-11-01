@@ -170,11 +170,11 @@ extension Playground {
           paragraphText()
             .textContainerInset(horizontal: 12, vertical: 6)
             .border()
-            .frame(width: 180, height: .intrinsic, alignment: .topLeft)
+            .frame(width: 150, height: .intrinsic, alignment: .topLeft)
           paragraphText()
             .padding(horizontal: 12, vertical: 6)
             .border()
-            .frame(width: 180, height: .intrinsic, alignment: .topLeft)
+            .frame(width: 150, height: .intrinsic, alignment: .topLeft)
         }
 
         #if canImport(AppKit)

@@ -1538,7 +1538,7 @@ class TextNodeTests: XCTestCase {
 
   func test_notEditable_textViewStopsTheTextAtItsBounds() throws {
     // given: a compose view showing a text node that isn't editable, in a frame smaller than its text, whose frame then
-    // changes, after which a UIKit text view that scrolls lays out its whole text
+    // changes
     var width: CGFloat = 120
     var renderedView: BaseTextView?
     let contentView = ComposeView {
@@ -1589,25 +1589,55 @@ class TextNodeTests: XCTestCase {
     expect(textView.contentSize.height) > textView.bounds.height
   }
 
+  func test_reuse_editable_tallerTextInTheSameWidth_laysOutTheWholeText() throws {
+    // given: a compose view with its own pool, showing a one-line editable text node as wide as the view
+    var id = "first"
+    var numberOfLines = 1
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
+        .numberOfLines(numberOfLines)
+        .editable()
+        .fixedSize(width: false, height: true)
+        .id(id)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.renderablePool = RenderablePool()
+    contentView.frame = CGRect(x: 0, y: 0, width: 120, height: 400)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+    let firstSize = textView.frame.size
+
+    // when: a taller editable text node of the same width replaces it, which reuses its text view
+    id = "second"
+    numberOfLines = 0
+    contentView.refresh(animated: false)
+
+    // then: the text view lays out the whole text, not just the one line that fit before
+    expect(renderedView) === textView
+    expect(textView.frame.width) == firstSize.width
+    expect(textView.frame.height) > firstSize.height
+    expect(Self.laidOutGlyphCount(of: textView)) == textView.layoutManager.numberOfGlyphs
+  }
+
   func test_editableChangedToNotEditable_scrolledTextView_showsTheTextFromItsTop() throws {
-    // given: a compose view showing an editable text node, in a frame smaller than its text, whose frame changed, so
-    // that its text view laid out its whole text, and which the user scrolled down
+    // given: a compose view showing an editable text node in a frame smaller than its text, which the user scrolled down
     var isEditable = true
-    var width: CGFloat = 120
     var renderedView: BaseTextView?
     let contentView = ComposeView {
       TextNode(Constants.textTallerThanItsFrame, font: Font.systemFont(ofSize: 14))
         .editable(isEditable)
-        .frame(width: width, height: 40)
+        .frame(width: 120, height: 40)
         .onUpdate { renderable, _ in
           renderedView = renderable.view as? BaseTextView
         }
     }
     contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
     contentView.refresh(animated: false)
-    width = 140
-    contentView.refresh(animated: false)
     let textView = try unwrap(renderedView)
+    expect(Self.laidOutGlyphCount(of: textView)) == textView.layoutManager.numberOfGlyphs
     textView.contentOffset = CGPoint(x: 0, y: 30)
     expect(textView.contentOffset) == CGPoint(x: 0, y: 30)
 
@@ -1620,6 +1650,49 @@ class TextNodeTests: XCTestCase {
     expect(textView.isScrollEnabled) == false
     expect(textView.contentOffset) == .zero
     expect(Self.laidOutGlyphCount(of: textView)) < textView.layoutManager.numberOfGlyphs
+  }
+
+  func test_notEditableChangedToEditable_lineLimit_laysOutTheFirstLines() throws {
+    // given: a compose view showing a text node that isn't editable, limited to 30 lines of a text of 100 paragraphs, in
+    // a frame shorter than the 30 lines
+    var isEditable = false
+    var name = "Paragraph"
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode((1 ... 100).map { "\(name) \($0)" }.joined(separator: "\n"), font: Font.systemFont(ofSize: 14))
+        .numberOfLines(30)
+        .editable(isEditable)
+        .frame(width: 200, height: 100)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+
+    // when: the text node becomes editable, which turns on the text view's scrolling, and UIKit's non-contiguous layout
+    // with it, and the user scrolls into the middle of the text
+    isEditable = true
+    contentView.refresh(animated: false)
+    textView.contentOffset = CGPoint(x: 0, y: 200)
+    textView.layoutIfNeeded()
+
+    // then: the same text view turns non-contiguous layout off again, since the text has a line limit, and lays out the
+    // first 30 paragraphs
+    expect(renderedView) === textView
+    expect(textView.isScrollEnabled) == true
+    expect(textView.layoutManager.allowsNonContiguousLayout) == false
+    Self.expectFirstLines(of: textView, named: "Paragraph", limit: 30)
+
+    // when: the text node shows another text
+    name = "Line"
+    contentView.refresh(animated: false)
+    textView.layoutIfNeeded()
+
+    // then: the same text view lays out the first 30 paragraphs of the other text
+    expect(renderedView) === textView
+    Self.expectFirstLines(of: textView, named: "Line", limit: 30)
   }
 
   func test_resize_subviewThatAnAppAdded_isAutoresized() {
@@ -2017,6 +2090,35 @@ class TextNodeTests: XCTestCase {
   /// Returns the number of glyphs that the text view lays out in its text container.
   private static func laidOutGlyphCount(of textView: BaseTextView) -> Int {
     textView.layoutManager.glyphRange(for: textView.textContainer).length
+  }
+
+  /// Returns the lines that the text view lays out for its bounds, read as drawing reads them, without laying out the
+  /// rest of the text, each with its rect, and its line number from its position, for a text whose lines are all the
+  /// same height.
+  private static func linesInBounds(of textView: BaseTextView) -> [(number: Int, text: String, rect: CGRect)] {
+    let layoutManager = textView.layoutManager
+    let text = textView.textStorage.string as NSString
+    let glyphRange = layoutManager.glyphRange(forBoundingRect: textView.bounds, in: textView.textContainer)
+    var lines: [(number: Int, text: String, rect: CGRect)] = []
+    layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { rect, _, _, lineGlyphRange, _ in
+      let characterRange = layoutManager.characterRange(forGlyphRange: lineGlyphRange, actualGlyphRange: nil)
+      lines.append((Int((rect.minY / rect.height).rounded()) + 1, text.substring(with: characterRange), rect))
+    }
+    return lines
+  }
+
+  /// Expects a text view showing numbered paragraphs, one on each line, to show the right paragraph on each line in its
+  /// bounds, read as drawing reads them, before the whole text is laid out, and to lay out the first paragraphs up to a
+  /// line limit.
+  private static func expectFirstLines(of textView: BaseTextView, named name: String, limit: Int) {
+    let shownLines = linesInBounds(of: textView)
+    expect(shownLines.isEmpty, name) == false
+    for line in shownLines {
+      expect(line.rect.intersects(textView.bounds), name) == true
+      expect(line.number, name) <= limit
+      expect(line.text, name) == "\(name) \(line.number)\n"
+    }
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer), name) == (1 ... limit).map { "\(name) \($0)\n" }
   }
   #endif
 

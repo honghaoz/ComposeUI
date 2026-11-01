@@ -515,6 +515,7 @@ open class BaseTextView: UITextView {
       } else {
         textContainer.maximumNumberOfLines = numberOfLines > 0 ? numberOfLines : 0
       }
+      updateNonContiguousLayout()
     }
   }
 
@@ -522,6 +523,13 @@ open class BaseTextView: UITextView {
   open var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
       textContainer.lineBreakMode = lineBreakMode
+    }
+  }
+
+  override open var isScrollEnabled: Bool {
+    didSet {
+      // UIKit turns non-contiguous layout back on when scrolling turns on, also while the text has a line limit
+      updateNonContiguousLayout()
     }
   }
 
@@ -533,7 +541,11 @@ open class BaseTextView: UITextView {
       // the text is laid out with TextKit 1, as ComposeUI measures text, so that it fits the size measured for it, which
       // also lays out new text with far fewer allocations than TextKit 2, which the text view uses when it makes its own
       // text system
-      let textContainer = NSTextContainer(size: frame.size)
+      //
+      // the container's height is unlimited, as in UIKit's own text views. for a text view that scrolls, UIKit resizes
+      // the container only when the view's width changes, so a container as tall as the first frame would keep that
+      // height when the view gets taller, and the lines below it wouldn't show
+      let textContainer = NSTextContainer(size: CGSize(width: frame.width, height: .greatestFiniteMagnitude))
 
       let layoutManager = NSLayoutManager()
       layoutManager.addTextContainer(textContainer)
@@ -575,6 +587,23 @@ open class BaseTextView: UITextView {
     clipsToBounds = true
     if #available(iOS 16.0, *) {
       subviews.first(where: { String(cString: object_getClassName($0)) == "_UITextContainerView" }).assertNotNil()?.clipsToBounds = true
+    }
+  }
+
+  /// Allows non-contiguous layout while the text view scrolls, as UIKit does, unless the text has a line limit.
+  private func updateNonContiguousLayout() {
+    // skips TextKit 2 text view, as TextKit 2 has no non-contiguous layout, and accessing `layoutManager` below would
+    // switch it to TextKit 1
+    if #available(iOS 16.0, tvOS 16.0, *), textLayoutManager != nil {
+      return
+    }
+
+    // non-contiguous layout is a shortcut that lays out only the lines on screen, and UIKit turns it on for a text view
+    // that scrolls. with the container's unlimited height (set in the initializer) and a line limit, it lays out the
+    // wrong lines, so it's off while the text has a limit.
+    let allowsNonContiguousLayout = isScrollEnabled && textContainer.maximumNumberOfLines == 0
+    if layoutManager.allowsNonContiguousLayout != allowsNonContiguousLayout {
+      layoutManager.allowsNonContiguousLayout = allowsNonContiguousLayout
     }
   }
 

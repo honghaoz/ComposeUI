@@ -1078,6 +1078,28 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.attributedText.string) == "Hello, world!"
   }
 
+  func test_numberOfLines_givenTextKit2Container_keepsTheTextKit2TextSystem() throws {
+    guard #available(iOS 16.0, tvOS 16.0, *) else {
+      throw XCTSkip("text views use TextKit 2 from iOS 16 and tvOS 16")
+    }
+
+    // given: a TextKit 2 text view, made with an app's own TextKit 2 text container
+    let textContainer = NSTextContainer(size: CGSize(width: 200, height: 50))
+    let textLayoutManager = NSTextLayoutManager()
+    textLayoutManager.textContainer = textContainer
+    let textContentStorage = NSTextContentStorage()
+    textContentStorage.addTextLayoutManager(textLayoutManager)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50), textContainer: textContainer)
+    textView.attributedString = Self.makeText("Hello, world!")
+
+    // when: setting a line limit
+    textView.numberOfLines = 2
+
+    // then: it stays on TextKit 2, with the line limit
+    expect(textView.textLayoutManager) === textLayoutManager
+    expect(textContainer.maximumNumberOfLines) == 2
+  }
+
   func test_layout_fitsTheMeasuredSize() throws {
     let font = Font.systemFont(ofSize: 13)
     let mixedFonts = NSMutableAttributedString(string: "Regular text, then ", attributes: [.font: font])
@@ -1114,6 +1136,41 @@ class BaseTextViewTests: XCTestCase {
         expect(usedSize.width <= size.width, scenario) == true
       }
     }
+  }
+
+  func test_lineLimit_scrollingTextOfSeveralParagraphs_laysOutTheLimitsLines() throws {
+    // given: a text view that scrolls, limited to two lines before it gets a text, as a text node sets it up
+    let text = Self.makeText("First paragraph\nSecond paragraph\nThird paragraph")
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 160, height: 100))
+    textView.numberOfLines = 2
+
+    // when: showing a text of three paragraphs
+    textView.attributedString = text
+
+    // then: it lays out the first two paragraphs, one on each line, with non-contiguous layout off
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == ["First paragraph\n", "Second paragraph\n"]
+    expect(Self.usedSize(of: textView).height).to(beApproximatelyEqual(to: text.boundingRectSize(numberOfLines: 2, layoutWidth: 160).height, within: 0.01))
+    expect(textView.layoutManager.allowsNonContiguousLayout) == false
+
+    // when: turning scrolling off and on again, which turns UIKit's non-contiguous layout off and on, and showing another
+    // text of three paragraphs
+    textView.isScrollEnabled = false
+    textView.isScrollEnabled = true
+    let otherText = Self.makeText("Another paragraph\nAnd a second one\nAnd a third one")
+    textView.attributedString = otherText
+
+    // then: it turns non-contiguous layout off again, and lays out the first two paragraphs of the other text
+    expect(textView.layoutManager.allowsNonContiguousLayout) == false
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == ["Another paragraph\n", "And a second one\n"]
+
+    // when: removing the line limit
+    textView.numberOfLines = 0
+
+    // then: it lays out all three paragraphs, with non-contiguous layout back on, as UIKit has it for a text view that
+    // scrolls
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == ["Another paragraph\n", "And a second one\n", "And a third one"]
+    expect(Self.usedSize(of: textView).height).to(beApproximatelyEqual(to: otherText.boundingRectSize(numberOfLines: 0, layoutWidth: 160).height, within: 0.01))
+    expect(textView.layoutManager.allowsNonContiguousLayout) == true
   }
 
   /// Returns the size that the text view lays out its text in.
@@ -2063,6 +2120,40 @@ class BaseTextViewTests: XCTestCase {
     expect(textView.textStorage.string) == "Hello, world!"
   }
 
+  func test_resize_heightOnly_laysOutTheTextInTheNewHeight() throws {
+    for isScrollEnabled in [true, false] {
+      // given: a text view one line tall, which scrolls (as an editable text node's does) or not, showing a text of
+      // several lines
+      let scenario = "scrolls \(isScrollEnabled)"
+      let text = Self.makeText("A paragraph that wraps across several lines in a narrow text view, and goes on past its bottom.")
+      let oneLineHeight = text.boundingRectSize(numberOfLines: 1, layoutWidth: 120).roundedUp(scaleFactor: 1).height
+      let threeLinesHeight = text.boundingRectSize(numberOfLines: 3, layoutWidth: 120).roundedUp(scaleFactor: 1).height
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 120, height: oneLineHeight))
+      textView.isScrollEnabled = isScrollEnabled
+      textView.attributedString = text
+
+      // then: one that scrolls lays out the whole text, and one that doesn't lays out the one line that fits
+      if isScrollEnabled {
+        expect(Self.laidOutCharacterCount(of: textView), scenario) == text.length
+        expect(try Self.lineRects(of: textView).count, scenario) > 3
+      } else {
+        expect(try Self.lineRects(of: textView).count, scenario) == 1
+      }
+
+      // when: making it three lines tall without changing its width, as when a taller text node in the same column
+      // reuses it
+      textView.frame = CGRect(x: 0, y: 0, width: 120, height: threeLinesHeight)
+
+      // then: one that scrolls still lays out the whole text, and one that doesn't lays out the three lines that now fit
+      if isScrollEnabled {
+        expect(Self.laidOutCharacterCount(of: textView), scenario) == text.length
+        expect(try Self.lineRects(of: textView).count, scenario) > 3
+      } else {
+        expect(try Self.lineRects(of: textView).count, scenario) == 3
+      }
+    }
+  }
+
   func test_resize_textViewWithItsOwnSubviews_skipsAutoresizingOnIOS() throws {
     // given: a text view with a text, which doesn't scroll, as a text node's, and has only its own subviews, which have
     // no autoresizing masks on iOS
@@ -2639,6 +2730,12 @@ class BaseTextViewTests: XCTestCase {
   /// Returns the subview that UIKit draws a text view's text in.
   private static func textContainerView(of textView: UITextView) -> UIView? {
     textView.subviews.first { String(cString: object_getClassName($0)) == "_UITextContainerView" }
+  }
+
+  /// Returns the number of characters that the text view lays out in its text container.
+  private static func laidOutCharacterCount(of textView: BaseTextView) -> Int {
+    let layoutManager = textView.layoutManager
+    return layoutManager.characterRange(forGlyphRange: layoutManager.glyphRange(for: textView.textContainer), actualGlyphRange: nil).length
   }
   #endif
 
