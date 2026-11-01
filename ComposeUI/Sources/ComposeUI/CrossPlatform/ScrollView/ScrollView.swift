@@ -60,14 +60,20 @@ open class ScrollView: NSScrollView {
     set {
       // AppKit places the clip view on whole window pixels, so an offset on whole pixels draws the content on them,
       // while one between pixels blurs it
-      let pixelSize = self.pixelSize
-      setContentOffsetExactly(
-        CGPoint(
-          x: (newValue.x / pixelSize.width).rounded() * pixelSize.width,
-          y: (newValue.y / pixelSize.height).rounded() * pixelSize.height
-        )
-      )
+      setContentOffsetExactly(roundedToPixels(newValue))
     }
+  }
+
+  /// Returns a content offset rounded to the nearest pixel.
+  ///
+  /// - Parameter offset: The content offset.
+  /// - Returns: The content offset on whole pixels.
+  private func roundedToPixels(_ offset: CGPoint) -> CGPoint {
+    let pixelSize = self.pixelSize
+    return CGPoint(
+      x: (offset.x / pixelSize.width).rounded() * pixelSize.width,
+      y: (offset.y / pixelSize.height).rounded() * pixelSize.height
+    )
   }
 
   /// The custom distance that the content is inset from the scroll view's edges, like `UIScrollView`'s `contentInset`.
@@ -739,13 +745,7 @@ open class ScrollView: NSScrollView {
   /// - Parameter offset: The content offset that the scroll is at, or goes to.
   /// - Returns: The content offset that the scroll shows.
   func keyboardScrollOffset(for offset: CGPoint) -> CGPoint {
-    let pixelSize = self.pixelSize
-    return contentOffsetInScrollableRange(
-      CGPoint(
-        x: (offset.x / pixelSize.width).rounded() * pixelSize.width,
-        y: (offset.y / pixelSize.height).rounded() * pixelSize.height
-      )
-    )
+    contentOffsetInScrollableRange(roundedToPixels(offset))
   }
 
   /// Returns the content offset in the scrollable range that's nearest to an offset.
