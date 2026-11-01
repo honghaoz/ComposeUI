@@ -380,7 +380,7 @@ private final class TextMeasuringSystem {
   func size(of text: NSAttributedString, numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode) -> CGSize {
     textContainer.size = CGSize(width: layoutWidth, height: .greatestFiniteMagnitude)
     textContainer.maximumNumberOfLines = numberOfLines
-    textContainer.lineBreakMode = lineBreakMode
+    layoutManager.setLineBreakMode(lineBreakMode, in: textContainer)
     textStorage.setAttributedString(text)
     layoutManager.ensureLayout(for: textContainer)
 

@@ -270,6 +270,8 @@ public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
   /// Set the line break mode of the label.
   ///
+  /// `.byCharWrapping` breaks every line between characters, and the other modes set how the last line ends.
+  ///
   /// - Parameter value: The line break mode to set.
   /// - Returns: A new label node with the updated line break mode.
   public consuming func lineBreakMode(_ value: NSLineBreakMode) -> Self {

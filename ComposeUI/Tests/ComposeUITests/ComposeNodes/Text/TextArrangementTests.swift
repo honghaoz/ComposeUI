@@ -117,21 +117,30 @@ class TextArrangementTests: XCTestCase {
     (State("latin", latin, 2, .byTruncatingHead), ["Lorem Ipsum is simply ", "…nd typesetting industry."]),
     (State("latin", latin, 2, .byClipping), ["Lorem Ipsum is simply ", "dummy text of the printing and typesetting industry."]),
     (State("latin", latin, 2, .byTruncatingTail, inset: CGSize(width: 4, height: 2)), ["Lorem Ipsum is simply ", "dummy text of the prin…"]),
+    (State("latin", latin, 0, .byCharWrapping), ["Lorem Ipsum is simply du", "mmy text of the printing a", "nd typesetting industry."]),
+    (State("latin", latin, 1, .byCharWrapping), ["Lorem Ipsum is simply du"]),
+    (State("latin", latin, 2, .byCharWrapping), ["Lorem Ipsum is simply du", "mmy text of the printing a"]),
+    (State("latin", latin, 2, .byCharWrapping, inset: CGSize(width: 4, height: 2)), ["Lorem Ipsum is simply d", "ummy text of the printin"]),
     (State("paragraphs", paragraphs, 0, .byWordWrapping), ["First paragraph\n", "Second paragraph that is ", "a bit longer\n", "Third"]),
     (State("paragraphs", paragraphs, 0, .byWordWrapping, inset: CGSize(width: 4, height: 2)), ["First paragraph\n", "Second paragraph that ", "is a bit longer\n", "Third"]),
     (State("paragraphs", paragraphs, 2, .byTruncatingTail), ["First paragraph\n", "Second paragraph that i…"]),
     (State("paragraphs", paragraphs, 2, .byTruncatingMiddle), ["First paragraph\n", "Second par…s a bit longer\n"]),
     (State("paragraphs", paragraphs, 2, .byTruncatingHead), ["First paragraph\n", "…graph that is a bit longer\n"]),
+    (State("paragraphs", paragraphs, 2, .byCharWrapping), ["First paragraph\n", "Second paragraph that is "]),
     (State("arabic", arabic, 0, .byWordWrapping), ["مرحبا بالعالم، هذا نص عربي ", "طويل يلتف عبر عدة أسطر"]),
     (State("arabic", arabic, 1, .byTruncatingTail), ["مرحبا بالعالم، هذا نص عربي…"]),
     (State("arabic", arabic, 1, .byTruncatingMiddle), ["مرحبا بالعالم،…عبر عدة أسطر"]),
     (State("arabic", arabic, 1, .byTruncatingHead), ["…ربي طويل يلتف عبر عدة أسطر"]),
+    (State("arabic", arabic, 0, .byCharWrapping), ["مرحبا بالعالم، هذا نص عربي طو", "يل يلتف عبر عدة أسطر"]),
+    (State("arabic", arabic, 1, .byCharWrapping), ["مرحبا بالعالم، هذا نص عربي طو"]),
   ]
 
   /// The number of lines and the line break modes that the cases use.
   private static let settings: [(numberOfLines: Int, lineBreakMode: NSLineBreakMode)] = [
     (0, .byWordWrapping),
+    (0, .byCharWrapping),
     (1, .byWordWrapping),
+    (1, .byCharWrapping),
     (1, .byTruncatingTail),
     (1, .byTruncatingMiddle),
     (1, .byTruncatingHead),
@@ -228,6 +237,9 @@ private enum Change: CaseIterable, CustomStringConvertible {
   /// The text had another line break mode.
   case fromOtherLineBreakMode
 
+  /// The text had character wrapping, which breaks every line between characters.
+  case fromCharWrapping
+
   /// The text had another inset.
   case fromOtherInset
 
@@ -255,6 +267,8 @@ private enum Change: CaseIterable, CustomStringConvertible {
       return "from no limit"
     case .fromOtherLineBreakMode:
       return "from another line break mode"
+    case .fromCharWrapping:
+      return "from char wrapping"
     case .fromOtherInset:
       return "from another inset"
     case .fromOtherText:
@@ -288,13 +302,21 @@ private enum Change: CaseIterable, CustomStringConvertible {
       before.numberOfLines = 0
     case .fromOtherLineBreakMode:
       before.lineBreakMode = state.lineBreakMode == .byWordWrapping ? .byTruncatingTail : .byWordWrapping
+    case .fromCharWrapping:
+      guard state.lineBreakMode != .byCharWrapping else {
+        return nil
+      }
+      before.lineBreakMode = .byCharWrapping
     case .fromOtherInset:
       before.inset = state.inset == .zero ? CGSize(width: 4, height: 2) : .zero
     case .fromOtherText,
          .reusedInTheSamePass,
          .reusedFromThePool:
       // another text in another number of lines, so that the view also changes its height
-      before.text = NSAttributedString(string: "Another text, which wraps across a few lines in the width", attributes: state.text.attributes(at: 0, effectiveRange: nil))
+      before.text = NSAttributedString(
+        string: "Another text, which wraps across a few lines in the width",
+        attributes: state.text.attributes(at: 0, effectiveRange: nil)
+      )
       before.numberOfLines = state.numberOfLines == 1 ? 0 : 1
     case .fromOtherEditability:
       switch kind {
@@ -317,6 +339,7 @@ private enum Change: CaseIterable, CustomStringConvertible {
          .fromOneLine,
          .fromNoLimit,
          .fromOtherLineBreakMode,
+         .fromCharWrapping,
          .fromOtherInset,
          .fromOtherText,
          .fromOtherEditability:

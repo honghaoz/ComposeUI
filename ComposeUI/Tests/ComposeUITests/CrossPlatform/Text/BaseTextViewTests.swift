@@ -495,6 +495,70 @@ class BaseTextViewTests: XCTestCase {
     expect(shownStyle) == text.resolvingNaturalWritingDirections().attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
   }
 
+  func test_lineBreakMode_byCharWrapping_breaksEveryLineBetweenCharactersUpToTheLimit() throws {
+    #if canImport(AppKit)
+    let scrollSettings = [false]
+    #endif
+    #if canImport(UIKit)
+    let scrollSettings = [true, false]
+    #endif
+    for isScrollEnabled in scrollSettings {
+      for (numberOfLines, lines) in [(0, ["Lorem Ipsum is simply du", "mmy text of the printing a", "nd typesetting industry."]), (2, ["Lorem Ipsum is simply du", "mmy text of the printing a"])] {
+        // given: a text view taller than its text, with a line limit, which scrolls or not
+        let scenario = "\(numberOfLines) lines, scrolls: \(isScrollEnabled)"
+        let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 160, height: 200))
+        #if canImport(UIKit)
+        textView.isScrollEnabled = isScrollEnabled
+        #endif
+        textView.numberOfLines = numberOfLines
+
+        // when: showing a text with character wrapping
+        textView.lineBreakMode = .byCharWrapping
+        textView.attributedString = Self.makeText(Constants.sentence)
+
+        // then: each line breaks between characters, and the text stops at the line limit
+        expect(try Self.laidOutLines(of: textView), scenario) == lines
+      }
+    }
+  }
+
+  func test_lineBreakMode_byCharWrapping_drawsTheTextAgain() throws {
+    // given: a text view in a window, which drew its text in two lines that break between words
+    let window = TestWindow()
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 160, height: 60))
+    window.contentView().addSubview(textView)
+    textView.numberOfLines = 2
+    textView.attributedString = Self.makeText(Constants.sentence)
+    Self.display(window)
+    #if canImport(AppKit)
+    let layer = try textView.layer.unwrap()
+    #endif
+    #if canImport(UIKit)
+    let layer = textView.layer
+    #endif
+    expect(Self.needsDisplay(layer)) == false
+
+    // when: setting the same line break mode
+    textView.lineBreakMode = .byWordWrapping
+
+    // then: nothing draws again
+    expect(Self.needsDisplay(layer)) == false
+
+    // when: setting character wrapping, which leaves the text container's line break mode as it is
+    textView.lineBreakMode = .byCharWrapping
+
+    // then: the text view draws its text again, in lines that break between characters
+    expect(Self.needsDisplay(layer)) == true
+    expect(try Self.laidOutLines(of: textView)) == ["Lorem Ipsum is simply du", "mmy text of the printing a"]
+
+    // when: setting character wrapping again, after the text view drew its text
+    Self.display(window)
+    textView.lineBreakMode = .byCharWrapping
+
+    // then: nothing draws again
+    expect(Self.needsDisplay(layer)) == false
+  }
+
   func test_intrinsicContentSize_includesTheTextContainerInset() {
     // the narrower width fits the text on one line, but not inside the inset, so the text wraps only where it's measured
     // inside the inset
@@ -565,6 +629,19 @@ class BaseTextViewTests: XCTestCase {
     // then: the intrinsic content size is the text's size plus the inset, rounded up to whole points after adding the inset
     let textSize = Self.makeText("Hello, world").boundingRectSize(numberOfLines: 0, layoutWidth: 299.5)
     expect(textView.intrinsicContentSize) == CGSize(width: (textSize.width + 0.5).rounded(.up), height: (textSize.height + 0.5).rounded(.up))
+  }
+
+  func test_intrinsicContentSize_byCharWrapping_fitsTheLinesThatBreakBetweenCharacters() throws {
+    // given: a text view 160 points wide, showing a sentence with character wrapping
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 160, height: 100))
+    textView.lineBreakMode = .byCharWrapping
+    textView.attributedString = Self.makeText(Constants.sentence)
+
+    // then: the intrinsic height is the height of the three lines that break between characters, instead of the four
+    // that break between words
+    let lineRects = try Self.lineRects(of: textView)
+    expect(lineRects.count) == 3
+    expect(textView.intrinsicContentSize.height) == lineRects.reduce(CGRect.null) { $0.union($1) }.height.rounded(.up)
   }
 
   func test_textContainerInset_invalidatesTheIntrinsicSize() {
@@ -777,9 +854,9 @@ class BaseTextViewTests: XCTestCase {
       ("both directions", Self.makeText("A first paragraph\nمرحبا بالعالم، هذا نص عربي\nA third paragraph")),
     ]
     for (name, text) in texts {
-      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail), (0, .byCharWrapping), (2, .byCharWrapping)] as [(Int, NSLineBreakMode)] {
         // given: the text measured for 160 points wide, in a number of lines with a line break mode
-        let scenario = "\(name), \(numberOfLines) lines"
+        let scenario = "\(name), \(numberOfLines) lines, \(lineBreakMode.rawValue)"
         let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
 
         // when: showing the text in a text view of the measured size rounded up to whole points, as `TextNode` sizes it
@@ -1100,6 +1177,28 @@ class BaseTextViewTests: XCTestCase {
     expect(textContainer.maximumNumberOfLines) == 2
   }
 
+  func test_lineBreakMode_givenTextKit2Container_keepsTheTextKit2TextSystem() throws {
+    guard #available(iOS 16.0, tvOS 16.0, *) else {
+      throw XCTSkip("text views use TextKit 2 from iOS 16 and tvOS 16")
+    }
+
+    // given: a TextKit 2 text view, made with an app's own TextKit 2 text container
+    let textContainer = NSTextContainer(size: CGSize(width: 200, height: 50))
+    let textLayoutManager = NSTextLayoutManager()
+    textLayoutManager.textContainer = textContainer
+    let textContentStorage = NSTextContentStorage()
+    textContentStorage.addTextLayoutManager(textLayoutManager)
+    let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50), textContainer: textContainer)
+    textView.attributedString = Self.makeText("Hello, world!")
+
+    // when: setting character wrapping
+    textView.lineBreakMode = .byCharWrapping
+
+    // then: it stays on TextKit 2, with the line break mode in its text container
+    expect(textView.textLayoutManager) === textLayoutManager
+    expect(textContainer.lineBreakMode) == .byCharWrapping
+  }
+
   func test_layout_fitsTheMeasuredSize() throws {
     let font = Font.systemFont(ofSize: 13)
     let mixedFonts = NSMutableAttributedString(string: "Regular text, then ", attributes: [.font: font])
@@ -1116,9 +1215,9 @@ class BaseTextViewTests: XCTestCase {
       ("both directions", NSAttributedString(string: "A first paragraph\nمرحبا بالعالم، هذا نص عربي\nनमस्ते दुनिया", attributes: [.font: font])),
     ]
     for (name, text) in texts {
-      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail)] as [(Int, NSLineBreakMode)] {
+      for (numberOfLines, lineBreakMode) in [(0, .byWordWrapping), (2, .byTruncatingTail), (1, .byTruncatingTail), (0, .byCharWrapping), (2, .byCharWrapping)] as [(Int, NSLineBreakMode)] {
         // given: the text measured for 160 points wide, in a number of lines with a line break mode
-        let scenario = "\(name), \(numberOfLines) lines"
+        let scenario = "\(name), \(numberOfLines) lines, \(lineBreakMode.rawValue)"
         let measuredSize = text.computeBoundingRectSize(numberOfLines: numberOfLines, layoutWidth: 160, lineBreakMode: lineBreakMode)
 
         // when: showing the text in a text view of the measured size rounded up to whole points, as `TextNode` sizes it
@@ -2774,6 +2873,32 @@ class BaseTextViewTests: XCTestCase {
   }
   #endif
 
+  /// Returns the text of each line that the text view lays out, see `laidOutLines(in:)`.
+  private static func laidOutLines(of textView: BaseTextView) throws -> [String] {
+    #if canImport(AppKit)
+    return try textView.layoutManager.unwrap().laidOutLines(in: textView.textContainer.unwrap())
+    #endif
+    #if canImport(UIKit)
+    return textView.layoutManager.laidOutLines(in: textView.textContainer)
+    #endif
+  }
+
+  /// Displays a window's views, and commits the change, as a pass of the run loop does.
+  private static func display(_ window: TestWindow) {
+    #if canImport(AppKit)
+    window.displayIfNeeded()
+    #endif
+    #if canImport(UIKit)
+    window.layoutIfNeeded()
+    #endif
+    RunLoop.main.run(until: Date())
+  }
+
+  /// Returns whether a layer or one of its sublayers needs to draw its content again.
+  private static func needsDisplay(_ layer: CALayer) -> Bool {
+    layer.needsDisplay() || (layer.sublayers ?? []).contains { needsDisplay($0) }
+  }
+
   /// Returns the rect that each line that the text view lays out uses.
   private static func lineRects(of textView: BaseTextView) throws -> [CGRect] {
     #if canImport(AppKit)
@@ -2833,6 +2958,9 @@ class BaseTextViewTests: XCTestCase {
   // MARK: - Constants
 
   private enum Constants {
+
+    /// A sentence that breaks differently between characters than between words, 160 points wide.
+    static let sentence = "Lorem Ipsum is simply dummy text of the printing and typesetting industry."
 
     /// The assertion message for a text change during an undo operation of an editable text view's undo manager.
     static let undoOperationAssertionMessage = "an editable text view's text must not change during an undo operation of its undo manager, change it after the operation, such as with `setNeedsRefresh(animated:)`"

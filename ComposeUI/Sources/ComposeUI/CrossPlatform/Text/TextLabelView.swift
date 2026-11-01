@@ -94,7 +94,8 @@ public final class TextLabelView: View, ScheduledTextRemovable {
     }
   }
 
-  /// The line break mode of the text's last line.
+  /// The line break mode of the text: `.byCharWrapping` breaks every line between characters, and the other modes set
+  /// how the last line ends.
   public internal(set) var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
       setNeedsDisplayForText()
