@@ -584,7 +584,7 @@ open class ScrollView: NSScrollView {
   /// Scrolls the content up by a page, or passes the action on when the scroll view can't scroll up.
   override open func pageUp(_ sender: Any?) {
     if isScrollEnabled, canScrollToTop {
-      super.pageUp(sender)
+      scrollContentByPage(upward: true, sender: sender)
     } else {
       nextResponder?.tryToPerform(#selector(pageUp(_:)), with: sender)
     }
@@ -593,9 +593,32 @@ open class ScrollView: NSScrollView {
   /// Scrolls the content down by a page, or passes the action on when the scroll view can't scroll down.
   override open func pageDown(_ sender: Any?) {
     if isScrollEnabled, canScrollToBottom {
-      super.pageDown(sender)
+      scrollContentByPage(upward: false, sender: sender)
     } else {
       nextResponder?.tryToPerform(#selector(pageDown(_:)), with: sender)
+    }
+  }
+
+  /// Scrolls the content up by a page for a view that interprets its keys, or passes the action on when the scroll view
+  /// can't scroll up.
+  ///
+  /// A view that interprets its keys with `interpretKeyEvents(_:)` sends the page keys as `scrollPageUp(_:)` and
+  /// `scrollPageDown(_:)`, which AppKit's scroll view doesn't handle, instead of `pageUp(_:)` and `pageDown(_:)`.
+  override open func scrollPageUp(_ sender: Any?) {
+    if isScrollEnabled, canScrollToTop {
+      scrollContentByPage(upward: true, sender: sender)
+    } else {
+      nextResponder?.tryToPerform(#selector(scrollPageUp(_:)), with: sender)
+    }
+  }
+
+  /// Scrolls the content down by a page for a view that interprets its keys, or passes the action on when the scroll view
+  /// can't scroll down, see `scrollPageUp(_:)`.
+  override open func scrollPageDown(_ sender: Any?) {
+    if isScrollEnabled, canScrollToBottom {
+      scrollContentByPage(upward: false, sender: sender)
+    } else {
+      nextResponder?.tryToPerform(#selector(scrollPageDown(_:)), with: sender)
     }
   }
 
@@ -637,6 +660,19 @@ open class ScrollView: NSScrollView {
     let offset = contentOffset
     let target = CGPoint(x: offset.x + distance.x, y: offset.y + distance.y)
     documentView.scroll(documentView.convert(target, from: contentView)) // TODO: consider spring effect scrolling
+  }
+
+  /// Scrolls the content by a page, as AppKit's own page scrolling scrolls it.
+  ///
+  /// - Parameters:
+  ///   - upward: Whether to scroll up, or down.
+  ///   - sender: The sender of the action.
+  private func scrollContentByPage(upward: Bool, sender: Any?) {
+    if upward {
+      super.pageUp(sender)
+    } else {
+      super.pageDown(sender)
+    }
   }
 
   // MARK: - Constants

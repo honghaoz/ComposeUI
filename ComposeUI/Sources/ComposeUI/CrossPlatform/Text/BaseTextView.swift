@@ -397,7 +397,7 @@ open class BaseTextView: TextView {
 
   override open func scrollPageUp(_ sender: Any?) {
     if passesKeyboardScrollingOn {
-      nextResponder?.tryToPerform(#selector(pageUp(_:)), with: sender)
+      nextResponder?.tryToPerform(#selector(scrollPageUp(_:)), with: sender)
     } else {
       super.scrollPageUp(sender)
     }
@@ -405,7 +405,7 @@ open class BaseTextView: TextView {
 
   override open func scrollPageDown(_ sender: Any?) {
     if passesKeyboardScrollingOn {
-      nextResponder?.tryToPerform(#selector(pageDown(_:)), with: sender)
+      nextResponder?.tryToPerform(#selector(scrollPageDown(_:)), with: sender)
     } else {
       super.scrollPageDown(sender)
     }

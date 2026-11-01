@@ -1744,6 +1744,73 @@ class ScrollViewTests: XCTestCase {
     expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 100)
   }
 
+  func test_pageKeys_fromAViewThatInterpretsItsKeys_scrollByAPage() {
+    // given: a 100 × 100 scroll view in a window, showing content 1000 tall, with the focus in a view in its content that
+    // interprets its keys, which turns the page keys into the scroll page actions
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 1000)
+    window.contentView().addSubview(scrollView)
+    let keyInterpretingView = KeyInterpretingView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    scrollView.documentView?.addSubview(keyInterpretingView)
+    window.makeFirstResponder(keyInterpretingView)
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: the content scrolls down by AppKit's page
+    expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 90)))
+    expect(keyInterpretingView.interpretedKeyCount) == 1
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the content scrolls back up by a page
+    expect(scrollView.contentOffset).toEventually(beEqual(to: .zero))
+    expect(keyInterpretingView.interpretedKeyCount) == 2
+  }
+
+  func test_pageKeys_fromAViewThatInterpretsItsKeys_nested_scrollTheParentWhenTheScrollViewCanNot() {
+    // given: a scroll view at the top end of its range, with the focus in a view in its content that interprets its keys,
+    // nested in a parent scroll view that scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    let keyInterpretingView = KeyInterpretingView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    views.scrollView.documentView?.addSubview(keyInterpretingView)
+    window.makeFirstResponder(keyInterpretingView)
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the scroll view can't scroll up, so the parent scrolls up by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 210)))
+    expect(views.scrollView.contentOffset) == .zero
+
+    // when: the scroll view is at the bottom end of its range, and the page down key is pressed
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 200)
+    window.press(.pageDown)
+
+    // then: the parent scrolls down by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 400)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 200)
+
+    // when: the scroll view is in the middle of its range with its scrolling disabled, and the page keys are pressed
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 100)
+    views.scrollView.isScrollEnabled = false
+    window.press(.pageDown)
+
+    // then: the scroll view stays, and the parent scrolls down by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 590)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 100)
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the parent scrolls back up by its page
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 400)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 100)
+  }
+
   func test_click_onTheContent_focusesIt() {
     // given: a scroll view in a window, showing content taller than it, with a view in its content that doesn't take the
     // focus
@@ -2030,6 +2097,21 @@ private final class FocusableView: NSView {
 
   override var acceptsFirstResponder: Bool {
     true
+  }
+}
+
+/// A view that takes the keyboard focus, and interprets its keys, as a text view does.
+private final class KeyInterpretingView: NSView {
+
+  private(set) var interpretedKeyCount = 0
+
+  override var acceptsFirstResponder: Bool {
+    true
+  }
+
+  override func keyDown(with event: NSEvent) {
+    interpretedKeyCount += 1
+    interpretKeyEvents([event])
   }
 }
 
