@@ -193,10 +193,11 @@ final class KeyboardScrollAnimation: NSObject {
       }
     case .glide(var glide):
       // the range can change during the glide, such as when the content shrinks, so a glide whose end leaves the range
-      // turns to the new end from where the content is
+      // turns to the new end from where it has the content at this frame, instead of from the last frame, which would
+      // show the last frame again and hold the content still while the range changes on each frame
       let destination = range.restingOffset(for: glide.destination)
       if destination != glide.destination {
-        glide = Glide(from: lastContentOffset, to: destination, at: time, easesIn: false)
+        glide = Glide(from: range.constrained(glide.offset(at: time)), to: destination, at: time, easesIn: false)
         self.motion = .glide(glide)
       }
 

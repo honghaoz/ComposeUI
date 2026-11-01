@@ -593,16 +593,53 @@ class KeyboardScrollAnimationTests: XCTestCase {
     window.keyUp(.pageDown, at: Constants.startTime)
     let animation = try unwrap(scrollView.keyboardScrollAnimation)
     animation.step(at: Constants.startTime + 0.02)
-    expect(scrollView.contentOffset.y) < 40
+    let offsetBeforeShrinking = scrollView.contentOffset
+    expect(offsetBeforeShrinking.y) < 40
 
     // when: the content shrinks, so that the range ends at 40, short of the glide's end, and frames step the animation
     // until it stops
     scrollView.contentSize = CGSize(width: 100, height: 140)
     let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.02)
 
-    // then: the glide turns to the new end from where the content is, and stops there without passing it
+    // then: the glide turns to the new end, moving the content on from the first frame, and stops there without passing it
+    expect(try unwrap(offsets.first).y) > offsetBeforeShrinking.y
     expect(scrollView.contentOffset) == CGPoint(x: 0, y: 40)
     expect(offsets.map(\.y).max()) == 40
+    expect(animation.isRunning) == false
+  }
+
+  func test_contentShrinksOnEachFrameOfAGlide_keepsTheContentMoving() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view whose range ends at 80, at the start of the glide of the page down key to 80
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 180))
+    window.keyDown(.pageDown, at: Constants.startTime)
+    window.keyUp(.pageDown, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+
+    // when: the content shrinks by a point before each of 5 frames, which moves the range's end ahead of the content
+    // from 80 to 75
+    var offsets: [CGPoint] = []
+    for frame in 1 ... 5 {
+      scrollView.contentSize = CGSize(width: 100, height: 180 - CGFloat(frame))
+      animation.step(at: Constants.startTime + TimeInterval(frame) * KeyboardScrollAnimation.testFrameDuration)
+      offsets.append(scrollView.contentOffset)
+    }
+
+    // then: the content moves on each frame, though the glide turns to a new end on each of them
+    expect(try unwrap(offsets.first).y) > 0
+    for index in 1 ..< offsets.count {
+      expect(offsets[index].y) > offsets[index - 1].y
+    }
+
+    // when: frames step the animation until it stops
+    let restingOffsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 5 * KeyboardScrollAnimation.testFrameDuration)
+
+    // then: the content comes to rest at the new end without passing it
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 75)
+    expect(restingOffsets.map(\.y).max()) == 75
     expect(animation.isRunning) == false
   }
 
