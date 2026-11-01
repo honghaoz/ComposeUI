@@ -1656,9 +1656,10 @@ class TextNodeTests: XCTestCase {
     // given: a compose view showing a text node that isn't editable, limited to 30 lines of a text of 100 paragraphs, in
     // a frame shorter than the 30 lines
     var isEditable = false
+    var name = "Paragraph"
     var renderedView: BaseTextView?
     let contentView = ComposeView {
-      TextNode((1 ... 100).map { "Paragraph \($0)" }.joined(separator: "\n"), font: Font.systemFont(ofSize: 14))
+      TextNode((1 ... 100).map { "\(name) \($0)" }.joined(separator: "\n"), font: Font.systemFont(ofSize: 14))
         .numberOfLines(30)
         .editable(isEditable)
         .frame(width: 200, height: 100)
@@ -1677,19 +1678,21 @@ class TextNodeTests: XCTestCase {
     textView.contentOffset = CGPoint(x: 0, y: 200)
     textView.layoutIfNeeded()
 
-    // then: the same text view, with non-contiguous layout on, shows the right paragraph on each line in its bounds, read
-    // as drawing reads them, before the whole text is laid out, and lays out the first 30 paragraphs in all
+    // then: the same text view turns non-contiguous layout off again, since the text has a line limit, and lays out the
+    // first 30 paragraphs
     expect(renderedView) === textView
     expect(textView.isScrollEnabled) == true
-    expect(textView.layoutManager.allowsNonContiguousLayout) == true
-    let shownLines = Self.linesInBounds(of: textView)
-    expect(shownLines.isEmpty) == false
-    for line in shownLines {
-      expect(line.rect.intersects(textView.bounds)) == true
-      expect(line.number) <= 30
-      expect(line.text) == "Paragraph \(line.number)\n"
-    }
-    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == (1 ... 30).map { "Paragraph \($0)\n" }
+    expect(textView.layoutManager.allowsNonContiguousLayout) == false
+    Self.expectFirstLines(of: textView, named: "Paragraph", limit: 30)
+
+    // when: the text node shows another text
+    name = "Line"
+    contentView.refresh(animated: false)
+    textView.layoutIfNeeded()
+
+    // then: the same text view lays out the first 30 paragraphs of the other text
+    expect(renderedView) === textView
+    Self.expectFirstLines(of: textView, named: "Line", limit: 30)
   }
 
   func test_resize_subviewThatAnAppAdded_isAutoresized() {
@@ -2102,6 +2105,20 @@ class TextNodeTests: XCTestCase {
       lines.append((Int((rect.minY / rect.height).rounded()) + 1, text.substring(with: characterRange), rect))
     }
     return lines
+  }
+
+  /// Expects a text view showing numbered paragraphs, one on each line, to show the right paragraph on each line in its
+  /// bounds, read as drawing reads them, before the whole text is laid out, and to lay out the first paragraphs up to a
+  /// line limit.
+  private static func expectFirstLines(of textView: BaseTextView, named name: String, limit: Int) {
+    let shownLines = linesInBounds(of: textView)
+    expect(shownLines.isEmpty, name) == false
+    for line in shownLines {
+      expect(line.rect.intersects(textView.bounds), name) == true
+      expect(line.number, name) <= limit
+      expect(line.text, name) == "\(name) \(line.number)\n"
+    }
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer), name) == (1 ... limit).map { "\(name) \($0)\n" }
   }
   #endif
 

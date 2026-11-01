@@ -1152,13 +1152,24 @@ class BaseTextViewTests: XCTestCase {
     expect(Self.usedSize(of: textView).height).to(beApproximatelyEqual(to: text.boundingRectSize(numberOfLines: 2, layoutWidth: 160).height, within: 0.01))
     expect(textView.layoutManager.allowsNonContiguousLayout) == false
 
+    // when: turning scrolling off and on again, which turns UIKit's non-contiguous layout off and on, and showing another
+    // text of three paragraphs
+    textView.isScrollEnabled = false
+    textView.isScrollEnabled = true
+    let otherText = Self.makeText("Another paragraph\nAnd a second one\nAnd a third one")
+    textView.attributedString = otherText
+
+    // then: it turns non-contiguous layout off again, and lays out the first two paragraphs of the other text
+    expect(textView.layoutManager.allowsNonContiguousLayout) == false
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == ["Another paragraph\n", "And a second one\n"]
+
     // when: removing the line limit
     textView.numberOfLines = 0
 
     // then: it lays out all three paragraphs, with non-contiguous layout back on, as UIKit has it for a text view that
     // scrolls
-    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == ["First paragraph\n", "Second paragraph\n", "Third paragraph"]
-    expect(Self.usedSize(of: textView).height).to(beApproximatelyEqual(to: text.boundingRectSize(numberOfLines: 0, layoutWidth: 160).height, within: 0.01))
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == ["Another paragraph\n", "And a second one\n", "And a third one"]
+    expect(Self.usedSize(of: textView).height).to(beApproximatelyEqual(to: otherText.boundingRectSize(numberOfLines: 0, layoutWidth: 160).height, within: 0.01))
     expect(textView.layoutManager.allowsNonContiguousLayout) == true
   }
 

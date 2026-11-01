@@ -526,6 +526,13 @@ open class BaseTextView: UITextView {
     }
   }
 
+  override open var isScrollEnabled: Bool {
+    didSet {
+      // UIKit turns non-contiguous layout back on when scrolling turns on, also while the text has a line limit
+      updateNonContiguousLayout()
+    }
+  }
+
   override public init(frame: CGRect, textContainer: NSTextContainer?) {
     if let textContainer {
       shownText = textContainer.layoutManager?.textStorage.map { ShownText(textStorage: $0) }
