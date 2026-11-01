@@ -36,17 +36,104 @@ import ChouTiTest
 @testable import ComposeUI
 
 /// Tests for the view that holds a compose view's renderables, which tells assistive technologies its children in the
-/// items order.
+/// items order, and takes the keyboard focus for the compose view.
 ///
 /// The rows are 50 points tall in a view of 300 points, so 6 rows show, and a scroll by one row reuses the label view of
 /// the row that moves out for the row that moves in, where the label view is among the subviews.
 class ComposeView_DocumentViewTests: XCTestCase {
 
   func test_documentView() {
-    // then: a compose view holds its content in a document view of its own, and a scroll view in a plain view
+    // then: a compose view holds its content in a document view of its own, and both views hold it in a document view
+    // that takes the keyboard focus
     expect(ComposeView(frame: .zero).documentView is ComposeView.DocumentView) == true
+    expect(ComposeView(frame: .zero).documentView is ScrollDocumentView) == true
     expect(ScrollView(frame: .zero).documentView is ComposeView.DocumentView) == false
-    expect(ScrollView(frame: .zero).documentView is BaseView) == true
+    expect(ScrollView(frame: .zero).documentView is ScrollDocumentView) == true
+  }
+
+  // MARK: - Keyboard
+
+  func test_arrowKeys_afterAClickOnARow_scrollAndRenderTheRowsScrolledTo() throws {
+    // given: rows of labels in a window, with a row clicked, which focuses the content
+    let (window, view) = makeLabelRowsView()
+    view.refresh(animated: false)
+    window.click(at: view.convert(CGPoint(x: 50, y: 75), to: nil))
+    expect(window.firstResponder) === view.contentContainerView
+
+    // when: pressing the down arrow twice
+    window.press(.down)
+    window.press(.down)
+
+    // then: the view scrolls down by 80 points, and renders the rows that show there
+    expect(view.contentOffset) == CGPoint(x: 0, y: 80)
+    expect(view.test.lastRenderBounds?.origin) == CGPoint(x: 0, y: 80)
+    expect(rowsInSubviewOrder(of: view).sorted()) == Array(1 ..< 8)
+  }
+
+  func test_focusedTextRemovedByAScroll_keysKeepScrolling() throws {
+    // given: rows in a window, with a selectable text in the first row, which has the focus
+    let window = TestWindow()
+    let view = ComposeView {
+      VStack {
+        TextNode("A selectable text")
+          .frame(width: .flexible, height: Constants.rowHeight)
+        for row in 1 ..< Constants.rowCount {
+          LabelNode("Row \(row)")
+            .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    let textView = try unwrap(view.contentContainerView.subviews.compactMap { $0 as? BaseTextView }.first)
+    window.makeFirstResponder(textView)
+
+    // when: pressing the page down key, which scrolls the text out of view
+    window.press(.pageDown)
+
+    // then: the render pass removes the text view, and the content keeps the focus, instead of the window
+    expect(view.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 290)))
+    expect(textView.window) == nil
+    expect(window.firstResponder) === view.contentContainerView
+
+    // when: pressing the down arrow
+    window.press(.down)
+
+    // then: the view still scrolls
+    expect(view.contentOffset) == CGPoint(x: 0, y: 330)
+  }
+
+  func test_arrowKeys_inTextOfANestedViewThatFits_scrollTheViewAroundIt() throws {
+    // given: rows in a window, with a nested compose view that fits a selectable text in the first row, with the focus in
+    // the text
+    let window = TestWindow()
+    let view = ComposeView {
+      VStack {
+        ComposeViewNode {
+          TextNode("A selectable text in a nested view")
+            .frame(width: 100, height: Constants.rowHeight)
+        }
+        for row in 1 ..< Constants.rowCount {
+          LabelNode("Row \(row)")
+            .frame(width: .flexible, height: Constants.rowHeight)
+        }
+      }
+    }
+    view.frame = CGRect(origin: .zero, size: Constants.viewSize)
+    window.contentView().addSubview(view)
+    view.refresh(animated: false)
+    let nestedView = try unwrap(view.contentContainerView.subviews.compactMap { $0 as? ComposeView }.first)
+    let textView = try unwrap(nestedView.contentContainerView.subviews.compactMap { $0 as? BaseTextView }.first)
+    window.makeFirstResponder(textView)
+    expect(nestedView.canScrollWithKeyboard) == false
+
+    // when: pressing the down arrow
+    window.press(.down)
+
+    // then: the nested view can't scroll, so the view around it scrolls down by a line
+    expect(nestedView.contentOffset) == .zero
+    expect(view.contentOffset) == CGPoint(x: 0, y: 40)
   }
 
   func test_accessibilityChildren_ofLabelsOutOfTheItemsOrder_comeInTheItemsOrder() {

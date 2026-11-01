@@ -349,8 +349,9 @@ class ComposeView_InPlaceReuseTests: XCTestCase {
     // when: scrolling by one row, which moves row 0 out and row 2 in
     scroll(view, to: Constants.rowHeight)
 
-    // then: the view of row 0 was removed, which took the first responder away, and came back from the pool for row 2
-    expect(window.firstResponder) === window
+    // then: the view of row 0 was removed, which took the first responder away from it, to the compose view's content,
+    // and came back from the pool for row 2
+    expect(window.firstResponder) === view.contentContainerView
     expect(rowView(showing: 2, in: view)) === rowZeroView
     expect(rowZeroView.moveCount) > moveCount
     expect(pool.enqueued.count) == 1
