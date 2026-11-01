@@ -124,6 +124,28 @@ class KeyboardScrollPhysicsTests: XCTestCase {
     expect(physics.position.y) > 500
   }
 
+  #if DEBUG
+  func test_startPush_whileAPushRuns_asserts() {
+    // given: an assertion handler that records the messages, and content that a key pushes down
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+    var physics = KeyboardScrollPhysics(position: .zero, time: 0)
+    physics.startPush(toward: .down, step: 40)
+    expect(assertionMessages) == []
+
+    // when: another push starts before the push ends
+    physics.startPush(toward: .right, step: 40)
+
+    // then: it asserts
+    expect(assertionMessages) == ["a push must end before another starts"]
+  }
+  #endif
+
   func test_push_duringTheSpringOfATapOnTheOtherAxis_movesTheContentOnToTheTapsStep() {
     for gap in [0.02, 0.1, 0.2] {
       // given: a tap of a key that pushes the content to the right, whose spring takes it a step to the right

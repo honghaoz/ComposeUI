@@ -167,10 +167,14 @@ struct KeyboardScrollPhysics {
 
   /// Starts pushing the content toward a direction, keeping its velocity.
   ///
+  /// A push that runs ends with `endPush(in:)` first, which picks where the content comes to rest along it.
+  ///
   /// - Parameters:
   ///   - direction: The direction of the key.
   ///   - step: The distance of a press of the key: a line for an arrow key, or a page for a page key.
   mutating func startPush(toward direction: KeyboardScrollDirection, step: CGFloat) {
+    ComposeUI.assert(push == nil, "a push must end before another starts")
+
     let maximumSpeed = step * Constants.maximumSpeedMultiplier
     push = Push(direction: direction, force: maximumSpeed * Constants.mass / Constants.timeToMaximumSpeed, maximumSpeed: maximumSpeed)
     let unitVector = direction.unitVector
