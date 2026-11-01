@@ -688,6 +688,134 @@ class KeyboardScrollAnimationTests: XCTestCase {
     expect(scrollView.contentOffset) == CGPoint(x: 0, y: offset + 80)
   }
 
+  func test_arrowKey_onTheOtherAxisDuringAGlide_leavesTheGlideItsPage() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view of content that scrolls both ways, a quarter of the way through the glide of the page
+    // down key to 80, which ends at 80 ms
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 1000, height: 1000))
+    window.keyDown(.pageDown, at: Constants.startTime)
+    window.keyUp(.pageDown, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.02)
+    expect(scrollView.contentOffset.y) > 0
+    expect(scrollView.contentOffset.y) < 40
+
+    // when: the right arrow goes down, and frames step the animation until after the glide's end
+    window.keyDown(.right, at: Constants.startTime + 0.02)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.02, until: Constants.startTime + 0.2)
+
+    // then: the glide goes on to its page, where the content stays, while the key pushes the content to the right
+    expect(offsets.map(\.y)) == offsets.map(\.y).sorted()
+    expect(try unwrap(offsets.last).y) == 80
+    expect(try unwrap(offsets.last).x) > 40
+
+    // when: the key goes up, and frames step the animation until it stops
+    window.keyUp(.right, at: Constants.startTime + 0.2)
+    animation.stepFrames(in: scrollView, from: Constants.startTime + 0.2)
+
+    // then: the content comes to rest a page down, and to the right
+    expect(scrollView.contentOffset.y) == 80
+    expect(scrollView.contentOffset.x) > 40
+    expect(animation.isRunning) == false
+  }
+
+  func test_pageKey_duringTheSpringOfATapOnTheOtherAxis_leavesTheTapItsStep() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view of content that scrolls both ways, whose content moves to the right after a tap of
+    // the right arrow
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 1000, height: 1000))
+    window.keyDown(.right, at: Constants.startTime)
+    window.keyUp(.right, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.02)
+    let tapOffset = scrollView.contentOffset
+    expect(tapOffset.x) > 0
+    expect(tapOffset.x) < 40
+
+    // when: the page down key goes down and up before the content rests, and frames step the animation for 20 ms
+    window.keyDown(.pageDown, at: Constants.startTime + 0.02)
+    window.keyUp(.pageDown, at: Constants.startTime + 0.02)
+    animation.stepFrames(in: scrollView, from: Constants.startTime + 0.02, until: Constants.startTime + 0.04)
+
+    // then: the spring goes on moving the content to the right while the glide moves it down
+    let offset = scrollView.contentOffset
+    expect(offset.x) > tapOffset.x
+    expect(offset.y) > 0
+
+    // when: the page down key goes down and up again during the glide, and frames step the animation until it stops
+    window.keyDown(.pageDown, at: Constants.startTime + 0.04)
+    window.keyUp(.pageDown, at: Constants.startTime + 0.04)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.04)
+
+    // then: the content comes to rest a whole step to the right without passing it, and a page down from where the
+    // second glide started
+    expect(scrollView.contentOffset) == CGPoint(x: 40, y: offset.y + 80)
+    expect(offsets.map(\.x).max()) == 40
+    expect(animation.isRunning) == false
+  }
+
+  func test_horizontalGlide_duringTheSpringOfATapOnTheOtherAxis_leavesTheTapItsStep() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view of content that scrolls both ways, whose content moves down after a tap of the down
+    // arrow
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 1000, height: 1000))
+    window.keyDown(.down, at: Constants.startTime)
+    window.keyUp(.down, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.02)
+    expect(scrollView.contentOffset.y) > 0
+    expect(scrollView.contentOffset.y) < 40
+
+    // when: the content glides 80 points to the right before it rests, and frames step the animation until it stops
+    animation.glide(toward: .right, by: 80, at: Constants.startTime + 0.02)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.02)
+
+    // then: the content comes to rest 80 points to the right, and a whole step down without passing it
+    expect(scrollView.contentOffset) == CGPoint(x: 80, y: 40)
+    expect(offsets.map(\.y).max()) == 40
+    expect(animation.isRunning) == false
+  }
+
+  func test_arrowKey_alongAGlidesAxis_whileATapSpringsOnTheOtherAxis_pushesFromWhereTheGlideHasTheContent() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view of content that scrolls both ways, with the spring of a tap of the right arrow, and
+    // halfway through the glide of the page down key that went down during the spring
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 1000, height: 1000))
+    window.keyDown(.right, at: Constants.startTime)
+    window.keyUp(.right, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.02)
+    window.keyDown(.pageDown, at: Constants.startTime + 0.02)
+    window.keyUp(.pageDown, at: Constants.startTime + 0.02)
+    animation.step(at: Constants.startTime + 0.06)
+    let glideOffset = scrollView.contentOffset
+    expect(glideOffset.x) < 40
+    expect(glideOffset.y) > 0
+    expect(glideOffset.y) < 80
+
+    // when: the down arrow goes down and up, and frames step the animation until it stops
+    window.keyDown(.down, at: Constants.startTime + 0.06)
+    window.keyUp(.down, at: Constants.startTime + 0.06)
+    animation.stepFrames(in: scrollView, from: Constants.startTime + 0.06)
+
+    // then: the glide stops, and the content comes to rest a step down from where the glide had it, and a whole step to
+    // the right
+    expect(scrollView.contentOffset) == CGPoint(x: 40, y: glideOffset.y + 40)
+    expect(animation.isRunning) == false
+  }
+
   // MARK: - Display Link
 
   func test_displayLink_movesTheContent() throws {

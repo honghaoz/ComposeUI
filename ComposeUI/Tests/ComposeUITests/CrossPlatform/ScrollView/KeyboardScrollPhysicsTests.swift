@@ -248,6 +248,49 @@ class KeyboardScrollPhysicsTests: XCTestCase {
     expect(physics.restingOffset(in: Self.range)) == CGPoint(x: 0, y: 30)
   }
 
+  // MARK: - Rest Along an Axis
+
+  func test_rest_alongAnAxis_bringsTheContentToRestThere_whileItMovesOnAlongTheOtherAxis() {
+    let axes: [(isVertical: Bool, axis: KeyPath<CGPoint, CGFloat>, otherAxis: KeyPath<CGPoint, CGFloat>)] = [
+      (true, \.y, \.x),
+      (false, \.x, \.y),
+    ]
+    for (isVertical, axis, otherAxis) in axes {
+      // given: content that keys pushed to the right and down, which moves along both axes
+      var physics = KeyboardScrollPhysics(position: .zero, time: 0)
+      physics.startPush(toward: .right, step: 40)
+      physics.advance(to: 0.1, in: Self.planeRange)
+      physics.endPush(in: Self.planeRange)
+      physics.startPush(toward: .down, step: 40)
+      physics.advance(to: 0.15, in: Self.planeRange)
+      physics.endPush(in: Self.planeRange)
+      let position = physics.position
+      let velocity = physics.velocity
+      let restingOffset = physics.restingOffset(in: Self.planeRange)
+      expect(velocity.x) > 10
+      expect(velocity.y) > 10
+
+      // when: the content comes to rest at 300 along one axis, where another motion moved it
+      physics.rest(at: CGPoint(x: 300, y: 300), alongVerticalAxis: isVertical)
+
+      // then: it rests at 300 along that axis, and moves on along the other one as it did
+      expect(physics.position[keyPath: axis]) == 300
+      expect(physics.velocity[keyPath: axis]) == 0
+      expect(physics.restingOffset(in: Self.planeRange)[keyPath: axis]) == 300
+      expect(physics.position[keyPath: otherAxis]) == position[keyPath: otherAxis]
+      expect(physics.velocity[keyPath: otherAxis]) == velocity[keyPath: otherAxis]
+      expect(physics.restingOffset(in: Self.planeRange)[keyPath: otherAxis]) == restingOffset[keyPath: otherAxis]
+
+      // when: the motion goes on until the content rests
+      settle(&physics, in: Self.planeRange)
+
+      // then: the content stays at 300 along that axis, and comes to rest where it was going along the other one
+      expect(physics.isAtRest(in: Self.planeRange)) == true
+      expect(physics.position[keyPath: axis]) == 300
+      expect(physics.restingOffset(in: Self.planeRange)) == (isVertical ? CGPoint(x: restingOffset.x, y: 300) : CGPoint(x: 300, y: restingOffset.y))
+    }
+  }
+
   // MARK: - Rubber Band
 
   func test_push_atTheEnd_stretchesPastItAndSpringsBack() {
