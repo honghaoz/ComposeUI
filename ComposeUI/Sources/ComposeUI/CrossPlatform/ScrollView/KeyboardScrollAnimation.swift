@@ -252,7 +252,12 @@ final class KeyboardScrollAnimation: NSObject {
     }
 
     observedWindow = window
-    NotificationCenter.default.addObserver(self, selector: #selector(windowDidResignKey(_:)), name: NSWindow.didResignKeyNotification, object: window)
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(windowDidResignKey(_:)),
+      name: NSWindow.didResignKeyNotification,
+      object: window
+    )
   }
 
   private func stopObservingKeyWindow() {
