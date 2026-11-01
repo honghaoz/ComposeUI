@@ -1147,7 +1147,8 @@ class BaseTextViewTests: XCTestCase {
     // when: showing a text of three paragraphs
     textView.attributedString = text
 
-    // then: it lays out two lines, with non-contiguous layout off
+    // then: it lays out the first two paragraphs, one on each line, with non-contiguous layout off
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == ["First paragraph\n", "Second paragraph\n"]
     expect(Self.usedSize(of: textView).height).to(beApproximatelyEqual(to: text.boundingRectSize(numberOfLines: 2, layoutWidth: 160).height, within: 0.01))
     expect(textView.layoutManager.allowsNonContiguousLayout) == false
 
@@ -1156,6 +1157,7 @@ class BaseTextViewTests: XCTestCase {
 
     // then: it lays out all three paragraphs, with non-contiguous layout back on, as UIKit has it for a text view that
     // scrolls
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == ["First paragraph\n", "Second paragraph\n", "Third paragraph"]
     expect(Self.usedSize(of: textView).height).to(beApproximatelyEqual(to: text.boundingRectSize(numberOfLines: 0, layoutWidth: 160).height, within: 0.01))
     expect(textView.layoutManager.allowsNonContiguousLayout) == true
   }

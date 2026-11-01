@@ -1652,6 +1652,37 @@ class TextNodeTests: XCTestCase {
     expect(Self.laidOutGlyphCount(of: textView)) < textView.layoutManager.numberOfGlyphs
   }
 
+  func test_notEditableChangedToEditable_lineLimit_laysOutTheFirstLines() throws {
+    // given: a compose view showing a text node that isn't editable, limited to 30 lines of a text of 100 paragraphs, in
+    // a frame shorter than the 30 lines
+    var isEditable = false
+    var renderedView: BaseTextView?
+    let contentView = ComposeView {
+      TextNode((1 ... 100).map { "Paragraph \($0)" }.joined(separator: "\n"), font: Font.systemFont(ofSize: 14))
+        .numberOfLines(30)
+        .editable(isEditable)
+        .frame(width: 200, height: 100)
+        .onUpdate { renderable, _ in
+          renderedView = renderable.view as? BaseTextView
+        }
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+    contentView.refresh(animated: false)
+    let textView = try unwrap(renderedView)
+
+    // when: the text node becomes editable, which turns on the text view's scrolling, and UIKit's non-contiguous layout
+    // with it, and the user scrolls into the middle of the text
+    isEditable = true
+    contentView.refresh(animated: false)
+    textView.contentOffset = CGPoint(x: 0, y: 200)
+    textView.layoutIfNeeded()
+
+    // then: the same text view lays out the first 30 paragraphs, one on each line
+    expect(renderedView) === textView
+    expect(textView.isScrollEnabled) == true
+    expect(textView.layoutManager.laidOutLines(in: textView.textContainer)) == (1 ... 30).map { "Paragraph \($0)\n" }
+  }
+
   func test_resize_subviewThatAnAppAdded_isAutoresized() {
     // given: a compose view showing a text node in a frame, whose text view an app added a subview to, which
     // autoresizes its width with the text view
