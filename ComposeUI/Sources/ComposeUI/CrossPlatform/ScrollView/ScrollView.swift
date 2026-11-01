@@ -60,13 +60,7 @@ open class ScrollView: NSScrollView {
     set {
       // AppKit places the clip view on whole window pixels, so an offset on whole pixels draws the content on them,
       // while one between pixels blurs it
-      let pixelSize = self.pixelSize
-      setContentOffsetExactly(
-        CGPoint(
-          x: (newValue.x / pixelSize.width).rounded() * pixelSize.width,
-          y: (newValue.y / pixelSize.height).rounded() * pixelSize.height
-        )
-      )
+      setContentOffsetExactly(newValue.rounded(toPixelSize: pixelSize))
     }
   }
 
@@ -142,6 +136,20 @@ open class ScrollView: NSScrollView {
 
   deinit {
     stopObservingBoundsChange()
+
+    // a display link keeps a keyboard scroll in flight alive, and the scroll can't go on without the scroll view
+    if #available(macOS 14.0, *) {
+      keyboardScrollAnimation?.stop()
+    }
+  }
+
+  override open func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+
+    // the display link of a keyboard scroll in flight follows the window's screen, so the scroll stops with the window
+    if window == nil, #available(macOS 14.0, *) {
+      keyboardScrollAnimation?.stop()
+    }
   }
 
   /// Returns a new view to hold the scroll view's content, which the scroll view makes once, when it's made.
@@ -526,15 +534,21 @@ open class ScrollView: NSScrollView {
 
   // MARK: - Keyboard
 
-  // The arrow and page keys scroll the scroll view while the keyboard focus is in it, as UIKit's keyboard scrolling does.
+  // The arrow and page keys scroll the scroll view while the keyboard focus is in it, see `KeyboardScrollAnimation`.
   // AppKit sends the scroll view the actions of these keys when no view between the focused view and the scroll view
-  // handles them, and the scroll view passes each action on to its next responder when it can't scroll toward the key,
-  // so that the innermost scroll view that can scroll toward it scrolls, as with a mouse wheel.
+  // handles them.
+  //
+  // A press stays with the scroll view that takes it until the key goes up, and keys pressed meanwhile do nothing, so
+  // that a key held down in a nested scroll view stretches it at its end instead of moving the scroll view around it.
+  // A new press toward an end that the scroll view has reached goes on to the nearest scroll view around it that can
+  // scroll toward the key, which takes the focus, so that the keys then scroll that scroll view either way. A scroll
+  // view that can't scroll along a key's axis passes the key's action on to its next responder, and the focus stays
+  // where it is, such as in a text view.
 
   /// Whether the arrow and page keys can scroll the scroll view: its scrolling is enabled, and it has room to scroll.
   ///
-  /// The view that holds the content takes the keyboard focus only then, so that a scroll view that the keys can't scroll
-  /// doesn't take the focus from another view.
+  /// The view that holds the content takes the keyboard focus only then, so that a scroll view that the keys can't
+  /// scroll doesn't take the focus from another view.
   var canScrollWithKeyboard: Bool {
     isScrollEnabled && (hasHorizontalScrollRange || hasVerticalScrollRange)
   }
@@ -545,73 +559,68 @@ open class ScrollView: NSScrollView {
     super.mouseDown(with: event)
   }
 
-  /// Scrolls the content up by a line, or passes the action on when the scroll view can't scroll up.
+  /// Scrolls the content up for the up arrow key, or passes the action on when the scroll view doesn't take the key.
   override open func moveUp(_ sender: Any?) {
-    if isScrollEnabled, canScrollToTop {
-      scrollContent(by: CGPoint(x: 0, y: -Constants.keyboardLineScrollDistance))
-    } else {
-      nextResponder?.tryToPerform(#selector(moveUp(_:)), with: sender)
-    }
+    scroll(toward: .up, by: .line, for: #selector(moveUp(_:)), sender: sender)
   }
 
-  /// Scrolls the content down by a line, or passes the action on when the scroll view can't scroll down.
+  /// Scrolls the content down for the down arrow key, or passes the action on when the scroll view doesn't take the key.
   override open func moveDown(_ sender: Any?) {
-    if isScrollEnabled, canScrollToBottom {
-      scrollContent(by: CGPoint(x: 0, y: Constants.keyboardLineScrollDistance))
-    } else {
-      nextResponder?.tryToPerform(#selector(moveDown(_:)), with: sender)
-    }
+    scroll(toward: .down, by: .line, for: #selector(moveDown(_:)), sender: sender)
   }
 
-  /// Scrolls the content left by a line, or passes the action on when the scroll view can't scroll left.
+  /// Scrolls the content left for the left arrow key, or passes the action on when the scroll view doesn't take the key.
   override open func moveLeft(_ sender: Any?) {
-    if isScrollEnabled, canScrollToLeft {
-      scrollContent(by: CGPoint(x: -Constants.keyboardLineScrollDistance, y: 0))
-    } else {
-      nextResponder?.tryToPerform(#selector(moveLeft(_:)), with: sender)
-    }
+    scroll(toward: .left, by: .line, for: #selector(moveLeft(_:)), sender: sender)
   }
 
-  /// Scrolls the content right by a line, or passes the action on when the scroll view can't scroll right.
+  /// Scrolls the content right for the right arrow key, or passes the action on when the scroll view doesn't take the key.
   override open func moveRight(_ sender: Any?) {
-    if isScrollEnabled, canScrollToRight {
-      scrollContent(by: CGPoint(x: Constants.keyboardLineScrollDistance, y: 0))
-    } else {
-      nextResponder?.tryToPerform(#selector(moveRight(_:)), with: sender)
-    }
+    scroll(toward: .right, by: .line, for: #selector(moveRight(_:)), sender: sender)
   }
 
-  /// Scrolls the content up by a page, or passes the action on when the scroll view can't scroll up.
+  /// Scrolls the content up by a page for the page up key, or passes the action on when the scroll view doesn't take
+  /// the key.
   override open func pageUp(_ sender: Any?) {
-    if isScrollEnabled, canScrollToTop {
-      super.pageUp(sender)
-    } else {
-      nextResponder?.tryToPerform(#selector(pageUp(_:)), with: sender)
-    }
+    scroll(toward: .up, by: .page, for: #selector(pageUp(_:)), sender: sender)
   }
 
-  /// Scrolls the content down by a page, or passes the action on when the scroll view can't scroll down.
+  /// Scrolls the content down by a page for the page down key, or passes the action on when the scroll view doesn't
+  /// take the key.
   override open func pageDown(_ sender: Any?) {
-    if isScrollEnabled, canScrollToBottom {
-      super.pageDown(sender)
-    } else {
-      nextResponder?.tryToPerform(#selector(pageDown(_:)), with: sender)
-    }
+    scroll(toward: .down, by: .page, for: #selector(pageDown(_:)), sender: sender)
   }
 
   /// Scrolls the content up by a page for a view that interprets its keys, as `pageUp(_:)` does.
   ///
   /// A view that interprets its keys with `interpretKeyEvents(_:)` sends the page keys as `scrollPageUp(_:)` and
-  /// `scrollPageDown(_:)`, which AppKit's scroll view doesn't handle. So when the scroll view can't scroll up, it passes
-  /// on `pageUp(_:)`, which the scroll views around it handle, AppKit's too.
+  /// `scrollPageDown(_:)`, which AppKit's scroll view doesn't handle. So when the scroll view can't scroll up, it
+  /// passes on `pageUp(_:)`, which the scroll views around it handle, AppKit's too.
   override open func scrollPageUp(_ sender: Any?) {
     pageUp(sender)
   }
 
-  /// Scrolls the content down by a page for a view that interprets its keys, as `pageDown(_:)` does, see
-  /// `scrollPageUp(_:)`.
+  /// Scrolls the content down by a page for a view that interprets its keys, as `pageDown(_:)` does, see `scrollPageUp(_:)`.
   override open func scrollPageDown(_ sender: Any?) {
     pageDown(sender)
+  }
+
+  override open func keyUp(with event: NSEvent) {
+    // any key going up ends a press, since the key that started the press isn't always the last to go up
+    if #available(macOS 14.0, *) {
+      keyboardScrollAnimation?.releaseKey(at: AnimationClock.now)
+    }
+
+    super.keyUp(with: event)
+  }
+
+  override open func flagsChanged(with event: NSEvent) {
+    // a modifier that goes down or up ends a press, since AppKit doesn't send the key going up once Command is down
+    if #available(macOS 14.0, *) {
+      keyboardScrollAnimation?.releaseKey(at: AnimationClock.now)
+    }
+
+    super.flagsChanged(with: event)
   }
 
   /// Gives the keyboard focus to the content for a click in the scroll view, unless the click landed in the view that
@@ -638,20 +647,215 @@ open class ScrollView: NSScrollView {
     window.makeFirstResponder(documentView)
   }
 
-  /// Scrolls the content by a distance from the content offset, as AppKit scrolls for the keyboard.
+  /// The distance that a key scrolls the content by.
+  private enum KeyboardScrollGranularity {
+
+    /// A line, for an arrow key.
+    case line
+
+    /// A page, for a page key.
+    case page
+  }
+
+  /// Scrolls the content toward a direction for a key, or passes the key's action on to a scroll view around.
   ///
-  /// AppKit animates a scroll that `NSView.scroll(_:)` makes while it handles a key that scrolls, unless the user reduces
-  /// motion, and moves a scroll made during the animation from where the animation goes, so that each press of a key
-  /// held down scrolls by the whole distance. The scroll stops at the ends of the scrollable range, on whole pixels.
+  /// - Parameters:
+  ///   - direction: The direction of the key.
+  ///   - granularity: The distance that the key scrolls the content by.
+  ///   - action: The key's action, which the scroll view passes on.
+  ///   - sender: The sender of the action.
+  private func scroll(toward direction: KeyboardScrollDirection, by granularity: KeyboardScrollGranularity, for action: Selector, sender: Any?) {
+    // the application dispatches a key that goes down as its current event, while an action from a menu or from code
+    // has no key that goes up. `NSApp` is nil until an application exists, which no key comes before
+    let currentEvent = NSApp?.currentEvent
+    let keyDownEvent = currentEvent?.type == .keyDown ? currentEvent : nil
+    let isRepeat = keyDownEvent?.isARepeat == true
+
+    // a new press ends the press that the scroll view passed on, also when the scroll view drops it
+    if !isRepeat {
+      keyCodeOfAPressPassedOn = nil
+    }
+
+    guard !isKeyboardScrollKeyHeld else {
+      return
+    }
+
+    // only the keys without modifiers scroll, which leaves the modified keys to other uses, and a press with Command
+    // couldn't end, since AppKit doesn't send the key going up while Command is down
+    let hasModifier = keyDownEvent?.modifierFlags.isDisjoint(with: [.command, .option, .control, .shift]) == false
+    guard isScrollEnabled, direction.isVertical ? hasVerticalScrollRange : hasHorizontalScrollRange, !hasModifier else {
+      nextResponder?.tryToPerform(action, with: sender)
+      return
+    }
+
+    // a repeat follows its press: one that the scroll view took stays with it, even once another scroll stops it, such
+    // as a trackpad's, and one that it passed on at an end goes on, so only a new press at an end goes on to a scroll
+    // view around
+    if isRepeat, keyDownEvent?.keyCode == keyCodeOfAPressPassedOn {
+      nextResponder?.tryToPerform(action, with: sender)
+    } else if isRepeat || canScroll(toward: direction) {
+      scrollContent(toward: direction, by: granularity, isRepeat: isRepeat, isFromKeyDown: keyDownEvent != nil)
+    } else if let scrollView = parentScrollView(where: { $0.isScrollEnabled && $0.canScroll(toward: direction) }) {
+      window?.makeFirstResponder(scrollView.contentContainerView)
+      scrollView.tryToPerform(action, with: sender)
+    } else {
+      switch granularity {
+      case .line:
+        // with no scroll view around to go on to, an arrow key stretches the content at its end
+        scrollContent(toward: direction, by: granularity, isRepeat: false, isFromKeyDown: keyDownEvent != nil)
+      case .page:
+        // a page key at an end goes on to an AppKit scroll view around, which handles the page actions, instead of
+        // stretching the content
+        keyCodeOfAPressPassedOn = keyDownEvent?.keyCode
+        nextResponder?.tryToPerform(action, with: sender)
+      }
+    }
+  }
+
+  /// Whether a key held down keeps the keys: one that pushes this scroll view, or a scroll view around it, which the
+  /// keys reach through this one.
+  private var isKeyboardScrollKeyHeld: Bool {
+    var isKeyHeld = false
+    if #available(macOS 14.0, *) {
+      isKeyHeld = keyboardScrollAnimation?.isKeyHeld == true || hasParentScrollView { $0.keyboardScrollAnimation?.isKeyHeld == true }
+    }
+    return isKeyHeld
+  }
+
+  /// Scrolls the content toward a direction for a key that the scroll view takes.
+  ///
+  /// - Parameters:
+  ///   - direction: The direction of the key.
+  ///   - granularity: The distance that the key scrolls the content by.
+  ///   - isRepeat: Whether the key repeats a key held down.
+  ///   - isFromKeyDown: Whether the key comes from a key that goes down, and goes up later, unlike an action from a menu
+  ///     or from code.
+  private func scrollContent(toward direction: KeyboardScrollDirection, by granularity: KeyboardScrollGranularity, isRepeat: Bool, isFromKeyDown: Bool) {
+    let distance: CGFloat
+    switch granularity {
+    case .line:
+      distance = Constants.keyboardLineScrollDistance
+    case .page:
+      distance = keyboardPageScrollDistance
+    }
+    let unitVector = direction.unitVector
+    let offset = CGPoint(x: unitVector.x * distance, y: unitVector.y * distance)
+
+    guard scrollsWithKeyboardAnimation, #available(macOS 14.0, *) else {
+      scrollContentAsAppKit(by: offset)
+      return
+    }
+
+    let animation = makeKeyboardScrollAnimationIfNeeded()
+    let time = AnimationClock.now
+    switch granularity {
+    case .page where !isRepeat:
+      // a page key glides the content by a page, and pushes it only once it's held down, so that a press scrolls by a
+      // page
+      animation.glide(by: offset, at: time)
+    case .line,
+         .page:
+      animation.pressKey(toward: direction, step: distance, at: time)
+      if !isFromKeyDown {
+        // an action from a menu or from code acts as a tap, since no key going up ends it
+        animation.releaseKey(at: time)
+      }
+    }
+  }
+
+  /// Returns whether the scroll view can scroll toward a direction before it reaches an end.
+  ///
+  /// - Parameter direction: The direction.
+  /// - Returns: Whether the scroll view can scroll toward the direction.
+  private func canScroll(toward direction: KeyboardScrollDirection) -> Bool {
+    switch direction {
+    case .up:
+      return canScrollToTop
+    case .down:
+      return canScrollToBottom
+    case .left:
+      return canScrollToLeft
+    case .right:
+      return canScrollToRight
+    }
+  }
+
+  /// Scrolls the content by a distance as AppKit scrolls for the keyboard, when the keys don't move the content with
+  /// `KeyboardScrollAnimation`.
   ///
   /// - Parameter distance: The distance to scroll by, in content coordinates.
-  private func scrollContent(by distance: CGPoint) {
-    // `NSView.scroll(_:)` scrolls the clip view around the view it's called on, so it's called on the document view, with
-    // the offset in the document view's coordinates
+  private func scrollContentAsAppKit(by distance: CGPoint) {
+    // AppKit animates a scroll that `NSView.scroll(_:)` makes while it handles a key that scrolls, unless the user
+    // reduces motion, and moves a scroll made during the animation from where the animation goes, so that each press of
+    // a key held down scrolls by the whole distance. `NSView.scroll(_:)` scrolls the clip view around the view it's
+    // called on, so it's called on the document view, with the offset in the document view's coordinates
     let documentView = contentContainerView
     let offset = contentOffset
     let target = CGPoint(x: offset.x + distance.x, y: offset.y + distance.y)
-    documentView.scroll(documentView.convert(target, from: contentView)) // TODO: consider spring effect scrolling
+    documentView.scroll(documentView.convert(target, from: contentView))
+  }
+
+  /// The distance that a page key scrolls the content: the visible height between the insets, less an overlap that
+  /// keeps the end of the last page in view, and at least a fraction of that height.
+  private var keyboardPageScrollDistance: CGFloat {
+    let insets = adjustedContentInset
+    let height = visibleSize.height - insets.top - insets.bottom
+    return max(height * Constants.keyboardMinimumPageFraction, height - Constants.keyboardPageOverlap)
+  }
+
+  // MARK: - Keyboard Scroll Animation
+
+  /// The animation that moves the content for the keys, `nil` before the first key that moves it.
+  @available(macOS 14.0, *)
+  var keyboardScrollAnimation: KeyboardScrollAnimation? {
+    keyboardScrollAnimationStorage as? KeyboardScrollAnimation
+  }
+
+  /// The animation that moves the content for the keys, `nil` before the first key that moves it.
+  ///
+  /// It's kept as `AnyObject`, since its type is available from macOS 14, where the display link that it runs on is.
+  private var keyboardScrollAnimationStorage: AnyObject?
+
+  /// The key code of the latest new press, if the scroll view passed it on at an end, whose repeats it passes on as well.
+  private var keyCodeOfAPressPassedOn: UInt16?
+
+  /// Whether the keys move the content with `KeyboardScrollAnimation`: not when the user reduces motion, when they
+  /// scroll it as AppKit's own scrolling does then, without animation.
+  private var scrollsWithKeyboardAnimation: Bool {
+    #if DEBUG
+    if let scrollsWithKeyboardAnimationForTesting = Self.scrollsWithKeyboardAnimationForTesting {
+      return scrollsWithKeyboardAnimationForTesting
+    }
+    #endif
+
+    return !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+  }
+
+  #if DEBUG
+  /// Whether the keys move the content with `KeyboardScrollAnimation` in tests, which overrides the user's reduced
+  /// motion when set.
+  static var scrollsWithKeyboardAnimationForTesting: Bool?
+  #endif
+
+  /// The scrollable range that a keyboard scroll moves the content in.
+  var keyboardScrollRange: KeyboardScrollRange {
+    KeyboardScrollRange(
+      minimum: CGPoint(x: minOffsetX, y: minOffsetY),
+      maximum: CGPoint(x: maxOffsetX, y: maxOffsetY),
+      pixelSize: pixelSize
+    )
+  }
+
+  /// Returns the animation that moves the content for the keys, making it for the first key that moves the content.
+  @available(macOS 14.0, *)
+  private func makeKeyboardScrollAnimationIfNeeded() -> KeyboardScrollAnimation {
+    if let keyboardScrollAnimation {
+      return keyboardScrollAnimation
+    } else {
+      let animation = KeyboardScrollAnimation(scrollView: self)
+      keyboardScrollAnimationStorage = animation
+      return animation
+    }
   }
 
   // MARK: - Constants
@@ -663,8 +867,14 @@ open class ScrollView: NSScrollView {
     /// A touch that ends a glide on a trackpad sends its first event 40 to 75 ms after the glide's end.
     static let latchingInterval: TimeInterval = 0.1
 
-    /// The distance that an arrow key scrolls the content, as UIKit's keyboard scrolling scrolls it.
+    /// The distance that an arrow key scrolls the content.
     static let keyboardLineScrollDistance: CGFloat = 40
+
+    /// The overlap of the visible height that a page key keeps in view.
+    static let keyboardPageOverlap: CGFloat = 40
+
+    /// The smallest fraction of the visible height that a page key scrolls the content by.
+    static let keyboardMinimumPageFraction: CGFloat = 0.8
   }
 }
 
@@ -698,14 +908,19 @@ private extension ScrollView {
 
   /// Whether the view has a parent scroll view that satisfies the condition.
   func hasParentScrollView(_ condition: (ScrollView) -> Bool) -> Bool {
+    parentScrollView(where: condition) != nil
+  }
+
+  /// Returns the nearest parent scroll view that satisfies the condition.
+  func parentScrollView(where condition: (ScrollView) -> Bool) -> ScrollView? {
     var parent = superview
     while let view = parent {
       if let scrollView = view as? ScrollView, condition(scrollView) {
-        return true
+        return scrollView
       }
       parent = view.superview
     }
-    return false
+    return nil
   }
 }
 

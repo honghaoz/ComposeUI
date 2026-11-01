@@ -93,7 +93,7 @@ class ComposeView_DocumentViewTests: XCTestCase {
     window.press(.pageDown)
 
     // then: the render pass removes the text view, and the content keeps the focus, instead of the window
-    expect(view.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 290)))
+    expect(view.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 260)))
     expect(textView.window) == nil
     expect(window.firstResponder) === view.contentContainerView
 
@@ -101,7 +101,7 @@ class ComposeView_DocumentViewTests: XCTestCase {
     window.press(.down)
 
     // then: the view still scrolls
-    expect(view.contentOffset) == CGPoint(x: 0, y: 330)
+    expect(view.contentOffset) == CGPoint(x: 0, y: 300)
   }
 
   func test_arrowKeys_inTextOfANestedViewThatFits_scrollTheViewAroundIt() throws {

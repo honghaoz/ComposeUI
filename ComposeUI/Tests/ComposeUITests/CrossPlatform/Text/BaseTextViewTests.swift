@@ -109,8 +109,8 @@ class BaseTextViewTests: XCTestCase {
     // when: pressing the page down key
     window.press(.pageDown)
 
-    // then: the parent scrolls down by its page, its height less 10 points
-    expect(parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 590)))
+    // then: the parent scrolls down by a page, its height less 40 points
+    expect(parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 560)))
 
     // when: pressing the page up key
     window.press(.pageUp)
@@ -167,30 +167,30 @@ class BaseTextViewTests: XCTestCase {
     // when: pressing the down arrow
     window.press(.down)
 
-    // then: the text view scrolls the scroll view that it's in by itself, and the ComposeUI scroll view stays
-    expect(clipView.bounds.origin.y) > 0
-    expect(parent.contentOffset) == .zero
-
-    // when: pressing the page down key
-    let lineOffset = clipView.bounds.origin.y
-    window.press(.pageDown)
-
-    // then: the text view scrolls the scroll view that it's in by a page
-    expect(clipView.bounds.origin.y).toEventually(beGreaterThan(lineOffset + 50))
-    expect(parent.contentOffset) == .zero
-
-    // when: pressing the page up key
-    window.press(.pageUp)
-
-    // then: the text view scrolls the scroll view that it's in back up by a page
-    expect(clipView.bounds.origin.y).toEventually(beEqual(to: lineOffset))
+    // then: the text view scrolls the scroll view that it's in by itself, as AppKit animates it, and the ComposeUI scroll
+    // view stays
+    expect(clipView.bounds.origin.y).toEventually(beGreaterThan(0))
     expect(parent.contentOffset) == .zero
 
     // when: pressing the up arrow
     window.press(.up)
 
     // then: the text view scrolls the scroll view that it's in back to the top
-    expect(clipView.bounds.origin.y) == 0
+    expect(clipView.bounds.origin.y).toEventually(beEqual(to: 0))
+    expect(parent.contentOffset) == .zero
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: the text view scrolls the scroll view that it's in by a page
+    expect(clipView.bounds.origin.y).toEventually(beGreaterThan(50))
+    expect(parent.contentOffset) == .zero
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: the text view scrolls the scroll view that it's in back up to the top
+    expect(clipView.bounds.origin.y).toEventually(beEqual(to: 0))
     expect(parent.contentOffset) == .zero
   }
   #endif

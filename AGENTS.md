@@ -188,7 +188,7 @@ The performance learnings are in `docs/performance.md`. Read it before changing 
 ## Docs
 
 - Match content to the section's altitude: overview sections get a couple of high-level sentences, mechanics and specifics go in the section that owns them.
-- A CHANGELOG entry is for a change users would notice or need to act on. Leave out internal details, such as an edge-case fix that makes one more code path follow a rule the API already documents.
+- A CHANGELOG entry is for a change users would notice or need to act on, in a sentence or two that name the feature or fix, with a link to the PR, which holds the details. Leave out how it works, its tuning and its edge cases, and internal details, such as an edge-case fix that makes one more code path follow a rule the API already documents.
 - Judge CHANGELOG entries against the last release, not the previous commit. Users only see released behavior, so a change to behavior that's still unreleased gets no entry of its own: update the entry that introduced the behavior when what it describes changes, and add nothing when the change only corrects it. Otherwise entries pile up for intermediate states no user saw.
 - A `//` comment right above a declaration reads as the declaration's documentation. Put a comment that explains how the code works inside the body, next to the code it explains, or where the code relies on it, such as the line that builds a value, and keep a declaration's documentation to what the declaration is.
 - Verify a learning on every platform that it covers, instead of noting where it was checked. Name a platform only for a claim that's unverified on another platform, and a version only for behavior that a newer version can change, such as AppKit's reset of a view's layer transform.
