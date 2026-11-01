@@ -1811,6 +1811,35 @@ class ScrollViewTests: XCTestCase {
     expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 100)
   }
 
+  func test_pageKeys_fromAViewThatInterpretsItsKeys_inAScrollViewThatCanNotScroll_scrollAnAppKitScrollViewAroundIt() {
+    // given: a scroll view whose content fits it, in a plain AppKit scroll view that scrolls, in a window, with the focus
+    // in a view in its content that interprets its keys
+    let window = TestWindow()
+    let outerScrollView = NSScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    outerScrollView.documentView = FlippedView(frame: CGRect(x: 0, y: 0, width: 200, height: 2000))
+    window.contentView().addSubview(outerScrollView)
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 100)
+    outerScrollView.documentView?.addSubview(scrollView)
+    let keyInterpretingView = KeyInterpretingView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+    scrollView.documentView?.addSubview(keyInterpretingView)
+    window.makeFirstResponder(keyInterpretingView)
+
+    // when: pressing the page down key
+    window.press(.pageDown)
+
+    // then: the scroll view passes the key on as the page action, which AppKit's scroll view handles, so it scrolls down
+    // by its page, its height less 10 points
+    expect(outerScrollView.contentView.bounds.origin).toEventually(beEqual(to: CGPoint(x: 0, y: 190)))
+    expect(scrollView.contentOffset) == .zero
+
+    // when: pressing the page up key
+    window.press(.pageUp)
+
+    // then: AppKit's scroll view scrolls back up by its page
+    expect(outerScrollView.contentView.bounds.origin).toEventually(beEqual(to: .zero))
+  }
+
   func test_click_onTheContent_focusesIt() {
     // given: a scroll view in a window, showing content taller than it, with a view in its content that doesn't take the
     // focus
@@ -2112,6 +2141,14 @@ private final class KeyInterpretingView: NSView {
   override func keyDown(with event: NSEvent) {
     interpretedKeyCount += 1
     interpretKeyEvents([event])
+  }
+}
+
+/// A view whose coordinates go down from the top, as a ComposeUI scroll view's content does.
+private final class FlippedView: NSView {
+
+  override var isFlipped: Bool {
+    true
   }
 }
 
