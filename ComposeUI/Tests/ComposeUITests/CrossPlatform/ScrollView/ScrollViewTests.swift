@@ -2119,6 +2119,43 @@ class ScrollViewTests: XCTestCase {
     expect(scrollView.keyboardScrollAnimation) == nil
   }
 
+  func test_pageKey_newPressThatTheScrollViewPassesThrough_endsAPressPassedOnAtTheEnd() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view at the bottom end of its range, with the focus in it, whose keys move the content
+    // with the animation, which passed on a press of the page down key at the end, and which something else then scrolls
+    // up to the middle of its range
+    let window = TestWindow()
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 1000)
+    scrollView.contentOffset = CGPoint(x: 0, y: 900)
+    window.contentView().addSubview(scrollView)
+    window.makeFirstResponder(scrollView)
+    ScrollView.scrollsWithKeyboardAnimationForTesting = true
+    defer {
+      ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+    }
+    let startTime: CFTimeInterval = 1000
+    window.keyDown(.pageDown, at: startTime)
+    window.keyUp(.pageDown, at: startTime + 0.1)
+    expect(scrollView.keyboardScrollAnimation) == nil
+    scrollView.contentOffset = CGPoint(x: 0, y: 500)
+
+    // when: the page down key goes down with Shift, which the scroll view passes through, and repeats once Shift goes
+    // up, and frames step the animation for 0.2 s
+    window.keyDown(.pageDown, at: startTime + 1, modifierFlags: .shift)
+    expect(scrollView.keyboardScrollAnimation) == nil
+    window.keyDown(.pageDown, at: startTime + 1.5, isARepeat: true)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.stepFrames(in: scrollView, from: startTime + 1.5, until: startTime + 1.7)
+
+    // then: the repeat pushes the content down by pages, since the new press ended the one that the scroll view passed on
+    expect(animation.isKeyHeld) == true
+    expect(scrollView.contentOffset.y) > 500
+  }
+
   func test_keyUp_throughAScrollViewThatTheKeysPassThrough_endsThePressOfTheParent() throws {
     guard #available(macOS 14.0, *) else {
       return

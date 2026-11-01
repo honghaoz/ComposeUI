@@ -666,14 +666,20 @@ open class ScrollView: NSScrollView {
   ///   - action: The key's action, which the scroll view passes on.
   ///   - sender: The sender of the action.
   private func scroll(toward direction: KeyboardScrollDirection, by granularity: KeyboardScrollGranularity, for action: Selector, sender: Any?) {
-    guard !isKeyboardScrollKeyHeld else {
-      return
-    }
-
     // the application dispatches a key that goes down as its current event, while an action from a menu or from code
     // has no key that goes up. `NSApp` is nil until an application exists, which no key comes before
     let currentEvent = NSApp?.currentEvent
     let keyDownEvent = currentEvent?.type == .keyDown ? currentEvent : nil
+    let isRepeat = keyDownEvent?.isARepeat == true
+
+    // a new press ends the press that the scroll view passed on, also when the scroll view drops it
+    if !isRepeat {
+      keyCodeOfAPressPassedOn = nil
+    }
+
+    guard !isKeyboardScrollKeyHeld else {
+      return
+    }
 
     // only the keys without modifiers scroll, which leaves the modified keys to other uses, and a press with Command
     // couldn't end, since AppKit doesn't send the key going up while Command is down
@@ -686,13 +692,7 @@ open class ScrollView: NSScrollView {
     // a repeat follows its press: one that the scroll view took stays with it, even once another scroll stops it, such as
     // a trackpad's, and one that it passed on at an end goes on, so only a new press at an end goes on to a scroll view
     // around
-    let isRepeat = keyDownEvent?.isARepeat == true
-    let repeatsAPressPassedOn = isRepeat && keyDownEvent?.keyCode == keyCodeOfAPressPassedOn
-    if !isRepeat {
-      keyCodeOfAPressPassedOn = nil
-    }
-
-    if repeatsAPressPassedOn {
+    if isRepeat, keyDownEvent?.keyCode == keyCodeOfAPressPassedOn {
       nextResponder?.tryToPerform(action, with: sender)
     } else if isRepeat || canScroll(toward: direction) {
       scrollContent(toward: direction, by: granularity, isRepeat: isRepeat, isFromKeyDown: keyDownEvent != nil)
@@ -811,7 +811,7 @@ open class ScrollView: NSScrollView {
   /// It's kept as `AnyObject`, since its type is available from macOS 14, where the display link that it runs on is.
   private var keyboardScrollAnimationStorage: AnyObject?
 
-  /// The key code of the latest new press that the scroll view passed on at an end, whose repeats it passes on as well.
+  /// The key code of the latest new press, if the scroll view passed it on at an end, whose repeats it passes on as well.
   private var keyCodeOfAPressPassedOn: UInt16?
 
   /// The animation that moves the content for the keys, `nil` before the first key that moves it.
