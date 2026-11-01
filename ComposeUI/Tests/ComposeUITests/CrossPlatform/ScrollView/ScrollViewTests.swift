@@ -1982,6 +1982,37 @@ class ScrollViewTests: XCTestCase {
     expect(window.firstResponder) === views.parent.contentContainerView
   }
 
+  func test_keyInANestedScrollView_whileTheParentHoldsAPress_doesNothing() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a scroll view that scrolls only horizontally, with the focus in it, nested in a parent scroll view that
+    // scrolls, whose keys move the content with the animation
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    views.scrollView.contentSize = CGSize(width: 300, height: 100)
+    window.makeFirstResponder(views.scrollView)
+    ScrollView.scrollsWithKeyboardAnimationForTesting = true
+    defer {
+      ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+    }
+
+    // when: the down arrow goes down, which passes through the scroll view to the parent, and the right arrow goes down
+    // while it's held, and frames step the parent's animation
+    let startTime: CFTimeInterval = 1000
+    window.keyDown(.down, at: startTime)
+    window.keyDown(.right, at: startTime + 0.05)
+    let parentAnimation = try unwrap(views.parent.keyboardScrollAnimation)
+    parentAnimation.stepFrames(in: views.parent, from: startTime, until: startTime + 0.1)
+
+    // then: the parent's press keeps the keys, so the right arrow doesn't push the scroll view, and the parent scrolls
+    // down
+    expect(views.scrollView.keyboardScrollAnimation?.isKeyHeld ?? false) == false
+    expect(views.scrollView.contentOffset) == .zero
+    expect(views.parent.contentOffset.y) > 400
+  }
+
   func test_arrowKey_atTheEnd_withNoScrollViewAroundToGoOnTo_stretchesTheScrollViewAndSpringsBack() throws {
     guard #available(macOS 14.0, *) else {
       return
@@ -2019,6 +2050,10 @@ class ScrollViewTests: XCTestCase {
   }
 
   func test_pageKey_atTheEnd_withNoScrollViewAroundToGoOnTo_doesNotStretchTheScrollView() {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
     // given: a 100 × 100 scroll view at the bottom end of its range, with the focus in it, whose keys move the content
     // with the animation
     let window = TestWindow()
@@ -2032,14 +2067,56 @@ class ScrollViewTests: XCTestCase {
       ScrollView.scrollsWithKeyboardAnimationForTesting = nil
     }
 
-    // when: pressing the page down key
-    window.press(.pageDown)
+    // when: the page down key goes down, and repeats while it's held down
+    let startTime: CFTimeInterval = 1000
+    window.keyDown(.pageDown, at: startTime)
+    window.keyDown(.pageDown, at: startTime + 0.4, isARepeat: true)
+    window.keyDown(.pageDown, at: startTime + 0.5, isARepeat: true)
+    scrollView.keyboardScrollAnimation?.stepFrames(in: scrollView, from: startTime + 0.5, until: startTime + 0.6)
 
-    // then: the content stays at the end, since a page key doesn't stretch it
+    // then: the content stays at the end, since a page key doesn't stretch it, and its repeats go on as the press did
     expect(scrollView.contentOffset) == CGPoint(x: 0, y: 900)
-    if #available(macOS 14.0, *) {
-      expect(scrollView.keyboardScrollAnimation) == nil
+    expect(scrollView.keyboardScrollAnimation) == nil
+  }
+
+  func test_pageKey_heldDownAtTheEnd_inAnAppKitScrollView_pagesTheAppKitScrollViewOnEachRepeat() {
+    guard #available(macOS 14.0, *) else {
+      return
     }
+
+    // given: a 100 × 100 scroll view at the bottom end of its range, with the focus in it, in a plain AppKit scroll view
+    // that scrolls, whose keys move the content with the animation
+    let window = TestWindow()
+    let outerScrollView = NSScrollView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    outerScrollView.documentView = FlippedView(frame: CGRect(x: 0, y: 0, width: 200, height: 2000))
+    window.contentView().addSubview(outerScrollView)
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 1000)
+    scrollView.contentOffset = CGPoint(x: 0, y: 900)
+    outerScrollView.documentView?.addSubview(scrollView)
+    window.makeFirstResponder(scrollView)
+    ScrollView.scrollsWithKeyboardAnimationForTesting = true
+    defer {
+      ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+    }
+
+    // when: the page down key goes down
+    let startTime: CFTimeInterval = 1000
+    window.keyDown(.pageDown, at: startTime)
+
+    // then: the scroll view passes the key on as the page action, so AppKit's scroll view scrolls down by its page, its
+    // height less 10 points
+    expect(outerScrollView.contentView.bounds.origin).toEventually(beEqual(to: CGPoint(x: 0, y: 190)))
+
+    // when: the key repeats while it's held down
+    window.keyDown(.pageDown, at: startTime + 0.4, isARepeat: true)
+    scrollView.keyboardScrollAnimation?.stepFrames(in: scrollView, from: startTime + 0.4, until: startTime + 0.5)
+
+    // then: the repeat goes on as the press did, so AppKit's scroll view scrolls down by another page, while the scroll
+    // view stays at its end instead of stretching
+    expect(outerScrollView.contentView.bounds.origin).toEventually(beEqual(to: CGPoint(x: 0, y: 380)))
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 900)
+    expect(scrollView.keyboardScrollAnimation) == nil
   }
 
   func test_keyUp_throughAScrollViewThatTheKeysPassThrough_endsThePressOfTheParent() throws {

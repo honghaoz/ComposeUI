@@ -666,7 +666,7 @@ open class ScrollView: NSScrollView {
   ///   - action: The key's action, which the scroll view passes on.
   ///   - sender: The sender of the action.
   private func scroll(toward direction: KeyboardScrollDirection, by granularity: KeyboardScrollGranularity, for action: Selector, sender: Any?) {
-    if #available(macOS 14.0, *), keyboardScrollAnimation?.isKeyHeld == true {
+    guard !isKeyboardScrollKeyHeld else {
       return
     }
 
@@ -683,10 +683,18 @@ open class ScrollView: NSScrollView {
       return
     }
 
-    // only a new press at an end goes on to a scroll view around, since a repeat belongs to a press that this scroll view
-    // took, even one that stopped, such as for a trackpad scroll
+    // a repeat follows its press: one that the scroll view took stays with it, even once another scroll stops it, such as
+    // a trackpad's, and one that it passed on at an end goes on, so only a new press at an end goes on to a scroll view
+    // around
     let isRepeat = keyDownEvent?.isARepeat == true
-    if isRepeat || canScroll(toward: direction) {
+    let repeatsAPressPassedOn = isRepeat && keyDownEvent?.keyCode == keyCodeOfAPressPassedOn
+    if !isRepeat {
+      keyCodeOfAPressPassedOn = nil
+    }
+
+    if repeatsAPressPassedOn {
+      nextResponder?.tryToPerform(action, with: sender)
+    } else if isRepeat || canScroll(toward: direction) {
       scrollContent(toward: direction, by: granularity, isRepeat: isRepeat, isFromKeyDown: keyDownEvent != nil)
     } else if let scrollView = parentScrollView(where: { $0.isScrollEnabled && $0.canScroll(toward: direction) }) {
       window?.makeFirstResponder(scrollView.contentContainerView)
@@ -699,9 +707,20 @@ open class ScrollView: NSScrollView {
       case .page:
         // a page key at an end goes on to an AppKit scroll view around, which handles the page actions, instead of
         // stretching the content
+        keyCodeOfAPressPassedOn = keyDownEvent?.keyCode
         nextResponder?.tryToPerform(action, with: sender)
       }
     }
+  }
+
+  /// Whether a key held down keeps the keys: one that pushes this scroll view, or a scroll view around it, which the keys
+  /// reach through this one.
+  private var isKeyboardScrollKeyHeld: Bool {
+    var isKeyHeld = false
+    if #available(macOS 14.0, *) {
+      isKeyHeld = keyboardScrollAnimation?.isKeyHeld == true || hasParentScrollView { $0.keyboardScrollAnimation?.isKeyHeld == true }
+    }
+    return isKeyHeld
   }
 
   /// Scrolls the content toward a direction for a key that the scroll view takes.
@@ -791,6 +810,9 @@ open class ScrollView: NSScrollView {
   ///
   /// It's kept as `AnyObject`, since its type is available from macOS 14, where the display link that it runs on is.
   private var keyboardScrollAnimationStorage: AnyObject?
+
+  /// The key code of the latest new press that the scroll view passed on at an end, whose repeats it passes on as well.
+  private var keyCodeOfAPressPassedOn: UInt16?
 
   /// The animation that moves the content for the keys, `nil` before the first key that moves it.
   @available(macOS 14.0, *)
