@@ -45,42 +45,42 @@ class ComposeView_ClippingTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: should not clip by default (auto mode)
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
 
       // when: set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
 
       // then: it should clip
-      expect(contentView.clipsToBounds) == true
+      expectClipping(of: contentView, toBe: true)
 
       // when: set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
 
       // then: it should not clip
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
 
       // when: set to manual mode
       contentView.clippingBehavior = .manual
       contentView.refresh(animated: false)
 
       // then: it should not change
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
 
       // when: manually flip the clipsToBounds value
       contentView.clipsToBounds = true
       contentView.refresh(animated: false)
 
       // then: it should follow the manual setting
-      expect(contentView.clipsToBounds) == true
+      expectClipping(of: contentView, toBe: true)
 
       // when: manually set the clipsToBounds again
       contentView.clipsToBounds = false
       contentView.refresh(animated: false)
 
       // then: it should follow the manual setting
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
     }
 
     do {
@@ -93,42 +93,42 @@ class ComposeView_ClippingTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: should not clip by default (auto mode)
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
 
       // when: set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
 
       // then: it should clip
-      expect(contentView.clipsToBounds) == true
+      expectClipping(of: contentView, toBe: true)
 
       // when: set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
 
       // then: it should not clip
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
 
       // when: set to manual mode
       contentView.clippingBehavior = .manual
       contentView.refresh(animated: false)
 
       // then: it should not change
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
 
       // when: manually flip the clipsToBounds value
       contentView.clipsToBounds = true
       contentView.refresh(animated: false)
 
       // then: it should follow the manual setting
-      expect(contentView.clipsToBounds) == true
+      expectClipping(of: contentView, toBe: true)
 
       // when: manually set the clipsToBounds again
       contentView.clipsToBounds = false
       contentView.refresh(animated: false)
 
       // then: it should follow the manual setting
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
     }
 
     do {
@@ -141,42 +141,42 @@ class ComposeView_ClippingTests: XCTestCase {
       contentView.refresh(animated: false)
 
       // then: should clip by default (auto mode)
-      expect(contentView.clipsToBounds) == true
+      expectClipping(of: contentView, toBe: true)
 
       // when: set to always clipping
       contentView.clippingBehavior = .always
       contentView.refresh(animated: false)
 
       // then: it should clip
-      expect(contentView.clipsToBounds) == true
+      expectClipping(of: contentView, toBe: true)
 
       // when: set to never clipping
       contentView.clippingBehavior = .never
       contentView.refresh(animated: false)
 
       // then: it should not clip
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
 
       // when: set to manual mode
       contentView.clippingBehavior = .manual
       contentView.refresh(animated: false)
 
       // then: it should not change
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
 
       // when: manually flip the clipsToBounds value
       contentView.clipsToBounds = true
       contentView.refresh(animated: false)
 
       // then: it should follow the manual setting
-      expect(contentView.clipsToBounds) == true
+      expectClipping(of: contentView, toBe: true)
 
       // when: manually set the clipsToBounds again
       contentView.clipsToBounds = false
       contentView.refresh(animated: false)
 
       // then: it should follow the manual setting
-      expect(contentView.clipsToBounds) == false
+      expectClipping(of: contentView, toBe: false)
     }
   }
 }
