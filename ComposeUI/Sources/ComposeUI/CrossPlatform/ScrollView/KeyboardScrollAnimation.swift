@@ -34,7 +34,8 @@ import AppKit
 /// The animation that moves a scroll view's content for the keyboard.
 ///
 /// A key pushes the content until it goes up, and a spring then brings the content to rest, see `KeyboardScrollPhysics`,
-/// while a page key that isn't held down glides the content by a page. A glide and a push or a spring go on together
+/// while a page key that isn't held down glides the content by a page, and an arrow key with Command glides it to the
+/// edge. A glide and a push or a spring go on together
 /// along different axes, so that a key on one axis doesn't stop a key on the other short. The scroll view ends the push
 /// when a key goes up or a modifier changes. The animation ends it itself when the window loses the keyboard or the focus
 /// leaves the scroll view, since the key going up doesn't reach the scroll view then.
@@ -92,11 +93,7 @@ final class KeyboardScrollAnimation: NSObject {
   ///   - step: The distance of a press of the key.
   ///   - time: The time of the key.
   func pressKey(toward direction: KeyboardScrollDirection, step: CGFloat, at time: CFTimeInterval) {
-    let contentOffset = scrollView.contentOffset
-    if contentOffset != lastContentOffset {
-      // something else scrolled the scroll view, so the press starts from where the content is, at rest
-      stop()
-    }
+    let contentOffset = contentOffsetForNewMotion()
 
     if glide?.isVertical == direction.isVertical {
       endGlide(at: contentOffset)
@@ -135,32 +132,54 @@ final class KeyboardScrollAnimation: NSObject {
   ///   - distance: The distance to glide by.
   ///   - time: The time of the key.
   func glide(toward direction: KeyboardScrollDirection, by distance: CGFloat, at time: CFTimeInterval) {
-    let contentOffset = scrollView.contentOffset
-    if contentOffset != lastContentOffset {
-      // something else scrolled the scroll view, so the glide starts from where the content is, at rest
-      stop()
-    }
-
-    let isGliding = glide?.isVertical == direction.isVertical
-    endGlide(at: contentOffset)
-
+    let contentOffset = contentOffsetForNewMotion()
     let isVertical = direction.isVertical
+    let isGliding = glide?.isVertical == isVertical
     let unitVector = direction.unitVector
     let destination = scrollView.keyboardScrollRange.restingOffset(
       for: CGPoint(x: contentOffset.x + unitVector.x * distance, y: contentOffset.y + unitVector.y * distance)
     )
-    glide = Glide(
+    let glide = Glide(
       alongVerticalAxis: isVertical,
       from: contentOffset.coordinate(alongVerticalAxis: isVertical),
       to: destination.coordinate(alongVerticalAxis: isVertical),
       at: time,
       easesIn: !isGliding
     )
-    // the spring holds the content along the other axis, and brings it back into the range when something else left it
-    // outside, as it does content stretched past an end
-    physics = physics ?? KeyboardScrollPhysics(position: contentOffset, time: time)
-    lastContentOffset = contentOffset
-    startDisplayLink()
+    start(glide, from: contentOffset, at: time)
+  }
+
+  /// Glides the content to the edge of the scrollable range toward a direction, for an arrow key with Command: along a
+  /// spring that comes to rest without passing the edge, which starts at speed and slows down into the edge, for up to
+  /// 1.6 s, while a push or a spring goes on along the other axis.
+  ///
+  /// - Parameters:
+  ///   - direction: The direction of the key.
+  ///   - time: The time of the key.
+  func glideToEdge(toward direction: KeyboardScrollDirection, at time: CFTimeInterval) {
+    let contentOffset = contentOffsetForNewMotion()
+    let range = scrollView.keyboardScrollRange
+    var edge = contentOffset
+    switch direction {
+    case .up:
+      edge.y = range.minimum.y
+    case .down:
+      edge.y = range.maximum.y
+    case .left:
+      edge.x = range.minimum.x
+    case .right:
+      edge.x = range.maximum.x
+    }
+
+    let isVertical = direction.isVertical
+    let glide = Glide(
+      alongVerticalAxis: isVertical,
+      from: contentOffset.coordinate(alongVerticalAxis: isVertical),
+      toEdge: range.restingOffset(for: edge).coordinate(alongVerticalAxis: isVertical),
+      at: time,
+      pixelSize: range.pixelSize
+    )
+    start(glide, from: contentOffset, at: time)
   }
 
   /// Moves the content to where the animation has it at a time, and stops once the content rests, or when something
@@ -197,7 +216,7 @@ final class KeyboardScrollAnimation: NSObject {
         .coordinate(alongVerticalAxis: isVertical)
       if destination != glide.destination {
         let start = range.constrained(offset.with(glide.offset(at: time), alongVerticalAxis: isVertical))
-        glide = Glide(alongVerticalAxis: isVertical, from: start.coordinate(alongVerticalAxis: isVertical), to: destination, at: time, easesIn: false)
+        glide = glide.turned(to: destination, from: start.coordinate(alongVerticalAxis: isVertical), at: time)
       }
 
       if glide.hasEnded(at: time) {
@@ -242,6 +261,32 @@ final class KeyboardScrollAnimation: NSObject {
 
     physics?.rest(at: offset, alongVerticalAxis: glide.isVertical)
     self.glide = nil
+  }
+
+  /// Starts a glide in place of the glide that runs, which leaves the content where it is along its axis.
+  ///
+  /// - Parameters:
+  ///   - glide: The glide, which starts from where the content is.
+  ///   - contentOffset: The content offset.
+  ///   - time: The time that the glide starts at.
+  private func start(_ glide: Glide, from contentOffset: CGPoint, at time: CFTimeInterval) {
+    endGlide(at: contentOffset)
+    self.glide = glide
+    // the spring holds the content along the other axis, and brings it back into the range when something else left it
+    // outside, as it does content stretched past an end
+    physics = physics ?? KeyboardScrollPhysics(position: contentOffset, time: time)
+    lastContentOffset = contentOffset
+    startDisplayLink()
+  }
+
+  /// Returns the content offset that a new press or glide starts from, which stops the motions first when something
+  /// else scrolled the scroll view, so that the new one starts from where the content is, at rest.
+  private func contentOffsetForNewMotion() -> CGPoint {
+    let contentOffset = scrollView.contentOffset
+    if contentOffset != lastContentOffset {
+      stop()
+    }
+    return contentOffset
   }
 
   /// Whether the keyboard focus is in the scroll view, where the key going up reaches it.
@@ -301,7 +346,7 @@ final class KeyboardScrollAnimation: NSObject {
 
   // MARK: - Glide
 
-  /// A glide of the content to a destination along a timing curve, along one axis.
+  /// A glide of the content to a destination over time, along one axis.
   private struct Glide {
 
     /// Whether the glide moves the content along the vertical axis, rather than the horizontal one.
@@ -316,8 +361,18 @@ final class KeyboardScrollAnimation: NSObject {
     /// The time that the glide starts at.
     let startTime: CFTimeInterval
 
-    /// The timing curve of the glide, with its duration.
-    let curve: AnimationCurve
+    /// How the glide moves the content over time.
+    private let timing: Timing
+
+    /// How a glide moves the content over time.
+    private enum Timing {
+
+      /// Along a timing curve, with its duration.
+      case curve(AnimationCurve)
+
+      /// Along the spring of a glide to an edge, which ends once the content is within a distance of the edge.
+      case edgeSpring(endingDistance: CGFloat)
+    }
 
     /// Makes a glide at 1000 points per second, for up to 200 ms.
     ///
@@ -328,13 +383,33 @@ final class KeyboardScrollAnimation: NSObject {
     ///   - startTime: The time that the glide starts at.
     ///   - easesIn: Whether the glide eases in as well as out, which a glide that starts from rest does.
     init(alongVerticalAxis isVertical: Bool, from start: CGFloat, to destination: CGFloat, at startTime: CFTimeInterval, easesIn: Bool) {
+      let length = abs(destination - start)
+      let duration = min(TimeInterval(length) / Constants.glideSpeed, Constants.maximumGlideDuration)
+      let timingFunction = CAMediaTimingFunction(name: easesIn ? .easeInEaseOut : .easeOut)
+      let timing = Timing.curve(AnimationCurve(timingFunction: timingFunction, duration: duration))
+      self.init(alongVerticalAxis: isVertical, from: start, to: destination, at: startTime, timing: timing)
+    }
+
+    /// Makes a glide to an edge along a spring, which ends once the content is within a quarter of a pixel of the edge.
+    ///
+    /// - Parameters:
+    ///   - isVertical: Whether the glide moves the content along the vertical axis, rather than the horizontal one.
+    ///   - start: The content offset along the axis that the glide starts from.
+    ///   - edge: The content offset along the axis at the edge, which the glide ends at.
+    ///   - startTime: The time that the glide starts at.
+    ///   - pixelSize: The size of a pixel, in points.
+    init(alongVerticalAxis isVertical: Bool, from start: CGFloat, toEdge edge: CGFloat, at startTime: CFTimeInterval, pixelSize: CGSize) {
+      let pixelLength = isVertical ? pixelSize.height : pixelSize.width
+      let timing = Timing.edgeSpring(endingDistance: pixelLength * Constants.edgeSpringEndingPixelFraction)
+      self.init(alongVerticalAxis: isVertical, from: start, to: edge, at: startTime, timing: timing)
+    }
+
+    private init(alongVerticalAxis isVertical: Bool, from start: CGFloat, to destination: CGFloat, at startTime: CFTimeInterval, timing: Timing) {
       self.isVertical = isVertical
       self.start = start
       self.destination = destination
       self.startTime = startTime
-      let length = abs(destination - start)
-      let duration = min(TimeInterval(length) / Constants.glideSpeed, Constants.maximumGlideDuration)
-      curve = AnimationCurve(timingFunction: CAMediaTimingFunction(name: easesIn ? .easeInEaseOut : .easeOut), duration: duration)
+      self.timing = timing
     }
 
     /// Returns whether the glide has ended at a time.
@@ -342,7 +417,15 @@ final class KeyboardScrollAnimation: NSObject {
     /// - Parameter time: The time.
     /// - Returns: Whether the glide has ended.
     func hasEnded(at time: CFTimeInterval) -> Bool {
-      time - startTime >= curve.duration
+      let elapsedTime = time - startTime
+      switch timing {
+      case .curve(let curve):
+        return elapsedTime >= curve.duration
+      case .edgeSpring(let endingDistance):
+        // the spring takes long to settle its last fraction of a pixel, which doesn't show, so the glide ends once the
+        // content is closer to the edge than that
+        return elapsedTime >= Constants.edgeSpringDuration || abs(destination - offset(at: time)) < endingDistance
+      }
     }
 
     /// Returns where the glide has the content along its axis at a time, between pixels.
@@ -350,7 +433,46 @@ final class KeyboardScrollAnimation: NSObject {
     /// - Parameter time: The time.
     /// - Returns: The content offset along the glide's axis.
     func offset(at time: CFTimeInterval) -> CGFloat {
-      start + (destination - start) * CGFloat(curve.progress(forElapsedTime: time - startTime))
+      let elapsedTime = time - startTime
+      let progress: Double
+      switch timing {
+      case .curve(let curve):
+        progress = curve.progress(forElapsedTime: elapsedTime)
+      case .edgeSpring:
+        progress = Self.edgeSpringProgress(forElapsedTime: elapsedTime)
+      }
+      return start + (destination - start) * CGFloat(progress)
+    }
+
+    /// Returns a glide of the same kind that turns to another destination from an offset at a time, such as when the
+    /// scrollable range leaves the glide's destination.
+    ///
+    /// - Parameters:
+    ///   - destination: The content offset along the glide's axis to turn to.
+    ///   - start: The content offset along the glide's axis that the new glide starts from.
+    ///   - time: The time that the new glide starts at.
+    /// - Returns: The glide to the new destination.
+    func turned(to destination: CGFloat, from start: CGFloat, at time: CFTimeInterval) -> Glide {
+      switch timing {
+      case .curve:
+        return Glide(alongVerticalAxis: isVertical, from: start, to: destination, at: time, easesIn: false)
+      case .edgeSpring:
+        return Glide(alongVerticalAxis: isVertical, from: start, to: destination, at: time, timing: timing)
+      }
+    }
+
+    /// Returns the progress of the spring of a glide to an edge after an elapsed time.
+    ///
+    /// The spring is critically damped, so that it comes to rest without passing the edge, and the time warps along a
+    /// curve that makes the spring start at speed instead of easing in, so that the glide starts as soon as the key goes
+    /// down and slows down into the edge.
+    ///
+    /// - Parameter elapsedTime: The time since the glide started, in seconds.
+    /// - Returns: The progress, from 0 at the start to 1 at the edge.
+    private static func edgeSpringProgress(forElapsedTime elapsedTime: TimeInterval) -> Double {
+      let warpedTime = Constants.edgeSpringTimeWarp.progress(forElapsedTime: elapsedTime) * Constants.edgeSpringDuration
+      let angularFrequency = 2 * Double.pi / Constants.edgeSpringResponse
+      return 1 - exp(-angularFrequency * warpedTime) * (1 + angularFrequency * warpedTime)
     }
   }
 
@@ -363,6 +485,18 @@ final class KeyboardScrollAnimation: NSObject {
 
     /// The longest duration of a glide, in seconds.
     static let maximumGlideDuration: TimeInterval = 0.2
+
+    /// The response of the spring of a glide to an edge: the period of its oscillation without damping, in seconds.
+    static let edgeSpringResponse: Double = 0.6
+
+    /// The longest duration of a glide to an edge, which its spring takes to settle, in seconds.
+    static let edgeSpringDuration: TimeInterval = 1.6
+
+    /// The curve that warps the time of the spring of a glide to an edge, which makes the spring start at speed.
+    static let edgeSpringTimeWarp = AnimationCurve(timingFunction: CAMediaTimingFunction(controlPoints: 0, 0.2, 1, 1), duration: edgeSpringDuration)
+
+    /// The fraction of a pixel from the edge within which a glide to an edge ends.
+    static let edgeSpringEndingPixelFraction: CGFloat = 0.25
   }
 }
 

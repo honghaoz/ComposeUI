@@ -534,9 +534,9 @@ open class ScrollView: NSScrollView {
 
   // MARK: - Keyboard
 
-  // The arrow and page keys scroll the scroll view while the keyboard focus is in it, see `KeyboardScrollAnimation`.
-  // AppKit sends the scroll view the actions of these keys when no view between the focused view and the scroll view
-  // handles them.
+  // The arrow and page keys scroll the scroll view while the keyboard focus is in it, see `KeyboardScrollAnimation`, an
+  // arrow key by a line, by a page with Option, and to the edge with Command. AppKit sends the scroll view the actions
+  // of these keys when no view between the focused view and the scroll view handles them.
   //
   // A press stays with the scroll view that takes it until the key goes up, and keys pressed meanwhile do nothing, so
   // that a key held down in a nested scroll view stretches it at its end instead of moving the scroll view around it.
@@ -559,22 +559,26 @@ open class ScrollView: NSScrollView {
     super.mouseDown(with: event)
   }
 
-  /// Scrolls the content up for the up arrow key, or passes the action on when the scroll view doesn't take the key.
+  /// Scrolls the content up for the up arrow key, or to the top with Command, or passes the action on when the scroll
+  /// view doesn't take the key.
   override open func moveUp(_ sender: Any?) {
     scroll(toward: .up, by: .line, for: #selector(moveUp(_:)), sender: sender)
   }
 
-  /// Scrolls the content down for the down arrow key, or passes the action on when the scroll view doesn't take the key.
+  /// Scrolls the content down for the down arrow key, or to the bottom with Command, or passes the action on when the
+  /// scroll view doesn't take the key.
   override open func moveDown(_ sender: Any?) {
     scroll(toward: .down, by: .line, for: #selector(moveDown(_:)), sender: sender)
   }
 
-  /// Scrolls the content left for the left arrow key, or passes the action on when the scroll view doesn't take the key.
+  /// Scrolls the content left for the left arrow key, or to the left edge with Command, or passes the action on when
+  /// the scroll view doesn't take the key.
   override open func moveLeft(_ sender: Any?) {
     scroll(toward: .left, by: .line, for: #selector(moveLeft(_:)), sender: sender)
   }
 
-  /// Scrolls the content right for the right arrow key, or passes the action on when the scroll view doesn't take the key.
+  /// Scrolls the content right for the right arrow key, or to the right edge with Command, or passes the action on when
+  /// the scroll view doesn't take the key.
   override open func moveRight(_ sender: Any?) {
     scroll(toward: .right, by: .line, for: #selector(moveRight(_:)), sender: sender)
   }
@@ -603,6 +607,18 @@ open class ScrollView: NSScrollView {
   /// Scrolls the content down by a page for a view that interprets its keys, as `pageDown(_:)` does, see `scrollPageUp(_:)`.
   override open func scrollPageDown(_ sender: Any?) {
     pageDown(sender)
+  }
+
+  /// Scrolls the content to the top for a view that interprets its keys, which sends Command-Up as this action, or
+  /// passes the action on when the scroll view doesn't take the key.
+  override open func moveToBeginningOfDocument(_ sender: Any?) {
+    scroll(toward: .up, by: .edge, for: #selector(moveToBeginningOfDocument(_:)), sender: sender)
+  }
+
+  /// Scrolls the content to the bottom for a view that interprets its keys, which sends Command-Down as this action, or
+  /// passes the action on when the scroll view doesn't take the key.
+  override open func moveToEndOfDocument(_ sender: Any?) {
+    scroll(toward: .down, by: .edge, for: #selector(moveToEndOfDocument(_:)), sender: sender)
   }
 
   override open func keyUp(with event: NSEvent) {
@@ -653,18 +669,47 @@ open class ScrollView: NSScrollView {
     /// A line, for an arrow key.
     case line
 
-    /// A page, for a page key.
+    /// A page, for a page key, or an arrow key with Option.
     case page
+
+    /// To the edge, for an arrow key with Command.
+    case edge
+
+    /// Returns the granularity of the key with modifier keys down, `nil` when the modifier keys leave the key to other
+    /// uses, such as selecting with Shift.
+    ///
+    /// - Parameter modifierFlags: The modifier keys that are down with the key.
+    /// - Returns: The granularity of the key with the modifier keys.
+    func modified(by modifierFlags: NSEvent.ModifierFlags) -> KeyboardScrollGranularity? {
+      let modifiers = modifierFlags.intersection([.command, .option, .control, .shift])
+      switch self {
+      case .line:
+        if modifiers.isEmpty {
+          return .line
+        } else if modifiers == .option {
+          return .page
+        } else if modifiers == .command {
+          return .edge
+        } else {
+          return nil
+        }
+      case .page:
+        return modifiers.isEmpty ? .page : nil
+      case .edge:
+        // the actions to the edge come from keys with Command already, in views that interpret their keys
+        return .edge
+      }
+    }
   }
 
   /// Scrolls the content toward a direction for a key, or passes the key's action on to a scroll view around.
   ///
   /// - Parameters:
   ///   - direction: The direction of the key.
-  ///   - granularity: The distance that the key scrolls the content by.
+  ///   - keyGranularity: The distance that the key scrolls the content by without modifier keys.
   ///   - action: The key's action, which the scroll view passes on.
   ///   - sender: The sender of the action.
-  private func scroll(toward direction: KeyboardScrollDirection, by granularity: KeyboardScrollGranularity, for action: Selector, sender: Any?) {
+  private func scroll(toward direction: KeyboardScrollDirection, by keyGranularity: KeyboardScrollGranularity, for action: Selector, sender: Any?) {
     // the application dispatches a key that goes down as its current event, while an action from a menu or from code
     // has no key that goes up. `NSApp` is nil until an application exists, which no key comes before
     let currentEvent = NSApp?.currentEvent
@@ -680,10 +725,11 @@ open class ScrollView: NSScrollView {
       return
     }
 
-    // only the keys without modifiers scroll, which leaves the modified keys to other uses, and a press with Command
-    // couldn't end, since AppKit doesn't send the key going up while Command is down
-    let hasModifier = keyDownEvent?.modifierFlags.isDisjoint(with: [.command, .option, .control, .shift]) == false
-    guard isScrollEnabled, direction.isVertical ? hasVerticalScrollRange : hasHorizontalScrollRange, !hasModifier else {
+    guard
+      isScrollEnabled,
+      direction.isVertical ? hasVerticalScrollRange : hasHorizontalScrollRange,
+      let granularity = keyGranularity.modified(by: keyDownEvent?.modifierFlags ?? [])
+    else {
       nextResponder?.tryToPerform(action, with: sender)
       return
     }
@@ -703,9 +749,10 @@ open class ScrollView: NSScrollView {
       case .line:
         // with no scroll view around to go on to, an arrow key stretches the content at its end
         scrollContent(toward: direction, by: granularity, isRepeat: false, isFromKeyDown: keyDownEvent != nil)
-      case .page:
-        // a page key at an end goes on to an AppKit scroll view around, which handles the page actions, instead of
-        // stretching the content
+      case .page,
+           .edge:
+        // a key by a page or to the edge at an end goes on to the responders around, such as an AppKit scroll view,
+        // which handles the page actions, instead of stretching the content
         keyCodeOfAPressPassedOn = keyDownEvent?.keyCode
         nextResponder?.tryToPerform(action, with: sender)
       }
@@ -736,7 +783,9 @@ open class ScrollView: NSScrollView {
     case .line:
       distance = Constants.keyboardLineScrollDistance
     case .page:
-      distance = keyboardPageScrollDistance
+      distance = keyboardPageScrollDistance(alongVerticalAxis: direction.isVertical)
+    case .edge:
+      distance = keyboardEdgeScrollDistance(toward: direction)
     }
     let unitVector = direction.unitVector
     let offset = CGPoint(x: unitVector.x * distance, y: unitVector.y * distance)
@@ -753,6 +802,13 @@ open class ScrollView: NSScrollView {
       // a page key glides the content by a page, and pushes it only once it's held down, so that a press scrolls by a
       // page
       animation.glide(toward: direction, by: distance, at: time)
+    case .edge where !isRepeat:
+      // a key with Command glides the content to the edge without pushing it, since AppKit doesn't send the key going
+      // up while Command is down, so a press couldn't end
+      animation.glideToEdge(toward: direction, at: time)
+    case .edge:
+      // a repeat of a key with Command leaves the glide of its press, which goes to the edge already
+      break
     case .line,
          .page:
       animation.pressKey(toward: direction, step: distance, at: time)
@@ -795,12 +851,32 @@ open class ScrollView: NSScrollView {
     documentView.scroll(documentView.convert(target, from: contentView))
   }
 
-  /// The distance that a page key scrolls the content: the visible height between the insets, less an overlap that
-  /// keeps the end of the last page in view, and at least a fraction of that height.
-  private var keyboardPageScrollDistance: CGFloat {
+  /// Returns the distance that a page scrolls the content along an axis: the visible length between the insets, less an
+  /// overlap that keeps the end of the last page in view, and at least a fraction of that length.
+  ///
+  /// - Parameter isVertical: Whether the axis is the vertical one, rather than the horizontal one.
+  /// - Returns: The distance of a page.
+  private func keyboardPageScrollDistance(alongVerticalAxis isVertical: Bool) -> CGFloat {
     let insets = adjustedContentInset
-    let height = visibleSize.height - insets.top - insets.bottom
-    return max(height * Constants.keyboardMinimumPageFraction, height - Constants.keyboardPageOverlap)
+    let length = isVertical ? visibleSize.height - insets.top - insets.bottom : visibleSize.width - insets.left - insets.right
+    return max(length * Constants.keyboardMinimumPageFraction, length - Constants.keyboardPageOverlap)
+  }
+
+  /// Returns the distance from the content offset to the edge of the scrollable range toward a direction.
+  ///
+  /// - Parameter direction: The direction.
+  /// - Returns: The distance to the edge.
+  private func keyboardEdgeScrollDistance(toward direction: KeyboardScrollDirection) -> CGFloat {
+    switch direction {
+    case .up:
+      return contentOffset.y - minOffsetY
+    case .down:
+      return maxOffsetY - contentOffset.y
+    case .left:
+      return contentOffset.x - minOffsetX
+    case .right:
+      return maxOffsetX - contentOffset.x
+    }
   }
 
   // MARK: - Keyboard Scroll Animation
@@ -870,10 +946,10 @@ open class ScrollView: NSScrollView {
     /// The distance that an arrow key scrolls the content.
     static let keyboardLineScrollDistance: CGFloat = 40
 
-    /// The overlap of the visible height that a page key keeps in view.
+    /// The overlap of the visible length that a page keeps in view.
     static let keyboardPageOverlap: CGFloat = 40
 
-    /// The smallest fraction of the visible height that a page key scrolls the content by.
+    /// The smallest fraction of the visible length that a page scrolls the content by.
     static let keyboardMinimumPageFraction: CGFloat = 0.8
   }
 }

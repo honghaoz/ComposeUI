@@ -254,7 +254,7 @@ extension NSWindow {
 
   private enum Constants {
 
-    /// How long after a key a keyboard scroll has long come to rest, which takes it under a second once the key goes up.
+    /// How long after a key a keyboard scroll has long come to rest, which takes it at most 1.6 s once the key goes up.
     static let settlingTime: TimeInterval = 10
   }
 }
