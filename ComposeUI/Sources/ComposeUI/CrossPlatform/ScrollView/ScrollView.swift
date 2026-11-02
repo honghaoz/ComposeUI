@@ -857,8 +857,10 @@ open class ScrollView: NSScrollView {
   /// - Parameter isVertical: Whether the axis is the vertical one, rather than the horizontal one.
   /// - Returns: The distance of a page.
   private func keyboardPageScrollDistance(alongVerticalAxis isVertical: Bool) -> CGFloat {
+    // AppKit keeps left and right insets that add up to more than the visible width, which leave no length between them,
+    // instead of a negative one that would page the other way
     let insets = adjustedContentInset
-    let length = isVertical ? visibleSize.height - insets.top - insets.bottom : visibleSize.width - insets.left - insets.right
+    let length = max(0, isVertical ? visibleSize.height - insets.top - insets.bottom : visibleSize.width - insets.left - insets.right)
     return max(length * Constants.keyboardMinimumPageFraction, length - Constants.keyboardPageOverlap)
   }
 
