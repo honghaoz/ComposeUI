@@ -14,11 +14,11 @@ build: # Build the package.
 
 .PHONY: build-playground-macOS
 build-playground-macOS: # Build the macOS playground.
-	@./scripts/xcodebuild/build-project.sh --project "./playgrounds/ComposeUIPlayground-macOS/ComposeUIPlayground-macOS.xcodeproj" --scheme "ComposeUIPlayground-macOS" --configuration "Release" --os "macOS"
+	@./scripts/xcodebuild/build-project.sh --project "./playgrounds/ComposeUIPlayground.xcodeproj" --scheme "ComposeUIPlayground-AppKit" --configuration "Release" --os "macOS"
 
 .PHONY: build-playground-iOS
 build-playground-iOS: # Build the iOS playground.
-	@./scripts/xcodebuild/build-project.sh --project "./playgrounds/ComposeUIPlayground-iOS/ComposeUIPlayground-iOS.xcodeproj" --scheme "ComposeUIPlayground-iOS" --configuration "Release" --os "iOS"
+	@./scripts/xcodebuild/build-project.sh --project "./playgrounds/ComposeUIPlayground.xcodeproj" --scheme "ComposeUIPlayground-UIKit" --configuration "Release" --os "iOS"
 
 .PHONY: format
 format: # Format the code.

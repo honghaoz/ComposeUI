@@ -20,7 +20,7 @@ A cross-platform declarative UI framework built directly on UIKit/AppKit and Cor
 - Root-level tooling and metadata live in `Makefile`, `scripts/`, `configs/`, and `bin/`.
 - Main framework code is in `ComposeUI/Sources/ComposeUI`.
 - Tests are in `ComposeUI/Tests/ComposeUITests`. Tests that need an app with a window scene are in `ComposeUI/HostedTests`, an Xcode project whose app hosts them on iOS and visionOS.
-- Playgrounds live in `playgrounds/` with separate projects for macOS and iOS.
+- Playgrounds live in `playgrounds/ComposeUIPlayground.xcodeproj`, with an app target each for AppKit and UIKit that share `playgrounds/Sources/Shared`.
 - Development docs, such as the performance learnings, live in `docs/`.
 - Root `Package.swift` is for public package consumption. Internal day-to-day development and tests run from `ComposeUI/`.
 

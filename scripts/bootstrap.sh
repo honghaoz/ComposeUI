@@ -60,8 +60,7 @@ case "$OS" in
       echo "🔄 Update packages..."
       "$REPO_ROOT/scripts/swift-package/update-packages.sh" ComposeUI
       "$REPO_ROOT/scripts/swift-package/update-packages.sh" ./ComposeUI/HostedTests/ComposeUIHostedTests.xcodeproj
-      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ./playgrounds/ComposeUIPlayground-macOS/ComposeUIPlayground-macOS.xcodeproj
-      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ./playgrounds/ComposeUIPlayground-iOS/ComposeUIPlayground-iOS.xcodeproj
+      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ./playgrounds/ComposeUIPlayground.xcodeproj
     fi
 
     echo ""
