@@ -350,8 +350,8 @@ final class KeyboardScrollAnimation: NSObject {
       case curve(AnimationCurve)
 
       /// Along the spring of a glide to the edge toward a direction, which ends once the content is within a distance of
-      /// the edge.
-      case edgeSpring(direction: KeyboardScrollDirection, endingDistance: CGFloat)
+      /// the edge, or at a deadline, which a glide that turns to an edge that moves keeps.
+      case edgeSpring(direction: KeyboardScrollDirection, endingDistance: CGFloat, deadline: CFTimeInterval)
     }
 
     /// Makes a glide at 1000 points per second, for up to 200 ms.
@@ -381,7 +381,11 @@ final class KeyboardScrollAnimation: NSObject {
     init(toEdgeToward direction: KeyboardScrollDirection, from offset: CGPoint, in range: KeyboardScrollRange, at startTime: CFTimeInterval) {
       let isVertical = direction.isVertical
       let pixelLength = isVertical ? range.pixelSize.height : range.pixelSize.width
-      let timing = Timing.edgeSpring(direction: direction, endingDistance: pixelLength * Constants.edgeSpringEndingPixelFraction)
+      let timing = Timing.edgeSpring(
+        direction: direction,
+        endingDistance: pixelLength * Constants.edgeSpringEndingPixelFraction,
+        deadline: startTime + Constants.edgeSpringDuration
+      )
       self.init(
         alongVerticalAxis: isVertical,
         from: offset.coordinate(alongVerticalAxis: isVertical),
@@ -408,10 +412,11 @@ final class KeyboardScrollAnimation: NSObject {
       switch timing {
       case .curve(let curve):
         return elapsedTime >= curve.duration
-      case .edgeSpring(_, let endingDistance):
+      case .edgeSpring(_, let endingDistance, let deadline):
         // the spring takes long to settle its last fraction of a pixel, which doesn't show, so the glide ends once the
-        // content is closer to the edge than that
-        return elapsedTime >= Constants.edgeSpringDuration || abs(destination - offset(at: time)) < endingDistance
+        // content is closer to the edge than that. it ends at its deadline too, also after turns to an edge that keeps
+        // moving, such as when content grows on each frame, which the spring trails
+        return time >= deadline || abs(destination - offset(at: time)) < endingDistance
       }
     }
 
@@ -442,7 +447,7 @@ final class KeyboardScrollAnimation: NSObject {
       switch timing {
       case .curve:
         return range.restingOffset(for: offset.with(destination, alongVerticalAxis: isVertical)).coordinate(alongVerticalAxis: isVertical)
-      case .edgeSpring(let direction, _):
+      case .edgeSpring(let direction, _, _):
         return Self.edge(toward: direction, in: range, from: offset)
       }
     }
