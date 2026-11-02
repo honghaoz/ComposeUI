@@ -110,7 +110,7 @@ extension Playground {
 
       return ButtonNode { state in
         let isPressed = Self.isPressed(state)
-        Self.light(button, color: color, diameter: diameter, isPressed: isPressed, showsGlyph: showsGlyph || isPressed)
+        Self.light(button, color: isPressed ? Self.pressed(color) : color, diameter: diameter, showsGlyph: showsGlyph || isPressed)
       } onTap: {
         print("\(button) tapped")
       }
@@ -141,12 +141,9 @@ extension Playground {
     }
 
     /// The light of a button, which keeps the same nodes in every state, so that the stack keeps their renderables.
-    private static func light(_ button: TrafficLightButton, color: ThemedColor, diameter: CGFloat, isPressed: Bool, showsGlyph: Bool) -> some ComposeNode {
+    private static func light(_ button: TrafficLightButton, color: ThemedColor, diameter: CGFloat, showsGlyph: Bool) -> some ComposeNode {
       ZStack {
         ColorNode(color)
-          .cornerRadius(diameter / 2, cornerCurve: .circular)
-
-        ColorNode(isPressed ? Constants.pressedColor : .clear)
           .cornerRadius(diameter / 2, cornerCurve: .circular)
 
         // the glow comes before the lower highlight, instead of after it as in the gist, so that it's right over the
@@ -232,7 +229,20 @@ extension Playground {
     ///   - amount: The opacity of the blend's white, or minus the opacity of its black.
     /// - Returns: The color that the blend gives.
     private static func blended(_ color: ThemedColor, adding amount: CGFloat) -> ThemedColor {
-      func blended(_ color: Color) -> Color {
+      mapComponents(of: color) { min(max($0 + amount, 0), 1) }
+    }
+
+    /// The color of a pressed light, which a window darkens.
+    ///
+    /// The pressed light takes the darker color, instead of a dark layer over it, so that the glow and the rim, which
+    /// blend with the light's color, blend with the darker color too.
+    private static func pressed(_ color: ThemedColor) -> ThemedColor {
+      mapComponents(of: color) { $0 * (1 - Constants.pressedDarkening) }
+    }
+
+    /// A color whose red, green and blue components are changed, in both themes.
+    private static func mapComponents(of color: ThemedColor, _ transform: (CGFloat) -> CGFloat) -> ThemedColor {
+      func mapped(_ color: Color) -> Color {
         #if canImport(AppKit)
         // AppKit gives the components of a color in an RGB color space only, unlike the light's gray in a non-key window
         let color = color.usingColorSpace(.sRGB) ?? color
@@ -243,14 +253,9 @@ extension Playground {
         var blue: CGFloat = 0
         var alpha: CGFloat = 0
         color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        return Color(
-          red: min(max(red + amount, 0), 1),
-          green: min(max(green + amount, 0), 1),
-          blue: min(max(blue + amount, 0), 1),
-          alpha: 1
-        )
+        return Color(red: transform(red), green: transform(green), blue: transform(blue), alpha: 1)
       }
-      return ThemedColor(light: blended(color.light), dark: blended(color.dark))
+      return ThemedColor(light: mapped(color.light), dark: mapped(color.dark))
     }
 
     // MARK: - Paths
@@ -341,8 +346,8 @@ extension Playground {
       /// The color of a window's buttons on macOS 26 while the window isn't key.
       static let inactiveColor = ThemedColor(light: Color(white: 0.863, alpha: 1), dark: Color(white: 0.137, alpha: 1))
 
-      /// The color over a pressed button, which darkens it as a window on macOS 26 does.
-      static let pressedColor = Color(white: 0, alpha: 0.17)
+      /// How much a window on macOS 26 darkens a pressed button, as black at this opacity over it does.
+      static let pressedDarkening: CGFloat = 0.17
 
       /// The color of a window's glyphs on macOS 26.
       static let glyphColor = Color(white: 0, alpha: 0.5)
