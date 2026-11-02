@@ -30,7 +30,7 @@
 
 import UIKit
 
-/// A full-screen page for the transform lab, with a close button above it.
+/// A full-screen page for the transform lab.
 final class TransformLabViewController: UIViewController {
 
   private let lab = Playground.TransformLab(frame: .zero)

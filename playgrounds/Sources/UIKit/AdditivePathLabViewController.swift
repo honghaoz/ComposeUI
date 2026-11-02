@@ -30,7 +30,7 @@
 
 import UIKit
 
-/// A full-screen page for the additive path lab, with a close button above it.
+/// A full-screen page for the additive path lab.
 final class AdditivePathLabViewController: UIViewController {
 
   private let lab = Playground.AdditivePathLab(frame: .zero)

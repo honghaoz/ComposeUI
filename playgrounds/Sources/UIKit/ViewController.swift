@@ -107,6 +107,14 @@ class ViewController: UIViewController {
     .frame(width: 200, height: 36)
     .padding(bottom: Constants.padding)
 
+    Playground.button(title: "Open Frame Rate Lab", fontSize: 14) { [weak self] in
+      let controller = FrameRateLabViewController()
+      controller.modalPresentationStyle = .fullScreen
+      self?.present(controller, animated: true)
+    }
+    .frame(width: 200, height: 36)
+    .padding(bottom: Constants.padding)
+
     VStack(spacing: 8) {
 
       ViewNode<Playground.TransitionView>()
