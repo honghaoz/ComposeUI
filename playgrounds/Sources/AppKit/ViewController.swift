@@ -196,6 +196,16 @@ class ViewController: NSViewController {
 
       Spacer(height: 16)
 
+      ViewNode<Playground.TrafficLights>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: 16)
+        .frame(width: .flexible, height: Playground.TrafficLights.preferredHeight)
+
+      Spacer(height: 16)
+
       ViewNode<Playground.LabelView>()
         .underlay {
           LayerNode()
