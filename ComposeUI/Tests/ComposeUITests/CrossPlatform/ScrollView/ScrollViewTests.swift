@@ -1679,6 +1679,37 @@ class ScrollViewTests: XCTestCase {
     }
   }
 
+  func test_leftAndRightArrowsWithOption_scrollByAPageOfTheWidthBetweenTheInsets_withAndWithoutTheAnimation() {
+    for scrollsWithAnimation in [true, false] {
+      // given: a 100 × 100 scroll view in a window, with insets of 20 points on the left and 40 on the right, which
+      // leave 40 points of width between them, in the middle of content 1000 wide, with the focus in it, whose keys
+      // scroll with the animation, or without it
+      let window = TestWindow()
+      let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      scrollView.automaticallyAdjustsContentInsets = false
+      scrollView.contentInset = EdgeInsets(top: 0, left: 20, bottom: 0, right: 40)
+      scrollView.contentSize = CGSize(width: 1000, height: 100)
+      window.contentView().addSubview(scrollView)
+      window.makeFirstResponder(scrollView)
+      ScrollView.scrollsWithKeyboardAnimationForTesting = scrollsWithAnimation
+      defer {
+        ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+      }
+
+      for (key, offset): (ScrollingKey, CGPoint) in [(.right, CGPoint(x: 432, y: 0)), (.left, CGPoint(x: 368, y: 0))] {
+        // when: the arrow key goes down and up with Option
+        scrollView.contentOffset = CGPoint(x: 400, y: 0)
+        window.keyDown(key, modifierFlags: .option)
+        window.keyUp(key)
+        window.settleKeyboardScrolls()
+
+        // then: the content scrolls toward the key by a page, 80% of the 40 point width between the insets, more than
+        // that width less the 40 point overlap
+        expect(scrollView.contentOffset).toEventually(beEqual(to: offset))
+      }
+    }
+  }
+
   func test_arrowKeysWithCommand_scrollToTheEdgeTowardEachDirection_withAndWithoutTheAnimation() {
     for scrollsWithAnimation in [true, false] {
       // given: a 100 × 100 scroll view in a window, in the middle of content 1000 × 1000, with the focus in it, whose
