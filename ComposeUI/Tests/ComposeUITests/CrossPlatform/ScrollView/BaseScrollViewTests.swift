@@ -450,6 +450,29 @@ class BaseScrollViewTests: XCTestCase {
     expect(receivedThemes).toEventually(beEqual(to: [currentTheme, currentTheme.opposite, currentTheme]))
   }
 
+  // MARK: - Clipping
+
+  func test_clipsToBounds_byDefault() {
+    // given: a new scroll view
+    let scrollView = BaseScrollView()
+
+    // then: it clips, as a `UIScrollView` does by default
+    expectClipping(of: scrollView, toBe: true)
+  }
+
+  func test_clipsToBounds() {
+    // given: a scroll view
+    let scrollView = BaseScrollView()
+
+    for clipsToBounds in [false, false, true, true, false, true] {
+      // when: setting whether it clips, to each value twice in a row too
+      scrollView.clipsToBounds = clipsToBounds
+
+      // then: it clips as set
+      expectClipping(of: scrollView, toBe: clipsToBounds)
+    }
+  }
+
   // MARK: - Helper
 
   /// Expect the theme of a view to be the given theme.

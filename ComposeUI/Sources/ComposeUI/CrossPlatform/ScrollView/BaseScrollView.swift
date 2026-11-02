@@ -49,6 +49,9 @@ open class BaseScrollView: ScrollView {
     contentScaleFactor = windowScaleFactor
 
     #if canImport(AppKit)
+    // clips by default, as documented and as a `UIScrollView` does, instead of only through the clip view, since
+    // `updateCommonSettings()` turns off the layer's clipping
+    clipsToBounds = true
     startObservingAppearance()
     #endif
   }
@@ -94,7 +97,9 @@ open class BaseScrollView: ScrollView {
   /// Default value is `true`.
   override public var clipsToBounds: Bool {
     get {
-      contentView.clipsToBounds
+      // AppKit's setter reads the getter to set the layer's `masksToBounds`, so the getter returns the scroll view's
+      // own value instead of the clip view's, which the setter changes only after super's
+      super.clipsToBounds
     }
     set {
       super.clipsToBounds = newValue
