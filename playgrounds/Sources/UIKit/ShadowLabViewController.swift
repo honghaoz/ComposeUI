@@ -45,16 +45,18 @@ final class ShadowLabViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    view.backgroundColor = .systemBackground
+    view.backgroundColor = Colors.screenBackground
     view.addSubview(closeButton)
     view.addSubview(lab)
   }
 
+  #if !os(tvOS)
   /// The lab needs about 700 points of height for its controls, status and stage together, which a phone only has in
   /// portrait. An iPad has it in both orientations.
   override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
     traitCollection.userInterfaceIdiom == .phone ? .portrait : .all
   }
+  #endif
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()

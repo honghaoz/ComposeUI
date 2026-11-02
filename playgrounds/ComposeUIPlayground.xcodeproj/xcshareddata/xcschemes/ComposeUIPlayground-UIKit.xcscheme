@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "C0DE2000000000000000E001"
-               BuildableName = "Compose&#x301;UI.app"
+               BuildableName = "ComposeUIPlayground.app"
                BlueprintName = "ComposeUIPlayground-UIKit"
                ReferencedContainer = "container:ComposeUIPlayground.xcodeproj">
             </BuildableReference>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "C0DE2000000000000000E001"
-            BuildableName = "Compose&#x301;UI.app"
+            BuildableName = "ComposeUIPlayground.app"
             BlueprintName = "ComposeUIPlayground-UIKit"
             ReferencedContainer = "container:ComposeUIPlayground.xcodeproj">
          </BuildableReference>
@@ -62,7 +62,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "C0DE2000000000000000E001"
-            BuildableName = "Compose&#x301;UI.app"
+            BuildableName = "ComposeUIPlayground.app"
             BlueprintName = "ComposeUIPlayground-UIKit"
             ReferencedContainer = "container:ComposeUIPlayground.xcodeproj">
          </BuildableReference>

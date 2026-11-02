@@ -12,9 +12,32 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		C0DE2000000000000000F001 /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "ComposéUI.app"; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0DE2000000000000000F001 /* ComposeUIPlayground.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ComposeUIPlayground.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0DE2000000000000000F002 /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "ComposéUI.app"; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C0DE2000000000000000A701 /* Exceptions for "UIKit" folder in "ComposeUIPlayground-UIKit" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			platformFiltersByRelativePath = {
+				LaunchScreen.storyboard = (
+					ios,
+					xros,
+				);
+				Main.storyboard = (
+					ios,
+					xros,
+				);
+				tvOS/LaunchScreen.storyboard = (
+					tvos,
+				);
+				tvOS/Main.storyboard = (
+					tvos,
+				);
+			};
+			target = C0DE2000000000000000E001 /* ComposeUIPlayground-UIKit */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C0DE2000000000000000A311 /* Shared */ = {
@@ -34,6 +57,9 @@
 		};
 		C0DE2000000000000000A321 /* UIKit */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C0DE2000000000000000A701 /* Exceptions for "UIKit" folder in "ComposeUIPlayground-UIKit" target */,
+			);
 			path = UIKit;
 			sourceTree = "<group>";
 		};
@@ -88,7 +114,7 @@
 		C0DE2000000000000000A302 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				C0DE2000000000000000F001 /* ComposéUI.app */,
+				C0DE2000000000000000F001 /* ComposeUIPlayground.app */,
 				C0DE2000000000000000F002 /* ComposéUI.app */,
 			);
 			name = Products;
@@ -139,7 +165,7 @@
 				C0DE2000000000000000D001 /* ComposeUI */,
 			);
 			productName = "ComposeUIPlayground-UIKit";
-			productReference = C0DE2000000000000000F001 /* ComposéUI.app */;
+			productReference = C0DE2000000000000000F001 /* ComposeUIPlayground.app */;
 			productType = "com.apple.product-type.application";
 		};
 		C0DE2000000000000000E002 /* ComposeUIPlayground-AppKit */ = {
@@ -367,6 +393,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Supporting Files/UIKit/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "ComposéUI";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -380,11 +407,15 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "io.chouti.ComposeUIPlayground-iOS";
-				PRODUCT_NAME = "ComposéUI";
+				PRODUCT_NAME = ComposeUIPlayground;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,3,7";
+				TVOS_DEPLOYMENT_TARGET = 16.0;
+				XROS_DEPLOYMENT_TARGET = 1.0;
 			};
 			name = Debug;
 		};
@@ -397,6 +428,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Supporting Files/UIKit/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "ComposéUI";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -410,12 +442,16 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "io.chouti.ComposeUIPlayground-iOS";
-				PRODUCT_NAME = "ComposéUI";
+				PRODUCT_NAME = ComposeUIPlayground;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,3,7";
+				TVOS_DEPLOYMENT_TARGET = 16.0;
 				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 1.0;
 			};
 			name = Release;
 		};

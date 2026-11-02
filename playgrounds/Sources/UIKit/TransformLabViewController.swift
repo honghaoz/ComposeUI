@@ -45,7 +45,7 @@ final class TransformLabViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    view.backgroundColor = .systemBackground
+    view.backgroundColor = Colors.screenBackground
     view.addSubview(closeButton)
     view.addSubview(lab)
   }

@@ -179,6 +179,10 @@ extension Playground {
         Spacer(height: 16)
 
         SwiftUIViewNode {
+          #if os(tvOS)
+          // tvOS has no text selection
+          AnyView(Text("SwiftUI Text"))
+          #else
           if #available(macOS 12.0, iOS 15.0, *) {
             AnyView(
               Text("SwiftUI Text")
@@ -187,6 +191,7 @@ extension Playground {
           } else {
             AnyView(EmptyView())
           }
+          #endif
         }
         .frame(width: .flexible, height: 120)
 
