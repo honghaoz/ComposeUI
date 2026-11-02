@@ -250,6 +250,14 @@ class ViewController: UIViewController {
       )
       .frame(width: 100, height: 44)
 
+      ViewNode<Playground.TrafficLights>()
+        .underlay {
+          LayerNode()
+            .border(color: Color.gray, width: 1)
+        }
+        .padding(horizontal: Constants.padding)
+        .frame(width: .flexible, height: Playground.TrafficLights.preferredHeight)
+
       ViewNode<Playground.SwiftUIView>()
         .underlay {
           LayerNode()
