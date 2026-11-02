@@ -904,6 +904,173 @@ class KeyboardScrollAnimationTests: XCTestCase {
     expect(scrollView.contentOffset) == CGPoint(x: 0, y: 380)
   }
 
+  // MARK: - Edge Glides
+
+  func test_arrowKeyWithCommand_glidesToTheEdgeAlongASpring() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view at the top of content 1100 tall, which scrolls to 1000
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1100))
+
+    // when: the down arrow goes down and up with Command, and frames step the animation until it stops
+    window.keyDown(.down, at: Constants.startTime, modifierFlags: .command)
+    window.keyUp(.down, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime)
+
+    // then: each frame shows the content on whole pixels where a critically damped spring with a response of 0.6 s has
+    // it, with its time warped along cubic-bezier(0, 0.2, 1, 1) over 1.6 s, which starts it at speed, until the content
+    // is within a quarter of a pixel of the bottom edge, where it rests after about a second
+    let timeWarp = AnimationCurve(timingFunction: CAMediaTimingFunction(controlPoints: 0, 0.2, 1, 1), duration: 1.6)
+    let angularFrequency = 2 * Double.pi / 0.6
+    let pixelHeight = scrollView.pixelSize.height
+    var expectedOffsets: [CGFloat] = []
+    var frame = 1
+    while true {
+      let elapsedTime = Constants.startTime + Double(frame) * KeyboardScrollAnimation.testFrameDuration - Constants.startTime
+      let warpedTime = timeWarp.progress(forElapsedTime: elapsedTime) * 1.6
+      let offset = 1000 * CGFloat(1 - exp(-angularFrequency * warpedTime) * (1 + angularFrequency * warpedTime))
+      if 1000 - offset < pixelHeight / 4 {
+        expectedOffsets.append(1000)
+        break
+      }
+      expectedOffsets.append((offset / pixelHeight).rounded() * pixelHeight)
+      frame += 1
+    }
+    expect(offsets.map(\.y)) == expectedOffsets
+    expect(Double(offsets.count) * KeyboardScrollAnimation.testFrameDuration) < 1.1
+    expect(animation.isKeyHeld) == false
+    expect(animation.isRunning) == false
+  }
+
+  func test_contentShrinksDuringAnEdgeGlide_turnsToTheNewEdgeAlongTheSpring() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view at the top of content 1100 tall, 50 ms into the glide of the down arrow with
+    // Command to the bottom edge at 1000
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1100))
+    window.keyDown(.down, at: Constants.startTime, modifierFlags: .command)
+    window.keyUp(.down, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.05)
+    expect(scrollView.contentOffset.y) > 0
+    expect(scrollView.contentOffset.y) < 600
+
+    // when: the content shrinks, so that the range ends at 600, and frames step the animation until it stops
+    scrollView.contentSize = CGSize(width: 100, height: 700)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.05)
+
+    // then: the glide turns to the new edge, where the spring brings the content to rest without passing it, for longer
+    // than the 200 ms of a page's glide
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 600)
+    expect(offsets.map(\.y).max()) == 600
+    expect(Double(offsets.count) * KeyboardScrollAnimation.testFrameDuration) > 0.3
+  }
+
+  func test_contentGrowsDuringAnEdgeGlide_goesOnToTheNewEdge() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view at the top of content 1100 tall, 50 ms into the glide of the down arrow with
+    // Command to the bottom edge at 1000
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1100))
+    window.keyDown(.down, at: Constants.startTime, modifierFlags: .command)
+    window.keyUp(.down, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.05)
+    expect(scrollView.contentOffset.y) > 0
+
+    // when: the content grows, so that the range ends at 1500, such as when more rows load, and frames step the
+    // animation until it stops
+    scrollView.contentSize = CGSize(width: 100, height: 1600)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.05)
+
+    // then: the glide goes on to the new edge, where the spring brings the content to rest without passing it
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 1500)
+    expect(offsets.map(\.y).max()) == 1500
+    expect(offsets.map(\.y)) == offsets.map(\.y).sorted()
+  }
+
+  func test_contentGrowsOnEachFrameOfAnEdgeGlide_endsTheGlideAtTheEdge1600MsAfterTheKey() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view at the top of content 1100 tall, with the glide of the down arrow with Command to
+    // the bottom edge at 1000
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1100))
+    window.keyDown(.down, at: Constants.startTime, modifierFlags: .command)
+    window.keyUp(.down, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+
+    // when: the content grows by 10 points before each frame, for up to 3 s, such as a log that streams in
+    var frame = 1
+    while frame <= 360, animation.isRunning {
+      scrollView.contentSize = CGSize(width: 100, height: 1100 + 10 * CGFloat(frame))
+      animation.step(at: Constants.startTime + TimeInterval(frame) * KeyboardScrollAnimation.testFrameDuration)
+      frame += 1
+    }
+
+    // then: the glide follows the edge, which the spring trails, and ends 1.6 s after the key, with the content at the
+    // edge of its last frame
+    let lastFrame = frame - 1
+    expect(TimeInterval(lastFrame) * KeyboardScrollAnimation.testFrameDuration).to(beApproximatelyEqual(to: 1.6, within: KeyboardScrollAnimation.testFrameDuration))
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 1000 + 10 * CGFloat(lastFrame))
+    expect(animation.isRunning) == false
+  }
+
+  func test_frameAfterTheLongestDurationOfAnEdgeGlide_bringsTheContentToTheEdge() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view at the top of content 1100 tall, with the glide of the down arrow with Command to
+    // the bottom edge at 1000
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1100))
+    window.keyDown(.down, at: Constants.startTime, modifierFlags: .command)
+    window.keyUp(.down, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+
+    // when: the first frame comes 2 s after the key, past the glide's longest duration of 1.6 s
+    animation.step(at: Constants.startTime + 2)
+
+    // then: the glide ends with the content at the edge
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 1000)
+    expect(animation.isRunning) == false
+  }
+
+  func test_arrowKeyWithCommand_repeat_leavesTheGlideOfItsPress() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: two 100 × 100 scroll views at the top of content 1100 tall, each 100 ms into the glide of the down arrow
+    // with Command to the bottom edge, whose key is still down
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1100))
+    let (otherWindow, otherScrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1100))
+    window.keyDown(.down, at: Constants.startTime, modifierFlags: .command)
+    otherWindow.keyDown(.down, at: Constants.startTime, modifierFlags: .command)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    let otherAnimation = try unwrap(otherScrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.1)
+    otherAnimation.step(at: Constants.startTime + 0.1)
+
+    // when: the key repeats in one of them, and frames step both animations until they stop
+    window.keyDown(.down, at: Constants.startTime + 0.1, isARepeat: true, modifierFlags: .command)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.1)
+    let otherOffsets = otherAnimation.stepFrames(in: otherScrollView, from: Constants.startTime + 0.1)
+
+    // then: the repeat leaves the glide, which moves the content as the glide without a repeat does, to the edge
+    expect(offsets) == otherOffsets
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 1000)
+    expect(animation.isKeyHeld) == false
+  }
+
   // MARK: - Display Link
 
   func test_displayLink_movesTheContent() throws {

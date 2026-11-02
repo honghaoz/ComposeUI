@@ -1644,6 +1644,172 @@ class ScrollViewTests: XCTestCase {
       expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 360)))
     }
   }
+
+  func test_arrowKeysWithOption_scrollByAPageTowardEachDirection_withAndWithoutTheAnimation() {
+    for scrollsWithAnimation in [true, false] {
+      // given: a 100 × 100 scroll view in a window, in the middle of content 1000 × 1000, with the focus in it, whose
+      // keys scroll with the animation, or without it
+      let window = TestWindow()
+      let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      scrollView.contentSize = CGSize(width: 1000, height: 1000)
+      window.contentView().addSubview(scrollView)
+      window.makeFirstResponder(scrollView)
+      ScrollView.scrollsWithKeyboardAnimationForTesting = scrollsWithAnimation
+      defer {
+        ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+      }
+
+      let pages: [(ScrollingKey, CGPoint)] = [
+        (.down, CGPoint(x: 400, y: 480)),
+        (.up, CGPoint(x: 400, y: 320)),
+        (.right, CGPoint(x: 480, y: 400)),
+        (.left, CGPoint(x: 320, y: 400)),
+      ]
+      for (key, offset) in pages {
+        // when: the arrow key goes down and up with Option
+        scrollView.contentOffset = CGPoint(x: 400, y: 400)
+        window.keyDown(key, modifierFlags: .option)
+        window.keyUp(key)
+        window.settleKeyboardScrolls()
+
+        // then: the content scrolls toward the key by a page, 80% of the 100 point length, more than the length less
+        // the 40 point overlap
+        expect(scrollView.contentOffset).toEventually(beEqual(to: offset))
+      }
+    }
+  }
+
+  func test_leftAndRightArrowsWithOption_scrollByAPageOfTheWidthBetweenTheInsets_withAndWithoutTheAnimation() {
+    for scrollsWithAnimation in [true, false] {
+      // given: a 100 × 100 scroll view in a window, with insets of 20 points on the left and 40 on the right, which
+      // leave 40 points of width between them, in the middle of content 1000 wide, with the focus in it, whose keys
+      // scroll with the animation, or without it
+      let window = TestWindow()
+      let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      scrollView.automaticallyAdjustsContentInsets = false
+      scrollView.contentInset = EdgeInsets(top: 0, left: 20, bottom: 0, right: 40)
+      scrollView.contentSize = CGSize(width: 1000, height: 100)
+      window.contentView().addSubview(scrollView)
+      window.makeFirstResponder(scrollView)
+      ScrollView.scrollsWithKeyboardAnimationForTesting = scrollsWithAnimation
+      defer {
+        ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+      }
+
+      for (key, offset): (ScrollingKey, CGPoint) in [(.right, CGPoint(x: 432, y: 0)), (.left, CGPoint(x: 368, y: 0))] {
+        // when: the arrow key goes down and up with Option
+        scrollView.contentOffset = CGPoint(x: 400, y: 0)
+        window.keyDown(key, modifierFlags: .option)
+        window.keyUp(key)
+        window.settleKeyboardScrolls()
+
+        // then: the content scrolls toward the key by a page, 80% of the 40 point width between the insets, more than
+        // that width less the 40 point overlap
+        expect(scrollView.contentOffset).toEventually(beEqual(to: offset))
+      }
+    }
+  }
+
+  func test_leftAndRightArrowsWithOption_betweenInsetsWiderThanTheView_leaveTheContentWhereItIs() {
+    for scrollsWithAnimation in [true, false] {
+      // given: a 100 × 100 scroll view in a window, with insets of 60 points on the left and the right, which AppKit
+      // keeps though they add up to more than the width, in the middle of content 1000 wide, with the focus in it, whose
+      // keys scroll with the animation, or without it
+      let window = TestWindow()
+      let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      scrollView.automaticallyAdjustsContentInsets = false
+      scrollView.contentInset = EdgeInsets(top: 0, left: 60, bottom: 0, right: 60)
+      scrollView.contentSize = CGSize(width: 1000, height: 100)
+      window.contentView().addSubview(scrollView)
+      window.makeFirstResponder(scrollView)
+      ScrollView.scrollsWithKeyboardAnimationForTesting = scrollsWithAnimation
+      defer {
+        ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+      }
+      expect(scrollView.adjustedContentInset.left + scrollView.adjustedContentInset.right) == 120
+
+      for key: ScrollingKey in [.right, .left] {
+        // when: the arrow key goes down and up with Option
+        scrollView.contentOffset = CGPoint(x: 400, y: 0)
+        window.keyDown(key, modifierFlags: .option)
+        window.keyUp(key)
+        window.settleKeyboardScrolls()
+
+        // then: the content stays where it is, since no width is left between the insets for a page
+        expect(scrollView.contentOffset) == CGPoint(x: 400, y: 0)
+      }
+    }
+  }
+
+  func test_arrowKeysWithCommand_scrollToTheEdgeTowardEachDirection_withAndWithoutTheAnimation() {
+    for scrollsWithAnimation in [true, false] {
+      // given: a 100 × 100 scroll view in a window, in the middle of content 1000 × 1000, with the focus in it, whose
+      // keys scroll with the animation, or without it
+      let window = TestWindow()
+      let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      scrollView.contentSize = CGSize(width: 1000, height: 1000)
+      window.contentView().addSubview(scrollView)
+      window.makeFirstResponder(scrollView)
+      ScrollView.scrollsWithKeyboardAnimationForTesting = scrollsWithAnimation
+      defer {
+        ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+      }
+
+      let edges: [(ScrollingKey, CGPoint)] = [
+        (.down, CGPoint(x: 400, y: 900)),
+        (.up, CGPoint(x: 400, y: 0)),
+        (.right, CGPoint(x: 900, y: 400)),
+        (.left, CGPoint(x: 0, y: 400)),
+      ]
+      for (key, offset) in edges {
+        // when: the arrow key goes down and up with Command
+        scrollView.contentOffset = CGPoint(x: 400, y: 400)
+        window.keyDown(key, modifierFlags: .command)
+        window.keyUp(key)
+        window.settleKeyboardScrolls()
+
+        // then: the content scrolls to the edge toward the key
+        expect(scrollView.contentOffset).toEventually(beEqual(to: offset))
+      }
+    }
+  }
+
+  func test_upAndDownArrowsWithCommand_fromAViewThatInterpretsItsKeys_scrollToTheTopAndTheBottom() {
+    for scrollsWithAnimation in [true, false] {
+      // given: a 100 × 100 scroll view in a window, in the middle of content 1000 tall, with the focus in a view in its
+      // content that interprets its keys, which sends Command-Up and Command-Down as the actions to the beginning and
+      // the end of the document, and whose keys scroll with the animation, or without it
+      let window = TestWindow()
+      let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+      scrollView.contentSize = CGSize(width: 100, height: 1000)
+      scrollView.contentOffset = CGPoint(x: 0, y: 400)
+      window.contentView().addSubview(scrollView)
+      let keyInterpretingView = KeyInterpretingView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+      scrollView.documentView?.addSubview(keyInterpretingView)
+      window.makeFirstResponder(keyInterpretingView)
+      ScrollView.scrollsWithKeyboardAnimationForTesting = scrollsWithAnimation
+      defer {
+        ScrollView.scrollsWithKeyboardAnimationForTesting = nil
+      }
+
+      // when: the down arrow goes down and up with Command
+      window.keyDown(.down, modifierFlags: .command)
+      window.keyUp(.down)
+      window.settleKeyboardScrolls()
+
+      // then: the content scrolls to the bottom
+      expect(scrollView.contentOffset).toEventually(beEqual(to: CGPoint(x: 0, y: 900)))
+
+      // when: the up arrow goes down and up with Command
+      window.keyDown(.up, modifierFlags: .command)
+      window.keyUp(.up)
+      window.settleKeyboardScrolls()
+
+      // then: the content scrolls to the top
+      expect(scrollView.contentOffset).toEventually(beEqual(to: .zero))
+      expect(keyInterpretingView.interpretedKeyCount) == 2
+    }
+  }
   #endif
 
   func test_arrowKeys_nested_atTheEnd_goOnToTheParent_whichTakesTheFocus() {
@@ -1906,7 +2072,7 @@ class ScrollViewTests: XCTestCase {
     expect(outerScrollView.contentView.bounds.origin).toEventually(beEqual(to: .zero))
   }
 
-  func test_keys_withAModifier_passTheirActionsOnWithoutScrolling() {
+  func test_keys_withModifiersForOtherUses_passTheirActionsOnWithoutScrolling() {
     // given: a 100 × 100 scroll view in the middle of its range, with the focus in it, in a view that records the key
     // actions that reach it
     let window = TestWindow()
@@ -1918,22 +2084,75 @@ class ScrollViewTests: XCTestCase {
     recordingView.addSubview(scrollView)
     window.makeFirstResponder(scrollView)
 
-    for modifierFlags: NSEvent.ModifierFlags in [.command, .option, .control, .shift] {
-      // when: each arrow and page key goes down and up with the modifier, which AppKit sends as the key's action
+    // when: each arrow and page key goes down and up with Shift, Control, or more than one modifier, and each page key
+    // with Command or Option, which AppKit sends as the key's action
+    var presses: [(ScrollingKey, NSEvent.ModifierFlags)] = []
+    for modifierFlags: NSEvent.ModifierFlags in [.shift, .control, [.command, .option], [.command, .shift], [.option, .control]] {
       for key: ScrollingKey in [.up, .down, .left, .right, .pageUp, .pageDown] {
-        window.keyDown(key, modifierFlags: modifierFlags)
-        window.keyUp(key)
+        presses.append((key, modifierFlags))
       }
-
-      // then: the content stays, since only the keys without modifiers scroll
-      expect(scrollView.contentOffset) == CGPoint(x: 400, y: 400)
+    }
+    for modifierFlags: NSEvent.ModifierFlags in [.command, .option] {
+      for key: ScrollingKey in [.pageUp, .pageDown] {
+        presses.append((key, modifierFlags))
+      }
+    }
+    for (key, modifierFlags) in presses {
+      window.keyDown(key, modifierFlags: modifierFlags)
+      window.keyUp(key)
     }
 
-    // then: each key's action passes on to the view around the scroll view, and no animation moved the content
-    expect(recordingView.actionCount) == 24
+    // then: the content stays, and each key's action passes on to the view around the scroll view, without an animation
+    // that moves the content
+    expect(scrollView.contentOffset) == CGPoint(x: 400, y: 400)
+    expect(recordingView.actionCount) == presses.count
     if #available(macOS 14.0, *) {
       expect(scrollView.keyboardScrollAnimation) == nil
     }
+  }
+
+  func test_arrowKeyWithCommand_atTheEdge_withNoScrollViewAroundToGoOnTo_passesItsActionOn() {
+    // given: a 100 × 100 scroll view at the bottom end of its range, with the focus in it, in a view that records the
+    // key actions that reach it
+    let window = TestWindow()
+    let recordingView = KeyActionRecordingView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+    window.contentView().addSubview(recordingView)
+    let scrollView = ScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 1000)
+    scrollView.contentOffset = CGPoint(x: 0, y: 900)
+    recordingView.addSubview(scrollView)
+    window.makeFirstResponder(scrollView)
+
+    // when: the down arrow goes down with Command, and repeats while it's held down
+    window.keyDown(.down, modifierFlags: .command)
+    window.keyDown(.down, isARepeat: true, modifierFlags: .command)
+    window.keyUp(.down)
+
+    // then: the content stays at the edge without stretching, and the press and its repeat pass the action on
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 900)
+    expect(recordingView.actionCount) == 2
+    if #available(macOS 14.0, *) {
+      expect(scrollView.keyboardScrollAnimation) == nil
+    }
+  }
+
+  func test_arrowKeyWithCommand_nested_atTheEdge_goesOnToTheParent_whichTakesTheFocus() {
+    // given: a scroll view at the bottom end of its range, with the focus in it, nested in a parent scroll view that
+    // scrolls
+    let window = TestWindow()
+    let views = Self.makeScrollingNestedScrollViews(in: window)
+    views.scrollView.contentOffset = CGPoint(x: 0, y: 200)
+    window.makeFirstResponder(views.scrollView)
+
+    // when: the down arrow goes down and up with Command
+    window.keyDown(.down, modifierFlags: .command)
+    window.keyUp(.down)
+    window.settleKeyboardScrolls()
+
+    // then: the press goes on to the parent, which scrolls to its bottom edge, and takes the focus
+    expect(views.parent.contentOffset).toEventually(beEqual(to: CGPoint(x: 400, y: 800)))
+    expect(views.scrollView.contentOffset) == CGPoint(x: 0, y: 200)
+    expect(window.firstResponder) === views.parent.contentContainerView
   }
 
   #if DEBUG
