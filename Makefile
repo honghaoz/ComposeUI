@@ -20,6 +20,14 @@ build-playground-macOS: # Build the macOS playground.
 build-playground-iOS: # Build the iOS playground.
 	@./scripts/xcodebuild/build-project.sh --project "./playgrounds/ComposeUIPlayground.xcodeproj" --scheme "ComposeUIPlayground-UIKit" --configuration "Release" --os "iOS"
 
+.PHONY: build-playground-tvOS
+build-playground-tvOS: # Build the tvOS playground.
+	@./scripts/xcodebuild/build-project.sh --project "./playgrounds/ComposeUIPlayground.xcodeproj" --scheme "ComposeUIPlayground-UIKit" --configuration "Release" --os "tvOS"
+
+.PHONY: build-playground-visionOS
+build-playground-visionOS: # Build the visionOS playground.
+	@./scripts/xcodebuild/build-project.sh --project "./playgrounds/ComposeUIPlayground.xcodeproj" --scheme "ComposeUIPlayground-UIKit" --configuration "Release" --os "visionOS"
+
 .PHONY: format
 format: # Format the code.
 	@"$(REPO_ROOT)/scripts/format.sh" --all

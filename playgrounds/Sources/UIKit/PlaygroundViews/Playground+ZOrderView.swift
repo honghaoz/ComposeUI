@@ -147,12 +147,14 @@ extension Playground {
           .border(color: UIColor.white.withAlphaComponent(0.6), width: 1)
           .overlay {
             LayerNode<CATextLayer>(
-              make: { _ in
+              make: { context in
                 let textLayer = CATextLayer()
                 textLayer.font = Constants.tileFont
                 textLayer.fontSize = Constants.tileFont.pointSize
                 textLayer.alignmentMode = .center
-                textLayer.contentsScale = UIScreen.main.scale
+                if let contentView = context.contentView {
+                  textLayer.contentsScale = Playground.displayScale(of: contentView)
+                }
                 return textLayer
               },
               update: { textLayer, _ in

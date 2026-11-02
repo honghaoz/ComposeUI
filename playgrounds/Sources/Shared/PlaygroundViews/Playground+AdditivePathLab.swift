@@ -471,6 +471,9 @@ extension Playground {
     }
 
     private func copyLog() {
+      #if os(tvOS)
+      log("tvOS has no pasteboard to copy the log lines to")
+      #else
       let text = logLines.joined(separator: "\n")
       #if canImport(AppKit)
       NSPasteboard.general.clearContents()
@@ -479,6 +482,7 @@ extension Playground {
       UIPasteboard.general.string = text
       #endif
       log("copied \(logLines.count) log lines")
+      #endif
     }
 
     // MARK: - Paths
@@ -592,6 +596,9 @@ extension Playground {
     private static var screenScale: CGFloat {
       #if canImport(AppKit)
       return NSScreen.main?.backingScaleFactor ?? 2
+      #elseif os(visionOS)
+      // visionOS has no screen to read a scale from, and its windows render at 2x
+      return 2
       #else
       return UIScreen.main.scale
       #endif

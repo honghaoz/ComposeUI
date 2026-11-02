@@ -20,7 +20,7 @@ A cross-platform declarative UI framework built directly on UIKit/AppKit and Cor
 - Root-level tooling and metadata live in `Makefile`, `scripts/`, `configs/`, and `bin/`.
 - Main framework code is in `ComposeUI/Sources/ComposeUI`.
 - Tests are in `ComposeUI/Tests/ComposeUITests`. Tests that need an app with a window scene are in `ComposeUI/HostedTests`, an Xcode project whose app hosts them on iOS and visionOS.
-- Playgrounds live in `playgrounds/ComposeUIPlayground.xcodeproj`, with an app target each for AppKit and UIKit that share `playgrounds/Sources/Shared`.
+- Playgrounds live in `playgrounds/ComposeUIPlayground.xcodeproj`, with an app target each for AppKit and UIKit that share `playgrounds/Sources/Shared`. The UIKit target builds for iOS, tvOS and visionOS.
 - Development docs, such as the performance learnings, live in `docs/`.
 - Root `Package.swift` is for public package consumption. Internal day-to-day development and tests run from `ComposeUI/`.
 
@@ -41,7 +41,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 - `make build`: build root package in release mode.
 - `make format`: run SwiftFormat + SwiftLint autocorrect across the repo.
 - `make lint`: run SwiftFormat lint + SwiftLint checks.
-- `make build-playground-macOS` / `make build-playground-iOS`: build playground projects.
+- `make build-playground-<platform>`: build the playground for macOS, iOS, tvOS or visionOS.
 - `make -C ComposeUI build`: build framework package in Debug for macOS/iOS/tvOS/visionOS.
 - `make -C ComposeUI build-release-<platform>`: release build per platform.
 - `make -C ComposeUI test-macOS` / `test-iOS` / `test-tvOS` / `test-visionOS`: run platform tests.

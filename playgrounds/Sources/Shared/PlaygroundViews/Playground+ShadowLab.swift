@@ -599,6 +599,9 @@ extension Playground {
     }
 
     private func copyLog() {
+      #if os(tvOS)
+      log("tvOS has no pasteboard to copy the log lines to")
+      #else
       let text = logLines.joined(separator: "\n")
       #if canImport(AppKit)
       NSPasteboard.general.clearContents()
@@ -607,6 +610,7 @@ extension Playground {
       UIPasteboard.general.string = text
       #endif
       log("copied \(logLines.count) log lines")
+      #endif
     }
 
     // MARK: - Drift

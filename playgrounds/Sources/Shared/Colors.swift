@@ -46,4 +46,17 @@ enum Colors {
 
     static let all: [Color] = [green, yellow, orange, red, purple]
   }
+
+  #if canImport(UIKit)
+
+  /// The background of a screen: the system background, or on tvOS, which has none, white or black by the appearance.
+  static let screenBackground: Color = {
+    #if os(tvOS)
+    return Color { $0.userInterfaceStyle == .dark ? .black : .white }
+    #else
+    return .systemBackground
+    #endif
+  }()
+
+  #endif
 }
