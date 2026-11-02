@@ -90,6 +90,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 - Add or update tests for behavior changes, especially layout, rendering, and animation transitions.
 - Verify observable render output or applied attributes (for example layer color, text font), not closure execution or indirect proxies like item count.
 - Platform behavior claims for AppKit/UIKit require real tests on both platforms, or an explicit statement of which platform is unverified.
+- The package's tests run in a test runner without a window scene, where UIKit doesn't set up views as in an app, such as visionOS moving the layers of some views into wrapper layers. Test behavior that depends on an app's setup in the hosted tests, in a window from `makeHostWindow()`. Their scheme gathers no coverage, so check the coverage of code that only they run with a build that instruments ComposeUI, such as with `OTHER_SWIFT_FLAGS='$(inherited) -profile-generate -profile-coverage-mapping'`, read with `llvm-cov`.
 
 # Definition of Done
 
@@ -180,10 +181,12 @@ The performance learnings are in `docs/performance.md`. Read it before changing 
 - Do not ship platform-dependent rendered output with a doc note. When a platform primitive differs (for example AppKit anchors view-backing layers at the bottom left corner while everything else anchors at the center), compensate in the implementation so the visual result matches across platforms, instead of documenting the difference.
 - AppKit owns a layer-backed view's layer transform: it resets the transform when the view moves or resizes, in a window or not, and at the first commit after the view joins a window's view hierarchy, which only a commit or a window display settles, so a transform set before then is lost. A commit doesn't reset the transform of a view outside a window, so check that reset on macOS with the view in a window. AppKit resets through the `transform` setter, so key-value observing sees each reset and can put the transform back before the commit shows the view, as `CALayer.keepTransform(_:)` does. Verified with Xcode 27.1 on macOS 26.7.
 - Measure a performance change on each platform whose code it changes. AppKit and UIKit implement the same TextKit operations separately, so a cost measured on one tells nothing about the other, such as keeping a reused text view's text through a resize, which saves work in an `NSTextView` but costs more in a `UITextView`, where resizing lays the text out again at once.
+- AppKit fits a scroll view's top and bottom content insets into the visible height, trimming the bottom one in the insets that the clip view applies, `contentView.contentInsets`, but applies the left and right insets as set, so the width between them can be negative while the height can't. Clamp a length computed between the horizontal insets, as the keyboard's page distance does. Verified with Xcode 27.1 on macOS 26.7.
 
 ## Scripts
 
 - Write output that a script reads back from `swift test` in ASCII, to the standard error where XCTest writes its own lines. `swift test` passes a test's output on in 4096-byte chunks and drops any chunk that isn't valid UTF-8 by itself, so a multi-byte character split between two chunks silently loses both. It also passes the standard output and the standard error on in separate threads, so a chunk of one can land inside a line of the other. The output can stop being ASCII once [swift-package-manager#10636](https://github.com/swiftlang/swift-package-manager/issues/10636) is fixed in the Xcode that CI uses, but it stays on one stream.
+- Create a git worktree next to the repository and run `make bootstrap` in it before formatting, linting or committing there, since the hook, lint and format scripts and the tools in `bin/` are gitignored, and only bootstrap installs them. Don't create it under `/tmp`, where lint also lints the `.build` directories, which fails the pre-commit hook. Verified with SwiftLint 0.65.1 on macOS 26.7.
 
 ## Docs
 
