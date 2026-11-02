@@ -971,6 +971,31 @@ class KeyboardScrollAnimationTests: XCTestCase {
     expect(Double(offsets.count) * KeyboardScrollAnimation.testFrameDuration) > 0.3
   }
 
+  func test_contentGrowsDuringAnEdgeGlide_goesOnToTheNewEdge() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a 100 × 100 scroll view at the top of content 1100 tall, 50 ms into the glide of the down arrow with
+    // Command to the bottom edge at 1000
+    let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 1100))
+    window.keyDown(.down, at: Constants.startTime, modifierFlags: .command)
+    window.keyUp(.down, at: Constants.startTime)
+    let animation = try unwrap(scrollView.keyboardScrollAnimation)
+    animation.step(at: Constants.startTime + 0.05)
+    expect(scrollView.contentOffset.y) > 0
+
+    // when: the content grows, so that the range ends at 1500, such as when more rows load, and frames step the
+    // animation until it stops
+    scrollView.contentSize = CGSize(width: 100, height: 1600)
+    let offsets = animation.stepFrames(in: scrollView, from: Constants.startTime + 0.05)
+
+    // then: the glide goes on to the new edge, where the spring brings the content to rest without passing it
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 1500)
+    expect(offsets.map(\.y).max()) == 1500
+    expect(offsets.map(\.y)) == offsets.map(\.y).sorted()
+  }
+
   func test_frameAfterTheLongestDurationOfAnEdgeGlide_bringsTheContentToTheEdge() throws {
     guard #available(macOS 14.0, *) else {
       return
