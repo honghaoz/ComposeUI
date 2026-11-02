@@ -752,7 +752,7 @@ open class ScrollView: NSScrollView {
     case .page where !isRepeat:
       // a page key glides the content by a page, and pushes it only once it's held down, so that a press scrolls by a
       // page
-      animation.glide(by: offset, at: time)
+      animation.glide(toward: direction, by: distance, at: time)
     case .line,
          .page:
       animation.pressKey(toward: direction, step: distance, at: time)

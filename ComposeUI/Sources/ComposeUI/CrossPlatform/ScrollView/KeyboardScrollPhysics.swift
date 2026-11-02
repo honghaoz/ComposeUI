@@ -209,6 +209,24 @@ struct KeyboardScrollPhysics {
     self.push = nil
   }
 
+  /// Brings the content to rest at an offset along one axis, where another motion moved it, such as a page key's glide,
+  /// while the motion along the other axis goes on.
+  ///
+  /// - Parameters:
+  ///   - offset: The content offset, whose value along the axis the content rests at.
+  ///   - isVertical: Whether the axis is the vertical one, rather than the horizontal one.
+  mutating func rest(at offset: CGPoint, alongVerticalAxis isVertical: Bool) {
+    if isVertical {
+      position.y = offset.y
+      velocity.y = 0
+      restingPosition.y = offset.y
+    } else {
+      position.x = offset.x
+      velocity.x = 0
+      restingPosition.x = offset.x
+    }
+  }
+
   /// Advances the motion to a time.
   ///
   /// - Parameters:
