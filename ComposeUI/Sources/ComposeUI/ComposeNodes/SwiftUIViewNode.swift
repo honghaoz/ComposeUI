@@ -98,13 +98,13 @@ public struct SwiftUIViewNode<Content: SwiftUI.View>: ComposeNode, IntrinsicSiza
     // a SwiftUI view's size can depend on both lengths of the proposed size, so every mode reads both
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
-      size = content.value.sizeThatFits(containerSize)
+      size = content.value.sizeThatFits(containerSize, in: context)
       return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height), dependence: [.width, .height])
     case (true, false):
-      size = CGSize(width: content.value.sizeThatFits(containerSize).width, height: containerSize.height)
+      size = CGSize(width: content.value.sizeThatFits(containerSize, in: context).width, height: containerSize.height)
       return ComposeNodeSizing(width: .fixed(size.width), height: .flexible, dependence: [.width, .height])
     case (false, true):
-      size = CGSize(width: containerSize.width, height: content.value.sizeThatFits(containerSize).height)
+      size = CGSize(width: containerSize.width, height: content.value.sizeThatFits(containerSize, in: context).height)
       return ComposeNodeSizing(width: .flexible, height: .fixed(size.height), dependence: [.width, .height])
     case (false, false):
       size = containerSize

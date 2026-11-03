@@ -189,6 +189,30 @@ class ComposeView_TraitCollectionDidChangeTests: XCTestCase {
     expect(refreshCount) == 1
     expect(view.contentScaleFactor) == displayScale
   }
+
+  func test_traitCollectionDidChange_contentSizeCategoryUnchanged() {
+    // given: a compose view in a window, rendered
+    let window = TestWindow()
+
+    var renderCount = 0
+    let view = ComposeView {
+      renderCount += 1
+      LayerNode()
+    }
+
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    window.addSubview(view)
+
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // settle the initial environment refresh
+    expect(renderCount).toEventually(beEqual(to: 1)) // initial render when added to window
+
+    // when: a trait change is delivered from a trait collection with the view's text size
+    view.traitCollectionDidChange(view.traitCollection)
+
+    // then: no refresh is performed
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // flush any pending refreshes
+    expect(renderCount) == 1
+  }
 }
 
 #endif

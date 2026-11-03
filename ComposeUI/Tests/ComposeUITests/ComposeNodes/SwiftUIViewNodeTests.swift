@@ -33,6 +33,10 @@ import ChouTiTest
 @testable import ComposeUI
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 class SwiftUIViewNodeTests: XCTestCase {
 
   func test() {
@@ -401,6 +405,87 @@ class SwiftUIViewNodeTests: XCTestCase {
       expect(weakProbe).to(beNil())
     }
   }
+
+  #if canImport(UIKit)
+
+  // MARK: - Content Size Category
+
+  func test_layout_measuresAtTheContextsContentSizeCategory() throws {
+    guard #available(iOS 15.0, tvOS 15.0, *) else {
+      try skip("Dynamic Type sizes are available from iOS 15 and tvOS 15")
+      return
+    }
+
+    // given: a node whose height fits wrapping text
+    let node = SwiftUIViewNode { Text(verbatim: Constants.text) }.fixedSize(width: false, height: true)
+
+    // when: laying it out at the smallest text size, at the largest, and at an unspecified one
+    var smallest = node
+    _ = smallest.layout(containerSize: Constants.containerSize, context: Self.context(at: .extraSmall))
+    var largest = node
+    _ = largest.layout(containerSize: Constants.containerSize, context: Self.context(at: .accessibilityExtraExtraExtraLarge))
+    var unspecified = node
+    _ = unspecified.layout(containerSize: Constants.containerSize, context: Self.context(at: .unspecified))
+
+    // then: the node fits the text at each text size, and as the text measures by itself at an unspecified one
+    expect(smallest.size.height) == Self.height(of: Text(verbatim: Constants.text).dynamicTypeSize(.xSmall))
+    expect(largest.size.height) == Self.height(of: Text(verbatim: Constants.text).dynamicTypeSize(.accessibility5))
+    expect(unspecified.size.height) == Self.height(of: Text(verbatim: Constants.text))
+
+    // then: the node is taller at the largest text size on a system that sizes text by the text size, and the same
+    // height on one that doesn't
+    if UIContentSizeCategory.sizesText {
+      expect(largest.size.height) > smallest.size.height
+    } else {
+      expect(largest.size.height) == smallest.size.height
+    }
+  }
+
+  func test_layout_contentWithItsOwnDynamicTypeSize_keepsIt() throws {
+    guard #available(iOS 15.0, tvOS 15.0, *) else {
+      try skip("Dynamic Type sizes are available from iOS 15 and tvOS 15")
+      return
+    }
+
+    // given: a node whose height fits wrapping text that sets its own text size
+    let node = SwiftUIViewNode { Text(verbatim: Constants.text).dynamicTypeSize(.large) }.fixedSize(width: false, height: true)
+
+    // when: laying it out at the smallest and at the largest text size
+    var smallest = node
+    _ = smallest.layout(containerSize: Constants.containerSize, context: Self.context(at: .extraSmall))
+    var largest = node
+    _ = largest.layout(containerSize: Constants.containerSize, context: Self.context(at: .accessibilityExtraExtraExtraLarge))
+
+    // then: the node fits the text at the text's own size at both
+    let height = Self.height(of: Text(verbatim: Constants.text).dynamicTypeSize(.large))
+    expect(smallest.size.height) == height
+    expect(largest.size.height) == height
+  }
+
+  // MARK: - Helpers
+
+  /// Returns a layout context at a text size.
+  private static func context(at contentSizeCategory: UIContentSizeCategory) -> ComposeNodeLayoutContext {
+    ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: contentSizeCategory, contentEvaluation: ContentEvaluation())
+  }
+
+  /// Returns the height of a SwiftUI view in the container size of the tests.
+  private static func height(of view: some SwiftUI.View) -> CGFloat {
+    view.sizeThatFits(Constants.containerSize).height
+  }
+
+  // MARK: - Constants
+
+  private enum Constants {
+
+    /// A text that wraps in the container's width at every text size.
+    static let text = "The quick brown fox jumps over the lazy dog, then naps in the warm afternoon sun."
+
+    /// The container size, tall enough for the text at the largest text size.
+    static let containerSize = CGSize(width: 200, height: 1000)
+  }
+
+  #endif
 }
 
 private struct NativeColorContent {

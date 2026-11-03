@@ -31,11 +31,20 @@
 import CoreGraphics
 import Foundation
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 /// The context for layout.
 public struct ComposeNodeLayoutContext {
 
   /// The scale factor.
   public let scaleFactor: CGFloat
+
+  #if canImport(UIKit)
+  /// The text size that the content renders at, `.unspecified` when it's unknown.
+  public let contentSizeCategory: UIContentSizeCategory
+  #endif
 
   /// The content evaluation shared by the layout and rendering that use this context.
   let contentEvaluation: ContentEvaluation
@@ -54,6 +63,9 @@ public struct ComposeNodeLayoutContext {
   /// - Parameter scaleFactor: The scale factor.
   public init(scaleFactor: CGFloat) {
     self.scaleFactor = scaleFactor
+    #if canImport(UIKit)
+    self.contentSizeCategory = .unspecified
+    #endif
     self.contentEvaluation = ContentEvaluation()
     self.passId = Self.makePassId()
   }
@@ -65,9 +77,27 @@ public struct ComposeNodeLayoutContext {
   ///   - contentEvaluation: The content evaluation shared by the layout and rendering that use this context.
   init(scaleFactor: CGFloat, contentEvaluation: ContentEvaluation) {
     self.scaleFactor = scaleFactor
+    #if canImport(UIKit)
+    self.contentSizeCategory = .unspecified
+    #endif
     self.contentEvaluation = contentEvaluation
     self.passId = Self.makePassId()
   }
+
+  #if canImport(UIKit)
+  /// Creates a layout context with the given text size and content evaluation.
+  ///
+  /// - Parameters:
+  ///   - scaleFactor: The scale factor.
+  ///   - contentSizeCategory: The text size that the content renders at, `.unspecified` when it's unknown.
+  ///   - contentEvaluation: The content evaluation shared by the layout and rendering that use this context.
+  init(scaleFactor: CGFloat, contentSizeCategory: UIContentSizeCategory, contentEvaluation: ContentEvaluation) {
+    self.scaleFactor = scaleFactor
+    self.contentSizeCategory = contentSizeCategory
+    self.contentEvaluation = contentEvaluation
+    self.passId = Self.makePassId()
+  }
+  #endif
 }
 
 private extension ComposeNodeLayoutContext {
