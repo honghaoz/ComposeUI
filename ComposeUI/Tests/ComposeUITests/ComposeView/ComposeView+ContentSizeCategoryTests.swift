@@ -66,9 +66,12 @@ class ComposeView_ContentSizeCategoryTests: XCTestCase {
     let hostingView = try unwrap(renderedView)
     hostingView.layoutIfNeeded()
 
-    // then: the node is as tall as the text at the window's text size, much taller than at the default text size
+    // then: the node is as tall as the text at the window's text size, taller than at the default text size on a system
+    // that sizes text by the text size
     expect(hostingView.frame.height).to(beApproximatelyEqual(to: Self.height(at: .accessibility5), within: 1 / view.contentScaleFactor))
-    expect(hostingView.frame.height) > Self.height(at: .large)
+    if UIContentSizeCategory.sizesText {
+      expect(hostingView.frame.height) > Self.height(at: .large)
+    }
 
     // then: the content was measured and rendered at the window's text size
     expect(recorder.dynamicTypeSizes.count).toEventually(beGreaterThanOrEqual(to: 2))
@@ -137,13 +140,16 @@ class ComposeView_ContentSizeCategoryTests: XCTestCase {
     window.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
     window.updateTraitsIfNeeded()
 
-    // then: the view refreshes without animation, and the node fits the text at the new text size
+    // then: the view refreshes without animation, and the node fits the text at the new text size, which is taller on a
+    // system that sizes text by the text size
     expect(renderCount).toEventually(beEqual(to: 2))
     expect(updateContext?.updateType) == .refresh
     expect(updateContext?.animationTiming) == nil
     expect(renderedView) === hostingView
     expect(hostingView.frame.height).to(beApproximatelyEqual(to: Self.height(at: .accessibility5), within: 1 / view.contentScaleFactor))
-    expect(hostingView.frame.height) > smallHeight
+    if UIContentSizeCategory.sizesText {
+      expect(hostingView.frame.height) > smallHeight
+    }
 
     // then: no extra refresh follows
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3)) // flush any pending refreshes

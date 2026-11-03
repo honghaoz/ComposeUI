@@ -430,8 +430,15 @@ class SwiftUIViewNodeTests: XCTestCase {
     // then: the node fits the text at each text size, and as the text measures by itself at an unspecified one
     expect(smallest.size.height) == Self.height(of: Text(verbatim: Constants.text).dynamicTypeSize(.xSmall))
     expect(largest.size.height) == Self.height(of: Text(verbatim: Constants.text).dynamicTypeSize(.accessibility5))
-    expect(largest.size.height) > smallest.size.height
     expect(unspecified.size.height) == Self.height(of: Text(verbatim: Constants.text))
+
+    // then: the node is taller at the largest text size on a system that sizes text by the text size, and the same
+    // height on one that doesn't
+    if UIContentSizeCategory.sizesText {
+      expect(largest.size.height) > smallest.size.height
+    } else {
+      expect(largest.size.height) == smallest.size.height
+    }
   }
 
   func test_layout_contentWithItsOwnDynamicTypeSize_keepsIt() throws {
