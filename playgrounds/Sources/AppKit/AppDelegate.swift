@@ -41,6 +41,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   private var nestedScrollLabWindow: NestedScrollLabWindow?
   private var labelDrawingLabWindow: LabelDrawingLabWindow?
   private var transformLabWindow: TransformLabWindow?
+  private var frameRateLabWindow: FrameRateLabWindow?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
 
@@ -98,6 +99,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     transformLabItem.target = self
     demosMenu.addItem(transformLabItem)
 
+    let frameRateLabItem = NSMenuItem(title: "Frame Rate Lab", action: #selector(showFrameRateLab), keyEquivalent: "")
+    frameRateLabItem.target = self
+    demosMenu.addItem(frameRateLabItem)
+
     let demosMenuItem = NSMenuItem()
     demosMenuItem.submenu = demosMenu
     NSApp.mainMenu?.addItem(demosMenuItem)
@@ -150,6 +155,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       transformLabWindow = TransformLabWindow()
     }
     transformLabWindow?.window?.makeKeyAndOrderFront(nil)
+  }
+
+  @objc private func showFrameRateLab() {
+    if frameRateLabWindow == nil {
+      frameRateLabWindow = FrameRateLabWindow()
+    }
+    frameRateLabWindow?.window?.makeKeyAndOrderFront(nil)
   }
 
   func applicationWillTerminate(_ aNotification: Notification) {

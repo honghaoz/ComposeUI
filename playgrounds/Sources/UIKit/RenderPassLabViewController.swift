@@ -30,7 +30,7 @@
 
 import UIKit
 
-/// A full-screen page for the render pass lab, with a close button above it.
+/// A full-screen page for the render pass lab.
 final class RenderPassLabViewController: UIViewController {
 
   private let lab = Playground.RenderPassLab(frame: .zero)

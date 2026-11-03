@@ -451,6 +451,7 @@ extension CALayer {
     animation.duration = sampler.duration
     // backwards fill holds the first keyframe until the transform or the size begins to move
     animation.fillMode = .both
+    animation.applyPreferredFrameRateRange()
     animation.beginTime = CAAnimation.beginTime(at: sampler.startTime)
     animation.transform = transform
     animation.pivotOffset = pivotOffset

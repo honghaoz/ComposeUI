@@ -85,4 +85,22 @@ class CABasicAnimation_AnimationTimingTests: XCTestCase {
     }
     expect(animations[2] is CASpringAnimation) == true
   }
+
+  func test_makeAnimation_prefersAHighFrameRate() throws {
+    guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
+      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+    }
+
+    // when: making animations of a timing function, of a spring and of a zero duration
+    let animations = [
+      CABasicAnimation.makeAnimation(.easeInEaseOut()),
+      CABasicAnimation.makeAnimation(.spring()),
+      CABasicAnimation.makeAnimation(.linear(duration: 0)),
+    ]
+
+    // then: each asks for 80 to 120 Hz, preferring 120 Hz
+    for animation in animations {
+      expect(animation.preferredFrameRateRange) == CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
+    }
+  }
 }

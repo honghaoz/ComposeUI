@@ -131,6 +131,32 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(layer.path) == rect(inset: 20)
   }
 
+  func test_animatePath_prefersAHighFrameRate() throws {
+    guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
+      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+    }
+
+    // given: a shape layer
+    let layer = makeLayer()
+    let highFrameRate = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
+
+    // when: animating the path to an inset rect over one second at 1000
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 1))
+    }
+
+    // then: the basic animation of the change asks for 80 to 120 Hz, preferring 120 Hz
+    expect(try (layer.animation(forKey: "path") as? CABasicAnimation).unwrap().preferredFrameRateRange) == highFrameRate
+
+    // when: animating to a more inset rect at the same time, while the change is in flight
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2))
+    }
+
+    // then: the keyframes of both changes added up ask for the same rate
+    expect(try (layer.animation(forKey: "path") as? CAKeyframeAnimation).unwrap().preferredFrameRateRange) == highFrameRate
+  }
+
   func test_animatePath_interruptedResize_staysOnTheResizedShape() throws {
     // given: a shape layer whose rounded rect path grows from 100 to 200 wide over two seconds, from 999.5
     let layer = makeLayer(path: roundedRect(width: 100))

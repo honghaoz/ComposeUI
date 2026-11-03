@@ -96,6 +96,8 @@ public extension CABasicAnimation {
     // appearing before the animation starts
     animation.fillMode = .both
 
+    animation.applyPreferredFrameRateRange()
+
     return animation
   }
 

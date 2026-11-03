@@ -30,7 +30,7 @@
 
 import UIKit
 
-/// A full-screen page for the shadow lab, with a close button above it.
+/// A full-screen page for the shadow lab.
 final class ShadowLabViewController: UIViewController {
 
   private let lab = Playground.ShadowLab(frame: .zero)

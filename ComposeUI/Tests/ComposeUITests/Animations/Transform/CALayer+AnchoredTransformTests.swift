@@ -162,6 +162,23 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     expect(animation.beginTime) == 100
   }
 
+  func test_updateTransform_withATiming_keyframesPreferAHighFrameRate() throws {
+    guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
+      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+    }
+
+    // given: a layer at rest, whose anchor point is at its center
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+
+    // when: a quarter turn about its top left corner animates over a second, with keyframes
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1))
+
+    // then: the keyframes ask for 80 to 120 Hz, preferring 120 Hz
+    let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+    expect(animation.preferredFrameRateRange) == CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
+  }
+
   func test_updateTransform_withATiming_perspectiveTurnsAboutThePoint() throws {
     // given: a layer at rest, anchored at its corner, as an AppKit view's layer is
     let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: .zero)
