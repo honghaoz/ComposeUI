@@ -140,5 +140,5 @@ if [ "$PHASE" = test ] || [ "$PHASE" = all ]; then
   xcrun simctl bootstatus "$DEVICE_UDID" -b > /dev/null
   echo "➡️  Running the hosted tests on $OS..."
   run_xcodebuild xcodebuild test-without-building -project "$PROJECT" -scheme "$SCHEME" -destination "$DESTINATION" \
-    ${DD_ARGS[@]+"${DD_ARGS[@]}"}
+    -collect-test-diagnostics never ${DD_ARGS[@]+"${DD_ARGS[@]}"}
 fi
