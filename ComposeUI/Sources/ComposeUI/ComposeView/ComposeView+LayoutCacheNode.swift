@@ -30,6 +30,10 @@
 
 import Foundation
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 extension ComposeView {
 
   /// The root wrapper of a content tree that skips the layout when the layout inputs are unchanged, so that a scroll
@@ -44,7 +48,7 @@ extension ComposeView {
     private var node: ComposeNode
 
     /// The cached layout result of the wrapped node, keyed by the layout inputs.
-    private var cachedLayout: (containerSize: CGSize, scaleFactor: CGFloat, sizing: ComposeNodeSizing)?
+    private var cachedLayout: (containerSize: CGSize, inputs: LayoutInputs, sizing: ComposeNodeSizing)?
 
     /// The cache of the items that the content's nodes build, which the root makes current while it lays out the content
     /// and collects its items.
@@ -86,7 +90,10 @@ extension ComposeView {
     func layout(containerSize: CGSize, context: ComposeNodeLayoutContext) -> ComposeNodeSizing {
       // a resize that changes only a length the content's layout didn't depend on, such as the height of a list of
       // fixed rows, keeps the layout, which a layout at the new size would only repeat
-      if let cachedLayout, cachedLayout.sizing.dependence.isSame(cachedLayout.containerSize, as: containerSize), cachedLayout.scaleFactor == context.scaleFactor {
+      if let cachedLayout,
+         cachedLayout.sizing.dependence.isSame(cachedLayout.containerSize, as: containerSize),
+         cachedLayout.inputs.isSame(as: context)
+      {
         #if DEBUG && !COMPOSEUI_BENCHMARK
         if cachedLayout.containerSize != containerSize, ComposeNodeSizing.Dependence.checksKeptLayouts {
           return layoutCheckingKeptLayout(cachedLayout, containerSize: containerSize, context: context)
@@ -97,7 +104,7 @@ extension ComposeView {
         let sizing = itemCache.performAsCurrent {
           node.layout(containerSize: containerSize, context: context)
         }
-        cachedLayout = (containerSize, context.scaleFactor, sizing)
+        cachedLayout = (containerSize, LayoutInputs(context), sizing)
         return sizing
       }
     }
@@ -113,7 +120,7 @@ extension ComposeView {
     ///   - context: The layout context.
     /// - Returns: The new layout's sizing.
     @inline(never)
-    private func layoutCheckingKeptLayout(_ keptLayout: (containerSize: CGSize, scaleFactor: CGFloat, sizing: ComposeNodeSizing),
+    private func layoutCheckingKeptLayout(_ keptLayout: (containerSize: CGSize, inputs: LayoutInputs, sizing: ComposeNodeSizing),
                                           containerSize: CGSize,
                                           context: ComposeNodeLayoutContext) -> ComposeNodeSizing
     {
@@ -142,6 +149,42 @@ extension ComposeView {
         itemCache.performAsCurrent {
           node.render(visibleBounds: visibleBounds, into: &items)
         }
+      }
+    }
+
+    /// The values of a layout context that a layout's result depends on.
+    private struct LayoutInputs {
+
+      /// The scale factor.
+      let scaleFactor: CGFloat
+
+      #if canImport(UIKit)
+      /// The text size.
+      let contentSizeCategory: UIContentSizeCategory
+      #endif
+
+      /// Creates the layout inputs of a layout context.
+      ///
+      /// - Parameter context: The layout context.
+      init(_ context: ComposeNodeLayoutContext) {
+        scaleFactor = context.scaleFactor
+        #if canImport(UIKit)
+        contentSizeCategory = context.contentSizeCategory
+        #endif
+      }
+
+      /// Returns whether a layout context has the same layout inputs.
+      ///
+      /// - Parameter context: The layout context.
+      /// - Returns: Whether the context has the same layout inputs.
+      func isSame(as context: ComposeNodeLayoutContext) -> Bool {
+        #if canImport(AppKit)
+        return scaleFactor == context.scaleFactor
+        #endif
+
+        #if canImport(UIKit)
+        return scaleFactor == context.scaleFactor && contentSizeCategory == context.contentSizeCategory
+        #endif
       }
     }
   }

@@ -43,9 +43,9 @@ import Combine
 /// ## Content Lifecycle
 ///
 /// The content builder runs on refresh: an explicit `refresh()` or `setNeedsRefresh()`, or an environment change such
-/// as a window or display scale change. A bounds change (resize or scroll) lays out the retained content again without
-/// running the builder, so changed application data shows only after a refresh. `sizeThatFits(_:)` measures the
-/// builder's latest content, which may differ from the displayed content.
+/// as a window, display scale or text size change. A bounds change (resize or scroll) lays out the retained content
+/// again without running the builder, so changed application data shows only after a refresh. `sizeThatFits(_:)`
+/// measures the builder's latest content, which may differ from the displayed content.
 ///
 /// ## Z-Order
 ///
@@ -303,6 +303,10 @@ open class ComposeView: BaseScrollView {
     contentInsetAdjustmentBehavior = .never
     #endif
 
+    #if os(visionOS)
+    observeContentSizeCategory()
+    #endif
+
     observeTheme()
   }
 
@@ -489,7 +493,7 @@ open class ComposeView: BaseScrollView {
 
   private func _sizeThatFits(_ size: CGSize) -> CGSize {
     var contentNode = _makeContent()
-    let context = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: ContentEvaluation())
+    let context = makeLayoutContext(contentEvaluation: ContentEvaluation())
 
     // the content lays out between the insets, as in a render pass, so the view fits it with the insets added back.
     // legacy scroll bars over the content only show when the content overflows, so the fitting size leaves them out
@@ -749,7 +753,8 @@ open class ComposeView: BaseScrollView {
     // `windowBackingPropertiesDidChange()`: adopt the new scale, prefetch again, and re-render non-animated, so
     // rasterized contents and pixel rounding use the new scale instead of a stale one.
     //
-    // visionOS is excluded because the content scale is pinned to the default scale factor there (see `windowScaleFactor`).
+    // visionOS is excluded because the content scale is pinned to the default scale factor there (see `windowScaleFactor`),
+    // and it observes the text size with a registration instead (see `observeContentSizeCategory()`).
 
     let oldContentScaleFactor = contentScaleFactor
     // an unspecified trait collection reports a display scale of 0, clamp so the scale stays usable
@@ -759,6 +764,28 @@ open class ComposeView: BaseScrollView {
       contentScaleFactor = newContentScaleFactor
       restartPrefetching()
       setNeedsRefresh(animated: false)
+    }
+
+    if let previousTraitCollection, previousTraitCollection.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
+      contentSizeCategoryDidChange()
+    }
+  }
+  #endif
+
+  #if canImport(UIKit)
+  /// Renders the content again at the view's new text size.
+  private func contentSizeCategoryDidChange() {
+    // content can size itself by the text size, such as a SwiftUI view with text, and the views that show the content
+    // already show the new text size, so the content lays out again without animation
+    setNeedsRefresh(animated: false)
+  }
+  #endif
+
+  #if os(visionOS)
+  /// Renders the content again when the view's text size changes.
+  private func observeContentSizeCategory() {
+    registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: ComposeView, _: UITraitCollection) in
+      view.contentSizeCategoryDidChange()
     }
   }
   #endif
@@ -1794,6 +1821,27 @@ open class ComposeView: BaseScrollView {
     renderable.removeFromParent()
   }
 
+  /// Returns a context to lay out the content.
+  ///
+  /// - Parameter contentEvaluation: The content evaluation shared by the layout and rendering that use the context.
+  /// - Returns: The layout context.
+  private func makeLayoutContext(contentEvaluation: ContentEvaluation) -> ComposeNodeLayoutContext {
+    #if canImport(AppKit)
+    return ComposeNodeLayoutContext(
+      scaleFactor: contentScaleFactor,
+      contentEvaluation: contentEvaluation
+    )
+    #endif
+
+    #if canImport(UIKit)
+    return ComposeNodeLayoutContext(
+      scaleFactor: contentScaleFactor,
+      contentSizeCategory: traitCollection.preferredContentSizeCategory,
+      contentEvaluation: contentEvaluation
+    )
+    #endif
+  }
+
   /// Performs the layout for a content update, which also updates the scroll indicators.
   ///
   /// - Parameter context: The content update being rendered.
@@ -1874,7 +1922,7 @@ open class ComposeView: BaseScrollView {
       #endif
 
       // made after the handler, which can change the scale
-      let layoutContext = ComposeNodeLayoutContext(scaleFactor: contentScaleFactor, contentEvaluation: context.contentEvaluation)
+      let layoutContext = makeLayoutContext(contentEvaluation: context.contentEvaluation)
       _ = contentNode.layout(containerSize: layoutSize, context: layoutContext)
       laidOutContainerSize = containerSize
       laidOutSize = layoutSize

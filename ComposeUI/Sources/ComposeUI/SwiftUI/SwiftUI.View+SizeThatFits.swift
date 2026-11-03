@@ -42,11 +42,38 @@ public extension SwiftUI.View {
 
   /// Get a fitting size based on the proposing size.
   ///
+  /// The view is measured outside any window, so it doesn't follow a window's text size.
+  ///
   /// - Parameters:
   ///   - proposingSize: The proposing container size.
   /// - Returns: The fitting size of the view.
   func sizeThatFits(_ proposingSize: CGSize) -> CGSize {
     SwiftUISizingHostPool.shared.sizeThatFits(self, in: proposingSize)
+  }
+}
+
+extension SwiftUI.View {
+
+  /// Returns the size that fits the view in a layout, at the layout's text size.
+  ///
+  /// - Parameters:
+  ///   - proposingSize: The proposing container size.
+  ///   - context: The layout context.
+  /// - Returns: The fitting size of the view.
+  func sizeThatFits(_ proposingSize: CGSize, in context: ComposeNodeLayoutContext) -> CGSize {
+    #if canImport(AppKit)
+    return sizeThatFits(proposingSize)
+    #endif
+
+    #if canImport(UIKit)
+    // the sizing host is outside any window, so it doesn't have the text size that the view renders at, which the view
+    // is pinned to instead
+    if #available(iOS 15.0, tvOS 15.0, *), let typeSize = DynamicTypeSize(context.contentSizeCategory) {
+      return SwiftUISizingHostPool.shared.sizeThatFits(dynamicTypeSize(typeSize), in: proposingSize)
+    } else {
+      return sizeThatFits(proposingSize)
+    }
+    #endif
   }
 }
 

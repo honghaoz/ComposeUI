@@ -131,6 +131,29 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     expect(cachedNode.size) == CGSize(width: 50, height: 50)
   }
 
+  #if canImport(UIKit)
+  func test_contentSizeCategoryChange_recomputesCachedLayout() {
+    // given: a cache node wrapping a test node, laid out at a text size
+    let state = TestNode.State()
+    let cachedNode = ComposeView.LayoutCacheNode(node: TestNode(state: state))
+    let size = CGSize(width: 100, height: 100)
+    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: .large, contentEvaluation: ContentEvaluation()))
+    expect(state.layoutCount) == 1
+
+    // when: laying it out again at the same size and text size
+    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: .large, contentEvaluation: ContentEvaluation()))
+
+    // then: the cached layout is reused
+    expect(state.layoutCount) == 1
+
+    // when: laying it out at the same size and another text size
+    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: .accessibilityExtraLarge, contentEvaluation: ContentEvaluation()))
+
+    // then: the wrapped node lays out again
+    expect(state.layoutCount) == 2
+  }
+  #endif
+
   func test_renderableItems_afterLayout_cachesTheItems() {
     // given: a root wrapping a laid out node that caches its item
     let buildCount = CachingNode.Counter()

@@ -83,7 +83,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 
 # Testing Guidelines
 
-- Test framework is **ChouTiTest** with `XCTestCase` (`expect`, `fail`, etc.). Avoid `XCTFail()`, prefer `fail()`. If no ChouTiTest helper fits, recommend adding one.
+- Test framework is **ChouTiTest** with `XCTestCase` (`expect`, `fail`, etc.). Avoid `XCTFail()` and `XCTSkip`, prefer `fail()` and `skip(_:)`. If no ChouTiTest helper fits, recommend adding one.
 - Test files end with `Tests.swift` and mirror source organization (for example `ComposeNode+Transform.swift` → `ComposeNode+TransformTests.swift`).
 - Name test methods `test_<behavior>`, adding underscore-separated scenario qualifiers as needed (for example `test_userInteraction`, `test_resetForReuse_clearsAttributedString`).
 - Test bodies must use the given/when/then structure, marked with `// given:` / `// when:` / `// then:` comments with short lowercase descriptions. Repeat `// when:` / `// then:` pairs for multi-stage tests. A test with no distinct action (pure assertions) uses `// then:` plus `// given:` when there is setup. An action with no assertable outcome (for example a no-crash smoke action) stacks a `// then:` describing the expectation above the action. Treat a `measure { }` block as the when stage, a measure-only benchmark or profiling loop needs no then stage. See `ComposeView_RefreshTests.test_setNeedsRefresh` for the style.

@@ -64,4 +64,13 @@ class ComposeNodeLayoutContextTests: XCTestCase {
     // then: it asserts, since the pass ids are main thread state
     expect(assertionMessages) == ["ComposeNodeLayoutContext must be created on the main thread"]
   }
+
+  #if canImport(UIKit)
+  func test_contentSizeCategory() {
+    // then: a context made without a text size has an unspecified one, and one made with a text size has it
+    expect(ComposeNodeLayoutContext(scaleFactor: 2).contentSizeCategory) == .unspecified
+    expect(ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: ContentEvaluation()).contentSizeCategory) == .unspecified
+    expect(ComposeNodeLayoutContext(scaleFactor: 2, contentSizeCategory: .extraLarge, contentEvaluation: ContentEvaluation()).contentSizeCategory) == .extraLarge
+  }
+  #endif
 }
