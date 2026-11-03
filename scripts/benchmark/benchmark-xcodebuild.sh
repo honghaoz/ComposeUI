@@ -122,5 +122,5 @@ benchmark_run_on_simulator() { # <package dir> <derived data dir> <selected test
   done < "$3"
   (cd "$1" && TEST_RUNNER_SWIFT_DETERMINISTIC_HASHING=1 xcodebuild test-without-building \
     -scheme "$SCHEME" -destination "$DESTINATION" -derivedDataPath "$2" -configuration Release -enableCodeCoverage NO \
-    -parallel-testing-enabled NO ${only_testing[@]+"${only_testing[@]}"})
+    -parallel-testing-enabled NO -collect-test-diagnostics never ${only_testing[@]+"${only_testing[@]}"})
 }
