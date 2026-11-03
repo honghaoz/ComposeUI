@@ -1,9 +1,0 @@
-// The signing of the UIKit playground, with the maintainer's team, so that the playground runs on a device after cloning.
-//
-// To sign with another team, put its DEVELOPMENT_TEAM and a PRODUCT_BUNDLE_IDENTIFIER that it can register, such as
-// this one with the team's ID at the end, in Signing.local.xcconfig next to this file, which git ignores.
-
-DEVELOPMENT_TEAM = M6R26D765N
-PRODUCT_BUNDLE_IDENTIFIER = io.chouti.ComposeUIPlayground-iOS
-
-#include? "Signing.local.xcconfig"

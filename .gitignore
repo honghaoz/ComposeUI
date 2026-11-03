@@ -11,7 +11,7 @@ Icon?
 **/xcuserdata/*.xcuserdatad/*.*
 **/xcuserdata/*.xcuserdatad/xcdebugger
 **/xcuserdata/*.xcuserdatad/xcschemes
-Signing.local.xcconfig
+*.local.xcconfig
 
 ## Xcode Bookmarks
 !**/xcuserdata/*.xcuserdatad/Bookmarks
