@@ -1,0 +1,17 @@
+// A copy of this file named ComposeUIPlayground.local.xcconfig, which git ignores, overrides the settings of
+// ComposeUIPlayground.xcconfig on this machine.
+//
+// To run the UIKit playground on a device, set DEVELOPMENT_TEAM to your team's ID here, instead of in Xcode's Signing &
+// Capabilities tab, which writes it into the project file. This command lists the ID and the name of each team of the
+// accounts in Xcode > Settings > Accounts, including a free personal team:
+//
+//   defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier | grep -E 'teamID|teamName'
+//
+// A paid team's ID is also on the Membership page of developer.apple.com/account. The ID in parentheses in the name of
+// a signing certificate, such as "Apple Development: Name (ABCDE12345)", isn't the team's.
+//
+// The bundle ID ends with the team's ID, since a bundle ID belongs to the first team that registers it, so another team
+// may have the playground's own ID.
+
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+PRODUCT_BUNDLE_IDENTIFIER = io.chouti.ComposeUIPlayground.$(DEVELOPMENT_TEAM)

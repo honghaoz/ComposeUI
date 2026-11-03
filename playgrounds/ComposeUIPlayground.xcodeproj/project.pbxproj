@@ -13,27 +13,17 @@
 
 /* Begin PBXFileReference section */
 		C0DE2000000000000000F001 /* ComposeUIPlayground.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ComposeUIPlayground.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		C0DE2000000000000000F002 /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "ComposéUI.app"; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0DE2000000000000000F002 /* ComposéUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ComposéUI.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		C0DE2000000000000000A701 /* Exceptions for "UIKit" folder in "ComposeUIPlayground-UIKit" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			platformFiltersByRelativePath = {
-				LaunchScreen.storyboard = (
-					ios,
-					xros,
-				);
-				Main.storyboard = (
-					ios,
-					xros,
-				);
-				tvOS/LaunchScreen.storyboard = (
-					tvos,
-				);
-				tvOS/Main.storyboard = (
-					tvos,
-				);
+				LaunchScreen.storyboard = (ios, xros, );
+				Main.storyboard = (ios, xros, );
+				tvOS/LaunchScreen.storyboard = (tvos, );
+				tvOS/Main.storyboard = (tvos, );
 			};
 			target = C0DE2000000000000000E001 /* ComposeUIPlayground-UIKit */;
 		};
@@ -386,6 +376,8 @@
 		};
 		C0DE2000000000000000A903 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = C0DE2000000000000000A340 /* Supporting Files */;
+			baseConfigurationReferenceRelativePath = ComposeUIPlayground.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -406,7 +398,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.chouti.ComposeUIPlayground-iOS";
 				PRODUCT_NAME = ComposeUIPlayground;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator xros xrsimulator";
@@ -421,6 +412,8 @@
 		};
 		C0DE2000000000000000A904 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = C0DE2000000000000000A340 /* Supporting Files */;
+			baseConfigurationReferenceRelativePath = ComposeUIPlayground.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -441,7 +434,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.chouti.ComposeUIPlayground-iOS";
 				PRODUCT_NAME = ComposeUIPlayground;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator xros xrsimulator";
@@ -457,6 +449,8 @@
 		};
 		C0DE2000000000000000A905 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = C0DE2000000000000000A340 /* Supporting Files */;
+			baseConfigurationReferenceRelativePath = ComposeUIPlayground.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -475,7 +469,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.chouti.ComposeUIPlayground-macOS";
 				PRODUCT_NAME = "ComposéUI";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -485,6 +478,8 @@
 		};
 		C0DE2000000000000000A906 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = C0DE2000000000000000A340 /* Supporting Files */;
+			baseConfigurationReferenceRelativePath = ComposeUIPlayground.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -503,7 +498,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.chouti.ComposeUIPlayground-macOS";
 				PRODUCT_NAME = "ComposéUI";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;

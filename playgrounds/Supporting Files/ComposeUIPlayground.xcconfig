@@ -1,0 +1,10 @@
+// The build settings that the playgrounds share.
+//
+// The playgrounds sign with the maintainer's team, so that the UIKit playground runs on a device after cloning. To sign
+// with another team, copy ComposeUIPlayground.local.xcconfig.template to ComposeUIPlayground.local.xcconfig, which git
+// ignores, and set the team there.
+
+DEVELOPMENT_TEAM = M6R26D765N
+PRODUCT_BUNDLE_IDENTIFIER = io.chouti.ComposeUIPlayground
+
+#include? "ComposeUIPlayground.local.xcconfig"
