@@ -66,11 +66,19 @@ class ComposeNodeLayoutContextTests: XCTestCase {
   }
 
   #if canImport(UIKit)
-  func test_contentSizeCategory() {
-    // then: a context made without a text size has an unspecified one, and one made with a text size has it
-    expect(ComposeNodeLayoutContext(scaleFactor: 2).contentSizeCategory) == .unspecified
-    expect(ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: ContentEvaluation()).contentSizeCategory) == .unspecified
-    expect(ComposeNodeLayoutContext(scaleFactor: 2, contentSizeCategory: .extraLarge, contentEvaluation: ContentEvaluation()).contentSizeCategory) == .extraLarge
+  func test_textTraits() {
+    // given: contexts made without a text size and weight, and one made with them
+    let scaleContext = ComposeNodeLayoutContext(scaleFactor: 2)
+    let evaluationContext = ComposeNodeLayoutContext(scaleFactor: 2, contentEvaluation: ContentEvaluation())
+    let textContext = ComposeNodeLayoutContext(scaleFactor: 2, contentSizeCategory: .extraLarge, legibilityWeight: .bold, contentEvaluation: ContentEvaluation())
+
+    // then: the contexts made without them have unspecified ones, and the one made with them has them
+    expect(scaleContext.contentSizeCategory) == .unspecified
+    expect(scaleContext.legibilityWeight) == .unspecified
+    expect(evaluationContext.contentSizeCategory) == .unspecified
+    expect(evaluationContext.legibilityWeight) == .unspecified
+    expect(textContext.contentSizeCategory) == .extraLarge
+    expect(textContext.legibilityWeight) == .bold
   }
   #endif
 }

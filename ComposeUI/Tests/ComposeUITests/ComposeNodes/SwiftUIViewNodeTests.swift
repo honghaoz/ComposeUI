@@ -462,16 +462,44 @@ class SwiftUIViewNodeTests: XCTestCase {
     expect(largest.size.height) == height
   }
 
+  // MARK: - Legibility Weight
+
+  func test_layout_measuresAtTheContextsLegibilityWeight() throws {
+    guard #available(iOS 15.0, tvOS 15.0, *) else {
+      try skip("the measurement pins the text weight from iOS 15 and tvOS 15")
+      return
+    }
+
+    // given: a node whose size fits a line of text
+    let node = SwiftUIViewNode { Text(verbatim: Constants.line) }.fixedSize()
+
+    // when: laying it out at the regular and at the bold text weight, without a text size
+    var regular = node
+    _ = regular.layout(containerSize: Constants.containerSize, context: Self.context(at: .unspecified, legibilityWeight: .regular))
+    var bold = node
+    _ = bold.layout(containerSize: Constants.containerSize, context: Self.context(at: .unspecified, legibilityWeight: .bold))
+
+    // then: the node fits the text at each weight, and is wider in bold
+    expect(regular.size) == Self.size(of: Text(verbatim: Constants.line).environment(\.legibilityWeight, .regular))
+    expect(bold.size) == Self.size(of: Text(verbatim: Constants.line).environment(\.legibilityWeight, .bold))
+    expect(bold.size.width) > regular.size.width
+  }
+
   // MARK: - Helpers
 
-  /// Returns a layout context at a text size.
-  private static func context(at contentSizeCategory: UIContentSizeCategory) -> ComposeNodeLayoutContext {
-    ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: contentSizeCategory, contentEvaluation: ContentEvaluation())
+  /// Returns a layout context at a text size and weight.
+  private static func context(at contentSizeCategory: UIContentSizeCategory, legibilityWeight: UILegibilityWeight = .unspecified) -> ComposeNodeLayoutContext {
+    ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: contentSizeCategory, legibilityWeight: legibilityWeight, contentEvaluation: ContentEvaluation())
+  }
+
+  /// Returns the size of a SwiftUI view in the container size of the tests.
+  private static func size(of view: some SwiftUI.View) -> CGSize {
+    view.sizeThatFits(Constants.containerSize)
   }
 
   /// Returns the height of a SwiftUI view in the container size of the tests.
   private static func height(of view: some SwiftUI.View) -> CGFloat {
-    view.sizeThatFits(Constants.containerSize).height
+    size(of: view).height
   }
 
   // MARK: - Constants
@@ -480,6 +508,9 @@ class SwiftUIViewNodeTests: XCTestCase {
 
     /// A text that wraps in the container's width at every text size.
     static let text = "The quick brown fox jumps over the lazy dog, then naps in the warm afternoon sun."
+
+    /// A text that fits on one line in the container's width.
+    static let line = "Bold text"
 
     /// The container size, tall enough for the text at the largest text size.
     static let containerSize = CGSize(width: 200, height: 1000)
