@@ -112,7 +112,6 @@ scripts/*
 !scripts/download-scripts.sh
 !scripts/benchmark/
 !scripts/hosted-tests/
-!scripts/imports/
 
 # ===== Binaries =====
 bin/jq
