@@ -325,15 +325,20 @@ class BaseScrollViewTests: XCTestCase {
     }
     _ = cancellable
 
-    // when: setting the override theme, clearing it, then moving to a light window
+    // when: setting the override theme
     scrollView.overrideTheme = overrideTheme
 
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+    // then: the theme publisher emits the override theme
+    // the view emits only the last theme set before its scheduled update runs, so each change waits for its theme
+    wait(for: [expectation1], timeout: 3)
 
+    // when: clearing the override theme
     scrollView.overrideTheme = nil
 
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 1e-3))
+    // then: the theme publisher emits the initial theme
+    wait(for: [expectation2], timeout: 3)
 
+    // when: moving to a light window
     #if canImport(AppKit)
     let window2 = TestWindow()
     window2.appearance = NSAppearance(named: .aqua)
@@ -346,8 +351,8 @@ class BaseScrollViewTests: XCTestCase {
     window2.addSubview(scrollView)
     #endif
 
-    // then: the theme publisher emits the override theme, the initial theme, and the new theme
-    waitForExpectations(timeout: 1)
+    // then: the theme publisher emits the new theme
+    wait(for: [expectation3], timeout: 3)
   }
 
   func test_themePublisher_debounce() {
