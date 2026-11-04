@@ -41,7 +41,6 @@ class ComposeView_LegibilityWeightTests: XCTestCase {
   func test_layout_givesNodesTheViewsLegibilityWeight() throws {
     guard #available(iOS 17.0, tvOS 17.0, *) else {
       try skip("trait overrides are available from iOS 17 and tvOS 17")
-      return
     }
 
     // given: a compose view in a window with Bold Text on, with a node that records the text weight of its layouts
@@ -66,7 +65,6 @@ class ComposeView_LegibilityWeightTests: XCTestCase {
   func test_layout_measuresAndRendersAtTheViewsLegibilityWeight() throws {
     guard #available(iOS 17.0, tvOS 17.0, *) else {
       try skip("trait overrides are available from iOS 17 and tvOS 17")
-      return
     }
 
     // given: a window with Bold Text on, and a compose view with a node whose size fits a line of text, which records
@@ -103,7 +101,6 @@ class ComposeView_LegibilityWeightTests: XCTestCase {
   func test_legibilityWeightChange_refreshesWithoutAnimation() throws {
     guard #available(iOS 17.0, tvOS 17.0, *) else {
       try skip("trait overrides are available from iOS 17 and tvOS 17")
-      return
     }
 
     // given: a compose view in a window with Bold Text off, with a node whose size fits a line of text and that

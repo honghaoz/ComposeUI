@@ -164,7 +164,7 @@ class CALayer_AnchoredTransformTests: XCTestCase {
 
   func test_updateTransform_withATiming_keyframesPreferAHighFrameRate() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
-      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+      try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
     }
 
     // given: a layer at rest, whose anchor point is at its center

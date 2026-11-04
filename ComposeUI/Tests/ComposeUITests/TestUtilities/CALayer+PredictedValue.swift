@@ -28,9 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
-import QuartzCore
-
 import ChouTiTest
+
+import QuartzCore
 
 @testable import ComposeUI
 

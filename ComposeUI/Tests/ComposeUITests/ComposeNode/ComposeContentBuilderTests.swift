@@ -1084,7 +1084,7 @@ class ComposeContentBuilderTests: XCTestCase {
   #if compiler(>=6.2)
   func test_taskStartedImmediatelyInALoop_buildsItsContentApartFromTheLoopsPendingNodes() async throws {
     guard #available(macOS 26.0, iOS 26.0, tvOS 26.0, visionOS 26.0, *) else {
-      throw XCTSkip("Task.immediate needs macOS 26, iOS 26, tvOS 26 or visionOS 26")
+      try skip("Task.immediate needs macOS 26, iOS 26, tvOS 26 or visionOS 26")
     }
 
     // given: a stream that ends when the test lets a task finish its content

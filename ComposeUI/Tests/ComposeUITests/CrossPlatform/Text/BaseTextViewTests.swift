@@ -1257,7 +1257,7 @@ class BaseTextViewTests: XCTestCase {
 
   func test_init_givenTextKit2Container_showsTheText() throws {
     guard #available(iOS 16.0, tvOS 16.0, *) else {
-      throw XCTSkip("text views use TextKit 2 from iOS 16 and tvOS 16")
+      try skip("text views use TextKit 2 from iOS 16 and tvOS 16")
     }
 
     // given: a text view of a given TextKit 2 text container
@@ -1278,7 +1278,7 @@ class BaseTextViewTests: XCTestCase {
 
   func test_numberOfLines_givenTextKit2Container_keepsTheTextKit2TextSystem() throws {
     guard #available(iOS 16.0, tvOS 16.0, *) else {
-      throw XCTSkip("text views use TextKit 2 from iOS 16 and tvOS 16")
+      try skip("text views use TextKit 2 from iOS 16 and tvOS 16")
     }
 
     // given: a TextKit 2 text view, made with an app's own TextKit 2 text container
@@ -1300,7 +1300,7 @@ class BaseTextViewTests: XCTestCase {
 
   func test_lineBreakMode_givenTextKit2Container_keepsTheTextKit2TextSystem() throws {
     guard #available(iOS 16.0, tvOS 16.0, *) else {
-      throw XCTSkip("text views use TextKit 2 from iOS 16 and tvOS 16")
+      try skip("text views use TextKit 2 from iOS 16 and tvOS 16")
     }
 
     // given: a TextKit 2 text view, made with an app's own TextKit 2 text container
@@ -1696,7 +1696,7 @@ class BaseTextViewTests: XCTestCase {
 
   func test_attributedString_textKit2_newText_removesTheUndoActions() throws {
     guard #available(iOS 15.0, *) else {
-      throw XCTSkip("TextKit 2 text containers are available from iOS 15")
+      try skip("TextKit 2 text containers are available from iOS 15")
     }
 
     // given: a typed text view with a TextKit 2 text container
@@ -1714,7 +1714,7 @@ class BaseTextViewTests: XCTestCase {
 
   func test_attributedString_textKit2_textOfTheUsersEdit_keepsTheUndoActions() throws {
     guard #available(iOS 15.0, *) else {
-      throw XCTSkip("TextKit 2 text containers are available from iOS 15")
+      try skip("TextKit 2 text containers are available from iOS 15")
     }
 
     // given: a typed text view with a TextKit 2 text container
@@ -2788,7 +2788,7 @@ class BaseTextViewTests: XCTestCase {
   #if canImport(UIKit)
   func test_resetForReuse_keepingTextNodeSettings_textContainerViewKeepsClipping() throws {
     guard #available(iOS 16.0, *) else {
-      throw XCTSkip("the text view clips its text container view from iOS 16")
+      try skip("the text view clips its text container view from iOS 16")
     }
 
     // given: a text view in a window, showing a text

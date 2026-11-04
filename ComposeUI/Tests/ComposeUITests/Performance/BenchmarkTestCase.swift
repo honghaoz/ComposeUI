@@ -76,7 +76,7 @@ class BenchmarkTestCase: XCTestCase {
       self.failIfUnreported(wasSkipped: self.testRun?.hasBeenSkipped == true)
     }
     #else
-    throw XCTSkip("benchmarks run only in the benchmark build, see `make -C ComposeUI benchmark`")
+    try skip("benchmarks run only in the benchmark build, see `make -C ComposeUI benchmark`")
     #endif
   }
 

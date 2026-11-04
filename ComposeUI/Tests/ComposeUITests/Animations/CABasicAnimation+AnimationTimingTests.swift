@@ -88,7 +88,7 @@ class CABasicAnimation_AnimationTimingTests: XCTestCase {
 
   func test_makeAnimation_prefersAHighFrameRate() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
-      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+      try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
     }
 
     // when: making animations of a timing function, of a spring and of a zero duration

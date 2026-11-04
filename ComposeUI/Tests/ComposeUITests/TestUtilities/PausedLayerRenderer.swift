@@ -30,9 +30,10 @@
 
 #if canImport(AppKit)
 
+import ChouTiTest
+
 import Metal
 import QuartzCore
-import XCTest
 
 /// Renders a white layer over black through `CARenderer` on a paused timeline, to read the opacity that shows on
 /// screen, which `presentation()` doesn't report for stacked opacity animations.
@@ -53,7 +54,7 @@ final class PausedLayerRenderer {
   /// - Parameter time: The time to pause the timeline at.
   init(time: CFTimeInterval) throws {
     guard let device = MTLCreateSystemDefaultDevice(), let commandQueue = device.makeCommandQueue() else {
-      throw XCTSkip("rendering through CARenderer requires a Metal device")
+      try skip("rendering through CARenderer requires a Metal device")
     }
     let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 4, height: 4, mipmapped: false)
     descriptor.usage = [.renderTarget, .shaderRead]

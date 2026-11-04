@@ -188,7 +188,7 @@ class BenchmarkTestCaseTests: XCTestCase {
 
   func test_measure_emptyBlock_countsAlmostNoInstructions() throws {
     // given: a benchmark harness on a machine that counts instructions
-    try XCTSkipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
+    try skipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
     let harness = BenchmarkTestCase()
 
     // when: measuring a block that does nothing
@@ -201,7 +201,7 @@ class BenchmarkTestCaseTests: XCTestCase {
 
   func test_measure_threadsStartedInTheMeasuredIterations_countAlmostNoInstructions() throws {
     // given: a benchmark harness on a machine that counts instructions
-    try XCTSkipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
+    try skipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
     let harness = BenchmarkTestCase()
     var threadEnds: [DispatchSemaphore] = []
     defer {
@@ -369,7 +369,7 @@ class BenchmarkTestCaseTests: XCTestCase {
   func test_instructionCounter_skipsTheInstructionsOfOtherThreads() throws {
     // given: another thread that allocates 100,000 objects when it's told to, which retires millions of instructions, on
     // a machine that counts instructions
-    try XCTSkipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
+    try skipIf(InstructionCounter.current() == nil, "the instructions can't be counted on this machine")
     let start = DispatchSemaphore(value: 0)
     let done = DispatchSemaphore(value: 0)
     let thread = Thread {
