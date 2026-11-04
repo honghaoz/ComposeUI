@@ -253,9 +253,13 @@ class CALayer_DisableActionsTests: XCTestCase {
       let queue = DispatchQueue(label: "test_disableAllActions_backgroundThread")
       let expectation = expectation(description: "assertion triggered")
       queue.async { [layer] in
+        // the queue's thread has no run loop to commit an implicit transaction, which would commit when the thread
+        // exits, in the middle of a later test, and remove the animations of its layers, so the change commits here
+        CATransaction.begin()
         layer.disableActions { [layer] in
           layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
         }
+        CATransaction.commit()
         expectation.fulfill()
       }
 
