@@ -875,7 +875,7 @@ class TextNodeTests: XCTestCase {
 
   #if canImport(AppKit)
   func test_labelItem_prefetch_drawsTheLabelAheadOfTime() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a compose view in a window at a scale of 2, with the workers paused, and the item of a label with a themed
     // text and settings
@@ -917,7 +917,7 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_labelItem_prefetch_viewOutOfAWindow_drawsNothing() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a compose view out of a window, and a label's item
     let contentView = ComposeView()
@@ -951,7 +951,7 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_labelItem_update_givesTheLabelTheViewsImageCache() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a compose view in a window, showing rows of labels
     let (renderer, contentView) = try makeLabelRowsView()
@@ -970,7 +970,7 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_scroll_labelsThatScrollIn_showTheirImages() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a rendered compose view in a window, showing rows of labels, which drew the labels below ahead of time
     let (renderer, contentView) = try makeLabelRowsView()
@@ -996,7 +996,7 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_scroll_labelsOfTheSameTextThatScrollIn_showTheImageOfTheText() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a rendered compose view in a window, which makes a label for each row that scrolls in instead of reusing one,
     // showing rows of labels of the same text, which drew the labels below ahead of time
@@ -1027,7 +1027,7 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_scroll_reusedLabelsOfTheSameText_showTheImageOfTheText() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a rendered compose view in a window, showing rows of labels of the same text, which drew the labels below
     // ahead of time
@@ -1057,7 +1057,7 @@ class TextNodeTests: XCTestCase {
   }
 
   func test_refresh_labelsThatChangeInTheRegion_drawTheirTextsThemselves() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a rendered compose view in a window, showing rows of labels with a text in a variable, which drew the labels
     // below ahead of time

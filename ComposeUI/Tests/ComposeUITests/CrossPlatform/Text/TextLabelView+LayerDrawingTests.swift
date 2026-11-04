@@ -130,7 +130,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_textChange_switchesBetweenTheLayerAndAppKit_inTheSamePixelsAsAppKit() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text in its layer
     let (renderer, labelView) = try Self.makeLabel(Case(name: "plain", text: Self.text("Row 12 title")))
@@ -156,7 +156,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_textChange_inTheLayer_drawsTheNewText_inTheSamePixelsAsAppKit() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text in its layer
     let (renderer, labelView) = try Self.makeLabel(Case(name: "plain", text: Self.text("Row 12 title")))
@@ -174,7 +174,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_resize_drawsInTheNewSize_inTheSamePixelsAsAppKit() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text that wraps in its layer
     let text = Self.text("A paragraph that wraps across several lines in the label.")
@@ -190,7 +190,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_settingsChange_drawsAgain_inTheSamePixelsAsAppKit() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text in its layer
     let text = Self.text("A paragraph that wraps across several lines in the label.")
@@ -208,7 +208,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_appearanceChange_drawsTheDynamicColorsOfTheNewAppearance() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window in the light appearance, drawing a text in the label color in its layer
     let text = Self.text("Label color", [.foregroundColor: NSColor.labelColor, .font: NSFont.systemFont(ofSize: 20)])
@@ -226,7 +226,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_displayRequest_drawsTheTextAgain_inTheSamePixelsAsAppKit() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text in its layer, in a color that changes without a new appearance, as a
     // system color does when the user picks another one
@@ -247,7 +247,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_changedCoordinates_drawThroughAppKit_untilChangedBack() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // the changes of the label's coordinates, or of an ancestor's, that AppKit draws into the view's drawing, with the
     // changes that put them back exactly
@@ -305,7 +305,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_magnification_drawsThroughAppKit_untilMagnifiedBack() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a scroll view in a window, drawing a text in its layer
     let renderer = try WindowRenderer(size: CGSize(width: 200, height: 64))
@@ -338,7 +338,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_backingScaleChange_drawsAtTheNewScale() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window on a Retina screen, drawing a text in its layer
     let (renderer, labelView) = try Self.makeLabel(Case(name: "plain", text: Self.text("Row 12 title")), size: CGSize(width: 120, height: 20))
@@ -414,7 +414,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   // MARK: - Drawing Layer
 
   func test_drawingLayer_changesWithoutImplicitAnimations() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text in its layer
     let (renderer, labelView) = try Self.makeLabel(Case(name: "plain", text: Self.text("Row 12 title")))
@@ -433,7 +433,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_drawingLayer_drawsBelowTheLabelsSublayers_inTheSamePixelsAsAppKit() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text with an emoji through AppKit, with an opaque sublayer over part of it
     let (renderer, labelView) = try Self.makeLabel(Case(name: "emoji", text: Self.text("Party \u{1F389}")))
@@ -509,7 +509,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   // MARK: - Display Marks
 
   func test_textChange_marksTheDrawingLayer_insteadOfTheView() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text in its layer, with nothing marked for display
     let (_, labelView) = Self.makeSettledLabel(text: Self.text("Row 12 title"))
@@ -527,7 +527,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_settingsChange_marksTheDrawingLayer_insteadOfTheView() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     let changes: [(name: String, change: (TextLabelView) -> Void)] = [
       ("number of lines", { $0.numberOfLines = 1 }),
@@ -551,7 +551,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_resize_marksTheDrawingLayer_insteadOfTheView() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text in its layer, with nothing marked for display
     let (_, labelView) = Self.makeSettledLabel(text: Self.text("Row 12 title"))
@@ -570,7 +570,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_drawingThroughAppKit_afterDrawingInTheLayer_textChangeAndResize_markTheView() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window, drawing a text in its layer, which a resize doesn't mark the view for
     let (window, labelView) = Self.makeSettledLabel(text: Self.text("Row 12 title"))
@@ -603,7 +603,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_appKitDisplayRequests_whileTheLabelDrawsInItsLayer_markTheView() throws {
-    try XCTSkipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
 
     // given: a label in a window in the light appearance, drawing a text in its layer, with nothing marked for display
     let (window, labelView) = Self.makeSettledLabel(text: Self.text("Row 12 title"))
@@ -630,7 +630,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   // MARK: - Drawing Ahead of Time
 
   func test_imageDrawnAhead_drawsTheSamePixelsAsAppKit() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // the scales, the color spaces and the appearances that a worker draws an image for, as the drawing layer draws
     for scale: CGFloat in [2, 1] {
@@ -658,7 +658,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_imageDrawnAhead_showsWithoutTheTextStorage() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label in a window, and a cache that drew the label's text ahead of time
     let testCase = Case(name: "plain", text: Self.text("Row 12 title"))
@@ -689,7 +689,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_imageDrawnAhead_afterTheLabelChanges_drawsTheTextItself() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // the changes of the label's settings and size after it gets the text, which the image wasn't drawn for
     let changes: [(name: String, change: (TextLabelView) -> Void)] = [
@@ -719,7 +719,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_imageDrawnAhead_afterTheLabelsSizeChanges_showsTheImageOfTheNewSize() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label that took an image drawn ahead of time for its text, and a cache that also drew the text at another
     // size
@@ -746,7 +746,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_imageDrawnAhead_windowColorSpaceChange_drawsTheTextInTheNewColorSpace() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label in an sRGB window, showing an image drawn ahead of time of a text in a red that sRGB can't show
     let testCase = Case(name: "Display P3 red", text: Self.text("Row 12 title", [.foregroundColor: Self.displayP3Red]))
@@ -768,7 +768,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_imageDrawnAhead_systemColorsChangeBeforeTheLabelShowsIt_drawsTheTextItself() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label that took an image drawn ahead of time for its text in a system color
     let testCase = Case(name: "system blue", text: Self.text("System blue", [.foregroundColor: NSColor.systemBlue]))
@@ -789,7 +789,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_imageDrawnAhead_labelThatDisplaysAgainWithItsText_showsTheImageFromTheCache() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label in a window that drew its text itself, and a cache that drew the label's text ahead of time, as for
     // another label of the same text
@@ -812,7 +812,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_resultDrawnAhead_textThatAppKitDraws_drawsThroughAppKit() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label in a window, and a cache that found the label's text drawn by AppKit
     let testCase = Case(name: "strikethrough", text: Self.text("Struck through", [.strikethroughStyle: NSUnderlineStyle.single.rawValue]))
@@ -830,7 +830,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_resultDrawnAhead_sizeWithoutPixels_drawsTheTextItself() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label without pixels in a window, and a cache that drew the label's text ahead of time
     let testCase = Case(name: "plain", text: Self.text("Row 12 title"))
@@ -847,7 +847,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_resultDrawnAhead_labelOutOfAWindow_takesNoResult() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label that left its window, and a cache that drew the label's text for the window
     let testCase = Case(name: "plain", text: Self.text("Row 12 title"))
@@ -867,7 +867,7 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
   }
 
   func test_imageCache_withoutTheLabelsDrawing_drawsTheTextItself() throws {
-    try XCTSkipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
+    try skipUnless(TextLabelImageCache.isSupported, "labels draw ahead of time only on the systems that the tests verify")
 
     // given: a label in a window, with a cache that didn't draw its text
     let (renderer, labelView) = try Self.makeLabel(Case(name: "empty", text: NSAttributedString()))

@@ -38,7 +38,7 @@ class CAAnimation_FrameRateTests: XCTestCase {
 
   func test_applyPreferredFrameRateRange() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
-      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+      try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
     }
 
     // given: an animation without a frame rate range
@@ -54,7 +54,7 @@ class CAAnimation_FrameRateTests: XCTestCase {
 
   func test_applyPreferredFrameRateRange_lowerRange() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
-      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+      try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
     }
 
     // given: a lower preferred frame rate range
@@ -75,7 +75,7 @@ class CAAnimation_FrameRateTests: XCTestCase {
 
   func test_applyPreferredFrameRateRange_defaultRange_leavesTheAnimationsRange() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
-      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+      try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
     }
 
     // given: the default range, which leaves the rate to Core Animation, and an animation that asks for 60 Hz

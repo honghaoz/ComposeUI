@@ -133,7 +133,7 @@ class CALayer_AdditivePathTests: XCTestCase {
 
   func test_animatePath_prefersAHighFrameRate() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
-      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+      try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
     }
 
     // given: a shape layer

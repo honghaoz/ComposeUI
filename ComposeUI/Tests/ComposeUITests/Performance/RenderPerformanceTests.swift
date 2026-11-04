@@ -305,7 +305,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
   /// ```
   func test_profile_scroll_nested() throws {
     // given: profiling is enabled and a compose view with 10000 nested rows is laid out
-    try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
+    try skipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
 
     let view = ComposeView {
       VStack {
@@ -347,7 +347,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
   /// ```
   func test_profile_scroll_flatLayers() throws {
     // given: profiling is enabled and a compose view with 10000 flat small color rows is laid out
-    try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
+    try skipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
 
     let view = ComposeView {
       VStack {
@@ -388,7 +388,7 @@ class RenderPerformanceTests: BenchmarkTestCase {
   /// ```
   func test_profile_scroll_viewRows() throws {
     // given: profiling is enabled and a compose view with 10000 view rows, pooled per the REUSE flag, is laid out
-    try XCTSkipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
+    try skipUnless(ProcessInfo.processInfo.environment["PROFILE"] == "1", "profiling is skipped by default, run with PROFILE=1")
 
     let pooled = ProcessInfo.processInfo.environment["REUSE"] == "1"
 

@@ -413,7 +413,6 @@ class SwiftUIViewNodeTests: XCTestCase {
   func test_layout_measuresAtTheContextsContentSizeCategory() throws {
     guard #available(iOS 15.0, tvOS 15.0, *) else {
       try skip("Dynamic Type sizes are available from iOS 15 and tvOS 15")
-      return
     }
 
     // given: a node whose height fits wrapping text
@@ -444,7 +443,6 @@ class SwiftUIViewNodeTests: XCTestCase {
   func test_layout_contentWithItsOwnDynamicTypeSize_keepsIt() throws {
     guard #available(iOS 15.0, tvOS 15.0, *) else {
       try skip("Dynamic Type sizes are available from iOS 15 and tvOS 15")
-      return
     }
 
     // given: a node whose height fits wrapping text that sets its own text size
@@ -467,7 +465,6 @@ class SwiftUIViewNodeTests: XCTestCase {
   func test_layout_measuresAtTheContextsLegibilityWeight() throws {
     guard #available(iOS 15.0, tvOS 15.0, *) else {
       try skip("the measurement pins the text weight from iOS 15 and tvOS 15")
-      return
     }
 
     // given: a node whose size fits a line of text

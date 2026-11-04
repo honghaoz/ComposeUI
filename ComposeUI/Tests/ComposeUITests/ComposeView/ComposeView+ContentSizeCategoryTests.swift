@@ -41,7 +41,6 @@ class ComposeView_ContentSizeCategoryTests: XCTestCase {
   func test_layout_measuresAndRendersAtTheViewsContentSizeCategory() throws {
     guard #available(iOS 17.0, tvOS 17.0, *) else {
       try skip("trait overrides are available from iOS 17 and tvOS 17")
-      return
     }
 
     // given: a window at the largest text size, and a compose view with a node whose height fits wrapping text, which
@@ -81,7 +80,6 @@ class ComposeView_ContentSizeCategoryTests: XCTestCase {
   func test_layout_givesNodesTheViewsContentSizeCategory() throws {
     guard #available(iOS 17.0, tvOS 17.0, *) else {
       try skip("trait overrides are available from iOS 17 and tvOS 17")
-      return
     }
 
     // given: a compose view in a window at the largest text size, with a node that records the text size of its layouts
@@ -106,7 +104,6 @@ class ComposeView_ContentSizeCategoryTests: XCTestCase {
   func test_contentSizeCategoryChange_refreshesWithoutAnimation() throws {
     guard #available(iOS 17.0, tvOS 17.0, *) else {
       try skip("trait overrides are available from iOS 17 and tvOS 17")
-      return
     }
 
     // given: a compose view in a window at the smallest text size, with a node whose height fits wrapping text and that
@@ -159,7 +156,6 @@ class ComposeView_ContentSizeCategoryTests: XCTestCase {
   func test_sizeThatFits_measuresAtTheViewsContentSizeCategory() throws {
     guard #available(iOS 17.0, tvOS 17.0, *) else {
       try skip("trait overrides are available from iOS 17 and tvOS 17")
-      return
     }
 
     // given: a compose view in a window at the largest text size, with a node whose height fits wrapping text

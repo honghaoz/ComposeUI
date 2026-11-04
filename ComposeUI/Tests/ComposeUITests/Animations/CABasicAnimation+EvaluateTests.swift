@@ -283,7 +283,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
     for timingFunction in timingFunctions {
       for fraction in stride(from: 0.0, through: 1.0, by: 0.01) {
         guard let expected = timingFunction.privateSolveForInput(fraction) else {
-          throw XCTSkip("Core Animation's private _solveForInput: is unavailable, see test_solveForInput_privateImplementationIsAvailable")
+          try skip("Core Animation's private _solveForInput: is unavailable, see test_solveForInput_privateImplementationIsAvailable")
         }
         expect(timingFunction.solveForInput(fraction)).to(beApproximatelyEqual(to: expected, within: 1e-4))
       }
@@ -316,7 +316,7 @@ class CABasicAnimation_EvaluateTests: XCTestCase {
 
       for fraction in stride(from: 0.0, through: 1.0, by: 0.01) {
         guard let expected = animation.privateSolveForInput(fraction) else {
-          throw XCTSkip("Core Animation's private _solveForInput: is unavailable, see test_solveForInput_privateImplementationIsAvailable")
+          try skip("Core Animation's private _solveForInput: is unavailable, see test_solveForInput_privateImplementationIsAvailable")
         }
         expect(animation.solveForInput(fraction)).to(beApproximatelyEqual(to: expected, within: 1e-3))
       }

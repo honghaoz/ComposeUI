@@ -38,7 +38,7 @@ class AnimationsTests: XCTestCase {
 
   func test_preferredFrameRateRange() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
-      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+      try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
     }
 
     // then: the animations ask for 80 to 120 Hz, preferring 120 Hz, by default
@@ -58,7 +58,7 @@ class AnimationsTests: XCTestCase {
 
   func test_preferredFrameRateRange_setOffTheMainThread_asserts() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
-      throw XCTSkip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
+      try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")
     }
 
     // given: a test assertion failure handler

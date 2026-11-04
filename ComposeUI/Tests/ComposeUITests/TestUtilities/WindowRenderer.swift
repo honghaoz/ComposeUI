@@ -30,9 +30,10 @@
 
 #if canImport(AppKit)
 
+import ChouTiTest
+
 import AppKit
 import Metal
-import XCTest
 
 /// A window with a view to render through `CARenderer`, which shows the pixels that the window shows, including the
 /// contents that AppKit draws for a layer-backed view, which `CALayer.render(in:)` draws again instead.
@@ -92,7 +93,7 @@ final class WindowRenderer {
   ///     screen's, so the pixels are the same on each machine.
   init(size: CGSize, scale: CGFloat = 2, colorSpace: NSColorSpace = .sRGB) throws {
     guard let device = MTLCreateSystemDefaultDevice(), let commandQueue = device.makeCommandQueue() else {
-      throw XCTSkip("rendering through CARenderer requires a Metal device")
+      try skip("rendering through CARenderer requires a Metal device")
     }
     self.commandQueue = commandQueue
     self.colorSpace = colorSpace

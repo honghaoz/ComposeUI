@@ -28,9 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
-import CoreGraphics
-
 import ChouTiTest
+
+import CoreGraphics
 
 extension CGColor {
 
