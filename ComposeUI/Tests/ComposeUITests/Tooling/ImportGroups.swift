@@ -170,9 +170,10 @@ enum ImportGroups {
   /// that contain only imports, and after the `#if` lines that wrap the whole file, whose `#endif` lines end it. Those
   /// stay above the imports with a blank line after them, and their `#endif` lines get a blank line before them. Another
   /// `#if` before the imports, such as one around a platform's part of the file, starts the code, which leaves the file
-  /// alone. A comment in an `#if` block of imports moves with the block. A comment between imports, an `#if` block that
-  /// imports modules of different groups, a line with more than an import and a comment, or an import after a block
-  /// comment on its line, makes the imports unsupported, as the grouping doesn't know where it belongs.
+  /// alone. A comment in an `#if` block of imports moves with the block, and a comment on an import's line moves with the
+  /// import. A comment between imports, an `#if` block that imports modules of different groups, a line with more than
+  /// an import and a comment, or an import with a block comment that spans lines, makes the imports unsupported, as the
+  /// grouping doesn't know where it belongs.
   ///
   /// - Parameters:
   ///   - text: The file's text.
@@ -198,9 +199,6 @@ enum ImportGroups {
       let line = lines[index]
       if isBlank(line) {
         index += 1
-      } else if let module = importedModule(line) {
-        items.append(Item(lines: [line], modules: [module], isBlock: false, line: index + 1))
-        index += 1
       } else if isDirective(line, "#if") {
         switch importBlock(lines, from: index) {
         case .imports(let end, let modules):
@@ -218,20 +216,24 @@ enum ImportGroups {
             break scan
           }
         }
-      } else if let next = lineAfterComment(lines, at: index) {
-        if importFollows(lines, from: next) {
-          return .unsupported(line: index + 1, reason: "a comment between imports")
-        } else {
+      } else {
+        switch lineKind(lines, at: index) {
+        case .comment(let next):
+          if importFollows(lines, from: next) {
+            return .unsupported(line: index + 1, reason: "a comment between imports")
+          } else {
+            codeStart = index
+            break scan
+          }
+        case .import(let module):
+          items.append(Item(lines: [line], modules: [module], isBlock: false, line: index + 1))
+          index += 1
+        case .unsupportedImport(let reason):
+          return .unsupported(line: index + 1, reason: reason)
+        case .code:
           codeStart = index
           break scan
         }
-      } else if restAfterImportKeyword(line) != nil {
-        return .unsupported(line: index + 1, reason: Constants.unreadableImportReason)
-      } else if let end = importAfterBlockComment(lines, at: index) {
-        return .unsupported(line: end + 1, reason: Constants.importAfterBlockCommentReason)
-      } else {
-        codeStart = index
-        break scan
       }
     }
 
@@ -325,14 +327,108 @@ enum ImportGroups {
     let line: Int
   }
 
-  /// Returns the module that a line imports, `nil` for a line that isn't an import.
+  /// What a line is, from its code without its comments.
+  private enum LineKind {
+
+    /// A blank line or comments, with the index of the line after them.
+    case comment(next: Int)
+
+    /// An import of a module, with its submodules, such as `UIKit.UIGestureRecognizerSubclass`.
+    case `import`(String)
+
+    /// An import that can't be grouped, with why.
+    case unsupportedImport(String)
+
+    /// Code that isn't an import.
+    case code
+  }
+
+  /// Returns what a line is, from its code without its comments.
   ///
-  /// - Parameter line: The line.
-  /// - Returns: The module, with its submodules, such as `UIKit.UIGestureRecognizerSubclass`.
-  private static func importedModule(_ line: String) -> String? {
-    guard var rest = restAfterImportKeyword(line) else {
-      return nil
+  /// A block comment that goes on past the line makes the lines it spans part of the line: they're comments when the
+  /// line has no code, and an import on the line can't be grouped, as it can't move without them.
+  ///
+  /// - Parameters:
+  ///   - lines: The file's lines.
+  ///   - index: The index of the line.
+  /// - Returns: What the line is.
+  private static func lineKind(_ lines: [String], at index: Int) -> LineKind {
+    let span = codeSpan(lines, at: index)
+    if isBlank(span.text) {
+      return .comment(next: span.end + 1)
+    } else if let rest = restAfterImportKeyword(span.text) {
+      if span.end > index || span.depth > 0 {
+        return .unsupportedImport(Constants.importWithAMultilineCommentReason)
+      } else if let module = importedModule(after: rest) {
+        return .import(module)
+      } else {
+        return .unsupportedImport(Constants.unreadableImportReason)
+      }
+    } else {
+      return .code
     }
+  }
+
+  /// Returns the code of a line, read on through the lines that a block comment on it spans while there's no code.
+  ///
+  /// - Parameters:
+  ///   - lines: The file's lines.
+  ///   - index: The index of the line.
+  /// - Returns: The code, the index of the last line read, and the depth of the block comments open at its end.
+  private static func codeSpan(_ lines: [String], at index: Int) -> (text: String, end: Int, depth: Int) {
+    var depth = 0
+    var end = index
+    var text = code(of: lines[index], depth: &depth)
+    while isBlank(text), depth > 0, end + 1 < lines.count {
+      end += 1
+      text += code(of: lines[end], depth: &depth)
+    }
+    return (text, end, depth)
+  }
+
+  /// Returns the code of a line, with each of its comments replaced by a space.
+  ///
+  /// String literals aren't recognized: a `//` or a `/*` in one ends the code early, which leaves a line of code a line
+  /// of code, as the code before it isn't blank.
+  ///
+  /// - Parameters:
+  ///   - line: The line.
+  ///   - depth: The depth of the block comments, which nest in Swift, that are open at the start of the line, set to
+  ///     the depth at its end.
+  /// - Returns: The line's code.
+  private static func code(of line: String, depth: inout Int) -> String {
+    var code = ""
+    var rest = Substring(line)
+    while let character = rest.first {
+      if rest.hasPrefix("/*") {
+        if depth == 0 {
+          code.append(" ")
+        }
+        depth += 1
+        rest = rest.dropFirst(2)
+      } else if depth > 0 {
+        if rest.hasPrefix("*/") {
+          depth -= 1
+          rest = rest.dropFirst(2)
+        } else {
+          rest = rest.dropFirst()
+        }
+      } else if rest.hasPrefix("//") {
+        break
+      } else {
+        code.append(character)
+        rest = rest.dropFirst()
+      }
+    }
+    return code
+  }
+
+  /// Returns the module that an import imports, `nil` when more code follows the module, such as a second import.
+  ///
+  /// - Parameter rest: The import's code after its `import` keyword, without its comments.
+  /// - Returns: The module, with its submodules, such as `UIKit.UIGestureRecognizerSubclass`.
+  private static func importedModule(after rest: Substring) -> String? {
+    var rest = rest
     for kind in Constants.importKinds where rest.hasPrefix(kind) && rest.dropFirst(kind.count).first?.isWhitespace == true {
       rest = rest.dropFirst(kind.count).drop(while: \.isWhitespace)
       break
@@ -345,23 +441,19 @@ enum ImportGroups {
       module = rest.prefix(module.count + 1 + component.count)
       tail = tail.dropFirst(1 + component.count)
     }
-    tail = tail.drop(while: \.isWhitespace)
-    if tail.hasPrefix("/*"), let close = tail.range(of: "*/") {
-      tail = tail[close.upperBound...].drop(while: \.isWhitespace)
-    }
-    guard tail.isEmpty || tail.hasPrefix("//") else {
+    guard tail.allSatisfy(\.isWhitespace) else {
       return nil
     }
     return String(module)
   }
 
-  /// Returns the rest of a line after its `import` keyword, `nil` for a line that doesn't start with one after its
-  /// attributes.
+  /// Returns the rest of the code of a line after its `import` keyword, `nil` for code that doesn't start with one after
+  /// its attributes.
   ///
-  /// - Parameter line: The line.
-  /// - Returns: The rest of the line, without its leading whitespace.
-  private static func restAfterImportKeyword(_ line: String) -> Substring? {
-    var rest = line.drop(while: \.isWhitespace)
+  /// - Parameter code: The code of the line, without its comments.
+  /// - Returns: The rest of the code, without its leading whitespace.
+  private static func restAfterImportKeyword(_ code: String) -> Substring? {
+    var rest = code.drop(while: \.isWhitespace)
     while rest.first == "@" {
       rest = rest.dropFirst().drop(while: isIdentifierCharacter)
       if rest.first == "(" {
@@ -415,17 +507,18 @@ enum ImportGroups {
         if depth == 0 {
           return modules.isEmpty ? .other : .imports(end: index, modules: modules)
         }
-      } else if let next = lineAfterComment(lines, at: index) {
-        index = next
-        continue
-      } else if let module = importedModule(line) {
-        modules.append(module)
-      } else if restAfterImportKeyword(line) != nil {
-        return .unsupported(lineIndex: index, reason: Constants.unreadableImportReason)
-      } else if let end = importAfterBlockComment(lines, at: index) {
-        return .unsupported(lineIndex: end, reason: Constants.importAfterBlockCommentReason)
       } else if !isDirective(line, "#elseif"), !isDirective(line, "#else") {
-        return .other
+        switch lineKind(lines, at: index) {
+        case .comment(let next):
+          index = next
+          continue
+        case .import(let module):
+          modules.append(module)
+        case .unsupportedImport(let reason):
+          return .unsupported(lineIndex: index, reason: reason)
+        case .code:
+          return .other
+        }
       }
       index += 1
     }
@@ -455,6 +548,9 @@ enum ImportGroups {
       } else if let next = lineAfterComment(lines, at: index) {
         // comments are skipped before the quotes are counted, as the quotes in a comment don't open a string
         index = next
+      } else if line.drop(while: \.isWhitespace).hasPrefix("/*") {
+        // a block comment with code after it is skipped with that code, so that a directive in the comment isn't counted
+        index = codeSpan(lines, at: index).end + 1
       } else {
         if togglesString {
           isInString = true
@@ -492,15 +588,18 @@ enum ImportGroups {
   /// - Returns: Whether an import follows.
   private static func importFollows(_ lines: [String], from index: Int) -> Bool {
     var next = index
-    while next < lines.count, let after = lineAfterComment(lines, at: next) {
-      next = after
+    while next < lines.count {
+      switch lineKind(lines, at: next) {
+      case .comment(let after):
+        next = after
+      case .import,
+           .unsupportedImport:
+        return true
+      case .code:
+        return isDirective(lines[next], "#if") && importBlock(lines, from: next) != .other
+      }
     }
-    guard next < lines.count else {
-      return false
-    }
-    return restAfterImportKeyword(lines[next]) != nil
-      || importAfterBlockComment(lines, at: next) != nil
-      || (isDirective(lines[next], "#if") && importBlock(lines, from: next) != .other)
+    return false
   }
 
   /// Returns the lines of a text with each run of imports sorted.
@@ -511,12 +610,12 @@ enum ImportGroups {
     var lines = text.components(separatedBy: "\n")
     var start = 0
     while start < lines.count {
-      guard importedModule(lines[start]) != nil else {
+      guard isImport(lines, at: start) else {
         start += 1
         continue
       }
       var end = start
-      while end < lines.count, importedModule(lines[end]) != nil {
+      while end < lines.count, isImport(lines, at: end) {
         end += 1
       }
       lines[start ..< end].sort()
@@ -540,65 +639,40 @@ enum ImportGroups {
     return next == nil || next == "(" || next?.isWhitespace == true
   }
 
-  /// Returns the index of the line after the blank line, the line comment or the block comment at a line, `nil` for a
-  /// line of code, or for a block comment with an import after it on its last line, which isn't only a comment.
+  /// Returns the index of the line after the blank line or the comments at a line, `nil` for a line with code.
   ///
   /// A block comment is skipped whole, as the lines in it, such as the code of a template, aren't the file's.
   ///
   /// - Parameters:
   ///   - lines: The file's lines.
   ///   - index: The index of the line.
-  /// - Returns: The index of the line after the comment.
+  /// - Returns: The index of the line after the comments.
   private static func lineAfterComment(_ lines: [String], at index: Int) -> Int? {
-    let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
-    if trimmed.isEmpty || trimmed.hasPrefix("//") {
-      return index + 1
-    } else if let end = blockCommentEnd(lines, at: index), restAfterImportKeyword(String(end.rest)) == nil {
-      return end.line + 1
-    } else {
+    switch lineKind(lines, at: index) {
+    case .comment(let next):
+      return next
+    case .import,
+         .unsupportedImport,
+         .code:
       return nil
     }
   }
 
-  /// Returns the index of the line where the block comment at a line ends, when an import follows the comment on that
-  /// line, as in `/* views */ import UIKit`.
+  /// Returns whether a line is an import that can be grouped.
   ///
   /// - Parameters:
   ///   - lines: The file's lines.
   ///   - index: The index of the line.
-  /// - Returns: The index of the line where the comment ends, `nil` when the line doesn't start a block comment or no
-  ///   import follows it.
-  private static func importAfterBlockComment(_ lines: [String], at index: Int) -> Int? {
-    guard let end = blockCommentEnd(lines, at: index), restAfterImportKeyword(String(end.rest)) != nil else {
-      return nil
+  /// - Returns: Whether the line is an import.
+  private static func isImport(_ lines: [String], at index: Int) -> Bool {
+    switch lineKind(lines, at: index) {
+    case .import:
+      return true
+    case .comment,
+         .unsupportedImport,
+         .code:
+      return false
     }
-    return end.line
-  }
-
-  /// Returns where the block comment at a line ends.
-  ///
-  /// - Parameters:
-  ///   - lines: The file's lines.
-  ///   - index: The index of the line.
-  /// - Returns: The index of the line where the comment ends, the last line when it doesn't end, with the rest of that
-  ///   line after the comment, `nil` for a line that doesn't start a block comment.
-  private static func blockCommentEnd(_ lines: [String], at index: Int) -> (line: Int, rest: Substring)? {
-    let trimmed = lines[index].drop(while: \.isWhitespace)
-    guard trimmed.hasPrefix("/*") else {
-      return nil
-    }
-    var end = index
-    var text = trimmed.dropFirst(2)
-    var close = text.range(of: "*/")
-    while close == nil, end + 1 < lines.count {
-      end += 1
-      text = Substring(lines[end])
-      close = text.range(of: "*/")
-    }
-    guard let close else {
-      return (end, "")
-    }
-    return (end, text[close.upperBound...])
   }
 
   /// Returns whether a line is blank.
@@ -627,7 +701,8 @@ enum ImportGroups {
     /// Why an import that can't be read makes the imports unsupported.
     static let unreadableImportReason = "a line with more than an import and a comment"
 
-    /// Why an import after a block comment on its line makes the imports unsupported.
-    static let importAfterBlockCommentReason = "an import after a block comment on its line"
+    /// Why an import with a block comment that spans lines makes the imports unsupported, as the import can't move
+    /// without the comment's other lines.
+    static let importWithAMultilineCommentReason = "an import with a block comment that spans lines"
   }
 }

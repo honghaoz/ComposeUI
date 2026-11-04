@@ -254,7 +254,8 @@ class ImportGroupsTests: XCTestCase {
   }
 
   func test_group_fileWideIf_withDirectivesInACommentAndAString_endsAtItsEndif() {
-    // given: a file in an #if block, with an #endif in a block comment and an #if in a multiline string literal
+    // given: a file in an #if block, with an #endif in a block comment, an #if in a multiline string literal, and an
+    // #endif in a block comment with code after it
     let text = #"""
     #if canImport(UIKit)
     import UIKit
@@ -265,14 +266,17 @@ class ImportGroupsTests: XCTestCase {
     let sample = """
     #if DEBUG
     """
+    /* the end:
+     #endif
+     */ let end = 1
     #endif
     """#
 
     // when: grouping its imports
     let outcome = ImportGroups.group(text, config: Constants.config)
 
-    // then: the directives in the comment and the string aren't the file's, so the #if wraps the file, with a blank line
-    // after it and one before its #endif
+    // then: the directives in the comments and the string aren't the file's, so the #if wraps the file, with a blank
+    // line after it and one before its #endif
     expect(outcome) == .grouped(#"""
     #if canImport(UIKit)
 
@@ -284,6 +288,9 @@ class ImportGroupsTests: XCTestCase {
     let sample = """
     #if DEBUG
     """
+    /* the end:
+     #endif
+     */ let end = 1
 
     #endif
     """#)
@@ -536,6 +543,42 @@ class ImportGroupsTests: XCTestCase {
     """)
   }
 
+  func test_group_commentsOnAnImportsLine_moveWithIt() {
+    // given: a local module's import with a comment between its attribute and its keyword, before system frameworks'
+    // imports with comments on their lines: a block comment before the import, two, a nested one, and one in place of
+    // the space before the module, and an #if block with an import after a block comment
+    let text = """
+    @testable /* for the internals */ import ComposeUI
+    /* the views */ import UIKit
+    /* the layers */ /* and more */ import QuartzCore
+    /* the store /* of data */ */ import CoreData
+    import/* the basics */Foundation
+    #if canImport(AppKit)
+    /* the views */ import AppKit
+    #endif
+
+    let x = 1
+    """
+
+    // when: grouping its imports
+    let outcome = ImportGroups.group(text, config: Constants.config)
+
+    // then: each import goes in its module's group, with the comments on its line
+    expect(outcome) == .grouped("""
+    #if canImport(AppKit)
+    /* the views */ import AppKit
+    #endif
+    /* the views */ import UIKit
+    /* the layers */ /* and more */ import QuartzCore
+    /* the store /* of data */ */ import CoreData
+    import/* the basics */Foundation
+
+    @testable /* for the internals */ import ComposeUI
+
+    let x = 1
+    """)
+  }
+
   func test_group_fileWideIf_withQuotesInAComment_endsAtItsEndif() {
     // given: a file in an #if block, with three quotes in a documentation comment
     let text = #"""
@@ -733,8 +776,7 @@ class ImportGroupsTests: XCTestCase {
   }
 
   func test_group_lineWithMoreThanAnImport_inAnIfBlock_isUnsupported() {
-    // given: an #if block with two imports on a line, and one with an import whose block comment goes on to the next
-    // line, before other imports
+    // given: an #if block with two imports on a line, before other imports
     let twoImports = """
     #if canImport(UIKit)
     import UIKit; import SwiftUI
@@ -744,7 +786,29 @@ class ImportGroupsTests: XCTestCase {
 
     let x = 1
     """
-    let commentOnTwoLines = """
+
+    // then: the imports can't be grouped, as for a line outside an #if block
+    expect(ImportGroups.group(twoImports, config: Constants.config)) == .unsupported(line: 2, reason: "a line with more than an import and a comment")
+  }
+
+  func test_group_importWithAMultilineBlockComment_isUnsupported() {
+    // given: an import on the last line of a block comment that starts on an earlier line, an import whose block
+    // comment goes on to the next line, and the same in an #if block before another import
+    let commentBefore = """
+    import ComposeUI
+    /* the views,
+     and more */ import UIKit
+
+    let x = 1
+    """
+    let commentAfter = """
+    import ComposeUI
+    import UIKit /* the views,
+     and more */
+
+    let x = 1
+    """
+    let inAnIfBlock = """
     import ComposeUI
     #if canImport(UIKit)
     import UIKit /* the views,
@@ -755,50 +819,10 @@ class ImportGroupsTests: XCTestCase {
     let x = 1
     """
 
-    // then: the imports can't be grouped, as for a line outside an #if block
-    expect(ImportGroups.group(twoImports, config: Constants.config)) == .unsupported(line: 2, reason: "a line with more than an import and a comment")
-    expect(ImportGroups.group(commentOnTwoLines, config: Constants.config)) == .unsupported(line: 3, reason: "a line with more than an import and a comment")
-  }
-
-  func test_group_importAfterABlockComment_isUnsupported() {
-    // given: an import after a block comment on its line, after an import, on the last line of a block comment that
-    // starts on an earlier line, in an #if block before another import, and after a line comment
-    let afterAnImport = """
-    import ComposeUI
-    /* the views */ import UIKit
-
-    let x = 1
-    """
-    let onTheLastLine = """
-    import ComposeUI
-    /* the views,
-     and more */ import UIKit
-
-    let x = 1
-    """
-    let inAnIfBlock = """
-    import ComposeUI
-    #if canImport(UIKit)
-    /* the views */ import UIKit
-    #endif
-    import Foundation
-
-    let x = 1
-    """
-    let afterALineComment = """
-    import ComposeUI
-    // the views
-    /* the views */ import UIKit
-
-    let x = 1
-    """
-
-    // then: the imports can't be grouped, as the comment before the import can belong to the lines before it, like a
-    // comment between imports
-    expect(ImportGroups.group(afterAnImport, config: Constants.config)) == .unsupported(line: 2, reason: "an import after a block comment on its line")
-    expect(ImportGroups.group(onTheLastLine, config: Constants.config)) == .unsupported(line: 3, reason: "an import after a block comment on its line")
-    expect(ImportGroups.group(inAnIfBlock, config: Constants.config)) == .unsupported(line: 3, reason: "an import after a block comment on its line")
-    expect(ImportGroups.group(afterALineComment, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
+    // then: the imports can't be grouped, as the import can't move without the comment's other lines
+    expect(ImportGroups.group(commentBefore, config: Constants.config)) == .unsupported(line: 2, reason: "an import with a block comment that spans lines")
+    expect(ImportGroups.group(commentAfter, config: Constants.config)) == .unsupported(line: 2, reason: "an import with a block comment that spans lines")
+    expect(ImportGroups.group(inAnIfBlock, config: Constants.config)) == .unsupported(line: 3, reason: "an import with a block comment that spans lines")
   }
 
   func test_group_ifBlockOfModulesOfDifferentGroups_isUnsupported() {
