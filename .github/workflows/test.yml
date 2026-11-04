@@ -81,7 +81,7 @@ jobs:
         # a manual run of one simulator platform tests only that platform
         platform: ${{ fromJSON(contains(fromJSON('["iOS", "tvOS", "visionOS"]'), inputs.platform) && format('["{0}"]', inputs.platform) || '["iOS", "tvOS", "visionOS"]') }}
     timeout-minutes: 30
-    runs-on: ${{ inputs.runner || (contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS) || vars.MACOS }}
+    runs-on: ${{ inputs.runner || (!inputs.xcode-version && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS) || vars.MACOS }}
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ inputs.xcode-version || (!inputs.runner && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}.app/Contents/Developer
     steps:
@@ -120,8 +120,7 @@ jobs:
         timeout-minutes: ${{ runner.environment == 'self-hosted' && 10 || 30 }}
         run: make test-hosted-ci OS=${{ matrix.platform }} PHASE=test -C ComposeUI
 
-      # A self-hosted runner's simulators stay booted after the job, taking memory and processor time from the next
-      # jobs, such as the benchmarks, which time their runs.
+      # shut down simulators only on self-hosted runners to avoid simulators taking memory and processor time after the job.
       - name: Shut down simulators
         if: ${{ always() && runner.environment == 'self-hosted' }}
         continue-on-error: true

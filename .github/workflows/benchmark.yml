@@ -38,7 +38,7 @@ permissions:
 
 env:
   TERM: xterm-256color
-  DEVELOPER_DIR: /Applications/Xcode_${{ vars.SELF_HOSTED_XCODE_VERSION || vars.XCODE_VERSION }}.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_${{ (vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}.app/Contents/Developer
   TIME_THRESHOLD: 10
 
 jobs:
@@ -65,10 +65,11 @@ jobs:
         uses: ./.github/actions/cache
         with:
           kind: benchmark-${{ matrix.platform }}
-          xcode-version: ${{ vars.SELF_HOSTED_XCODE_VERSION || vars.XCODE_VERSION }}
+          xcode-version: ${{ (vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
       - name: Compare against the base
+        timeout-minutes: ${{ runner.environment == 'self-hosted' && 20 || 60 }}
         env:
           # a pull request checks out GitHub's merge of its head into the base branch's current commit, so the merge's
           # first parent is the base that the head side builds on. the event's base sha stays at the commit the branch
@@ -78,3 +79,9 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           INSTRUCTIONS_THRESHOLD: ${{ matrix.instructions-threshold }}
         run: make benchmark-compare -C ComposeUI BASE="$BASE" PLATFORM="$PLATFORM" TIME_THRESHOLD="$TIME_THRESHOLD" INSTRUCTIONS_THRESHOLD="$INSTRUCTIONS_THRESHOLD" SUMMARY="$GITHUB_STEP_SUMMARY"
+
+      # shut down simulators only on self-hosted runners to avoid simulators taking memory and processor time after the job.
+      - name: Shut down simulators
+        if: ${{ always() && runner.environment == 'self-hosted' }}
+        continue-on-error: true
+        run: xcrun simctl shutdown all
