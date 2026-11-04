@@ -12,10 +12,10 @@ on:
   workflow_dispatch: # manual trigger
     inputs:
       runner:
-        description: "The label of the runner to run on. Empty uses the MACOS variable."
+        description: "The label of the runner to run on. Empty uses the default runner."
         required: false
       xcode-version:
-        description: "The Xcode version on the runner, at /Applications/Xcode_<version>.app. Empty uses the XCODE_VERSION variable."
+        description: "The Xcode version on the runner, at /Applications/Xcode_<version>.app. Empty uses the default Xcode version."
         required: false
       platform:
         description: "The platform to test."
@@ -81,7 +81,9 @@ jobs:
         # a manual run of one simulator platform tests only that platform
         platform: ${{ fromJSON(contains(fromJSON('["iOS", "tvOS", "visionOS"]'), inputs.platform) && format('["{0}"]', inputs.platform) || '["iOS", "tvOS", "visionOS"]') }}
     timeout-minutes: 30
-    runs-on: ${{ inputs.runner || vars.MACOS }}
+    runs-on: ${{ inputs.runner || (!inputs.xcode-version && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS) || vars.MACOS }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.xcode-version || (!inputs.runner && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}.app/Contents/Developer
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -89,7 +91,7 @@ jobs:
         uses: ./.github/actions/cache
         with:
           kind: test-${{ matrix.platform }}
-          xcode-version: ${{ inputs.xcode-version || vars.XCODE_VERSION }}
+          xcode-version: ${{ inputs.xcode-version || (!inputs.runner && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
 
@@ -103,6 +105,7 @@ jobs:
         id: build-for-testing
         run: make test-ci OS=${{ matrix.platform }} PHASE=build -C ComposeUI
       - name: Test
+        timeout-minutes: ${{ runner.environment == 'self-hosted' && 10 || 30 }}
         run: make test-ci OS=${{ matrix.platform }} PHASE=test -C ComposeUI
 
       # The hosted tests run in an app with a window scene, on the simulator that the Test step booted.
@@ -114,4 +117,11 @@ jobs:
         run: make test-hosted-ci OS=${{ matrix.platform }} PHASE=build -C ComposeUI
       - name: Test hosted
         if: ${{ !cancelled() && steps.build-hosted-tests.outcome == 'success' }}
+        timeout-minutes: ${{ runner.environment == 'self-hosted' && 10 || 30 }}
         run: make test-hosted-ci OS=${{ matrix.platform }} PHASE=test -C ComposeUI
+
+      # shut down simulators only on self-hosted runners to avoid simulators taking memory and processor time after the job.
+      - name: Shut down simulators
+        if: ${{ always() && runner.environment == 'self-hosted' }}
+        continue-on-error: true
+        run: xcrun simctl shutdown all

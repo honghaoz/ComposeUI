@@ -6,10 +6,6 @@
 # them, a benchmark that a side doesn't report once in every round, and a skipped test. A real Mac counts instructions,
 # but GitHub's virtual machines don't. Times only warn, since they depend on the runner's load.
 #
-# The BENCHMARK_MACOS and BENCHMARK_XCODE_VERSION repository variables move the job to a runner of its own, such as a
-# self-hosted Mac, which counts instructions, and to the Xcode installed there. Without them, the job runs where the
-# other workflows run.
-#
 # It isn't a required check: the path filter keeps it from reporting on pull requests outside its paths, which a
 # required check would block.
 
@@ -42,8 +38,7 @@ permissions:
 
 env:
   TERM: xterm-256color
-  DEVELOPER_DIR: /Applications/Xcode_${{ vars.BENCHMARK_XCODE_VERSION || vars.XCODE_VERSION }}.app/Contents/Developer
-  # the slowdown past which a time warns, a little above the noise on the machine that BENCHMARK_MACOS selects
+  DEVELOPER_DIR: /Applications/Xcode_${{ (vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}.app/Contents/Developer
   TIME_THRESHOLD: 10
 
 jobs:
@@ -52,15 +47,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # the increase past which instructions regress, a little above each platform's noise on the machine
         include:
           - platform: macOS
             instructions-threshold: 3
           - platform: iOS
             instructions-threshold: 1.5
-    # two release builds and 5 rounds of each side take about 26 minutes on macOS on a GitHub runner's 3 virtual cores
     timeout-minutes: 60
-    runs-on: ${{ vars.BENCHMARK_MACOS || vars.MACOS }}
+    runs-on: ${{ vars.SELF_HOSTED_MACOS || vars.MACOS }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -72,10 +65,11 @@ jobs:
         uses: ./.github/actions/cache
         with:
           kind: benchmark-${{ matrix.platform }}
-          xcode-version: ${{ vars.BENCHMARK_XCODE_VERSION || vars.XCODE_VERSION }}
+          xcode-version: ${{ (vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
       - name: Compare against the base
+        timeout-minutes: ${{ runner.environment == 'self-hosted' && 20 || 60 }}
         env:
           # a pull request checks out GitHub's merge of its head into the base branch's current commit, so the merge's
           # first parent is the base that the head side builds on. the event's base sha stays at the commit the branch
@@ -85,3 +79,9 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           INSTRUCTIONS_THRESHOLD: ${{ matrix.instructions-threshold }}
         run: make benchmark-compare -C ComposeUI BASE="$BASE" PLATFORM="$PLATFORM" TIME_THRESHOLD="$TIME_THRESHOLD" INSTRUCTIONS_THRESHOLD="$INSTRUCTIONS_THRESHOLD" SUMMARY="$GITHUB_STEP_SUMMARY"
+
+      # shut down simulators only on self-hosted runners to avoid simulators taking memory and processor time after the job.
+      - name: Shut down simulators
+        if: ${{ always() && runner.environment == 'self-hosted' }}
+        continue-on-error: true
+        run: xcrun simctl shutdown all
